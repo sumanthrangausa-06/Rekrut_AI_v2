@@ -1,5 +1,5 @@
-import * as React from 'react'
-import { cn } from '@/lib/utils'
+import * as React from 'react';
+import { cn } from '@/lib/utils';
 
 const Separator = React.forwardRef<
 	HTMLDivElement,
@@ -14,7 +14,7 @@ const Separator = React.forwardRef<
 		)}
 		{...props}
 	/>
-))
-Separator.displayName = 'Separator'
+));
+Separator.displayName = 'Separator';
 
-export { Separator }
+export { Separator };

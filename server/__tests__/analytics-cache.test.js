@@ -18,7 +18,9 @@ describe('AnalyticsCache', () => {
 		it('should generate consistent keys from endpoint + query params (instance method)', () => {
 			// This reproduces Issue #186: analyticsCache.key is not a function
 			const cache = new AnalyticsCache();
-			expect(() => cache.key('/api/recruiter/dashboard', { companyId: 42, days: 30 })).not.toThrow();
+			expect(() =>
+				cache.key('/api/recruiter/dashboard', { companyId: 42, days: 30 }),
+			).not.toThrow();
 			expect(typeof cache.key).toBe('function');
 		});
 

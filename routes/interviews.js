@@ -397,7 +397,11 @@ router.post(
 
 			// Upload to R2
 			const formData = new FormData();
-			formData.append('file', new Blob([req.file.buffer], { type: req.file.mimetype }), `interview-${interview_id}-q${question_index}.webm`);
+			formData.append(
+				'file',
+				new Blob([req.file.buffer], { type: req.file.mimetype }),
+				`interview-${interview_id}-q${question_index}.webm`,
+			);
 
 			const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
 				method: 'POST',

@@ -89,7 +89,12 @@ router.post(
 			yearsAhead,
 		});
 
-		const sessionId = await saveSession(req.user.id, 'career_path', { targetRole, yearsAhead }, result);
+		const sessionId = await saveSession(
+			req.user.id,
+			'career_path',
+			{ targetRole, yearsAhead },
+			result,
+		);
 		await incrementUsage(req.user.id, 'ai_coaching');
 
 		res.json({
@@ -171,7 +176,12 @@ router.post(
 
 		const result = await generateLearningPath(req.user.id, { targetRole, focusSkills });
 
-		const sessionId = await saveSession(req.user.id, 'learning_path', { targetRole, focusSkills }, result);
+		const sessionId = await saveSession(
+			req.user.id,
+			'learning_path',
+			{ targetRole, focusSkills },
+			result,
+		);
 		await incrementUsage(req.user.id, 'ai_coaching');
 
 		res.json({
@@ -200,9 +210,12 @@ router.post(
 	asyncHandler(async (req, res) => {
 		const { companyId } = req.body;
 
-		const { result, company, trustscore, feedback, activeJobs } = await generateCompanyBrief(req.user.id, {
-			companyId,
-		});
+		const { result, company, trustscore, feedback, activeJobs } = await generateCompanyBrief(
+			req.user.id,
+			{
+				companyId,
+			},
+		);
 
 		const sessionId = await saveSession(req.user.id, 'company_research', { companyId }, result);
 		await incrementUsage(req.user.id, 'ai_coaching');
@@ -273,11 +286,14 @@ router.post(
 	asyncHandler(async (req, res) => {
 		const { jobId, coverLetter, answers } = req.body;
 
-		const { result, job, originalCoverLetter, originalAnswers } = await optimizeApplication(req.user.id, {
-			jobId,
-			coverLetter,
-			answers,
-		});
+		const { result, job, originalCoverLetter, originalAnswers } = await optimizeApplication(
+			req.user.id,
+			{
+				jobId,
+				coverLetter,
+				answers,
+			},
+		);
 
 		const sessionId = await saveSession(req.user.id, 'application_optimize', { jobId }, result);
 		await incrementUsage(req.user.id, 'ai_coaching');
@@ -342,10 +358,15 @@ router.post(
 			targetSalary,
 		});
 
-		const sessionId = await saveSession(req.user.id, 'salary_practice', { jobId, offeredSalary, targetSalary }, {
-			ai_message: result.ai_message,
-			tips: result.tips,
-		});
+		const sessionId = await saveSession(
+			req.user.id,
+			'salary_practice',
+			{ jobId, offeredSalary, targetSalary },
+			{
+				ai_message: result.ai_message,
+				tips: result.tips,
+			},
+		);
 		await incrementUsage(req.user.id, 'ai_coaching');
 
 		// Persist to salary_practice_sessions
@@ -362,7 +383,9 @@ router.post(
 				offeredSalary,
 				targetSalary,
 				marketBenchmark,
-				JSON.stringify([{ role: 'ai', text: result.ai_message, timestamp: new Date().toISOString() }]),
+				JSON.stringify([
+					{ role: 'ai', text: result.ai_message, timestamp: new Date().toISOString() },
+				]),
 			],
 		);
 
@@ -374,7 +397,10 @@ router.post(
 			scenarioSetup: result.scenario_setup || '',
 			tips: result.tips || [],
 			suggestedOpeners: result.suggested_openers || [],
-			marketContext: result.market_context || { benchmark: marketBenchmark, currency: job?.currency_code || 'USD' },
+			marketContext: result.market_context || {
+				benchmark: marketBenchmark,
+				currency: job?.currency_code || 'USD',
+			},
 		});
 	}),
 );
@@ -397,7 +423,8 @@ router.post(
 	],
 	handleValidationErrors,
 	asyncHandler(async (req, res) => {
-		const { sessionId, userMessage, jobId, offeredSalary, targetSalary, conversationHistory } = req.body;
+		const { sessionId, userMessage, jobId, offeredSalary, targetSalary, conversationHistory } =
+			req.body;
 
 		const result = await continueSalaryPractice(req.user.id, {
 			conversationHistory,

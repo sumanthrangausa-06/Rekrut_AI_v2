@@ -1,6 +1,6 @@
-import { useAuth } from '@/contexts/auth-context'
-import { useCallback, useMemo } from 'react'
-import { apiCall } from '@/lib/api'
+import { useCallback, useMemo } from 'react';
+import { useAuth } from '@/contexts/auth-context';
+import { apiCall } from '@/lib/api';
 
 export type FeatureKey =
 	| 'ai_job_matching'
@@ -12,29 +12,34 @@ export type FeatureKey =
 	| 'career_diagnosis'
 	| 'recruiter_intros'
 	| 'ai_coaching'
-	| 'top_matches'
+	| 'top_matches';
 
 export interface FeatureUsage {
-	allowed: boolean
-	limit: number | null
-	used: number
-	remaining: number | null
+	allowed: boolean;
+	limit: number | null;
+	used: number;
+	remaining: number | null;
 }
 
 export function useSubscription() {
-	const { user, refreshSubscription } = useAuth()
+	const { user, refreshSubscription } = useAuth();
 
-	const tier = user?.subscriptionTier || 'free'
-	const isPro = tier === 'pro'
+	const tier = user?.subscriptionTier || 'free';
+	const isPro = tier === 'pro';
 
 	const canUseFeature = useCallback(
 		(feature: FeatureKey): boolean => {
 			if (isPro) {
 				// Pro has access to everything; check rate-limited ones
-				const rateLimited: FeatureKey[] = ['ai_job_matching', 'mock_interviews', 'auto_apply', 'ai_coaching']
-				if (!rateLimited.includes(feature)) return true
+				const rateLimited: FeatureKey[] = [
+					'ai_job_matching',
+					'mock_interviews',
+					'auto_apply',
+					'ai_coaching',
+				];
+				if (!rateLimited.includes(feature)) return true;
 				// Pro rate limits are generous; treat as allowed (server enforces hard limits)
-				return true
+				return true;
 			}
 
 			// Free tier restrictions
@@ -43,7 +48,7 @@ export function useSubscription() {
 				case 'mock_interviews':
 				case 'assessments':
 				case 'ai_coaching':
-					return true
+					return true;
 				case 'auto_apply':
 				case 'cv_review':
 				case 'linkedin_optimizer':
@@ -51,27 +56,27 @@ export function useSubscription() {
 				case 'recruiter_intros':
 				case 'top_matches':
 				default:
-					return false
+					return false;
 			}
 		},
 		[isPro],
-	)
+	);
 
 	const usageFor = useCallback(
 		async (feature: FeatureKey): Promise<FeatureUsage> => {
 			try {
 				const data = await apiCall<{
-					allowed: boolean
-					limit: number | null
-					used: number
-					remaining: number | null
-				}>(`/billing/usage?feature=${feature}`, { skipAuthCheck: false })
+					allowed: boolean;
+					limit: number | null;
+					used: number;
+					remaining: number | null;
+				}>(`/billing/usage?feature=${feature}`, { skipAuthCheck: false });
 				return {
 					allowed: data.allowed,
 					limit: data.limit,
 					used: data.used,
 					remaining: data.remaining,
-				}
+				};
 			} catch {
 				// Fallback: compute client-side based on tier
 				const freeLimits: Record<FeatureKey, number | null> = {
@@ -85,19 +90,19 @@ export function useSubscription() {
 					recruiter_intros: 0,
 					ai_coaching: 5,
 					top_matches: 0,
-				}
-				const limit = isPro ? null : freeLimits[feature]
-				const allowed = canUseFeature(feature)
+				};
+				const limit = isPro ? null : freeLimits[feature];
+				const allowed = canUseFeature(feature);
 				return {
 					allowed,
 					limit,
 					used: 0,
 					remaining: limit !== null && limit !== undefined ? Math.max(0, limit) : null,
-				}
+				};
 			}
 		},
 		[isPro, canUseFeature],
-	)
+	);
 
 	return useMemo(
 		() => ({
@@ -108,5 +113,5 @@ export function useSubscription() {
 			refreshSubscription,
 		}),
 		[tier, isPro, canUseFeature, usageFor, refreshSubscription],
-	)
+	);
 }

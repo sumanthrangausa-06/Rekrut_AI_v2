@@ -1,97 +1,105 @@
-import { useCallback, useEffect, useState } from 'react'
 import {
+	AlertCircle,
+	CheckCircle,
+	Clock,
 	FileSignature,
+	FileText,
+	Loader2,
 	PenTool,
+	Shield,
 	Type,
 	Upload,
-	CheckCircle,
-	XCircle,
-	AlertCircle,
-	FileText,
-	Shield,
-	Loader2,
-	Clock,
 	User,
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { SignatureCanvas } from './SignatureCanvas'
-import { TypedSignature } from './TypedSignature'
-import { SignatureUploader } from './SignatureUploader'
-import { useSignature } from '@/hooks/useSignature'
-import { cn } from '@/lib/utils'
+	XCircle,
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useSignature } from '@/hooks/useSignature';
+import { cn } from '@/lib/utils';
+import { SignatureCanvas } from './SignatureCanvas';
+import { SignatureUploader } from './SignatureUploader';
+import { TypedSignature } from './TypedSignature';
 
-export type SignatureMethod = 'draw' | 'type' | 'upload'
+export type SignatureMethod = 'draw' | 'type' | 'upload';
 
 interface SigningCeremonyProps {
-	documentId: number
-	requestId: number
+	documentId: number;
+	requestId: number;
 }
 
-type CeremonyState = 'loading' | 'ready' | 'submitting' | 'success' | 'error' | 'declined'
+type CeremonyState = 'loading' | 'ready' | 'submitting' | 'success' | 'error' | 'declined';
 
 export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps) {
-	const { getDocument, recordView, sign, decline, loading: apiLoading, error: apiError, clearError } =
-		useSignature()
-	const [state, setState] = useState<CeremonyState>('loading')
-	const [document, setDocument] = useState<ReturnType<typeof getDocument> extends Promise<infer T> ? T : never>(null)
-	const [method, setMethod] = useState<SignatureMethod>('draw')
-	const [signatureValue, setSignatureValue] = useState<string | null>(null)
-	const [agreed, setAgreed] = useState(false)
-	const [declineReason, setDeclineReason] = useState('')
-	const [showDeclineForm, setShowDeclineForm] = useState(false)
+	const {
+		getDocument,
+		recordView,
+		sign,
+		decline,
+		loading: apiLoading,
+		error: apiError,
+		clearError,
+	} = useSignature();
+	const [state, setState] = useState<CeremonyState>('loading');
+	const [document, setDocument] =
+		useState<ReturnType<typeof getDocument> extends Promise<infer T> ? T : never>(null);
+	const [method, setMethod] = useState<SignatureMethod>('draw');
+	const [signatureValue, setSignatureValue] = useState<string | null>(null);
+	const [agreed, setAgreed] = useState(false);
+	const [declineReason, setDeclineReason] = useState('');
+	const [showDeclineForm, setShowDeclineForm] = useState(false);
 
 	// Load document and record view on mount
 	useEffect(() => {
 		async function init() {
-			const doc = await getDocument(documentId)
+			const doc = await getDocument(documentId);
 			if (!doc) {
-				setState('error')
-				return
+				setState('error');
+				return;
 			}
-			setDocument(doc)
-			setState('ready')
+			setDocument(doc);
+			setState('ready');
 			// Record view in background
-			recordView(requestId)
+			recordView(requestId);
 		}
-		init()
-	}, [documentId, requestId, getDocument, recordView])
+		init();
+	}, [documentId, requestId, getDocument, recordView]);
 
 	const handleSignatureChange = useCallback((value: string | null) => {
-		setSignatureValue(value)
-	}, [])
+		setSignatureValue(value);
+	}, []);
 
 	const handleSign = useCallback(async () => {
-		if (!signatureValue || !agreed) return
-		setState('submitting')
-		clearError()
+		if (!signatureValue || !agreed) return;
+		setState('submitting');
+		clearError();
 
 		const result = await sign(requestId, method, signatureValue, {
 			device_fingerprint: `${navigator.userAgent}|${screen.width}x${screen.height}`,
-		})
+		});
 
 		if (result?.success) {
-			setState('success')
+			setState('success');
 		} else {
-			setState('error')
+			setState('error');
 		}
-	}, [signatureValue, agreed, requestId, method, sign, clearError])
+	}, [signatureValue, agreed, requestId, method, sign, clearError]);
 
 	const handleDecline = useCallback(async () => {
-		if (!declineReason.trim()) return
-		setState('submitting')
-		const result = await decline(requestId, declineReason)
+		if (!declineReason.trim()) return;
+		setState('submitting');
+		const result = await decline(requestId, declineReason);
 		if (result?.success) {
-			setState('declined')
+			setState('declined');
 		} else {
-			setState('error')
+			setState('error');
 		}
-	}, [declineReason, requestId, decline])
+	}, [declineReason, requestId, decline]);
 
-	const isSignDisabled = !signatureValue || !agreed || state === 'submitting'
+	const isSignDisabled = !signatureValue || !agreed || state === 'submitting';
 
 	if (state === 'loading' || (state === 'ready' && !document)) {
 		return (
@@ -101,7 +109,7 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 					<p className="text-sm text-muted-foreground">Loading document...</p>
 				</div>
 			</div>
-		)
+		);
 	}
 
 	if (state === 'success') {
@@ -143,7 +151,7 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 					</CardContent>
 				</Card>
 			</div>
-		)
+		);
 	}
 
 	if (state === 'declined') {
@@ -169,12 +177,12 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 					</CardContent>
 				</Card>
 			</div>
-		)
+		);
 	}
 
-	const myRequest = document?.signers?.find((s) => s.id === requestId)
-	const alreadySigned = myRequest?.status === 'signed'
-	const alreadyDeclined = myRequest?.status === 'declined'
+	const myRequest = document?.signers?.find((s) => s.id === requestId);
+	const alreadySigned = myRequest?.status === 'signed';
+	const alreadyDeclined = myRequest?.status === 'declined';
 
 	if (alreadySigned) {
 		return (
@@ -192,7 +200,7 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 					</CardHeader>
 				</Card>
 			</div>
-		)
+		);
 	}
 
 	if (alreadyDeclined) {
@@ -204,13 +212,11 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 							<XCircle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
 						</div>
 						<CardTitle className="text-xl">Already Declined</CardTitle>
-						<CardDescription>
-							You previously declined to sign this document.
-						</CardDescription>
+						<CardDescription>You previously declined to sign this document.</CardDescription>
 					</CardHeader>
 				</Card>
 			</div>
-		)
+		);
 	}
 
 	return (
@@ -221,9 +227,7 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 					<FileSignature className="h-6 w-6 text-primary" />
 				</div>
 				<h1 className="font-heading text-2xl font-bold">Electronic Signature Required</h1>
-				<p className="text-muted-foreground text-sm">
-					Please review and sign the document below
-				</p>
+				<p className="text-muted-foreground text-sm">Please review and sign the document below</p>
 			</div>
 
 			{/* Document Info */}
@@ -233,9 +237,7 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 						<FileText className="h-5 w-5 text-primary" />
 						{document?.title || 'Untitled Document'}
 					</CardTitle>
-					{document?.description && (
-						<CardDescription>{document.description}</CardDescription>
-					)}
+					{document?.description && <CardDescription>{document.description}</CardDescription>}
 				</CardHeader>
 				<CardContent className="space-y-3">
 					<div className="flex flex-wrap gap-4 text-sm">
@@ -243,7 +245,8 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 							<User className="h-4 w-4 text-muted-foreground" />
 							<span className="text-muted-foreground">From:</span>
 							<span className="font-medium">
-								{document?.signers?.find((s) => s.party_role === 'creator')?.full_name || 'Document Sender'}
+								{document?.signers?.find((s) => s.party_role === 'creator')?.full_name ||
+									'Document Sender'}
 							</span>
 						</div>
 						<div className="flex items-center gap-1.5">
@@ -269,10 +272,7 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 						</p>
 						<div className="space-y-1.5">
 							{document?.signers?.map((signer) => (
-								<div
-									key={signer.id}
-									className="flex items-center justify-between text-sm"
-								>
+								<div key={signer.id} className="flex items-center justify-between text-sm">
 									<div className="flex items-center gap-2">
 										<User className="h-3.5 w-3.5 text-muted-foreground" />
 										<span>{signer.full_name}</span>
@@ -306,8 +306,8 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 							size="sm"
 							className="mt-2 h-8 text-red-700"
 							onClick={() => {
-								setState('ready')
-								clearError()
+								setState('ready');
+								clearError();
 							}}
 						>
 							Try Again
@@ -320,9 +320,7 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 			<Card>
 				<CardHeader>
 					<CardTitle className="text-lg">Create Your Signature</CardTitle>
-					<CardDescription>
-						Choose how you would like to sign this document
-					</CardDescription>
+					<CardDescription>Choose how you would like to sign this document</CardDescription>
 				</CardHeader>
 				<CardContent>
 					<Tabs value={method} onValueChange={(v) => setMethod(v as SignatureMethod)}>
@@ -440,8 +438,8 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 								variant="ghost"
 								size="sm"
 								onClick={() => {
-									setShowDeclineForm(false)
-									setDeclineReason('')
+									setShowDeclineForm(false);
+									setDeclineReason('');
 								}}
 							>
 								Cancel
@@ -451,7 +449,7 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 				</Card>
 			)}
 		</div>
-	)
+	);
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -480,13 +478,11 @@ function StatusBadge({ status }: { status: string }) {
 			label: 'Signing',
 			className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 		},
-	}
+	};
 
-	const { label, className } = config[status] || config.pending
+	const { label, className } = config[status] || config.pending;
 
 	return (
-		<span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', className)}>
-			{label}
-		</span>
-	)
+		<span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', className)}>{label}</span>
+	);
 }

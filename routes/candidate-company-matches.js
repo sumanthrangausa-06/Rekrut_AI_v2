@@ -101,10 +101,7 @@ async function buildProfileText(userId) {
 		profile.experience = expResult.rows;
 
 		// Fetch education
-		const eduResult = await client.query(
-			'SELECT * FROM education WHERE user_id = $1',
-			[userId],
-		);
+		const eduResult = await client.query('SELECT * FROM education WHERE user_id = $1', [userId]);
 		profile.education = eduResult.rows;
 
 		if (buildCandidateProfileText) {
@@ -243,16 +240,13 @@ For each company, return a JSON array with objects containing:
 
 Respond ONLY with the JSON array.`;
 
-		const aiResponse = await aiProvider.chatCompletion(
-			[{ role: 'user', content: prompt }],
-			{
-				module: 'company-matching',
-				feature: 'batch-match',
-				maxTokens: 4096,
-				temperature: 0.5,
-				userId: req.user.id,
-			},
-		);
+		const aiResponse = await aiProvider.chatCompletion([{ role: 'user', content: prompt }], {
+			module: 'company-matching',
+			feature: 'batch-match',
+			maxTokens: 4096,
+			temperature: 0.5,
+			userId: req.user.id,
+		});
 
 		const parsed = safeParseJSON(aiResponse);
 		const matchMap = new Map();
@@ -274,8 +268,7 @@ Respond ONLY with the JSON array.`;
 				logo_url: company.logo_url,
 				match_score: typeof aiMatch.match_score === 'number' ? aiMatch.match_score : 50,
 				value_hook: aiMatch.value_hook || `Opportunity at ${company.name}`,
-				match_reason:
-					aiMatch.match_reason || 'Profile may align with company needs.',
+				match_reason: aiMatch.match_reason || 'Profile may align with company needs.',
 				outreach_difficulty: ['easy', 'medium', 'hard'].includes(aiMatch.outreach_difficulty)
 					? aiMatch.outreach_difficulty
 					: 'medium',
@@ -338,16 +331,13 @@ Return JSON with:
 
 Respond ONLY with the JSON object.`;
 
-		const aiResponse = await aiProvider.chatCompletion(
-			[{ role: 'user', content: prompt }],
-			{
-				module: 'company-matching',
-				feature: 'company-analysis',
-				maxTokens: 2048,
-				temperature: 0.5,
-				userId: req.user.id,
-			},
-		);
+		const aiResponse = await aiProvider.chatCompletion([{ role: 'user', content: prompt }], {
+			module: 'company-matching',
+			feature: 'company-analysis',
+			maxTokens: 2048,
+			temperature: 0.5,
+			userId: req.user.id,
+		});
 
 		const parsed = safeParseJSON(aiResponse);
 		if (!parsed || typeof parsed !== 'object') {
@@ -414,16 +404,13 @@ Return JSON with:
 
 Respond ONLY with the JSON object.`;
 
-		const aiResponse = await aiProvider.chatCompletion(
-			[{ role: 'user', content: prompt }],
-			{
-				module: 'company-matching',
-				feature: 'outreach-strategy',
-				maxTokens: 2048,
-				temperature: 0.6,
-				userId: req.user.id,
-			},
-		);
+		const aiResponse = await aiProvider.chatCompletion([{ role: 'user', content: prompt }], {
+			module: 'company-matching',
+			feature: 'outreach-strategy',
+			maxTokens: 2048,
+			temperature: 0.6,
+			userId: req.user.id,
+		});
 
 		const parsed = safeParseJSON(aiResponse);
 		if (!parsed || typeof parsed !== 'object') {

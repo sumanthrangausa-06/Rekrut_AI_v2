@@ -82,10 +82,7 @@ router.get('/:jobId', authMiddleware, requireRecruiter, async (req, res) => {
 		const { limit = 20, offset = 0 } = req.query;
 
 		// Verify recruiter has access to this job's company
-		const jobCheck = await pool.query(
-			`SELECT company_id FROM jobs WHERE id = $1`,
-			[jobId],
-		);
+		const jobCheck = await pool.query(`SELECT company_id FROM jobs WHERE id = $1`, [jobId]);
 		if (jobCheck.rows.length === 0) {
 			return res.status(404).json({ error: 'Job not found' });
 		}
@@ -136,10 +133,7 @@ router.post('/', authMiddleware, requireCompanyOwnerOrRecruiter, async (req, res
 		}
 
 		// Verify recruiter has access to this job
-		const jobCheck = await pool.query(
-			`SELECT company_id FROM jobs WHERE id = $1`,
-			[job_id],
-		);
+		const jobCheck = await pool.query(`SELECT company_id FROM jobs WHERE id = $1`, [job_id]);
 		if (jobCheck.rows.length === 0) {
 			return res.status(404).json({ error: 'Job not found' });
 		}
@@ -215,7 +209,9 @@ router.post('/:id/members', authMiddleware, requireRecruiter, async (req, res) =
 		}
 
 		// Verify user exists
-		const userCheck = await pool.query(`SELECT id, name, email FROM users WHERE id = $1`, [user_id]);
+		const userCheck = await pool.query(`SELECT id, name, email FROM users WHERE id = $1`, [
+			user_id,
+		]);
 		if (userCheck.rows.length === 0) {
 			return res.status(404).json({ error: 'User not found' });
 		}
@@ -273,7 +269,10 @@ router.delete('/:id/members/:userId', authMiddleware, requireRecruiter, async (r
 			}
 		}
 
-		await pool.query(`DELETE FROM panel_members WHERE panel_id = $1 AND user_id = $2`, [id, userId]);
+		await pool.query(`DELETE FROM panel_members WHERE panel_id = $1 AND user_id = $2`, [
+			id,
+			userId,
+		]);
 
 		res.json({ success: true, removed: true });
 	} catch (err) {
@@ -364,7 +363,7 @@ router.post('/:id/scorecards', authMiddleware, verifyPanelMember, async (req, re
 		const { items, overall_recommendation } = req.body;
 
 		// Get or create scorecard
-		let scorecardResult = await pool.query(
+		const scorecardResult = await pool.query(
 			`SELECT * FROM scorecards WHERE panel_id = $1 AND interviewer_id = $2`,
 			[id, req.user.id],
 		);
@@ -381,7 +380,9 @@ router.post('/:id/scorecards', authMiddleware, verifyPanelMember, async (req, re
 		} else {
 			scorecard = scorecardResult.rows[0];
 			if (scorecard.status === 'submitted') {
-				return res.status(400).json({ error: 'Scorecard already submitted and cannot be modified' });
+				return res
+					.status(400)
+					.json({ error: 'Scorecard already submitted and cannot be modified' });
 			}
 		}
 
@@ -429,14 +430,12 @@ router.post('/:id/scorecards', authMiddleware, verifyPanelMember, async (req, re
 		}
 
 		// Fetch updated scorecard with items
-		const updatedResult = await pool.query(
-			`SELECT * FROM scorecards WHERE id = $1`,
-			[scorecard.id],
-		);
-		const itemsResult = await pool.query(
-			`SELECT * FROM scorecard_items WHERE scorecard_id = $1`,
-			[scorecard.id],
-		);
+		const updatedResult = await pool.query(`SELECT * FROM scorecards WHERE id = $1`, [
+			scorecard.id,
+		]);
+		const itemsResult = await pool.query(`SELECT * FROM scorecard_items WHERE scorecard_id = $1`, [
+			scorecard.id,
+		]);
 
 		res.json({
 			scorecard: updatedResult.rows[0],
@@ -464,9 +463,11 @@ router.post('/:id/scorecards/submit', authMiddleware, verifyPanelMember, async (
 			`SELECT criterion_name, required FROM panel_scorecard_criteria WHERE job_id = $1`,
 			[jobId],
 		);
-		const requiredCriteria = criteriaResult.rows.filter((c) => c.required).map((c) => c.criterion_name);
+		const requiredCriteria = criteriaResult.rows
+			.filter((c) => c.required)
+			.map((c) => c.criterion_name);
 
-		let scorecardResult = await pool.query(
+		const scorecardResult = await pool.query(
 			`SELECT * FROM scorecards WHERE panel_id = $1 AND interviewer_id = $2`,
 			[id, req.user.id],
 		);
@@ -493,7 +494,9 @@ router.post('/:id/scorecards/submit', authMiddleware, verifyPanelMember, async (
 				`SELECT criterion_name, rating FROM scorecard_items WHERE scorecard_id = $1`,
 				[scorecard.id],
 			);
-			const ratedCriteria = new Set(itemsResult.rows.filter((i) => i.rating !== null).map((i) => i.criterion_name));
+			const ratedCriteria = new Set(
+				itemsResult.rows.filter((i) => i.rating !== null).map((i) => i.criterion_name),
+			);
 			const missing = requiredCriteria.filter((c) => !ratedCriteria.has(c));
 			if (missing.length > 0) {
 				return res.status(400).json({
@@ -509,7 +512,9 @@ router.post('/:id/scorecards/submit', authMiddleware, verifyPanelMember, async (
 			[scorecard.id],
 		);
 
-		const updatedResult = await pool.query(`SELECT * FROM scorecards WHERE id = $1`, [scorecard.id]);
+		const updatedResult = await pool.query(`SELECT * FROM scorecards WHERE id = $1`, [
+			scorecard.id,
+		]);
 		res.json({ scorecard: updatedResult.rows[0], submitted: true });
 	} catch (err) {
 		console.error('Submit scorecard error:', err);
@@ -542,8 +547,7 @@ router.get('/:id/scorecards', authMiddleware, verifyPanelMember, async (req, res
 		const submittedIds = scorecardsResult.rows
 			.filter((s) => s.status === 'submitted')
 			.map((s) => s.interviewer_id);
-		const allSubmitted =
-			memberIds.length > 0 && memberIds.every((id) => submittedIds.includes(id));
+		const allSubmitted = memberIds.length > 0 && memberIds.every((id) => submittedIds.includes(id));
 
 		if (!allSubmitted) {
 			// Return only submission status, hide actual scores
@@ -609,8 +613,7 @@ router.get('/:id/aggregate', authMiddleware, verifyPanelMember, async (req, res)
 		);
 
 		const submittedIds = scorecardsResult.rows.map((s) => s.interviewer_id);
-		const allSubmitted =
-			memberIds.length > 0 && memberIds.every((id) => submittedIds.includes(id));
+		const allSubmitted = memberIds.length > 0 && memberIds.every((id) => submittedIds.includes(id));
 
 		if (!allSubmitted) {
 			return res.status(403).json({
@@ -762,10 +765,9 @@ router.get('/:id/my-scorecard', authMiddleware, verifyPanelMember, async (req, r
 		}
 
 		const scorecard = scorecardResult.rows[0];
-		const itemsResult = await pool.query(
-			`SELECT * FROM scorecard_items WHERE scorecard_id = $1`,
-			[scorecard.id],
-		);
+		const itemsResult = await pool.query(`SELECT * FROM scorecard_items WHERE scorecard_id = $1`, [
+			scorecard.id,
+		]);
 
 		res.json({ scorecard, items: itemsResult.rows });
 	} catch (err) {
@@ -853,28 +855,33 @@ router.post('/criteria/:jobId', authMiddleware, requireRecruiter, async (req, re
 });
 
 // DELETE /api/panels/criteria/:jobId/:criterionId — delete a criterion
-router.delete('/criteria/:jobId/:criterionId', authMiddleware, requireRecruiter, async (req, res) => {
-	try {
-		const { jobId, criterionId } = req.params;
+router.delete(
+	'/criteria/:jobId/:criterionId',
+	authMiddleware,
+	requireRecruiter,
+	async (req, res) => {
+		try {
+			const { jobId, criterionId } = req.params;
 
-		const jobCheck = await pool.query(`SELECT company_id FROM jobs WHERE id = $1`, [jobId]);
-		if (jobCheck.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
+			const jobCheck = await pool.query(`SELECT company_id FROM jobs WHERE id = $1`, [jobId]);
+			if (jobCheck.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
+			if (req.user.role !== 'admin' && req.user.company_id !== jobCheck.rows[0].company_id) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
+
+			await pool.query(`DELETE FROM panel_scorecard_criteria WHERE id = $1 AND job_id = $2`, [
+				criterionId,
+				jobId,
+			]);
+
+			res.json({ success: true, deleted: true });
+		} catch (err) {
+			console.error('Delete criterion error:', err);
+			res.status(500).json({ error: 'Failed to delete criterion' });
 		}
-		if (req.user.role !== 'admin' && req.user.company_id !== jobCheck.rows[0].company_id) {
-			return res.status(403).json({ error: 'Access denied' });
-		}
-
-		await pool.query(
-			`DELETE FROM panel_scorecard_criteria WHERE id = $1 AND job_id = $2`,
-			[criterionId, jobId],
-		);
-
-		res.json({ success: true, deleted: true });
-	} catch (err) {
-		console.error('Delete criterion error:', err);
-		res.status(500).json({ error: 'Failed to delete criterion' });
-	}
-});
+	},
+);
 
 module.exports = router;

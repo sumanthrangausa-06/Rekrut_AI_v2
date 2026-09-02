@@ -3,16 +3,23 @@ const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
 const pool = require('../lib/db');
-const { authMiddleware, optionalAuth, requireRole, requireApprovedRecruiter, requireNotSuspended } = require('../lib/auth');
+const {
+	authMiddleware,
+	optionalAuth,
+	requireRole,
+	requireApprovedRecruiter,
+	requireNotSuspended,
+} = require('../lib/auth');
 const { requirePermission } = require('../middleware/rbac');
 
 const router = express.Router();
 
 // ponytail: Exclude E2E test data from public listings (#71)
 // Disable in development/E2E testing so test jobs are visible
-const EXCLUDE_TEST_JOBS = process.env.NODE_ENV === 'production'
-	? " AND j.company NOT ILIKE '%E2E%' AND j.title NOT ILIKE '%E2E%'"
-	: '';
+const EXCLUDE_TEST_JOBS =
+	process.env.NODE_ENV === 'production'
+		? " AND j.company NOT ILIKE '%E2E%' AND j.title NOT ILIKE '%E2E%'"
+		: '';
 
 // Validation rules for job search/list queries
 const validateJobSearch = [
@@ -358,56 +365,62 @@ router.post(
 );
 
 // Update job
-router.put('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requirePermission('jobs:update'), async (req, res) => {
-	try {
-		const {
-			title,
-			description,
-			requirements,
-			location,
-			salary_range,
-			job_type,
-			status,
-			screening_questions,
-			department_id,
-		} = req.body;
+router.put(
+	'/:id',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	requirePermission('jobs:update'),
+	async (req, res) => {
+		try {
+			const {
+				title,
+				description,
+				requirements,
+				location,
+				salary_range,
+				job_type,
+				status,
+				screening_questions,
+				department_id,
+			} = req.body;
 
-		// Normalize job_type to lowercase if provided
-		const normalizedUpdateJobType = job_type ? job_type.toLowerCase().trim() : null;
-		if (normalizedUpdateJobType) {
-			const validJobTypes = ['full-time', 'part-time', 'contract', 'internship', 'freelance'];
-			if (!validJobTypes.includes(normalizedUpdateJobType)) {
-				return res
-					.status(400)
-					.json({ error: `Invalid job type. Must be one of: ${validJobTypes.join(', ')}` });
+			// Normalize job_type to lowercase if provided
+			const normalizedUpdateJobType = job_type ? job_type.toLowerCase().trim() : null;
+			if (normalizedUpdateJobType) {
+				const validJobTypes = ['full-time', 'part-time', 'contract', 'internship', 'freelance'];
+				if (!validJobTypes.includes(normalizedUpdateJobType)) {
+					return res
+						.status(400)
+						.json({ error: `Invalid job type. Must be one of: ${validJobTypes.join(', ')}` });
+				}
 			}
-		}
 
-		// Check ownership
-		const existing = await pool.query('SELECT user_id FROM jobs WHERE id = $1', [req.params.id]);
-		if (existing.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
-		}
-		if (existing.rows[0].user_id !== req.user.id && req.user.role !== 'admin') {
-			return res.status(403).json({ error: 'Not authorized' });
-		}
-
-		// Validate department_id if provided
-		if (department_id) {
-			const deptCheck = await pool.query(
-				'SELECT id FROM departments WHERE id = $1 AND company_id = $2',
-				[department_id, req.user.company_id],
-			);
-			if (deptCheck.rows.length === 0) {
-				return res.status(403).json({
-					error: 'Department does not belong to your company',
-					code: 'INVALID_DEPARTMENT',
-				});
+			// Check ownership
+			const existing = await pool.query('SELECT user_id FROM jobs WHERE id = $1', [req.params.id]);
+			if (existing.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
 			}
-		}
+			if (existing.rows[0].user_id !== req.user.id && req.user.role !== 'admin') {
+				return res.status(403).json({ error: 'Not authorized' });
+			}
 
-		const result = await pool.query(
-			`UPDATE jobs SET
+			// Validate department_id if provided
+			if (department_id) {
+				const deptCheck = await pool.query(
+					'SELECT id FROM departments WHERE id = $1 AND company_id = $2',
+					[department_id, req.user.company_id],
+				);
+				if (deptCheck.rows.length === 0) {
+					return res.status(403).json({
+						error: 'Department does not belong to your company',
+						code: 'INVALID_DEPARTMENT',
+					});
+				}
+			}
+
+			const result = await pool.query(
+				`UPDATE jobs SET
         title = COALESCE($1, title),
         description = COALESCE($2, description),
         requirements = COALESCE($3, requirements),
@@ -420,45 +433,53 @@ router.put('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter
         updated_at = NOW()
        WHERE id = $10
        RETURNING *`,
-			[
-				title,
-				description,
-				requirements,
-				location,
-				salary_range,
-				normalizedUpdateJobType,
-				status,
-				screening_questions ? JSON.stringify(screening_questions) : null,
-				department_id !== undefined ? department_id || null : null,
-				req.params.id,
-			],
-		);
+				[
+					title,
+					description,
+					requirements,
+					location,
+					salary_range,
+					normalizedUpdateJobType,
+					status,
+					screening_questions ? JSON.stringify(screening_questions) : null,
+					department_id !== undefined ? department_id || null : null,
+					req.params.id,
+				],
+			);
 
-		res.json({ success: true, job: result.rows[0] });
-	} catch (err) {
-		console.error('Update job error:', err);
-		res.status(500).json({ error: 'Failed to update job' });
-	}
-});
+			res.json({ success: true, job: result.rows[0] });
+		} catch (err) {
+			console.error('Update job error:', err);
+			res.status(500).json({ error: 'Failed to update job' });
+		}
+	},
+);
 
 // Delete job
-router.delete('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requirePermission('jobs:delete'), async (req, res) => {
-	try {
-		const existing = await pool.query('SELECT user_id FROM jobs WHERE id = $1', [req.params.id]);
-		if (existing.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
-		}
-		if (existing.rows[0].user_id !== req.user.id && req.user.role !== 'admin') {
-			return res.status(403).json({ error: 'Not authorized' });
-		}
+router.delete(
+	'/:id',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	requirePermission('jobs:delete'),
+	async (req, res) => {
+		try {
+			const existing = await pool.query('SELECT user_id FROM jobs WHERE id = $1', [req.params.id]);
+			if (existing.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
+			if (existing.rows[0].user_id !== req.user.id && req.user.role !== 'admin') {
+				return res.status(403).json({ error: 'Not authorized' });
+			}
 
-		await pool.query('DELETE FROM jobs WHERE id = $1', [req.params.id]);
-		res.json({ success: true });
-	} catch (err) {
-		console.error('Delete job error:', err);
-		res.status(500).json({ error: 'Failed to delete job' });
-	}
-});
+			await pool.query('DELETE FROM jobs WHERE id = $1', [req.params.id]);
+			res.json({ success: true });
+		} catch (err) {
+			console.error('Delete job error:', err);
+			res.status(500).json({ error: 'Failed to delete job' });
+		}
+	},
+);
 
 // Cartesia TTS cache directory
 const CARTESIA_CACHE_DIR = path.join('/tmp', 'cartesia-cache');

@@ -64,7 +64,7 @@ const HASH_ALG_MAP = {
 function derTlv(tagClass, tagNumber, constructed, value) {
 	const classBits = tagClass << 6;
 	const constructedBit = constructed ? 0x20 : 0x00;
-	let tagByte = classBits | constructedBit | (tagNumber & 0x1f);
+	const tagByte = classBits | constructedBit | (tagNumber & 0x1f);
 	if (tagNumber > 30) {
 		throw new Error('Multi-byte tag numbers not supported');
 	}
@@ -222,12 +222,7 @@ function computeEventHash(eventData, algorithm = 'sha256') {
  * @returns {{ signatureB64: string, signedHash: string, pkcs7Der: Buffer }}
  */
 function createPKCS7DetachedSignature(documentHash, options) {
-	const {
-		privateKey,
-		certPem = null,
-		hashAlg = 'sha256',
-		signingTime = new Date(),
-	} = options;
+	const { privateKey, certPem = null, hashAlg = 'sha256', signingTime = new Date() } = options;
 
 	const hashInfo = HASH_ALG_MAP[hashAlg];
 	if (!hashInfo) {
@@ -237,20 +232,14 @@ function createPKCS7DetachedSignature(documentHash, options) {
 	// 1. Build authenticated attributes (RFC 5652 § 11.2)
 	const digestOctets = Buffer.from(documentHash, 'hex');
 
-	const contentTypeAttr = u.sequence([
-		u.oid(OID.contentType),
-		u.set([u.oid(OID.data)]),
-	]);
+	const contentTypeAttr = u.sequence([u.oid(OID.contentType), u.set([u.oid(OID.data)])]);
 
 	const messageDigestAttr = u.sequence([
 		u.oid(OID.messageDigest),
 		u.set([u.octetString(digestOctets)]),
 	]);
 
-	const authenticatedAttributes = u.set([
-		contentTypeAttr,
-		messageDigestAttr,
-	]);
+	const authenticatedAttributes = u.set([contentTypeAttr, messageDigestAttr]);
 
 	// 2. Sign the authenticated attributes (DER-encoded)
 	const signer = crypto.createSign('RSA-SHA256');
@@ -271,18 +260,12 @@ function createPKCS7DetachedSignature(documentHash, options) {
 			u.integer(Buffer.from('01', 'hex')),
 		]);
 	} else {
-		issuerSerial = u.sequence([
-			u.sequence([]),
-			u.integer(Buffer.from('00', 'hex')),
-		]);
+		issuerSerial = u.sequence([u.sequence([]), u.integer(Buffer.from('00', 'hex'))]);
 	}
 
 	const digestAlgorithm = u.sequence([u.oid(hashInfo.oid), u.null()]);
 
-	const signatureAlgorithm = u.sequence([
-		u.oid(OID.rsaSHA256),
-		u.null(),
-	]);
+	const signatureAlgorithm = u.sequence([u.oid(OID.rsaSHA256), u.null()]);
 
 	const authenticatedAttributesCtx = ctx0([authenticatedAttributes]);
 
@@ -328,10 +311,7 @@ function createPKCS7DetachedSignature(documentHash, options) {
 	}
 
 	// 5. Wrap in ContentInfo { signedData }
-	const pkcs7Der = u.sequence([
-		u.oid(OID.signedData),
-		derTlv(2, 0x00, true, signedDataContent),
-	]);
+	const pkcs7Der = u.sequence([u.oid(OID.signedData), derTlv(2, 0x00, true, signedDataContent)]);
 
 	return {
 		signatureB64: pkcs7Der.toString('base64'),
@@ -354,7 +334,12 @@ function createPKCS7DetachedSignature(documentHash, options) {
  * @param {string} hashAlg — 'sha256' | 'sha384' | 'sha512'
  * @returns {{ valid: boolean, verifiedAt: string, error?: string }}
  */
-function verifyPKCS7DetachedSignature(pkcs7Input, documentHash, publicKeyOrCert, hashAlg = 'sha256') {
+function verifyPKCS7DetachedSignature(
+	pkcs7Input,
+	documentHash,
+	publicKeyOrCert,
+	hashAlg = 'sha256',
+) {
 	try {
 		let pkcs7Der;
 		if (Buffer.isBuffer(pkcs7Input)) {
@@ -383,10 +368,7 @@ function verifyPKCS7DetachedSignature(pkcs7Input, documentHash, publicKeyOrCert,
 		// using the same canonical structure we generate.
 		const digestOctets = Buffer.from(documentHash, 'hex');
 
-		const contentTypeAttr = u.sequence([
-			u.oid(OID.contentType),
-			u.set([u.oid(OID.data)]),
-		]);
+		const contentTypeAttr = u.sequence([u.oid(OID.contentType), u.set([u.oid(OID.data)])]);
 
 		const messageDigestAttr = u.sequence([
 			u.oid(OID.messageDigest),
@@ -405,7 +387,11 @@ function verifyPKCS7DetachedSignature(pkcs7Input, documentHash, publicKeyOrCert,
 		// signatureAlgorithm and then OCTET STRING (the signature value).
 		const sigOctetOffset = findSignatureOctetString(pkcs7Der);
 		if (sigOctetOffset < 0) {
-			return { valid: false, verifiedAt: null, error: 'Could not locate signature value in PKCS#7' };
+			return {
+				valid: false,
+				verifiedAt: null,
+				error: 'Could not locate signature value in PKCS#7',
+			};
 		}
 
 		const { value: sigBytes, nextOffset: _next } = parseDerTlvAt(pkcs7Der, sigOctetOffset);
@@ -563,7 +549,7 @@ function parseDerTlvAt(der, offset) {
 		throw new Error('Offset out of bounds');
 	}
 	const tag = der[offset];
-	let lenByte = der[offset + 1];
+	const lenByte = der[offset + 1];
 	let length;
 	let headerLen = 2;
 	if ((lenByte & 0x80) === 0) {

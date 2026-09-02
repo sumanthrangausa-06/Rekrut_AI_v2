@@ -1,7 +1,7 @@
-const request = require('supertest')
-const app = require('../../server')
-const fs = require('node:fs')
-const path = require('node:path')
+const request = require('supertest');
+const app = require('../../server');
+const fs = require('node:fs');
+const path = require('node:path');
 
 describe('SPA Fallback Routes (Issue #106)', () => {
 	describe('Known SPA routes return 200', () => {
@@ -123,14 +123,14 @@ describe('SPA Fallback Routes (Issue #106)', () => {
 			{ path: '/admin/agent-dashboard', description: 'admin agent dashboard' },
 			{ path: '/admin/analytics', description: 'admin analytics' },
 			{ path: '/admin/email-queue', description: 'admin email queue' },
-		]
+		];
 
 		it.each(knownRoutes)('returns 200 for $description ($path)', async ({ path }) => {
-			const res = await request(app).get(path)
-			expect(res.status).toBe(200)
-			expect(res.text).toContain('<!DOCTYPE html>')
-		})
-	})
+			const res = await request(app).get(path);
+			expect(res.status).toBe(200);
+			expect(res.text).toContain('<!DOCTYPE html>');
+		});
+	});
 
 	describe('Unknown routes return 404', () => {
 		const unknownRoutes = [
@@ -145,46 +145,48 @@ describe('SPA Fallback Routes (Issue #106)', () => {
 			{ path: '/blog/', description: 'blog with trailing slash (no slug)' },
 			{ path: '/signature', description: 'signature without params' },
 			{ path: '/signature/only-one', description: 'signature with one param' },
-		]
+		];
 
 		it.each(unknownRoutes)('returns 404 for $description ($path)', async ({ path }) => {
-			const res = await request(app).get(path)
-			expect(res.status).toBe(404)
-			expect(res.text).toContain('<!DOCTYPE html>')
-		})
-	})
+			const res = await request(app).get(path);
+			expect(res.status).toBe(404);
+			expect(res.text).toContain('<!DOCTYPE html>');
+		});
+	});
 
 	describe('API 404s return JSON 404', () => {
 		it('returns JSON 404 for unknown API endpoints', async () => {
-			const res = await request(app).get('/api/this-does-not-exist')
-			expect(res.status).toBe(404)
-			expect(res.body).toEqual({ error: 'API endpoint not found' })
-		})
+			const res = await request(app).get('/api/this-does-not-exist');
+			expect(res.status).toBe(404);
+			expect(res.body).toEqual({ error: 'API endpoint not found' });
+		});
 
 		it('returns JSON 404 for unknown API endpoints with nested paths', async () => {
-			const res = await request(app).get('/api/foo/bar/baz')
-			expect(res.status).toBe(404)
-			expect(res.body).toEqual({ error: 'API endpoint not found' })
-		})
-	})
+			const res = await request(app).get('/api/foo/bar/baz');
+			expect(res.status).toBe(404);
+			expect(res.body).toEqual({ error: 'API endpoint not found' });
+		});
+	});
 
 	describe('Static assets are served correctly', () => {
 		it('serves an existing static asset from the build with 200', async () => {
 			// Use a known asset from the build directory
-			const assetDir = path.join(__dirname, '..', '..', 'client', 'dist', 'assets')
-			const files = fs.readdirSync(assetDir)
-			const jsFile = files.find((f) => f.endsWith('.js') && !f.endsWith('.br') && !f.endsWith('.gz'))
-			expect(jsFile).toBeTruthy()
+			const assetDir = path.join(__dirname, '..', '..', 'client', 'dist', 'assets');
+			const files = fs.readdirSync(assetDir);
+			const jsFile = files.find(
+				(f) => f.endsWith('.js') && !f.endsWith('.br') && !f.endsWith('.gz'),
+			);
+			expect(jsFile).toBeTruthy();
 
-			const res = await request(app).get(`/assets/${jsFile}`)
-			expect(res.status).toBe(200)
-			expect(res.headers['content-type']).toMatch(/javascript/)
-		})
+			const res = await request(app).get(`/assets/${jsFile}`);
+			expect(res.status).toBe(200);
+			expect(res.headers['content-type']).toMatch(/javascript/);
+		});
 
 		it('returns 404 SPA fallback for non-existent asset paths', async () => {
-			const res = await request(app).get('/assets/this-does-not-exist-12345.js')
-			expect(res.status).toBe(404)
-			expect(res.text).toContain('<!DOCTYPE html>')
-		})
-	})
-})
+			const res = await request(app).get('/assets/this-does-not-exist-12345.js');
+			expect(res.status).toBe(404);
+			expect(res.text).toContain('<!DOCTYPE html>');
+		});
+	});
+});

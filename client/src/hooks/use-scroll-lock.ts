@@ -1,27 +1,27 @@
-import * as React from 'react'
+import * as React from 'react';
 
 // Body scroll locking is global state, so overlapping overlays have to share a
 // single lock rather than each writing body styles directly. Without the count,
 // closing one dialog releases the lock a still-open dialog depends on.
-let lockCount = 0
-let savedScrollY = 0
+let lockCount = 0;
+let savedScrollY = 0;
 
 function applyLock() {
-	savedScrollY = window.scrollY
-	const { style } = document.body
-	style.overflow = 'hidden'
-	style.position = 'fixed'
-	style.top = `-${savedScrollY}px`
-	style.width = '100%'
+	savedScrollY = window.scrollY;
+	const { style } = document.body;
+	style.overflow = 'hidden';
+	style.position = 'fixed';
+	style.top = `-${savedScrollY}px`;
+	style.width = '100%';
 }
 
 function releaseLock() {
-	const { style } = document.body
-	style.overflow = ''
-	style.position = ''
-	style.top = ''
-	style.width = ''
-	window.scrollTo(0, savedScrollY)
+	const { style } = document.body;
+	style.overflow = '';
+	style.position = '';
+	style.top = '';
+	style.width = '';
+	window.scrollTo(0, savedScrollY);
 }
 
 /**
@@ -31,14 +31,14 @@ function releaseLock() {
  */
 export function useScrollLock(locked: boolean) {
 	React.useEffect(() => {
-		if (!locked) return
+		if (!locked) return;
 
-		if (lockCount === 0) applyLock()
-		lockCount += 1
+		if (lockCount === 0) applyLock();
+		lockCount += 1;
 
 		return () => {
-			lockCount -= 1
-			if (lockCount === 0) releaseLock()
-		}
-	}, [locked])
+			lockCount -= 1;
+			if (lockCount === 0) releaseLock();
+		};
+	}, [locked]);
 }

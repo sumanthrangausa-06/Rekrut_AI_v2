@@ -2,11 +2,25 @@
 // Sub-components: QuickPractice, MockInterview, ProgressTab, HistoryTab
 // Types in coaching-types.ts, utilities in coaching-utils.tsx
 
-import { ArrowRight, BarChart3, BookOpen, Camera, Eye, Flame, History, Sparkles, Star, Target, TrendingUp, Video, Volume2 } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { apiCall } from '@/lib/api'
+import {
+	ArrowRight,
+	BarChart3,
+	BookOpen,
+	Camera,
+	Eye,
+	Flame,
+	History,
+	Sparkles,
+	Star,
+	Target,
+	TrendingUp,
+	Video,
+	Volume2,
+} from 'lucide-react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { apiCall } from '@/lib/api';
 import type {
 	CategoryProgress,
 	HistorySession,
@@ -14,33 +28,41 @@ import type {
 	PracticeQuestion,
 	PracticeStats,
 	RecentSession,
-} from './coaching-types'
+} from './coaching-types';
 
 // ─── Lazy tab contents ───────────────────────────────────────────────────
-const MockInterview = lazy(() => import('./mock-interview').then((m) => ({ default: m.MockInterview })))
-const QuickPractice = lazy(() => import('./quick-practice').then((m) => ({ default: m.QuickPractice })))
-const ProgressTab = lazy(() => import('./ai-coaching-progress').then((m) => ({ default: m.ProgressTab })))
-const HistoryTab = lazy(() => import('./ai-coaching-progress').then((m) => ({ default: m.HistoryTab })))
+const MockInterview = lazy(() =>
+	import('./mock-interview').then((m) => ({ default: m.MockInterview })),
+);
+const QuickPractice = lazy(() =>
+	import('./quick-practice').then((m) => ({ default: m.QuickPractice })),
+);
+const ProgressTab = lazy(() =>
+	import('./ai-coaching-progress').then((m) => ({ default: m.ProgressTab })),
+);
+const HistoryTab = lazy(() =>
+	import('./ai-coaching-progress').then((m) => ({ default: m.HistoryTab })),
+);
 
 export function AiCoachingPage() {
-	const [tab, setTab] = useState('practice')
-	const [stats, setStats] = useState<PracticeStats | null>(null)
-	const [questions, setQuestions] = useState<PracticeQuestion[]>([])
-	const [categoryFilter, setCategoryFilter] = useState('all')
-	const [loading, setLoading] = useState(true)
+	const [tab, setTab] = useState('practice');
+	const [stats, setStats] = useState<PracticeStats | null>(null);
+	const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
+	const [categoryFilter, setCategoryFilter] = useState('all');
+	const [loading, setLoading] = useState(true);
 
 	// Progress state
-	const [categoryProgress, setCategoryProgress] = useState<CategoryProgress[]>([])
-	const [recentSessions, setRecentSessions] = useState<RecentSession[]>([])
+	const [categoryProgress, setCategoryProgress] = useState<CategoryProgress[]>([]);
+	const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
 
 	// History state
-	const [historySessions, setHistorySessions] = useState<HistorySession[]>([])
-	const [historyTotal, setHistoryTotal] = useState(0)
-	const [historyLoading, setHistoryLoading] = useState(false)
-	const [historyFilter, setHistoryFilter] = useState('all')
+	const [historySessions, setHistorySessions] = useState<HistorySession[]>([]);
+	const [historyTotal, setHistoryTotal] = useState(0);
+	const [historyLoading, setHistoryLoading] = useState(false);
+	const [historyFilter, setHistoryFilter] = useState('all');
 
 	// Mock Interview past sessions
-	const [mockPastSessions, setMockPastSessions] = useState<MockSessionSummary[]>([])
+	const [mockPastSessions, setMockPastSessions] = useState<MockSessionSummary[]>([]);
 
 	// ==================== DATA LOADING ====================
 
@@ -48,137 +70,137 @@ export function AiCoachingPage() {
 		try {
 			const res = await apiCall<{ success: boolean; stats: PracticeStats }>(
 				'/interviews/practice/stats',
-			)
-			if (res.success) setStats(res.stats)
+			);
+			if (res.success) setStats(res.stats);
 		} catch (err) {
-			console.error('Failed to load stats:', err)
+			console.error('Failed to load stats:', err);
 		}
-	}, [])
+	}, []);
 
 	const loadQuestions = useCallback(async () => {
 		try {
 			const res = await apiCall<{ success: boolean; questions: PracticeQuestion[] }>(
 				'/interviews/practice/library',
-			)
-			if (res.success) setQuestions(res.questions)
+			);
+			if (res.success) setQuestions(res.questions);
 		} catch (err) {
-			console.error('Failed to load questions:', err)
+			console.error('Failed to load questions:', err);
 		}
-	}, [])
+	}, []);
 
 	const loadProgress = useCallback(async () => {
 		try {
 			const res = await apiCall<{
-				success: boolean
-				progress: { by_category: CategoryProgress[]; recent_sessions: RecentSession[] }
-			}>('/interviews/practice/progress')
+				success: boolean;
+				progress: { by_category: CategoryProgress[]; recent_sessions: RecentSession[] };
+			}>('/interviews/practice/progress');
 			if (res.success) {
-				setCategoryProgress(res.progress.by_category)
-				setRecentSessions(res.progress.recent_sessions)
+				setCategoryProgress(res.progress.by_category);
+				setRecentSessions(res.progress.recent_sessions);
 			}
 		} catch (err) {
-			console.error('Failed to load progress:', err)
+			console.error('Failed to load progress:', err);
 		}
-	}, [])
+	}, []);
 
 	const loadHistory = useCallback(
 		async (category?: string) => {
-			setHistoryLoading(true)
+			setHistoryLoading(true);
 			try {
-				const cat = category || historyFilter
+				const cat = category || historyFilter;
 				const res = await apiCall<{
-					success: boolean
-					sessions: HistorySession[]
-					total: number
-					has_more: boolean
-				}>(`/interviews/practice/sessions?limit=50&category=${cat}`)
+					success: boolean;
+					sessions: HistorySession[];
+					total: number;
+					has_more: boolean;
+				}>(`/interviews/practice/sessions?limit=50&category=${cat}`);
 				if (res.success) {
-					setHistorySessions(res.sessions)
-					setHistoryTotal(res.total)
+					setHistorySessions(res.sessions);
+					setHistoryTotal(res.total);
 				}
 			} catch (err) {
-				console.error('Failed to load history:', err)
+				console.error('Failed to load history:', err);
 			} finally {
-				setHistoryLoading(false)
+				setHistoryLoading(false);
 			}
 		},
 		[historyFilter],
-	)
+	);
 
 	const loadMockSessions = useCallback(async () => {
 		try {
 			const res = await apiCall<{
-				success: boolean
-				sessions: MockSessionSummary[]
-				total: number
-			}>('/interviews/mock/sessions?limit=10')
-			if (res.success) setMockPastSessions(res.sessions)
+				success: boolean;
+				sessions: MockSessionSummary[];
+				total: number;
+			}>('/interviews/mock/sessions?limit=10');
+			if (res.success) setMockPastSessions(res.sessions);
 		} catch (err) {
-			console.error('Failed to load mock sessions:', err)
+			console.error('Failed to load mock sessions:', err);
 		}
-	}, [])
+	}, []);
 
 	// ==================== EFFECTS ====================
 
 	useEffect(() => {
 		async function init() {
-			setLoading(true)
+			setLoading(true);
 			await Promise.all([
 				loadStats(),
 				loadQuestions(),
 				loadProgress(),
 				loadHistory(),
 				loadMockSessions(),
-			])
-			setLoading(false)
+			]);
+			setLoading(false);
 		}
-		init()
-	}, [loadStats, loadQuestions, loadProgress, loadHistory, loadMockSessions])
+		init();
+	}, [loadStats, loadQuestions, loadProgress, loadHistory, loadMockSessions]);
 
 	// Refresh history when switching to history tab
 	useEffect(() => {
-		if (tab === 'history') loadHistory()
-	}, [tab, loadHistory])
+		if (tab === 'history') loadHistory();
+	}, [tab, loadHistory]);
 
 	// ==================== CALLBACKS FOR CHILDREN ====================
 
 	/** Called by QuickPractice after a practice session completes */
 	const refreshAfterPractice = useCallback(() => {
-		loadStats()
-		loadQuestions()
-		loadProgress()
-		loadHistory()
-	}, [loadStats, loadQuestions, loadProgress, loadHistory])
+		loadStats();
+		loadQuestions();
+		loadProgress();
+		loadHistory();
+	}, [loadStats, loadQuestions, loadProgress, loadHistory]);
 
 	/** Called by MockInterview after a mock interview completes */
 	const refreshAfterMock = useCallback(() => {
-		loadStats()
-		loadMockSessions()
-		loadProgress()
-	}, [loadStats, loadMockSessions, loadProgress])
+		loadStats();
+		loadMockSessions();
+		loadProgress();
+	}, [loadStats, loadMockSessions, loadProgress]);
 
 	// ==================== LOADING STATE ====================
 
 	if (loading) {
 		return (
-			<div className='flex items-center justify-center py-20'>
-				<div className='animate-spin rounded-full h-8 w-8 border-b-2 border-primary' />
+			<div className="flex items-center justify-center py-20">
+				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
 			</div>
-		)
+		);
 	}
 
 	// ==================== RENDER ====================
 	return (
-		<div className='space-y-6 px-4 sm:px-6'>
+		<div className="space-y-6 px-4 sm:px-6">
 			{/* Header */}
 			<div>
-				<div className='flex items-center gap-2'>
-					<div className='p-2 rounded-lg bg-primary/10'>
-						<Video className='h-5 w-5 text-primary' />
+				<div className="flex items-center gap-2">
+					<div className="p-2 rounded-lg bg-primary/10">
+						<Video className="h-5 w-5 text-primary" />
 					</div>
 					<div>
-						<h1 className='text-2xl font-heading font-bold'>AI Interview Coach</h1>
-						<p className='text-muted-foreground text-sm'>
+						<h1 className="text-2xl font-heading font-bold">AI Interview Coach</h1>
+						<p className="text-muted-foreground text-sm">
 							Record video responses — get AI feedback on content, delivery, and body language
 						</p>
 					</div>
@@ -186,101 +208,101 @@ export function AiCoachingPage() {
 			</div>
 
 			{/* Feature Highlights */}
-			<div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
-				<div className='flex items-center gap-3 p-3 rounded-lg bg-violet-50 border border-violet-100'>
-					<Camera className='h-5 w-5 text-violet-600 shrink-0' />
+			<div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+				<div className="flex items-center gap-3 p-3 rounded-lg bg-violet-50 border border-violet-100">
+					<Camera className="h-5 w-5 text-violet-600 shrink-0" />
 					<div>
-						<p className='text-sm font-medium text-violet-900'>Video Recording</p>
-						<p className='text-xs text-violet-600'>
+						<p className="text-sm font-medium text-violet-900">Video Recording</p>
+						<p className="text-xs text-violet-600">
 							Record yourself answering like a real interview
 						</p>
 					</div>
 				</div>
-				<div className='flex items-center gap-3 p-3 rounded-lg bg-sky-50 border border-sky-100'>
-					<Eye className='h-5 w-5 text-sky-600 shrink-0' />
+				<div className="flex items-center gap-3 p-3 rounded-lg bg-sky-50 border border-sky-100">
+					<Eye className="h-5 w-5 text-sky-600 shrink-0" />
 					<div>
-						<p className='text-sm font-medium text-sky-900'>Body Language AI</p>
-						<p className='text-xs text-sky-600'>Eye contact, expressions, posture analysis</p>
+						<p className="text-sm font-medium text-sky-900">Body Language AI</p>
+						<p className="text-xs text-sky-600">Eye contact, expressions, posture analysis</p>
 					</div>
 				</div>
-				<div className='flex items-center gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-100'>
-					<Volume2 className='h-5 w-5 text-emerald-600 shrink-0' />
+				<div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+					<Volume2 className="h-5 w-5 text-emerald-600 shrink-0" />
 					<div>
-						<p className='text-sm font-medium text-emerald-900'>Speech Analysis</p>
-						<p className='text-xs text-emerald-600'>Pace, filler words, clarity scoring</p>
+						<p className="text-sm font-medium text-emerald-900">Speech Analysis</p>
+						<p className="text-xs text-emerald-600">Pace, filler words, clarity scoring</p>
 					</div>
 				</div>
 			</div>
 
 			{/* Career Coach Promo */}
-			<div className='rounded-lg border bg-indigo-50/50 p-4 dark:bg-indigo-950/20'>
-				<div className='flex items-center justify-between'>
-					<div className='flex items-center gap-3'>
-						<div className='flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10'>
-							<Sparkles className='h-5 w-5 text-indigo-500' />
+			<div className="rounded-lg border bg-indigo-50/50 p-4 dark:bg-indigo-950/20">
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-3">
+						<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10">
+							<Sparkles className="h-5 w-5 text-indigo-500" />
 						</div>
 						<div>
-							<p className='font-medium text-indigo-900 dark:text-indigo-100'>
+							<p className="font-medium text-indigo-900 dark:text-indigo-100">
 								New: AI Career Coach
 							</p>
-							<p className='text-xs text-indigo-700 dark:text-indigo-300'>
+							<p className="text-xs text-indigo-700 dark:text-indigo-300">
 								Career paths, skill gaps, company research, application optimizer, salary practice
 							</p>
 						</div>
 					</div>
 					<a
-						href='/candidate/career-coach'
-						className='inline-flex items-center gap-1 rounded-md bg-indigo-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-600'
+						href="/candidate/career-coach"
+						className="inline-flex items-center gap-1 rounded-md bg-indigo-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-600"
 					>
-						Try it <ArrowRight className='h-3 w-3' />
+						Try it <ArrowRight className="h-3 w-3" />
 					</a>
 				</div>
 			</div>
 
 			{/* Stats Cards */}
-			<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 				<Card>
-					<CardContent className='p-4 text-center'>
-						<div className='inline-flex p-2 rounded-lg bg-primary/10 mb-2'>
-							<Target className='h-5 w-5 text-primary' />
+					<CardContent className="p-4 text-center">
+						<div className="inline-flex p-2 rounded-lg bg-primary/10 mb-2">
+							<Target className="h-5 w-5 text-primary" />
 						</div>
-						<div className='text-2xl font-bold'>{stats?.total_questions || 0}</div>
-						<div className='text-xs text-muted-foreground'>Sessions</div>
+						<div className="text-2xl font-bold">{stats?.total_questions || 0}</div>
+						<div className="text-xs text-muted-foreground">Sessions</div>
 					</CardContent>
 				</Card>
 				<Card>
-					<CardContent className='p-4 text-center'>
-						<div className='inline-flex p-2 rounded-lg bg-amber-100 mb-2'>
-							<Star className='h-5 w-5 text-amber-600' />
+					<CardContent className="p-4 text-center">
+						<div className="inline-flex p-2 rounded-lg bg-amber-100 mb-2">
+							<Star className="h-5 w-5 text-amber-600" />
 						</div>
-						<div className='text-2xl font-bold'>
+						<div className="text-2xl font-bold">
 							{stats?.average_score != null
 								? `${Math.round(stats.average_score * 10) / 10}/10`
 								: '—'}
 						</div>
-						<div className='text-xs text-muted-foreground'>Avg Score</div>
+						<div className="text-xs text-muted-foreground">Avg Score</div>
 					</CardContent>
 				</Card>
 				<Card>
-					<CardContent className='p-4 text-center'>
-						<div className='inline-flex p-2 rounded-lg bg-green-100 mb-2'>
-							<TrendingUp className='h-5 w-5 text-green-600' />
+					<CardContent className="p-4 text-center">
+						<div className="inline-flex p-2 rounded-lg bg-green-100 mb-2">
+							<TrendingUp className="h-5 w-5 text-green-600" />
 						</div>
-						<div className='text-2xl font-bold'>
+						<div className="text-2xl font-bold">
 							{stats?.improvement != null
 								? `${stats.improvement > 0 ? '+' : ''}${Math.round(stats.improvement)}%`
 								: '—'}
 						</div>
-						<div className='text-xs text-muted-foreground'>Improvement</div>
+						<div className="text-xs text-muted-foreground">Improvement</div>
 					</CardContent>
 				</Card>
 				<Card>
-					<CardContent className='p-4 text-center'>
-						<div className='inline-flex p-2 rounded-lg bg-orange-100 mb-2'>
-							<Flame className='h-5 w-5 text-orange-600' />
+					<CardContent className="p-4 text-center">
+						<div className="inline-flex p-2 rounded-lg bg-orange-100 mb-2">
+							<Flame className="h-5 w-5 text-orange-600" />
 						</div>
-						<div className='text-2xl font-bold'>{stats?.day_streak || 0}</div>
-						<div className='text-xs text-muted-foreground'>Day Streak</div>
+						<div className="text-2xl font-bold">{stats?.day_streak || 0}</div>
+						<div className="text-xs text-muted-foreground">Day Streak</div>
 					</CardContent>
 				</Card>
 			</div>
@@ -288,29 +310,32 @@ export function AiCoachingPage() {
 			{/* Tabs */}
 			<Tabs value={tab} onValueChange={setTab}>
 				<TabsList>
-					<TabsTrigger value='mock'>
-						<Video className='h-4 w-4 mr-1.5' /> Mock Interview
+					<TabsTrigger value="mock">
+						<Video className="h-4 w-4 mr-1.5" /> Mock Interview
 					</TabsTrigger>
-					<TabsTrigger value='practice'>
-						<BookOpen className='h-4 w-4 mr-1.5' /> Quick Practice
+					<TabsTrigger value="practice">
+						<BookOpen className="h-4 w-4 mr-1.5" /> Quick Practice
 					</TabsTrigger>
-					<TabsTrigger value='progress'>
-						<BarChart3 className='h-4 w-4 mr-1.5' /> Progress
+					<TabsTrigger value="progress">
+						<BarChart3 className="h-4 w-4 mr-1.5" /> Progress
 					</TabsTrigger>
-					<TabsTrigger value='history'>
-						<History className='h-4 w-4 mr-1.5' /> History
+					<TabsTrigger value="history">
+						<History className="h-4 w-4 mr-1.5" /> History
 					</TabsTrigger>
 				</TabsList>
 
 				{/* Mock Interview Tab */}
-				<TabsContent value='mock'>
+				<TabsContent value="mock">
 					<Suspense fallback={<TabLoading />}>
-						<MockInterview mockPastSessions={mockPastSessions} onSessionComplete={refreshAfterMock} />
+						<MockInterview
+							mockPastSessions={mockPastSessions}
+							onSessionComplete={refreshAfterMock}
+						/>
 					</Suspense>
 				</TabsContent>
 
 				{/* Quick Practice Tab */}
-				<TabsContent value='practice'>
+				<TabsContent value="practice">
 					<Suspense fallback={<TabLoading />}>
 						<QuickPractice
 							questions={questions}
@@ -322,14 +347,14 @@ export function AiCoachingPage() {
 				</TabsContent>
 
 				{/* Progress Tab */}
-				<TabsContent value='progress'>
+				<TabsContent value="progress">
 					<Suspense fallback={<TabLoading />}>
 						<ProgressTab categoryProgress={categoryProgress} recentSessions={recentSessions} />
 					</Suspense>
 				</TabsContent>
 
 				{/* History Tab */}
-				<TabsContent value='history'>
+				<TabsContent value="history">
 					<Suspense fallback={<TabLoading />}>
 						<HistoryTab
 							historySessions={historySessions}
@@ -337,21 +362,21 @@ export function AiCoachingPage() {
 							historyLoading={historyLoading}
 							historyFilter={historyFilter}
 							onFilterChange={(filter) => {
-								setHistoryFilter(filter)
-								loadHistory(filter)
+								setHistoryFilter(filter);
+								loadHistory(filter);
 							}}
 						/>
 					</Suspense>
 				</TabsContent>
 			</Tabs>
 		</div>
-	)
+	);
 }
 
 function TabLoading() {
 	return (
-		<div className='flex items-center justify-center py-12'>
-			<div className='animate-spin rounded-full h-6 w-6 border-b-2 border-primary' />
+		<div className="flex items-center justify-center py-12">
+			<div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
 		</div>
-	)
+	);
 }

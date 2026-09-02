@@ -14,124 +14,124 @@ import {
 	TrendingUp,
 	Users,
 	Zap,
-} from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { apiCall } from '@/lib/api'
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { apiCall } from '@/lib/api';
 
 // ─── Types ──────────────────────────────────────────────────
 interface ScoreExplainer {
 	factors: Array<{
-		name: string
-		impact: number // point contribution
-		raw_score: number
-		weight: number
-		grade: string
-		description: string
-		details: string[]
-		plain_text: string
-		action?: string
-	}>
+		name: string;
+		impact: number; // point contribution
+		raw_score: number;
+		weight: number;
+		grade: string;
+		description: string;
+		details: string[];
+		plain_text: string;
+		action?: string;
+	}>;
 	peerComparison: {
-		percentile: number
-		avgScore: number
-		topScore: number
-		medianScore: number
-	}
+		percentile: number;
+		avgScore: number;
+		topScore: number;
+		medianScore: number;
+	};
 	improvementRoadmap: Array<{
-		step: number
-		title: string
-		description: string
-		estimatedPoints: number
-		difficulty: 'easy' | 'medium' | 'hard'
-		timeEstimate: string
-	}>
+		step: number;
+		title: string;
+		description: string;
+		estimatedPoints: number;
+		difficulty: 'easy' | 'medium' | 'hard';
+		timeEstimate: string;
+	}>;
 	fraud_signals?: Array<{
-		type: string
-		severity: string
-		message: string
-	}>
+		type: string;
+		severity: string;
+		message: string;
+	}>;
 }
 
 interface ScoreBreakdown {
-	score: number
-	max: number
-	label: string
-	description: string
-	weight?: number
-	weighted_contribution?: number
-	details?: string[]
+	score: number;
+	max: number;
+	label: string;
+	description: string;
+	weight?: number;
+	weighted_contribution?: number;
+	details?: string[];
 }
 
 interface OmniScoreData {
-	total_score: number
-	interview: number
-	technical: number
-	resume: number
-	behavior: number
-	tier: string
-	tier_label: string
-	peer_percentile?: number
+	total_score: number;
+	interview: number;
+	technical: number;
+	resume: number;
+	behavior: number;
+	tier: string;
+	tier_label: string;
+	peer_percentile?: number;
 	fraud_signals?: Array<{
-		type: string
-		severity: string
-		message: string
-	}>
+		type: string;
+		severity: string;
+		message: string;
+	}>;
 }
 
 interface Recommendation {
-	type: string
-	priority: string
-	title: string
-	description: string
-	potential_gain: number
+	type: string;
+	priority: string;
+	title: string;
+	description: string;
+	potential_gain: number;
 }
 
 interface HistoryItem {
-	previous_score: number
-	new_score: number
-	change_amount: number
-	change_reason: string
-	component_type: string
-	created_at: string
+	previous_score: number;
+	new_score: number;
+	change_amount: number;
+	change_reason: string;
+	component_type: string;
+	created_at: string;
 }
 
 interface MutualMatch {
-	job_id: number
-	title: string
-	location: string
-	salary_range: string
-	job_type: string
-	company_id: number
-	company_name: string
-	company_tier: string
-	company_trust_score: number
-	application_status: string | null
-	match_score: number | null
-	mutual_fit_score: number
-	mutual_level: string
+	job_id: number;
+	title: string;
+	location: string;
+	salary_range: string;
+	job_type: string;
+	company_id: number;
+	company_name: string;
+	company_tier: string;
+	company_trust_score: number;
+	application_status: string | null;
+	match_score: number | null;
+	mutual_fit_score: number;
+	mutual_level: string;
 	signals: {
-		your_score: string
-		company_score: string
-		skill_match: string
-	}
+		your_score: string;
+		company_score: string;
+		skill_match: string;
+	};
 }
 
 interface RatableCompany {
-	company_id: number
-	name: string
-	logo_url: string | null
-	industry: string | null
-	is_verified: boolean
-	application_status: string
-	job_title: string
-	job_id: number
-	trust_score: number | null
-	score_tier: string | null
-	my_rating: number | null
+	company_id: number;
+	name: string;
+	logo_url: string | null;
+	industry: string | null;
+	is_verified: boolean;
+	application_status: string;
+	job_title: string;
+	job_id: number;
+	trust_score: number | null;
+	score_tier: string | null;
+	my_rating: number | null;
 }
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -142,14 +142,14 @@ const tierBg: Record<string, string> = {
 	fair: 'bg-amber-500/10 text-amber-500 border-amber-500/30',
 	needs_work: 'bg-orange-500/10 text-orange-500 border-orange-500/30',
 	new: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
-}
+};
 
 const mutualColors: Record<string, string> = {
 	excellent: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30',
 	good: 'bg-blue-500/10 text-blue-500 border-blue-500/30',
 	fair: 'bg-amber-500/10 text-amber-500 border-amber-500/30',
 	low: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
-}
+};
 
 function ScoreRing({
 	score,
@@ -157,60 +157,60 @@ function ScoreRing({
 	min = 300,
 	size = 160,
 }: {
-	score: number
-	max?: number
-	min?: number
-	size?: number
+	score: number;
+	max?: number;
+	min?: number;
+	size?: number;
 }) {
-	const progress = Math.max(0, Math.min(100, ((score - min) / (max - min)) * 100))
-	const radius = (size - 16) / 2
-	const circumference = 2 * Math.PI * radius
-	const strokeDasharray = `${(progress / 100) * circumference} ${circumference}`
+	const progress = Math.max(0, Math.min(100, ((score - min) / (max - min)) * 100));
+	const radius = (size - 16) / 2;
+	const circumference = 2 * Math.PI * radius;
+	const strokeDasharray = `${(progress / 100) * circumference} ${circumference}`;
 
 	return (
 		<div
-			className='relative flex items-center justify-center'
+			className="relative flex items-center justify-center"
 			style={{ width: size, height: size }}
 		>
-			<svg className='absolute -rotate-90' width={size} height={size}>
+			<svg className="absolute -rotate-90" width={size} height={size}>
 				<circle
 					cx={size / 2}
 					cy={size / 2}
 					r={radius}
-					fill='none'
-					stroke='currentColor'
-					className='text-muted/20'
+					fill="none"
+					stroke="currentColor"
+					className="text-muted/20"
 					strokeWidth={10}
 				/>
 				<circle
 					cx={size / 2}
 					cy={size / 2}
 					r={radius}
-					fill='none'
-					stroke='url(#scoreGradient)'
+					fill="none"
+					stroke="url(#scoreGradient)"
 					strokeWidth={10}
-					strokeLinecap='round'
+					strokeLinecap="round"
 					style={{ strokeDasharray, transition: 'stroke-dasharray 1s ease' }}
 				/>
 				<defs>
-					<linearGradient id='scoreGradient' x1='0%' y1='0%' x2='100%' y2='0%'>
-						<stop offset='0%' stopColor='#10b981' />
-						<stop offset='100%' stopColor='#06b6d4' />
+					<linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+						<stop offset="0%" stopColor="#10b981" />
+						<stop offset="100%" stopColor="#06b6d4" />
 					</linearGradient>
 				</defs>
 			</svg>
-			<div className='flex flex-col items-center z-10'>
-				<span className='font-heading text-4xl font-bold'>{score}</span>
-				<span className='text-xs text-muted-foreground uppercase tracking-wider'>OmniScore</span>
+			<div className="flex flex-col items-center z-10">
+				<span className="font-heading text-4xl font-bold">{score}</span>
+				<span className="text-xs text-muted-foreground uppercase tracking-wider">OmniScore</span>
 			</div>
 		</div>
-	)
+	);
 }
 
 function StarRating({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'lg' }) {
-	const s = size === 'lg' ? 'h-5 w-5' : 'h-3.5 w-3.5'
+	const s = size === 'lg' ? 'h-5 w-5' : 'h-3.5 w-3.5';
 	return (
-		<div className='flex gap-0.5'>
+		<div className="flex gap-0.5">
 			{[1, 2, 3, 4, 5].map((i) => (
 				<Star
 					key={i}
@@ -218,43 +218,43 @@ function StarRating({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'lg
 				/>
 			))}
 		</div>
-	)
+	);
 }
 
 // ─── Main Component ─────────────────────────────────────────
 export function CandidateOmniScorePage() {
-	const [tab, setTab] = useState('my-score')
-	const [loading, setLoading] = useState(true)
+	const [tab, setTab] = useState('my-score');
+	const [loading, setLoading] = useState(true);
 
-	const [explainer, setExplainer] = useState<ScoreExplainer | null>(null)
+	const [explainer, setExplainer] = useState<ScoreExplainer | null>(null);
 
 	// My Score data
 	const [scoreData, setScoreData] = useState<{
-		current: OmniScoreData
-		breakdown: Record<string, ScoreBreakdown>
-		recommendations: Recommendation[]
-		history: HistoryItem[]
-	} | null>(null)
+		current: OmniScoreData;
+		breakdown: Record<string, ScoreBreakdown>;
+		recommendations: Recommendation[];
+		history: HistoryItem[];
+	} | null>(null);
 
 	// OmniScore trend
 	const [trendData, setTrendData] = useState<
 		{ score: number; change_amount: number; change_reason: string; created_at: string }[]
-	>([])
+	>([]);
 
 	// Mutual matches
-	const [matches, setMatches] = useState<MutualMatch[]>([])
-	const [matchesLoading, setMatchesLoading] = useState(false)
+	const [matches, setMatches] = useState<MutualMatch[]>([]);
+	const [matchesLoading, setMatchesLoading] = useState(false);
 
 	// Ratable companies
-	const [companies, setCompanies] = useState<RatableCompany[]>([])
-	const [companiesLoading, setCompaniesLoading] = useState(false)
+	const [companies, setCompanies] = useState<RatableCompany[]>([]);
+	const [companiesLoading, setCompaniesLoading] = useState(false);
 
 	// Rating form
 	const [ratingForm, setRatingForm] = useState<{
-		company_id: number
-		job_id: number
-		company_name: string
-	} | null>(null)
+		company_id: number;
+		job_id: number;
+		company_name: string;
+	} | null>(null);
 	const [ratings, setRatings] = useState({
 		overall_rating: 0,
 		interview_experience: 0,
@@ -266,8 +266,8 @@ export function CandidateOmniScorePage() {
 		review_text: '',
 		pros: '',
 		cons: '',
-	})
-	const [submitting, setSubmitting] = useState(false)
+	});
+	const [submitting, setSubmitting] = useState(false);
 
 	const loadMyScore = useCallback(async () => {
 		try {
@@ -276,49 +276,49 @@ export function CandidateOmniScorePage() {
 				apiCall<any>('/omniscore/breakdown'),
 				apiCall<any>('/memory/omniscore-trend?days=30').catch(() => ({ history: [] })),
 				apiCall<any>('/omniscore/explainer').catch(() => null),
-			])
-			setScoreData(data)
-			setTrendData(trend.history || [])
-			setExplainer(explainerData)
+			]);
+			setScoreData(data);
+			setTrendData(trend.history || []);
+			setExplainer(explainerData);
 		} catch {
 			// If no score yet, still show the page
 		} finally {
-			setLoading(false)
+			setLoading(false);
 		}
-	}, [])
+	}, []);
 	useEffect(() => {
-		loadMyScore()
-	}, [loadMyScore])
+		loadMyScore();
+	}, [loadMyScore]);
 
 	const loadCompanies = useCallback(async () => {
-		setCompaniesLoading(true)
+		setCompaniesLoading(true);
 		try {
-			const data = await apiCall<any>('/omniscore/ratable-companies')
-			setCompanies(data.companies || [])
+			const data = await apiCall<any>('/omniscore/ratable-companies');
+			setCompanies(data.companies || []);
 		} catch {
 		} finally {
-			setCompaniesLoading(false)
+			setCompaniesLoading(false);
 		}
-	}, [])
+	}, []);
 
 	const loadMatches = useCallback(async () => {
-		setMatchesLoading(true)
+		setMatchesLoading(true);
 		try {
-			const data = await apiCall<any>('/omniscore/mutual-matches')
-			setMatches(data.mutual_matches || [])
+			const data = await apiCall<any>('/omniscore/mutual-matches');
+			setMatches(data.mutual_matches || []);
 		} catch {
 		} finally {
-			setMatchesLoading(false)
+			setMatchesLoading(false);
 		}
-	}, [])
+	}, []);
 	useEffect(() => {
-		if (tab === 'matches' && matches.length === 0) loadMatches()
-		if (tab === 'rate-companies' && companies.length === 0) loadCompanies()
-	}, [tab, loadCompanies, loadMatches, matches.length, companies.length])
+		if (tab === 'matches' && matches.length === 0) loadMatches();
+		if (tab === 'rate-companies' && companies.length === 0) loadCompanies();
+	}, [tab, loadCompanies, loadMatches, matches.length, companies.length]);
 
 	async function submitRating() {
-		if (!ratingForm || ratings.overall_rating === 0) return
-		setSubmitting(true)
+		if (!ratingForm || ratings.overall_rating === 0) return;
+		setSubmitting(true);
 		try {
 			await apiCall('/omniscore/rate-company', {
 				method: 'POST',
@@ -328,8 +328,8 @@ export function CandidateOmniScorePage() {
 					...ratings,
 					is_anonymous: true,
 				},
-			})
-			setRatingForm(null)
+			});
+			setRatingForm(null);
 			setRatings({
 				overall_rating: 0,
 				interview_experience: 0,
@@ -341,50 +341,50 @@ export function CandidateOmniScorePage() {
 				review_text: '',
 				pros: '',
 				cons: '',
-			})
-			loadCompanies()
+			});
+			loadCompanies();
 		} catch {
 		} finally {
-			setSubmitting(false)
+			setSubmitting(false);
 		}
 	}
 
-	const score = scoreData?.current
-	const breakdown = scoreData?.breakdown
+	const score = scoreData?.current;
+	const breakdown = scoreData?.breakdown;
 
 	if (loading) {
 		return (
-			<div className='flex items-center justify-center py-20'>
-				<div className='h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent' />
+			<div className="flex items-center justify-center py-20">
+				<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
 			</div>
-		)
+		);
 	}
 
 	return (
-		<div className='space-y-6'>
+		<div className="space-y-6">
 			{/* Header */}
-			<div className='flex items-center justify-between'>
+			<div className="flex items-center justify-between">
 				<div>
-					<h1 className='font-heading text-2xl font-bold'>OmniScore</h1>
-					<p className='text-sm text-muted-foreground'>
+					<h1 className="font-heading text-2xl font-bold">OmniScore</h1>
+					<p className="text-sm text-muted-foreground">
 						Your candidate credit score — like FICO for hiring
 					</p>
 				</div>
-				<Badge variant='outline' className='gap-1 border-primary/30 text-primary'>
-					<Sparkles className='h-3 w-3' /> Two-Sided Scoring
+				<Badge variant="outline" className="gap-1 border-primary/30 text-primary">
+					<Sparkles className="h-3 w-3" /> Two-Sided Scoring
 				</Badge>
 			</div>
 
 			{/* Fraud signals alert */}
 			{score?.fraud_signals && score.fraud_signals.length > 0 && (
-				<div className='space-y-2'>
+				<div className="space-y-2">
 					{score.fraud_signals.map((sig, i) => (
-						<Card key={i} className='border-amber-500/30 bg-amber-500/5'>
-							<CardContent className='p-3 flex items-center gap-3'>
-								<Shield className='h-4 w-4 text-amber-500 shrink-0' />
+						<Card key={i} className="border-amber-500/30 bg-amber-500/5">
+							<CardContent className="p-3 flex items-center gap-3">
+								<Shield className="h-4 w-4 text-amber-500 shrink-0" />
 								<div>
-									<p className='text-sm font-medium'>{sig.message}</p>
-									<p className='text-xs text-muted-foreground'>Severity: {sig.severity}</p>
+									<p className="text-sm font-medium">{sig.message}</p>
+									<p className="text-xs text-muted-foreground">Severity: {sig.severity}</p>
 								</div>
 							</CardContent>
 						</Card>
@@ -395,47 +395,47 @@ export function CandidateOmniScorePage() {
 			{/* Tabs */}
 			<Tabs value={tab} onValueChange={setTab}>
 				<TabsList>
-					<TabsTrigger value='my-score'>
-						<Star className='h-4 w-4 mr-1.5' /> My Score
+					<TabsTrigger value="my-score">
+						<Star className="h-4 w-4 mr-1.5" /> My Score
 					</TabsTrigger>
-					<TabsTrigger value='matches'>
-						<Target className='h-4 w-4 mr-1.5' /> Mutual Matches
+					<TabsTrigger value="matches">
+						<Target className="h-4 w-4 mr-1.5" /> Mutual Matches
 					</TabsTrigger>
-					<TabsTrigger value='rate-companies'>
-						<Building2 className='h-4 w-4 mr-1.5' /> Rate Companies
+					<TabsTrigger value="rate-companies">
+						<Building2 className="h-4 w-4 mr-1.5" /> Rate Companies
 					</TabsTrigger>
 				</TabsList>
 
 				{/* ─── MY SCORE TAB ───────────────────────────────── */}
-				<TabsContent value='my-score'>
-					<div className='space-y-6'>
+				<TabsContent value="my-score">
+					<div className="space-y-6">
 						{/* Score Hero Card */}
-						<Card className='overflow-hidden border-primary/20'>
-							<div className='bg-gradient-to-br from-card to-primary/5 p-8'>
-								<div className='flex flex-col md:flex-row items-center gap-8'>
+						<Card className="overflow-hidden border-primary/20">
+							<div className="bg-gradient-to-br from-card to-primary/5 p-8">
+								<div className="flex flex-col md:flex-row items-center gap-8">
 									<ScoreRing score={score?.total_score || 300} />
-									<div className='flex-1 text-center md:text-left'>
-										<Badge variant='outline' className={tierBg[score?.tier || 'new']}>
+									<div className="flex-1 text-center md:text-left">
+										<Badge variant="outline" className={tierBg[score?.tier || 'new']}>
 											{score?.tier_label || 'New'}
 										</Badge>
-										<h2 className='font-heading text-2xl font-bold mt-3'>
+										<h2 className="font-heading text-2xl font-bold mt-3">
 											Your Candidate Credit Score
 										</h2>
-										<p className='text-muted-foreground mt-1 text-sm'>
+										<p className="text-muted-foreground mt-1 text-sm">
 											Ranges from 300 (minimum) to 850 (exceptional). This score is visible to
 											recruiters and affects your ranking in job matches.
 										</p>
-										<div className='flex items-center gap-3 mt-4'>
-											<span className='text-xs text-muted-foreground'>300</span>
-											<div className='flex-1 h-2 bg-muted rounded-full overflow-hidden'>
+										<div className="flex items-center gap-3 mt-4">
+											<span className="text-xs text-muted-foreground">300</span>
+											<div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
 												<div
-													className='h-full bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full transition-all duration-1000'
+													className="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full transition-all duration-1000"
 													style={{
 														width: `${Math.max(0, (((score?.total_score || 300) - 300) / 550) * 100)}%`,
 													}}
 												/>
 											</div>
-											<span className='text-xs text-muted-foreground'>850</span>
+											<span className="text-xs text-muted-foreground">850</span>
 										</div>
 									</div>
 								</div>
@@ -445,60 +445,60 @@ export function CandidateOmniScorePage() {
 						{/* Score Breakdown — 8 Factors */}
 						{breakdown && (
 							<div>
-								<h3 className='font-heading text-lg font-semibold mb-3'>Score Breakdown</h3>
-								<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+								<h3 className="font-heading text-lg font-semibold mb-3">Score Breakdown</h3>
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 									{Object.entries(breakdown).map(([key, data]) => {
-										const pct = Math.round((data.score / data.max) * 100)
+										const pct = Math.round((data.score / data.max) * 100);
 										const icons: Record<string, React.ReactNode> = {
-												verified_skills: <Zap className='h-4 w-4 text-purple-500' />,
-												interview_performance: <MessageSquare className='h-4 w-4 text-blue-500' />,
-												experience_quality: <BarChart3 className='h-4 w-4 text-emerald-500' />,
-												education_credentials: <Award className='h-4 w-4 text-cyan-500' />,
-												reliability_signals: <Shield className='h-4 w-4 text-amber-500' />,
-												soft_skills: <Users className='h-4 w-4 text-pink-500' />,
-												market_demand: <TrendingUp className='h-4 w-4 text-orange-500' />,
-												growth_trajectory: <ArrowUpRight className='h-4 w-4 text-lime-500' />,
-												interview: <MessageSquare className='h-4 w-4 text-blue-500' />,
-												technical: <Zap className='h-4 w-4 text-purple-500' />,
-												resume: <BarChart3 className='h-4 w-4 text-emerald-500' />,
-												behavior: <Shield className='h-4 w-4 text-amber-500' />,
-											}
-											return (
-												<Card key={key}>
-													<CardContent className='p-4'>
-														<div className='flex items-center justify-between mb-2'>
-															<div className='flex items-center gap-2'>
-																{icons[key] || <Star className='h-4 w-4' />}
-																<span className='font-medium text-sm'>{data.label}</span>
-															</div>
-															<span className='text-sm font-bold text-primary'>
-																{data.score}/{data.max}
-																{data.weight ? (
-																	<span className='text-[10px] font-normal text-muted-foreground ml-1'>
-																		({Math.round(data.weight * 100)}%)
-																	</span>
-																) : null}
-															</span>
+											verified_skills: <Zap className="h-4 w-4 text-purple-500" />,
+											interview_performance: <MessageSquare className="h-4 w-4 text-blue-500" />,
+											experience_quality: <BarChart3 className="h-4 w-4 text-emerald-500" />,
+											education_credentials: <Award className="h-4 w-4 text-cyan-500" />,
+											reliability_signals: <Shield className="h-4 w-4 text-amber-500" />,
+											soft_skills: <Users className="h-4 w-4 text-pink-500" />,
+											market_demand: <TrendingUp className="h-4 w-4 text-orange-500" />,
+											growth_trajectory: <ArrowUpRight className="h-4 w-4 text-lime-500" />,
+											interview: <MessageSquare className="h-4 w-4 text-blue-500" />,
+											technical: <Zap className="h-4 w-4 text-purple-500" />,
+											resume: <BarChart3 className="h-4 w-4 text-emerald-500" />,
+											behavior: <Shield className="h-4 w-4 text-amber-500" />,
+										};
+										return (
+											<Card key={key}>
+												<CardContent className="p-4">
+													<div className="flex items-center justify-between mb-2">
+														<div className="flex items-center gap-2">
+															{icons[key] || <Star className="h-4 w-4" />}
+															<span className="font-medium text-sm">{data.label}</span>
 														</div>
-														<div className='h-2 bg-muted rounded-full overflow-hidden'>
-															<div
-																className='h-full bg-gradient-to-r from-primary to-cyan-500 rounded-full transition-all'
-																style={{ width: `${Math.min(100, pct)}%` }}
-															/>
-														</div>
-														{data.details && data.details.length > 0 ? (
-															<ul className='text-[11px] text-muted-foreground mt-1 space-y-0.5'>
-																{data.details.map((d, i) => (
-																	<li key={i}>• {d}</li>
-																))}
-															</ul>
-														) : (
-															<p className='text-xs text-muted-foreground mt-2'>{data.description}</p>
-														)}
-													</CardContent>
-												</Card>
-											)
-										})}
+														<span className="text-sm font-bold text-primary">
+															{data.score}/{data.max}
+															{data.weight ? (
+																<span className="text-[10px] font-normal text-muted-foreground ml-1">
+																	({Math.round(data.weight * 100)}%)
+																</span>
+															) : null}
+														</span>
+													</div>
+													<div className="h-2 bg-muted rounded-full overflow-hidden">
+														<div
+															className="h-full bg-gradient-to-r from-primary to-cyan-500 rounded-full transition-all"
+															style={{ width: `${Math.min(100, pct)}%` }}
+														/>
+													</div>
+													{data.details && data.details.length > 0 ? (
+														<ul className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
+															{data.details.map((d, i) => (
+																<li key={i}>• {d}</li>
+															))}
+														</ul>
+													) : (
+														<p className="text-xs text-muted-foreground mt-2">{data.description}</p>
+													)}
+												</CardContent>
+											</Card>
+										);
+									})}
 								</div>
 							</div>
 						)}
@@ -506,42 +506,42 @@ export function CandidateOmniScorePage() {
 						{/* Why This Score? — Explainability */}
 						{explainer && (
 							<div>
-								<h3 className='font-heading text-lg font-semibold mb-3 flex items-center gap-2'>
-									<Sparkles className='h-5 w-5 text-primary' /> Why This Score?
+								<h3 className="font-heading text-lg font-semibold mb-3 flex items-center gap-2">
+									<Sparkles className="h-5 w-5 text-primary" /> Why This Score?
 								</h3>
 								<Card>
-									<CardContent className='p-4 space-y-4'>
-										<p className='text-sm text-muted-foreground'>
-											Your OmniScore is calculated from 8 key factors. Each factor contributes
-											a weighted portion to your total score.
+									<CardContent className="p-4 space-y-4">
+										<p className="text-sm text-muted-foreground">
+											Your OmniScore is calculated from 8 key factors. Each factor contributes a
+											weighted portion to your total score.
 										</p>
-										<div className='space-y-3'>
+										<div className="space-y-3">
 											{explainer.factors.map((factor, i) => {
-												const maxImpact = (factor.weight || 0.1) * 550
-												const barPct = maxImpact > 0 ? (factor.impact / maxImpact) * 100 : 0
+												const maxImpact = (factor.weight || 0.1) * 550;
+												const barPct = maxImpact > 0 ? (factor.impact / maxImpact) * 100 : 0;
 												return (
-													<div key={i} className='space-y-1'>
-														<div className='flex items-center justify-between text-sm'>
-															<span className='font-medium'>{factor.name}</span>
-															<span className='text-emerald-500'>+{factor.impact} pts</span>
+													<div key={i} className="space-y-1">
+														<div className="flex items-center justify-between text-sm">
+															<span className="font-medium">{factor.name}</span>
+															<span className="text-emerald-500">+{factor.impact} pts</span>
 														</div>
-														<div className='h-2 bg-muted rounded-full overflow-hidden'>
+														<div className="h-2 bg-muted rounded-full overflow-hidden">
 															<div
-																className='h-full rounded-full transition-all bg-emerald-500'
+																className="h-full rounded-full transition-all bg-emerald-500"
 																style={{ width: `${Math.min(100, barPct)}%` }}
 															/>
 														</div>
-														<p className='text-xs text-muted-foreground'>
+														<p className="text-xs text-muted-foreground">
 															{factor.plain_text || factor.description}
 														</p>
 														{factor.action && (
-															<p className='text-xs text-primary'>
-																<ArrowUpRight className='h-3 w-3 inline mr-1' />
+															<p className="text-xs text-primary">
+																<ArrowUpRight className="h-3 w-3 inline mr-1" />
 																{factor.action}
 															</p>
 														)}
 													</div>
-												)
+												);
 											})}
 										</div>
 									</CardContent>
@@ -552,41 +552,41 @@ export function CandidateOmniScorePage() {
 						{/* Peer Comparison */}
 						{explainer?.peerComparison && (
 							<div>
-								<h3 className='font-heading text-lg font-semibold mb-3 flex items-center gap-2'>
-									<Users className='h-5 w-5 text-primary' /> How You Compare
+								<h3 className="font-heading text-lg font-semibold mb-3 flex items-center gap-2">
+									<Users className="h-5 w-5 text-primary" /> How You Compare
 								</h3>
 								<Card>
-									<CardContent className='p-4'>
-										<div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4'>
-											<div className='text-center'>
-												<p className='text-2xl sm:text-3xl font-bold text-primary'>
+									<CardContent className="p-4">
+										<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+											<div className="text-center">
+												<p className="text-2xl sm:text-3xl font-bold text-primary">
 													{explainer.peerComparison.percentile}%
 												</p>
-												<p className='text-xs text-muted-foreground'>Percentile</p>
+												<p className="text-xs text-muted-foreground">Percentile</p>
 											</div>
-											<div className='text-center'>
-												<p className='text-2xl sm:text-3xl font-bold'>
+											<div className="text-center">
+												<p className="text-2xl sm:text-3xl font-bold">
 													{explainer.peerComparison.avgScore}
 												</p>
-												<p className='text-xs text-muted-foreground'>Avg Score</p>
+												<p className="text-xs text-muted-foreground">Avg Score</p>
 											</div>
-											<div className='text-center'>
-												<p className='text-2xl sm:text-3xl font-bold'>
+											<div className="text-center">
+												<p className="text-2xl sm:text-3xl font-bold">
 													{explainer.peerComparison.medianScore}
 												</p>
-												<p className='text-xs text-muted-foreground'>Median Score</p>
+												<p className="text-xs text-muted-foreground">Median Score</p>
 											</div>
-											<div className='text-center'>
-												<p className='text-2xl sm:text-3xl font-bold text-emerald-500'>
+											<div className="text-center">
+												<p className="text-2xl sm:text-3xl font-bold text-emerald-500">
 													{explainer.peerComparison.topScore}
 												</p>
-												<p className='text-xs text-muted-foreground'>Top Score</p>
+												<p className="text-xs text-muted-foreground">Top Score</p>
 											</div>
 										</div>
-										<div className='mt-4 p-3 rounded-lg bg-muted/50 text-sm text-center'>
-											<p className='text-muted-foreground'>
+										<div className="mt-4 p-3 rounded-lg bg-muted/50 text-sm text-center">
+											<p className="text-muted-foreground">
 												You are in the{' '}
-												<span className='font-bold text-primary'>
+												<span className="font-bold text-primary">
 													{explainer.peerComparison.percentile}th percentile
 												</span>{' '}
 												of all candidates.
@@ -605,10 +605,10 @@ export function CandidateOmniScorePage() {
 						{/* Improvement Roadmap */}
 						{explainer?.improvementRoadmap && explainer.improvementRoadmap.length > 0 && (
 							<div>
-								<h3 className='font-heading text-lg font-semibold mb-3 flex items-center gap-2'>
-									<TrendingUp className='h-5 w-5 text-primary' /> Score Improvement Roadmap
+								<h3 className="font-heading text-lg font-semibold mb-3 flex items-center gap-2">
+									<TrendingUp className="h-5 w-5 text-primary" /> Score Improvement Roadmap
 								</h3>
-								<div className='space-y-3'>
+								<div className="space-y-3">
 									{explainer.improvementRoadmap.map((step) => (
 										<Card
 											key={step.step}
@@ -620,8 +620,8 @@ export function CandidateOmniScorePage() {
 														: ''
 											}
 										>
-											<CardContent className='p-4'>
-												<div className='flex items-start gap-3'>
+											<CardContent className="p-4">
+												<div className="flex items-start gap-3">
 													<div
 														className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
 															step.difficulty === 'easy'
@@ -633,11 +633,11 @@ export function CandidateOmniScorePage() {
 													>
 														{step.step}
 													</div>
-													<div className='flex-1'>
-														<div className='flex items-center justify-between'>
-															<h4 className='font-semibold'>{step.title}</h4>
+													<div className="flex-1">
+														<div className="flex items-center justify-between">
+															<h4 className="font-semibold">{step.title}</h4>
 															<Badge
-																variant='outline'
+																variant="outline"
 																className={
 																	step.difficulty === 'easy'
 																		? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
@@ -649,14 +649,14 @@ export function CandidateOmniScorePage() {
 																{step.difficulty}
 															</Badge>
 														</div>
-														<p className='text-sm text-muted-foreground mt-1'>{step.description}</p>
-														<div className='flex items-center gap-3 mt-2 text-xs text-muted-foreground'>
-															<span className='flex items-center gap-1'>
-																<ArrowUpRight className='h-3 w-3 text-emerald-500' />+
+														<p className="text-sm text-muted-foreground mt-1">{step.description}</p>
+														<div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+															<span className="flex items-center gap-1">
+																<ArrowUpRight className="h-3 w-3 text-emerald-500" />+
 																{step.estimatedPoints} pts
 															</span>
-															<span className='flex items-center gap-1'>
-																<Clock className='h-3 w-3' />
+															<span className="flex items-center gap-1">
+																<Clock className="h-3 w-3" />
 																{step.timeEstimate}
 															</span>
 														</div>
@@ -672,34 +672,34 @@ export function CandidateOmniScorePage() {
 						{/* OmniScore Trend */}
 						{trendData.length > 1 && (
 							<div>
-								<h3 className='font-heading text-lg font-semibold mb-3 flex items-center gap-2'>
-									<TrendingUp className='h-5 w-5 text-primary' /> Score Trend (30 days)
+								<h3 className="font-heading text-lg font-semibold mb-3 flex items-center gap-2">
+									<TrendingUp className="h-5 w-5 text-primary" /> Score Trend (30 days)
 								</h3>
 								<Card>
-									<CardContent className='p-4'>
-										<div className='flex items-end gap-1 h-32'>
+									<CardContent className="p-4">
+										<div className="flex items-end gap-1 h-32">
 											{trendData.slice(-20).map((point, i) => {
-												const minS = Math.min(...trendData.map((t) => t.score))
-												const maxS = Math.max(...trendData.map((t) => t.score))
-												const range = Math.max(maxS - minS, 20)
-												const height = ((point.score - minS) / range) * 100
-												const isUp = point.change_amount >= 0
+												const minS = Math.min(...trendData.map((t) => t.score));
+												const maxS = Math.max(...trendData.map((t) => t.score));
+												const range = Math.max(maxS - minS, 20);
+												const height = ((point.score - minS) / range) * 100;
+												const isUp = point.change_amount >= 0;
 												return (
 													<div
 														key={`point-${i}`}
-														className='flex-1 flex flex-col items-center justify-end gap-1 group relative'
+														className="flex-1 flex flex-col items-center justify-end gap-1 group relative"
 													>
 														<div
 															className={`w-full rounded-t transition-all ${isUp ? 'bg-emerald-500' : 'bg-red-400'}`}
 															style={{ height: `${Math.max(4, height)}%`, minHeight: 4 }}
 														/>
-														<div className='absolute bottom-full mb-1 hidden group-hover:block bg-popover border rounded px-2 py-1 text-[10px] shadow-lg z-10 whitespace-nowrap'>
-															<p className='font-bold'>{point.score}</p>
+														<div className="absolute bottom-full mb-1 hidden group-hover:block bg-popover border rounded px-2 py-1 text-[10px] shadow-lg z-10 whitespace-nowrap">
+															<p className="font-bold">{point.score}</p>
 															<p className={isUp ? 'text-emerald-500' : 'text-red-500'}>
 																{isUp ? '+' : ''}
 																{point.change_amount}
 															</p>
-															<p className='text-muted-foreground'>
+															<p className="text-muted-foreground">
 																{new Date(point.created_at).toLocaleDateString('en-US', {
 																	month: 'short',
 																	day: 'numeric',
@@ -707,10 +707,10 @@ export function CandidateOmniScorePage() {
 															</p>
 														</div>
 													</div>
-												)
+												);
 											})}
 										</div>
-										<div className='flex justify-between mt-2 text-[10px] text-muted-foreground'>
+										<div className="flex justify-between mt-2 text-[10px] text-muted-foreground">
 											<span>
 												{new Date(
 													trendData[Math.max(0, trendData.length - 20)].created_at,
@@ -726,19 +726,19 @@ export function CandidateOmniScorePage() {
 						{/* Recommendations */}
 						{scoreData?.recommendations && scoreData.recommendations.length > 0 && (
 							<div>
-								<h3 className='font-heading text-lg font-semibold mb-3'>How to Improve</h3>
-								<div className='space-y-3'>
+								<h3 className="font-heading text-lg font-semibold mb-3">How to Improve</h3>
+								<div className="space-y-3">
 									{scoreData.recommendations.map((rec, i) => (
 										<Card
 											key={`rec-${i}`}
 											className={rec.priority === 'high' ? 'border-red-500/30' : ''}
 										>
-											<CardContent className='p-4'>
-												<div className='flex items-start justify-between'>
-													<div className='flex-1'>
-														<div className='flex items-center gap-2 mb-1'>
+											<CardContent className="p-4">
+												<div className="flex items-start justify-between">
+													<div className="flex-1">
+														<div className="flex items-center gap-2 mb-1">
 															<Badge
-																variant='outline'
+																variant="outline"
 																className={
 																	rec.priority === 'high'
 																		? 'bg-red-500/10 text-red-500 border-red-500/30'
@@ -747,14 +747,14 @@ export function CandidateOmniScorePage() {
 															>
 																{rec.priority.toUpperCase()}
 															</Badge>
-															<span className='text-xs text-primary font-medium'>
+															<span className="text-xs text-primary font-medium">
 																+{rec.potential_gain} pts potential
 															</span>
 														</div>
-														<h4 className='font-semibold'>{rec.title}</h4>
-														<p className='text-sm text-muted-foreground mt-1'>{rec.description}</p>
+														<h4 className="font-semibold">{rec.title}</h4>
+														<p className="text-sm text-muted-foreground mt-1">{rec.description}</p>
 													</div>
-													<ChevronRight className='h-5 w-5 text-muted-foreground shrink-0 mt-1' />
+													<ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 mt-1" />
 												</div>
 											</CardContent>
 										</Card>
@@ -766,26 +766,26 @@ export function CandidateOmniScorePage() {
 						{/* Score History */}
 						{scoreData?.history && scoreData.history.length > 0 && (
 							<div>
-								<h3 className='font-heading text-lg font-semibold mb-3'>Score History</h3>
+								<h3 className="font-heading text-lg font-semibold mb-3">Score History</h3>
 								<Card>
-									<CardContent className='p-0'>
-										<div className='divide-y'>
+									<CardContent className="p-0">
+										<div className="divide-y">
 											{scoreData.history.map((item, i) => (
-												<div key={`hist-${i}`} className='flex items-center gap-4 px-4 py-3'>
-													<span className='text-xs text-muted-foreground w-16 shrink-0'>
+												<div key={`hist-${i}`} className="flex items-center gap-4 px-4 py-3">
+													<span className="text-xs text-muted-foreground w-16 shrink-0">
 														{new Date(item.created_at).toLocaleDateString('en-US', {
 															month: 'short',
 															day: 'numeric',
 														})}
 													</span>
-													<span className='text-sm flex-1'>{item.change_reason}</span>
+													<span className="text-sm flex-1">{item.change_reason}</span>
 													<span
 														className={`text-sm font-bold ${item.change_amount >= 0 ? 'text-emerald-500' : 'text-red-500'}`}
 													>
 														{item.change_amount >= 0 ? '+' : ''}
 														{item.change_amount}
 													</span>
-													<span className='text-sm font-heading font-bold w-12 text-right'>
+													<span className="text-sm font-heading font-bold w-12 text-right">
 														{item.new_score}
 													</span>
 												</div>
@@ -798,23 +798,23 @@ export function CandidateOmniScorePage() {
 
 						{/* Empty state */}
 						{!score || score.total_score <= 300 ? (
-							<Card className='border-dashed'>
-								<CardContent className='p-8 text-center'>
-									<Award className='h-12 w-12 mx-auto text-muted-foreground/50 mb-3' />
-									<h3 className='font-heading text-lg font-semibold'>Start Building Your Score</h3>
-									<p className='text-sm text-muted-foreground mt-1 max-w-md mx-auto'>
+							<Card className="border-dashed">
+								<CardContent className="p-8 text-center">
+									<Award className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+									<h3 className="font-heading text-lg font-semibold">Start Building Your Score</h3>
+									<p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
 										Complete mock interviews, take skill assessments, and stay active to grow your
 										OmniScore. Higher scores get better job matches and more recruiter attention.
 									</p>
-									<div className='flex gap-3 justify-center mt-4'>
+									<div className="flex gap-3 justify-center mt-4">
 										<Button
-											variant='default'
+											variant="default"
 											onClick={() => (window.location.href = '/candidate/assessments')}
 										>
 											Take Assessment
 										</Button>
 										<Button
-											variant='outline'
+											variant="outline"
 											onClick={() => (window.location.href = '/candidate/ai-coaching')}
 										>
 											Practice Interview
@@ -827,15 +827,15 @@ export function CandidateOmniScorePage() {
 				</TabsContent>
 
 				{/* ─── MUTUAL MATCHES TAB ─────────────────────────── */}
-				<TabsContent value='matches'>
-					<div className='space-y-4'>
-						<Card className='bg-gradient-to-r from-primary/5 to-cyan-500/5 border-primary/20'>
-							<CardContent className='p-4'>
-								<div className='flex items-center gap-3'>
-									<Target className='h-5 w-5 text-primary' />
+				<TabsContent value="matches">
+					<div className="space-y-4">
+						<Card className="bg-gradient-to-r from-primary/5 to-cyan-500/5 border-primary/20">
+							<CardContent className="p-4">
+								<div className="flex items-center gap-3">
+									<Target className="h-5 w-5 text-primary" />
 									<div>
-										<p className='font-medium text-sm'>Mutual Fit Score</p>
-										<p className='text-xs text-muted-foreground'>
+										<p className="font-medium text-sm">Mutual Fit Score</p>
+										<p className="text-xs text-muted-foreground">
 											Combines your OmniScore + company TrustScore + skill match. Higher = better
 											fit for both sides.
 										</p>
@@ -845,20 +845,20 @@ export function CandidateOmniScorePage() {
 						</Card>
 
 						{matchesLoading ? (
-							<div className='flex items-center justify-center py-12'>
-								<div className='h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent' />
+							<div className="flex items-center justify-center py-12">
+								<div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
 							</div>
 						) : matches.length === 0 ? (
-							<Card className='border-dashed'>
-								<CardContent className='p-8 text-center'>
-									<Users className='h-12 w-12 mx-auto text-muted-foreground/50 mb-3' />
-									<h3 className='font-heading text-lg font-semibold'>No Mutual Matches Yet</h3>
-									<p className='text-sm text-muted-foreground mt-1'>
+							<Card className="border-dashed">
+								<CardContent className="p-8 text-center">
+									<Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+									<h3 className="font-heading text-lg font-semibold">No Mutual Matches Yet</h3>
+									<p className="text-sm text-muted-foreground mt-1">
 										Apply to jobs and build your OmniScore to see mutual compatibility scores.
 									</p>
 									<Button
-										variant='default'
-										className='mt-4'
+										variant="default"
+										className="mt-4"
 										onClick={() => (window.location.href = '/candidate/jobs')}
 									>
 										Browse Jobs
@@ -866,58 +866,58 @@ export function CandidateOmniScorePage() {
 								</CardContent>
 							</Card>
 						) : (
-							<div className='space-y-3'>
+							<div className="space-y-3">
 								{matches.map((match) => (
 									<Card
 										key={`${match.job_id}-${match.company_id}`}
-										className='hover:border-primary/30 transition-colors'
+										className="hover:border-primary/30 transition-colors"
 									>
-										<CardContent className='p-4'>
-											<div className='flex items-start gap-4'>
+										<CardContent className="p-4">
+											<div className="flex items-start gap-4">
 												{/* Company avatar */}
-												<div className='h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0'>
-													<Building2 className='h-5 w-5 text-primary' />
+												<div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+													<Building2 className="h-5 w-5 text-primary" />
 												</div>
-												<div className='flex-1 min-w-0'>
-													<div className='flex items-center gap-2 flex-wrap'>
-														<h4 className='font-semibold text-sm truncate'>{match.title}</h4>
-														<Badge variant='outline' className={mutualColors[match.mutual_level]}>
+												<div className="flex-1 min-w-0">
+													<div className="flex items-center gap-2 flex-wrap">
+														<h4 className="font-semibold text-sm truncate">{match.title}</h4>
+														<Badge variant="outline" className={mutualColors[match.mutual_level]}>
 															{match.mutual_fit_score}% Mutual Fit
 														</Badge>
 													</div>
-													<p className='text-xs text-muted-foreground mt-0.5'>
+													<p className="text-xs text-muted-foreground mt-0.5">
 														{match.company_name} · {match.location || 'Remote'} ·{' '}
 														{match.job_type || 'Full-time'}
 													</p>
 													{match.salary_range && (
-														<p className='text-xs text-emerald-500 font-medium mt-0.5'>
+														<p className="text-xs text-emerald-500 font-medium mt-0.5">
 															{match.salary_range}
 														</p>
 													)}
 													{/* Signals */}
-													<div className='flex flex-wrap gap-2 mt-2'>
-														<span className='text-[11px] bg-muted px-2 py-0.5 rounded-full'>
+													<div className="flex flex-wrap gap-2 mt-2">
+														<span className="text-[11px] bg-muted px-2 py-0.5 rounded-full">
 															{match.signals.your_score}
 														</span>
-														<span className='text-[11px] bg-muted px-2 py-0.5 rounded-full'>
+														<span className="text-[11px] bg-muted px-2 py-0.5 rounded-full">
 															{match.signals.company_score}
 														</span>
-														<span className='text-[11px] bg-muted px-2 py-0.5 rounded-full'>
+														<span className="text-[11px] bg-muted px-2 py-0.5 rounded-full">
 															{match.signals.skill_match}
 														</span>
 													</div>
 												</div>
 												{/* Right: Status */}
-												<div className='text-right shrink-0'>
+												<div className="text-right shrink-0">
 													{match.application_status ? (
-														<Badge variant='outline' className='text-[11px]'>
+														<Badge variant="outline" className="text-[11px]">
 															{match.application_status}
 														</Badge>
 													) : (
 														<Button
-															size='sm'
-															className='min-h-[44px]'
-															variant='outline'
+															size="sm"
+															className="min-h-[44px]"
+															variant="outline"
 															onClick={() =>
 																(window.location.href = `/candidate/jobs/${match.job_id}`)
 															}
@@ -936,15 +936,15 @@ export function CandidateOmniScorePage() {
 				</TabsContent>
 
 				{/* ─── RATE COMPANIES TAB ─────────────────────────── */}
-				<TabsContent value='rate-companies'>
-					<div className='space-y-4'>
-						<Card className='bg-gradient-to-r from-amber-500/5 to-orange-500/5 border-amber-500/20'>
-							<CardContent className='p-4'>
-								<div className='flex items-center gap-3'>
-									<ThumbsUp className='h-5 w-5 text-amber-500' />
+				<TabsContent value="rate-companies">
+					<div className="space-y-4">
+						<Card className="bg-gradient-to-r from-amber-500/5 to-orange-500/5 border-amber-500/20">
+							<CardContent className="p-4">
+								<div className="flex items-center gap-3">
+									<ThumbsUp className="h-5 w-5 text-amber-500" />
 									<div>
-										<p className='font-medium text-sm'>Rate Your Experience</p>
-										<p className='text-xs text-muted-foreground'>
+										<p className="font-medium text-sm">Rate Your Experience</p>
+										<p className="text-xs text-muted-foreground">
 											Your anonymous ratings help other candidates and improve company TrustScores.
 										</p>
 									</div>
@@ -954,11 +954,11 @@ export function CandidateOmniScorePage() {
 
 						{/* Rating Form Dialog */}
 						{ratingForm && (
-							<Card className='border-primary'>
-								<CardHeader className='pb-3'>
-									<CardTitle className='text-base'>Rate {ratingForm.company_name}</CardTitle>
+							<Card className="border-primary">
+								<CardHeader className="pb-3">
+									<CardTitle className="text-base">Rate {ratingForm.company_name}</CardTitle>
 								</CardHeader>
-								<CardContent className='space-y-4'>
+								<CardContent className="space-y-4">
 									{/* Star ratings */}
 									{[
 										{ key: 'overall_rating', label: 'Overall Experience' },
@@ -969,17 +969,17 @@ export function CandidateOmniScorePage() {
 										{ key: 'culture', label: 'Culture' },
 										{ key: 'growth_opportunity', label: 'Growth Opportunity' },
 									].map(({ key, label }) => (
-										<div key={key} className='flex items-center justify-between'>
-											<span className='text-sm'>
+										<div key={key} className="flex items-center justify-between">
+											<span className="text-sm">
 												{label}{' '}
-												{key === 'overall_rating' && <span className='text-red-500'>*</span>}
+												{key === 'overall_rating' && <span className="text-red-500">*</span>}
 											</span>
-											<div className='flex gap-1'>
+											<div className="flex gap-1">
 												{[1, 2, 3, 4, 5].map((val) => (
 													<button
 														key={val}
 														onClick={() => setRatings((r) => ({ ...r, [key]: val }))}
-														className='p-0.5 hover:scale-110 transition-transform'
+														className="p-0.5 hover:scale-110 transition-transform"
 													>
 														<Star
 															className={`h-5 w-5 ${
@@ -996,38 +996,38 @@ export function CandidateOmniScorePage() {
 
 									{/* Text fields */}
 									<div>
-										<label className='text-sm font-medium'>Pros</label>
+										<label className="text-sm font-medium">Pros</label>
 										<textarea
-											className='w-full mt-1 rounded-md border bg-background px-3 py-2 text-sm'
+											className="w-full mt-1 rounded-md border bg-background px-3 py-2 text-sm"
 											rows={2}
-											placeholder='What did you like?'
+											placeholder="What did you like?"
 											value={ratings.pros}
 											onChange={(e) => setRatings((r) => ({ ...r, pros: e.target.value }))}
 										/>
 									</div>
 									<div>
-										<label className='text-sm font-medium'>Cons</label>
+										<label className="text-sm font-medium">Cons</label>
 										<textarea
-											className='w-full mt-1 rounded-md border bg-background px-3 py-2 text-sm'
+											className="w-full mt-1 rounded-md border bg-background px-3 py-2 text-sm"
 											rows={2}
-											placeholder='What could be improved?'
+											placeholder="What could be improved?"
 											value={ratings.cons}
 											onChange={(e) => setRatings((r) => ({ ...r, cons: e.target.value }))}
 										/>
 									</div>
 									<div>
-										<label className='text-sm font-medium'>Additional Comments</label>
+										<label className="text-sm font-medium">Additional Comments</label>
 										<textarea
-											className='w-full mt-1 rounded-md border bg-background px-3 py-2 text-sm'
+											className="w-full mt-1 rounded-md border bg-background px-3 py-2 text-sm"
 											rows={3}
-											placeholder='Share your experience...'
+											placeholder="Share your experience..."
 											value={ratings.review_text}
 											onChange={(e) => setRatings((r) => ({ ...r, review_text: e.target.value }))}
 										/>
 									</div>
 
-									<div className='flex gap-2 justify-end'>
-										<Button variant='outline' onClick={() => setRatingForm(null)}>
+									<div className="flex gap-2 justify-end">
+										<Button variant="outline" onClick={() => setRatingForm(null)}>
 											Cancel
 										</Button>
 										<Button
@@ -1043,45 +1043,45 @@ export function CandidateOmniScorePage() {
 
 						{/* Companies list */}
 						{companiesLoading ? (
-							<div className='flex items-center justify-center py-12'>
-								<div className='h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent' />
+							<div className="flex items-center justify-center py-12">
+								<div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
 							</div>
 						) : companies.length === 0 ? (
-							<Card className='border-dashed'>
-								<CardContent className='p-8 text-center'>
-									<Building2 className='h-12 w-12 mx-auto text-muted-foreground/50 mb-3' />
-									<h3 className='font-heading text-lg font-semibold'>No Companies to Rate</h3>
-									<p className='text-sm text-muted-foreground mt-1'>
+							<Card className="border-dashed">
+								<CardContent className="p-8 text-center">
+									<Building2 className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+									<h3 className="font-heading text-lg font-semibold">No Companies to Rate</h3>
+									<p className="text-sm text-muted-foreground mt-1">
 										Apply to jobs first — after interviewing, you'll be able to rate the company.
 									</p>
 								</CardContent>
 							</Card>
 						) : (
-							<div className='space-y-3'>
+							<div className="space-y-3">
 								{companies.map((company) => (
 									<Card key={`${company.company_id}-${company.job_id}`}>
-										<CardContent className='p-4'>
-											<div className='flex items-center gap-4'>
-												<div className='h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0'>
-													<Building2 className='h-5 w-5 text-primary' />
+										<CardContent className="p-4">
+											<div className="flex items-center gap-4">
+												<div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+													<Building2 className="h-5 w-5 text-primary" />
 												</div>
-												<div className='flex-1 min-w-0'>
-													<h4 className='font-semibold text-sm'>{company.name}</h4>
-													<p className='text-xs text-muted-foreground'>
+												<div className="flex-1 min-w-0">
+													<h4 className="font-semibold text-sm">{company.name}</h4>
+													<p className="text-xs text-muted-foreground">
 														{company.job_title} · {company.application_status}
 														{company.trust_score ? ` · TrustScore ${company.trust_score}` : ''}
 													</p>
 												</div>
 												{company.my_rating ? (
-													<div className='flex items-center gap-1.5'>
+													<div className="flex items-center gap-1.5">
 														<StarRating rating={company.my_rating} />
-														<span className='text-xs text-muted-foreground'>Rated</span>
+														<span className="text-xs text-muted-foreground">Rated</span>
 													</div>
 												) : (
 													<Button
-														size='sm'
-														className='min-h-[44px]'
-														variant='outline'
+														size="sm"
+														className="min-h-[44px]"
+														variant="outline"
 														onClick={() =>
 															setRatingForm({
 																company_id: company.company_id,
@@ -1103,5 +1103,5 @@ export function CandidateOmniScorePage() {
 				</TabsContent>
 			</Tabs>
 		</div>
-	)
+	);
 }

@@ -376,20 +376,20 @@ router.post('/webhook', async (req, res) => {
 					}
 					break;
 				}
-			case 'customer.subscription.deleted': {
-				const subscription = event.data?.object;
-				if (subscription?.id) {
-					await pool.query(
-						`UPDATE users
+				case 'customer.subscription.deleted': {
+					const subscription = event.data?.object;
+					if (subscription?.id) {
+						await pool.query(
+							`UPDATE users
                SET is_paid = false,
                    subscription_status = $1,
                    stripe_subscription_id = NULL
                WHERE stripe_subscription_id = $2`,
-						['cancelled', subscription.id],
-					);
+							['cancelled', subscription.id],
+						);
+					}
+					break;
 				}
-				break;
-			}
 			}
 		} catch (dbError) {
 			console.error('[billing] webhook DB error:', dbError.message);

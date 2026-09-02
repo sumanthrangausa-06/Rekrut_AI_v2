@@ -1,208 +1,211 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Eraser, RotateCcw, Pen } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Eraser, Pen, RotateCcw } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface Point {
-	x: number
-	y: number
+	x: number;
+	y: number;
 }
 
 interface Stroke {
-	points: Point[]
+	points: Point[];
 }
 
 interface SignatureCanvasProps {
-	onChange?: (base64Png: string | null) => void
-	className?: string
+	onChange?: (base64Png: string | null) => void;
+	className?: string;
 }
 
 export function SignatureCanvas({ onChange, className }: SignatureCanvasProps) {
-	const canvasRef = useRef<HTMLCanvasElement>(null)
-	const containerRef = useRef<HTMLDivElement>(null)
-	const [isDrawing, setIsDrawing] = useState(false)
-	const [strokes, setStrokes] = useState<Stroke[]>([])
-	const [currentStroke, setCurrentStroke] = useState<Point[]>([])
-	const [hasDrawn, setHasDrawn] = useState(false)
+	const canvasRef = useRef<HTMLCanvasElement>(null);
+	const containerRef = useRef<HTMLDivElement>(null);
+	const [isDrawing, setIsDrawing] = useState(false);
+	const [strokes, setStrokes] = useState<Stroke[]>([]);
+	const [currentStroke, setCurrentStroke] = useState<Point[]>([]);
+	const [hasDrawn, setHasDrawn] = useState(false);
 
 	// Resize canvas to container with device pixel ratio for crisp rendering
 	useEffect(() => {
-		const canvas = canvasRef.current
-		const container = containerRef.current
-		if (!canvas || !container) return
+		const canvas = canvasRef.current;
+		const container = containerRef.current;
+		if (!canvas || !container) return;
 
 		const resize = () => {
-			const rect = container.getBoundingClientRect()
-			const dpr = window.devicePixelRatio || 1
-			canvas.width = rect.width * dpr
-			canvas.height = rect.height * dpr
-			canvas.style.width = `${rect.width}px`
-			canvas.style.height = `${rect.height}px`
-			const ctx = canvas.getContext('2d')
+			const rect = container.getBoundingClientRect();
+			const dpr = window.devicePixelRatio || 1;
+			canvas.width = rect.width * dpr;
+			canvas.height = rect.height * dpr;
+			canvas.style.width = `${rect.width}px`;
+			canvas.style.height = `${rect.height}px`;
+			const ctx = canvas.getContext('2d');
 			if (ctx) {
-				ctx.scale(dpr, dpr)
-				ctx.lineCap = 'round'
-				ctx.lineJoin = 'round'
-				ctx.strokeStyle = '#1e293b'
-				ctx.lineWidth = 2.5
+				ctx.scale(dpr, dpr);
+				ctx.lineCap = 'round';
+				ctx.lineJoin = 'round';
+				ctx.strokeStyle = '#1e293b';
+				ctx.lineWidth = 2.5;
 			}
-		}
+		};
 
-		resize()
-		window.addEventListener('resize', resize)
-		return () => window.removeEventListener('resize', resize)
-	}, [])
+		resize();
+		window.addEventListener('resize', resize);
+		return () => window.removeEventListener('resize', resize);
+	}, []);
 
 	// Redraw all strokes when strokes array changes
 	useEffect(() => {
-		const canvas = canvasRef.current
-		if (!canvas) return
-		const ctx = canvas.getContext('2d')
-		if (!ctx) return
+		const canvas = canvasRef.current;
+		if (!canvas) return;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return;
 
-		const rect = canvas.getBoundingClientRect()
-		ctx.clearRect(0, 0, rect.width, rect.height)
+		const rect = canvas.getBoundingClientRect();
+		ctx.clearRect(0, 0, rect.width, rect.height);
 
 		for (const stroke of strokes) {
-			if (stroke.points.length < 2) continue
-			ctx.beginPath()
-			ctx.moveTo(stroke.points[0].x, stroke.points[0].y)
+			if (stroke.points.length < 2) continue;
+			ctx.beginPath();
+			ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
 			for (let i = 1; i < stroke.points.length; i++) {
-				ctx.lineTo(stroke.points[i].x, stroke.points[i].y)
+				ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
 			}
-			ctx.stroke()
+			ctx.stroke();
 		}
 
 		// Also draw current stroke
 		if (currentStroke.length >= 2) {
-			ctx.beginPath()
-			ctx.moveTo(currentStroke[0].x, currentStroke[0].y)
+			ctx.beginPath();
+			ctx.moveTo(currentStroke[0].x, currentStroke[0].y);
 			for (let i = 1; i < currentStroke.length; i++) {
-				ctx.lineTo(currentStroke[i].x, currentStroke[i].y)
+				ctx.lineTo(currentStroke[i].x, currentStroke[i].y);
 			}
-			ctx.stroke()
+			ctx.stroke();
 		}
-	}, [strokes, currentStroke])
+	}, [strokes, currentStroke]);
 
 	// Export to base64 PNG
 	const exportToPng = useCallback((): string | null => {
-		const canvas = canvasRef.current
-		if (!canvas || strokes.length === 0) return null
+		const canvas = canvasRef.current;
+		if (!canvas || strokes.length === 0) return null;
 
 		// Create a new canvas with white background for export
-		const exportCanvas = document.createElement('canvas')
-		exportCanvas.width = canvas.width
-		exportCanvas.height = canvas.height
-		const ctx = exportCanvas.getContext('2d')
-		if (!ctx) return null
+		const exportCanvas = document.createElement('canvas');
+		exportCanvas.width = canvas.width;
+		exportCanvas.height = canvas.height;
+		const ctx = exportCanvas.getContext('2d');
+		if (!ctx) return null;
 
 		// White background
-		ctx.fillStyle = '#ffffff'
-		ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height)
+		ctx.fillStyle = '#ffffff';
+		ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
 
 		// Draw strokes
-		ctx.lineCap = 'round'
-		ctx.lineJoin = 'round'
-		ctx.strokeStyle = '#1e293b'
-		ctx.lineWidth = 2.5 * (window.devicePixelRatio || 1)
+		ctx.lineCap = 'round';
+		ctx.lineJoin = 'round';
+		ctx.strokeStyle = '#1e293b';
+		ctx.lineWidth = 2.5 * (window.devicePixelRatio || 1);
 
 		for (const stroke of strokes) {
-			if (stroke.points.length < 2) continue
-			ctx.beginPath()
-			ctx.moveTo(stroke.points[0].x * (window.devicePixelRatio || 1), stroke.points[0].y * (window.devicePixelRatio || 1))
+			if (stroke.points.length < 2) continue;
+			ctx.beginPath();
+			ctx.moveTo(
+				stroke.points[0].x * (window.devicePixelRatio || 1),
+				stroke.points[0].y * (window.devicePixelRatio || 1),
+			);
 			for (let i = 1; i < stroke.points.length; i++) {
-				ctx.lineTo(stroke.points[i].x * (window.devicePixelRatio || 1), stroke.points[i].y * (window.devicePixelRatio || 1))
+				ctx.lineTo(
+					stroke.points[i].x * (window.devicePixelRatio || 1),
+					stroke.points[i].y * (window.devicePixelRatio || 1),
+				);
 			}
-			ctx.stroke()
+			ctx.stroke();
 		}
 
-		return exportCanvas.toDataURL('image/png')
-	}, [strokes])
+		return exportCanvas.toDataURL('image/png');
+	}, [strokes]);
 
 	// Notify parent on change
 	useEffect(() => {
 		if (!hasDrawn) {
-			onChange?.(null)
-			return
+			onChange?.(null);
+			return;
 		}
-		const dataUrl = exportToPng()
-		onChange?.(dataUrl)
-	}, [hasDrawn, strokes, exportToPng, onChange])
+		const dataUrl = exportToPng();
+		onChange?.(dataUrl);
+	}, [hasDrawn, strokes, exportToPng, onChange]);
 
-	const getPoint = useCallback(
-		(e: React.MouseEvent | React.TouchEvent): Point | null => {
-			const canvas = canvasRef.current
-			if (!canvas) return null
-			const rect = canvas.getBoundingClientRect()
+	const getPoint = useCallback((e: React.MouseEvent | React.TouchEvent): Point | null => {
+		const canvas = canvasRef.current;
+		if (!canvas) return null;
+		const rect = canvas.getBoundingClientRect();
 
-			let clientX: number, clientY: number
-			if ('touches' in e) {
-				clientX = e.touches[0].clientX
-				clientY = e.touches[0].clientY
-			} else {
-				clientX = e.clientX
-				clientY = e.clientY
-			}
+		let clientX: number, clientY: number;
+		if ('touches' in e) {
+			clientX = e.touches[0].clientX;
+			clientY = e.touches[0].clientY;
+		} else {
+			clientX = e.clientX;
+			clientY = e.clientY;
+		}
 
-			return {
-				x: clientX - rect.left,
-				y: clientY - rect.top,
-			}
-		},
-		[],
-	)
+		return {
+			x: clientX - rect.left,
+			y: clientY - rect.top,
+		};
+	}, []);
 
 	const handleStart = useCallback(
 		(e: React.MouseEvent | React.TouchEvent) => {
-			e.preventDefault()
-			const point = getPoint(e)
-			if (!point) return
-			setIsDrawing(true)
-			setCurrentStroke([point])
-			setHasDrawn(true)
+			e.preventDefault();
+			const point = getPoint(e);
+			if (!point) return;
+			setIsDrawing(true);
+			setCurrentStroke([point]);
+			setHasDrawn(true);
 		},
 		[getPoint],
-	)
+	);
 
 	const handleMove = useCallback(
 		(e: React.MouseEvent | React.TouchEvent) => {
-			if (!isDrawing) return
-			e.preventDefault()
-			const point = getPoint(e)
-			if (!point) return
-			setCurrentStroke((prev) => [...prev, point])
+			if (!isDrawing) return;
+			e.preventDefault();
+			const point = getPoint(e);
+			if (!point) return;
+			setCurrentStroke((prev) => [...prev, point]);
 		},
 		[isDrawing, getPoint],
-	)
+	);
 
 	const handleEnd = useCallback(() => {
-		if (!isDrawing) return
-		setIsDrawing(false)
-		setStrokes((prev) => [...prev, { points: currentStroke }])
-		setCurrentStroke([])
-	}, [isDrawing, currentStroke])
+		if (!isDrawing) return;
+		setIsDrawing(false);
+		setStrokes((prev) => [...prev, { points: currentStroke }]);
+		setCurrentStroke([]);
+	}, [isDrawing, currentStroke]);
 
 	const handleClear = useCallback(() => {
-		setStrokes([])
-		setCurrentStroke([])
-		setHasDrawn(false)
-		const canvas = canvasRef.current
-		if (!canvas) return
-		const ctx = canvas.getContext('2d')
-		if (!ctx) return
-		const rect = canvas.getBoundingClientRect()
-		ctx.clearRect(0, 0, rect.width, rect.height)
-	}, [])
+		setStrokes([]);
+		setCurrentStroke([]);
+		setHasDrawn(false);
+		const canvas = canvasRef.current;
+		if (!canvas) return;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return;
+		const rect = canvas.getBoundingClientRect();
+		ctx.clearRect(0, 0, rect.width, rect.height);
+	}, []);
 
 	const handleUndo = useCallback(() => {
 		setStrokes((prev) => {
-			const next = prev.slice(0, -1)
+			const next = prev.slice(0, -1);
 			if (next.length === 0) {
-				setHasDrawn(false)
+				setHasDrawn(false);
 			}
-			return next
-		})
-	}, [])
+			return next;
+		});
+	}, []);
 
 	return (
 		<div className={cn('flex flex-col gap-3', className)}>
@@ -255,5 +258,5 @@ export function SignatureCanvas({ onChange, className }: SignatureCanvasProps) {
 				</Button>
 			</div>
 		</div>
-	)
+	);
 }

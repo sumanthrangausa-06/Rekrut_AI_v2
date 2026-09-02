@@ -1,4 +1,4 @@
-import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'
+import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
 import {
 	apiCall,
 	clearTokens,
@@ -9,70 +9,70 @@ import {
 	startAuthRefresh,
 	type User,
 	type UserRole,
-} from '@/lib/api'
+} from '@/lib/api';
 
 interface AuthContextType {
-	user: User | null
-	loading: boolean
-	isAuthenticated: boolean
-	isRecruiter: boolean
-	isPendingApproval: boolean
-	login: (email: string, password: string) => Promise<void>
-	register: (data: RegisterData) => Promise<void>
-	logout: () => void
-	refreshSubscription: () => Promise<void>
-	refreshUser: () => Promise<void>
+	user: User | null;
+	loading: boolean;
+	isAuthenticated: boolean;
+	isRecruiter: boolean;
+	isPendingApproval: boolean;
+	login: (email: string, password: string) => Promise<void>;
+	register: (data: RegisterData) => Promise<void>;
+	logout: () => void;
+	refreshSubscription: () => Promise<void>;
+	refreshUser: () => Promise<void>;
 }
 
 interface RegisterData {
-	email: string
-	password: string
-	name: string
-	role: UserRole
-	company_name?: string
-	referral_code?: string
+	email: string;
+	password: string;
+	name: string;
+	role: UserRole;
+	company_name?: string;
+	referral_code?: string;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-	const [user, setUser] = useState<User | null>(null)
+	const [user, setUser] = useState<User | null>(null);
 	// Sync check: only show loading spinner if there's a token to verify.
 	// This fixes E2E tests that expect immediate redirect on unauth routes.
 	const [loading, setLoading] = useState(() => {
-		if (typeof window === 'undefined') return false
-		return !!getToken()
-	})
+		if (typeof window === 'undefined') return false;
+		return !!getToken();
+	});
 
 	// Check auth on initial load — verify token if it exists in localStorage
 	useEffect(() => {
-		const token = getToken()
+		const token = getToken();
 		if (!token) {
-			setLoading(false)
-			return
+			setLoading(false);
+			return;
 		}
 
 		// Verify token by fetching current user
 		apiCall<{ user: User }>('/auth/me', { skipAuthCheck: false })
 			.then((data) => {
-				const user = data.user
+				const user = data.user;
 				// Set user immediately with default tier so auth state resolves fast.
 				// Billing tier is fetched in the background and patched in when ready.
 				// Root cause (#105): awaiting /billing/tier sequentially before setUser blocked
 				// the redirect by 500-2000ms on every login and app load.
-				user.subscriptionTier = 'free'
-				user.is_company_owner = false
-				setUser(user)
-				startAuthRefresh()
+				user.subscriptionTier = 'free';
+				user.is_company_owner = false;
+				setUser(user);
+				startAuthRefresh();
 
 				// Fetch subscription tier in the background — non-blocking
 				apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
 					.then((tierData) => {
-						setUser((prev) => (prev ? { ...prev, subscriptionTier: tierData.tier } : prev))
+						setUser((prev) => (prev ? { ...prev, subscriptionTier: tierData.tier } : prev));
 					})
 					.catch(() => {
 						// Tier endpoint may fail if billing is not configured — default already set
-					})
+					});
 
 				if (isRecruiterRole(user.role)) {
 					apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
@@ -84,69 +84,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 											is_company_owner: companyData.company?.owner_id === prev.id,
 										}
 									: prev,
-							)
+							);
 						})
 						.catch(() => {
 							// Company endpoint may fail if user has no company — default already set
-						})
+						});
 				}
 			})
 			.catch(() => {
 				// Token invalid or expired — clear it
-				clearTokens()
+				clearTokens();
 			})
 			.finally(() => {
-				setLoading(false)
-			})
-	}, [])
+				setLoading(false);
+			});
+	}, []);
 
 	const isPendingApproval = (u: User | null): boolean => {
-		return u ? isRecruiterRole(u.role) && !u.company_id : false
-	}
+		return u ? isRecruiterRole(u.role) && !u.company_id : false;
+	};
 
 	const refreshUser = async () => {
 		try {
-			const data = await apiCall<{ user: User }>('/auth/me', { skipAuthCheck: false })
-			const refreshedUser = data.user
-			refreshedUser.subscriptionTier = user?.subscriptionTier || 'free'
-			setUser(refreshedUser)
+			const data = await apiCall<{ user: User }>('/auth/me', { skipAuthCheck: false });
+			const refreshedUser = data.user;
+			refreshedUser.subscriptionTier = user?.subscriptionTier || 'free';
+			setUser(refreshedUser);
 		} catch {
 			// Silently ignore — user may have been logged out
 		}
-	}
+	};
 
 	const login = async (email: string, password: string) => {
 		const data = await apiCall<{
-			success: boolean
-			user: User
-			accessToken: string
-			refreshToken: string
-			token: string
+			success: boolean;
+			user: User;
+			accessToken: string;
+			refreshToken: string;
+			token: string;
 		}>('/auth/login', {
 			method: 'POST',
 			body: { email, password },
 			skipAuthCheck: true,
-		})
+		});
 
-		const user = data.user
+		const user = data.user;
 		// Set tokens and user immediately so the redirect is not blocked by
 		// a secondary API call. Default tier to 'free'; background fetch
 		// patches the real tier when it arrives.
 		// Root cause (#105): awaiting /billing/tier before setTokens/setUser
 		// added 500-2000ms of blocking latency to every login.
-		user.subscriptionTier = 'free'
-		user.is_company_owner = false
-		setTokens(data.accessToken || data.token, data.refreshToken)
-		setUser(user)
+		user.subscriptionTier = 'free';
+		user.is_company_owner = false;
+		setTokens(data.accessToken || data.token, data.refreshToken);
+		setUser(user);
 
 		// Fetch subscription tier in the background — non-blocking
 		apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
 			.then((tierData) => {
-				setUser((prev) => (prev ? { ...prev, subscriptionTier: tierData.tier } : prev))
+				setUser((prev) => (prev ? { ...prev, subscriptionTier: tierData.tier } : prev));
 			})
 			.catch(() => {
 				// Tier endpoint may fail if billing is not configured — default already set
-			})
+			});
 
 		if (isRecruiterRole(user.role)) {
 			apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
@@ -158,71 +158,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 									is_company_owner: companyData.company?.owner_id === prev.id,
 								}
 							: prev,
-					)
+					);
 				})
 				.catch(() => {
 					// Company endpoint may fail if user has no company — default already set
-				})
+				});
 		}
-	}
+	};
 
 	const register = async (registerData: RegisterData) => {
 		// Include referral code from localStorage if present
-		const referralCode = localStorage.getItem('referral_code')
+		const referralCode = localStorage.getItem('referral_code');
 		if (referralCode && !registerData.referral_code) {
-			registerData = { ...registerData, referral_code: referralCode }
+			registerData = { ...registerData, referral_code: referralCode };
 		}
 		const data = await apiCall<{
-			success: boolean
-			user: User
-			accessToken: string
-			refreshToken: string
-			token: string
-			pending_approval?: boolean
-			message?: string
-			company?: { id: number; name: string; slug: string }
+			success: boolean;
+			user: User;
+			accessToken: string;
+			refreshToken: string;
+			token: string;
+			pending_approval?: boolean;
+			message?: string;
+			company?: { id: number; name: string; slug: string };
 		}>('/auth/register', {
 			method: 'POST',
 			body: registerData,
 			skipAuthCheck: true,
-		})
+		});
 
 		// Handle pending approval workflow (Issue #103)
 		if (data.pending_approval) {
 			// Still store tokens so user can log in and see pending status
-			setTokens(data.accessToken || data.token, data.refreshToken)
-			const user = data.user
-			user.subscriptionTier = 'free'
-			user.is_company_owner = false
-			setUser(user)
+			setTokens(data.accessToken || data.token, data.refreshToken);
+			const user = data.user;
+			user.subscriptionTier = 'free';
+			user.is_company_owner = false;
+			setUser(user);
 			// Throw with a clear message so UI can show pending approval state
 			const err = new Error(
 				data.message || 'Your registration is pending approval from the company administrator.',
-			)
-			;(err as Error & { code?: string; pendingApproval?: boolean }).code = 'PENDING_APPROVAL'
-			;(err as Error & { code?: string; pendingApproval?: boolean }).pendingApproval = true
-			throw err
+			);
+			(err as Error & { code?: string; pendingApproval?: boolean }).code = 'PENDING_APPROVAL';
+			(err as Error & { code?: string; pendingApproval?: boolean }).pendingApproval = true;
+			throw err;
 		}
 
-		const user = data.user
+		const user = data.user;
 		// Set tokens and user immediately so the redirect is not blocked by
 		// a secondary API call. Default tier to 'free'; background fetch
 		// patches the real tier when it arrives.
 		// Root cause (#105): awaiting /billing/tier before setTokens/setUser
 		// added 500-2000ms of blocking latency to every signup.
-		user.subscriptionTier = 'free'
-		user.is_company_owner = false
-		setTokens(data.accessToken || data.token, data.refreshToken)
-		setUser(user)
+		user.subscriptionTier = 'free';
+		user.is_company_owner = false;
+		setTokens(data.accessToken || data.token, data.refreshToken);
+		setUser(user);
 
 		// Fetch subscription tier in the background — non-blocking
 		apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
 			.then((tierData) => {
-				setUser((prev) => (prev ? { ...prev, subscriptionTier: tierData.tier } : prev))
+				setUser((prev) => (prev ? { ...prev, subscriptionTier: tierData.tier } : prev));
 			})
 			.catch(() => {
 				// Tier endpoint may fail if billing is not configured — default already set
-			})
+			});
 
 		if (isRecruiterRole(user.role)) {
 			apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
@@ -234,29 +234,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 									is_company_owner: companyData.company?.owner_id === prev.id,
 								}
 							: prev,
-					)
+					);
 				})
 				.catch(() => {
 					// Company endpoint may fail if user has no company — default already set
-				})
+				});
 		}
-	}
+	};
 
 	const logout = () => {
-		clearTokens()
-		setUser(null)
-		window.location.href = '/login'
-	}
+		clearTokens();
+		setUser(null);
+		window.location.href = '/login';
+	};
 
 	const refreshSubscription = async () => {
-		if (!user) return
+		if (!user) return;
 		try {
-			const tierData = await apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
-			setUser({ ...user, subscriptionTier: tierData.tier })
+			const tierData = await apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', {
+				skipAuthCheck: false,
+			});
+			setUser({ ...user, subscriptionTier: tierData.tier });
 		} catch {
-			setUser({ ...user, subscriptionTier: 'free' })
+			setUser({ ...user, subscriptionTier: 'free' });
 		}
-	}
+	};
 
 	return (
 		<AuthContext.Provider
@@ -275,15 +277,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		>
 			{children}
 		</AuthContext.Provider>
-	)
+	);
 }
 
 export function useAuth() {
-	const context = useContext(AuthContext)
+	const context = useContext(AuthContext);
 	if (!context) {
-		throw new Error('useAuth must be used within AuthProvider')
+		throw new Error('useAuth must be used within AuthProvider');
 	}
-	return context
+	return context;
 }
 
-export { getDashboardPath }
+export { getDashboardPath };

@@ -3,11 +3,11 @@ const pool = require('../lib/db');
 // ─── Constants ───────────────────────────────────────────────────────────
 
 const WEIGHTS = {
-	skills: 0.40,
+	skills: 0.4,
 	experience: 0.25,
 	location: 0.15,
-	salary: 0.10,
-	job_type: 0.10,
+	salary: 0.1,
+	job_type: 0.1,
 };
 
 const EXPERIENCE_LEVEL_YEARS = {
@@ -19,8 +19,8 @@ const EXPERIENCE_LEVEL_YEARS = {
 	principal: 10,
 	staff: 10,
 	manager: 7,
-	'director': 10,
-	'vp': 12,
+	director: 10,
+	vp: 12,
 	'c-level': 15,
 	executive: 15,
 };
@@ -116,7 +116,7 @@ function scoreExperience(candidateYears, requiredYears) {
 		return { score: 0, max: 100, candidate_years: 0, required_years: requiredYears };
 	}
 
-	let rawScore = Math.round((candidateYears / requiredYears) * 100);
+	const rawScore = Math.round((candidateYears / requiredYears) * 100);
 	// Cap at 120% → overqualified still = 100
 	const score = Math.min(100, rawScore);
 	return { score, max: 100, candidate_years: candidateYears, required_years: requiredYears };
@@ -137,14 +137,19 @@ function scoreLocation(candidateProfile, job) {
 		return { score: 100, max: 100, match_type: 'remote_friendly' };
 	}
 
-	if (REMOTE_FLEXIBLE_TYPES.includes(remotePreference) && REMOTE_FLEXIBLE_TYPES.includes(jobRemoteType)) {
+	if (
+		REMOTE_FLEXIBLE_TYPES.includes(remotePreference) &&
+		REMOTE_FLEXIBLE_TYPES.includes(jobRemoteType)
+	) {
 		return { score: 100, max: 100, match_type: 'remote_friendly' };
 	}
 
 	// Check preferred_locations includes job location (case-insensitive partial match)
 	const preferredArr = Array.isArray(preferredLocations)
 		? preferredLocations
-		: (typeof preferredLocations === 'string' ? [preferredLocations] : []);
+		: typeof preferredLocations === 'string'
+			? [preferredLocations]
+			: [];
 
 	for (const pl of preferredArr) {
 		if (
@@ -157,16 +162,19 @@ function scoreLocation(candidateProfile, job) {
 	}
 
 	// Exact location match
-	if (
-		candidateLocation &&
-		jobLocation.toLowerCase() === candidateLocation.toLowerCase()
-	) {
+	if (candidateLocation && jobLocation.toLowerCase() === candidateLocation.toLowerCase()) {
 		return { score: 100, max: 100, match_type: 'exact_match' };
 	}
 
 	// 50 if same country — best-effort: check if last segment (country) matches
-	const jobParts = jobLocation.split(',').map((s) => s.trim()).filter(Boolean);
-	const candParts = candidateLocation.split(',').map((s) => s.trim()).filter(Boolean);
+	const jobParts = jobLocation
+		.split(',')
+		.map((s) => s.trim())
+		.filter(Boolean);
+	const candParts = candidateLocation
+		.split(',')
+		.map((s) => s.trim())
+		.filter(Boolean);
 	if (
 		jobParts.length > 0 &&
 		candParts.length > 0 &&
@@ -184,16 +192,30 @@ function scoreLocation(candidateProfile, job) {
 function scoreSalary(candidateMin, jobSalaryMin, jobSalaryMax) {
 	// If no candidate expectation, assume neutral
 	if (candidateMin === null || candidateMin === undefined) {
-		return { score: 50, max: 100, candidate_min: null, job_max: jobSalaryMax, job_min: jobSalaryMin };
+		return {
+			score: 50,
+			max: 100,
+			candidate_min: null,
+			job_max: jobSalaryMax,
+			job_min: jobSalaryMin,
+		};
 	}
 
 	const cMin = parseInt(candidateMin, 10);
 	if (Number.isNaN(cMin)) {
-		return { score: 50, max: 100, candidate_min: null, job_max: jobSalaryMax, job_min: jobSalaryMin };
+		return {
+			score: 50,
+			max: 100,
+			candidate_min: null,
+			job_max: jobSalaryMax,
+			job_min: jobSalaryMin,
+		};
 	}
 
-	const jMin = jobSalaryMin !== null && jobSalaryMin !== undefined ? parseInt(jobSalaryMin, 10) : null;
-	const jMax = jobSalaryMax !== null && jobSalaryMax !== undefined ? parseInt(jobSalaryMax, 10) : null;
+	const jMin =
+		jobSalaryMin !== null && jobSalaryMin !== undefined ? parseInt(jobSalaryMin, 10) : null;
+	const jMax =
+		jobSalaryMax !== null && jobSalaryMax !== undefined ? parseInt(jobSalaryMax, 10) : null;
 
 	// If no job salary data, neutral
 	if ((jMin === null || Number.isNaN(jMin)) && (jMax === null || Number.isNaN(jMax))) {
@@ -209,7 +231,7 @@ function scoreSalary(candidateMin, jobSalaryMin, jobSalaryMax) {
 	}
 
 	// 50 if slightly below or above (within 20% tolerance)
-	const tolerance = 0.20;
+	const tolerance = 0.2;
 	const lowerBound = effectiveMin * (1 - tolerance);
 	const upperBound = effectiveMax * (1 + tolerance);
 
@@ -231,7 +253,9 @@ function scoreJobType(candidatePreferredTypes, actualJobType) {
 
 	const preferredArr = Array.isArray(candidatePreferredTypes)
 		? candidatePreferredTypes
-		: (typeof candidatePreferredTypes === 'string' ? [candidatePreferredTypes] : []);
+		: typeof candidatePreferredTypes === 'string'
+			? [candidatePreferredTypes]
+			: [];
 
 	const preferredLower = preferredArr.map((t) => String(t).toLowerCase().trim());
 
@@ -268,48 +292,50 @@ function scoreJobType(candidatePreferredTypes, actualJobType) {
  * +5  if salary ranges overlap
  */
 function scorePreferences(candidateProfile, job) {
-  let points = 0;
-  const details = [];
+	let points = 0;
+	const details = [];
 
-  // Remote match
-  const candidateRemote = (candidateProfile.remote_preference || '').toLowerCase().trim();
-  const jobRemote = (job.remote_type || '').toLowerCase().trim();
-  if (candidateRemote && jobRemote && candidateRemote === jobRemote) {
-    points += 10;
-    details.push('remote_match');
-  }
+	// Remote match
+	const candidateRemote = (candidateProfile.remote_preference || '').toLowerCase().trim();
+	const jobRemote = (job.remote_type || '').toLowerCase().trim();
+	if (candidateRemote && jobRemote && candidateRemote === jobRemote) {
+		points += 10;
+		details.push('remote_match');
+	}
 
-  // Job type match
-  const preferredTypes = candidateProfile.preferred_job_types || [];
-  const actualJobType = (job.job_type || '').toLowerCase().trim();
-  if (actualJobType && preferredTypes.length > 0) {
-    const preferredLower = preferredTypes.map((t) => String(t).toLowerCase().trim());
-    if (preferredLower.includes(actualJobType)) {
-      points += 10;
-      details.push('job_type_match');
-    }
-  }
+	// Job type match
+	const preferredTypes = candidateProfile.preferred_job_types || [];
+	const actualJobType = (job.job_type || '').toLowerCase().trim();
+	if (actualJobType && preferredTypes.length > 0) {
+		const preferredLower = preferredTypes.map((t) => String(t).toLowerCase().trim());
+		if (preferredLower.includes(actualJobType)) {
+			points += 10;
+			details.push('job_type_match');
+		}
+	}
 
-  // Salary overlap
-  const cMin = parseInt(candidateProfile.salary_min, 10);
-  const cMax = parseInt(candidateProfile.salary_max, 10);
-  const jMin = job.salary_min !== null && job.salary_min !== undefined ? parseInt(job.salary_min, 10) : null;
-  const jMax = job.salary_max !== null && job.salary_max !== undefined ? parseInt(job.salary_max, 10) : null;
+	// Salary overlap
+	const cMin = parseInt(candidateProfile.salary_min, 10);
+	const cMax = parseInt(candidateProfile.salary_max, 10);
+	const jMin =
+		job.salary_min !== null && job.salary_min !== undefined ? parseInt(job.salary_min, 10) : null;
+	const jMax =
+		job.salary_max !== null && job.salary_max !== undefined ? parseInt(job.salary_max, 10) : null;
 
-  if (!Number.isNaN(cMin) || !Number.isNaN(cMax)) {
-    const candMin = Number.isNaN(cMin) ? 0 : cMin;
-    const candMax = Number.isNaN(cMax) ? Number.MAX_SAFE_INTEGER : cMax;
-    const jobMin = jMin !== null && !Number.isNaN(jMin) ? jMin : 0;
-    const jobMax = jMax !== null && !Number.isNaN(jMax) ? jMax : Number.MAX_SAFE_INTEGER;
+	if (!Number.isNaN(cMin) || !Number.isNaN(cMax)) {
+		const candMin = Number.isNaN(cMin) ? 0 : cMin;
+		const candMax = Number.isNaN(cMax) ? Number.MAX_SAFE_INTEGER : cMax;
+		const jobMin = jMin !== null && !Number.isNaN(jMin) ? jMin : 0;
+		const jobMax = jMax !== null && !Number.isNaN(jMax) ? jMax : Number.MAX_SAFE_INTEGER;
 
-    // Overlap exists if max(lower bounds) <= min(upper bounds)
-    if (Math.max(candMin, jobMin) <= Math.min(candMax, jobMax)) {
-      points += 5;
-      details.push('salary_overlap');
-    }
-  }
+		// Overlap exists if max(lower bounds) <= min(upper bounds)
+		if (Math.max(candMin, jobMin) <= Math.min(candMax, jobMax)) {
+			points += 5;
+			details.push('salary_overlap');
+		}
+	}
 
-  return { score: points, max: 25, details };
+	return { score: points, max: 25, details };
 }
 
 function generateSummary(fitScore) {
@@ -521,10 +547,9 @@ async function calculateFitScoresBatch(candidateId, jobIds) {
 			`,
 				[candidateId],
 			),
-			client.query(
-				`SELECT skill_name, level FROM candidate_skills WHERE user_id = $1`,
-				[candidateId],
-			),
+			client.query(`SELECT skill_name, level FROM candidate_skills WHERE user_id = $1`, [
+				candidateId,
+			]),
 		]);
 
 		const candidateProfile = profileResult.rows[0] || {};

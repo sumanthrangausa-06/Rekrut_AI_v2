@@ -1,16 +1,16 @@
-import * as React from 'react'
-import { cn } from '@/lib/utils'
+import * as React from 'react';
+import { cn } from '@/lib/utils';
 
 interface SelectProps {
-	id?: string
-	value?: string
-	onValueChange?: (value: string) => void
-	onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void
-	onClick?: (e: React.MouseEvent<HTMLSelectElement>) => void
-	children: React.ReactNode
-	className?: string
-	disabled?: boolean
-	placeholder?: string
+	id?: string;
+	value?: string;
+	onValueChange?: (value: string) => void;
+	onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+	onClick?: (e: React.MouseEvent<HTMLSelectElement>) => void;
+	children: React.ReactNode;
+	className?: string;
+	disabled?: boolean;
+	placeholder?: string;
 }
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
@@ -33,11 +33,11 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
 						)}
 						disabled={disabled}
 					>
-						{placeholder && <option value=''>{placeholder}</option>}
+						{placeholder && <option value="">{placeholder}</option>}
 						{children}
 					</select>
 				</div>
-			)
+			);
 		}
 
 		// Default: render as native select with onChange
@@ -56,10 +56,10 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
 			>
 				{children}
 			</select>
-		)
+		);
 	},
-)
-Select.displayName = 'Select'
+);
+Select.displayName = 'Select';
 
 function SelectTrigger({
 	children,
@@ -75,19 +75,19 @@ function SelectTrigger({
 			{...props}
 		>
 			{children}
-			<span className='text-muted-foreground'>▼</span>
+			<span className="text-muted-foreground">▼</span>
 		</button>
-	)
+	);
 }
 
 function SelectValue({
 	placeholder,
 	children,
 }: {
-	placeholder?: string
-	children?: React.ReactNode
+	placeholder?: string;
+	children?: React.ReactNode;
 }) {
-	return <span className='text-sm'>{children || placeholder}</span>
+	return <span className="text-sm">{children || placeholder}</span>;
 }
 
 function SelectContent({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -100,7 +100,7 @@ function SelectContent({ children, className }: { children: React.ReactNode; cla
 		>
 			{children}
 		</div>
-	)
+	);
 }
 
 function SelectItem({
@@ -109,10 +109,10 @@ function SelectItem({
 	className,
 	onClick,
 }: {
-	value: string
-	children: React.ReactNode
-	className?: string
-	onClick?: () => void
+	value: string;
+	children: React.ReactNode;
+	className?: string;
+	onClick?: () => void;
 }) {
 	return (
 		<div
@@ -125,7 +125,7 @@ function SelectItem({
 		>
 			{children}
 		</div>
-	)
+	);
 }
 
-export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue }
+export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue };

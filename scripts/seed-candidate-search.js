@@ -89,7 +89,8 @@ const CANDIDATES = [
 				location: 'Mountain View, CA',
 				start_date: '2020-01-01',
 				is_current: true,
-				description: 'Built recommendation models for Google Search. Reduced inference latency by 30%.',
+				description:
+					'Built recommendation models for Google Search. Reduced inference latency by 30%.',
 			},
 			{
 				company_name: 'OpenAI',
@@ -134,7 +135,8 @@ const CANDIDATES = [
 				location: 'San Francisco, CA',
 				start_date: '2022-04-01',
 				is_current: true,
-				description: 'Bridging design and engineering. Built the design system used across all product teams.',
+				description:
+					'Bridging design and engineering. Built the design system used across all product teams.',
 			},
 			{
 				company_name: 'Dropbox',
@@ -142,7 +144,8 @@ const CANDIDATES = [
 				location: 'San Francisco, CA',
 				start_date: '2019-08-01',
 				end_date: '2022-03-31',
-				description: 'Redesigned the sharing experience. Improved accessibility score from 72 to 98.',
+				description:
+					'Redesigned the sharing experience. Improved accessibility score from 72 to 98.',
 			},
 		],
 		education: [
@@ -234,7 +237,8 @@ const CANDIDATES = [
 				location: 'Chicago, IL',
 				start_date: '2019-09-01',
 				end_date: '2021-05-31',
-				description: 'Analyzed customer churn for telecom clients. Delivered insights that reduced churn by 15%.',
+				description:
+					'Analyzed customer churn for telecom clients. Delivered insights that reduced churn by 15%.',
 			},
 		],
 		education: [
@@ -326,7 +330,8 @@ const CANDIDATES = [
 				location: 'New York, NY',
 				start_date: '2016-03-01',
 				end_date: '2019-03-31',
-				description: 'Built high-throughput metrics ingestion pipeline. Handled 10M+ metrics/second.',
+				description:
+					'Built high-throughput metrics ingestion pipeline. Handled 10M+ metrics/second.',
 			},
 		],
 		education: [
@@ -340,7 +345,7 @@ const CANDIDATES = [
 		score_tier: 'platinum',
 	},
 	{
-		name: 'Ryan O\'Connor',
+		name: "Ryan O'Connor",
 		email: 'ryan.oconnor@email.com',
 		headline: 'Security Engineer | Penetration Testing',
 		bio: 'Offensive security specialist with OSCP and OSCE certifications. Discovered critical vulnerabilities in major SaaS platforms. Passionate about secure coding practices.',
@@ -500,8 +505,7 @@ const CANDIDATES = [
 				location: 'Miami, FL',
 				start_date: '2023-06-01',
 				end_date: '2023-12-31',
-				description:
-					'Built landing pages and dashboard components using React and Tailwind.',
+				description: 'Built landing pages and dashboard components using React and Tailwind.',
 			},
 		],
 		education: [
@@ -538,8 +542,7 @@ const CANDIDATES = [
 				location: 'Menlo Park, CA',
 				start_date: '2018-01-01',
 				is_current: true,
-				description:
-					'Led platform migration serving 3B+ users. Managed team of 25 engineers.',
+				description: 'Led platform migration serving 3B+ users. Managed team of 25 engineers.',
 			},
 			{
 				company_name: 'Self-Employed',
@@ -638,7 +641,8 @@ const CANDIDATES = [
 				location: 'Montreal, Canada',
 				start_date: '2019-09-01',
 				is_current: true,
-				description: 'Core gameplay systems for open-world RPG. Implemented dynamic weather system.',
+				description:
+					'Core gameplay systems for open-world RPG. Implemented dynamic weather system.',
 			},
 			{
 				company_name: 'Indie Studio',

@@ -1,10 +1,10 @@
-import * as React from 'react'
-import { cn } from '@/lib/utils'
+import * as React from 'react';
+import { cn } from '@/lib/utils';
 
 interface SwitchProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-	checked?: boolean
-	onCheckedChange?: (checked: boolean) => void
-	label?: string
+	checked?: boolean;
+	onCheckedChange?: (checked: boolean) => void;
+	label?: string;
 }
 
 const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(
@@ -13,8 +13,8 @@ const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(
 			<div className={cn('flex items-center gap-2', className)}>
 				<button
 					ref={ref}
-					type='button'
-					role='switch'
+					type="button"
+					role="switch"
 					aria-checked={checked}
 					onClick={() => onCheckedChange?.(!checked)}
 					className={cn(
@@ -33,11 +33,11 @@ const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(
 						)}
 					/>
 				</button>
-				{label && <span className='text-sm font-medium'>{label}</span>}
+				{label && <span className="text-sm font-medium">{label}</span>}
 			</div>
-		)
+		);
 	},
-)
-Switch.displayName = 'Switch'
+);
+Switch.displayName = 'Switch';
 
-export { Switch }
+export { Switch };

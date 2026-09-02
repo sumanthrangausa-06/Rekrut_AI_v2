@@ -51,46 +51,91 @@ function requireAccessCandidate(paramName = 'id') {
 
 // ─── Employment History (under /api/candidates/:id) ─────────────────────────
 
-candidateRouter.get('/:id/employment', authMiddleware, requireAccessCandidate(), async (req, res) => {
-	try {
-		const result = await pool.query(
-			`SELECT * FROM employment_history WHERE candidate_id = $1 ORDER BY start_date DESC NULLS LAST, created_at DESC`,
-			[req.params.id],
-		);
-		res.json({ success: true, employment: result.rows });
-	} catch (err) {
-		console.error('[bg-check/employment/get] Error:', err.message);
-		res.status(500).json({ error: 'Failed to get employment history' });
-	}
-});
-
-candidateRouter.post('/:id/employment', authMiddleware, requireAccessCandidate(), async (req, res) => {
-	try {
-		const { company_name, job_title, start_date, end_date, is_current, reference_name, reference_email, reference_phone, description } = req.body;
-		if (!company_name || !job_title) {
-			return res.status(400).json({ error: 'company_name and job_title are required' });
+candidateRouter.get(
+	'/:id/employment',
+	authMiddleware,
+	requireAccessCandidate(),
+	async (req, res) => {
+		try {
+			const result = await pool.query(
+				`SELECT * FROM employment_history WHERE candidate_id = $1 ORDER BY start_date DESC NULLS LAST, created_at DESC`,
+				[req.params.id],
+			);
+			res.json({ success: true, employment: result.rows });
+		} catch (err) {
+			console.error('[bg-check/employment/get] Error:', err.message);
+			res.status(500).json({ error: 'Failed to get employment history' });
 		}
-		const result = await pool.query(
-			`
+	},
+);
+
+candidateRouter.post(
+	'/:id/employment',
+	authMiddleware,
+	requireAccessCandidate(),
+	async (req, res) => {
+		try {
+			const {
+				company_name,
+				job_title,
+				start_date,
+				end_date,
+				is_current,
+				reference_name,
+				reference_email,
+				reference_phone,
+				description,
+			} = req.body;
+			if (!company_name || !job_title) {
+				return res.status(400).json({ error: 'company_name and job_title are required' });
+			}
+			const result = await pool.query(
+				`
       INSERT INTO employment_history
         (candidate_id, company_name, job_title, start_date, end_date, is_current, reference_name, reference_email, reference_phone, description, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
       RETURNING *
     `,
-			[req.params.id, company_name, job_title, start_date || null, end_date || null, is_current || false, reference_name || null, reference_email || null, reference_phone || null, description || null],
-		);
-		res.status(201).json({ success: true, employment: result.rows[0] });
-	} catch (err) {
-		console.error('[bg-check/employment/post] Error:', err.message);
-		res.status(500).json({ error: 'Failed to create employment entry' });
-	}
-});
+				[
+					req.params.id,
+					company_name,
+					job_title,
+					start_date || null,
+					end_date || null,
+					is_current || false,
+					reference_name || null,
+					reference_email || null,
+					reference_phone || null,
+					description || null,
+				],
+			);
+			res.status(201).json({ success: true, employment: result.rows[0] });
+		} catch (err) {
+			console.error('[bg-check/employment/post] Error:', err.message);
+			res.status(500).json({ error: 'Failed to create employment entry' });
+		}
+	},
+);
 
-candidateRouter.put('/:id/employment/:entryId', authMiddleware, requireAccessCandidate(), async (req, res) => {
-	try {
-		const { company_name, job_title, start_date, end_date, is_current, reference_name, reference_email, reference_phone, description } = req.body;
-		const result = await pool.query(
-			`
+candidateRouter.put(
+	'/:id/employment/:entryId',
+	authMiddleware,
+	requireAccessCandidate(),
+	async (req, res) => {
+		try {
+			const {
+				company_name,
+				job_title,
+				start_date,
+				end_date,
+				is_current,
+				reference_name,
+				reference_email,
+				reference_phone,
+				description,
+			} = req.body;
+			const result = await pool.query(
+				`
       UPDATE employment_history
       SET company_name = COALESCE($2, company_name),
           job_title = COALESCE($3, job_title),
@@ -105,72 +150,131 @@ candidateRouter.put('/:id/employment/:entryId', authMiddleware, requireAccessCan
       WHERE id = $1 AND candidate_id = $11
       RETURNING *
     `,
-			[req.params.entryId, company_name, job_title, start_date, end_date, is_current, reference_name, reference_email, reference_phone, description, req.params.id],
-		);
-		if (result.rows.length === 0) return res.status(404).json({ error: 'Employment entry not found' });
-		res.json({ success: true, employment: result.rows[0] });
-	} catch (err) {
-		console.error('[bg-check/employment/put] Error:', err.message);
-		res.status(500).json({ error: 'Failed to update employment entry' });
-	}
-});
+				[
+					req.params.entryId,
+					company_name,
+					job_title,
+					start_date,
+					end_date,
+					is_current,
+					reference_name,
+					reference_email,
+					reference_phone,
+					description,
+					req.params.id,
+				],
+			);
+			if (result.rows.length === 0)
+				return res.status(404).json({ error: 'Employment entry not found' });
+			res.json({ success: true, employment: result.rows[0] });
+		} catch (err) {
+			console.error('[bg-check/employment/put] Error:', err.message);
+			res.status(500).json({ error: 'Failed to update employment entry' });
+		}
+	},
+);
 
-candidateRouter.delete('/:id/employment/:entryId', authMiddleware, requireAccessCandidate(), async (req, res) => {
-	try {
-		const result = await pool.query(
-			'DELETE FROM employment_history WHERE id = $1 AND candidate_id = $2 RETURNING id',
-			[req.params.entryId, req.params.id],
-		);
-		if (result.rows.length === 0) return res.status(404).json({ error: 'Employment entry not found' });
-		res.json({ success: true, message: 'Employment entry deleted' });
-	} catch (err) {
-		console.error('[bg-check/employment/delete] Error:', err.message);
-		res.status(500).json({ error: 'Failed to delete employment entry' });
-	}
-});
+candidateRouter.delete(
+	'/:id/employment/:entryId',
+	authMiddleware,
+	requireAccessCandidate(),
+	async (req, res) => {
+		try {
+			const result = await pool.query(
+				'DELETE FROM employment_history WHERE id = $1 AND candidate_id = $2 RETURNING id',
+				[req.params.entryId, req.params.id],
+			);
+			if (result.rows.length === 0)
+				return res.status(404).json({ error: 'Employment entry not found' });
+			res.json({ success: true, message: 'Employment entry deleted' });
+		} catch (err) {
+			console.error('[bg-check/employment/delete] Error:', err.message);
+			res.status(500).json({ error: 'Failed to delete employment entry' });
+		}
+	},
+);
 
 // ─── Education History (under /api/candidates/:id) ──────────────────────────
 
-candidateRouter.get('/:id/education', authMiddleware, requireAccessCandidate(), async (req, res) => {
-	try {
-		const result = await pool.query(
-			`SELECT * FROM education_history WHERE candidate_id = $1 ORDER BY start_date DESC NULLS LAST, created_at DESC`,
-			[req.params.id],
-		);
-		res.json({ success: true, education: result.rows });
-	} catch (err) {
-		console.error('[bg-check/education/get] Error:', err.message);
-		res.status(500).json({ error: 'Failed to get education history' });
-	}
-});
-
-candidateRouter.post('/:id/education', authMiddleware, requireAccessCandidate(), async (req, res) => {
-	try {
-		const { institution_name, degree, field_of_study, start_date, end_date, is_current, description } = req.body;
-		if (!institution_name) {
-			return res.status(400).json({ error: 'institution_name is required' });
+candidateRouter.get(
+	'/:id/education',
+	authMiddleware,
+	requireAccessCandidate(),
+	async (req, res) => {
+		try {
+			const result = await pool.query(
+				`SELECT * FROM education_history WHERE candidate_id = $1 ORDER BY start_date DESC NULLS LAST, created_at DESC`,
+				[req.params.id],
+			);
+			res.json({ success: true, education: result.rows });
+		} catch (err) {
+			console.error('[bg-check/education/get] Error:', err.message);
+			res.status(500).json({ error: 'Failed to get education history' });
 		}
-		const result = await pool.query(
-			`
+	},
+);
+
+candidateRouter.post(
+	'/:id/education',
+	authMiddleware,
+	requireAccessCandidate(),
+	async (req, res) => {
+		try {
+			const {
+				institution_name,
+				degree,
+				field_of_study,
+				start_date,
+				end_date,
+				is_current,
+				description,
+			} = req.body;
+			if (!institution_name) {
+				return res.status(400).json({ error: 'institution_name is required' });
+			}
+			const result = await pool.query(
+				`
       INSERT INTO education_history
         (candidate_id, institution_name, degree, field_of_study, start_date, end_date, is_current, description, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
       RETURNING *
     `,
-			[req.params.id, institution_name, degree || null, field_of_study || null, start_date || null, end_date || null, is_current || false, description || null],
-		);
-		res.status(201).json({ success: true, education: result.rows[0] });
-	} catch (err) {
-		console.error('[bg-check/education/post] Error:', err.message);
-		res.status(500).json({ error: 'Failed to create education entry' });
-	}
-});
+				[
+					req.params.id,
+					institution_name,
+					degree || null,
+					field_of_study || null,
+					start_date || null,
+					end_date || null,
+					is_current || false,
+					description || null,
+				],
+			);
+			res.status(201).json({ success: true, education: result.rows[0] });
+		} catch (err) {
+			console.error('[bg-check/education/post] Error:', err.message);
+			res.status(500).json({ error: 'Failed to create education entry' });
+		}
+	},
+);
 
-candidateRouter.put('/:id/education/:entryId', authMiddleware, requireAccessCandidate(), async (req, res) => {
-	try {
-		const { institution_name, degree, field_of_study, start_date, end_date, is_current, description } = req.body;
-		const result = await pool.query(
-			`
+candidateRouter.put(
+	'/:id/education/:entryId',
+	authMiddleware,
+	requireAccessCandidate(),
+	async (req, res) => {
+		try {
+			const {
+				institution_name,
+				degree,
+				field_of_study,
+				start_date,
+				end_date,
+				is_current,
+				description,
+			} = req.body;
+			const result = await pool.query(
+				`
       UPDATE education_history
       SET institution_name = COALESCE($2, institution_name),
           degree = COALESCE($3, degree),
@@ -183,41 +287,64 @@ candidateRouter.put('/:id/education/:entryId', authMiddleware, requireAccessCand
       WHERE id = $1 AND candidate_id = $9
       RETURNING *
     `,
-			[req.params.entryId, institution_name, degree, field_of_study, start_date, end_date, is_current, description, req.params.id],
-		);
-		if (result.rows.length === 0) return res.status(404).json({ error: 'Education entry not found' });
-		res.json({ success: true, education: result.rows[0] });
-	} catch (err) {
-		console.error('[bg-check/education/put] Error:', err.message);
-		res.status(500).json({ error: 'Failed to update education entry' });
-	}
-});
+				[
+					req.params.entryId,
+					institution_name,
+					degree,
+					field_of_study,
+					start_date,
+					end_date,
+					is_current,
+					description,
+					req.params.id,
+				],
+			);
+			if (result.rows.length === 0)
+				return res.status(404).json({ error: 'Education entry not found' });
+			res.json({ success: true, education: result.rows[0] });
+		} catch (err) {
+			console.error('[bg-check/education/put] Error:', err.message);
+			res.status(500).json({ error: 'Failed to update education entry' });
+		}
+	},
+);
 
-candidateRouter.delete('/:id/education/:entryId', authMiddleware, requireAccessCandidate(), async (req, res) => {
-	try {
-		const result = await pool.query(
-			'DELETE FROM education_history WHERE id = $1 AND candidate_id = $2 RETURNING id',
-			[req.params.entryId, req.params.id],
-		);
-		if (result.rows.length === 0) return res.status(404).json({ error: 'Education entry not found' });
-		res.json({ success: true, message: 'Education entry deleted' });
-	} catch (err) {
-		console.error('[bg-check/education/delete] Error:', err.message);
-		res.status(500).json({ error: 'Failed to delete education entry' });
-	}
-});
+candidateRouter.delete(
+	'/:id/education/:entryId',
+	authMiddleware,
+	requireAccessCandidate(),
+	async (req, res) => {
+		try {
+			const result = await pool.query(
+				'DELETE FROM education_history WHERE id = $1 AND candidate_id = $2 RETURNING id',
+				[req.params.entryId, req.params.id],
+			);
+			if (result.rows.length === 0)
+				return res.status(404).json({ error: 'Education entry not found' });
+			res.json({ success: true, message: 'Education entry deleted' });
+		} catch (err) {
+			console.error('[bg-check/education/delete] Error:', err.message);
+			res.status(500).json({ error: 'Failed to delete education entry' });
+		}
+	},
+);
 
 // ─── Discrepancies (candidate-scoped, under /api/candidates/:id) ────────────
 
-candidateRouter.get('/:id/discrepancies', authMiddleware, requireAccessCandidate(), async (req, res) => {
-	try {
-		const discrepancies = await discrepancyService.getDiscrepanciesForCandidate(req.params.id);
-		res.json({ success: true, discrepancies });
-	} catch (err) {
-		console.error('[bg-check/discrepancies/get] Error:', err.message);
-		res.status(500).json({ error: 'Failed to get discrepancies' });
-	}
-});
+candidateRouter.get(
+	'/:id/discrepancies',
+	authMiddleware,
+	requireAccessCandidate(),
+	async (req, res) => {
+		try {
+			const discrepancies = await discrepancyService.getDiscrepanciesForCandidate(req.params.id);
+			res.json({ success: true, discrepancies });
+		} catch (err) {
+			console.error('[bg-check/discrepancies/get] Error:', err.message);
+			res.status(500).json({ error: 'Failed to get discrepancies' });
+		}
+	},
+);
 
 // ─── Verification Requests (under /api/verification-requests) ───────────────
 
@@ -272,8 +399,11 @@ router.post('/verification-requests', authMiddleware, async (req, res) => {
 
 router.get('/verification-requests/:id', authMiddleware, async (req, res) => {
 	try {
-		const result = await pool.query('SELECT * FROM bg_verification_requests WHERE id = $1', [req.params.id]);
-		if (result.rows.length === 0) return res.status(404).json({ error: 'Verification request not found' });
+		const result = await pool.query('SELECT * FROM bg_verification_requests WHERE id = $1', [
+			req.params.id,
+		]);
+		if (result.rows.length === 0)
+			return res.status(404).json({ error: 'Verification request not found' });
 
 		const request = result.rows[0];
 		const ok = await canAccessCandidate(req, request.candidate_id);
@@ -329,8 +459,12 @@ router.post('/verification-requests/:id/manual-review', authMiddleware, async (r
 		const requestId = parseInt(req.params.id, 10);
 
 		// Verify access
-		const reqResult = await pool.query('SELECT candidate_id FROM bg_verification_requests WHERE id = $1', [requestId]);
-		if (reqResult.rows.length === 0) return res.status(404).json({ error: 'Verification request not found' });
+		const reqResult = await pool.query(
+			'SELECT candidate_id FROM bg_verification_requests WHERE id = $1',
+			[requestId],
+		);
+		if (reqResult.rows.length === 0)
+			return res.status(404).json({ error: 'Verification request not found' });
 
 		const ok = await canAccessCandidate(req, reqResult.rows[0].candidate_id);
 		if (!ok) return res.status(403).json({ error: 'Access denied' });
@@ -380,12 +514,17 @@ router.post('/discrepancies/:id/resolve', authMiddleware, async (req, res) => {
     `,
 			[discrepancyId],
 		);
-		if (discResult.rows.length === 0) return res.status(404).json({ error: 'Discrepancy not found' });
+		if (discResult.rows.length === 0)
+			return res.status(404).json({ error: 'Discrepancy not found' });
 
 		const ok = await canAccessCandidate(req, discResult.rows[0].candidate_id);
 		if (!ok) return res.status(403).json({ error: 'Access denied' });
 
-		const discrepancy = await discrepancyService.resolveDiscrepancy(discrepancyId, req.user.id, resolution);
+		const discrepancy = await discrepancyService.resolveDiscrepancy(
+			discrepancyId,
+			req.user.id,
+			resolution,
+		);
 		res.json({ success: true, discrepancy });
 	} catch (err) {
 		console.error('[bg-check/discrepancies/resolve] Error:', err.message);
@@ -398,7 +537,8 @@ router.post('/discrepancies/:id/resolve', authMiddleware, async (req, res) => {
 router.get('/reference-checks', authMiddleware, async (req, res) => {
 	try {
 		const { candidate_id } = req.query;
-		if (!candidate_id) return res.status(400).json({ error: 'candidate_id query param is required' });
+		if (!candidate_id)
+			return res.status(400).json({ error: 'candidate_id query param is required' });
 
 		const ok = await canAccessCandidate(req, candidate_id);
 		if (!ok) return res.status(403).json({ error: 'Access denied' });
@@ -416,7 +556,14 @@ router.get('/reference-checks', authMiddleware, async (req, res) => {
 
 router.post('/reference-checks', authMiddleware, async (req, res) => {
 	try {
-		const { candidate_id, employment_history_id, reference_name, reference_email, reference_phone, relationship } = req.body;
+		const {
+			candidate_id,
+			employment_history_id,
+			reference_name,
+			reference_email,
+			reference_phone,
+			relationship,
+		} = req.body;
 		if (!candidate_id || !reference_name) {
 			return res.status(400).json({ error: 'candidate_id and reference_name are required' });
 		}
@@ -431,7 +578,14 @@ router.post('/reference-checks', authMiddleware, async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW(), NOW())
       RETURNING *
     `,
-			[candidate_id, employment_history_id || null, reference_name, reference_email || null, reference_phone || null, relationship || null],
+			[
+				candidate_id,
+				employment_history_id || null,
+				reference_name,
+				reference_email || null,
+				reference_phone || null,
+				relationship || null,
+			],
 		);
 
 		res.status(201).json({ success: true, reference_check: result.rows[0] });

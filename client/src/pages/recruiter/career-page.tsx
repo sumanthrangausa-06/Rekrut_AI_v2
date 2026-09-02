@@ -20,177 +20,177 @@ import {
 	TrendingUp,
 	Users,
 	Zap,
-} from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { EmptyState } from '@/components/domain/empty-state'
-import { Skeleton } from '@/components/domain/skeleton'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { trackEvent } from '@/lib/analytics'
-import { apiCall } from '@/lib/api'
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { EmptyState } from '@/components/domain/empty-state';
+import { Skeleton } from '@/components/domain/skeleton';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { trackEvent } from '@/lib/analytics';
+import { apiCall } from '@/lib/api';
 
 export type CareerPageData = {
 	company: {
-		id: string
-		name: string
-		logo?: string
-		coverImage?: string
-		tagline: string
-		description: string
-		website: string
-		location: string
-		size: string
-		industry: string
-		founded: string
-		trustscore: number
-		rating: number
-		reviewCount: number
-	}
+		id: string;
+		name: string;
+		logo?: string;
+		coverImage?: string;
+		tagline: string;
+		description: string;
+		website: string;
+		location: string;
+		size: string;
+		industry: string;
+		founded: string;
+		trustscore: number;
+		rating: number;
+		reviewCount: number;
+	};
 	culture: {
-		values: string[]
-		benefits: Array<{ icon: string; label: string; description: string }>
-		photos: string[]
-		videoUrl?: string
-	}
+		values: string[];
+		benefits: Array<{ icon: string; label: string; description: string }>;
+		photos: string[];
+		videoUrl?: string;
+	};
 	team: Array<{
-		id: string
-		name: string
-		role: string
-		avatar?: string
-		quote?: string
-	}>
+		id: string;
+		name: string;
+		role: string;
+		avatar?: string;
+		quote?: string;
+	}>;
 	jobs: Array<{
-		id: string
-		title: string
-		department: string
-		location: string
-		type: string
-		salary: string
-		postedAt: string
-		matchScore?: number
-	}>
+		id: string;
+		title: string;
+		department: string;
+		location: string;
+		type: string;
+		salary: string;
+		postedAt: string;
+		matchScore?: number;
+	}>;
 	stats: {
-		openPositions: number
-		avgTimeToHire: number
-		employees: number
-		growthRate: number
-	}
-}
+		openPositions: number;
+		avgTimeToHire: number;
+		employees: number;
+		growthRate: number;
+	};
+};
 
 const benefitIcons: Record<string, React.ReactNode> = {
-	health: <HeartPulse className='h-5 w-5' />,
-	dental: <HeartPulse className='h-5 w-5' />,
-	vision: <HeartPulse className='h-5 w-5' />,
-	gym: <Dumbbell className='h-5 w-5' />,
-	remote: <Laptop className='h-5 w-5' />,
-	vacation: <Plane className='h-5 w-5' />,
-	flexible: <Clock className='h-5 w-5' />,
-	learning: <GraduationCap className='h-5 w-5' />,
-	parental: <Baby className='h-5 w-5' />,
-	equity: <TrendingUp className='h-5 w-5' />,
-	bonus: <DollarSign className='h-5 w-5' />,
-	coffee: <Coffee className='h-5 w-5' />,
-	events: <Calendar className='h-5 w-5' />,
-	wellness: <HeartPulse className='h-5 w-5' />,
-	default: <Sparkles className='h-5 w-5' />,
-}
+	health: <HeartPulse className="h-5 w-5" />,
+	dental: <HeartPulse className="h-5 w-5" />,
+	vision: <HeartPulse className="h-5 w-5" />,
+	gym: <Dumbbell className="h-5 w-5" />,
+	remote: <Laptop className="h-5 w-5" />,
+	vacation: <Plane className="h-5 w-5" />,
+	flexible: <Clock className="h-5 w-5" />,
+	learning: <GraduationCap className="h-5 w-5" />,
+	parental: <Baby className="h-5 w-5" />,
+	equity: <TrendingUp className="h-5 w-5" />,
+	bonus: <DollarSign className="h-5 w-5" />,
+	coffee: <Coffee className="h-5 w-5" />,
+	events: <Calendar className="h-5 w-5" />,
+	wellness: <HeartPulse className="h-5 w-5" />,
+	default: <Sparkles className="h-5 w-5" />,
+};
 
 export function RecruiterCareerPage() {
-	const { companyId } = useParams()
-	const [data, setData] = useState<CareerPageData | null>(null)
-	const [loading, setLoading] = useState(true)
-	const [selectedDept, setSelectedDept] = useState('all')
+	const { companyId } = useParams();
+	const [data, setData] = useState<CareerPageData | null>(null);
+	const [loading, setLoading] = useState(true);
+	const [selectedDept, setSelectedDept] = useState('all');
 
 	useEffect(() => {
 		async function load() {
-			setLoading(true)
+			setLoading(true);
 			try {
-				const result = await apiCall<CareerPageData>(`/careers/${companyId || 'default'}`)
-				setData(result)
+				const result = await apiCall<CareerPageData>(`/careers/${companyId || 'default'}`);
+				setData(result);
 			} catch (err) {
-				console.error('Failed to load career page:', err)
+				console.error('Failed to load career page:', err);
 				// Use mock data
-				setData(generateMockData())
+				setData(generateMockData());
 			} finally {
-				setLoading(false)
+				setLoading(false);
 			}
 		}
-		load()
-	}, [companyId])
+		load();
+	}, [companyId]);
 
 	if (loading) {
 		return (
-			<div className='min-h-screen bg-background'>
-				<div className='h-64 bg-muted animate-pulse' />
-				<div className='max-w-5xl mx-auto px-6 py-8 space-y-6'>
-					<Skeleton count={3} variant='card' />
+			<div className="min-h-screen bg-background">
+				<div className="h-64 bg-muted animate-pulse" />
+				<div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+					<Skeleton count={3} variant="card" />
 				</div>
 			</div>
-		)
+		);
 	}
 
-	if (!data) return null
+	if (!data) return null;
 
-	const { company, culture, team, jobs, stats } = data
+	const { company, culture, team, jobs, stats } = data;
 
-	const departments = ['all', ...Array.from(new Set(jobs.map((j) => j.department)))]
+	const departments = ['all', ...Array.from(new Set(jobs.map((j) => j.department)))];
 	const filteredJobs =
-		selectedDept === 'all' ? jobs : jobs.filter((j) => j.department === selectedDept)
+		selectedDept === 'all' ? jobs : jobs.filter((j) => j.department === selectedDept);
 
 	const handleApply = (jobId: string) => {
-		trackEvent('career_page_apply', { job_id: jobId, company_id: company.id })
-		window.location.href = `/jobs/${jobId}`
-	}
+		trackEvent('career_page_apply', { job_id: jobId, company_id: company.id });
+		window.location.href = `/jobs/${jobId}`;
+	};
 
 	return (
-		<div className='min-h-screen bg-background'>
+		<div className="min-h-screen bg-background">
 			{/* Hero */}
-			<div className='relative h-64 bg-gradient-to-r from-primary/20 to-primary/10 flex items-end'>
-				<div className='max-w-5xl mx-auto px-6 pb-6 w-full'>
-					<div className='flex items-end gap-4'>
-						<Avatar className='h-20 w-20 border-4 border-background shadow-lg'>
+			<div className="relative h-64 bg-gradient-to-r from-primary/20 to-primary/10 flex items-end">
+				<div className="max-w-5xl mx-auto px-6 pb-6 w-full">
+					<div className="flex items-end gap-4">
+						<Avatar className="h-20 w-20 border-4 border-background shadow-lg">
 							<AvatarImage src={company.logo} alt={company.name} />
-							<AvatarFallback className='bg-primary text-primary-foreground text-2xl font-bold'>
+							<AvatarFallback className="bg-primary text-primary-foreground text-2xl font-bold">
 								{company.name.slice(0, 2).toUpperCase()}
 							</AvatarFallback>
 						</Avatar>
-						<div className='flex-1'>
-							<h1 className='text-2xl font-bold'>{company.name}</h1>
-							<p className='text-muted-foreground'>{company.tagline}</p>
-							<div className='flex items-center gap-3 mt-1 text-sm text-muted-foreground'>
-								<span className='flex items-center gap-1'>
-									<MapPin className='h-3.5 w-3.5' />
+						<div className="flex-1">
+							<h1 className="text-2xl font-bold">{company.name}</h1>
+							<p className="text-muted-foreground">{company.tagline}</p>
+							<div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+								<span className="flex items-center gap-1">
+									<MapPin className="h-3.5 w-3.5" />
 									{company.location}
 								</span>
-								<span className='flex items-center gap-1'>
-									<Users className='h-3.5 w-3.5' />
+								<span className="flex items-center gap-1">
+									<Users className="h-3.5 w-3.5" />
 									{company.size}
 								</span>
-								<span className='flex items-center gap-1'>
-									<Globe className='h-3.5 w-3.5' />
+								<span className="flex items-center gap-1">
+									<Globe className="h-3.5 w-3.5" />
 									<a
 										href={company.website}
-										target='_blank'
-										rel='noopener noreferrer'
-										className='hover:underline'
+										target="_blank"
+										rel="noopener noreferrer"
+										className="hover:underline"
 									>
 										Website
 									</a>
 								</span>
 							</div>
 						</div>
-						<div className='text-right'>
-							<div className='flex items-center gap-1'>
-								<Star className='h-5 w-5 text-amber-500 fill-amber-500' />
-								<span className='text-xl font-bold'>{company.rating}</span>
+						<div className="text-right">
+							<div className="flex items-center gap-1">
+								<Star className="h-5 w-5 text-amber-500 fill-amber-500" />
+								<span className="text-xl font-bold">{company.rating}</span>
 							</div>
-							<p className='text-xs text-muted-foreground'>{company.reviewCount} reviews</p>
-							<div className='mt-1 flex items-center gap-1'>
-								<Shield className='h-3.5 w-3.5 text-emerald-500' />
-								<span className='text-xs text-emerald-600 font-medium'>
+							<p className="text-xs text-muted-foreground">{company.reviewCount} reviews</p>
+							<div className="mt-1 flex items-center gap-1">
+								<Shield className="h-3.5 w-3.5 text-emerald-500" />
+								<span className="text-xs text-emerald-600 font-medium">
 									TrustScore {company.trustscore}
 								</span>
 							</div>
@@ -199,63 +199,63 @@ export function RecruiterCareerPage() {
 				</div>
 			</div>
 
-			<div className='max-w-5xl mx-auto px-6 py-8 space-y-10'>
+			<div className="max-w-5xl mx-auto px-6 py-8 space-y-10">
 				{/* Stats */}
-				<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 					<Card>
-						<CardContent className='p-4'>
-							<div className='flex items-center justify-between'>
+						<CardContent className="p-4">
+							<div className="flex items-center justify-between">
 								<div>
-									<p className='text-2xl font-bold'>{stats.openPositions}</p>
-									<p className='text-xs text-muted-foreground'>Open Positions</p>
+									<p className="text-2xl font-bold">{stats.openPositions}</p>
+									<p className="text-xs text-muted-foreground">Open Positions</p>
 								</div>
-								<Briefcase className='h-8 w-8 text-muted-foreground/50' />
+								<Briefcase className="h-8 w-8 text-muted-foreground/50" />
 							</div>
 						</CardContent>
 					</Card>
 					<Card>
-						<CardContent className='p-4'>
-							<div className='flex items-center justify-between'>
+						<CardContent className="p-4">
+							<div className="flex items-center justify-between">
 								<div>
-									<p className='text-2xl font-bold'>{stats.employees}</p>
-									<p className='text-xs text-muted-foreground'>Employees</p>
+									<p className="text-2xl font-bold">{stats.employees}</p>
+									<p className="text-xs text-muted-foreground">Employees</p>
 								</div>
-								<Users className='h-8 w-8 text-muted-foreground/50' />
+								<Users className="h-8 w-8 text-muted-foreground/50" />
 							</div>
 						</CardContent>
 					</Card>
 					<Card>
-						<CardContent className='p-4'>
-							<div className='flex items-center justify-between'>
+						<CardContent className="p-4">
+							<div className="flex items-center justify-between">
 								<div>
-									<p className='text-2xl font-bold'>{stats.avgTimeToHire}d</p>
-									<p className='text-xs text-muted-foreground'>Avg Time to Hire</p>
+									<p className="text-2xl font-bold">{stats.avgTimeToHire}d</p>
+									<p className="text-xs text-muted-foreground">Avg Time to Hire</p>
 								</div>
-								<Clock className='h-8 w-8 text-muted-foreground/50' />
+								<Clock className="h-8 w-8 text-muted-foreground/50" />
 							</div>
 						</CardContent>
 					</Card>
 					<Card>
-						<CardContent className='p-4'>
-							<div className='flex items-center justify-between'>
+						<CardContent className="p-4">
+							<div className="flex items-center justify-between">
 								<div>
-									<p className='text-2xl font-bold text-green-600'>+{stats.growthRate}%</p>
-									<p className='text-xs text-muted-foreground'>YoY Growth</p>
+									<p className="text-2xl font-bold text-green-600">+{stats.growthRate}%</p>
+									<p className="text-xs text-muted-foreground">YoY Growth</p>
 								</div>
-								<TrendingUp className='h-8 w-8 text-green-500/50' />
+								<TrendingUp className="h-8 w-8 text-green-500/50" />
 							</div>
 						</CardContent>
 					</Card>
 				</div>
 
 				{/* About */}
-				<div className='space-y-4'>
-					<h2 className='font-heading text-xl font-bold'>About {company.name}</h2>
-					<p className='text-muted-foreground leading-relaxed'>{company.description}</p>
-					<div className='flex flex-wrap gap-2'>
+				<div className="space-y-4">
+					<h2 className="font-heading text-xl font-bold">About {company.name}</h2>
+					<p className="text-muted-foreground leading-relaxed">{company.description}</p>
+					<div className="flex flex-wrap gap-2">
 						{culture.values.map((value) => (
-							<Badge key={value} variant='secondary' className='text-sm px-3 py-1'>
-								<CheckCircle className='h-3.5 w-3.5 mr-1' />
+							<Badge key={value} variant="secondary" className="text-sm px-3 py-1">
+								<CheckCircle className="h-3.5 w-3.5 mr-1" />
 								{value}
 							</Badge>
 						))}
@@ -263,19 +263,19 @@ export function RecruiterCareerPage() {
 				</div>
 
 				{/* Benefits */}
-				<div className='space-y-4'>
-					<h2 className='font-heading text-xl font-bold'>Benefits & Perks</h2>
-					<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+				<div className="space-y-4">
+					<h2 className="font-heading text-xl font-bold">Benefits & Perks</h2>
+					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 						{culture.benefits.map((benefit) => (
 							<Card key={benefit.label}>
-								<CardContent className='p-4'>
-									<div className='flex items-start gap-3'>
-										<div className='h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0'>
+								<CardContent className="p-4">
+									<div className="flex items-start gap-3">
+										<div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
 											{benefitIcons[benefit.icon] || benefitIcons.default}
 										</div>
 										<div>
-											<p className='font-medium'>{benefit.label}</p>
-											<p className='text-sm text-muted-foreground'>{benefit.description}</p>
+											<p className="font-medium">{benefit.label}</p>
+											<p className="text-sm text-muted-foreground">{benefit.description}</p>
 										</div>
 									</div>
 								</CardContent>
@@ -285,22 +285,22 @@ export function RecruiterCareerPage() {
 				</div>
 
 				{/* Team */}
-				<div className='space-y-4'>
-					<h2 className='font-heading text-xl font-bold'>Meet the Team</h2>
-					<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+				<div className="space-y-4">
+					<h2 className="font-heading text-xl font-bold">Meet the Team</h2>
+					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 						{team.map((member) => (
-							<Card key={member.id} className='overflow-hidden'>
-								<CardContent className='p-4 text-center'>
-									<Avatar className='h-16 w-16 mx-auto mb-3'>
+							<Card key={member.id} className="overflow-hidden">
+								<CardContent className="p-4 text-center">
+									<Avatar className="h-16 w-16 mx-auto mb-3">
 										<AvatarImage src={member.avatar} alt={member.name} />
-										<AvatarFallback className='bg-primary/10 text-primary text-lg font-bold'>
+										<AvatarFallback className="bg-primary/10 text-primary text-lg font-bold">
 											{member.name.slice(0, 2).toUpperCase()}
 										</AvatarFallback>
 									</Avatar>
-									<p className='font-medium'>{member.name}</p>
-									<p className='text-sm text-muted-foreground'>{member.role}</p>
+									<p className="font-medium">{member.name}</p>
+									<p className="text-sm text-muted-foreground">{member.role}</p>
 									{member.quote && (
-										<p className='text-xs text-muted-foreground mt-2 italic'>"{member.quote}"</p>
+										<p className="text-xs text-muted-foreground mt-2 italic">"{member.quote}"</p>
 									)}
 								</CardContent>
 							</Card>
@@ -309,17 +309,17 @@ export function RecruiterCareerPage() {
 				</div>
 
 				{/* Open Positions */}
-				<div className='space-y-4'>
-					<div className='flex items-center justify-between'>
-						<h2 className='font-heading text-xl font-bold'>Open Positions</h2>
-						<div className='flex gap-1'>
+				<div className="space-y-4">
+					<div className="flex items-center justify-between">
+						<h2 className="font-heading text-xl font-bold">Open Positions</h2>
+						<div className="flex gap-1">
 							{departments.map((dept) => (
 								<Button
 									key={dept}
 									variant={selectedDept === dept ? 'default' : 'outline'}
-									size='sm'
+									size="sm"
 									onClick={() => setSelectedDept(dept)}
-									className='capitalize'
+									className="capitalize"
 								>
 									{dept}
 								</Button>
@@ -330,46 +330,46 @@ export function RecruiterCareerPage() {
 					{filteredJobs.length === 0 ? (
 						<EmptyState
 							icon={Briefcase}
-							title='No open positions'
-							description='Check back later for new opportunities'
+							title="No open positions"
+							description="Check back later for new opportunities"
 						/>
 					) : (
-						<div className='grid gap-4'>
+						<div className="grid gap-4">
 							{filteredJobs.map((job) => (
 								<Card
 									key={job.id}
-									className='cursor-pointer hover:shadow-md transition-all'
+									className="cursor-pointer hover:shadow-md transition-all"
 									onClick={() => handleApply(job.id)}
 								>
-									<CardContent className='p-4'>
-										<div className='flex items-start justify-between'>
-											<div className='space-y-1'>
-												<h3 className='font-semibold'>{job.title}</h3>
-												<div className='flex items-center gap-2 text-sm text-muted-foreground'>
-													<Badge variant='outline' className='text-xs'>
+									<CardContent className="p-4">
+										<div className="flex items-start justify-between">
+											<div className="space-y-1">
+												<h3 className="font-semibold">{job.title}</h3>
+												<div className="flex items-center gap-2 text-sm text-muted-foreground">
+													<Badge variant="outline" className="text-xs">
 														{job.department}
 													</Badge>
-													<span className='flex items-center gap-1'>
-														<MapPin className='h-3.5 w-3.5' />
+													<span className="flex items-center gap-1">
+														<MapPin className="h-3.5 w-3.5" />
 														{job.location}
 													</span>
-													<span className='flex items-center gap-1'>
-														<Clock className='h-3.5 w-3.5' />
+													<span className="flex items-center gap-1">
+														<Clock className="h-3.5 w-3.5" />
 														{job.type}
 													</span>
 												</div>
-												<p className='text-sm font-medium text-primary'>{job.salary}</p>
+												<p className="text-sm font-medium text-primary">{job.salary}</p>
 											</div>
-											<div className='flex items-center gap-2'>
+											<div className="flex items-center gap-2">
 												{job.matchScore && (
-													<Badge className='bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'>
-														<Zap className='h-3 w-3 mr-1' />
+													<Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+														<Zap className="h-3 w-3 mr-1" />
 														{job.matchScore}% match
 													</Badge>
 												)}
-												<Button size='sm' className='gap-1'>
+												<Button size="sm" className="gap-1">
 													Apply
-													<ArrowRight className='h-4 w-4' />
+													<ArrowRight className="h-4 w-4" />
 												</Button>
 											</div>
 										</div>
@@ -381,7 +381,7 @@ export function RecruiterCareerPage() {
 				</div>
 			</div>
 		</div>
-	)
+	);
 }
 
 function generateMockData(): CareerPageData {
@@ -509,5 +509,5 @@ function generateMockData(): CareerPageData {
 			employees: 523,
 			growthRate: 34,
 		},
-	}
+	};
 }

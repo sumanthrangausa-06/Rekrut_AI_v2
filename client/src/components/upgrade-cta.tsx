@@ -1,24 +1,24 @@
-import { useSubscription, type FeatureKey } from '@/hooks/use-subscription'
-import { useNavigate } from 'react-router-dom'
-import type { ReactNode } from 'react'
+import type { ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { type FeatureKey, useSubscription } from '@/hooks/use-subscription';
 
 interface UpgradeCTAProps {
-	feature: FeatureKey
-	children: ReactNode
-	fallback?: ReactNode
+	feature: FeatureKey;
+	children: ReactNode;
+	fallback?: ReactNode;
 }
 
 export function UpgradeCTA({ feature, children, fallback }: UpgradeCTAProps) {
-	const { canUseFeature, isPro } = useSubscription()
-	const navigate = useNavigate()
-	const allowed = canUseFeature(feature)
+	const { canUseFeature, isPro } = useSubscription();
+	const navigate = useNavigate();
+	const allowed = canUseFeature(feature);
 
 	if (allowed) {
-		return <>{children}</>
+		return <>{children}</>;
 	}
 
 	if (fallback) {
-		return <>{fallback}</>
+		return <>{fallback}</>;
 	}
 
 	return (
@@ -36,5 +36,5 @@ export function UpgradeCTA({ feature, children, fallback }: UpgradeCTAProps) {
 				Upgrade to Pro
 			</button>
 		</div>
-	)
+	);
 }

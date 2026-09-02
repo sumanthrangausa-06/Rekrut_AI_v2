@@ -10,156 +10,156 @@ import {
 	Shield,
 	Sparkles,
 	Trophy,
-} from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Textarea } from '@/components/ui/textarea'
-import { apiCall } from '@/lib/api'
+} from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { apiCall } from '@/lib/api';
 
 interface Question {
-	id: number
-	category: string
-	type: string
-	text: string
-	options?: string[]
-	timeLimit: number
-	points: number
-	difficulty: number
+	id: number;
+	category: string;
+	type: string;
+	text: string;
+	options?: string[];
+	timeLimit: number;
+	points: number;
+	difficulty: number;
 }
 
 interface Progress {
-	current: number
-	total: number
+	current: number;
+	total: number;
 }
 
 interface ConversationMessage {
-	role: 'candidate' | 'ai'
-	text: string
+	role: 'candidate' | 'ai';
+	text: string;
 }
 
 export function JobAssessmentTakePage() {
-	const { id: assessmentId } = useParams()
-	const [searchParams] = useSearchParams()
-	const navigate = useNavigate()
+	const { id: assessmentId } = useParams();
+	const [searchParams] = useSearchParams();
+	const navigate = useNavigate();
 
-	const [attemptId, setAttemptId] = useState<number | null>(null)
-	const [question, setQuestion] = useState<Question | null>(null)
-	const [progress, setProgress] = useState<Progress>({ current: 1, total: 15 })
-	const [selectedAnswer, setSelectedAnswer] = useState('')
-	const [textAnswer, setTextAnswer] = useState('')
-	const [submitting, setSubmitting] = useState(false)
-	const [loading, setLoading] = useState(true)
-	const [completed, setCompleted] = useState(false)
-	const [feedback, setFeedback] = useState<string | null>(null)
-	const [timeLeft, setTimeLeft] = useState(0)
-	const [scoring, setScoring] = useState(false)
+	const [attemptId, setAttemptId] = useState<number | null>(null);
+	const [question, setQuestion] = useState<Question | null>(null);
+	const [progress, setProgress] = useState<Progress>({ current: 1, total: 15 });
+	const [selectedAnswer, setSelectedAnswer] = useState('');
+	const [textAnswer, setTextAnswer] = useState('');
+	const [submitting, setSubmitting] = useState(false);
+	const [loading, setLoading] = useState(true);
+	const [completed, setCompleted] = useState(false);
+	const [feedback, setFeedback] = useState<string | null>(null);
+	const [timeLeft, setTimeLeft] = useState(0);
+	const [scoring, setScoring] = useState(false);
 
 	// Conversational mode
-	const [conversationMode, setConversationMode] = useState(false)
-	const [conversation, setConversation] = useState<ConversationMessage[]>([])
-	const [convoInput, setConvoInput] = useState('')
-	const [convoLoading, setConvoLoading] = useState(false)
-	const [convoQuestionId, setConvoQuestionId] = useState<number | null>(null)
+	const [conversationMode, setConversationMode] = useState(false);
+	const [conversation, setConversation] = useState<ConversationMessage[]>([]);
+	const [convoInput, setConvoInput] = useState('');
+	const [convoLoading, setConvoLoading] = useState(false);
+	const [convoQuestionId, setConvoQuestionId] = useState<number | null>(null);
 
-	const startTimeRef = useRef(Date.now())
+	const startTimeRef = useRef(Date.now());
 
 	const startAssessment = useCallback(async () => {
 		try {
-			const applicationId = searchParams.get('applicationId')
+			const applicationId = searchParams.get('applicationId');
 			const data = await apiCall<{
-				attemptId: number
-				resumed: boolean
-				progress: Progress
-				question: Question | null
+				attemptId: number;
+				resumed: boolean;
+				progress: Progress;
+				question: Question | null;
 			}>(`/assessments/job-assessment/${assessmentId}/start`, {
 				method: 'POST',
 				body: { applicationId: applicationId ? Number(applicationId) : undefined },
-			})
+			});
 
-			setAttemptId(data.attemptId)
-			setProgress(data.progress)
+			setAttemptId(data.attemptId);
+			setProgress(data.progress);
 			if (data.question) {
-				setQuestion(data.question)
-				setTimeLeft(data.question.timeLimit || 120)
-				startTimeRef.current = Date.now()
+				setQuestion(data.question);
+				setTimeLeft(data.question.timeLimit || 120);
+				startTimeRef.current = Date.now();
 			}
 		} catch (e: any) {
-			console.error('Failed to start assessment:', e)
+			console.error('Failed to start assessment:', e);
 		} finally {
-			setLoading(false)
+			setLoading(false);
 		}
-	}, [assessmentId, searchParams])
+	}, [assessmentId, searchParams]);
 
 	useEffect(() => {
-		startAssessment()
-	}, [startAssessment])
+		startAssessment();
+	}, [startAssessment]);
 
 	// Timer
 
 	async function submitAnswer() {
-		if (!attemptId || !question) return
-		setSubmitting(true)
-		setFeedback(null)
+		if (!attemptId || !question) return;
+		setSubmitting(true);
+		setFeedback(null);
 
-		const answer = question.type === 'multiple_choice' ? selectedAnswer : textAnswer
-		const timeTaken = Math.round((Date.now() - startTimeRef.current) / 1000)
+		const answer = question.type === 'multiple_choice' ? selectedAnswer : textAnswer;
+		const timeTaken = Math.round((Date.now() - startTimeRef.current) / 1000);
 
 		try {
 			const data = await apiCall<{
-				completed: boolean
-				feedback?: string
-				quickScore?: number
-				progress: Progress
-				nextQuestion?: Question
+				completed: boolean;
+				feedback?: string;
+				quickScore?: number;
+				progress: Progress;
+				nextQuestion?: Question;
 			}>(`/assessments/job-assessment/${assessmentId}/answer`, {
 				method: 'POST',
 				body: { attemptId, questionId: question.id, answer, timeTaken },
-			})
+			});
 
-			if (data.feedback) setFeedback(data.feedback)
+			if (data.feedback) setFeedback(data.feedback);
 
 			if (data.completed) {
-				setCompleted(true)
-				setScoring(true)
-				setTimeout(() => setScoring(false), 5000)
-				return
+				setCompleted(true);
+				setScoring(true);
+				setTimeout(() => setScoring(false), 5000);
+				return;
 			}
 
 			// Show feedback briefly then move to next
 			setTimeout(
 				() => {
-					setFeedback(null)
-					setSelectedAnswer('')
-					setTextAnswer('')
-					setConversationMode(false)
-					setConversation([])
-					setConvoQuestionId(null)
+					setFeedback(null);
+					setSelectedAnswer('');
+					setTextAnswer('');
+					setConversationMode(false);
+					setConversation([]);
+					setConvoQuestionId(null);
 
 					if (data.nextQuestion) {
-						setQuestion(data.nextQuestion)
-						setProgress(data.progress)
-						setTimeLeft(data.nextQuestion.timeLimit || 120)
-						startTimeRef.current = Date.now()
+						setQuestion(data.nextQuestion);
+						setProgress(data.progress);
+						setTimeLeft(data.nextQuestion.timeLimit || 120);
+						startTimeRef.current = Date.now();
 					}
 				},
 				data.feedback ? 1500 : 0,
-			)
+			);
 		} catch (e: any) {
-			console.error('Submit failed:', e)
+			console.error('Submit failed:', e);
 		} finally {
-			setSubmitting(false)
+			setSubmitting(false);
 		}
 	}
 
 	async function sendConvoMessage() {
-		if (!convoInput.trim() || !attemptId || !convoQuestionId) return
-		setConvoLoading(true)
-		const msg = convoInput.trim()
-		setConvoInput('')
-		setConversation((prev) => [...prev, { role: 'candidate', text: msg }])
+		if (!convoInput.trim() || !attemptId || !convoQuestionId) return;
+		setConvoLoading(true);
+		const msg = convoInput.trim();
+		setConvoInput('');
+		setConversation((prev) => [...prev, { role: 'candidate', text: msg }]);
 
 		try {
 			const data = await apiCall<{ reply: string; done: boolean; followUpCount: number }>(
@@ -168,10 +168,10 @@ export function JobAssessmentTakePage() {
 					method: 'POST',
 					body: { attemptId, questionId: convoQuestionId, message: msg },
 				},
-			)
-			setConversation((prev) => [...prev, { role: 'ai', text: data.reply }])
+			);
+			setConversation((prev) => [...prev, { role: 'ai', text: data.reply }]);
 			if (data.done) {
-				setTimeout(() => setConversationMode(false), 2000)
+				setTimeout(() => setConversationMode(false), 2000);
 			}
 		} catch {
 			setConversation((prev) => [
@@ -180,97 +180,97 @@ export function JobAssessmentTakePage() {
 					role: 'ai',
 					text: 'Sorry, I had trouble processing that. Please continue to the next question.',
 				},
-			])
+			]);
 		} finally {
-			setConvoLoading(false)
+			setConvoLoading(false);
 		}
 	}
 
 	function startConversation() {
-		if (!question) return
-		setConversationMode(true)
-		setConvoQuestionId(question.id)
+		if (!question) return;
+		setConversationMode(true);
+		setConvoQuestionId(question.id);
 		setConversation([
 			{
 				role: 'ai',
 				text: `Let's discuss your answer in more depth. I'd like to understand your approach better. Can you elaborate on your response?`,
 			},
-		])
+		]);
 	}
 
 	if (loading) {
 		return (
-			<div className='flex items-center justify-center py-20'>
-				<div className='text-center space-y-3 px-4'>
-					<Loader2 className='h-8 w-8 animate-spin mx-auto text-primary' />
-					<p className='text-muted-foreground'>Loading assessment...</p>
+			<div className="flex items-center justify-center py-20">
+				<div className="text-center space-y-3 px-4">
+					<Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+					<p className="text-muted-foreground">Loading assessment...</p>
 				</div>
 			</div>
-		)
+		);
 	}
 
 	if (completed) {
 		return (
-			<div className='max-w-2xl mx-auto space-y-6 py-8 px-4 sm:px-6'>
-				<Card className='border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50'>
-					<CardContent className='pt-8 text-center space-y-4'>
-						<div className='w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto'>
-							<Trophy className='h-8 w-8 text-green-600' />
+			<div className="max-w-2xl mx-auto space-y-6 py-8 px-4 sm:px-6">
+				<Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+					<CardContent className="pt-8 text-center space-y-4">
+						<div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
+							<Trophy className="h-8 w-8 text-green-600" />
 						</div>
-						<h2 className='text-2xl font-bold'>Assessment Complete!</h2>
-						<p className='text-muted-foreground max-w-md mx-auto'>
+						<h2 className="text-2xl font-bold">Assessment Complete!</h2>
+						<p className="text-muted-foreground max-w-md mx-auto">
 							{scoring
 								? 'Your answers are being scored by AI. Results will be available shortly.'
 								: 'Your assessment has been submitted and scored. The recruiter will review your results.'}
 						</p>
 						{scoring && (
-							<div className='flex items-center justify-center gap-2 text-violet-600'>
-								<Loader2 className='h-4 w-4 animate-spin' />
-								<span className='text-sm font-medium'>AI is scoring your answers...</span>
+							<div className="flex items-center justify-center gap-2 text-violet-600">
+								<Loader2 className="h-4 w-4 animate-spin" />
+								<span className="text-sm font-medium">AI is scoring your answers...</span>
 							</div>
 						)}
-						<div className='pt-4'>
-							<Button onClick={() => navigate('/candidate/applications')} className='gap-2'>
-								<ArrowRight className='h-4 w-4' /> Back to Applications
+						<div className="pt-4">
+							<Button onClick={() => navigate('/candidate/applications')} className="gap-2">
+								<ArrowRight className="h-4 w-4" /> Back to Applications
 							</Button>
 						</div>
 					</CardContent>
 				</Card>
 			</div>
-		)
+		);
 	}
 
 	if (!question) {
 		return (
-			<div className='max-w-xl mx-auto py-12 text-center space-y-4 px-4 sm:px-6'>
-				<AlertTriangle className='h-10 w-10 text-amber-500 mx-auto' />
-				<h2 className='text-xl font-bold'>No Questions Available</h2>
-				<p className='text-muted-foreground'>This assessment doesn't have any questions yet.</p>
-				<Button variant='outline' onClick={() => navigate(-1)}>
+			<div className="max-w-xl mx-auto py-12 text-center space-y-4 px-4 sm:px-6">
+				<AlertTriangle className="h-10 w-10 text-amber-500 mx-auto" />
+				<h2 className="text-xl font-bold">No Questions Available</h2>
+				<p className="text-muted-foreground">This assessment doesn't have any questions yet.</p>
+				<Button variant="outline" onClick={() => navigate(-1)}>
 					Go Back
 				</Button>
 			</div>
-		)
+		);
 	}
 
-	const minutes = Math.floor(timeLeft / 60)
-	const seconds = timeLeft % 60
-	const isLowTime = timeLeft < 30
-	const isTextType = question.type !== 'multiple_choice'
+	const minutes = Math.floor(timeLeft / 60);
+	const seconds = timeLeft % 60;
+	const isLowTime = timeLeft < 30;
+	const isTextType = question.type !== 'multiple_choice';
 
 	return (
-		<div className='max-w-3xl mx-auto space-y-5 py-4 px-4 sm:px-6 lg:px-8'>
+		<div className="max-w-3xl mx-auto space-y-5 py-4 px-4 sm:px-6 lg:px-8">
 			{/* Progress Bar */}
-			<div className='space-y-2'>
-				<div className='flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm'>
-					<span className='font-medium'>
+			<div className="space-y-2">
+				<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm">
+					<span className="font-medium">
 						Question {progress.current} of {progress.total}
 					</span>
-					<div className='flex flex-wrap items-center gap-2 sm:gap-3'>
-						<Badge variant='secondary' className='capitalize'>
+					<div className="flex flex-wrap items-center gap-2 sm:gap-3">
+						<Badge variant="secondary" className="capitalize">
 							{question.category.replace('_', ' ')}
 						</Badge>
-						<span className='text-xs text-muted-foreground'>
+						<span className="text-xs text-muted-foreground">
 							{question.points} pts &middot; Difficulty {question.difficulty}/5
 						</span>
 						<span
@@ -281,17 +281,17 @@ export function JobAssessmentTakePage() {
 						</span>
 					</div>
 				</div>
-				<div className='h-2 rounded-full bg-muted overflow-hidden'>
+				<div className="h-2 rounded-full bg-muted overflow-hidden">
 					<div
-						className='h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 transition-all duration-300'
+						className="h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 transition-all duration-300"
 						style={{ width: `${(progress.current / progress.total) * 100}%` }}
 					/>
 				</div>
 			</div>
 
 			{/* Question Card */}
-			<Card className='border-2'>
-				<CardContent className='pt-6 space-y-5'>
+			<Card className="border-2">
+				<CardContent className="pt-6 space-y-5">
 					{/* Feedback banner */}
 					{feedback && (
 						<div
@@ -301,11 +301,11 @@ export function JobAssessmentTakePage() {
 						</div>
 					)}
 
-					<p className='text-base sm:text-lg font-medium leading-relaxed'>{question.text}</p>
+					<p className="text-base sm:text-lg font-medium leading-relaxed">{question.text}</p>
 
 					{/* Multiple choice */}
 					{question.type === 'multiple_choice' && question.options && (
-						<div className='space-y-2'>
+						<div className="space-y-2">
 							{question.options.map((opt, _i) => (
 								<button
 									key={opt}
@@ -317,7 +317,7 @@ export function JobAssessmentTakePage() {
 									onClick={() => setSelectedAnswer(opt)}
 									disabled={submitting}
 								>
-									<span className='text-sm'>{opt}</span>
+									<span className="text-sm">{opt}</span>
 								</button>
 							))}
 						</div>
@@ -343,12 +343,12 @@ export function JobAssessmentTakePage() {
 
 					{/* Conversational mode */}
 					{conversationMode && (
-						<div className='rounded-lg border bg-muted/30 p-4 space-y-3'>
-							<div className='flex items-center gap-2 text-sm font-medium text-violet-700'>
-								<MessageSquare className='h-4 w-4' />
+						<div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+							<div className="flex items-center gap-2 text-sm font-medium text-violet-700">
+								<MessageSquare className="h-4 w-4" />
 								AI Follow-up Discussion
 							</div>
-							<div className='space-y-2 max-h-48 overflow-y-auto'>
+							<div className="space-y-2 max-h-48 overflow-y-auto">
 								{conversation.map((msg, i) => (
 									<div
 										key={i}
@@ -366,45 +366,45 @@ export function JobAssessmentTakePage() {
 									</div>
 								))}
 								{convoLoading && (
-									<div className='flex justify-start'>
-										<div className='bg-white border rounded-lg px-3 py-2 text-sm text-muted-foreground flex items-center gap-1.5'>
-											<Loader2 className='h-3 w-3 animate-spin' /> Thinking...
+									<div className="flex justify-start">
+										<div className="bg-white border rounded-lg px-3 py-2 text-sm text-muted-foreground flex items-center gap-1.5">
+											<Loader2 className="h-3 w-3 animate-spin" /> Thinking...
 										</div>
 									</div>
 								)}
 							</div>
-							<div className='flex gap-2'>
+							<div className="flex gap-2">
 								<input
-									className='flex-1 rounded-lg border px-3 py-2 text-sm min-h-[44px]'
-									placeholder='Type your response...'
+									className="flex-1 rounded-lg border px-3 py-2 text-sm min-h-[44px]"
+									placeholder="Type your response..."
 									value={convoInput}
 									onChange={(e) => setConvoInput(e.target.value)}
 									onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendConvoMessage()}
 									disabled={convoLoading}
 								/>
 								<Button
-									size='sm'
+									size="sm"
 									onClick={sendConvoMessage}
 									disabled={convoLoading || !convoInput.trim()}
-									className='min-h-[44px] min-w-[44px]'
+									className="min-h-[44px] min-w-[44px]"
 								>
-									<Send className='h-4 w-4' />
+									<Send className="h-4 w-4" />
 								</Button>
 							</div>
 						</div>
 					)}
 
 					{/* Actions */}
-					<div className='flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2'>
-						<div className='flex gap-2'>
+					<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
+						<div className="flex gap-2">
 							{isTextType && !conversationMode && textAnswer.length > 20 && (
 								<Button
-									variant='outline'
-									size='sm'
+									variant="outline"
+									size="sm"
 									onClick={startConversation}
-									className='gap-1.5 text-violet-600 min-h-[44px]'
+									className="gap-1.5 text-violet-600 min-h-[44px]"
 								>
-									<MessageSquare className='h-3.5 w-3.5' /> Discuss with AI
+									<MessageSquare className="h-3.5 w-3.5" /> Discuss with AI
 								</Button>
 							)}
 						</div>
@@ -415,19 +415,19 @@ export function JobAssessmentTakePage() {
 								(question.type === 'multiple_choice' && !selectedAnswer) ||
 								(isTextType && !textAnswer.trim() && !conversationMode)
 							}
-							className='gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 min-h-[44px]'
+							className="gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 min-h-[44px]"
 						>
 							{submitting ? (
 								<>
-									<Loader2 className='h-4 w-4 animate-spin' /> Submitting...
+									<Loader2 className="h-4 w-4 animate-spin" /> Submitting...
 								</>
 							) : progress.current >= progress.total ? (
 								<>
-									<CheckCircle className='h-4 w-4' /> Finish Assessment
+									<CheckCircle className="h-4 w-4" /> Finish Assessment
 								</>
 							) : (
 								<>
-									<ArrowRight className='h-4 w-4' /> Next Question
+									<ArrowRight className="h-4 w-4" /> Next Question
 								</>
 							)}
 						</Button>
@@ -436,17 +436,17 @@ export function JobAssessmentTakePage() {
 			</Card>
 
 			{/* Info footer */}
-			<div className='flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground'>
-				<span className='flex items-center gap-1'>
-					<Shield className='h-3 w-3' /> Anti-cheat monitored
+			<div className="flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
+				<span className="flex items-center gap-1">
+					<Shield className="h-3 w-3" /> Anti-cheat monitored
 				</span>
-				<span className='flex items-center gap-1'>
-					<Sparkles className='h-3 w-3' /> AI-scored
+				<span className="flex items-center gap-1">
+					<Sparkles className="h-3 w-3" /> AI-scored
 				</span>
-				<span className='flex items-center gap-1'>
-					<BarChart3 className='h-3 w-3' /> Adaptive difficulty
+				<span className="flex items-center gap-1">
+					<BarChart3 className="h-3 w-3" /> Adaptive difficulty
 				</span>
 			</div>
 		</div>
-	)
+	);
 }

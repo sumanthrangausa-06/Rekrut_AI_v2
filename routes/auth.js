@@ -84,7 +84,10 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 		// --- Issue #103: Enforce company email domain for recruiter roles ---
 		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
 		if (recruiterRoles.includes(role)) {
-			const { validateRecruiterEmail, getBlockedDomainExamples } = require('../services/domain-validator');
+			const {
+				validateRecruiterEmail,
+				getBlockedDomainExamples,
+			} = require('../services/domain-validator');
 			const emailValidation = validateRecruiterEmail(email);
 			if (!emailValidation.valid) {
 				return res.status(400).json({
@@ -146,8 +149,7 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 									recruiter_name: user.name || 'A new recruiter',
 									recruiter_email: user.email,
 									company_name: existingCompany.name,
-									dashboard_link:
-										`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/recruiter/dashboard`,
+									dashboard_link: `${process.env.FRONTEND_URL || 'https://rekrut.ai'}/recruiter/dashboard`,
 									request_time: new Date().toLocaleString('en-US', {
 										weekday: 'long',
 										year: 'numeric',
@@ -785,10 +787,9 @@ router.get('/google/callback', async (req, res) => {
 
 				// ── Notify company owner (non-blocking) ──
 				try {
-					const ownerResult = await pool.query(
-						'SELECT id, email, name FROM users WHERE id = $1',
-						[existingCompany.owner_id],
-					);
+					const ownerResult = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [
+						existingCompany.owner_id,
+					]);
 					const owner = ownerResult.rows[0];
 					if (owner) {
 						await emailService.sendEmailAsync({
@@ -799,8 +800,7 @@ router.get('/google/callback', async (req, res) => {
 								recruiter_name: user.name || 'A new recruiter',
 								recruiter_email: user.email,
 								company_name: existingCompany.name,
-								dashboard_link:
-									`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/recruiter/dashboard`,
+								dashboard_link: `${process.env.FRONTEND_URL || 'https://rekrut.ai'}/recruiter/dashboard`,
 								request_time: new Date().toLocaleString('en-US', {
 									weekday: 'long',
 									year: 'numeric',
@@ -926,7 +926,9 @@ router.get('/linkedin/callback', async (req, res) => {
 		if (error) {
 			if (req.session?.oauth_link_user_id) {
 				delete req.session.oauth_link_user_id;
-				return res.redirect(`/settings?oauth_error=${encodeURIComponent(error_description || error)}`);
+				return res.redirect(
+					`/settings?oauth_error=${encodeURIComponent(error_description || error)}`,
+				);
 			}
 			return res.redirect(`/login?error=${encodeURIComponent(error_description || error)}`);
 		}
@@ -1109,7 +1111,9 @@ router.get('/linkedin/callback', async (req, res) => {
 		req.session.refreshToken = refreshToken;
 
 		const redirectUrl =
-			user.role === 'recruiter' ? '/recruiter/dashboard' : '/candidate/dashboard?linkedin_connected=true';
+			user.role === 'recruiter'
+				? '/recruiter/dashboard'
+				: '/candidate/dashboard?linkedin_connected=true';
 		res.redirect(redirectUrl);
 	} catch (err) {
 		console.error('LinkedIn OAuth error:', err.message, err.code, err.stack);
@@ -1252,10 +1256,10 @@ router.post('/oauth/disconnect', authMiddleware, async (req, res) => {
 		}
 
 		// Delete the oauth connection
-		await pool.query(
-			'DELETE FROM oauth_connections WHERE user_id = $1 AND provider = $2',
-			[req.user.id, provider],
-		);
+		await pool.query('DELETE FROM oauth_connections WHERE user_id = $1 AND provider = $2', [
+			req.user.id,
+			provider,
+		]);
 
 		// Clear the provider ID from users table
 		if (provider === 'google') {

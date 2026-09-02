@@ -29,61 +29,61 @@ import {
 	Volume2,
 	Wand2,
 	X,
-} from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from '@/components/ui/sheet'
-import { Textarea } from '@/components/ui/textarea'
-import { Tooltip } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Textarea } from '@/components/ui/textarea';
+import { Tooltip } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
-import type { MockConversationTurn, MockSession } from './coaching-types'
-import { formatTime } from './coaching-utils'
+import type { MockConversationTurn, MockSession } from './coaching-types';
+import { formatTime } from './coaching-utils';
 
 interface InterviewActiveLayoutProps {
-	mockSession: MockSession
-	mockVideoRef: React.RefObject<HTMLVideoElement | null>
-	mockCameraReady: boolean
-	mockCameraError: string | null
+	mockSession: MockSession;
+	mockVideoRef: React.RefObject<HTMLVideoElement | null>;
+	mockCameraReady: boolean;
+	mockCameraError: string | null;
 
 	// Voice state
-	voiceMode: boolean
-	aiSpeaking: boolean
-	candidateRecording: boolean
-	voiceProcessing: boolean
-	silenceTimer: number
-	voiceError: string | null
-	mockLiveTranscript: string
-	mockRecordingTime: number
+	voiceMode: boolean;
+	aiSpeaking: boolean;
+	candidateRecording: boolean;
+	voiceProcessing: boolean;
+	silenceTimer: number;
+	voiceError: string | null;
+	mockLiveTranscript: string;
+	mockRecordingTime: number;
 
 	// Body language
 	bodyLanguageIndicators: {
-		eye_contact: string
-		posture: string
-		confidence: string
-		expression: string
-		last_updated: string
-	} | null
+		eye_contact: string;
+		posture: string;
+		confidence: string;
+		expression: string;
+		last_updated: string;
+	} | null;
 
 	// Frame stats (for display)
-	frameCount: number
+	frameCount: number;
 
 	// Text input
-	mockResponseText: string
-	setMockResponseText: (text: string) => void
-	mockSending: boolean
+	mockResponseText: string;
+	setMockResponseText: (text: string) => void;
+	mockSending: boolean;
 
 	// Callbacks
-	startVoiceRecording: () => void
-	stopVoiceRecording: () => void
-	startMockCamera: () => void
-	stopMockCamera: () => void
-	endMockInterview: () => void
-	sendMockResponse: () => void
-	setVoiceError: (error: string | null) => void
+	startVoiceRecording: () => void;
+	stopVoiceRecording: () => void;
+	startMockCamera: () => void;
+	stopMockCamera: () => void;
+	endMockInterview: () => void;
+	sendMockResponse: () => void;
+	setVoiceError: (error: string | null) => void;
 
 	// Refs for scrolling
-	chatEndRef: React.RefObject<HTMLDivElement | null>
+	chatEndRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export function InterviewActiveLayout({
@@ -113,57 +113,57 @@ export function InterviewActiveLayout({
 	setVoiceError,
 	chatEndRef,
 }: InterviewActiveLayoutProps) {
-	const [showChat, setShowChat] = useState(true)
-	const [chatPanelMobileOpen, setChatPanelMobileOpen] = useState(false)
-	const [controlsMobileOpen, setControlsMobileOpen] = useState(false)
-	const [isFullscreen, setIsFullscreen] = useState(false)
-	const [isVideoOn, setIsVideoOn] = useState(true)
-	const [isMicOn, setIsMicOn] = useState(true)
-	const [showReactions, setShowReactions] = useState(false)
-	const [raisedHand, setRaisedHand] = useState(false)
-	const videoContainerRef = useRef<HTMLDivElement>(null)
-	const [interviewDuration, setInterviewDuration] = useState(0)
-	const [activeSpeaker, setActiveSpeaker] = useState<'ai' | 'candidate'>('ai')
+	const [showChat, setShowChat] = useState(true);
+	const [chatPanelMobileOpen, setChatPanelMobileOpen] = useState(false);
+	const [controlsMobileOpen, setControlsMobileOpen] = useState(false);
+	const [isFullscreen, setIsFullscreen] = useState(false);
+	const [isVideoOn, setIsVideoOn] = useState(true);
+	const [isMicOn, setIsMicOn] = useState(true);
+	const [showReactions, setShowReactions] = useState(false);
+	const [raisedHand, setRaisedHand] = useState(false);
+	const videoContainerRef = useRef<HTMLDivElement>(null);
+	const [interviewDuration, setInterviewDuration] = useState(0);
+	const [activeSpeaker, setActiveSpeaker] = useState<'ai' | 'candidate'>('ai');
 
 	// Interview duration timer
 	useEffect(() => {
 		const interval = setInterval(() => {
-			setInterviewDuration((prev) => prev + 1)
-		}, 1000)
-		return () => clearInterval(interval)
-	}, [])
+			setInterviewDuration((prev) => prev + 1);
+		}, 1000);
+		return () => clearInterval(interval);
+	}, []);
 
 	// Track active speaker
 	useEffect(() => {
-		if (aiSpeaking) setActiveSpeaker('ai')
-		else if (candidateRecording) setActiveSpeaker('candidate')
-	}, [aiSpeaking, candidateRecording])
+		if (aiSpeaking) setActiveSpeaker('ai');
+		else if (candidateRecording) setActiveSpeaker('candidate');
+	}, [aiSpeaking, candidateRecording]);
 
 	// Auto-scroll chat
 	useEffect(() => {
-		chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-	}, [mockSession.conversation.length, mockLiveTranscript, voiceProcessing, chatEndRef])
+		chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+	}, [mockSession.conversation.length, mockLiveTranscript, voiceProcessing, chatEndRef]);
 
 	// Fullscreen toggle
 	const toggleFullscreen = () => {
-		if (!videoContainerRef.current) return
+		if (!videoContainerRef.current) return;
 		if (!document.fullscreenElement) {
-			videoContainerRef.current.requestFullscreen().catch(() => {})
-			setIsFullscreen(true)
+			videoContainerRef.current.requestFullscreen().catch(() => {});
+			setIsFullscreen(true);
 		} else {
-			document.exitFullscreen().catch(() => {})
-			setIsFullscreen(false)
+			document.exitFullscreen().catch(() => {});
+			setIsFullscreen(false);
 		}
-	}
+	};
 
 	useEffect(() => {
-		const handler = () => setIsFullscreen(!!document.fullscreenElement)
-		document.addEventListener('fullscreenchange', handler)
-		return () => document.removeEventListener('fullscreenchange', handler)
-	}, [])
+		const handler = () => setIsFullscreen(!!document.fullscreenElement);
+		document.addEventListener('fullscreenchange', handler);
+		return () => document.removeEventListener('fullscreenchange', handler);
+	}, []);
 
-	const currentQuestion = mockSession.conversation.filter((t) => t.role === 'interviewer').length
-	const totalQuestions = mockSession.questions_asked + mockSession.follow_ups_asked
+	const currentQuestion = mockSession.conversation.filter((t) => t.role === 'interviewer').length;
+	const totalQuestions = mockSession.questions_asked + mockSession.follow_ups_asked;
 
 	// Status message
 	const statusMessage = voiceError
@@ -176,29 +176,29 @@ export function InterviewActiveLayout({
 					: 'Recording... speak your answer'
 				: voiceProcessing
 					? 'Processing your response...'
-					: 'Tap the microphone to answer'
+					: 'Tap the microphone to answer';
 
 	const toggleVideo = () => {
 		if (mockCameraReady) {
-			stopMockCamera()
-			setIsVideoOn(false)
+			stopMockCamera();
+			setIsVideoOn(false);
 		} else {
-			startMockCamera()
-			setIsVideoOn(true)
+			startMockCamera();
+			setIsVideoOn(true);
 		}
-	}
+	};
 
 	const toggleMic = () => {
 		if (candidateRecording) {
-			stopVoiceRecording()
-			setIsMicOn(false)
+			stopVoiceRecording();
+			setIsMicOn(false);
 		} else {
-			startVoiceRecording()
-			setIsMicOn(true)
+			startVoiceRecording();
+			setIsMicOn(true);
 		}
-	}
+	};
 
-	const reactions = ['👍', '❤️', '😂', '😮', '👏', '🎉']
+	const reactions = ['👍', '❤️', '😂', '😮', '👏', '🎉'];
 
 	return (
 		<div className="flex flex-col h-[calc(100vh-8rem)] min-h-[500px] rounded-2xl overflow-hidden bg-[#0f0f0f] shadow-2xl ring-1 ring-white/5">
@@ -288,7 +288,11 @@ export function InterviewActiveLayout({
 						className="hidden lg:flex h-8 gap-1.5 text-xs text-white/60 hover:text-white hover:bg-white/10 rounded-full"
 						onClick={() => setShowChat((s) => !s)}
 					>
-						{showChat ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+						{showChat ? (
+							<Minimize2 className="h-3.5 w-3.5" />
+						) : (
+							<Maximize2 className="h-3.5 w-3.5" />
+						)}
 						{showChat ? 'Hide Chat' : 'Show Chat'}
 					</Button>
 				</div>
@@ -299,10 +303,7 @@ export function InterviewActiveLayout({
 				{/* Video Area */}
 				<div className="flex-1 flex flex-col relative min-w-0 bg-[#0a0a0a]">
 					{/* Primary Video Stage */}
-					<div
-						ref={videoContainerRef}
-						className="flex-1 relative min-h-0"
-					>
+					<div ref={videoContainerRef} className="flex-1 relative min-h-0">
 						{/* Active Speaker Video Feed */}
 						<video
 							ref={mockVideoRef}
@@ -368,13 +369,13 @@ export function InterviewActiveLayout({
 										className={cn(
 											'px-2.5 py-1 rounded-lg text-[10px] font-medium backdrop-blur-md border',
 											item.value === 'good' ||
-											item.value === 'confident' ||
-											item.value === 'engaged' ||
-											item.value === 'positive'
+												item.value === 'confident' ||
+												item.value === 'engaged' ||
+												item.value === 'positive'
 												? 'bg-emerald-500/70 border-emerald-400/30 text-white'
 												: item.value === 'neutral' ||
-													item.value === 'moderate' ||
-													item.value === 'ok'
+														item.value === 'moderate' ||
+														item.value === 'ok'
 													? 'bg-amber-500/70 border-amber-400/30 text-white'
 													: 'bg-red-500/70 border-red-400/30 text-white',
 										)}
@@ -435,7 +436,9 @@ export function InterviewActiveLayout({
 									<div className="flex items-center justify-between">
 										<span className="text-[10px] text-white/90 font-medium truncate">Alex</span>
 										<div className="flex items-center gap-1">
-											{aiSpeaking && <Volume2 className="h-2.5 w-2.5 text-violet-300 animate-pulse" />}
+											{aiSpeaking && (
+												<Volume2 className="h-2.5 w-2.5 text-violet-300 animate-pulse" />
+											)}
 											<Mic className="h-2.5 w-2.5 text-white/50" />
 										</div>
 									</div>
@@ -452,7 +455,7 @@ export function InterviewActiveLayout({
 									<video
 										ref={(el) => {
 											if (el && mockVideoRef.current) {
-												el.srcObject = mockVideoRef.current.srcObject
+												el.srcObject = mockVideoRef.current.srcObject;
 											}
 										}}
 										autoPlay
@@ -589,10 +592,10 @@ export function InterviewActiveLayout({
 									>
 										{r}
 									</button>
-									))}
-								</div>
-							)}
-						</div>
+								))}
+							</div>
+						)}
+					</div>
 
 					{/* Screen Share */}
 					<Tooltip content="Screen share (coming soon)">
@@ -634,9 +637,7 @@ export function InterviewActiveLayout({
 
 					{/* Settings */}
 					<Tooltip content="Settings">
-						<button
-							className="h-11 w-11 rounded-xl flex items-center justify-center bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all duration-200"
-						>
+						<button className="h-11 w-11 rounded-xl flex items-center justify-center bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all duration-200">
 							<Settings className="h-5 w-5" />
 						</button>
 					</Tooltip>
@@ -669,8 +670,8 @@ export function InterviewActiveLayout({
 					<div className="p-4 grid grid-cols-4 gap-3">
 						<MobileControlButton
 							onClick={() => {
-								toggleMic()
-								setControlsMobileOpen(false)
+								toggleMic();
+								setControlsMobileOpen(false);
 							}}
 							active={candidateRecording}
 							icon={candidateRecording ? MicOff : Mic}
@@ -679,8 +680,8 @@ export function InterviewActiveLayout({
 						/>
 						<MobileControlButton
 							onClick={() => {
-								toggleVideo()
-								setControlsMobileOpen(false)
+								toggleVideo();
+								setControlsMobileOpen(false);
 							}}
 							active={mockCameraReady}
 							icon={mockCameraReady ? Video : VideoOff}
@@ -721,8 +722,8 @@ export function InterviewActiveLayout({
 						/>
 						<MobileControlButton
 							onClick={() => {
-								endMockInterview()
-								setControlsMobileOpen(false)
+								endMockInterview();
+								setControlsMobileOpen(false);
 							}}
 							active={false}
 							icon={PhoneOff}
@@ -759,7 +760,7 @@ export function InterviewActiveLayout({
 				</SheetContent>
 			</Sheet>
 		</div>
-	)
+	);
 }
 
 // ===== MOBILE CONTROL BUTTON =====
@@ -771,12 +772,12 @@ function MobileControlButton({
 	activeColor,
 	disabled = false,
 }: {
-	onClick: () => void
-	active: boolean
-	icon: React.ElementType
-	label: string
-	activeColor?: string
-	disabled?: boolean
+	onClick: () => void;
+	active: boolean;
+	icon: React.ElementType;
+	label: string;
+	activeColor?: string;
+	disabled?: boolean;
 }) {
 	return (
 		<button
@@ -793,7 +794,7 @@ function MobileControlButton({
 			<Icon className="h-5 w-5" />
 			<span className="text-[10px] font-medium">{label}</span>
 		</button>
-	)
+	);
 }
 
 // ===== CHAT PANEL CONTENT =====
@@ -809,24 +810,24 @@ function ChatPanelContent({
 	sendMockResponse,
 	interviewDuration,
 }: {
-	conversation: MockConversationTurn[]
-	candidateRecording: boolean
-	mockLiveTranscript: string
-	voiceProcessing: boolean
-	chatEndRef: React.RefObject<HTMLDivElement | null>
-	mockResponseText: string
-	setMockResponseText: (text: string) => void
-	mockSending: boolean
-	sendMockResponse: () => void
-	interviewDuration: number
+	conversation: MockConversationTurn[];
+	candidateRecording: boolean;
+	mockLiveTranscript: string;
+	voiceProcessing: boolean;
+	chatEndRef: React.RefObject<HTMLDivElement | null>;
+	mockResponseText: string;
+	setMockResponseText: (text: string) => void;
+	mockSending: boolean;
+	sendMockResponse: () => void;
+	interviewDuration: number;
 }) {
-	const scrollRef = useRef<HTMLDivElement>(null)
+	const scrollRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		if (scrollRef.current) {
-			scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
 		}
-	}, [conversation.length, mockLiveTranscript, voiceProcessing])
+	}, [conversation.length, mockLiveTranscript, voiceProcessing]);
 
 	return (
 		<>
@@ -897,8 +898,8 @@ function ChatPanelContent({
 								className="resize-none text-xs min-h-[60px] bg-white/5 border-white/10 text-white/90 placeholder:text-white/20 focus:border-violet-500/50 focus:ring-violet-500/20 rounded-xl pr-10"
 								onKeyDown={(e) => {
 									if (e.key === 'Enter' && !e.shiftKey) {
-										e.preventDefault()
-										sendMockResponse()
+										e.preventDefault();
+										sendMockResponse();
 									}
 								}}
 							/>
@@ -915,18 +916,23 @@ function ChatPanelContent({
 				</div>
 			)}
 		</>
-	)
+	);
 }
 
 // ===== CHAT MESSAGE =====
 function ChatMessage({ turn, index }: { turn: MockConversationTurn; index: number }) {
-	const isInterviewer = turn.role === 'interviewer'
+	const isInterviewer = turn.role === 'interviewer';
 	const time = turn.timestamp
 		? new Date(turn.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-		: ''
+		: '';
 
 	return (
-		<div className={cn('flex gap-3 animate-in fade-in slide-in-from-bottom-1 duration-300', index > 0 && 'mt-3')}>
+		<div
+			className={cn(
+				'flex gap-3 animate-in fade-in slide-in-from-bottom-1 duration-300',
+				index > 0 && 'mt-3',
+			)}
+		>
 			<div
 				className={cn(
 					'h-8 w-8 rounded-full flex items-center justify-center shrink-0 border',
@@ -943,7 +949,12 @@ function ChatMessage({ turn, index }: { turn: MockConversationTurn; index: numbe
 			</div>
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-2 mb-1">
-					<p className={cn('text-[10px] font-semibold', isInterviewer ? 'text-violet-400' : 'text-emerald-400')}>
+					<p
+						className={cn(
+							'text-[10px] font-semibold',
+							isInterviewer ? 'text-violet-400' : 'text-emerald-400',
+						)}
+					>
 						{isInterviewer ? 'Alex' : 'You'}
 					</p>
 					{turn.action && turn.action !== 'transition' && (
@@ -973,5 +984,5 @@ function ChatMessage({ turn, index }: { turn: MockConversationTurn; index: numbe
 				</div>
 			</div>
 		</div>
-	)
+	);
 }

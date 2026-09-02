@@ -22,7 +22,6 @@ function parsePagination(query, defaults = { page: 1, limit: 50 }) {
 	return { page, limit, offset: (page - 1) * limit };
 }
 
-
 // Log an event (client-side tracking)
 // Cache invalidation: any event mutation flushes analytics cache
 router.post('/events', optionalAuth, async (req, res) => {

@@ -1,192 +1,196 @@
-import { useCallback, useRef, useState } from 'react'
-import { Upload, X, ImageIcon, Crop, Check } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Check, Crop, ImageIcon, Upload, X } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface SignatureUploaderProps {
-	onChange?: (base64Png: string | null) => void
-	className?: string
+	onChange?: (base64Png: string | null) => void;
+	className?: string;
 }
 
-const MAX_WIDTH = 600
-const MAX_HEIGHT = 200
+const MAX_WIDTH = 600;
+const MAX_HEIGHT = 200;
 
 export function SignatureUploader({ onChange, className }: SignatureUploaderProps) {
-	const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-	const [croppedUrl, setCroppedUrl] = useState<string | null>(null)
-	const [isCropping, setIsCropping] = useState(false)
-	const [crop, setCrop] = useState({ x: 0, y: 0, width: 0, height: 0 })
-	const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
-	const imgRef = useRef<HTMLImageElement>(null)
-	const containerRef = useRef<HTMLDivElement>(null)
-	const fileInputRef = useRef<HTMLInputElement>(null)
+	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+	const [croppedUrl, setCroppedUrl] = useState<string | null>(null);
+	const [isCropping, setIsCropping] = useState(false);
+	const [crop, setCrop] = useState({ x: 0, y: 0, width: 0, height: 0 });
+	const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+	const imgRef = useRef<HTMLImageElement>(null);
+	const containerRef = useRef<HTMLDivElement>(null);
+	const fileInputRef = useRef<HTMLInputElement>(null);
 
-	const resizeAndExport = useCallback(
-		(imageUrl: string): Promise<string> => {
-			return new Promise((resolve, reject) => {
-				const img = new Image()
-				img.onload = () => {
-					const canvas = document.createElement('canvas')
-					let { width, height } = img
+	const resizeAndExport = useCallback((imageUrl: string): Promise<string> => {
+		return new Promise((resolve, reject) => {
+			const img = new Image();
+			img.onload = () => {
+				const canvas = document.createElement('canvas');
+				let { width, height } = img;
 
-					// Scale down if too large
-					if (width > MAX_WIDTH) {
-						height = (height * MAX_WIDTH) / width
-						width = MAX_WIDTH
-					}
-					if (height > MAX_HEIGHT) {
-						width = (width * MAX_HEIGHT) / height
-						height = MAX_HEIGHT
-					}
-
-					canvas.width = width
-					canvas.height = height
-					const ctx = canvas.getContext('2d')
-					if (!ctx) {
-						reject(new Error('Failed to get canvas context'))
-						return
-					}
-
-					ctx.fillStyle = '#ffffff'
-					ctx.fillRect(0, 0, width, height)
-					ctx.drawImage(img, 0, 0, width, height)
-					resolve(canvas.toDataURL('image/png'))
+				// Scale down if too large
+				if (width > MAX_WIDTH) {
+					height = (height * MAX_WIDTH) / width;
+					width = MAX_WIDTH;
 				}
-				img.onerror = () => reject(new Error('Failed to load image'))
-				img.src = imageUrl
-			})
-		},
-		[],
-	)
+				if (height > MAX_HEIGHT) {
+					width = (width * MAX_HEIGHT) / height;
+					height = MAX_HEIGHT;
+				}
+
+				canvas.width = width;
+				canvas.height = height;
+				const ctx = canvas.getContext('2d');
+				if (!ctx) {
+					reject(new Error('Failed to get canvas context'));
+					return;
+				}
+
+				ctx.fillStyle = '#ffffff';
+				ctx.fillRect(0, 0, width, height);
+				ctx.drawImage(img, 0, 0, width, height);
+				resolve(canvas.toDataURL('image/png'));
+			};
+			img.onerror = () => reject(new Error('Failed to load image'));
+			img.src = imageUrl;
+		});
+	}, []);
 
 	const handleFileSelect = useCallback(
 		async (e: React.ChangeEvent<HTMLInputElement>) => {
-			const file = e.target.files?.[0]
-			if (!file) return
+			const file = e.target.files?.[0];
+			if (!file) return;
 
 			if (!file.type.startsWith('image/')) {
-				alert('Please select an image file')
-				return
+				alert('Please select an image file');
+				return;
 			}
 
-			const reader = new FileReader()
+			const reader = new FileReader();
 			reader.onload = async (event) => {
-				const url = event.target?.result as string
-				if (!url) return
-				setPreviewUrl(url)
-				setCroppedUrl(null)
-				setIsCropping(false)
-				setCrop({ x: 0, y: 0, width: 0, height: 0 })
+				const url = event.target?.result as string;
+				if (!url) return;
+				setPreviewUrl(url);
+				setCroppedUrl(null);
+				setIsCropping(false);
+				setCrop({ x: 0, y: 0, width: 0, height: 0 });
 
 				// Auto-resize and export
 				try {
-					const resized = await resizeAndExport(url)
-					setCroppedUrl(resized)
-					onChange?.(resized)
+					const resized = await resizeAndExport(url);
+					setCroppedUrl(resized);
+					onChange?.(resized);
 				} catch {
 					// Fallback to original
-					setCroppedUrl(url)
-					onChange?.(url)
+					setCroppedUrl(url);
+					onChange?.(url);
 				}
-			}
-			reader.readAsDataURL(file)
+			};
+			reader.readAsDataURL(file);
 		},
 		[onChange, resizeAndExport],
-	)
+	);
 
 	const handleClear = useCallback(() => {
-		setPreviewUrl(null)
-		setCroppedUrl(null)
-		setIsCropping(false)
-		setCrop({ x: 0, y: 0, width: 0, height: 0 })
+		setPreviewUrl(null);
+		setCroppedUrl(null);
+		setIsCropping(false);
+		setCrop({ x: 0, y: 0, width: 0, height: 0 });
 		if (fileInputRef.current) {
-			fileInputRef.current.value = ''
+			fileInputRef.current.value = '';
 		}
-		onChange?.(null)
-	}, [onChange])
+		onChange?.(null);
+	}, [onChange]);
 
-	const handleCropStart = useCallback(
-		(e: React.MouseEvent | React.TouchEvent) => {
-			if (!containerRef.current) return
-			const rect = containerRef.current.getBoundingClientRect()
-			let clientX: number, clientY: number
-			if ('touches' in e) {
-				clientX = e.touches[0].clientX
-				clientY = e.touches[0].clientY
-			} else {
-				clientX = e.clientX
-				clientY = e.clientY
-			}
-			const x = clientX - rect.left
-			const y = clientY - rect.top
-			setDragStart({ x, y })
-			setCrop({ x, y, width: 0, height: 0 })
-		},
-		[],
-	)
+	const handleCropStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+		if (!containerRef.current) return;
+		const rect = containerRef.current.getBoundingClientRect();
+		let clientX: number, clientY: number;
+		if ('touches' in e) {
+			clientX = e.touches[0].clientX;
+			clientY = e.touches[0].clientY;
+		} else {
+			clientX = e.clientX;
+			clientY = e.clientY;
+		}
+		const x = clientX - rect.left;
+		const y = clientY - rect.top;
+		setDragStart({ x, y });
+		setCrop({ x, y, width: 0, height: 0 });
+	}, []);
 
 	const handleCropMove = useCallback(
 		(e: React.MouseEvent | React.TouchEvent) => {
-			if (!dragStart || !containerRef.current) return
-			const rect = containerRef.current.getBoundingClientRect()
-			let clientX: number, clientY: number
+			if (!dragStart || !containerRef.current) return;
+			const rect = containerRef.current.getBoundingClientRect();
+			let clientX: number, clientY: number;
 			if ('touches' in e) {
-				clientX = e.touches[0].clientX
-				clientY = e.touches[0].clientY
+				clientX = e.touches[0].clientX;
+				clientY = e.touches[0].clientY;
 			} else {
-				clientX = e.clientX
-				clientY = e.clientY
+				clientX = e.clientX;
+				clientY = e.clientY;
 			}
-			const currentX = clientX - rect.left
-			const currentY = clientY - rect.top
+			const currentX = clientX - rect.left;
+			const currentY = clientY - rect.top;
 			setCrop({
 				x: Math.min(dragStart.x, currentX),
 				y: Math.min(dragStart.y, currentY),
 				width: Math.abs(currentX - dragStart.x),
 				height: Math.abs(currentY - dragStart.y),
-			})
+			});
 		},
 		[dragStart],
-	)
+	);
 
 	const handleCropEnd = useCallback(() => {
-		setDragStart(null)
-	}, [])
+		setDragStart(null);
+	}, []);
 
 	const applyCrop = useCallback(() => {
 		if (!imgRef.current || crop.width < 10 || crop.height < 10) {
-			setIsCropping(false)
-			return
+			setIsCropping(false);
+			return;
 		}
 
-		const img = imgRef.current
-		const canvas = document.createElement('canvas')
-		const ctx = canvas.getContext('2d')
-		if (!ctx) return
+		const img = imgRef.current;
+		const canvas = document.createElement('canvas');
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return;
 
 		// Calculate scale factor between displayed image and natural size
-		const scaleX = img.naturalWidth / img.clientWidth
-		const scaleY = img.naturalHeight / img.clientHeight
+		const scaleX = img.naturalWidth / img.clientWidth;
+		const scaleY = img.naturalHeight / img.clientHeight;
 
-		const sourceX = crop.x * scaleX
-		const sourceY = crop.y * scaleY
-		const sourceWidth = crop.width * scaleX
-		const sourceHeight = crop.height * scaleY
+		const sourceX = crop.x * scaleX;
+		const sourceY = crop.y * scaleY;
+		const sourceWidth = crop.width * scaleX;
+		const sourceHeight = crop.height * scaleY;
 
-		canvas.width = Math.min(sourceWidth, MAX_WIDTH)
-		canvas.height = Math.min(sourceHeight, MAX_HEIGHT)
+		canvas.width = Math.min(sourceWidth, MAX_WIDTH);
+		canvas.height = Math.min(sourceHeight, MAX_HEIGHT);
 
-		ctx.fillStyle = '#ffffff'
-		ctx.fillRect(0, 0, canvas.width, canvas.height)
-		ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height)
+		ctx.fillStyle = '#ffffff';
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		ctx.drawImage(
+			img,
+			sourceX,
+			sourceY,
+			sourceWidth,
+			sourceHeight,
+			0,
+			0,
+			canvas.width,
+			canvas.height,
+		);
 
-		const dataUrl = canvas.toDataURL('image/png')
-		setCroppedUrl(dataUrl)
-		setPreviewUrl(dataUrl)
-		setIsCropping(false)
-		setCrop({ x: 0, y: 0, width: 0, height: 0 })
-		onChange?.(dataUrl)
-	}, [crop, onChange])
+		const dataUrl = canvas.toDataURL('image/png');
+		setCroppedUrl(dataUrl);
+		setPreviewUrl(dataUrl);
+		setIsCropping(false);
+		setCrop({ x: 0, y: 0, width: 0, height: 0 });
+		onChange?.(dataUrl);
+	}, [crop, onChange]);
 
 	return (
 		<div className={cn('flex flex-col gap-3', className)}>
@@ -263,8 +267,8 @@ export function SignatureUploader({ onChange, className }: SignatureUploaderProp
 									variant="outline"
 									size="sm"
 									onClick={() => {
-										setIsCropping(false)
-										setCrop({ x: 0, y: 0, width: 0, height: 0 })
+										setIsCropping(false);
+										setCrop({ x: 0, y: 0, width: 0, height: 0 });
 									}}
 								>
 									Cancel
@@ -277,8 +281,8 @@ export function SignatureUploader({ onChange, className }: SignatureUploaderProp
 									variant="outline"
 									size="sm"
 									onClick={() => {
-										setIsCropping(true)
-										setCrop({ x: 0, y: 0, width: 0, height: 0 })
+										setIsCropping(true);
+										setCrop({ x: 0, y: 0, width: 0, height: 0 });
 									}}
 									className="gap-1.5"
 								>
@@ -311,5 +315,5 @@ export function SignatureUploader({ onChange, className }: SignatureUploaderProp
 				</div>
 			)}
 		</div>
-	)
+	);
 }

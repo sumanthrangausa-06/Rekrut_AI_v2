@@ -1,141 +1,141 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { Bot, X, Minus, Send, Trash2, Sparkles } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useAIChat } from '@/hooks/use-ai-chat'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { Bot, Minus, Send, Sparkles, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
+import { useAIChat } from '@/hooks/use-ai-chat';
+import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────
-type ChatState = 'closed' | 'open' | 'minimized'
+type ChatState = 'closed' | 'open' | 'minimized';
 
 // ─── Helpers ────────────────────────────────────────────────
 function formatTime(timestamp: number): string {
 	return new Date(timestamp).toLocaleTimeString('en-US', {
 		hour: '2-digit',
 		minute: '2-digit',
-	})
+	});
 }
 
 function getPageTitle(path: string): string {
 	// Extract meaningful page title from path
-	const segments = path.split('/').filter(Boolean)
-	if (segments.length === 0) return 'Dashboard'
-	const last = segments[segments.length - 1]
+	const segments = path.split('/').filter(Boolean);
+	if (segments.length === 0) return 'Dashboard';
+	const last = segments[segments.length - 1];
 	return last
 		.split('-')
 		.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-		.join(' ')
+		.join(' ');
 }
 
 // ─── Typing Indicator ───────────────────────────────────────
 function TypingIndicator() {
 	return (
-		<div className='flex items-end gap-2'>
-			<div className='h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0'>
-				<Bot className='h-4 w-4 text-primary' />
+		<div className="flex items-end gap-2">
+			<div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+				<Bot className="h-4 w-4 text-primary" />
 			</div>
-			<div className='bg-muted rounded-2xl rounded-tl-sm px-4 py-3'>
-				<div className='flex items-center gap-1.5'>
+			<div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3">
+				<div className="flex items-center gap-1.5">
 					<div
-						className='h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce'
+						className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce"
 						style={{ animationDelay: '0ms' }}
 					/>
 					<div
-						className='h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce'
+						className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce"
 						style={{ animationDelay: '150ms' }}
 					/>
 					<div
-						className='h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce'
+						className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce"
 						style={{ animationDelay: '300ms' }}
 					/>
 				</div>
 			</div>
 		</div>
-	)
+	);
 }
 
 // ─── Main Component ─────────────────────────────────────────
 export function AIChatFAB() {
-	const [chatState, setChatState] = useState<ChatState>('closed')
-	const [inputText, setInputText] = useState('')
-	const messagesEndRef = useRef<HTMLDivElement>(null)
-	const textareaRef = useRef<HTMLTextAreaElement>(null)
-	const containerRef = useRef<HTMLDivElement>(null)
-	const location = useLocation()
+	const [chatState, setChatState] = useState<ChatState>('closed');
+	const [inputText, setInputText] = useState('');
+	const messagesEndRef = useRef<HTMLDivElement>(null);
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const containerRef = useRef<HTMLDivElement>(null);
+	const location = useLocation();
 
-	const pageTitle = getPageTitle(location.pathname)
+	const pageTitle = getPageTitle(location.pathname);
 	const context = {
 		page: pageTitle,
 		path: location.pathname,
-	}
+	};
 
-	const { messages, loading, error, sendMessage, clearHistory, dismissError } = useAIChat(context)
+	const { messages, loading, error, sendMessage, clearHistory, dismissError } = useAIChat(context);
 
 	// Auto-scroll to bottom when messages change or loading starts
 	useEffect(() => {
-		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-	}, [messages, loading])
+		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+	}, [messages, loading]);
 
 	// Focus textarea when opening
 	useEffect(() => {
 		if (chatState === 'open') {
-			const timer = setTimeout(() => textareaRef.current?.focus(), 300)
-			return () => clearTimeout(timer)
+			const timer = setTimeout(() => textareaRef.current?.focus(), 300);
+			return () => clearTimeout(timer);
 		}
-	}, [chatState])
+	}, [chatState]);
 
 	// Close on Escape key
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (e.key === 'Escape' && chatState === 'open') {
-				setChatState('closed')
+				setChatState('closed');
 			}
-		}
-		window.addEventListener('keydown', handleKeyDown)
-		return () => window.removeEventListener('keydown', handleKeyDown)
-	}, [chatState])
+		};
+		window.addEventListener('keydown', handleKeyDown);
+		return () => window.removeEventListener('keydown', handleKeyDown);
+	}, [chatState]);
 
 	// Prevent body scroll when chat is open on mobile
 	useEffect(() => {
 		if (chatState === 'open' && window.innerWidth < 768) {
-			const previousOverflow = document.body.style.overflow
-			document.body.style.overflow = 'hidden'
+			const previousOverflow = document.body.style.overflow;
+			document.body.style.overflow = 'hidden';
 			return () => {
-				document.body.style.overflow = previousOverflow
-			}
+				document.body.style.overflow = previousOverflow;
+			};
 		}
-	}, [chatState])
+	}, [chatState]);
 
 	const handleSend = useCallback(async () => {
-		if (!inputText.trim() || loading) return
-		const text = inputText.trim()
-		setInputText('')
-		await sendMessage(text)
-	}, [inputText, loading, sendMessage])
+		if (!inputText.trim() || loading) return;
+		const text = inputText.trim();
+		setInputText('');
+		await sendMessage(text);
+	}, [inputText, loading, sendMessage]);
 
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 			if (e.key === 'Enter' && !e.shiftKey) {
-				e.preventDefault()
-				handleSend()
+				e.preventDefault();
+				handleSend();
 			}
 		},
 		[handleSend],
-	)
+	);
 
-	const handleOpen = () => setChatState('open')
-	const handleMinimize = () => setChatState('minimized')
-	const handleClose = () => setChatState('closed')
-	const handleRestore = () => setChatState('open')
+	const handleOpen = () => setChatState('open');
+	const handleMinimize = () => setChatState('minimized');
+	const handleClose = () => setChatState('closed');
+	const handleRestore = () => setChatState('open');
 
-	const isOpen = chatState === 'open'
-	const isMinimized = chatState === 'minimized'
-	const isClosed = chatState === 'closed'
+	const isOpen = chatState === 'open';
+	const isMinimized = chatState === 'minimized';
+	const isClosed = chatState === 'closed';
 
 	return (
-		<div className='fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6'>
+		<div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
 			{/* ─── Chat Panel ───────────────────────────────────── */}
 			<div
 				ref={containerRef}
@@ -154,67 +154,60 @@ export function AIChatFAB() {
 				}}
 			>
 				{/* Header */}
-				<div className='flex items-center justify-between px-4 py-3 border-b bg-card shrink-0'>
-					<div className='flex items-center gap-2.5'>
-						<div className='h-8 w-8 rounded-full bg-black flex items-center justify-center'>
-							<Bot className='h-4 w-4 text-white' />
+				<div className="flex items-center justify-between px-4 py-3 border-b bg-card shrink-0">
+					<div className="flex items-center gap-2.5">
+						<div className="h-8 w-8 rounded-full bg-black flex items-center justify-center">
+							<Bot className="h-4 w-4 text-white" />
 						</div>
 						<div>
-							<h3 className='font-semibold text-sm leading-tight'>AI Assistant</h3>
-							<p className='text-[11px] text-muted-foreground leading-tight'>
-								{pageTitle}
-							</p>
+							<h3 className="font-semibold text-sm leading-tight">AI Assistant</h3>
+							<p className="text-[11px] text-muted-foreground leading-tight">{pageTitle}</p>
 						</div>
 					</div>
-					<div className='flex items-center gap-1'>
+					<div className="flex items-center gap-1">
 						<Button
-							variant='ghost'
-							size='sm'
-							className='h-8 w-8 p-0 text-muted-foreground hover:text-foreground'
+							variant="ghost"
+							size="sm"
+							className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
 							onClick={handleMinimize}
-							title='Minimize'
+							title="Minimize"
 						>
-							<Minus className='h-4 w-4' />
+							<Minus className="h-4 w-4" />
 						</Button>
 						<Button
-							variant='ghost'
-							size='sm'
-							className='h-8 w-8 p-0 text-muted-foreground hover:text-foreground'
+							variant="ghost"
+							size="sm"
+							className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
 							onClick={handleClose}
-							title='Close'
+							title="Close"
 						>
-							<X className='h-4 w-4' />
+							<X className="h-4 w-4" />
 						</Button>
 					</div>
 				</div>
 
 				{/* Messages Area */}
-				<ScrollArea className='flex-1 px-4 py-4'>
-					<div className='space-y-4'>
+				<ScrollArea className="flex-1 px-4 py-4">
+					<div className="space-y-4">
 						{messages.length === 0 && (
-							<div className='flex flex-col items-center justify-center py-8 text-center'>
-								<div className='h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3'>
-									<Sparkles className='h-6 w-6 text-primary' />
+							<div className="flex flex-col items-center justify-center py-8 text-center">
+								<div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+									<Sparkles className="h-6 w-6 text-primary" />
 								</div>
-								<p className='text-sm font-medium text-foreground mb-1'>
-									How can I help you?
-								</p>
-								<p className='text-xs text-muted-foreground max-w-[240px]'>
+								<p className="text-sm font-medium text-foreground mb-1">How can I help you?</p>
+								<p className="text-xs text-muted-foreground max-w-[240px]">
 									Ask me anything about your job search, applications, interviews, or career advice.
 								</p>
 							</div>
 						)}
 
 						{messages.map((msg) => {
-							const isUser = msg.role === 'user'
-							const isError = msg.content.startsWith('❌')
+							const isUser = msg.role === 'user';
+							const isError = msg.content.startsWith('❌');
 							return (
 								<div
 									key={msg.id}
-									className={cn(
-										'flex gap-2',
-										isUser ? 'flex-row-reverse' : 'flex-row',
-									)}
+									className={cn('flex gap-2', isUser ? 'flex-row-reverse' : 'flex-row')}
 								>
 									{/* Avatar */}
 									<div
@@ -224,18 +217,14 @@ export function AIChatFAB() {
 										)}
 									>
 										{isUser ? (
-											<span className='text-[10px] font-bold text-primary'>You</span>
+											<span className="text-[10px] font-bold text-primary">You</span>
 										) : (
-											<Bot className='h-3.5 w-3.5 text-white' />
+											<Bot className="h-3.5 w-3.5 text-white" />
 										)}
 									</div>
 
 									{/* Message Bubble */}
-									<div
-										className={cn(
-											'max-w-[80%] sm:max-w-[75%]',
-										)}
-									>
+									<div className={cn('max-w-[80%] sm:max-w-[75%]')}>
 										<div
 											className={cn(
 												'rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
@@ -246,7 +235,7 @@ export function AIChatFAB() {
 														: 'bg-muted text-foreground rounded-tl-sm',
 											)}
 										>
-											<p className='whitespace-pre-wrap break-words'>{msg.content}</p>
+											<p className="whitespace-pre-wrap break-words">{msg.content}</p>
 										</div>
 										<div
 											className={cn(
@@ -254,13 +243,13 @@ export function AIChatFAB() {
 												isUser ? 'justify-end' : 'justify-start',
 											)}
 										>
-											<span className='text-[10px] text-muted-foreground'>
+											<span className="text-[10px] text-muted-foreground">
 												{formatTime(msg.timestamp)}
 											</span>
 										</div>
 									</div>
 								</div>
-							)
+							);
 						})}
 
 						{loading && !messages.some((m) => m.role === 'assistant' && m.content === '') && (
@@ -273,55 +262,55 @@ export function AIChatFAB() {
 
 				{/* Error Banner */}
 				{error && (
-					<div className='px-4 py-2 bg-destructive/10 border-t border-destructive/20 flex items-center justify-between gap-2 shrink-0'>
-						<p className='text-xs text-destructive flex-1 truncate'>{error}</p>
+					<div className="px-4 py-2 bg-destructive/10 border-t border-destructive/20 flex items-center justify-between gap-2 shrink-0">
+						<p className="text-xs text-destructive flex-1 truncate">{error}</p>
 						<Button
-							variant='ghost'
-							size='sm'
-							className='h-6 w-6 p-0 shrink-0 text-destructive'
+							variant="ghost"
+							size="sm"
+							className="h-6 w-6 p-0 shrink-0 text-destructive"
 							onClick={dismissError}
 						>
-							<X className='h-3 w-3' />
+							<X className="h-3 w-3" />
 						</Button>
 					</div>
 				)}
 
 				{/* Input Area */}
-				<div className='px-3 py-3 border-t bg-card/50 shrink-0'>
-					<div className='flex items-end gap-2'>
+				<div className="px-3 py-3 border-t bg-card/50 shrink-0">
+					<div className="flex items-end gap-2">
 						<Textarea
 							ref={textareaRef}
 							value={inputText}
 							onChange={(e) => setInputText(e.target.value)}
 							onKeyDown={handleKeyDown}
-							placeholder='Ask me anything...'
+							placeholder="Ask me anything..."
 							rows={1}
-							className='min-h-[40px] max-h-[120px] resize-none py-2.5 text-sm'
+							className="min-h-[40px] max-h-[120px] resize-none py-2.5 text-sm"
 							disabled={loading}
 						/>
-						<div className='flex flex-col gap-1 shrink-0'>
+						<div className="flex flex-col gap-1 shrink-0">
 							<Button
 								onClick={handleSend}
 								disabled={!inputText.trim() || loading}
-								size='sm'
-								className='h-9 w-9 p-0 bg-black hover:bg-black/90 text-white'
+								size="sm"
+								className="h-9 w-9 p-0 bg-black hover:bg-black/90 text-white"
 							>
-								<Send className='h-4 w-4' />
+								<Send className="h-4 w-4" />
 							</Button>
 						</div>
 					</div>
-					<div className='flex items-center justify-between mt-2 px-0.5'>
-						<span className='text-[10px] text-muted-foreground'>
+					<div className="flex items-center justify-between mt-2 px-0.5">
+						<span className="text-[10px] text-muted-foreground">
 							Press Enter to send, Shift+Enter for new line
 						</span>
 						{messages.length > 0 && (
 							<Button
-								variant='ghost'
-								size='sm'
-								className='h-6 px-2 text-[10px] text-muted-foreground hover:text-destructive gap-1'
+								variant="ghost"
+								size="sm"
+								className="h-6 px-2 text-[10px] text-muted-foreground hover:text-destructive gap-1"
 								onClick={clearHistory}
 							>
-								<Trash2 className='h-3 w-3' />
+								<Trash2 className="h-3 w-3" />
 								Clear
 							</Button>
 						)}
@@ -338,9 +327,9 @@ export function AIChatFAB() {
 						'hover:bg-black/90 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2',
 					)}
 				>
-					<Bot className='h-4 w-4' />
-					<span className='text-sm font-medium'>AI Assistant</span>
-					<div className='h-2 w-2 rounded-full bg-green-400' />
+					<Bot className="h-4 w-4" />
+					<span className="text-sm font-medium">AI Assistant</span>
+					<div className="h-2 w-2 rounded-full bg-green-400" />
 				</button>
 			)}
 
@@ -354,12 +343,12 @@ export function AIChatFAB() {
 						'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
 						isClosed && 'animate-in fade-in zoom-in',
 					)}
-					aria-label='Open AI Assistant'
-					title='AI Assistant'
+					aria-label="Open AI Assistant"
+					title="AI Assistant"
 				>
-					<Bot className='h-6 w-6' />
+					<Bot className="h-6 w-6" />
 				</button>
 			)}
 		</div>
-	)
+	);
 }

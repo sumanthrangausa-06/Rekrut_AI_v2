@@ -73,7 +73,10 @@ function buildSearchWhere(params) {
 	if (params.skills) {
 		const skillList = Array.isArray(params.skills)
 			? params.skills
-			: params.skills.split(',').map((s) => s.trim()).filter(Boolean);
+			: params.skills
+					.split(',')
+					.map((s) => s.trim())
+					.filter(Boolean);
 		if (skillList.length > 0) {
 			conditions.push(`csi.skills ?| $${idx}`);
 			queryParams.push(skillList);
@@ -208,7 +211,9 @@ router.get('/search', authMiddleware, requireRecruiter, async (req, res) => {
 	} catch (err) {
 		// Defensive: if candidate_search_index table doesn't exist (E2E), return empty results
 		if (err.code === '42P01') {
-			console.log('[candidateSearch] candidate_search_index table not available, returning empty results');
+			console.log(
+				'[candidateSearch] candidate_search_index table not available, returning empty results',
+			);
 			return res.json({
 				candidates: [],
 				pagination: { limit, offset, total: 0, hasMore: false },
@@ -250,7 +255,9 @@ router.get('/search/semantic', authMiddleware, requireRecruiter, async (req, res
 		embedding = await matchingEngine.generateEmbedding(queryText.trim());
 	} catch (embedErr) {
 		console.error('[candidateSearch] Embedding generation failed:', embedErr.message);
-		return res.status(503).json({ error: 'Search service temporarily unavailable. Please try again.' });
+		return res
+			.status(503)
+			.json({ error: 'Search service temporarily unavailable. Please try again.' });
 	}
 
 	// Format embedding for pgvector
@@ -317,7 +324,9 @@ router.get('/search/semantic', authMiddleware, requireRecruiter, async (req, res
 	} catch (err) {
 		// Defensive: if candidate_search_index table doesn't exist (E2E), return empty results
 		if (err.code === '42P01') {
-			console.log('[candidateSearch] candidate_search_index table not available, returning empty semantic results');
+			console.log(
+				'[candidateSearch] candidate_search_index table not available, returning empty semantic results',
+			);
 			return res.json({
 				candidates: [],
 				pagination: { limit, offset, total: 0, hasMore: false },
@@ -343,10 +352,9 @@ router.post('/search/save', authMiddleware, requireRecruiter, async (req, res) =
 	const client = await pool.connect();
 	try {
 		// Get company_id for the recruiter
-		const companyResult = await client.query(
-			'SELECT company_id FROM users WHERE id = $1',
-			[req.user.id],
-		);
+		const companyResult = await client.query('SELECT company_id FROM users WHERE id = $1', [
+			req.user.id,
+		]);
 		const companyId = companyResult.rows[0]?.company_id || null;
 
 		const result = await client.query(
@@ -470,10 +478,7 @@ router.get('/:id/preview', authMiddleware, requireRecruiter, async (req, res) =>
 	const client = await pool.connect();
 	try {
 		// Verify the user is actually a candidate
-		const userCheck = await client.query(
-			`SELECT role FROM users WHERE id = $1`,
-			[candidateId],
-		);
+		const userCheck = await client.query(`SELECT role FROM users WHERE id = $1`, [candidateId]);
 		if (userCheck.rows.length === 0) {
 			return res.status(404).json({ error: 'Candidate not found' });
 		}
@@ -593,10 +598,7 @@ router.post('/:id/invite', authMiddleware, requireRecruiter, async (req, res) =>
 	const client = await pool.connect();
 	try {
 		// Verify candidate exists and is a candidate
-		const userCheck = await client.query(
-			`SELECT role FROM users WHERE id = $1`,
-			[candidateId],
-		);
+		const userCheck = await client.query(`SELECT role FROM users WHERE id = $1`, [candidateId]);
 		if (userCheck.rows.length === 0) {
 			return res.status(404).json({ error: 'Candidate not found' });
 		}
@@ -605,20 +607,21 @@ router.post('/:id/invite', authMiddleware, requireRecruiter, async (req, res) =>
 		}
 
 		// Get recruiter's company
-		const recruiterResult = await client.query(
-			`SELECT company_id FROM users WHERE id = $1`,
-			[req.user.id],
-		);
+		const recruiterResult = await client.query(`SELECT company_id FROM users WHERE id = $1`, [
+			req.user.id,
+		]);
 		const companyId = recruiterResult.rows[0]?.company_id || null;
 
 		// Validate job_id if provided
 		if (job_id) {
-			const jobCheck = await client.query(
-				`SELECT id FROM jobs WHERE id = $1 AND company_id = $2`,
-				[job_id, companyId],
-			);
+			const jobCheck = await client.query(`SELECT id FROM jobs WHERE id = $1 AND company_id = $2`, [
+				job_id,
+				companyId,
+			]);
 			if (jobCheck.rows.length === 0) {
-				return res.status(400).json({ error: 'Invalid job ID or job does not belong to your company' });
+				return res
+					.status(400)
+					.json({ error: 'Invalid job ID or job does not belong to your company' });
 			}
 		}
 

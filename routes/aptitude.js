@@ -259,9 +259,7 @@ router.get('/aptitude-tests/attempt/:id/current', authMiddleware, async (req, re
 
 		// Get current question
 		const answers =
-			typeof attempt.answers === 'string'
-				? JSON.parse(attempt.answers)
-				: attempt.answers || [];
+			typeof attempt.answers === 'string' ? JSON.parse(attempt.answers) : attempt.answers || [];
 		const currentIdx = answers.findIndex((a) => !a.answered);
 
 		if (currentIdx === -1) {
@@ -355,9 +353,7 @@ router.post('/aptitude-tests/attempt/:id/answer', authMiddleware, async (req, re
 		}
 
 		const answers =
-			typeof attempt.answers === 'string'
-				? JSON.parse(attempt.answers)
-				: attempt.answers || [];
+			typeof attempt.answers === 'string' ? JSON.parse(attempt.answers) : attempt.answers || [];
 		const currentIdx = answers.findIndex((a) => !a.answered);
 
 		if (currentIdx === -1) {
@@ -395,8 +391,7 @@ router.post('/aptitude-tests/attempt/:id/answer', authMiddleware, async (req, re
 		};
 
 		const newScore = answers.filter((a) => a.answered && a.isCorrect).length;
-		const newTimeAnomalies =
-			(attempt.time_anomalies || 0) + (isTimeAnomaly ? 1 : 0);
+		const newTimeAnomalies = (attempt.time_anomalies || 0) + (isTimeAnomaly ? 1 : 0);
 		const newTimeSpent = timeTaken || 0;
 
 		await client.query(
@@ -505,9 +500,7 @@ router.post('/aptitude-tests/attempt/:id/timeout', authMiddleware, async (req, r
 		}
 
 		const answers =
-			typeof attempt.answers === 'string'
-				? JSON.parse(attempt.answers)
-				: attempt.answers || [];
+			typeof attempt.answers === 'string' ? JSON.parse(attempt.answers) : attempt.answers || [];
 
 		const completed = await completeAttempt(client, attemptId, candidateId, answers, attempt);
 		await client.query('COMMIT');
@@ -624,9 +617,7 @@ router.get('/aptitude-tests/attempt/:id', authMiddleware, async (req, res) => {
 
 		// Enrich answers with question details
 		const answers =
-			typeof attempt.answers === 'string'
-				? JSON.parse(attempt.answers)
-				: attempt.answers || [];
+			typeof attempt.answers === 'string' ? JSON.parse(attempt.answers) : attempt.answers || [];
 		const questionIds = answers.map((a) => a.questionId).filter(Boolean);
 
 		let questions = [];
@@ -898,7 +889,14 @@ router.post(
             target_score_max = EXCLUDED.target_score_max
           RETURNING *
         `,
-				[jobId, testId, isRequired !== false, targetScoreMin || null, targetScoreMax || null, req.user.id],
+				[
+					jobId,
+					testId,
+					isRequired !== false,
+					targetScoreMin || null,
+					targetScoreMax || null,
+					req.user.id,
+				],
 			);
 
 			res.json({ assignment: result.rows[0] });
@@ -1150,9 +1148,7 @@ async function autoTimeoutAttempt(clientOrPool, attemptId, candidateId) {
 
 	const attempt = attemptResult.rows[0];
 	const answers =
-		typeof attempt.answers === 'string'
-			? JSON.parse(attempt.answers)
-			: attempt.answers || [];
+		typeof attempt.answers === 'string' ? JSON.parse(attempt.answers) : attempt.answers || [];
 
 	const score = answers.filter((a) => a.answered && a.isCorrect).length;
 	const maxScore = answers.length;

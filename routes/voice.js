@@ -171,7 +171,9 @@ router.post('/interview-feedback-audio', authMiddleware, requireCartesiaKey, asy
 			return res.status(400).json({ error: 'interview_id is required and must be a string' });
 		}
 		if (!feedback_text || typeof feedback_text !== 'string' || feedback_text.length === 0) {
-			return res.status(400).json({ error: 'feedback_text is required and must be a non-empty string' });
+			return res
+				.status(400)
+				.json({ error: 'feedback_text is required and must be a non-empty string' });
 		}
 		if (feedback_text.length > 5000) {
 			return res.status(400).json({ error: 'feedback_text exceeds 5000 character limit' });

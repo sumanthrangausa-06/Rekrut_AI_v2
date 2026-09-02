@@ -1,7 +1,7 @@
 // DiceBear avatar utility — generates consistent avatar URLs from user IDs or names
 // Used as fallback when no uploaded avatar is available
 
-const DICEBEAR_BASE = 'https://api.dicebear.com/7.x/avataaars/svg'
+const DICEBEAR_BASE = 'https://api.dicebear.com/7.x/avataaars/svg';
 
 /**
  * Generate a DiceBear avatar URL from a seed string (user ID, email, or name).
@@ -10,46 +10,46 @@ const DICEBEAR_BASE = 'https://api.dicebear.com/7.x/avataaars/svg'
 export function getDiceBearAvatar(
 	seed: string,
 	options?: {
-		backgroundColor?: string
-		radius?: number
+		backgroundColor?: string;
+		radius?: number;
 	},
 ): string {
-	if (!seed) seed = 'anonymous'
+	if (!seed) seed = 'anonymous';
 
 	const params = new URLSearchParams({
 		seed: seed.toLowerCase().trim(),
 		backgroundColor: options?.backgroundColor || 'b6e3f4',
-	})
+	});
 
 	if (options?.radius) {
-		params.set('radius', String(options.radius))
+		params.set('radius', String(options.radius));
 	}
 
-	return `${DICEBEAR_BASE}?${params.toString()}`
+	return `${DICEBEAR_BASE}?${params.toString()}`;
 }
 
 /**
  * Get a DiceBear avatar for a user object. Uses user.id, then email, then name as seed.
  */
 export function getUserAvatar(user: {
-	id?: string | number
-	email?: string
-	name?: string
-	avatar_url?: string | null
+	id?: string | number;
+	email?: string;
+	name?: string;
+	avatar_url?: string | null;
 }): string {
 	// If user has an uploaded avatar, use it
-	if (user?.avatar_url) return user.avatar_url
+	if (user?.avatar_url) return user.avatar_url;
 
 	// Otherwise generate DiceBear avatar
-	const seed = String(user?.id || user?.email || user?.name || 'anonymous')
-	return getDiceBearAvatar(seed)
+	const seed = String(user?.id || user?.email || user?.name || 'anonymous');
+	return getDiceBearAvatar(seed);
 }
 
 /**
  * Get a DiceBear avatar URL for a company/recruiter.
  */
 export function getCompanyAvatar(companyName: string): string {
-	return getDiceBearAvatar(companyName, { backgroundColor: 'c0aede' })
+	return getDiceBearAvatar(companyName, { backgroundColor: 'c0aede' });
 }
 
 /**
@@ -61,7 +61,8 @@ export const UNSPLASH_IMAGES = {
 	hero: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1200&h=800&fit=crop&q=80',
 
 	// Features — person working on laptop
-	features: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800&h=600&fit=crop&q=80',
+	features:
+		'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800&h=600&fit=crop&q=80',
 
 	// Testimonials — diverse professionals
 	testimonial1:
@@ -79,12 +80,18 @@ export const UNSPLASH_IMAGES = {
 	step3: 'https://images.unsplash.com/photo-1521737711867-e3b97375c902?w=400&h=300&fit=crop&q=80',
 
 	// Security/trust
-	security: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?w=600&h=400&fit=crop&q=80',
+	security:
+		'https://images.unsplash.com/photo-1563986768609-322da13575f3?w=600&h=400&fit=crop&q=80',
 
 	// Empty state illustrations
-	emptyJobs: 'https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=400&h=300&fit=crop&q=80',
-	emptyCandidates: 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=400&h=300&fit=crop&q=80',
-	emptyInterviews: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=400&h=300&fit=crop&q=80',
-	emptyAssessments: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=400&h=300&fit=crop&q=80',
-	emptyNotifications: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&h=300&fit=crop&q=80',
-} as const
+	emptyJobs:
+		'https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=400&h=300&fit=crop&q=80',
+	emptyCandidates:
+		'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=400&h=300&fit=crop&q=80',
+	emptyInterviews:
+		'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=400&h=300&fit=crop&q=80',
+	emptyAssessments:
+		'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=400&h=300&fit=crop&q=80',
+	emptyNotifications:
+		'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&h=300&fit=crop&q=80',
+} as const;

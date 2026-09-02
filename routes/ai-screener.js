@@ -390,8 +390,7 @@ router.get(
 			const candidateId = parseInt(req.params.candidateId, 10);
 
 			// Access control: recruiter must own job, OR candidate must be viewing own record
-			const isCandidateViewingOwn =
-				req.user.role === 'candidate' && req.user.id === candidateId;
+			const isCandidateViewingOwn = req.user.role === 'candidate' && req.user.id === candidateId;
 			if (!isCandidateViewingOwn) {
 				const access = await verifyRecruiterOwnsJob(req.user.id, jobId);
 				if (!access.ok) {
@@ -451,7 +450,9 @@ router.post(
 		body('candidate_ids')
 			.isArray({ min: 1, max: 50 })
 			.withMessage('candidate_ids must be an array of 1-50 items'),
-		body('candidate_ids.*').isInt({ min: 1 }).withMessage('Each candidate_id must be a positive integer'),
+		body('candidate_ids.*')
+			.isInt({ min: 1 })
+			.withMessage('Each candidate_id must be a positive integer'),
 	],
 	handleValidationErrors,
 	async (req, res) => {
@@ -511,14 +512,9 @@ router.post(
 					result,
 				);
 
-				await logAudit(
-					screeningId,
-					'ai_screening_batch',
-					req.user.id,
-					{ candidate, job },
-					result,
-					{ batch: true },
-				);
+				await logAudit(screeningId, 'ai_screening_batch', req.user.id, { candidate, job }, result, {
+					batch: true,
+				});
 
 				// ─── Compliance audit trail (Issue #136) ───────────────────
 				try {
@@ -543,7 +539,10 @@ router.post(
 						req,
 					});
 				} catch (e) {
-					console.error('[compliance-audit] Batch AI decision log failed (non-blocking):', e.message);
+					console.error(
+						'[compliance-audit] Batch AI decision log failed (non-blocking):',
+						e.message,
+					);
 				}
 
 				storedResults.push({
@@ -601,10 +600,9 @@ router.post(
 			}
 
 			// Get screening and verify ownership via job
-			const screeningResult = await pool.query(
-				`SELECT job_id FROM ai_screenings WHERE id = $1`,
-				[screeningId],
-			);
+			const screeningResult = await pool.query(`SELECT job_id FROM ai_screenings WHERE id = $1`, [
+				screeningId,
+			]);
 			if (screeningResult.rows.length === 0) {
 				return res.status(404).json({ error: 'Screening not found' });
 			}
@@ -636,14 +634,7 @@ router.post(
 			);
 
 			// Audit log
-			await logAudit(
-				screeningId,
-				'human_review',
-				req.user.id,
-				null,
-				null,
-				{ decision, reason },
-			);
+			await logAudit(screeningId, 'human_review', req.user.id, null, null, { decision, reason });
 
 			// ─── Compliance audit trail (Issue #136) ───────────────────────
 			try {
@@ -704,8 +695,7 @@ router.get(
 			const { job_id: jobId, candidate_id: candidateId } = screeningResult.rows[0];
 
 			// Access: recruiter owns job, OR candidate is viewing own, OR admin
-			const isCandidateViewingOwn =
-				req.user.role === 'candidate' && req.user.id === candidateId;
+			const isCandidateViewingOwn = req.user.role === 'candidate' && req.user.id === candidateId;
 			const isAdmin = req.user.role === 'admin';
 
 			if (!isCandidateViewingOwn && !isAdmin) {
@@ -837,14 +827,9 @@ router.post(
 			);
 
 			// Audit log
-			await logAudit(
-				screeningId,
-				'candidate_requested_human_review',
-				req.user.id,
-				null,
-				null,
-				{ reason: reason || 'Candidate requested human review' },
-			);
+			await logAudit(screeningId, 'candidate_requested_human_review', req.user.id, null, null, {
+				reason: reason || 'Candidate requested human review',
+			});
 
 			res.json({
 				success: true,

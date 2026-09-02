@@ -23,83 +23,83 @@ import {
 	User,
 	Video,
 	XCircle,
-} from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { EmptyState } from '@/components/domain/empty-state'
-import { Skeleton } from '@/components/domain/skeleton'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
-import { apiCall } from '@/lib/api'
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { EmptyState } from '@/components/domain/empty-state';
+import { Skeleton } from '@/components/domain/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { apiCall } from '@/lib/api';
 
 interface Interview {
-	id: number
-	company_id: number
-	job_id: number
-	candidate_id: number
-	recruiter_id: number
-	scheduled_at: string
-	duration_minutes: number
-	interview_type: string
-	meeting_link: string | null
-	livekit_room_url?: string
-	livekit_room_id?: number
-	notes: string | null
-	status: string
-	outcome: string | null
-	feedback: any | null
-	ai_evaluation: any | null
-	ai_composite_score: number | null
-	created_at: string
-	updated_at: string
-	candidate_name: string
-	candidate_email: string
-	job_title: string
+	id: number;
+	company_id: number;
+	job_id: number;
+	candidate_id: number;
+	recruiter_id: number;
+	scheduled_at: string;
+	duration_minutes: number;
+	interview_type: string;
+	meeting_link: string | null;
+	livekit_room_url?: string;
+	livekit_room_id?: number;
+	notes: string | null;
+	status: string;
+	outcome: string | null;
+	feedback: any | null;
+	ai_evaluation: any | null;
+	ai_composite_score: number | null;
+	created_at: string;
+	updated_at: string;
+	candidate_name: string;
+	candidate_email: string;
+	job_title: string;
 }
 
 interface Application {
-	id: number
-	candidate_id: number
-	candidate_name: string
-	candidate_email: string
-	job_id: number
-	job_title: string
-	status: string
-	screening_status?: string
-	screening_score?: number
+	id: number;
+	candidate_id: number;
+	candidate_name: string;
+	candidate_email: string;
+	job_id: number;
+	job_title: string;
+	status: string;
+	screening_status?: string;
+	screening_score?: number;
 }
 
 interface ScreeningTemplate {
-	id: number
-	job_id: number
-	title: string
-	questions: any[]
-	sessions_count: number
-	completed_count: number
-	job_title: string
-	auto_send_on_apply: boolean
+	id: number;
+	job_id: number;
+	title: string;
+	questions: any[];
+	sessions_count: number;
+	completed_count: number;
+	job_title: string;
+	auto_send_on_apply: boolean;
 }
 
 interface SlotSuggestion {
-	start: string
-	end: string
-	duration_minutes: number
-	day: string
-	date: string
+	start: string;
+	end: string;
+	duration_minutes: number;
+	day: string;
+	date: string;
 }
 
 const statusConfig: Record<
 	string,
 	{
-		label: string
-		variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive'
-		icon: React.ElementType
+		label: string;
+		variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive';
+		icon: React.ElementType;
 	}
 > = {
 	scheduled: { label: 'Scheduled', variant: 'warning', icon: Clock },
@@ -109,13 +109,13 @@ const statusConfig: Record<
 	declined: { label: 'Declined', variant: 'destructive', icon: XCircle },
 	reschedule_requested: { label: 'Reschedule Req.', variant: 'warning', icon: RefreshCw },
 	no_show: { label: 'No Show', variant: 'destructive', icon: AlertCircle },
-}
+};
 
 const typeIcons: Record<string, React.ElementType> = {
 	video: Video,
 	phone: Phone,
 	'in-person': MapPin,
-}
+};
 
 function formatDate(d: string) {
 	return new Date(d).toLocaleDateString('en-US', {
@@ -123,80 +123,80 @@ function formatDate(d: string) {
 		month: 'short',
 		day: 'numeric',
 		year: 'numeric',
-	})
+	});
 }
 
 function formatTime(d: string) {
-	return new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+	return new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
 function isToday(d: string) {
-	const date = new Date(d)
-	const today = new Date()
-	return date.toDateString() === today.toDateString()
+	const date = new Date(d);
+	const today = new Date();
+	return date.toDateString() === today.toDateString();
 }
 
 function isFuture(d: string) {
-	return new Date(d) > new Date()
+	return new Date(d) > new Date();
 }
 
 export function RecruiterInterviewsPage() {
-	const [interviews, setInterviews] = useState<Interview[]>([])
-	const [applications, setApplications] = useState<Application[]>([])
-	const [loading, setLoading] = useState(true)
-	const [tab, setTab] = useState('upcoming')
-	const [showSchedule, setShowSchedule] = useState(false)
-	const [showFeedback, setShowFeedback] = useState<Interview | null>(null)
-	const [saving, setSaving] = useState(false)
+	const [interviews, setInterviews] = useState<Interview[]>([]);
+	const [applications, setApplications] = useState<Application[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [tab, setTab] = useState('upcoming');
+	const [showSchedule, setShowSchedule] = useState(false);
+	const [showFeedback, setShowFeedback] = useState<Interview | null>(null);
+	const [saving, setSaving] = useState(false);
 
 	// Schedule form
-	const [appId, setAppId] = useState('')
-	const [schedDate, setSchedDate] = useState('')
-	const [schedTime, setSchedTime] = useState('')
-	const [duration, setDuration] = useState('60')
-	const [interviewType, setInterviewType] = useState('video')
-	const [schedNotes, setSchedNotes] = useState('')
+	const [appId, setAppId] = useState('');
+	const [schedDate, setSchedDate] = useState('');
+	const [schedTime, setSchedTime] = useState('');
+	const [duration, setDuration] = useState('60');
+	const [interviewType, setInterviewType] = useState('video');
+	const [schedNotes, setSchedNotes] = useState('');
 
 	// AI Smart Scheduling
-	const [suggestedSlots, setSuggestedSlots] = useState<SlotSuggestion[]>([])
-	const [loadingSlots, setLoadingSlots] = useState(false)
+	const [suggestedSlots, setSuggestedSlots] = useState<SlotSuggestion[]>([]);
+	const [loadingSlots, setLoadingSlots] = useState(false);
 
 	// Screening
-	const [screeningTemplates, setScreeningTemplates] = useState<ScreeningTemplate[]>([])
-	const [showCreateTemplate, setShowCreateTemplate] = useState(false)
-	const [templateJobId, setTemplateJobId] = useState('')
-	const [templateTitle, setTemplateTitle] = useState('')
-	const [creatingTemplate, setCreatingTemplate] = useState(false)
-	const [showScreeningReport, setShowScreeningReport] = useState<any>(null)
-	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+	const [screeningTemplates, setScreeningTemplates] = useState<ScreeningTemplate[]>([]);
+	const [showCreateTemplate, setShowCreateTemplate] = useState(false);
+	const [templateJobId, setTemplateJobId] = useState('');
+	const [templateTitle, setTemplateTitle] = useState('');
+	const [creatingTemplate, setCreatingTemplate] = useState(false);
+	const [showScreeningReport, setShowScreeningReport] = useState<any>(null);
+	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
 	useEffect(() => {
 		if (message) {
-			const t = setTimeout(() => setMessage(null), 4000)
-			return () => clearTimeout(t)
+			const t = setTimeout(() => setMessage(null), 4000);
+			return () => clearTimeout(t);
 		}
-	}, [message])
+	}, [message]);
 
 	// AI Evaluation
-	const [evaluating, setEvaluating] = useState<number | null>(null)
-	const [showAiScores, setShowAiScores] = useState<any>(null)
+	const [evaluating, setEvaluating] = useState<number | null>(null);
+	const [showAiScores, setShowAiScores] = useState<any>(null);
 
 	// Feedback form
-	const [fbOutcome, setFbOutcome] = useState('')
-	const [fbRating, setFbRating] = useState('3')
-	const [fbStrengths, setFbStrengths] = useState('')
-	const [fbWeaknesses, setFbWeaknesses] = useState('')
-	const [fbNotes, setFbNotes] = useState('')
+	const [fbOutcome, setFbOutcome] = useState('');
+	const [fbRating, setFbRating] = useState('3');
+	const [fbStrengths, setFbStrengths] = useState('');
+	const [fbWeaknesses, setFbWeaknesses] = useState('');
+	const [fbNotes, setFbNotes] = useState('');
 
 	// Calendar view
-	const [calMonth, setCalMonth] = useState(new Date())
+	const [calMonth, setCalMonth] = useState(new Date());
 
 	// Jobs for template creation
-	const [jobs, setJobs] = useState<any[]>([])
+	const [jobs, setJobs] = useState<any[]>([]);
 
 	// Load data on mount only — wrapped in useCallback to prevent infinite loop
 	const loadData = useCallback(async () => {
-		setLoading(true)
+		setLoading(true);
 		try {
 			const [intRes, appRes, templRes, jobsRes] = await Promise.all([
 				apiCall<{ interviews: Interview[] }>('/recruiter/interviews?upcoming_only=false'),
@@ -205,26 +205,26 @@ export function RecruiterInterviewsPage() {
 					'/interviews/screening/templates',
 				).catch(() => ({ success: false, templates: [] })),
 				apiCall<{ jobs: any[] }>('/recruiter/jobs').catch(() => ({ jobs: [] })),
-			])
-			setInterviews(intRes.interviews || [])
-			setApplications(appRes.applications || [])
-			setScreeningTemplates(templRes.templates || [])
-			setJobs(jobsRes.jobs || [])
+			]);
+			setInterviews(intRes.interviews || []);
+			setApplications(appRes.applications || []);
+			setScreeningTemplates(templRes.templates || []);
+			setJobs(jobsRes.jobs || []);
 		} catch (err) {
-			console.error('Load error:', err)
+			console.error('Load error:', err);
 		} finally {
-			setLoading(false)
+			setLoading(false);
 		}
-	}, []) // Empty deps — only run once on mount
+	}, []); // Empty deps — only run once on mount
 
 	useEffect(() => {
-		loadData()
-	}, [loadData])
+		loadData();
+	}, [loadData]);
 
 	// AI Smart Scheduling — suggest optimal slots
 	async function findBestTime() {
-		setLoadingSlots(true)
-		setSuggestedSlots([])
+		setLoadingSlots(true);
+		setSuggestedSlots([]);
 		try {
 			const res = await apiCall<{ success: boolean; slots: SlotSuggestion[] }>(
 				'/interviews/suggest-slots',
@@ -232,27 +232,27 @@ export function RecruiterInterviewsPage() {
 					method: 'POST',
 					body: { days_ahead: 7, slots_count: 6, duration_minutes: parseInt(duration, 10) },
 				},
-			)
-			setSuggestedSlots(res.slots || [])
+			);
+			setSuggestedSlots(res.slots || []);
 		} catch (err: any) {
-			console.error('Smart scheduling error:', err)
+			console.error('Smart scheduling error:', err);
 		} finally {
-			setLoadingSlots(false)
+			setLoadingSlots(false);
 		}
 	}
 
 	function selectSlot(slot: SlotSuggestion) {
-		const d = new Date(slot.start)
-		setSchedDate(d.toISOString().split('T')[0])
-		setSchedTime(d.toTimeString().slice(0, 5))
-		setSuggestedSlots([])
+		const d = new Date(slot.start);
+		setSchedDate(d.toISOString().split('T')[0]);
+		setSchedTime(d.toTimeString().slice(0, 5));
+		setSuggestedSlots([]);
 	}
 
 	async function scheduleInterview() {
-		if (!appId || !schedDate || !schedTime) return
-		setSaving(true)
+		if (!appId || !schedDate || !schedTime) return;
+		setSaving(true);
 		try {
-			const scheduled_at = new Date(`${schedDate}T${schedTime}`).toISOString()
+			const scheduled_at = new Date(`${schedDate}T${schedTime}`).toISOString();
 			await apiCall('/recruiter/interviews', {
 				method: 'POST',
 				body: {
@@ -262,31 +262,31 @@ export function RecruiterInterviewsPage() {
 					interview_type: interviewType,
 					notes: schedNotes || undefined,
 				},
-			})
-			setShowSchedule(false)
-			resetScheduleForm()
-			await loadData()
+			});
+			setShowSchedule(false);
+			resetScheduleForm();
+			await loadData();
 		} catch (err: any) {
-			setMessage({ type: 'error', text: err.message || 'Failed to schedule' })
+			setMessage({ type: 'error', text: err.message || 'Failed to schedule' });
 		} finally {
-			setSaving(false)
+			setSaving(false);
 		}
 	}
 
 	function resetScheduleForm() {
-		setAppId('')
-		setSchedDate('')
-		setSchedTime('')
-		setDuration('60')
-		setInterviewType('video')
-		setSchedNotes('')
-		setSuggestedSlots([])
+		setAppId('');
+		setSchedDate('');
+		setSchedTime('');
+		setDuration('60');
+		setInterviewType('video');
+		setSchedNotes('');
+		setSuggestedSlots([]);
 	}
 
 	// Screening template
 	async function createTemplate() {
-		if (!templateJobId) return
-		setCreatingTemplate(true)
+		if (!templateJobId) return;
+		setCreatingTemplate(true);
 		try {
 			await apiCall('/interviews/screening/create-template', {
 				method: 'POST',
@@ -294,15 +294,15 @@ export function RecruiterInterviewsPage() {
 					job_id: parseInt(templateJobId, 10),
 					title: templateTitle || undefined,
 				},
-			})
-			setShowCreateTemplate(false)
-			setTemplateJobId('')
-			setTemplateTitle('')
-			await loadData()
+			});
+			setShowCreateTemplate(false);
+			setTemplateJobId('');
+			setTemplateTitle('');
+			await loadData();
 		} catch (err: any) {
-			setMessage({ type: 'error', text: err.message || 'Failed to create template' })
+			setMessage({ type: 'error', text: err.message || 'Failed to create template' });
 		} finally {
-			setCreatingTemplate(false)
+			setCreatingTemplate(false);
 		}
 	}
 
@@ -322,43 +322,43 @@ export function RecruiterInterviewsPage() {
 					application_id: applicationId,
 					job_id: jobId,
 				},
-			})
-			await loadData()
+			});
+			await loadData();
 		} catch (err: any) {
-			setMessage({ type: 'error', text: err.message || 'Failed to send screening' })
+			setMessage({ type: 'error', text: err.message || 'Failed to send screening' });
 		}
 	}
 
 	// View screening report
 	async function viewScreeningReport(sessionId: number) {
 		try {
-			const res = await apiCall<any>(`/interviews/screening/${sessionId}/report`)
-			setShowScreeningReport(res)
+			const res = await apiCall<any>(`/interviews/screening/${sessionId}/report`);
+			setShowScreeningReport(res);
 		} catch (err: any) {
-			setMessage({ type: 'error', text: err.message || 'Failed to load report' })
+			setMessage({ type: 'error', text: err.message || 'Failed to load report' });
 		}
 	}
 
 	// AI Multi-Evaluator
 	async function runAiEvaluation(interviewId: number) {
-		setEvaluating(interviewId)
+		setEvaluating(interviewId);
 		try {
 			const res = await apiCall<any>('/interviews/evaluate', {
 				method: 'POST',
 				body: { interview_id: interviewId },
-			})
-			setShowAiScores(res)
-			await loadData()
+			});
+			setShowAiScores(res);
+			await loadData();
 		} catch (err: any) {
-			setMessage({ type: 'error', text: err.message || 'Failed to run AI evaluation' })
+			setMessage({ type: 'error', text: err.message || 'Failed to run AI evaluation' });
 		} finally {
-			setEvaluating(null)
+			setEvaluating(null);
 		}
 	}
 
 	async function submitFeedback() {
-		if (!showFeedback) return
-		setSaving(true)
+		if (!showFeedback) return;
+		setSaving(true);
 		try {
 			await apiCall(`/recruiter/interviews/${showFeedback.id}`, {
 				method: 'PUT',
@@ -372,23 +372,23 @@ export function RecruiterInterviewsPage() {
 						notes: fbNotes,
 					},
 				},
-			})
-			setShowFeedback(null)
-			await loadData()
+			});
+			setShowFeedback(null);
+			await loadData();
 		} catch (err: any) {
-			setMessage({ type: 'error', text: err.message || 'Failed to save feedback' })
+			setMessage({ type: 'error', text: err.message || 'Failed to save feedback' });
 		} finally {
-			setSaving(false)
+			setSaving(false);
 		}
 	}
 
 	async function cancelInterview(id: number) {
-		if (!confirm('Cancel this interview?')) return
+		if (!confirm('Cancel this interview?')) return;
 		try {
-			await apiCall(`/recruiter/interviews/${id}`, { method: 'DELETE' })
-			await loadData()
+			await apiCall(`/recruiter/interviews/${id}`, { method: 'DELETE' });
+			await loadData();
 		} catch (err: any) {
-			setMessage({ type: 'error', text: err.message || 'Failed to cancel' })
+			setMessage({ type: 'error', text: err.message || 'Failed to cancel' });
 		}
 	}
 
@@ -397,10 +397,10 @@ export function RecruiterInterviewsPage() {
 			await apiCall(`/recruiter/interviews/${id}`, {
 				method: 'PUT',
 				body: { status },
-			})
-			await loadData()
+			});
+			await loadData();
 		} catch (err: any) {
-			setMessage({ type: 'error', text: err.message || 'Failed to update' })
+			setMessage({ type: 'error', text: err.message || 'Failed to update' });
 		}
 	}
 
@@ -408,65 +408,65 @@ export function RecruiterInterviewsPage() {
 		(i) =>
 			isFuture(i.scheduled_at) &&
 			['scheduled', 'confirmed', 'reschedule_requested'].includes(i.status),
-	)
+	);
 	const past = interviews.filter(
 		(i) =>
 			!isFuture(i.scheduled_at) ||
 			['completed', 'cancelled', 'declined', 'no_show'].includes(i.status),
-	)
+	);
 	const todayInterviews = interviews.filter(
 		(i) => isToday(i.scheduled_at) && ['scheduled', 'confirmed'].includes(i.status),
-	)
+	);
 
 	// Calendar helpers
 	function getDaysInMonth(date: Date) {
-		return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+		return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
 	}
 	function getFirstDayOfMonth(date: Date) {
-		return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
+		return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
 	}
 
 	function getInterviewsForDay(day: number) {
 		return interviews.filter((i) => {
-			const d = new Date(i.scheduled_at)
+			const d = new Date(i.scheduled_at);
 			return (
 				d.getFullYear() === calMonth.getFullYear() &&
 				d.getMonth() === calMonth.getMonth() &&
 				d.getDate() === day
-			)
-		})
+			);
+		});
 	}
 
 	if (loading) {
 		return (
-			<div className='space-y-6 px-4 sm:px-6'>
-				<div className='flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4'>
-					<div className='space-y-2'>
-						<div className='h-8 w-40 rounded bg-muted animate-pulse' />
-						<div className='h-4 w-64 rounded bg-muted animate-pulse' />
+			<div className="space-y-6 px-4 sm:px-6">
+				<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+					<div className="space-y-2">
+						<div className="h-8 w-40 rounded bg-muted animate-pulse" />
+						<div className="h-4 w-64 rounded bg-muted animate-pulse" />
 					</div>
-					<div className='flex gap-2 flex-wrap'>
-						<div className='h-10 w-40 rounded bg-muted animate-pulse' />
-						<div className='h-10 w-36 rounded bg-muted animate-pulse' />
+					<div className="flex gap-2 flex-wrap">
+						<div className="h-10 w-40 rounded bg-muted animate-pulse" />
+						<div className="h-10 w-36 rounded bg-muted animate-pulse" />
 					</div>
 				</div>
-				<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
-					<Skeleton variant='card' />
-					<Skeleton variant='card' />
-					<Skeleton variant='card' />
-					<Skeleton variant='card' />
+				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+					<Skeleton variant="card" />
+					<Skeleton variant="card" />
+					<Skeleton variant="card" />
+					<Skeleton variant="card" />
 				</div>
-				<div className='space-y-3'>
-					<Skeleton variant='list' />
-					<Skeleton variant='list' />
-					<Skeleton variant='list' />
+				<div className="space-y-3">
+					<Skeleton variant="list" />
+					<Skeleton variant="list" />
+					<Skeleton variant="list" />
 				</div>
 			</div>
-		)
+		);
 	}
 
 	return (
-		<div className='space-y-6 px-4 sm:px-6'>
+		<div className="space-y-6 px-4 sm:px-6">
 			{/* Toast */}
 			{message && (
 				<div
@@ -475,90 +475,90 @@ export function RecruiterInterviewsPage() {
 					}`}
 				>
 					{message.type === 'success' ? (
-						<CheckCircle className='h-4 w-4' />
+						<CheckCircle className="h-4 w-4" />
 					) : (
-						<AlertCircle className='h-4 w-4' />
+						<AlertCircle className="h-4 w-4" />
 					)}
 					{message.text}
 				</div>
 			)}
 
 			{/* Header */}
-			<div className='flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4'>
+			<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
 				<div>
-					<h1 className='text-2xl font-heading font-bold'>Interviews</h1>
-					<p className='text-muted-foreground text-sm'>
+					<h1 className="text-2xl font-heading font-bold">Interviews</h1>
+					<p className="text-muted-foreground text-sm">
 						Schedule, screen, and evaluate candidates with AI
 					</p>
 				</div>
-				<div className='flex gap-2 flex-wrap'>
+				<div className="flex gap-2 flex-wrap">
 					<Button
-						variant='outline'
+						variant="outline"
 						onClick={() => setShowCreateTemplate(true)}
-						className='min-h-[44px]'
+						className="min-h-[44px]"
 					>
-						<ClipboardList className='h-4 w-4 mr-2' /> Screening Templates
+						<ClipboardList className="h-4 w-4 mr-2" /> Screening Templates
 					</Button>
-					<Button onClick={() => setShowSchedule(true)} className='min-h-[44px]'>
-						<Plus className='h-4 w-4 mr-2' /> Schedule Interview
+					<Button onClick={() => setShowSchedule(true)} className="min-h-[44px]">
+						<Plus className="h-4 w-4 mr-2" /> Schedule Interview
 					</Button>
 				</div>
 			</div>
 
 			{/* Stats */}
-			<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 				<Card>
-					<CardContent className='p-4'>
-						<div className='flex items-center gap-3'>
-							<div className='p-2 rounded-lg bg-yellow-100 text-yellow-700'>
-								<Clock className='h-5 w-5' />
+					<CardContent className="p-4">
+						<div className="flex items-center gap-3">
+							<div className="p-2 rounded-lg bg-yellow-100 text-yellow-700">
+								<Clock className="h-5 w-5" />
 							</div>
 							<div>
-								<p className='text-2xl font-bold'>{todayInterviews.length}</p>
-								<p className='text-xs text-muted-foreground'>Today</p>
+								<p className="text-2xl font-bold">{todayInterviews.length}</p>
+								<p className="text-xs text-muted-foreground">Today</p>
 							</div>
 						</div>
 					</CardContent>
 				</Card>
 				<Card>
-					<CardContent className='p-4'>
-						<div className='flex items-center gap-3'>
-							<div className='p-2 rounded-lg bg-blue-100 text-blue-700'>
-								<Calendar className='h-5 w-5' />
+					<CardContent className="p-4">
+						<div className="flex items-center gap-3">
+							<div className="p-2 rounded-lg bg-blue-100 text-blue-700">
+								<Calendar className="h-5 w-5" />
 							</div>
 							<div>
-								<p className='text-2xl font-bold'>{upcoming.length}</p>
-								<p className='text-xs text-muted-foreground'>Upcoming</p>
+								<p className="text-2xl font-bold">{upcoming.length}</p>
+								<p className="text-xs text-muted-foreground">Upcoming</p>
 							</div>
 						</div>
 					</CardContent>
 				</Card>
 				<Card>
-					<CardContent className='p-4'>
-						<div className='flex items-center gap-3'>
-							<div className='p-2 rounded-lg bg-green-100 text-green-700'>
-								<CheckCircle className='h-5 w-5' />
+					<CardContent className="p-4">
+						<div className="flex items-center gap-3">
+							<div className="p-2 rounded-lg bg-green-100 text-green-700">
+								<CheckCircle className="h-5 w-5" />
 							</div>
 							<div>
-								<p className='text-2xl font-bold'>
+								<p className="text-2xl font-bold">
 									{interviews.filter((i) => i.status === 'completed').length}
 								</p>
-								<p className='text-xs text-muted-foreground'>Completed</p>
+								<p className="text-xs text-muted-foreground">Completed</p>
 							</div>
 						</div>
 					</CardContent>
 				</Card>
 				<Card>
-					<CardContent className='p-4'>
-						<div className='flex items-center gap-3'>
-							<div className='p-2 rounded-lg bg-purple-100 text-purple-700'>
-								<Brain className='h-5 w-5' />
+					<CardContent className="p-4">
+						<div className="flex items-center gap-3">
+							<div className="p-2 rounded-lg bg-purple-100 text-purple-700">
+								<Brain className="h-5 w-5" />
 							</div>
 							<div>
-								<p className='text-2xl font-bold'>
+								<p className="text-2xl font-bold">
 									{screeningTemplates.reduce((sum, t) => sum + (t.completed_count || 0), 0)}
 								</p>
-								<p className='text-xs text-muted-foreground'>AI Screenings</p>
+								<p className="text-xs text-muted-foreground">AI Screenings</p>
 							</div>
 						</div>
 					</CardContent>
@@ -567,28 +567,28 @@ export function RecruiterInterviewsPage() {
 
 			{/* Screening Templates Banner */}
 			{screeningTemplates.length > 0 && (
-				<Card className='border-purple-200 bg-purple-50/50'>
-					<CardContent className='p-4'>
-						<div className='flex items-center gap-3 mb-3'>
-							<Sparkles className='h-5 w-5 text-purple-600' />
-							<h3 className='font-semibold text-purple-900'>AI Screening Pipeline</h3>
+				<Card className="border-purple-200 bg-purple-50/50">
+					<CardContent className="p-4">
+						<div className="flex items-center gap-3 mb-3">
+							<Sparkles className="h-5 w-5 text-purple-600" />
+							<h3 className="font-semibold text-purple-900">AI Screening Pipeline</h3>
 						</div>
-						<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'>
+						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 							{screeningTemplates.map((t) => (
-								<div key={t.id} className='p-3 bg-white rounded-lg border border-purple-100'>
-									<div className='flex items-center justify-between mb-1'>
-										<span className='font-medium text-sm truncate'>{t.title}</span>
-										<Badge variant='secondary' className='text-xs shrink-0'>
+								<div key={t.id} className="p-3 bg-white rounded-lg border border-purple-100">
+									<div className="flex items-center justify-between mb-1">
+										<span className="font-medium text-sm truncate">{t.title}</span>
+										<Badge variant="secondary" className="text-xs shrink-0">
 											{t.questions.length} Qs
 										</Badge>
 									</div>
-									<p className='text-xs text-muted-foreground mb-2'>{t.job_title}</p>
-									<div className='flex items-center justify-between'>
-										<span className='text-xs text-muted-foreground'>
+									<p className="text-xs text-muted-foreground mb-2">{t.job_title}</p>
+									<div className="flex items-center justify-between">
+										<span className="text-xs text-muted-foreground">
 											{t.completed_count}/{t.sessions_count} completed
 										</span>
 										{t.auto_send_on_apply && (
-											<Badge variant='default' className='text-xs bg-purple-600'>
+											<Badge variant="default" className="text-xs bg-purple-600">
 												Auto-send
 											</Badge>
 										)}
@@ -602,36 +602,36 @@ export function RecruiterInterviewsPage() {
 
 			{/* Main content */}
 			<Tabs value={tab} onValueChange={setTab}>
-				<TabsList className='flex-wrap h-auto'>
-					<TabsTrigger value='upcoming'>Upcoming ({upcoming.length})</TabsTrigger>
-					<TabsTrigger value='screening'>Screening</TabsTrigger>
-					<TabsTrigger value='calendar'>Calendar</TabsTrigger>
-					<TabsTrigger value='past'>Past ({past.length})</TabsTrigger>
+				<TabsList className="flex-wrap h-auto">
+					<TabsTrigger value="upcoming">Upcoming ({upcoming.length})</TabsTrigger>
+					<TabsTrigger value="screening">Screening</TabsTrigger>
+					<TabsTrigger value="calendar">Calendar</TabsTrigger>
+					<TabsTrigger value="past">Past ({past.length})</TabsTrigger>
 				</TabsList>
 
 				{/* Upcoming list */}
-				<TabsContent value='upcoming'>
+				<TabsContent value="upcoming">
 					{upcoming.length === 0 ? (
 						<EmptyState
 							icon={Calendar}
-							title='No upcoming interviews'
-							description='Schedule interviews with candidates from your applications.'
+							title="No upcoming interviews"
+							description="Schedule interviews with candidates from your applications."
 							action={{ label: 'Schedule Interview', onClick: () => setShowSchedule(true) }}
 						/>
 					) : (
-						<div className='space-y-3'>
+						<div className="space-y-3">
 							{upcoming.map((interview) => (
 								<InterviewCard
 									key={interview.id}
 									interview={interview}
 									onCancel={() => cancelInterview(interview.id)}
 									onFeedback={() => {
-										setShowFeedback(interview)
-										setFbOutcome('')
-										setFbRating('3')
-										setFbStrengths('')
-										setFbWeaknesses('')
-										setFbNotes('')
+										setShowFeedback(interview);
+										setFbOutcome('');
+										setFbRating('3');
+										setFbStrengths('');
+										setFbWeaknesses('');
+										setFbNotes('');
 									}}
 									onConfirm={() => updateStatus(interview.id, 'confirmed')}
 									onAiEvaluate={() => runAiEvaluation(interview.id)}
@@ -643,50 +643,50 @@ export function RecruiterInterviewsPage() {
 				</TabsContent>
 
 				{/* Screening tab */}
-				<TabsContent value='screening'>
-					<div className='space-y-4'>
+				<TabsContent value="screening">
+					<div className="space-y-4">
 						{/* Screening-eligible applications */}
 						<Card>
-							<CardContent className='p-4'>
-								<div className='flex items-center justify-between mb-4'>
-									<h3 className='font-semibold flex items-center gap-2'>
-										<Send className='h-4 w-4' /> Send AI Screening
+							<CardContent className="p-4">
+								<div className="flex items-center justify-between mb-4">
+									<h3 className="font-semibold flex items-center gap-2">
+										<Send className="h-4 w-4" /> Send AI Screening
 									</h3>
 								</div>
 								{applications.filter((a) => !a.screening_status && screeningTemplates.length > 0)
 									.length === 0 ? (
-									<p className='text-sm text-muted-foreground'>
+									<p className="text-sm text-muted-foreground">
 										{screeningTemplates.length === 0
 											? 'Create a screening template first to start sending AI screenings.'
 											: 'All current applicants have been sent screenings or no new applicants available.'}
 									</p>
 								) : (
-									<div className='space-y-2'>
+									<div className="space-y-2">
 										{applications
 											.filter((a) => !a.screening_status)
 											.slice(0, 10)
 											.map((app) => {
 												const matchingTemplate = screeningTemplates.find(
 													(t) => t.job_id === app.job_id,
-												)
+												);
 												return (
 													<div
 														key={app.id}
-														className='flex items-center justify-between p-3 bg-muted/50 rounded-lg'
+														className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
 													>
 														<div>
-															<span className='font-medium text-sm'>{app.candidate_name}</span>
-															<span className='text-xs text-muted-foreground ml-2'>
+															<span className="font-medium text-sm">{app.candidate_name}</span>
+															<span className="text-xs text-muted-foreground ml-2">
 																{app.job_title}
 															</span>
 														</div>
-														<div className='flex items-center gap-2'>
+														<div className="flex items-center gap-2">
 															{app.screening_status && (
 																<Badge
 																	variant={
 																		app.screening_status === 'completed' ? 'success' : 'warning'
 																	}
-																	className='text-xs'
+																	className="text-xs"
 																>
 																	{app.screening_status === 'completed'
 																		? `Score: ${app.screening_score}/100`
@@ -695,8 +695,8 @@ export function RecruiterInterviewsPage() {
 															)}
 															{matchingTemplate && !app.screening_status && (
 																<Button
-																	size='sm'
-																	variant='outline'
+																	size="sm"
+																	variant="outline"
 																	onClick={() =>
 																		sendScreening(
 																			matchingTemplate.id,
@@ -705,14 +705,14 @@ export function RecruiterInterviewsPage() {
 																			app.job_id,
 																		)
 																	}
-																	className='min-h-[44px]'
+																	className="min-h-[44px]"
 																>
-																	<Sparkles className='h-3.5 w-3.5 mr-1' /> Send Screening
+																	<Sparkles className="h-3.5 w-3.5 mr-1" /> Send Screening
 																</Button>
 															)}
 														</div>
 													</div>
-												)
+												);
 											})}
 									</div>
 								)}
@@ -721,22 +721,22 @@ export function RecruiterInterviewsPage() {
 
 						{/* Completed screenings */}
 						<Card>
-							<CardContent className='p-4'>
-								<h3 className='font-semibold mb-4 flex items-center gap-2'>
-									<FileText className='h-4 w-4' /> Screening Results
+							<CardContent className="p-4">
+								<h3 className="font-semibold mb-4 flex items-center gap-2">
+									<FileText className="h-4 w-4" /> Screening Results
 								</h3>
 								{applications.filter((a) => a.screening_status === 'completed').length === 0 ? (
-									<p className='text-sm text-muted-foreground'>No completed screenings yet.</p>
+									<p className="text-sm text-muted-foreground">No completed screenings yet.</p>
 								) : (
-									<div className='space-y-2'>
+									<div className="space-y-2">
 										{applications
 											.filter((a) => a.screening_status === 'completed')
 											.map((app) => (
 												<div
 													key={app.id}
-													className='flex items-center justify-between p-3 bg-muted/50 rounded-lg'
+													className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
 												>
-													<div className='flex items-center gap-3'>
+													<div className="flex items-center gap-3">
 														<div
 															className={`text-lg font-bold ${
 																(app.screening_score || 0) >= 70
@@ -749,17 +749,17 @@ export function RecruiterInterviewsPage() {
 															{app.screening_score || 0}
 														</div>
 														<div>
-															<span className='font-medium text-sm'>{app.candidate_name}</span>
-															<p className='text-xs text-muted-foreground'>{app.job_title}</p>
+															<span className="font-medium text-sm">{app.candidate_name}</span>
+															<p className="text-xs text-muted-foreground">{app.job_title}</p>
 														</div>
 													</div>
 													<Button
-														size='sm'
-														variant='outline'
+														size="sm"
+														variant="outline"
 														onClick={() => viewScreeningReport(app.id)}
-														className='min-h-[44px]'
+														className="min-h-[44px]"
 													>
-														<FileText className='h-3.5 w-3.5 mr-1' /> View Report
+														<FileText className="h-3.5 w-3.5 mr-1" /> View Report
 													</Button>
 												</div>
 											))}
@@ -771,41 +771,41 @@ export function RecruiterInterviewsPage() {
 				</TabsContent>
 
 				{/* Calendar view */}
-				<TabsContent value='calendar'>
+				<TabsContent value="calendar">
 					<Card>
-						<CardContent className='p-4'>
-							<div className='flex items-center justify-between mb-4'>
+						<CardContent className="p-4">
+							<div className="flex items-center justify-between mb-4">
 								<Button
-									variant='ghost'
-									size='sm'
+									variant="ghost"
+									size="sm"
 									onClick={() =>
 										setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() - 1))
 									}
-									className='min-h-[44px]'
+									className="min-h-[44px]"
 								>
-									<ChevronLeft className='h-4 w-4' />
+									<ChevronLeft className="h-4 w-4" />
 								</Button>
-								<h3 className='font-semibold'>
+								<h3 className="font-semibold">
 									{calMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
 								</h3>
 								<Button
-									variant='ghost'
-									size='sm'
+									variant="ghost"
+									size="sm"
 									onClick={() =>
 										setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() + 1))
 									}
-									className='min-h-[44px]'
+									className="min-h-[44px]"
 								>
-									<ChevronRight className='h-4 w-4' />
+									<ChevronRight className="h-4 w-4" />
 								</Button>
 							</div>
 
-							<div className='overflow-x-auto'>
-								<div className='grid grid-cols-7 gap-px bg-muted rounded-lg overflow-hidden min-w-[300px]'>
+							<div className="overflow-x-auto">
+								<div className="grid grid-cols-7 gap-px bg-muted rounded-lg overflow-hidden min-w-[300px]">
 									{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
 										<div
 											key={day}
-											className='bg-background p-1 sm:p-2 text-center text-[10px] sm:text-xs font-medium text-muted-foreground'
+											className="bg-background p-1 sm:p-2 text-center text-[10px] sm:text-xs font-medium text-muted-foreground"
 										>
 											{day}
 										</div>
@@ -813,16 +813,16 @@ export function RecruiterInterviewsPage() {
 									{Array.from({ length: getFirstDayOfMonth(calMonth) }).map((_, i) => (
 										<div
 											key={`empty-${i}`}
-											className='bg-background p-1 sm:p-2 min-h-[60px] sm:min-h-[80px]'
+											className="bg-background p-1 sm:p-2 min-h-[60px] sm:min-h-[80px]"
 										/>
 									))}
 									{Array.from({ length: getDaysInMonth(calMonth) }).map((_, i) => {
-										const day = i + 1
-										const dayInterviews = getInterviewsForDay(day)
+										const day = i + 1;
+										const dayInterviews = getInterviewsForDay(day);
 										const isCurrentDay =
 											new Date().getDate() === day &&
 											new Date().getMonth() === calMonth.getMonth() &&
-											new Date().getFullYear() === calMonth.getFullYear()
+											new Date().getFullYear() === calMonth.getFullYear();
 
 										return (
 											<div
@@ -832,30 +832,30 @@ export function RecruiterInterviewsPage() {
 												<span className={`text-sm ${isCurrentDay ? 'font-bold text-primary' : ''}`}>
 													{day}
 												</span>
-												<div className='mt-1 space-y-1'>
+												<div className="mt-1 space-y-1">
 													{dayInterviews.slice(0, 2).map((int) => {
-														const TypeIcon = typeIcons[int.interview_type] || Video
+														const TypeIcon = typeIcons[int.interview_type] || Video;
 														return (
 															<div
 																key={int.id}
-																className='text-xs p-1 rounded bg-primary/10 text-primary truncate flex items-center gap-1'
+																className="text-xs p-1 rounded bg-primary/10 text-primary truncate flex items-center gap-1"
 																title={`${formatTime(int.scheduled_at)} - ${int.candidate_name} (${int.job_title})`}
 															>
-																<TypeIcon className='h-3 w-3 shrink-0' />
-																<span className='truncate'>
+																<TypeIcon className="h-3 w-3 shrink-0" />
+																<span className="truncate">
 																	{formatTime(int.scheduled_at)} {int.candidate_name.split(' ')[0]}
 																</span>
 															</div>
-														)
+														);
 													})}
 													{dayInterviews.length > 2 && (
-														<div className='text-xs text-muted-foreground text-center'>
+														<div className="text-xs text-muted-foreground text-center">
 															+{dayInterviews.length - 2} more
 														</div>
 													)}
 												</div>
 											</div>
-										)
+										);
 									})}
 								</div>
 							</div>
@@ -864,27 +864,27 @@ export function RecruiterInterviewsPage() {
 				</TabsContent>
 
 				{/* Past interviews */}
-				<TabsContent value='past'>
+				<TabsContent value="past">
 					{past.length === 0 ? (
 						<EmptyState
 							icon={Inbox}
-							title='No past interviews yet'
-							description='Completed, cancelled, or declined interviews will appear here.'
+							title="No past interviews yet"
+							description="Completed, cancelled, or declined interviews will appear here."
 						/>
 					) : (
-						<div className='space-y-3'>
+						<div className="space-y-3">
 							{past.map((interview) => (
 								<InterviewCard
 									key={interview.id}
 									interview={interview}
 									onCancel={() => cancelInterview(interview.id)}
 									onFeedback={() => {
-										setShowFeedback(interview)
-										setFbOutcome(interview.outcome || '')
-										setFbRating(interview.feedback?.rating?.toString() || '3')
-										setFbStrengths(interview.feedback?.strengths || '')
-										setFbWeaknesses(interview.feedback?.weaknesses || '')
-										setFbNotes(interview.feedback?.notes || '')
+										setShowFeedback(interview);
+										setFbOutcome(interview.outcome || '');
+										setFbRating(interview.feedback?.rating?.toString() || '3');
+										setFbStrengths(interview.feedback?.strengths || '');
+										setFbWeaknesses(interview.feedback?.weaknesses || '');
+										setFbNotes(interview.feedback?.notes || '');
 									}}
 									onAiEvaluate={() => runAiEvaluation(interview.id)}
 									evaluating={evaluating === interview.id}
@@ -900,23 +900,23 @@ export function RecruiterInterviewsPage() {
 			<Dialog
 				open={showSchedule}
 				onClose={() => {
-					setShowSchedule(false)
-					resetScheduleForm()
+					setShowSchedule(false);
+					resetScheduleForm();
 				}}
 			>
 				<DialogHeader>
 					<DialogTitle>Schedule Interview</DialogTitle>
 					<DialogDescription>Select an applicant and set the interview details</DialogDescription>
 				</DialogHeader>
-				<div className='space-y-4 mt-4'>
+				<div className="space-y-4 mt-4">
 					<div>
 						<Label>Applicant</Label>
 						<Select
 							value={appId}
 							onChange={(e) => setAppId(e.target.value)}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						>
-							<option value=''>Select an applicant...</option>
+							<option value="">Select an applicant...</option>
 							{applications.map((a) => (
 								<option key={a.id} value={a.id}>
 									{a.candidate_name} — {a.job_title}
@@ -924,38 +924,38 @@ export function RecruiterInterviewsPage() {
 							))}
 						</Select>
 						{applications.length === 0 && (
-							<p className='text-xs text-muted-foreground mt-1'>
+							<p className="text-xs text-muted-foreground mt-1">
 								No applicants available. Update an application status first.
 							</p>
 						)}
 					</div>
 
 					{/* AI Smart Scheduling */}
-					<div className='p-3 bg-blue-50 rounded-lg border border-blue-200'>
-						<div className='flex items-center justify-between mb-2'>
-							<span className='text-sm font-medium text-blue-900 flex items-center gap-1.5'>
-								<Sparkles className='h-4 w-4' /> AI Smart Scheduling
+					<div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+						<div className="flex items-center justify-between mb-2">
+							<span className="text-sm font-medium text-blue-900 flex items-center gap-1.5">
+								<Sparkles className="h-4 w-4" /> AI Smart Scheduling
 							</span>
 							<Button
-								size='sm'
-								variant='outline'
+								size="sm"
+								variant="outline"
 								onClick={findBestTime}
 								disabled={loadingSlots}
-								className='text-xs min-h-[44px]'
+								className="text-xs min-h-[44px]"
 							>
 								{loadingSlots ? 'Finding...' : '✨ Find Best Time'}
 							</Button>
 						</div>
 						{suggestedSlots.length > 0 && (
-							<div className='grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2'>
+							<div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
 								{suggestedSlots.map((slot, _i) => (
 									<button
 										key={slot.start}
 										onClick={() => selectSlot(slot)}
-										className='text-left p-2 bg-white rounded border border-blue-100 hover:border-blue-400 hover:bg-blue-50 transition-colors text-xs min-h-[44px]'
+										className="text-left p-2 bg-white rounded border border-blue-100 hover:border-blue-400 hover:bg-blue-50 transition-colors text-xs min-h-[44px]"
 									>
-										<div className='font-medium'>{formatDate(slot.start)}</div>
-										<div className='text-muted-foreground'>
+										<div className="font-medium">{formatDate(slot.start)}</div>
+										<div className="text-muted-foreground">
 											{formatTime(slot.start)} — {slot.duration_minutes}min
 										</div>
 									</button>
@@ -963,46 +963,46 @@ export function RecruiterInterviewsPage() {
 							</div>
 						)}
 						{suggestedSlots.length === 0 && !loadingSlots && (
-							<p className='text-xs text-blue-700'>
+							<p className="text-xs text-blue-700">
 								Click "Find Best Time" to auto-suggest optimal interview slots based on your
 								calendar.
 							</p>
 						)}
 					</div>
 
-					<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						<div>
 							<Label>Date</Label>
 							<Input
-								type='date'
+								type="date"
 								value={schedDate}
 								onChange={(e) => setSchedDate(e.target.value)}
-								className='min-h-[44px]'
+								className="min-h-[44px]"
 							/>
 						</div>
 						<div>
 							<Label>Time</Label>
 							<Input
-								type='time'
+								type="time"
 								value={schedTime}
 								onChange={(e) => setSchedTime(e.target.value)}
-								className='min-h-[44px]'
+								className="min-h-[44px]"
 							/>
 						</div>
 					</div>
-					<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						<div>
 							<Label>Duration</Label>
 							<Select
 								value={duration}
 								onChange={(e) => setDuration(e.target.value)}
-								className='min-h-[44px]'
+								className="min-h-[44px]"
 							>
-								<option value='15'>15 minutes</option>
-								<option value='30'>30 minutes</option>
-								<option value='45'>45 minutes</option>
-								<option value='60'>60 minutes</option>
-								<option value='90'>90 minutes</option>
+								<option value="15">15 minutes</option>
+								<option value="30">30 minutes</option>
+								<option value="45">45 minutes</option>
+								<option value="60">60 minutes</option>
+								<option value="90">90 minutes</option>
 							</Select>
 						</div>
 						<div>
@@ -1010,11 +1010,11 @@ export function RecruiterInterviewsPage() {
 							<Select
 								value={interviewType}
 								onChange={(e) => setInterviewType(e.target.value)}
-								className='min-h-[44px]'
+								className="min-h-[44px]"
 							>
-								<option value='video'>Video Call</option>
-								<option value='phone'>Phone</option>
-								<option value='in-person'>In Person</option>
+								<option value="video">Video Call</option>
+								<option value="phone">Phone</option>
+								<option value="in-person">In Person</option>
 							</Select>
 						</div>
 					</div>
@@ -1023,25 +1023,25 @@ export function RecruiterInterviewsPage() {
 						<Textarea
 							value={schedNotes}
 							onChange={(e) => setSchedNotes(e.target.value)}
-							placeholder='Any instructions for the candidate...'
+							placeholder="Any instructions for the candidate..."
 							rows={3}
 						/>
 					</div>
-					<div className='flex gap-2 justify-end'>
+					<div className="flex gap-2 justify-end">
 						<Button
-							variant='outline'
+							variant="outline"
 							onClick={() => {
-								setShowSchedule(false)
-								resetScheduleForm()
+								setShowSchedule(false);
+								resetScheduleForm();
 							}}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						>
 							Cancel
 						</Button>
 						<Button
 							onClick={scheduleInterview}
 							disabled={saving || !appId || !schedDate || !schedTime}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						>
 							{saving ? 'Scheduling...' : 'Schedule Interview'}
 						</Button>
@@ -1057,15 +1057,15 @@ export function RecruiterInterviewsPage() {
 						AI will auto-generate screening questions from the job description
 					</DialogDescription>
 				</DialogHeader>
-				<div className='space-y-4 mt-4'>
+				<div className="space-y-4 mt-4">
 					<div>
 						<Label>Job</Label>
 						<Select
 							value={templateJobId}
 							onChange={(e) => setTemplateJobId(e.target.value)}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						>
-							<option value=''>Select a job...</option>
+							<option value="">Select a job...</option>
 							{jobs.map((j: any) => (
 								<option key={j.id} value={j.id}>
 									{j.title}
@@ -1078,29 +1078,29 @@ export function RecruiterInterviewsPage() {
 						<Input
 							value={templateTitle}
 							onChange={(e) => setTemplateTitle(e.target.value)}
-							placeholder='Auto-generated from job title'
-							className='min-h-[44px]'
+							placeholder="Auto-generated from job title"
+							className="min-h-[44px]"
 						/>
 					</div>
-					<div className='p-3 bg-purple-50 rounded-lg border border-purple-200'>
-						<p className='text-xs text-purple-700 flex items-center gap-1.5'>
-							<Sparkles className='h-3.5 w-3.5' />
+					<div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+						<p className="text-xs text-purple-700 flex items-center gap-1.5">
+							<Sparkles className="h-3.5 w-3.5" />
 							AI will analyze the job description and generate 6-8 tailored screening questions with
 							evaluation criteria.
 						</p>
 					</div>
-					<div className='flex gap-2 justify-end'>
+					<div className="flex gap-2 justify-end">
 						<Button
-							variant='outline'
+							variant="outline"
 							onClick={() => setShowCreateTemplate(false)}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						>
 							Cancel
 						</Button>
 						<Button
 							onClick={createTemplate}
 							disabled={creatingTemplate || !templateJobId}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						>
 							{creatingTemplate ? 'Creating...' : '✨ Create Template'}
 						</Button>
@@ -1116,30 +1116,30 @@ export function RecruiterInterviewsPage() {
 						{showFeedback && `${showFeedback.candidate_name} — ${showFeedback.job_title}`}
 					</DialogDescription>
 				</DialogHeader>
-				<div className='space-y-4 mt-4'>
+				<div className="space-y-4 mt-4">
 					<div>
 						<Label>Outcome</Label>
 						<Select
 							value={fbOutcome}
 							onChange={(e) => setFbOutcome(e.target.value)}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						>
-							<option value=''>Select outcome...</option>
-							<option value='strong_hire'>Strong Hire</option>
-							<option value='hire'>Hire</option>
-							<option value='lean_hire'>Lean Hire</option>
-							<option value='lean_no_hire'>Lean No Hire</option>
-							<option value='no_hire'>No Hire</option>
+							<option value="">Select outcome...</option>
+							<option value="strong_hire">Strong Hire</option>
+							<option value="hire">Hire</option>
+							<option value="lean_hire">Lean Hire</option>
+							<option value="lean_no_hire">Lean No Hire</option>
+							<option value="no_hire">No Hire</option>
 						</Select>
 					</div>
 					<div>
 						<Label>Rating (1-5)</Label>
-						<div className='flex gap-1 mt-1'>
+						<div className="flex gap-1 mt-1">
 							{[1, 2, 3, 4, 5].map((n) => (
 								<button
 									key={n}
 									onClick={() => setFbRating(n.toString())}
-									className='p-1 min-h-[44px]'
+									className="p-1 min-h-[44px]"
 								>
 									<Star
 										className={`h-6 w-6 ${parseInt(fbRating, 10) >= n ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`}
@@ -1153,7 +1153,7 @@ export function RecruiterInterviewsPage() {
 						<Textarea
 							value={fbStrengths}
 							onChange={(e) => setFbStrengths(e.target.value)}
-							placeholder='What went well...'
+							placeholder="What went well..."
 							rows={2}
 						/>
 					</div>
@@ -1162,7 +1162,7 @@ export function RecruiterInterviewsPage() {
 						<Textarea
 							value={fbWeaknesses}
 							onChange={(e) => setFbWeaknesses(e.target.value)}
-							placeholder='What could be better...'
+							placeholder="What could be better..."
 							rows={2}
 						/>
 					</div>
@@ -1171,19 +1171,19 @@ export function RecruiterInterviewsPage() {
 						<Textarea
 							value={fbNotes}
 							onChange={(e) => setFbNotes(e.target.value)}
-							placeholder='Any other observations...'
+							placeholder="Any other observations..."
 							rows={2}
 						/>
 					</div>
-					<div className='flex gap-2 justify-end'>
+					<div className="flex gap-2 justify-end">
 						<Button
-							variant='outline'
+							variant="outline"
 							onClick={() => setShowFeedback(null)}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						>
 							Cancel
 						</Button>
-						<Button onClick={submitFeedback} disabled={saving} className='min-h-[44px]'>
+						<Button onClick={submitFeedback} disabled={saving} className="min-h-[44px]">
 							{saving ? 'Saving...' : 'Save Feedback'}
 						</Button>
 					</div>
@@ -1193,20 +1193,20 @@ export function RecruiterInterviewsPage() {
 			{/* AI Evaluation Results Dialog */}
 			<Dialog open={!!showAiScores} onClose={() => setShowAiScores(null)}>
 				<DialogHeader>
-					<DialogTitle className='flex items-center gap-2'>
-						<Brain className='h-5 w-5 text-purple-600' /> AI Multi-Evaluator Scores
+					<DialogTitle className="flex items-center gap-2">
+						<Brain className="h-5 w-5 text-purple-600" /> AI Multi-Evaluator Scores
 					</DialogTitle>
 					<DialogDescription>
 						Three independent AI perspectives + composite recommendation
 					</DialogDescription>
 				</DialogHeader>
 				{showAiScores && (
-					<div className='space-y-4 mt-4'>
+					<div className="space-y-4 mt-4">
 						{/* Composite score */}
 						{showAiScores.composite && (
-							<div className='p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border'>
-								<div className='flex items-center justify-between mb-2'>
-									<span className='font-semibold text-lg'>Composite Score</span>
+							<div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border">
+								<div className="flex items-center justify-between mb-2">
+									<span className="font-semibold text-lg">Composite Score</span>
 									<span
 										className={`text-2xl sm:text-3xl font-bold ${
 											showAiScores.composite.composite_score >= 75
@@ -1234,19 +1234,19 @@ export function RecruiterInterviewsPage() {
 								>
 									{showAiScores.composite.recommendation?.replace('_', ' ').toUpperCase()}
 								</Badge>
-								<p className='text-sm text-muted-foreground mt-2'>
+								<p className="text-sm text-muted-foreground mt-2">
 									{showAiScores.composite.recommendation_reasoning}
 								</p>
 							</div>
 						)}
 
 						{/* Individual evaluator scores */}
-						<div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
+						<div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 							{showAiScores.evaluations &&
 								Object.entries(showAiScores.evaluations).map(([type, eval_]: [string, any]) => (
-									<div key={type} className='p-3 border rounded-lg'>
-										<div className='flex items-center justify-between mb-2'>
-											<span className='font-medium text-sm capitalize'>{type}</span>
+									<div key={type} className="p-3 border rounded-lg">
+										<div className="flex items-center justify-between mb-2">
+											<span className="font-medium text-sm capitalize">{type}</span>
 											<span
 												className={`text-xl font-bold ${
 													eval_.score >= 75
@@ -1261,12 +1261,12 @@ export function RecruiterInterviewsPage() {
 												{eval_.score}
 											</span>
 										</div>
-										<p className='text-xs text-muted-foreground'>{eval_.reasoning}</p>
+										<p className="text-xs text-muted-foreground">{eval_.reasoning}</p>
 										{eval_.key_observations && (
-											<ul className='mt-2 space-y-1'>
+											<ul className="mt-2 space-y-1">
 												{eval_.key_observations.slice(0, 3).map((obs: string, _i: number) => (
-													<li key={obs} className='text-xs flex items-start gap-1'>
-														<span className='text-muted-foreground'>•</span> {obs}
+													<li key={obs} className="text-xs flex items-start gap-1">
+														<span className="text-muted-foreground">•</span> {obs}
 													</li>
 												))}
 											</ul>
@@ -1275,11 +1275,11 @@ export function RecruiterInterviewsPage() {
 								))}
 						</div>
 
-						<div className='flex justify-end'>
+						<div className="flex justify-end">
 							<Button
-								variant='outline'
+								variant="outline"
 								onClick={() => setShowAiScores(null)}
-								className='min-h-[44px]'
+								className="min-h-[44px]"
 							>
 								Close
 							</Button>
@@ -1291,8 +1291,8 @@ export function RecruiterInterviewsPage() {
 			{/* Screening Report Dialog */}
 			<Dialog open={!!showScreeningReport} onClose={() => setShowScreeningReport(null)}>
 				<DialogHeader>
-					<DialogTitle className='flex items-center gap-2'>
-						<FileText className='h-5 w-5 text-purple-600' /> Screening Report
+					<DialogTitle className="flex items-center gap-2">
+						<FileText className="h-5 w-5 text-purple-600" /> Screening Report
 					</DialogTitle>
 					<DialogDescription>
 						{showScreeningReport?.session &&
@@ -1300,8 +1300,8 @@ export function RecruiterInterviewsPage() {
 					</DialogDescription>
 				</DialogHeader>
 				{showScreeningReport?.report && (
-					<div className='space-y-4 mt-4 max-h-[60vh] overflow-y-auto'>
-						<div className='flex items-center gap-4 p-3 bg-muted rounded-lg'>
+					<div className="space-y-4 mt-4 max-h-[60vh] overflow-y-auto">
+						<div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
 							<div
 								className={`text-2xl sm:text-3xl font-bold ${
 									(showScreeningReport.report.overall_score || 0) >= 70
@@ -1325,7 +1325,7 @@ export function RecruiterInterviewsPage() {
 								>
 									{showScreeningReport.report.recommendation?.toUpperCase()}
 								</Badge>
-								<p className='text-sm text-muted-foreground mt-1'>
+								<p className="text-sm text-muted-foreground mt-1">
 									{showScreeningReport.report.recommendation_reasoning}
 								</p>
 							</div>
@@ -1333,11 +1333,11 @@ export function RecruiterInterviewsPage() {
 
 						{showScreeningReport.report.strengths && (
 							<div>
-								<h4 className='font-medium text-sm mb-1 text-green-700'>Strengths</h4>
-								<ul className='space-y-1'>
+								<h4 className="font-medium text-sm mb-1 text-green-700">Strengths</h4>
+								<ul className="space-y-1">
 									{showScreeningReport.report.strengths.map((s: string, _i: number) => (
-										<li key={s} className='text-sm flex items-start gap-1.5'>
-											<CheckCircle className='h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0' /> {s}
+										<li key={s} className="text-sm flex items-start gap-1.5">
+											<CheckCircle className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" /> {s}
 										</li>
 									))}
 								</ul>
@@ -1347,11 +1347,11 @@ export function RecruiterInterviewsPage() {
 						{showScreeningReport.report.red_flags &&
 							showScreeningReport.report.red_flags.length > 0 && (
 								<div>
-									<h4 className='font-medium text-sm mb-1 text-red-700'>Red Flags</h4>
-									<ul className='space-y-1'>
+									<h4 className="font-medium text-sm mb-1 text-red-700">Red Flags</h4>
+									<ul className="space-y-1">
 										{showScreeningReport.report.red_flags.map((f: string, _i: number) => (
-											<li key={f} className='text-sm flex items-start gap-1.5'>
-												<AlertCircle className='h-3.5 w-3.5 text-red-500 mt-0.5 shrink-0' /> {f}
+											<li key={f} className="text-sm flex items-start gap-1.5">
+												<AlertCircle className="h-3.5 w-3.5 text-red-500 mt-0.5 shrink-0" /> {f}
 											</li>
 										))}
 									</ul>
@@ -1360,38 +1360,38 @@ export function RecruiterInterviewsPage() {
 
 						{/* Multi-evaluator scores if available */}
 						{showScreeningReport.composite && (
-							<div className='p-3 bg-purple-50 rounded-lg border border-purple-200'>
-								<h4 className='font-medium text-sm mb-2 flex items-center gap-1.5'>
-									<Brain className='h-4 w-4 text-purple-600' /> AI Multi-Evaluator
+							<div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+								<h4 className="font-medium text-sm mb-2 flex items-center gap-1.5">
+									<Brain className="h-4 w-4 text-purple-600" /> AI Multi-Evaluator
 								</h4>
-								<div className='grid grid-cols-1 sm:grid-cols-3 gap-2 text-center'>
+								<div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
 									<div>
-										<div className='text-lg font-bold'>
+										<div className="text-lg font-bold">
 											{showScreeningReport.composite.technical_score}
 										</div>
-										<div className='text-xs text-muted-foreground'>Technical</div>
+										<div className="text-xs text-muted-foreground">Technical</div>
 									</div>
 									<div>
-										<div className='text-lg font-bold'>
+										<div className="text-lg font-bold">
 											{showScreeningReport.composite.culture_score}
 										</div>
-										<div className='text-xs text-muted-foreground'>Culture</div>
+										<div className="text-xs text-muted-foreground">Culture</div>
 									</div>
 									<div>
-										<div className='text-lg font-bold'>
+										<div className="text-lg font-bold">
 											{showScreeningReport.composite.experience_score}
 										</div>
-										<div className='text-xs text-muted-foreground'>Experience</div>
+										<div className="text-xs text-muted-foreground">Experience</div>
 									</div>
 								</div>
 							</div>
 						)}
 
-						<div className='flex justify-end'>
+						<div className="flex justify-end">
 							<Button
-								variant='outline'
+								variant="outline"
 								onClick={() => setShowScreeningReport(null)}
-								className='min-h-[44px]'
+								className="min-h-[44px]"
 							>
 								Close
 							</Button>
@@ -1400,7 +1400,7 @@ export function RecruiterInterviewsPage() {
 				)}
 			</Dialog>
 		</div>
-	)
+	);
 }
 
 function InterviewCard({
@@ -1412,168 +1412,172 @@ function InterviewCard({
 	evaluating,
 	isPast,
 }: {
-	interview: Interview
-	onCancel: () => void
-	onFeedback: () => void
-	onConfirm?: () => void
-	onAiEvaluate?: () => void
-	evaluating?: boolean
-	isPast?: boolean
+	interview: Interview;
+	onCancel: () => void;
+	onFeedback: () => void;
+	onConfirm?: () => void;
+	onAiEvaluate?: () => void;
+	evaluating?: boolean;
+	isPast?: boolean;
 }) {
-	const config = statusConfig[interview.status] || statusConfig.scheduled
-	const StatusIcon = config.icon
-	const TypeIcon = typeIcons[interview.interview_type] || Video
+	const config = statusConfig[interview.status] || statusConfig.scheduled;
+	const StatusIcon = config.icon;
+	const TypeIcon = typeIcons[interview.interview_type] || Video;
 	const isUpcoming =
-		isFuture(interview.scheduled_at) && ['scheduled', 'confirmed'].includes(interview.status)
+		isFuture(interview.scheduled_at) && ['scheduled', 'confirmed'].includes(interview.status);
 	const isNow =
-		isToday(interview.scheduled_at) && ['scheduled', 'confirmed'].includes(interview.status)
-	const needsFeedback = !interview.feedback && (isPast || interview.status === 'completed')
+		isToday(interview.scheduled_at) && ['scheduled', 'confirmed'].includes(interview.status);
+	const needsFeedback = !interview.feedback && (isPast || interview.status === 'completed');
 	const feedback =
-		typeof interview.feedback === 'string' ? JSON.parse(interview.feedback) : interview.feedback
-	const hasAiScore = interview.ai_composite_score != null
+		typeof interview.feedback === 'string' ? JSON.parse(interview.feedback) : interview.feedback;
+	const hasAiScore = interview.ai_composite_score != null;
 
 	return (
 		<Card className={isNow ? 'border-primary' : ''}>
-			<CardContent className='p-4'>
-				<div className='flex flex-col sm:flex-row items-start gap-4'>
+			<CardContent className="p-4">
+				<div className="flex flex-col sm:flex-row items-start gap-4">
 					{/* Date/time block */}
-					<div className='flex-shrink-0 text-center min-w-[80px]'>
+					<div className="flex-shrink-0 text-center min-w-[80px]">
 						<div className={`text-2xl font-bold ${isNow ? 'text-primary' : ''}`}>
 							{new Date(interview.scheduled_at).getDate()}
 						</div>
-						<div className='text-xs text-muted-foreground'>
+						<div className="text-xs text-muted-foreground">
 							{new Date(interview.scheduled_at).toLocaleDateString('en-US', {
 								month: 'short',
 								weekday: 'short',
 							})}
 						</div>
-						<div className='text-sm font-medium mt-1'>{formatTime(interview.scheduled_at)}</div>
-						<div className='text-xs text-muted-foreground'>{interview.duration_minutes}min</div>
+						<div className="text-sm font-medium mt-1">{formatTime(interview.scheduled_at)}</div>
+						<div className="text-xs text-muted-foreground">{interview.duration_minutes}min</div>
 					</div>
 
 					{/* Details */}
-					<div className='flex-1 min-w-0'>
-						<div className='flex items-center gap-2 flex-wrap'>
-							<h3 className='font-semibold'>{interview.candidate_name}</h3>
+					<div className="flex-1 min-w-0">
+						<div className="flex items-center gap-2 flex-wrap">
+							<h3 className="font-semibold">{interview.candidate_name}</h3>
 							<Badge variant={config.variant}>
-								<StatusIcon className='h-3 w-3 mr-1' /> {config.label}
+								<StatusIcon className="h-3 w-3 mr-1" /> {config.label}
 							</Badge>
 							{isNow && (
-								<Badge variant='default' className='bg-primary'>
+								<Badge variant="default" className="bg-primary">
 									Live Today
 								</Badge>
 							)}
 							{hasAiScore && (
-								<Badge variant='secondary' className='text-xs bg-purple-100 text-purple-700'>
-									<Brain className='h-3 w-3 mr-1' /> AI: {interview.ai_composite_score}/100
+								<Badge variant="secondary" className="text-xs bg-purple-100 text-purple-700">
+									<Brain className="h-3 w-3 mr-1" /> AI: {interview.ai_composite_score}/100
 								</Badge>
 							)}
 						</div>
-						<div className='flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap'>
-							<span className='flex items-center gap-1'>
-								<Briefcase className='h-3.5 w-3.5' /> {interview.job_title}
+						<div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
+							<span className="flex items-center gap-1">
+								<Briefcase className="h-3.5 w-3.5" /> {interview.job_title}
 							</span>
-							<span className='flex items-center gap-1'>
-								<TypeIcon className='h-3.5 w-3.5' /> {interview.interview_type}
+							<span className="flex items-center gap-1">
+								<TypeIcon className="h-3.5 w-3.5" /> {interview.interview_type}
 							</span>
-							<span className='flex items-center gap-1'>
-								<User className='h-3.5 w-3.5' /> {interview.candidate_email}
+							<span className="flex items-center gap-1">
+								<User className="h-3.5 w-3.5" /> {interview.candidate_email}
 							</span>
 						</div>
 						{interview.notes && (
-							<p className='text-sm text-muted-foreground mt-2 line-clamp-2'>{interview.notes}</p>
+							<p className="text-sm text-muted-foreground mt-2 line-clamp-2">{interview.notes}</p>
 						)}
 						{feedback && (
-							<div className='mt-2 p-2 bg-muted rounded-lg text-sm'>
-								<div className='flex items-center gap-2'>
-									<span className='font-medium'>Feedback:</span>
+							<div className="mt-2 p-2 bg-muted rounded-lg text-sm">
+								<div className="flex items-center gap-2">
+									<span className="font-medium">Feedback:</span>
 									{feedback.rating && (
-										<span className='flex items-center gap-0.5'>
+										<span className="flex items-center gap-0.5">
 											{Array.from({ length: feedback.rating }).map((_, i) => (
 												<Star
 													key={`star-${i}`}
-													className='h-3 w-3 fill-yellow-400 text-yellow-400'
+													className="h-3 w-3 fill-yellow-400 text-yellow-400"
 												/>
 											))}
 										</span>
 									)}
 									{interview.outcome && (
-										<Badge variant='secondary' className='text-xs'>
+										<Badge variant="secondary" className="text-xs">
 											{interview.outcome.replace('_', ' ')}
 										</Badge>
 									)}
 								</div>
 								{feedback.strengths && (
-									<p className='mt-1 text-muted-foreground'>{feedback.strengths}</p>
+									<p className="mt-1 text-muted-foreground">{feedback.strengths}</p>
 								)}
 							</div>
 						)}
 					</div>
 
 					{/* Actions */}
-					<div className='flex flex-wrap gap-2 sm:flex-col'>
+					<div className="flex flex-wrap gap-2 sm:flex-col">
 						{interview.meeting_link && isUpcoming && (
-							<a href={interview.meeting_link} target='_blank' rel='noopener noreferrer'>
-								<Button size='sm' className='w-full min-h-[44px]'>
-									<Video className='h-3.5 w-3.5 mr-1' /> Join
+							<a href={interview.meeting_link} target="_blank" rel="noopener noreferrer">
+								<Button size="sm" className="w-full min-h-[44px]">
+									<Video className="h-3.5 w-3.5 mr-1" /> Join
 								</Button>
 							</a>
 						)}
 						{interview.livekit_room_id && interview.livekit_room_url && isUpcoming && (
 							<a href={`/candidate/livekit-room?roomId=${interview.livekit_room_id}`}>
-								<Button size='sm' variant='outline' className='w-full min-h-[44px] border-indigo-500 text-indigo-700 hover:bg-indigo-50'>
-									<Video className='h-3.5 w-3.5 mr-1' /> Join Video Room
+								<Button
+									size="sm"
+									variant="outline"
+									className="w-full min-h-[44px] border-indigo-500 text-indigo-700 hover:bg-indigo-50"
+								>
+									<Video className="h-3.5 w-3.5 mr-1" /> Join Video Room
 								</Button>
 							</a>
 						)}
 						{interview.status === 'reschedule_requested' && (
-							<Button size='sm' variant='outline' onClick={onConfirm} className='min-h-[44px]'>
-								<CheckCircle className='h-3.5 w-3.5 mr-1' /> Confirm
+							<Button size="sm" variant="outline" onClick={onConfirm} className="min-h-[44px]">
+								<CheckCircle className="h-3.5 w-3.5 mr-1" /> Confirm
 							</Button>
 						)}
 						{onAiEvaluate && (isPast || interview.status === 'completed') && !hasAiScore && (
 							<Button
-								size='sm'
-								variant='outline'
+								size="sm"
+								variant="outline"
 								onClick={onAiEvaluate}
 								disabled={evaluating}
-								className='text-purple-700 border-purple-200 hover:bg-purple-50 min-h-[44px]'
+								className="text-purple-700 border-purple-200 hover:bg-purple-50 min-h-[44px]"
 							>
 								{evaluating ? (
 									<>
-										<div className='animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-purple-600 mr-1' />{' '}
+										<div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-purple-600 mr-1" />{' '}
 										Evaluating...
 									</>
 								) : (
 									<>
-										<Sparkles className='h-3.5 w-3.5 mr-1' /> AI Evaluate
+										<Sparkles className="h-3.5 w-3.5 mr-1" /> AI Evaluate
 									</>
 								)}
 							</Button>
 						)}
 						{needsFeedback && (
-							<Button size='sm' variant='outline' onClick={onFeedback} className='min-h-[44px]'>
-								<MessageSquare className='h-3.5 w-3.5 mr-1' /> Feedback
+							<Button size="sm" variant="outline" onClick={onFeedback} className="min-h-[44px]">
+								<MessageSquare className="h-3.5 w-3.5 mr-1" /> Feedback
 							</Button>
 						)}
 						{!isPast && feedback && (
-							<Button size='sm' variant='ghost' onClick={onFeedback} className='min-h-[44px]'>
-								<Edit2 className='h-3.5 w-3.5 mr-1' /> Edit
+							<Button size="sm" variant="ghost" onClick={onFeedback} className="min-h-[44px]">
+								<Edit2 className="h-3.5 w-3.5 mr-1" /> Edit
 							</Button>
 						)}
 						{isUpcoming && (
 							<Button
-								size='sm'
-								variant='ghost'
-								className='text-destructive min-h-[44px]'
+								size="sm"
+								variant="ghost"
+								className="text-destructive min-h-[44px]"
 								onClick={onCancel}
 							>
-								<Trash2 className='h-3.5 w-3.5 mr-1' /> Cancel
+								<Trash2 className="h-3.5 w-3.5 mr-1" /> Cancel
 							</Button>
 						)}
 					</div>
 				</div>
 			</CardContent>
 		</Card>
-	)
+	);
 }

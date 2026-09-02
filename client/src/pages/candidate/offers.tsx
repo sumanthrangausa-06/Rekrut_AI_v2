@@ -1,4 +1,3 @@
-import { SafeHtml } from '@/components/SafeHtml'
 import {
 	AlertCircle,
 	Building2,
@@ -12,47 +11,48 @@ import {
 	PenTool,
 	Shield,
 	XCircle,
-} from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { EmptyState } from '@/components/domain/empty-state'
-import { UNSPLASH_IMAGES } from '@/lib/avatar'
-import { Skeleton } from '@/components/domain/skeleton'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { apiCall } from '@/lib/api'
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { EmptyState } from '@/components/domain/empty-state';
+import { Skeleton } from '@/components/domain/skeleton';
+import { SafeHtml } from '@/components/SafeHtml';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { apiCall } from '@/lib/api';
+import { UNSPLASH_IMAGES } from '@/lib/avatar';
 
 interface Offer {
-	id: number
-	title: string
-	company_name: string
-	company?: string
-	job_title: string
-	salary: number
-	start_date: string
-	benefits: string
-	status: string
-	sent_at: string
-	viewed_at: string
-	accepted_at: string
-	declined_at: string
-	decline_reason: string
-	created_at: string
-	has_letter: boolean
-	candidate_signature: string
-	candidate_signed_at: string
+	id: number;
+	title: string;
+	company_name: string;
+	company?: string;
+	job_title: string;
+	salary: number;
+	start_date: string;
+	benefits: string;
+	status: string;
+	sent_at: string;
+	viewed_at: string;
+	accepted_at: string;
+	declined_at: string;
+	decline_reason: string;
+	created_at: string;
+	has_letter: boolean;
+	candidate_signature: string;
+	candidate_signed_at: string;
 }
 
 const statusConfig: Record<
 	string,
 	{
-		label: string
-		variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive'
-		icon: React.ElementType
+		label: string;
+		variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive';
+		icon: React.ElementType;
 	}
 > = {
 	draft: { label: 'Draft', variant: 'secondary', icon: Clock },
@@ -60,134 +60,133 @@ const statusConfig: Record<
 	viewed: { label: 'Viewed', variant: 'default', icon: Eye },
 	accepted: { label: 'Accepted', variant: 'success', icon: CheckCircle },
 	declined: { label: 'Declined', variant: 'destructive', icon: XCircle },
-}
+};
 
 export function CandidateOffersPage() {
-	const [offers, setOffers] = useState<Offer[]>([])
-	const [loading, setLoading] = useState(true)
-	const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null)
-	const [declineDialog, setDeclineDialog] = useState(false)
-	const [declineReason, setDeclineReason] = useState('')
-	const [acting, setActing] = useState(false)
-	const [letterHtml, setLetterHtml] = useState('')
-	const [showLetter, setShowLetter] = useState(false)
-	const [loadingLetter, setLoadingLetter] = useState(false)
-	const [signDialog, setSignDialog] = useState(false)
-	const [signatureName, setSignatureName] = useState('')
-	const [signing, setSigning] = useState(false)
-	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+	const [offers, setOffers] = useState<Offer[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
+	const [declineDialog, setDeclineDialog] = useState(false);
+	const [declineReason, setDeclineReason] = useState('');
+	const [acting, setActing] = useState(false);
+	const [letterHtml, setLetterHtml] = useState('');
+	const [showLetter, setShowLetter] = useState(false);
+	const [loadingLetter, setLoadingLetter] = useState(false);
+	const [signDialog, setSignDialog] = useState(false);
+	const [signatureName, setSignatureName] = useState('');
+	const [signing, setSigning] = useState(false);
+	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
 	const loadOffers = useCallback(async () => {
 		try {
-			const data = await apiCall<Offer[]>('/onboarding/offers/me')
-			setOffers(Array.isArray(data) ? data : [])
+			const data = await apiCall<Offer[]>('/onboarding/offers/me');
+			setOffers(Array.isArray(data) ? data : []);
 		} catch {
 			// silent
 		} finally {
-			setLoading(false)
+			setLoading(false);
 		}
-	}, [])
+	}, []);
 
 	useEffect(() => {
-		loadOffers()
-	}, [loadOffers])
+		loadOffers();
+	}, [loadOffers]);
 
 	useEffect(() => {
 		if (message) {
-			const t = setTimeout(() => setMessage(null), 4000)
-			return () => clearTimeout(t)
+			const t = setTimeout(() => setMessage(null), 4000);
+			return () => clearTimeout(t);
 		}
-	}, [message])
-
+	}, [message]);
 
 	async function markViewed(offer: Offer) {
 		if (!offer.viewed_at) {
 			try {
-				await apiCall(`/onboarding/offers/${offer.id}/view`, { method: 'POST' })
+				await apiCall(`/onboarding/offers/${offer.id}/view`, { method: 'POST' });
 			} catch {
 				// silent
 			}
 		}
-		setSelectedOffer(offer)
+		setSelectedOffer(offer);
 	}
 
 	async function viewOfferLetter(offerId: number) {
-		setLoadingLetter(true)
+		setLoadingLetter(true);
 		try {
 			const result = await apiCall<{ offer_letter_html: string }>(
 				`/onboarding/offers/${offerId}/letter`,
-			)
+			);
 			if (result.offer_letter_html) {
-				setLetterHtml(result.offer_letter_html)
-				setShowLetter(true)
+				setLetterHtml(result.offer_letter_html);
+				setShowLetter(true);
 			} else {
-				setMessage({ type: 'error', text: 'No offer letter document available yet.' })
+				setMessage({ type: 'error', text: 'No offer letter document available yet.' });
 			}
 		} catch {
-			setMessage({ type: 'error', text: 'Failed to load offer letter' })
+			setMessage({ type: 'error', text: 'Failed to load offer letter' });
 		} finally {
-			setLoadingLetter(false)
+			setLoadingLetter(false);
 		}
 	}
 
 	async function acceptWithSignature() {
 		if (!selectedOffer || !signatureName.trim()) {
-			setMessage({ type: 'error', text: 'Please type your full legal name to sign' })
-			return
+			setMessage({ type: 'error', text: 'Please type your full legal name to sign' });
+			return;
 		}
-		setSigning(true)
+		setSigning(true);
 		try {
 			const signatureData = JSON.stringify({
 				typed_name: signatureName.trim(),
 				signed_at: new Date().toISOString(),
 				method: 'typed_name',
-			})
+			});
 
 			await apiCall(`/onboarding/offers/${selectedOffer.id}/accept`, {
 				method: 'POST',
 				body: { signature_data: signatureData },
-			})
-			setSignDialog(false)
-			setSignatureName('')
-			setSelectedOffer(null)
-			loadOffers()
+			});
+			setSignDialog(false);
+			setSignatureName('');
+			setSelectedOffer(null);
+			loadOffers();
 		} catch (err: unknown) {
 			setMessage({
 				type: 'error',
 				text: err instanceof Error ? err.message : 'Failed to accept offer',
-			})
+			});
 		} finally {
-			setSigning(false)
+			setSigning(false);
 		}
 	}
 
 	async function declineOffer() {
-		if (!selectedOffer) return
-		setActing(true)
+		if (!selectedOffer) return;
+		setActing(true);
 		try {
 			await apiCall(`/onboarding/offers/${selectedOffer.id}/decline`, {
 				method: 'POST',
 				body: { decline_reason: declineReason },
-			})
-			setDeclineDialog(false)
-			setSelectedOffer(null)
-			setDeclineReason('')
-			loadOffers()
+			});
+			setDeclineDialog(false);
+			setSelectedOffer(null);
+			setDeclineReason('');
+			loadOffers();
 		} catch (err: unknown) {
 			setMessage({
 				type: 'error',
 				text: err instanceof Error ? err.message : 'Failed to decline offer',
-			})
+			});
 		} finally {
-			setActing(false)
+			setActing(false);
 		}
 	}
 
-	const pendingOffers = offers.filter((o) => ['sent', 'viewed'].includes(o.status))
-	const resolvedOffers = offers.filter((o) => ['accepted', 'declined'].includes(o.status))
+	const pendingOffers = offers.filter((o) => ['sent', 'viewed'].includes(o.status));
+	const resolvedOffers = offers.filter((o) => ['accepted', 'declined'].includes(o.status));
 
 	return (
-		<div className='space-y-6 px-4 sm:px-6'>
+		<div className="space-y-6 px-4 sm:px-6">
 			{/* Toast */}
 			{message && (
 				<div
@@ -196,38 +195,38 @@ export function CandidateOffersPage() {
 					}`}
 				>
 					{message.type === 'success' ? (
-						<CheckCircle className='h-4 w-4' />
+						<CheckCircle className="h-4 w-4" />
 					) : (
-						<AlertCircle className='h-4 w-4' />
+						<AlertCircle className="h-4 w-4" />
 					)}
 					{message.text}
 				</div>
 			)}
 
 			<div>
-				<h1 className='font-heading text-2xl font-bold'>My Offers</h1>
-				<p className='text-muted-foreground'>Review and respond to job offers</p>
+				<h1 className="font-heading text-2xl font-bold">My Offers</h1>
+				<p className="text-muted-foreground">Review and respond to job offers</p>
 			</div>
 
 			{loading ? (
-				<div className='space-y-4'>
-					<Skeleton variant='card' count={3} />
+				<div className="space-y-4">
+					<Skeleton variant="card" count={3} />
 				</div>
 			) : offers.length === 0 ? (
 				<EmptyState
 					icon={Gift}
-					title='No offers yet'
-					description='When a recruiter makes you an offer, it will appear here.'
-     image={UNSPLASH_IMAGES.emptyNotifications}
+					title="No offers yet"
+					description="When a recruiter makes you an offer, it will appear here."
+					image={UNSPLASH_IMAGES.emptyNotifications}
 				/>
 			) : (
-				<div className='space-y-6'>
+				<div className="space-y-6">
 					{pendingOffers.length > 0 && (
 						<div>
-							<h2 className='font-medium text-sm text-muted-foreground mb-3'>
+							<h2 className="font-medium text-sm text-muted-foreground mb-3">
 								Pending Offers ({pendingOffers.length})
 							</h2>
-							<div className='space-y-3'>
+							<div className="space-y-3">
 								{pendingOffers.map((offer) => (
 									<OfferCard key={offer.id} offer={offer} onClick={() => markViewed(offer)} />
 								))}
@@ -236,8 +235,8 @@ export function CandidateOffersPage() {
 					)}
 					{resolvedOffers.length > 0 && (
 						<div>
-							<h2 className='font-medium text-sm text-muted-foreground mb-3'>Past Offers</h2>
-							<div className='space-y-3'>
+							<h2 className="font-medium text-sm text-muted-foreground mb-3">Past Offers</h2>
+							<div className="space-y-3">
 								{resolvedOffers.map((offer) => (
 									<OfferCard key={offer.id} offer={offer} onClick={() => setSelectedOffer(offer)} />
 								))}
@@ -249,32 +248,32 @@ export function CandidateOffersPage() {
 
 			{/* Offer detail dialog */}
 			{selectedOffer && !declineDialog && !signDialog && !showLetter && (
-				<Dialog open={true} onClose={() => setSelectedOffer(null)} className='max-w-lg'>
+				<Dialog open={true} onClose={() => setSelectedOffer(null)} className="max-w-lg">
 					<DialogHeader>
-						<DialogTitle className='flex items-center gap-2'>
-							<Gift className='h-5 w-5 text-primary' />
+						<DialogTitle className="flex items-center gap-2">
+							<Gift className="h-5 w-5 text-primary" />
 							{selectedOffer.title || selectedOffer.job_title}
 						</DialogTitle>
 					</DialogHeader>
-					<div className='space-y-4'>
-						<div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-							<div className='rounded-lg bg-muted/50 p-3'>
-								<p className='text-xs text-muted-foreground'>Company</p>
-								<p className='font-medium'>{selectedOffer.company_name || selectedOffer.company}</p>
+					<div className="space-y-4">
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+							<div className="rounded-lg bg-muted/50 p-3">
+								<p className="text-xs text-muted-foreground">Company</p>
+								<p className="font-medium">{selectedOffer.company_name || selectedOffer.company}</p>
 							</div>
-							<div className='rounded-lg bg-muted/50 p-3'>
-								<p className='text-xs text-muted-foreground'>Position</p>
-								<p className='font-medium'>{selectedOffer.job_title || selectedOffer.title}</p>
+							<div className="rounded-lg bg-muted/50 p-3">
+								<p className="text-xs text-muted-foreground">Position</p>
+								<p className="font-medium">{selectedOffer.job_title || selectedOffer.title}</p>
 							</div>
-							<div className='rounded-lg bg-muted/50 p-3'>
-								<p className='text-xs text-muted-foreground'>Salary</p>
-								<p className='font-medium text-emerald-600'>
+							<div className="rounded-lg bg-muted/50 p-3">
+								<p className="text-xs text-muted-foreground">Salary</p>
+								<p className="font-medium text-emerald-600">
 									${Number(selectedOffer.salary).toLocaleString()}/yr
 								</p>
 							</div>
-							<div className='rounded-lg bg-muted/50 p-3'>
-								<p className='text-xs text-muted-foreground'>Start Date</p>
-								<p className='font-medium'>
+							<div className="rounded-lg bg-muted/50 p-3">
+								<p className="text-xs text-muted-foreground">Start Date</p>
+								<p className="font-medium">
 									{selectedOffer.start_date
 										? new Date(selectedOffer.start_date).toLocaleDateString()
 										: 'TBD'}
@@ -283,24 +282,24 @@ export function CandidateOffersPage() {
 						</div>
 
 						{selectedOffer.benefits && (
-							<div className='rounded-lg bg-muted/50 p-3'>
-								<p className='text-xs text-muted-foreground mb-1'>Benefits</p>
-								<p className='text-sm whitespace-pre-wrap'>{selectedOffer.benefits}</p>
+							<div className="rounded-lg bg-muted/50 p-3">
+								<p className="text-xs text-muted-foreground mb-1">Benefits</p>
+								<p className="text-sm whitespace-pre-wrap">{selectedOffer.benefits}</p>
 							</div>
 						)}
 
 						{/* View Offer Letter button */}
 						{selectedOffer.has_letter && (
 							<Button
-								variant='outline'
-								className='w-full gap-2 min-h-[44px]'
+								variant="outline"
+								className="w-full gap-2 min-h-[44px]"
 								onClick={() => viewOfferLetter(selectedOffer.id)}
 								disabled={loadingLetter}
 							>
 								{loadingLetter ? (
-									<div className='h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent' />
+									<div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
 								) : (
-									<FileText className='h-4 w-4' />
+									<FileText className="h-4 w-4" />
 								)}
 								View Full Offer Letter
 							</Button>
@@ -308,51 +307,51 @@ export function CandidateOffersPage() {
 
 						{/* E-signature status */}
 						{selectedOffer.candidate_signed_at && (
-							<div className='rounded-lg bg-emerald-50 border border-emerald-200 p-3'>
-								<div className='flex items-center gap-2'>
-									<PenTool className='h-4 w-4 text-emerald-600' />
-									<span className='font-medium text-sm text-emerald-800'>
+							<div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+								<div className="flex items-center gap-2">
+									<PenTool className="h-4 w-4 text-emerald-600" />
+									<span className="font-medium text-sm text-emerald-800">
 										You signed this offer
 									</span>
 								</div>
-								<p className='text-xs text-emerald-700 mt-1'>
+								<p className="text-xs text-emerald-700 mt-1">
 									Signed on {new Date(selectedOffer.candidate_signed_at).toLocaleString()}
 								</p>
 							</div>
 						)}
 
 						{['sent', 'viewed'].includes(selectedOffer.status) && (
-							<div className='flex gap-2 pt-2'>
+							<div className="flex gap-2 pt-2">
 								<Button
 									onClick={() => setSignDialog(true)}
 									disabled={acting}
-									className='flex-1 gap-2 min-h-[44px]'
+									className="flex-1 gap-2 min-h-[44px]"
 								>
-									<PenTool className='h-4 w-4' /> Sign & Accept Offer
+									<PenTool className="h-4 w-4" /> Sign & Accept Offer
 								</Button>
 								<Button
-									variant='outline'
+									variant="outline"
 									onClick={() => setDeclineDialog(true)}
 									disabled={acting}
-									className='flex-1 gap-2 min-h-[44px]'
+									className="flex-1 gap-2 min-h-[44px]"
 								>
-									<XCircle className='h-4 w-4' /> Decline
+									<XCircle className="h-4 w-4" /> Decline
 								</Button>
 							</div>
 						)}
 
 						{selectedOffer.status === 'accepted' && (
-							<Badge variant='success' className='w-full justify-center py-2 text-sm'>
-								<CheckCircle className='h-4 w-4 mr-1' /> You accepted this offer
+							<Badge variant="success" className="w-full justify-center py-2 text-sm">
+								<CheckCircle className="h-4 w-4 mr-1" /> You accepted this offer
 							</Badge>
 						)}
 						{selectedOffer.status === 'declined' && (
 							<div>
-								<Badge variant='destructive' className='w-full justify-center py-2 text-sm'>
-									<XCircle className='h-4 w-4 mr-1' /> You declined this offer
+								<Badge variant="destructive" className="w-full justify-center py-2 text-sm">
+									<XCircle className="h-4 w-4 mr-1" /> You declined this offer
 								</Badge>
 								{selectedOffer.decline_reason && (
-									<p className='text-sm text-muted-foreground mt-2'>
+									<p className="text-sm text-muted-foreground mt-2">
 										Reason: {selectedOffer.decline_reason}
 									</p>
 								)}
@@ -367,42 +366,42 @@ export function CandidateOffersPage() {
 				<Dialog
 					open={true}
 					onClose={() => {
-						setShowLetter(false)
-						setLetterHtml('')
+						setShowLetter(false);
+						setLetterHtml('');
 					}}
-					className='max-w-4xl'
+					className="max-w-4xl"
 				>
 					<DialogHeader>
-						<DialogTitle className='flex items-center gap-2'>
-							<FileText className='h-5 w-5 text-primary' />
+						<DialogTitle className="flex items-center gap-2">
+							<FileText className="h-5 w-5 text-primary" />
 							Offer Letter
 						</DialogTitle>
 					</DialogHeader>
-					<div className='space-y-4'>
-						<div className='bg-white rounded-lg border shadow-inner overflow-auto max-h-[70vh]'>
-							<SafeHtml html={letterHtml} className='p-8' />
+					<div className="space-y-4">
+						<div className="bg-white rounded-lg border shadow-inner overflow-auto max-h-[70vh]">
+							<SafeHtml html={letterHtml} className="p-8" />
 						</div>
-						<div className='flex gap-2 justify-end'>
+						<div className="flex gap-2 justify-end">
 							<Button
-								variant='outline'
+								variant="outline"
 								onClick={() => {
-									setShowLetter(false)
-									setLetterHtml('')
+									setShowLetter(false);
+									setLetterHtml('');
 								}}
-								className='min-h-[44px]'
+								className="min-h-[44px]"
 							>
 								Close
 							</Button>
 							{selectedOffer && ['sent', 'viewed'].includes(selectedOffer.status) && (
 								<Button
-									className='gap-2 min-h-[44px]'
+									className="gap-2 min-h-[44px]"
 									onClick={() => {
-										setShowLetter(false)
-										setLetterHtml('')
-										setSignDialog(true)
+										setShowLetter(false);
+										setLetterHtml('');
+										setSignDialog(true);
 									}}
 								>
-									<PenTool className='h-4 w-4' />
+									<PenTool className="h-4 w-4" />
 									Sign & Accept
 								</Button>
 							)}
@@ -416,24 +415,24 @@ export function CandidateOffersPage() {
 				<Dialog
 					open={true}
 					onClose={() => {
-						setSignDialog(false)
-						setSignatureName('')
+						setSignDialog(false);
+						setSignatureName('');
 					}}
-					className='max-w-md'
+					className="max-w-md"
 				>
 					<DialogHeader>
-						<DialogTitle className='flex items-center gap-2'>
-							<PenTool className='h-5 w-5 text-primary' />
+						<DialogTitle className="flex items-center gap-2">
+							<PenTool className="h-5 w-5 text-primary" />
 							Sign Offer Letter
 						</DialogTitle>
 					</DialogHeader>
-					<div className='space-y-4'>
-						<div className='rounded-lg bg-blue-50 border border-blue-200 p-3'>
-							<div className='flex items-start gap-2'>
-								<Shield className='h-4 w-4 text-blue-600 mt-0.5' />
+					<div className="space-y-4">
+						<div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+							<div className="flex items-start gap-2">
+								<Shield className="h-4 w-4 text-blue-600 mt-0.5" />
 								<div>
-									<p className='text-sm font-medium text-blue-800'>E-Signature Agreement</p>
-									<p className='text-xs text-blue-700 mt-1'>
+									<p className="text-sm font-medium text-blue-800">E-Signature Agreement</p>
+									<p className="text-xs text-blue-700 mt-1">
 										By typing your full legal name below and clicking "Sign & Accept", you are
 										electronically signing and accepting the offer for{' '}
 										<strong>{selectedOffer.job_title || selectedOffer.title}</strong> at{' '}
@@ -445,52 +444,52 @@ export function CandidateOffersPage() {
 							</div>
 						</div>
 
-						<div className='rounded-lg border p-4'>
-							<p className='text-xs text-muted-foreground mb-2 flex items-center gap-1'>
-								<Calendar className='h-3 w-3' />
+						<div className="rounded-lg border p-4">
+							<p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+								<Calendar className="h-3 w-3" />
 								{new Date().toLocaleDateString('en-US', {
 									year: 'numeric',
 									month: 'long',
 									day: 'numeric',
 								})}
 							</p>
-							<div className='space-y-2'>
+							<div className="space-y-2">
 								<Label>Type your full legal name to sign *</Label>
 								<Input
 									value={signatureName}
 									onChange={(e) => setSignatureName(e.target.value)}
-									placeholder='e.g. John A. Smith'
-									className='text-lg font-serif h-10 min-h-[44px]'
+									placeholder="e.g. John A. Smith"
+									className="text-lg font-serif h-10 min-h-[44px]"
 									autoFocus
 								/>
 								{signatureName.trim() && (
-									<div className='mt-3 p-3 border-b-2 border-gray-800'>
-										<p className='text-2xl font-serif italic text-gray-800'>{signatureName}</p>
+									<div className="mt-3 p-3 border-b-2 border-gray-800">
+										<p className="text-2xl font-serif italic text-gray-800">{signatureName}</p>
 									</div>
 								)}
 							</div>
 						</div>
 
-						<div className='flex gap-2'>
+						<div className="flex gap-2">
 							<Button
 								onClick={acceptWithSignature}
 								disabled={signing || !signatureName.trim()}
-								className='flex-1 gap-2 min-h-[44px]'
+								className="flex-1 gap-2 min-h-[44px]"
 							>
 								{signing ? (
-									<div className='h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent' />
+									<div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
 								) : (
-									<CheckCircle className='h-4 w-4' />
+									<CheckCircle className="h-4 w-4" />
 								)}
 								Sign & Accept Offer
 							</Button>
 							<Button
-								variant='outline'
+								variant="outline"
 								onClick={() => {
-									setSignDialog(false)
-									setSignatureName('')
+									setSignDialog(false);
+									setSignatureName('');
 								}}
-								className='min-h-[44px]'
+								className="min-h-[44px]"
 							>
 								Cancel
 							</Button>
@@ -504,34 +503,34 @@ export function CandidateOffersPage() {
 				<DialogHeader>
 					<DialogTitle>Decline Offer</DialogTitle>
 				</DialogHeader>
-				<div className='space-y-4'>
-					<p className='text-sm text-muted-foreground'>
+				<div className="space-y-4">
+					<p className="text-sm text-muted-foreground">
 						Are you sure you want to decline this offer? Please provide a reason (optional).
 					</p>
 					<Textarea
-						placeholder='Reason for declining...'
+						placeholder="Reason for declining..."
 						value={declineReason}
 						onChange={(e) => setDeclineReason(e.target.value)}
 						rows={3}
 					/>
-					<div className='flex gap-2'>
+					<div className="flex gap-2">
 						<Button
-							variant='destructive'
+							variant="destructive"
 							onClick={declineOffer}
 							disabled={acting}
-							className='gap-2 min-h-[44px]'
+							className="gap-2 min-h-[44px]"
 						>
 							{acting ? (
-								<div className='h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent' />
+								<div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
 							) : (
-								<XCircle className='h-4 w-4' />
+								<XCircle className="h-4 w-4" />
 							)}
 							Confirm Decline
 						</Button>
 						<Button
-							variant='outline'
+							variant="outline"
 							onClick={() => setDeclineDialog(false)}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						>
 							Cancel
 						</Button>
@@ -539,7 +538,7 @@ export function CandidateOffersPage() {
 				</div>
 			</Dialog>
 		</div>
-	)
+	);
 }
 
 function OfferCard({ offer, onClick }: { offer: Offer; onClick: () => void }) {
@@ -547,39 +546,39 @@ function OfferCard({ offer, onClick }: { offer: Offer; onClick: () => void }) {
 		label: offer.status,
 		variant: 'secondary' as const,
 		icon: Clock,
-	}
-	const Icon = config.icon
+	};
+	const Icon = config.icon;
 
 	return (
-		<Card className='cursor-pointer transition-shadow hover:shadow-md' onClick={onClick}>
-			<CardContent className='p-4'>
-				<div className='flex items-start justify-between'>
+		<Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={onClick}>
+			<CardContent className="p-4">
+				<div className="flex items-start justify-between">
 					<div>
-						<div className='flex items-center gap-2 mb-1'>
-							<h3 className='font-semibold'>{offer.title || offer.job_title}</h3>
-							<Badge variant={config.variant} className='gap-1'>
-								<Icon className='h-3 w-3' /> {config.label}
+						<div className="flex items-center gap-2 mb-1">
+							<h3 className="font-semibold">{offer.title || offer.job_title}</h3>
+							<Badge variant={config.variant} className="gap-1">
+								<Icon className="h-3 w-3" /> {config.label}
 							</Badge>
 							{offer.has_letter && (
 								<Badge
-									variant='default'
-									className='gap-1 text-xs bg-indigo-100 text-indigo-700 border-indigo-200'
+									variant="default"
+									className="gap-1 text-xs bg-indigo-100 text-indigo-700 border-indigo-200"
 								>
-									<FileText className='h-3 w-3' /> Letter
+									<FileText className="h-3 w-3" /> Letter
 								</Badge>
 							)}
 						</div>
-						<div className='flex flex-wrap items-center gap-3 text-sm text-muted-foreground'>
-							<span className='flex items-center gap-1'>
-								<Building2 className='h-3.5 w-3.5' />
+						<div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+							<span className="flex items-center gap-1">
+								<Building2 className="h-3.5 w-3.5" />
 								{offer.company_name || offer.company}
 							</span>
-							<span className='flex items-center gap-1'>
-								<DollarSign className='h-3.5 w-3.5' />${Number(offer.salary).toLocaleString()}/yr
+							<span className="flex items-center gap-1">
+								<DollarSign className="h-3.5 w-3.5" />${Number(offer.salary).toLocaleString()}/yr
 							</span>
 							{offer.start_date && (
-								<span className='flex items-center gap-1'>
-									<Calendar className='h-3.5 w-3.5' />
+								<span className="flex items-center gap-1">
+									<Calendar className="h-3.5 w-3.5" />
 									Start: {new Date(offer.start_date).toLocaleDateString()}
 								</span>
 							)}
@@ -588,5 +587,5 @@ function OfferCard({ offer, onClick }: { offer: Offer; onClick: () => void }) {
 				</div>
 			</CardContent>
 		</Card>
-	)
+	);
 }

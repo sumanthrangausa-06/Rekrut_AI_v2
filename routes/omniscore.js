@@ -191,7 +191,11 @@ router.get('/company-score/:companyId', authMiddleware, async (req, res) => {
 				tier_color: tierInfo?.color || '#94a3b8',
 				breakdown: {
 					verification: { score: calculated.verification, max: 200, label: 'Company Verification' },
-					job_authenticity: { score: calculated.job_authenticity, max: 250, label: 'Job Authenticity' },
+					job_authenticity: {
+						score: calculated.job_authenticity,
+						max: 250,
+						label: 'Job Authenticity',
+					},
 					hiring_ratio: { score: calculated.hiring_ratio, max: 250, label: 'Hiring Track Record' },
 					feedback: { score: calculated.feedback, max: 200, label: 'Candidate Feedback' },
 					behavior: { score: calculated.behavior, max: 100, label: 'Platform Activity' },
@@ -598,8 +602,16 @@ router.get('/company-dashboard', authMiddleware, async (req, res) => {
 				tier_label: tierInfo?.label || 'New Employer',
 				tier_color: tierInfo?.color || '#94a3b8',
 				breakdown: {
-					verification: { score: trustScores.verification, max: 200, label: 'Company Verification' },
-					job_authenticity: { score: trustScores.job_authenticity, max: 250, label: 'Job Authenticity' },
+					verification: {
+						score: trustScores.verification,
+						max: 200,
+						label: 'Company Verification',
+					},
+					job_authenticity: {
+						score: trustScores.job_authenticity,
+						max: 250,
+						label: 'Job Authenticity',
+					},
 					hiring_ratio: { score: trustScores.hiring_ratio, max: 250, label: 'Hiring Track Record' },
 					feedback: { score: trustScores.feedback, max: 200, label: 'Candidate Feedback' },
 					behavior: { score: trustScores.behavior, max: 100, label: 'Platform Activity' },

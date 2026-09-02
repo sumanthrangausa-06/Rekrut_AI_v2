@@ -1,15 +1,15 @@
-import { X } from 'lucide-react'
-import * as React from 'react'
-import { useScrollLock } from '@/hooks/use-scroll-lock'
-import { cn } from '@/lib/utils'
+import { X } from 'lucide-react';
+import type * as React from 'react';
+import { useScrollLock } from '@/hooks/use-scroll-lock';
+import { cn } from '@/lib/utils';
 
 interface DialogProps {
-	open?: boolean
-	onOpenChange?: (open: boolean) => void
-	onClose?: () => void
-	children: React.ReactNode
-	className?: string
-	style?: React.CSSProperties
+	open?: boolean;
+	onOpenChange?: (open: boolean) => void;
+	onClose?: () => void;
+	children: React.ReactNode;
+	className?: string;
+	style?: React.CSSProperties;
 }
 
 export function DialogContent({
@@ -17,9 +17,9 @@ export function DialogContent({
 	className,
 	style,
 }: {
-	children: React.ReactNode
-	className?: string
-	style?: React.CSSProperties
+	children: React.ReactNode;
+	className?: string;
+	style?: React.CSSProperties;
 }) {
 	return (
 		<div
@@ -32,22 +32,22 @@ export function DialogContent({
 		>
 			{children}
 		</div>
-	)
+	);
 }
 
 export function Dialog({ open, onOpenChange, onClose, children, className, style }: DialogProps) {
-	useScrollLock(Boolean(open))
+	useScrollLock(Boolean(open));
 
-	if (!open) return null
+	if (!open) return null;
 
 	const handleClose = () => {
-		onOpenChange?.(false)
-		onClose?.()
-	}
+		onOpenChange?.(false);
+		onClose?.();
+	};
 
 	return (
-		<div className='fixed inset-0 z-50 flex items-end sm:items-center justify-center'>
-			<div className='fixed inset-0 bg-black/50' onClick={handleClose} />
+		<div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+			<div className="fixed inset-0 bg-black/50" onClick={handleClose} />
 			<div
 				className={cn(
 					'relative z-50 w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] overflow-y-auto border bg-background p-4 sm:p-6 shadow-lg',
@@ -58,52 +58,52 @@ export function Dialog({ open, onOpenChange, onClose, children, className, style
 			>
 				<button
 					onClick={handleClose}
-					className='absolute right-3 top-3 sm:right-4 sm:top-4 rounded-sm opacity-70 hover:opacity-100 min-h-[44px] min-w-[44px] flex items-center justify-center'
+					className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-sm opacity-70 hover:opacity-100 min-h-[44px] min-w-[44px] flex items-center justify-center"
 				>
-					<X className='h-4 w-4' />
+					<X className="h-4 w-4" />
 				</button>
 				{children}
 			</div>
 		</div>
-	)
+	);
 }
 
 export function DialogHeader({
 	children,
 	className,
 }: {
-	children: React.ReactNode
-	className?: string
+	children: React.ReactNode;
+	className?: string;
 }) {
-	return <div className={cn('mb-4', className)}>{children}</div>
+	return <div className={cn('mb-4', className)}>{children}</div>;
 }
 
 export function DialogTitle({
 	children,
 	className,
 }: {
-	children: React.ReactNode
-	className?: string
+	children: React.ReactNode;
+	className?: string;
 }) {
-	return <h2 className={cn('text-lg font-semibold', className)}>{children}</h2>
+	return <h2 className={cn('text-lg font-semibold', className)}>{children}</h2>;
 }
 
 export function DialogDescription({
 	children,
 	className,
 }: {
-	children: React.ReactNode
-	className?: string
+	children: React.ReactNode;
+	className?: string;
 }) {
-	return <p className={cn('text-sm text-muted-foreground', className)}>{children}</p>
+	return <p className={cn('text-sm text-muted-foreground', className)}>{children}</p>;
 }
 
 export function DialogFooter({
 	children,
 	className,
 }: {
-	children: React.ReactNode
-	className?: string
+	children: React.ReactNode;
+	className?: string;
 }) {
-	return <div className={cn('flex justify-end gap-2 mt-4', className)}>{children}</div>
+	return <div className={cn('flex justify-end gap-2 mt-4', className)}>{children}</div>;
 }

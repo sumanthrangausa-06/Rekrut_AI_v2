@@ -74,7 +74,11 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 
 		// Upload to R2
 		const formData = new FormData();
-		formData.append('file', new Blob([req.file.buffer], { type: req.file.mimetype }), req.file.originalname);
+		formData.append(
+			'file',
+			new Blob([req.file.buffer], { type: req.file.mimetype }),
+			req.file.originalname,
+		);
 
 		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
 			method: 'POST',
@@ -124,7 +128,13 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 				WHERE id = $5
 				RETURNING *
 				`,
-				[fileUrl, req.file.originalname, req.file.size, req.file.mimetype, existingResult.rows[0].id],
+				[
+					fileUrl,
+					req.file.originalname,
+					req.file.size,
+					req.file.mimetype,
+					existingResult.rows[0].id,
+				],
 			);
 			document = updateResult.rows[0];
 		} else {
@@ -447,12 +457,16 @@ router.get('/consistency-check', authMiddleware, async (req, res) => {
  * Get pending review queue (admin/recruiter only)
  * GET /api/documents/review-queue
  */
-router.get('/review-queue', authMiddleware, requireRole('admin', 'recruiter', 'hiring_manager'), async (req, res) => {
-	try {
-		const { status = 'pending', limit = 50, offset = 0 } = req.query;
+router.get(
+	'/review-queue',
+	authMiddleware,
+	requireRole('admin', 'recruiter', 'hiring_manager'),
+	async (req, res) => {
+		try {
+			const { status = 'pending', limit = 50, offset = 0 } = req.query;
 
-		const result = await pool.query(
-			`
+			const result = await pool.query(
+				`
 			SELECT
 				drq.id,
 				drq.document_id,
@@ -477,53 +491,59 @@ router.get('/review-queue', authMiddleware, requireRole('admin', 'recruiter', 'h
 			ORDER BY drq.created_at ASC
 			LIMIT $2 OFFSET $3
 			`,
-			[status, parseInt(limit), parseInt(offset)],
-		);
+				[status, parseInt(limit), parseInt(offset)],
+			);
 
-		const countResult = await pool.query(
-			`SELECT COUNT(*) FROM document_review_queue WHERE review_status = $1`,
-			[status],
-		);
+			const countResult = await pool.query(
+				`SELECT COUNT(*) FROM document_review_queue WHERE review_status = $1`,
+				[status],
+			);
 
-		res.json({
-			success: true,
-			reviews: result.rows,
-			total: parseInt(countResult.rows[0].count),
-			limit: parseInt(limit),
-			offset: parseInt(offset),
-		});
-	} catch (error) {
-		console.error('Get review queue error:', error);
-		res.status(500).json({ error: 'Failed to retrieve review queue' });
-	}
-});
+			res.json({
+				success: true,
+				reviews: result.rows,
+				total: parseInt(countResult.rows[0].count),
+				limit: parseInt(limit),
+				offset: parseInt(offset),
+			});
+		} catch (error) {
+			console.error('Get review queue error:', error);
+			res.status(500).json({ error: 'Failed to retrieve review queue' });
+		}
+	},
+);
 
 /**
  * Resolve a document review (admin/recruiter only)
  * POST /api/documents/review/:documentId
  */
-router.post('/review/:documentId', authMiddleware, requireRole('admin', 'recruiter', 'hiring_manager'), async (req, res) => {
-	try {
-		const { documentId } = req.params;
-		const { decision, notes } = req.body;
-		const reviewerId = req.user.id;
+router.post(
+	'/review/:documentId',
+	authMiddleware,
+	requireRole('admin', 'recruiter', 'hiring_manager'),
+	async (req, res) => {
+		try {
+			const { documentId } = req.params;
+			const { decision, notes } = req.body;
+			const reviewerId = req.user.id;
 
-		if (!decision || !['approved', 'rejected'].includes(decision)) {
-			return res.status(400).json({ error: 'Decision must be "approved" or "rejected"' });
+			if (!decision || !['approved', 'rejected'].includes(decision)) {
+				return res.status(400).json({ error: 'Decision must be "approved" or "rejected"' });
+			}
+
+			const result = await resolveDocumentReview(documentId, reviewerId, decision, notes || '');
+
+			res.json({
+				success: true,
+				message: `Document ${decision}`,
+				review: result.review,
+			});
+		} catch (error) {
+			console.error('Resolve review error:', error);
+			res.status(500).json({ error: error.message || 'Failed to resolve review' });
 		}
-
-		const result = await resolveDocumentReview(documentId, reviewerId, decision, notes || '');
-
-		res.json({
-			success: true,
-			message: `Document ${decision}`,
-			review: result.review,
-		});
-	} catch (error) {
-		console.error('Resolve review error:', error);
-		res.status(500).json({ error: error.message || 'Failed to resolve review' });
-	}
-});
+	},
+);
 
 /**
  * Appeal a rejected document (candidate only)

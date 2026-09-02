@@ -30,7 +30,9 @@ function getConfig() {
 	const livekitUrl = process.env.LIVEKIT_URL;
 
 	if (!apiKey || !apiSecret || !livekitUrl) {
-		throw new Error('LiveKit not configured: LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL required');
+		throw new Error(
+			'LiveKit not configured: LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL required',
+		);
 	}
 	return { apiKey, apiSecret, livekitUrl };
 }
@@ -170,10 +172,7 @@ async function findActiveRoomByInterviewEventId(interviewEventId) {
  * @returns {Promise<Object|null>}
  */
 async function findRoomById(roomId) {
-	const result = await pool.query(
-		`SELECT * FROM interview_rooms WHERE id = $1`,
-		[roomId],
-	);
+	const result = await pool.query(`SELECT * FROM interview_rooms WHERE id = $1`, [roomId]);
 	return result.rows[0] || null;
 }
 
@@ -189,10 +188,9 @@ async function validateRoomAccess(roomId, userId) {
 	const room = await findRoomById(roomId);
 	if (!room) return { isParticipant: false, role: null, event: null };
 
-	const eventRes = await pool.query(
-		`SELECT * FROM interview_events WHERE id = $1`,
-		[room.interview_event_id],
-	);
+	const eventRes = await pool.query(`SELECT * FROM interview_events WHERE id = $1`, [
+		room.interview_event_id,
+	]);
 	const event = eventRes.rows[0] || null;
 	if (!event) return { isParticipant: false, role: null, event: null };
 
@@ -227,10 +225,9 @@ async function autoCreateRoomForInterview(interviewEventId) {
 	const existing = await findActiveRoomByInterviewEventId(interviewEventId);
 	if (existing) return existing;
 
-	const eventRes = await pool.query(
-		`SELECT * FROM interview_events WHERE id = $1`,
-		[interviewEventId],
-	);
+	const eventRes = await pool.query(`SELECT * FROM interview_events WHERE id = $1`, [
+		interviewEventId,
+	]);
 	const event = eventRes.rows[0];
 	if (!event) {
 		console.warn(`[livekit] Interview event ${interviewEventId} not found, skipping room creation`);
@@ -262,7 +259,10 @@ async function autoCreateRoomForInterview(interviewEventId) {
 		console.log(`[livekit] Room created for interview ${interviewEventId}: ${roomName}`);
 		return record;
 	} catch (err) {
-		console.error(`[livekit] Failed to create room for interview ${interviewEventId}:`, err.message);
+		console.error(
+			`[livekit] Failed to create room for interview ${interviewEventId}:`,
+			err.message,
+		);
 		// Non-blocking: don't fail the interview scheduling if LiveKit is down
 		return null;
 	}
@@ -277,7 +277,7 @@ async function autoCreateRoomForInterview(interviewEventId) {
 async function getEgressClient() {
 	const { EgressClient } = await getLivekitModule();
 	const { apiKey, apiSecret } = getConfig();
-	const httpUrl = process.env.LIVEKIT_URL.replace(/^wss?:\/\//, 'https:\/\/').replace(/\/$/, '');
+	const httpUrl = process.env.LIVEKIT_URL.replace(/^wss?:\/\//, 'https://').replace(/\/$/, '');
 	return new EgressClient(httpUrl, apiKey, apiSecret);
 }
 
@@ -322,7 +322,9 @@ async function startRoomRecording(roomName, options = {}) {
 	const s3Config = getS3OutputConfig();
 
 	if (!s3Config) {
-		throw new Error('Recording storage not configured: RECORDING_STORAGE_BUCKET, RECORDING_STORAGE_ACCESS_KEY, RECORDING_STORAGE_SECRET_KEY required');
+		throw new Error(
+			'Recording storage not configured: RECORDING_STORAGE_BUCKET, RECORDING_STORAGE_ACCESS_KEY, RECORDING_STORAGE_SECRET_KEY required',
+		);
 	}
 
 	const { RoomCompositeEgressRequest, EncodedFileType } = await getLivekitModule();
@@ -336,11 +338,13 @@ async function startRoomRecording(roomName, options = {}) {
 	});
 
 	// Attach S3 output
-	req.fileOutputs = [{
-		fileType,
-		filepath: `rekrut-recordings/${roomName}-${Date.now()}.${fileType === EncodedFileType.OGG ? 'ogg' : 'mp4'}`,
-		...s3Config,
-	}];
+	req.fileOutputs = [
+		{
+			fileType,
+			filepath: `rekrut-recordings/${roomName}-${Date.now()}.${fileType === EncodedFileType.OGG ? 'ogg' : 'mp4'}`,
+			...s3Config,
+		},
+	];
 
 	const info = await client.startRoomCompositeEgress(roomName, req);
 
@@ -443,10 +447,9 @@ async function failRecordingRecord(recordingId, reason) {
  * @returns {Promise<Object|null>}
  */
 async function findRecordingById(recordingId) {
-	const result = await pool.query(
-		`SELECT * FROM interview_recordings WHERE id = $1`,
-		[recordingId],
-	);
+	const result = await pool.query(`SELECT * FROM interview_recordings WHERE id = $1`, [
+		recordingId,
+	]);
 	return result.rows[0] || null;
 }
 

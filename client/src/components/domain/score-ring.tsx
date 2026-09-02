@@ -1,20 +1,20 @@
-import { useEffect, useState } from 'react'
-import { cn } from '@/lib/utils'
+import { useEffect, useState } from 'react';
+import { cn } from '@/lib/utils';
 
 export interface ScoreRingProps {
-	score: number
-	size?: 'sm' | 'md' | 'lg'
-	showLabel?: boolean
-	label?: string
-	className?: string
-	animate?: boolean
+	score: number;
+	size?: 'sm' | 'md' | 'lg';
+	showLabel?: boolean;
+	label?: string;
+	className?: string;
+	animate?: boolean;
 }
 
 const SIZE_MAP = {
 	sm: { ring: 40, stroke: 3.5, font: 'text-[10px]', labelFont: 'text-[9px]' },
 	md: { ring: 56, stroke: 4, font: 'text-xs', labelFont: 'text-[10px]' },
 	lg: { ring: 72, stroke: 5, font: 'text-sm', labelFont: 'text-xs' },
-}
+};
 
 const COLOR_MAP = {
 	green: {
@@ -35,12 +35,12 @@ const COLOR_MAP = {
 		bg: 'bg-red-50 dark:bg-red-900/20',
 		text: 'text-red-700 dark:text-red-400',
 	},
-}
+};
 
 function getColorKey(score: number): keyof typeof COLOR_MAP {
-	if (score >= 80) return 'green'
-	if (score >= 60) return 'amber'
-	return 'red'
+	if (score >= 80) return 'green';
+	if (score >= 60) return 'amber';
+	return 'red';
 }
 
 export function ScoreRing({
@@ -51,75 +51,72 @@ export function ScoreRing({
 	className,
 	animate = true,
 }: ScoreRingProps) {
-	const [displayedScore, setDisplayedScore] = useState(animate ? 0 : score)
-	const [hasAnimated, setHasAnimated] = useState(false)
+	const [displayedScore, setDisplayedScore] = useState(animate ? 0 : score);
+	const [hasAnimated, setHasAnimated] = useState(false);
 
-	const { ring, stroke, font, labelFont } = SIZE_MAP[size]
-	const colorKey = getColorKey(score)
-	const colors = COLOR_MAP[colorKey]
+	const { ring, stroke, font, labelFont } = SIZE_MAP[size];
+	const colorKey = getColorKey(score);
+	const colors = COLOR_MAP[colorKey];
 
-	const radius = (ring - stroke) / 2
-	const circumference = 2 * Math.PI * radius
-	const clampedScore = Math.max(0, Math.min(100, score))
-	const progress = circumference - (clampedScore / 100) * circumference
+	const radius = (ring - stroke) / 2;
+	const circumference = 2 * Math.PI * radius;
+	const clampedScore = Math.max(0, Math.min(100, score));
+	const progress = circumference - (clampedScore / 100) * circumference;
 
 	// Animate from 0 to score on first mount
 	useEffect(() => {
 		if (!animate || hasAnimated) {
-			setDisplayedScore(score)
-			return
+			setDisplayedScore(score);
+			return;
 		}
 
-		const duration = 800
-		const startTime = performance.now()
+		const duration = 800;
+		const startTime = performance.now();
 
 		const tick = (now: number) => {
-			const elapsed = now - startTime
-			const progress = Math.min(elapsed / duration, 1)
+			const elapsed = now - startTime;
+			const progress = Math.min(elapsed / duration, 1);
 			// Ease-out cubic
-			const eased = 1 - Math.pow(1 - progress, 3)
-			setDisplayedScore(Math.round(eased * score))
+			const eased = 1 - (1 - progress) ** 3;
+			setDisplayedScore(Math.round(eased * score));
 			if (progress < 1) {
-				requestAnimationFrame(tick)
+				requestAnimationFrame(tick);
 			} else {
-				setHasAnimated(true)
+				setHasAnimated(true);
 			}
-		}
+		};
 
-		requestAnimationFrame(tick)
-	}, [score, animate, hasAnimated])
+		requestAnimationFrame(tick);
+	}, [score, animate, hasAnimated]);
 
 	// Reset animation when score prop changes meaningfully
 	useEffect(() => {
 		if (score !== displayedScore && !hasAnimated) {
-			setDisplayedScore(animate ? 0 : score)
+			setDisplayedScore(animate ? 0 : score);
 		}
-	}, [score])
+	}, [score]);
 
 	return (
 		<div
-			className={cn(
-				'inline-flex flex-col items-center justify-center',
-				className,
-			)}
-			role='img'
+			className={cn('inline-flex flex-col items-center justify-center', className)}
+			role="img"
 			aria-label={`Match score: ${score} percent`}
 		>
-			<div className='relative' style={{ width: ring, height: ring }}>
+			<div className="relative" style={{ width: ring, height: ring }}>
 				<svg
 					width={ring}
 					height={ring}
 					viewBox={`0 0 ${ring} ${ring}`}
-					className='transform -rotate-90'
+					className="transform -rotate-90"
 				>
 					{/* Background track */}
 					<circle
 						cx={ring / 2}
 						cy={ring / 2}
 						r={radius}
-						fill='none'
-						stroke='currentColor'
-						className='text-muted-foreground/15'
+						fill="none"
+						stroke="currentColor"
+						className="text-muted-foreground/15"
 						strokeWidth={stroke}
 					/>
 					{/* Progress arc */}
@@ -127,28 +124,28 @@ export function ScoreRing({
 						cx={ring / 2}
 						cy={ring / 2}
 						r={radius}
-						fill='none'
+						fill="none"
 						stroke={colors.stroke}
 						strokeWidth={stroke}
-						strokeLinecap='round'
+						strokeLinecap="round"
 						strokeDasharray={circumference}
-						strokeDashoffset={animate ? circumference - (displayedScore / 100) * circumference : progress}
-						className='transition-[stroke-dashoffset] duration-75'
+						strokeDashoffset={
+							animate ? circumference - (displayedScore / 100) * circumference : progress
+						}
+						className="transition-[stroke-dashoffset] duration-75"
 						style={{
 							filter: `drop-shadow(0 0 2px ${colors.stroke}40)`,
 						}}
 					/>
 				</svg>
 				{/* Centered score text */}
-				<div className='absolute inset-0 flex items-center justify-center'>
-					<span className={cn('font-bold leading-none', font, colors.text)}>
-						{displayedScore}
-					</span>
+				<div className="absolute inset-0 flex items-center justify-center">
+					<span className={cn('font-bold leading-none', font, colors.text)}>{displayedScore}</span>
 				</div>
 			</div>
 			{showLabel && label && (
 				<span className={cn('font-medium mt-0.5', labelFont, colors.text)}>{label}</span>
 			)}
 		</div>
-	)
+	);
 }

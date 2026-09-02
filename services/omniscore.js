@@ -20,11 +20,11 @@ const SCORE_RANGES = {
 // ─── 8-Factor Weights (must sum to 1.0) ─────────────────────
 const FACTOR_WEIGHTS = {
 	verified_skills: 0.25,
-	interview_performance: 0.20,
+	interview_performance: 0.2,
 	experience_quality: 0.15,
-	education_credentials: 0.10,
-	reliability_signals: 0.10,
-	soft_skills: 0.10,
+	education_credentials: 0.1,
+	reliability_signals: 0.1,
+	soft_skills: 0.1,
 	market_demand: 0.05,
 	growth_trajectory: 0.05,
 };
@@ -96,10 +96,9 @@ async function fetchCandidateData(userId) {
 	const client = await pool.connect();
 	try {
 		// Candidate profile
-		const profileRes = await client.query(
-			`SELECT * FROM candidate_profiles WHERE user_id = $1`,
-			[userId],
-		);
+		const profileRes = await client.query(`SELECT * FROM candidate_profiles WHERE user_id = $1`, [
+			userId,
+		]);
 
 		// Skills
 		const skillsRes = await client.query(
@@ -245,7 +244,9 @@ function calcInterviewPerformance(data) {
 		const avg = practiceScores.reduce((a, b) => a + b, 0) / practiceScores.length;
 		const practicePts = Math.min(50, avg * 5); // 0-10 scale → 0-50
 		score += practicePts;
-		details.push(`${practiceScores.length} practice sessions, avg ${avg.toFixed(1)}/10 (+${practicePts.toFixed(1)})`);
+		details.push(
+			`${practiceScores.length} practice sessions, avg ${avg.toFixed(1)}/10 (+${practicePts.toFixed(1)})`,
+		);
 	} else {
 		details.push('No practice sessions yet');
 	}
@@ -269,7 +270,9 @@ function calcInterviewPerformance(data) {
 		const avgFb = feedbackScores.reduce((a, b) => a + b, 0) / feedbackScores.length;
 		const fbPts = Math.min(50, avgFb * 10); // 0-5 scale → 0-50
 		score += fbPts;
-		details.push(`${feedbackScores.length} interview feedbacks, avg ${avgFb.toFixed(1)}/5 (+${fbPts.toFixed(1)})`);
+		details.push(
+			`${feedbackScores.length} interview feedbacks, avg ${avgFb.toFixed(1)}/5 (+${fbPts.toFixed(1)})`,
+		);
 	} else if (completedInterviews.length > 0) {
 		const intPts = Math.min(50, completedInterviews.length * 10);
 		score += intPts;
@@ -310,7 +313,18 @@ function calcExperienceQuality(data) {
 	// Role progression bonus (max 25)
 	let progressionBonus = 0;
 	if (data.experience.length >= 2) {
-		const seniorityTerms = ['senior', 'lead', 'staff', 'principal', 'manager', 'director', 'head', 'vp', 'cto', 'architect'];
+		const seniorityTerms = [
+			'senior',
+			'lead',
+			'staff',
+			'principal',
+			'manager',
+			'director',
+			'head',
+			'vp',
+			'cto',
+			'architect',
+		];
 		const juniorTerms = ['junior', 'intern', 'associate', 'entry'];
 		const titles = data.experience.map((e) => (e.title || '').toLowerCase());
 		const hasSenior = titles.some((t) => seniorityTerms.some((s) => t.includes(s)));
@@ -342,14 +356,14 @@ function calcEducationCredentials(data) {
 	const details = [];
 
 	const degreeScores = {
-		'phd': 40,
-		'doctorate': 40,
-		'master': 30,
-		'mba': 30,
-		'bachelor': 20,
-		'bs': 20,
-		'ba': 20,
-		'associate': 10,
+		phd: 40,
+		doctorate: 40,
+		master: 30,
+		mba: 30,
+		bachelor: 20,
+		bs: 20,
+		ba: 20,
+		associate: 10,
 	};
 
 	let degreePts = 0;
@@ -378,16 +392,19 @@ function calcEducationCredentials(data) {
 	}
 
 	// Verified credentials bonus (max 20)
-	const eduDocs = data.docs.filter((d) =>
-		(d.verification_type || '').toLowerCase().includes('education') ||
-		(d.document_type || '').toLowerCase().includes('education'),
+	const eduDocs = data.docs.filter(
+		(d) =>
+			(d.verification_type || '').toLowerCase().includes('education') ||
+			(d.document_type || '').toLowerCase().includes('education'),
 	);
 	const docPts = Math.min(20, eduDocs.length * 10);
 	score += docPts;
 	details.push(`${eduDocs.length} verified education docs (+${docPts})`);
 
 	// Field diversity (max 10)
-	const fields = new Set(data.education.map((e) => (e.field_of_study || '').toLowerCase().trim()).filter(Boolean));
+	const fields = new Set(
+		data.education.map((e) => (e.field_of_study || '').toLowerCase().trim()).filter(Boolean),
+	);
 	const fieldPts = Math.min(10, fields.size * 5);
 	score += fieldPts;
 	details.push(`${fields.size} fields of study (+${fieldPts})`);
@@ -404,12 +421,18 @@ function calcReliabilitySignals(data) {
 
 	// Attendance rate: completed interviews / scheduled interviews
 	const scheduled = data.interviews.length;
-	const completed = data.interviews.filter((i) => i.outcome === 'completed' || i.outcome === 'passed').length;
-	const noShows = data.interviews.filter((i) => i.outcome === 'no_show' || i.outcome === 'cancelled').length;
+	const completed = data.interviews.filter(
+		(i) => i.outcome === 'completed' || i.outcome === 'passed',
+	).length;
+	const noShows = data.interviews.filter(
+		(i) => i.outcome === 'no_show' || i.outcome === 'cancelled',
+	).length;
 	const attendanceRate = scheduled > 0 ? completed / scheduled : 0.5;
 	const attendancePts = attendanceRate * 30;
 	score += attendancePts;
-	details.push(`Interview attendance ${(attendanceRate * 100).toFixed(0)}% (+${attendancePts.toFixed(1)})`);
+	details.push(
+		`Interview attendance ${(attendanceRate * 100).toFixed(0)}% (+${attendancePts.toFixed(1)})`,
+	);
 
 	// Application follow-through (not withdrawn)
 	const totalApps = data.applications.length;
@@ -417,7 +440,9 @@ function calcReliabilitySignals(data) {
 	const followRate = totalApps > 0 ? (totalApps - withdrawnApps) / totalApps : 1;
 	const followPts = followRate * 20;
 	score += followPts;
-	details.push(`Application follow-through ${(followRate * 100).toFixed(0)}% (+${followPts.toFixed(1)})`);
+	details.push(
+		`Application follow-through ${(followRate * 100).toFixed(0)}% (+${followPts.toFixed(1)})`,
+	);
 
 	// Penalty for no-shows
 	const noShowPenalty = Math.min(20, noShows * 10);
@@ -435,7 +460,14 @@ function calcSoftSkills(data) {
 	const details = [];
 
 	// Practice sessions in soft-skill categories
-	const softCategories = ['communication', 'leadership', 'teamwork', 'behavioral', 'collaboration', 'adaptability'];
+	const softCategories = [
+		'communication',
+		'leadership',
+		'teamwork',
+		'behavioral',
+		'collaboration',
+		'adaptability',
+	];
 	const softSessions = data.practice.filter((p) =>
 		softCategories.some((c) => (p.category || '').toLowerCase().includes(c)),
 	);
@@ -443,7 +475,9 @@ function calcSoftSkills(data) {
 		const avg = softSessions.reduce((s, p) => s + (p.score || 0), 0) / softSessions.length;
 		const pts = Math.min(60, avg * 6);
 		score += pts;
-		details.push(`${softSessions.length} soft-skill practices, avg ${avg.toFixed(1)}/10 (+${pts.toFixed(1)})`);
+		details.push(
+			`${softSessions.length} soft-skill practices, avg ${avg.toFixed(1)}/10 (+${pts.toFixed(1)})`,
+		);
 	} else {
 		details.push('No soft-skill practice sessions yet');
 	}
@@ -469,7 +503,9 @@ function calcSoftSkills(data) {
 		const avgFb = feedbackScore / feedbackCount;
 		const pts = Math.min(40, avgFb * 8);
 		score += pts;
-		details.push(`${feedbackCount} soft-skill feedbacks, avg ${avgFb.toFixed(1)}/5 (+${pts.toFixed(1)})`);
+		details.push(
+			`${feedbackCount} soft-skill feedbacks, avg ${avgFb.toFixed(1)}/5 (+${pts.toFixed(1)})`,
+		);
 	} else {
 		details.push('No soft-skill interview feedback yet');
 	}
@@ -490,10 +526,19 @@ function calcMarketDemand(data) {
 		const matchRate = goodMatches.length / data.matches.length;
 		const pts = Math.min(100, matchRate * 100);
 		score += pts;
-		details.push(`${goodMatches.length}/${data.matches.length} strong job matches (+${pts.toFixed(1)})`);
+		details.push(
+			`${goodMatches.length}/${data.matches.length} strong job matches (+${pts.toFixed(1)})`,
+		);
 	} else {
 		// Fallback: estimate from skills categories
-		const inDemandCategories = ['software engineering', 'data science', 'cloud', 'ai', 'security', 'devops'];
+		const inDemandCategories = [
+			'software engineering',
+			'data science',
+			'cloud',
+			'ai',
+			'security',
+			'devops',
+		];
 		const skillCategories = new Set(data.skills.map((s) => (s.category || '').toLowerCase()));
 		const matchCount = [...skillCategories].filter((c) =>
 			inDemandCategories.some((d) => c.includes(d)),
@@ -535,10 +580,12 @@ function calcGrowthTrajectory(data) {
 
 	// Activity streak: weeks with any activity in last 30 days
 	const recentActivity = data.activity.filter((a) => daysBetween(a.created_at, now) <= 30);
-	const activeWeeks = new Set(recentActivity.map((a) => {
-		const d = new Date(a.created_at);
-		return `${d.getFullYear()}-W${Math.ceil((d.getDate()) / 7)}`;
-	})).size;
+	const activeWeeks = new Set(
+		recentActivity.map((a) => {
+			const d = new Date(a.created_at);
+			return `${d.getFullYear()}-W${Math.ceil(d.getDate() / 7)}`;
+		}),
+	).size;
 	const streakPts = Math.min(30, activeWeeks * 10);
 	score += streakPts;
 	details.push(`${activeWeeks} active weeks in last 30d (+${streakPts})`);
@@ -574,7 +621,8 @@ function detectFraudSignals(userId, data, factors) {
 		for (let i = 0; i < sorted.length - 1; i++) {
 			const current = sorted[i];
 			const next = sorted[i + 1];
-			const endCurrent = current.is_current || !current.end_date ? new Date() : new Date(current.end_date);
+			const endCurrent =
+				current.is_current || !current.end_date ? new Date() : new Date(current.end_date);
 			const startNext = next.start_date ? new Date(next.start_date) : null;
 			if (startNext && endCurrent) {
 				const gapDays = (startNext - endCurrent) / (1000 * 60 * 60 * 24);
@@ -713,7 +761,9 @@ async function calculateScore(userId) {
 			resume_score,
 			behavior_score,
 			dbTierFromLabel(tier),
-			JSON.stringify(Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)]))),
+			JSON.stringify(
+				Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)])),
+			),
 			peerPercentile,
 			JSON.stringify(fraudSignals),
 			userId,
@@ -732,7 +782,9 @@ async function calculateScore(userId) {
 		[
 			userId,
 			total,
-			JSON.stringify(Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)]))),
+			JSON.stringify(
+				Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)])),
+			),
 			peerPercentile,
 		],
 	);
@@ -759,10 +811,9 @@ async function calculateScore(userId) {
 // ─── Checkin (rate-limited to once per day) ─────────────────
 
 async function recordCheckin(userId) {
-	const existing = await pool.query(
-		`SELECT last_checkin_at FROM omni_scores WHERE user_id = $1`,
-		[userId],
-	);
+	const existing = await pool.query(`SELECT last_checkin_at FROM omni_scores WHERE user_id = $1`, [
+		userId,
+	]);
 
 	const lastCheckin = existing.rows[0]?.last_checkin_at;
 	if (lastCheckin) {
@@ -774,10 +825,7 @@ async function recordCheckin(userId) {
 	}
 
 	// Record checkin timestamp + small behavior component (only once per day)
-	await pool.query(
-		`UPDATE omni_scores SET last_checkin_at = NOW() WHERE user_id = $1`,
-		[userId],
-	);
+	await pool.query(`UPDATE omni_scores SET last_checkin_at = NOW() WHERE user_id = $1`, [userId]);
 
 	await addBehaviorComponent(userId, 'daily_login', 5, 10);
 	const newScore = await calculateScore(userId);
@@ -847,7 +895,14 @@ async function recordHistory(userId, reason, componentType) {
 		`INSERT INTO score_history
      (user_id, previous_score, new_score, change_amount, change_reason, component_type)
      VALUES ($1, $2, $3, $4, $5, $6)`,
-		[userId, old.total_score, updated.total_score, updated.total_score - old.total_score, reason, componentType],
+		[
+			userId,
+			old.total_score,
+			updated.total_score,
+			updated.total_score - old.total_score,
+			reason,
+			componentType,
+		],
 	);
 }
 
@@ -876,7 +931,7 @@ async function getScoreBreakdown(userId) {
 			score: factorData?.raw || 0,
 			max: 100,
 			weight: FACTOR_WEIGHTS[key],
-			weighted_contribution: Math.round((factorData?.raw || 0) / 100 * FACTOR_WEIGHTS[key] * 550),
+			weighted_contribution: Math.round(((factorData?.raw || 0) / 100) * FACTOR_WEIGHTS[key] * 550),
 			label: meta.label,
 			description: meta.description,
 			details: factorData?.details || [],
@@ -919,10 +974,13 @@ async function getScoreExplainer(userId) {
 		else if (raw >= 40) grade = 'Fair';
 
 		let plainText = '';
-		if (raw >= 80) plainText = `Your ${meta.label.toLowerCase()} is exceptional — a major strength.`;
+		if (raw >= 80)
+			plainText = `Your ${meta.label.toLowerCase()} is exceptional — a major strength.`;
 		else if (raw >= 60) plainText = `Your ${meta.label.toLowerCase()} is solid and competitive.`;
-		else if (raw >= 40) plainText = `Your ${meta.label.toLowerCase()} is average — there's room to improve.`;
-		else plainText = `Your ${meta.label.toLowerCase()} needs attention — this is a growth opportunity.`;
+		else if (raw >= 40)
+			plainText = `Your ${meta.label.toLowerCase()} is average — there's room to improve.`;
+		else
+			plainText = `Your ${meta.label.toLowerCase()} needs attention — this is a growth opportunity.`;
 
 		explainers.push({
 			name: meta.label,
@@ -988,7 +1046,7 @@ function buildRoadmap(factors) {
 			step: step++,
 			title: `Improve ${meta.label}`,
 			description: meta.description,
-			estimatedPoints: Math.round((80 - (factor?.raw || 0)) / 100 * FACTOR_WEIGHTS[key] * 550),
+			estimatedPoints: Math.round(((80 - (factor?.raw || 0)) / 100) * FACTOR_WEIGHTS[key] * 550),
 			difficulty: (factor?.raw || 0) < 30 ? 'hard' : (factor?.raw || 0) < 60 ? 'medium' : 'easy',
 			timeEstimate: '30 min - 2 hours',
 		});

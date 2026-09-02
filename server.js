@@ -80,7 +80,9 @@ if (missingStripe.length > 0) {
 const nodeEnv = process.env.NODE_ENV || 'development';
 const stripeSecret = process.env.STRIPE_SECRET_KEY || '';
 if (nodeEnv !== 'production' && stripeSecret.startsWith('sk_live_')) {
-	console.error('[FATAL] Non-production environment detected with live Stripe key. Refusing to start.');
+	console.error(
+		'[FATAL] Non-production environment detected with live Stripe key. Refusing to start.',
+	);
 	console.error(`  NODE_ENV: ${nodeEnv}`);
 	console.error(`  STRIPE_SECRET_KEY prefix: sk_live_*`);
 	process.exit(1);
@@ -92,7 +94,9 @@ if (nodeEnv !== 'production' && stripeSecret.startsWith('sk_live_')) {
 // `const dbUrl` here is a SyntaxError that takes the whole process down at startup.
 const PROD_DB_HOSTNAME = 'ep-calm-field-aipg6g97-pooler.c-4.us-east-1.aws.neon.tech';
 if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
-	console.error('[FATAL] Non-production environment detected with production database endpoint. Refusing to start.');
+	console.error(
+		'[FATAL] Non-production environment detected with production database endpoint. Refusing to start.',
+	);
 	console.error(`  NODE_ENV: ${nodeEnv}`);
 	console.error(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
 	process.exit(1);
@@ -154,7 +158,6 @@ const collaborationRoutes = require('./routes/collaboration'); // Issue #128 —
 const apiKeyRoutes = require('./routes/api-keys'); // Issue #140 — Public API key management
 const publicApiRoutes = require('./routes/public-api'); // Issue #140 — Public API v1
 const referralRoutes = require('./routes/referrals'); // Issue #80 — Refer & Earn
-
 
 // ─── Prometheus metrics (Phase 1 observability — Issue #144) ─────────────
 const prometheus = require('./server/middleware/prometheus');
@@ -349,8 +352,12 @@ app.get('/health/detailed', async (_req, res) => {
 				stripe: { configured: !!process.env.STRIPE_SECRET_KEY },
 				sentry: { configured: !!process.env.SENTRY_DSN },
 				livekit: { configured: !!process.env.LIVEKIT_API_KEY && !!process.env.LIVEKIT_API_SECRET },
-				google_oauth: { configured: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET },
-				smtp: { configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) },
+				google_oauth: {
+					configured: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET,
+				},
+				smtp: {
+					configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
+				},
 			};
 			return services;
 		})(),
@@ -360,7 +367,10 @@ app.get('/health/detailed', async (_req, res) => {
 	const uptimeSec = process.uptime();
 
 	const responseTime = Date.now() - start;
-	const db = dbHealth.status === 'fulfilled' ? dbHealth.value : { healthy: false, error: dbHealth.reason?.message };
+	const db =
+		dbHealth.status === 'fulfilled'
+			? dbHealth.value
+			: { healthy: false, error: dbHealth.reason?.message };
 	const external = aiHealth.status === 'fulfilled' ? aiHealth.value : {};
 
 	const healthy = db.status === 'fulfilled' ? db.value.healthy : false;
@@ -379,12 +389,15 @@ app.get('/health/detailed', async (_req, res) => {
 			heapTotal: `${Math.round(mem.heapTotal / 1024 / 1024)}MB`,
 			external: `${Math.round(mem.external / 1024 / 1024)}MB`,
 		},
-		db: db.status === 'fulfilled' ? {
-			connected: db.value.connection?.connected,
-			latencyMs: db.value.connection?.latencyMs,
-			pool: db.value.pool,
-			issues: db.value.issues,
-		} : { connected: false, error: db.reason?.message },
+		db:
+			db.status === 'fulfilled'
+				? {
+						connected: db.value.connection?.connected,
+						latencyMs: db.value.connection?.latencyMs,
+						pool: db.value.pool,
+						issues: db.value.issues,
+					}
+				: { connected: false, error: db.reason?.message },
 		externalServices: external,
 		node: {
 			version: process.version,
@@ -661,7 +674,6 @@ app.use('/api/recruiter', apiKeyRoutes); // Issue #140 — Public API key manage
 
 // API Routes - Public API v1 (Issue #140)
 app.use('/api/v1', publicApiRoutes);
-
 
 // API Routes - Matching Engine
 app.use('/api/matching', matchingRoutes);
@@ -1881,13 +1893,13 @@ app.get('/robots.txt', (_req, res) => {
 	res.type('text/plain');
 	res.send(
 		`User-agent: *\n` +
-		`Allow: /\n` +
-		`Disallow: /admin\n` +
-		`Disallow: /api\n` +
-		`Disallow: /debug\n` +
-		`Disallow: /settings\n` +
-		`Disallow: /recruiter/\n` +
-		`Sitemap: https://rekrutai.co/sitemap.xml\n`,
+			`Allow: /\n` +
+			`Disallow: /admin\n` +
+			`Disallow: /api\n` +
+			`Disallow: /debug\n` +
+			`Disallow: /settings\n` +
+			`Disallow: /recruiter/\n` +
+			`Sitemap: https://rekrutai.co/sitemap.xml\n`,
 	);
 });
 

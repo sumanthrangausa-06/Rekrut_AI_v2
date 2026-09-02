@@ -1,71 +1,81 @@
-import { ChevronDown, ChevronUp, Sparkles, AlertTriangle, CheckCircle2, TrendingUp, Shield, User } from 'lucide-react'
-import { useState, useMemo } from 'react'
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
+import {
+	AlertTriangle,
+	CheckCircle2,
+	ChevronDown,
+	ChevronUp,
+	Shield,
+	Sparkles,
+	TrendingUp,
+	User,
+} from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export interface MatchExplanationData {
-	why_matched: string
-	skills_match: string
-	company_quality: string
-	your_strength: string
+	why_matched: string;
+	skills_match: string;
+	company_quality: string;
+	your_strength: string;
 }
 
 export interface MatchExplanationProps {
-	matchLevel?: string
-	weightedScore?: number
-	skillMatchPct?: number
-	matchingSkills?: string[]
-	missingSkills?: string[]
-	successPrediction?: string
-	similarityScore?: number
-	explanation?: MatchExplanationData | null
-	hideHeader?: boolean
-	defaultExpanded?: boolean
-	onToggleExpand?: (expanded: boolean) => void
+	matchLevel?: string;
+	weightedScore?: number;
+	skillMatchPct?: number;
+	matchingSkills?: string[];
+	missingSkills?: string[];
+	successPrediction?: string;
+	similarityScore?: number;
+	explanation?: MatchExplanationData | null;
+	hideHeader?: boolean;
+	defaultExpanded?: boolean;
+	onToggleExpand?: (expanded: boolean) => void;
 }
 
 interface ScoreBreakdownItem {
-	label: string
-	value: number
-	color: string
-	icon: React.ReactNode
+	label: string;
+	value: number;
+	color: string;
+	icon: React.ReactNode;
 }
 
 function deriveScoreBreakdown(props: MatchExplanationProps): ScoreBreakdownItem[] {
-	const items: ScoreBreakdownItem[] = []
+	const items: ScoreBreakdownItem[] = [];
 
 	// Semantic match: from similarity_score or derive from weighted_score
-	const semanticMatch = props.similarityScore != null
-		? Math.round(props.similarityScore * 100)
-		: props.weightedScore != null
-			? Math.round(props.weightedScore * 0.45)
-			: 0
+	const semanticMatch =
+		props.similarityScore != null
+			? Math.round(props.similarityScore * 100)
+			: props.weightedScore != null
+				? Math.round(props.weightedScore * 0.45)
+				: 0;
 	if (semanticMatch > 0) {
 		items.push({
 			label: 'Semantic Match',
 			value: semanticMatch,
 			color: 'bg-blue-500',
 			icon: <TrendingUp className="h-3.5 w-3.5" />,
-		})
+		});
 	}
 
 	// Skills match
-	const skillsMatch = props.skillMatchPct ?? 0
+	const skillsMatch = props.skillMatchPct ?? 0;
 	if (skillsMatch > 0) {
 		items.push({
 			label: 'Skills Match',
 			value: skillsMatch,
 			color: 'bg-emerald-500',
 			icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-		})
+		});
 	}
 
 	// Company quality: try to extract from explanation or use a default
-	let companyQuality = 0
+	let companyQuality = 0;
 	if (props.explanation?.company_quality) {
-		const trustScoreMatch = props.explanation.company_quality.match(/TrustScore\s+(\d+)/)
+		const trustScoreMatch = props.explanation.company_quality.match(/TrustScore\s+(\d+)/);
 		if (trustScoreMatch) {
-			companyQuality = Math.min(100, Math.round(parseInt(trustScoreMatch[1], 10) / 10))
+			companyQuality = Math.min(100, Math.round(parseInt(trustScoreMatch[1], 10) / 10));
 		}
 	}
 	if (companyQuality > 0) {
@@ -74,19 +84,19 @@ function deriveScoreBreakdown(props: MatchExplanationProps): ScoreBreakdownItem[
 			value: companyQuality,
 			color: 'bg-purple-500',
 			icon: <Shield className="h-3.5 w-3.5" />,
-		})
+		});
 	}
 
 	// Profile strength: derive from explanation or weighted_score remainder
-	let profileStrength = 0
+	let profileStrength = 0;
 	if (props.explanation?.your_strength) {
-		const omniMatch = props.explanation.your_strength.match(/OmniScore\s+(\d+)/)
+		const omniMatch = props.explanation.your_strength.match(/OmniScore\s+(\d+)/);
 		if (omniMatch) {
-			profileStrength = Math.min(100, Math.round(parseInt(omniMatch[1], 10) / 10))
+			profileStrength = Math.min(100, Math.round(parseInt(omniMatch[1], 10) / 10));
 		}
 	}
 	if (profileStrength === 0 && props.weightedScore != null) {
-		profileStrength = Math.min(100, Math.round(props.weightedScore * 0.35))
+		profileStrength = Math.min(100, Math.round(props.weightedScore * 0.35));
 	}
 	if (profileStrength > 0) {
 		items.push({
@@ -94,81 +104,97 @@ function deriveScoreBreakdown(props: MatchExplanationProps): ScoreBreakdownItem[
 			value: profileStrength,
 			color: 'bg-amber-500',
 			icon: <User className="h-3.5 w-3.5" />,
-		})
+		});
 	}
 
-	return items
+	return items;
 }
 
 function generateWhyMatchReasons(props: MatchExplanationProps): string[] {
-	const reasons: string[] = []
-	const { matchingSkills, missingSkills, explanation, weightedScore, successPrediction } = props
+	const reasons: string[] = [];
+	const { matchingSkills, missingSkills, explanation, weightedScore, successPrediction } = props;
 
 	// Build specific reasons from available data
 	if (explanation?.why_matched) {
-		const pctMatch = explanation.why_matched.match(/(\d+)%/)
+		const pctMatch = explanation.why_matched.match(/(\d+)%/);
 		if (pctMatch) {
-			const pct = parseInt(pctMatch[1], 10)
-			reasons.push(`Your profile aligns ${pct}% with this role's requirements based on semantic analysis of your experience, skills, and career trajectory.`)
+			const pct = parseInt(pctMatch[1], 10);
+			reasons.push(
+				`Your profile aligns ${pct}% with this role's requirements based on semantic analysis of your experience, skills, and career trajectory.`,
+			);
 		} else {
-			reasons.push(explanation.why_matched)
+			reasons.push(explanation.why_matched);
 		}
 	}
 
 	if (matchingSkills && matchingSkills.length > 0) {
-		const topSkills = matchingSkills.slice(0, 3)
-		reasons.push(`You have key skills that match: ${topSkills.join(', ')}${matchingSkills.length > 3 ? ` and ${matchingSkills.length - 3} more` : ''}.`)
+		const topSkills = matchingSkills.slice(0, 3);
+		reasons.push(
+			`You have key skills that match: ${topSkills.join(', ')}${matchingSkills.length > 3 ? ` and ${matchingSkills.length - 3} more` : ''}.`,
+		);
 	}
 
 	if (explanation?.skills_match) {
-		const skillsPct = explanation.skills_match.match(/(\d+)%/)
+		const skillsPct = explanation.skills_match.match(/(\d+)%/);
 		if (skillsPct) {
-			reasons.push(`${skillsPct[1]}% of required skills are present in your profile.`)
+			reasons.push(`${skillsPct[1]}% of required skills are present in your profile.`);
 		}
 	}
 
 	if (explanation?.company_quality) {
-		reasons.push(`The company has a strong reputation — ${explanation.company_quality}.`)
+		reasons.push(`The company has a strong reputation — ${explanation.company_quality}.`);
 	}
 
 	if (explanation?.your_strength) {
-		reasons.push(explanation.your_strength)
+		reasons.push(explanation.your_strength);
 	}
 
 	if (successPrediction && weightedScore && weightedScore >= 75) {
-		reasons.push(`AI predicts a ${successPrediction.toLowerCase()} probability of advancing to the interview stage.`)
+		reasons.push(
+			`AI predicts a ${successPrediction.toLowerCase()} probability of advancing to the interview stage.`,
+		);
 	}
 
 	// Fallback generic (should rarely trigger with real data)
 	if (reasons.length === 0 && weightedScore != null) {
-		reasons.push(`This role scores ${Math.round(weightedScore)}% overall match against your profile.`)
+		reasons.push(
+			`This role scores ${Math.round(weightedScore)}% overall match against your profile.`,
+		);
 	}
 
-	return reasons
+	return reasons;
 }
 
 function generateConcerns(props: MatchExplanationProps): string[] {
-	const concerns: string[] = []
-	const { missingSkills, weightedScore, matchLevel, skillMatchPct } = props
+	const concerns: string[] = [];
+	const { missingSkills, weightedScore, matchLevel, skillMatchPct } = props;
 
 	if (missingSkills && missingSkills.length > 0) {
-		const topMissing = missingSkills.slice(0, 3)
-		concerns.push(`Missing skills: ${topMissing.join(', ')}${missingSkills.length > 3 ? ` and ${missingSkills.length - 3} more` : ''}. Consider adding these to your profile or taking relevant courses.`)
+		const topMissing = missingSkills.slice(0, 3);
+		concerns.push(
+			`Missing skills: ${topMissing.join(', ')}${missingSkills.length > 3 ? ` and ${missingSkills.length - 3} more` : ''}. Consider adding these to your profile or taking relevant courses.`,
+		);
 	}
 
 	if (skillMatchPct != null && skillMatchPct < 60) {
-		concerns.push(`Skills coverage is ${skillMatchPct}% — below the 60% threshold most recruiters look for.`)
+		concerns.push(
+			`Skills coverage is ${skillMatchPct}% — below the 60% threshold most recruiters look for.`,
+		);
 	}
 
 	if (weightedScore != null && weightedScore < 60) {
-		concerns.push(`Overall match score is ${Math.round(weightedScore)}%, which is below the recommended threshold of 60%.`)
+		concerns.push(
+			`Overall match score is ${Math.round(weightedScore)}%, which is below the recommended threshold of 60%.`,
+		);
 	}
 
 	if (matchLevel === 'fair' || matchLevel === 'poor') {
-		concerns.push(`This is rated as a "${matchLevel}" match — you may face strong competition from higher-scoring candidates.`)
+		concerns.push(
+			`This is rated as a "${matchLevel}" match — you may face strong competition from higher-scoring candidates.`,
+		);
 	}
 
-	return concerns
+	return concerns;
 }
 
 function MatchScoreBar({ label, value, color, icon }: ScoreBreakdownItem) {
@@ -188,7 +214,7 @@ function MatchScoreBar({ label, value, color, icon }: ScoreBreakdownItem) {
 				/>
 			</div>
 		</div>
-	)
+	);
 }
 
 export function MatchExplanation({
@@ -204,66 +230,107 @@ export function MatchExplanation({
 	defaultExpanded,
 	onToggleExpand,
 }: MatchExplanationProps) {
-	const score = weightedScore != null ? Math.round(weightedScore) : null
-	const isHighMatch = score != null && score >= 70
-	const resolvedExpanded = defaultExpanded !== undefined ? defaultExpanded : isHighMatch
-	const [expanded, setExpanded] = useState(resolvedExpanded)
+	const score = weightedScore != null ? Math.round(weightedScore) : null;
+	const isHighMatch = score != null && score >= 70;
+	const resolvedExpanded = defaultExpanded !== undefined ? defaultExpanded : isHighMatch;
+	const [expanded, setExpanded] = useState(resolvedExpanded);
 
-	const isExpanded = onToggleExpand ? resolvedExpanded : expanded
+	const isExpanded = onToggleExpand ? resolvedExpanded : expanded;
 
 	const handleToggle = () => {
-		const next = !isExpanded
+		const next = !isExpanded;
 		if (onToggleExpand) {
-			onToggleExpand(next)
+			onToggleExpand(next);
 		} else {
-			setExpanded(next)
+			setExpanded(next);
 		}
-	}
+	};
 
-	const whyMatchReasons = useMemo(() => generateWhyMatchReasons({
-		matchLevel,
-		weightedScore,
-		skillMatchPct,
-		matchingSkills,
-		missingSkills,
-		successPrediction,
-		similarityScore,
-		explanation,
-	}), [matchLevel, weightedScore, skillMatchPct, matchingSkills, missingSkills, successPrediction, similarityScore, explanation])
+	const whyMatchReasons = useMemo(
+		() =>
+			generateWhyMatchReasons({
+				matchLevel,
+				weightedScore,
+				skillMatchPct,
+				matchingSkills,
+				missingSkills,
+				successPrediction,
+				similarityScore,
+				explanation,
+			}),
+		[
+			matchLevel,
+			weightedScore,
+			skillMatchPct,
+			matchingSkills,
+			missingSkills,
+			successPrediction,
+			similarityScore,
+			explanation,
+		],
+	);
 
-	const concerns = useMemo(() => generateConcerns({
-		matchLevel,
-		weightedScore,
-		skillMatchPct,
-		matchingSkills,
-		missingSkills,
-		successPrediction,
-		similarityScore,
-		explanation,
-	}), [matchLevel, weightedScore, skillMatchPct, matchingSkills, missingSkills, successPrediction, similarityScore, explanation])
+	const concerns = useMemo(
+		() =>
+			generateConcerns({
+				matchLevel,
+				weightedScore,
+				skillMatchPct,
+				matchingSkills,
+				missingSkills,
+				successPrediction,
+				similarityScore,
+				explanation,
+			}),
+		[
+			matchLevel,
+			weightedScore,
+			skillMatchPct,
+			matchingSkills,
+			missingSkills,
+			successPrediction,
+			similarityScore,
+			explanation,
+		],
+	);
 
-	const scoreBreakdown = useMemo(() => deriveScoreBreakdown({
-		matchLevel,
-		weightedScore,
-		skillMatchPct,
-		matchingSkills,
-		missingSkills,
-		successPrediction,
-		similarityScore,
-		explanation,
-	}), [matchLevel, weightedScore, skillMatchPct, matchingSkills, missingSkills, successPrediction, similarityScore, explanation])
+	const scoreBreakdown = useMemo(
+		() =>
+			deriveScoreBreakdown({
+				matchLevel,
+				weightedScore,
+				skillMatchPct,
+				matchingSkills,
+				missingSkills,
+				successPrediction,
+				similarityScore,
+				explanation,
+			}),
+		[
+			matchLevel,
+			weightedScore,
+			skillMatchPct,
+			matchingSkills,
+			missingSkills,
+			successPrediction,
+			similarityScore,
+			explanation,
+		],
+	);
 
 	// If no match data at all, don't render
 	if (score == null && !explanation && (!matchingSkills || matchingSkills.length === 0)) {
-		return null
+		return null;
 	}
 
 	return (
-		<div className={cn(
-			'rounded-xl border border-emerald-200/60 overflow-hidden',
-			'bg-emerald-50/70 dark:bg-emerald-950/20',
-			'dark:border-emerald-800/40',
-		)}>
+		<div
+			className={cn(
+				'rounded-xl border border-emerald-200/60 overflow-hidden',
+				'bg-emerald-50/70 dark:bg-emerald-950/20',
+				'dark:border-emerald-800/40',
+			)}
+		>
 			{/* Header */}
 			{!hideHeader && (
 				<button
@@ -285,7 +352,11 @@ export function MatchExplanation({
 							</p>
 							{score != null && (
 								<p className="text-xs text-emerald-600/80 dark:text-emerald-400/70">
-									{score}% match · {matchLevel ? matchLevel.charAt(0).toUpperCase() + matchLevel.slice(1) : 'Unknown'} match
+									{score}% match ·{' '}
+									{matchLevel
+										? matchLevel.charAt(0).toUpperCase() + matchLevel.slice(1)
+										: 'Unknown'}{' '}
+									match
 									{successPrediction && ` · ${successPrediction} success prediction`}
 								</p>
 							)}
@@ -335,14 +406,16 @@ export function MatchExplanation({
 					)}
 
 					{/* Skills Pills */}
-					{(matchingSkills?.length || missingSkills?.length) ? (
+					{matchingSkills?.length || missingSkills?.length ? (
 						<div className="space-y-2">
 							<h4 className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
 								Skills Analysis
 							</h4>
 							{matchingSkills && matchingSkills.length > 0 && (
 								<div className="space-y-1">
-									<p className="text-xs text-emerald-600/70 dark:text-emerald-400/60 font-medium">Matching</p>
+									<p className="text-xs text-emerald-600/70 dark:text-emerald-400/60 font-medium">
+										Matching
+									</p>
 									<div className="flex flex-wrap gap-1.5">
 										{matchingSkills.map((skill) => (
 											<Badge
@@ -359,7 +432,9 @@ export function MatchExplanation({
 							)}
 							{missingSkills && missingSkills.length > 0 && (
 								<div className="space-y-1">
-									<p className="text-xs text-amber-600/70 dark:text-amber-400/60 font-medium">Gaps</p>
+									<p className="text-xs text-amber-600/70 dark:text-amber-400/60 font-medium">
+										Gaps
+									</p>
 									<div className="flex flex-wrap gap-1.5">
 										{missingSkills.map((skill) => (
 											<Badge
@@ -393,11 +468,13 @@ export function MatchExplanation({
 
 					{/* CONCERNS */}
 					{concerns.length > 0 && (
-						<div className={cn(
-							'space-y-2.5 rounded-lg border p-3',
-							'bg-amber-50/60 border-amber-200/60',
-							'dark:bg-amber-950/20 dark:border-amber-800/40',
-						)}>
+						<div
+							className={cn(
+								'space-y-2.5 rounded-lg border p-3',
+								'bg-amber-50/60 border-amber-200/60',
+								'dark:bg-amber-950/20 dark:border-amber-800/40',
+							)}
+						>
 							<h4 className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
 								<AlertTriangle className="h-3.5 w-3.5" />
 								Concerns
@@ -421,12 +498,16 @@ export function MatchExplanation({
 						<div className="flex items-center gap-2 text-xs text-emerald-600/80 dark:text-emerald-400/70">
 							<Sparkles className="h-3 w-3" />
 							<span>
-								AI predicts a <strong className="text-emerald-700 dark:text-emerald-300">{successPrediction}</strong> likelihood of interview success
+								AI predicts a{' '}
+								<strong className="text-emerald-700 dark:text-emerald-300">
+									{successPrediction}
+								</strong>{' '}
+								likelihood of interview success
 							</span>
 						</div>
 					)}
 				</div>
 			)}
 		</div>
-	)
+	);
 }

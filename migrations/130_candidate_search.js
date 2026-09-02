@@ -270,6 +270,8 @@ module.exports = {
       END $$;
     `);
 
-		console.log('Migration 130 completed: candidate_search_index, candidate_invites, sync triggers');
+		console.log(
+			'Migration 130 completed: candidate_search_index, candidate_invites, sync triggers',
+		);
 	},
 };

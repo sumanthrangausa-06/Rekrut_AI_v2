@@ -7,10 +7,10 @@ const router = express.Router();
 
 // Helper: verify department belongs to user's company
 async function verifyDepartmentCompany(departmentId, companyId) {
-	const result = await pool.query(
-		'SELECT id FROM departments WHERE id = $1 AND company_id = $2',
-		[departmentId, companyId],
-	);
+	const result = await pool.query('SELECT id FROM departments WHERE id = $1 AND company_id = $2', [
+		departmentId,
+		companyId,
+	]);
 	return result.rows[0] || null;
 }
 
@@ -246,10 +246,10 @@ router.post(
 			}
 
 			// Verify user belongs to same company
-			const userCheck = await pool.query(
-				'SELECT id FROM users WHERE id = $1 AND company_id = $2',
-				[user_id, req.user.company_id],
-			);
+			const userCheck = await pool.query('SELECT id FROM users WHERE id = $1 AND company_id = $2', [
+				user_id,
+				req.user.company_id,
+			]);
 			if (userCheck.rows.length === 0) {
 				return res.status(403).json({
 					error: 'User does not belong to your company',
@@ -297,10 +297,10 @@ router.delete(
 				});
 			}
 
-			await pool.query(
-				'DELETE FROM department_members WHERE department_id = $1 AND user_id = $2',
-				[deptId, userId],
-			);
+			await pool.query('DELETE FROM department_members WHERE department_id = $1 AND user_id = $2', [
+				deptId,
+				userId,
+			]);
 
 			res.json({ success: true });
 		} catch (err) {

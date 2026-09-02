@@ -224,21 +224,44 @@ async function detectDiscrepancies(verificationId) {
 		if (empResult.rows.length === 0) return [];
 		const declared = empResult.rows[0];
 
-		if (verified.company_name && normalized(verified.company_name) !== normalized(declared.company_name)) {
-			discrepancies.push({ field: 'company_name', declared: declared.company_name, verified: verified.company_name });
+		if (
+			verified.company_name &&
+			normalized(verified.company_name) !== normalized(declared.company_name)
+		) {
+			discrepancies.push({
+				field: 'company_name',
+				declared: declared.company_name,
+				verified: verified.company_name,
+			});
 		}
 		if (verified.job_title && normalized(verified.job_title) !== normalized(declared.job_title)) {
-			discrepancies.push({ field: 'job_title', declared: declared.job_title, verified: verified.job_title });
+			discrepancies.push({
+				field: 'job_title',
+				declared: declared.job_title,
+				verified: verified.job_title,
+			});
 		}
 		if (verified.start_date && !sameDate(verified.start_date, declared.start_date)) {
-			discrepancies.push({ field: 'start_date', declared: declared.start_date, verified: verified.start_date });
+			discrepancies.push({
+				field: 'start_date',
+				declared: declared.start_date,
+				verified: verified.start_date,
+			});
 		}
 		if (verified.end_date && !sameDate(verified.end_date, declared.end_date)) {
-			discrepancies.push({ field: 'end_date', declared: declared.end_date, verified: verified.end_date });
+			discrepancies.push({
+				field: 'end_date',
+				declared: declared.end_date,
+				verified: verified.end_date,
+			});
 		}
 		// is_current mismatch only if explicitly stated
 		if (typeof verified.is_current === 'boolean' && verified.is_current !== declared.is_current) {
-			discrepancies.push({ field: 'is_current', declared: String(declared.is_current), verified: String(verified.is_current) });
+			discrepancies.push({
+				field: 'is_current',
+				declared: String(declared.is_current),
+				verified: String(verified.is_current),
+			});
 		}
 	} else if (request.type === 'education') {
 		const eduResult = await pool.query('SELECT * FROM education_history WHERE id = $1', [
@@ -247,27 +270,51 @@ async function detectDiscrepancies(verificationId) {
 		if (eduResult.rows.length === 0) return [];
 		const declared = eduResult.rows[0];
 
-		if (verified.institution_name && normalized(verified.institution_name) !== normalized(declared.institution_name)) {
-			discrepancies.push({ field: 'institution_name', declared: declared.institution_name, verified: verified.institution_name });
+		if (
+			verified.institution_name &&
+			normalized(verified.institution_name) !== normalized(declared.institution_name)
+		) {
+			discrepancies.push({
+				field: 'institution_name',
+				declared: declared.institution_name,
+				verified: verified.institution_name,
+			});
 		}
 		if (verified.degree && normalized(verified.degree) !== normalized(declared.degree)) {
 			discrepancies.push({ field: 'degree', declared: declared.degree, verified: verified.degree });
 		}
-		if (verified.field_of_study && normalized(verified.field_of_study) !== normalized(declared.field_of_study)) {
-			discrepancies.push({ field: 'field_of_study', declared: declared.field_of_study, verified: verified.field_of_study });
+		if (
+			verified.field_of_study &&
+			normalized(verified.field_of_study) !== normalized(declared.field_of_study)
+		) {
+			discrepancies.push({
+				field: 'field_of_study',
+				declared: declared.field_of_study,
+				verified: verified.field_of_study,
+			});
 		}
 		if (verified.start_date && !sameDate(verified.start_date, declared.start_date)) {
-			discrepancies.push({ field: 'start_date', declared: declared.start_date, verified: verified.start_date });
+			discrepancies.push({
+				field: 'start_date',
+				declared: declared.start_date,
+				verified: verified.start_date,
+			});
 		}
 		if (verified.end_date && !sameDate(verified.end_date, declared.end_date)) {
-			discrepancies.push({ field: 'end_date', declared: declared.end_date, verified: verified.end_date });
+			discrepancies.push({
+				field: 'end_date',
+				declared: declared.end_date,
+				verified: verified.end_date,
+			});
 		}
 	}
 
 	// Create discrepancy records
 	const created = [];
 	for (const d of discrepancies) {
-		const sev = ['company_name', 'institution_name', 'degree'].includes(d.field) ? 'major' : 'minor';
+		const sev = ['company_name', 'institution_name', 'degree'].includes(d.field)
+			? 'major'
+			: 'minor';
 		const disc = await discrepancyService.createDiscrepancy({
 			verificationRequestId: verificationId,
 			fieldName: d.field,

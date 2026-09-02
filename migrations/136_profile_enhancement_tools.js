@@ -70,10 +70,18 @@ module.exports = {
 		// ── Indexes ───────────────────────────────────────────
 		await client.query(`CREATE INDEX IF NOT EXISTS idx_cv_uploads_user ON cv_uploads(user_id)`);
 		await client.query(`CREATE INDEX IF NOT EXISTS idx_cv_uploads_status ON cv_uploads(status)`);
-		await client.query(`CREATE INDEX IF NOT EXISTS idx_linkedin_profiles_user ON linkedin_profiles(user_id)`);
-		await client.query(`CREATE INDEX IF NOT EXISTS idx_career_diagnoses_user ON career_diagnoses(user_id)`);
-		await client.query(`CREATE INDEX IF NOT EXISTS idx_profile_tool_progress_user ON profile_tool_progress(user_id)`);
-		await client.query(`CREATE INDEX IF NOT EXISTS idx_profile_tool_progress_type ON profile_tool_progress(tool_type)`);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_linkedin_profiles_user ON linkedin_profiles(user_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_career_diagnoses_user ON career_diagnoses(user_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_profile_tool_progress_user ON profile_tool_progress(user_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_profile_tool_progress_type ON profile_tool_progress(tool_type)`,
+		);
 
 		console.log('[migration] profile_enhancement_tools tables created');
 	},

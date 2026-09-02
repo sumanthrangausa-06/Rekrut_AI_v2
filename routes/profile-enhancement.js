@@ -90,10 +90,10 @@ async function uploadToR2(buffer, originalname, mimetype) {
 // ponytail: mock AI analysis — replace with real AI provider when ready
 function mockCvAnalysis(text) {
 	const words = text.split(/\s+/).length;
-	const hasBulletPoints = /[•\-\*]/.test(text);
+	const hasBulletPoints = /[•\-*]/.test(text);
 	const hasDates = /\b(19|20)\d{2}\b/.test(text);
 	const hasEmail = /\S+@\S+\.\S+/.test(text);
-	const hasPhone = /[\+\(]?\d[\d\s\-\(\)]{7,}\d/.test(text);
+	const hasPhone = /[+(]?\d[\d\s\-()]{7,}\d/.test(text);
 	const keywordMatches = {
 		leadership: /\b(leadership|managed|led|team lead|supervisor)\b/gi,
 		technical: /\b(javascript|python|java|react|node|sql|aws|docker|kubernetes)\b/gi,
@@ -113,21 +113,68 @@ function mockCvAnalysis(text) {
 	if (keywordCounts.technical >= 3) score += 5;
 	score = Math.min(100, Math.max(0, score));
 
-	const label = score >= 85 ? 'Excellent' : score >= 70 ? 'Good' : score >= 55 ? 'Average' : score >= 40 ? 'Needs Work' : 'Poor';
+	const label =
+		score >= 85
+			? 'Excellent'
+			: score >= 70
+				? 'Good'
+				: score >= 55
+					? 'Average'
+					: score >= 40
+						? 'Needs Work'
+						: 'Poor';
 
 	return {
 		score,
 		scoreLabel: label,
 		strengths: [
-			...(hasBulletPoints ? [{ title: 'Readable format', description: 'Uses bullet points for clarity.' }] : []),
-			...(hasDates ? [{ title: 'Clear timeline', description: 'Work history includes dates.' }] : []),
-			...(keywordCounts.achievements > 0 ? [{ title: 'Results-oriented', description: 'Includes measurable achievements.' }] : []),
+			...(hasBulletPoints
+				? [{ title: 'Readable format', description: 'Uses bullet points for clarity.' }]
+				: []),
+			...(hasDates
+				? [{ title: 'Clear timeline', description: 'Work history includes dates.' }]
+				: []),
+			...(keywordCounts.achievements > 0
+				? [{ title: 'Results-oriented', description: 'Includes measurable achievements.' }]
+				: []),
 		].slice(0, 3),
 		improvements: [
-			...(words < 200 ? [{ title: 'Too short', description: 'Add more detail about your experience.', priority: 'high' }] : []),
-			...(words > 1000 ? [{ title: 'Too long', description: 'Trim to 1-2 pages for most roles.', priority: 'medium' }] : []),
-			...(!hasBulletPoints ? [{ title: 'Add bullet points', description: 'Use bullet points instead of paragraphs.', priority: 'high' }] : []),
-			...(keywordCounts.technical < 2 ? [{ title: 'Add keywords', description: 'Include more relevant technical skills.', priority: 'medium' }] : []),
+			...(words < 200
+				? [
+						{
+							title: 'Too short',
+							description: 'Add more detail about your experience.',
+							priority: 'high',
+						},
+					]
+				: []),
+			...(words > 1000
+				? [
+						{
+							title: 'Too long',
+							description: 'Trim to 1-2 pages for most roles.',
+							priority: 'medium',
+						},
+					]
+				: []),
+			...(!hasBulletPoints
+				? [
+						{
+							title: 'Add bullet points',
+							description: 'Use bullet points instead of paragraphs.',
+							priority: 'high',
+						},
+					]
+				: []),
+			...(keywordCounts.technical < 2
+				? [
+						{
+							title: 'Add keywords',
+							description: 'Include more relevant technical skills.',
+							priority: 'medium',
+						},
+					]
+				: []),
 		].slice(0, 4),
 		summary: `This CV scores ${score}/100 (${label}). ${words} words detected. ${hasBulletPoints ? 'Well-formatted with bullet points.' : 'Consider restructuring with bullet points.'}`,
 		formattingTips: [
@@ -160,9 +207,11 @@ function mockLinkedInTips(profileData) {
 		tips.push({
 			category: 'headline',
 			title: 'Strengthen your headline',
-			description: 'Your headline is the first thing recruiters see. Include your role, specialty, and value proposition.',
+			description:
+				'Your headline is the first thing recruiters see. Include your role, specialty, and value proposition.',
 			priority: 'high',
-			actionable: 'Example: "Senior Frontend Engineer | React & TypeScript | Scaling products from 0 to 1M users"',
+			actionable:
+				'Example: "Senior Frontend Engineer | React & TypeScript | Scaling products from 0 to 1M users"',
 		});
 		missingSections.push('headline');
 	}
@@ -172,7 +221,8 @@ function mockLinkedInTips(profileData) {
 			title: 'Write a compelling About section',
 			description: 'Use the About section to tell your story. 3-5 short paragraphs work best.',
 			priority: 'high',
-			actionable: 'Start with your current role, then highlight 2-3 key achievements, and end with what you\'re looking for.',
+			actionable:
+				"Start with your current role, then highlight 2-3 key achievements, and end with what you're looking for.",
 		});
 		missingSections.push('about');
 	}
@@ -193,7 +243,8 @@ function mockLinkedInTips(profileData) {
 			title: 'Grow your network strategically',
 			description: 'Connect with people in your target industry, not just colleagues.',
 			priority: 'medium',
-			actionable: 'Send 5 personalized connection requests per week to hiring managers or senior engineers.',
+			actionable:
+				'Send 5 personalized connection requests per week to hiring managers or senior engineers.',
 		},
 		{
 			category: 'content',
@@ -234,7 +285,12 @@ function mockLinkedInTips(profileData) {
 
 // ponytail: mock career diagnosis — replace with real AI provider when ready
 function mockCareerDiagnosis(answers) {
-	const archetypeNames = ['The Strategic Leader', 'The Technical Builder', 'The Creative Problem-Solver', 'The People Connector'];
+	const archetypeNames = [
+		'The Strategic Leader',
+		'The Technical Builder',
+		'The Creative Problem-Solver',
+		'The People Connector',
+	];
 	const archetype = archetypeNames[answers.length % archetypeNames.length];
 
 	return {
@@ -263,13 +319,37 @@ function mockCareerDiagnosis(answers) {
 		strengths: ['Analytical thinking', 'Strong communication', 'Adaptability'],
 		growthAreas: ['Public speaking', 'Strategic planning', 'Delegation'],
 		recommendedRoles: [
-			{ title: 'Engineering Manager', whyFits: 'Combines technical depth with people leadership.', salaryRange: '$140K - $200K' },
-			{ title: 'Staff Software Engineer', whyFits: 'Leverages your technical breadth and mentoring skills.', salaryRange: '$160K - $250K' },
+			{
+				title: 'Engineering Manager',
+				whyFits: 'Combines technical depth with people leadership.',
+				salaryRange: '$140K - $200K',
+			},
+			{
+				title: 'Staff Software Engineer',
+				whyFits: 'Leverages your technical breadth and mentoring skills.',
+				salaryRange: '$160K - $250K',
+			},
 		],
 		actionPlan: [
-			{ phase: 'Short-term (0-6 months)', actions: ['Complete a leadership course', 'Mentor a junior engineer', 'Lead a cross-team project'], timeline: '0-6 months' },
-			{ phase: 'Medium-term (6-18 months)', actions: ['Take on tech lead responsibilities', 'Build a personal brand via blogging'], timeline: '6-18 months' },
-			{ phase: 'Long-term (18+ months)', actions: ['Transition into EM or Staff role', 'Speak at a tech conference'], timeline: '18+ months' },
+			{
+				phase: 'Short-term (0-6 months)',
+				actions: [
+					'Complete a leadership course',
+					'Mentor a junior engineer',
+					'Lead a cross-team project',
+				],
+				timeline: '0-6 months',
+			},
+			{
+				phase: 'Medium-term (6-18 months)',
+				actions: ['Take on tech lead responsibilities', 'Build a personal brand via blogging'],
+				timeline: '6-18 months',
+			},
+			{
+				phase: 'Long-term (18+ months)',
+				actions: ['Transition into EM or Staff role', 'Speak at a tech conference'],
+				timeline: '18+ months',
+			},
 		],
 		summary: `As a ${archetype}, you're well-positioned for growth into technical leadership. Focus on communication and strategic thinking to accelerate your trajectory.`,
 	};
@@ -306,149 +386,174 @@ async function markCompleted(userId, toolType) {
 // ════════════════════════════════════════════════════════════════════════
 // POST /api/cv-upload — Upload CV
 // ════════════════════════════════════════════════════════════════════════
-router.post('/cv-upload', authMiddleware, upload.single('cv'), asyncHandler(async (req, res) => {
-	const userId = req.user.id;
-	if (!req.file) {
-		return res.status(400).json({ error: 'No CV file uploaded' });
-	}
+router.post(
+	'/cv-upload',
+	authMiddleware,
+	upload.single('cv'),
+	asyncHandler(async (req, res) => {
+		const userId = req.user.id;
+		if (!req.file) {
+			return res.status(400).json({ error: 'No CV file uploaded' });
+		}
 
-	const fileUrl = await uploadToR2(req.file.buffer, req.file.originalname, req.file.mimetype);
+		const fileUrl = await uploadToR2(req.file.buffer, req.file.originalname, req.file.mimetype);
 
-	// Extract text
-	let parsedText = '';
-	try {
-		parsedText = await extractTextFromFile(req.file.buffer, req.file.mimetype);
-	} catch (err) {
-		console.warn('[cv-upload] Text extraction failed (non-fatal):', err.message);
-	}
+		// Extract text
+		let parsedText = '';
+		try {
+			parsedText = await extractTextFromFile(req.file.buffer, req.file.mimetype);
+		} catch (err) {
+			console.warn('[cv-upload] Text extraction failed (non-fatal):', err.message);
+		}
 
-	const result = await pool.query(
-		`
+		const result = await pool.query(
+			`
       INSERT INTO cv_uploads (user_id, file_url, file_name, parsed_text, status)
       VALUES ($1, $2, $3, $4, 'uploaded')
       RETURNING id, user_id, file_url, file_name, status, created_at
     `,
-		[userId, fileUrl, req.file.originalname, parsedText],
-	);
+			[userId, fileUrl, req.file.originalname, parsedText],
+		);
 
-	await ensureProgress(userId, 'cv_review', 'in_progress');
+		await ensureProgress(userId, 'cv_review', 'in_progress');
 
-	res.status(201).json({
-		success: true,
-		uploadId: result.rows[0].id,
-		upload: result.rows[0],
-	});
-}));
+		res.status(201).json({
+			success: true,
+			uploadId: result.rows[0].id,
+			upload: result.rows[0],
+		});
+	}),
+);
 
 // ════════════════════════════════════════════════════════════════════════
 // GET /api/cv-uploads/:id — Get CV upload with analysis
 // ════════════════════════════════════════════════════════════════════════
-router.get('/cv-uploads/:id', authMiddleware, asyncHandler(async (req, res) => {
-	const userId = req.user.id;
-	const uploadId = parseInt(req.params.id, 10);
-	if (Number.isNaN(uploadId)) {
-		return res.status(400).json({ error: 'Invalid upload ID' });
-	}
+router.get(
+	'/cv-uploads/:id',
+	authMiddleware,
+	asyncHandler(async (req, res) => {
+		const userId = req.user.id;
+		const uploadId = parseInt(req.params.id, 10);
+		if (Number.isNaN(uploadId)) {
+			return res.status(400).json({ error: 'Invalid upload ID' });
+		}
 
-	const result = await pool.query(
-		`
+		const result = await pool.query(
+			`
       SELECT id, user_id, file_url, file_name, parsed_text, analysis_result, status, created_at, updated_at
       FROM cv_uploads
       WHERE id = $1 AND user_id = $2
     `,
-		[uploadId, userId],
-	);
+			[uploadId, userId],
+		);
 
-	if (result.rows.length === 0) {
-		return res.status(404).json({ error: 'CV upload not found' });
-	}
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'CV upload not found' });
+		}
 
-	res.json({ success: true, upload: result.rows[0] });
-}));
+		res.json({ success: true, upload: result.rows[0] });
+	}),
+);
 
 // ════════════════════════════════════════════════════════════════════════
 // POST /api/cv-uploads/:id/analyze — Trigger AI analysis (mock)
 // ════════════════════════════════════════════════════════════════════════
-router.post('/cv-uploads/:id/analyze', authMiddleware, asyncHandler(async (req, res) => {
-	const userId = req.user.id;
-	const uploadId = parseInt(req.params.id, 10);
-	if (Number.isNaN(uploadId)) {
-		return res.status(400).json({ error: 'Invalid upload ID' });
-	}
-
-	const uploadResult = await pool.query(
-		`SELECT parsed_text, status FROM cv_uploads WHERE id = $1 AND user_id = $2`,
-		[uploadId, userId],
-	);
-	if (uploadResult.rows.length === 0) {
-		return res.status(404).json({ error: 'CV upload not found' });
-	}
-
-	const { parsed_text, status } = uploadResult.rows[0];
-	if (status === 'analyzed') {
-		return res.status(409).json({ error: 'CV already analyzed', code: 'ALREADY_ANALYZED' });
-	}
-
-	// Update to parsing
-	await pool.query(`UPDATE cv_uploads SET status = 'parsing', updated_at = NOW() WHERE id = $1`, [uploadId]);
-
-	let analysisResult = {};
-	try {
-		if (parsed_text && parsed_text.trim().length >= 50) {
-			analysisResult = mockCvAnalysis(parsed_text);
-		} else {
-			analysisResult = {
-				score: 0,
-				scoreLabel: 'Unable to analyze',
-				strengths: [],
-				improvements: [{ title: 'Empty or unreadable CV', description: 'Could not extract sufficient text for analysis.', priority: 'high' }],
-				summary: 'The uploaded file appears to be empty, unreadable, or image-based. Please upload a text-based PDF or Word document.',
-				formattingTips: [],
-				keywordOptimization: [],
-				atsCompatibility: { score: 0, notes: 'No text content detected.' },
-			};
+router.post(
+	'/cv-uploads/:id/analyze',
+	authMiddleware,
+	asyncHandler(async (req, res) => {
+		const userId = req.user.id;
+		const uploadId = parseInt(req.params.id, 10);
+		if (Number.isNaN(uploadId)) {
+			return res.status(400).json({ error: 'Invalid upload ID' });
 		}
-		await pool.query(
-			`UPDATE cv_uploads SET status = 'analyzed', analysis_result = $1, updated_at = NOW() WHERE id = $2`,
-			[JSON.stringify(analysisResult), uploadId],
-		);
-		await markCompleted(userId, 'cv_review');
-	} catch (err) {
-		console.error('[cv-analyze] Analysis failed:', err.message);
-		await pool.query(
-			`UPDATE cv_uploads SET status = 'failed', updated_at = NOW() WHERE id = $1`,
-			[uploadId],
-		);
-		return res.status(500).json({ error: 'Analysis failed' });
-	}
 
-	res.json({ success: true, analysis: analysisResult });
-}));
+		const uploadResult = await pool.query(
+			`SELECT parsed_text, status FROM cv_uploads WHERE id = $1 AND user_id = $2`,
+			[uploadId, userId],
+		);
+		if (uploadResult.rows.length === 0) {
+			return res.status(404).json({ error: 'CV upload not found' });
+		}
+
+		const { parsed_text, status } = uploadResult.rows[0];
+		if (status === 'analyzed') {
+			return res.status(409).json({ error: 'CV already analyzed', code: 'ALREADY_ANALYZED' });
+		}
+
+		// Update to parsing
+		await pool.query(`UPDATE cv_uploads SET status = 'parsing', updated_at = NOW() WHERE id = $1`, [
+			uploadId,
+		]);
+
+		let analysisResult = {};
+		try {
+			if (parsed_text && parsed_text.trim().length >= 50) {
+				analysisResult = mockCvAnalysis(parsed_text);
+			} else {
+				analysisResult = {
+					score: 0,
+					scoreLabel: 'Unable to analyze',
+					strengths: [],
+					improvements: [
+						{
+							title: 'Empty or unreadable CV',
+							description: 'Could not extract sufficient text for analysis.',
+							priority: 'high',
+						},
+					],
+					summary:
+						'The uploaded file appears to be empty, unreadable, or image-based. Please upload a text-based PDF or Word document.',
+					formattingTips: [],
+					keywordOptimization: [],
+					atsCompatibility: { score: 0, notes: 'No text content detected.' },
+				};
+			}
+			await pool.query(
+				`UPDATE cv_uploads SET status = 'analyzed', analysis_result = $1, updated_at = NOW() WHERE id = $2`,
+				[JSON.stringify(analysisResult), uploadId],
+			);
+			await markCompleted(userId, 'cv_review');
+		} catch (err) {
+			console.error('[cv-analyze] Analysis failed:', err.message);
+			await pool.query(
+				`UPDATE cv_uploads SET status = 'failed', updated_at = NOW() WHERE id = $1`,
+				[uploadId],
+			);
+			return res.status(500).json({ error: 'Analysis failed' });
+		}
+
+		res.json({ success: true, analysis: analysisResult });
+	}),
+);
 
 // ════════════════════════════════════════════════════════════════════════
 // POST /api/linkedin/connect — Save LinkedIn URL/profile data
 // ════════════════════════════════════════════════════════════════════════
-router.post('/linkedin/connect', authMiddleware, asyncHandler(async (req, res) => {
-	const userId = req.user.id;
-	const { linkedInUrl, headline, summary, skills } = req.body;
+router.post(
+	'/linkedin/connect',
+	authMiddleware,
+	asyncHandler(async (req, res) => {
+		const userId = req.user.id;
+		const { linkedInUrl, headline, summary, skills } = req.body;
 
-	if (!linkedInUrl) {
-		return res.status(400).json({ error: 'LinkedIn URL is required' });
-	}
+		if (!linkedInUrl) {
+			return res.status(400).json({ error: 'LinkedIn URL is required' });
+		}
 
-	// Normalize URL
-	let normalizedUrl = String(linkedInUrl).trim();
-	if (!normalizedUrl.startsWith('http')) {
-		normalizedUrl = 'https://' + normalizedUrl;
-	}
-	try {
-		new URL(normalizedUrl);
-	} catch {
-		return res.status(400).json({ error: 'Invalid LinkedIn URL' });
-	}
+		// Normalize URL
+		let normalizedUrl = String(linkedInUrl).trim();
+		if (!normalizedUrl.startsWith('http')) {
+			normalizedUrl = 'https://' + normalizedUrl;
+		}
+		try {
+			new URL(normalizedUrl);
+		} catch {
+			return res.status(400).json({ error: 'Invalid LinkedIn URL' });
+		}
 
-	const result = await pool.query(
-		`
+		const result = await pool.query(
+			`
       INSERT INTO linkedin_profiles (user_id, linkedin_url, headline, summary, skills, connected_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
       ON CONFLICT (user_id) DO UPDATE SET
@@ -459,49 +564,58 @@ router.post('/linkedin/connect', authMiddleware, asyncHandler(async (req, res) =
         updated_at = NOW()
       RETURNING *
     `,
-		[userId, normalizedUrl, headline || null, summary || null, JSON.stringify(skills || [])],
-	);
+			[userId, normalizedUrl, headline || null, summary || null, JSON.stringify(skills || [])],
+		);
 
-	await ensureProgress(userId, 'linkedin', 'in_progress');
+		await ensureProgress(userId, 'linkedin', 'in_progress');
 
-	res.json({ success: true, profile: result.rows[0] });
-}));
+		res.json({ success: true, profile: result.rows[0] });
+	}),
+);
 
 // ════════════════════════════════════════════════════════════════════════
 // GET /api/linkedin/tips/:candidateId — Get AI-generated optimization tips
 // ════════════════════════════════════════════════════════════════════════
-router.get('/linkedin/tips/:candidateId', authMiddleware, requireOwnCandidate, asyncHandler(async (req, res) => {
-	const userId = req.user.id;
+router.get(
+	'/linkedin/tips/:candidateId',
+	authMiddleware,
+	requireOwnCandidate,
+	asyncHandler(async (req, res) => {
+		const userId = req.user.id;
 
-	const profileResult = await pool.query(
-		`SELECT linkedin_url, headline, summary, skills FROM linkedin_profiles WHERE user_id = $1`,
-		[userId],
-	);
+		const profileResult = await pool.query(
+			`SELECT linkedin_url, headline, summary, skills FROM linkedin_profiles WHERE user_id = $1`,
+			[userId],
+		);
 
-	const profileData = profileResult.rows[0] || {};
-	const tips = mockLinkedInTips(profileData);
+		const profileData = profileResult.rows[0] || {};
+		const tips = mockLinkedInTips(profileData);
 
-	await ensureProgress(userId, 'linkedin', 'in_progress');
+		await ensureProgress(userId, 'linkedin', 'in_progress');
 
-	res.json({ success: true, ...tips });
-}));
+		res.json({ success: true, ...tips });
+	}),
+);
 
 // ════════════════════════════════════════════════════════════════════════
 // POST /api/career-diagnosis — Submit quiz answers, store results
 // ════════════════════════════════════════════════════════════════════════
-router.post('/career-diagnosis', authMiddleware, asyncHandler(async (req, res) => {
-	const userId = req.user.id;
-	const { quizAnswers } = req.body;
+router.post(
+	'/career-diagnosis',
+	authMiddleware,
+	asyncHandler(async (req, res) => {
+		const userId = req.user.id;
+		const { quizAnswers } = req.body;
 
-	if (!Array.isArray(quizAnswers) || quizAnswers.length === 0) {
-		return res.status(400).json({ error: 'Quiz answers are required' });
-	}
+		if (!Array.isArray(quizAnswers) || quizAnswers.length === 0) {
+			return res.status(400).json({ error: 'Quiz answers are required' });
+		}
 
-	// Mock diagnosis
-	const diagnosis = mockCareerDiagnosis(quizAnswers);
+		// Mock diagnosis
+		const diagnosis = mockCareerDiagnosis(quizAnswers);
 
-	const result = await pool.query(
-		`
+		const result = await pool.query(
+			`
       INSERT INTO career_diagnoses (user_id, quiz_answers, career_path, strengths, recommendations, completed_at)
       VALUES ($1, $2, $3, $4, $5, NOW())
       ON CONFLICT (user_id) DO UPDATE SET
@@ -512,99 +626,112 @@ router.post('/career-diagnosis', authMiddleware, asyncHandler(async (req, res) =
         completed_at = NOW()
       RETURNING *
     `,
-		[
-			userId,
-			JSON.stringify(quizAnswers),
-			diagnosis.careerArchetype.name,
-			JSON.stringify(diagnosis.strengths),
-			JSON.stringify(diagnosis.recommendedPaths),
-		],
-	);
+			[
+				userId,
+				JSON.stringify(quizAnswers),
+				diagnosis.careerArchetype.name,
+				JSON.stringify(diagnosis.strengths),
+				JSON.stringify(diagnosis.recommendedPaths),
+			],
+		);
 
-	await markCompleted(userId, 'career_diagnosis');
+		await markCompleted(userId, 'career_diagnosis');
 
-	res.json({
-		success: true,
-		diagnosis: {
-			id: result.rows[0].id,
-			...diagnosis,
-		},
-	});
-}));
+		res.json({
+			success: true,
+			diagnosis: {
+				id: result.rows[0].id,
+				...diagnosis,
+			},
+		});
+	}),
+);
 
 // ════════════════════════════════════════════════════════════════════════
 // GET /api/career-diagnosis/:candidateId — Get diagnosis results
 // ════════════════════════════════════════════════════════════════════════
-router.get('/career-diagnosis/:candidateId', authMiddleware, requireOwnCandidate, asyncHandler(async (req, res) => {
-	const userId = req.user.id;
+router.get(
+	'/career-diagnosis/:candidateId',
+	authMiddleware,
+	requireOwnCandidate,
+	asyncHandler(async (req, res) => {
+		const userId = req.user.id;
 
-	const result = await pool.query(
-		`SELECT * FROM career_diagnoses WHERE user_id = $1`,
-		[userId],
-	);
+		const result = await pool.query(`SELECT * FROM career_diagnoses WHERE user_id = $1`, [userId]);
 
-	if (result.rows.length === 0) {
-		return res.status(404).json({ error: 'Career diagnosis not found' });
-	}
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Career diagnosis not found' });
+		}
 
-	const row = result.rows[0];
-	res.json({
-		success: true,
-		diagnosis: {
-			id: row.id,
-			quizAnswers: row.quiz_answers,
-			careerPath: row.career_path,
-			strengths: row.strengths,
-			recommendations: row.recommendations,
-			completedAt: row.completed_at,
-		},
-	});
-}));
+		const row = result.rows[0];
+		res.json({
+			success: true,
+			diagnosis: {
+				id: row.id,
+				quizAnswers: row.quiz_answers,
+				careerPath: row.career_path,
+				strengths: row.strengths,
+				recommendations: row.recommendations,
+				completedAt: row.completed_at,
+			},
+		});
+	}),
+);
 
 // ════════════════════════════════════════════════════════════════════════
 // GET /api/profile-tools/progress/:candidateId — Get progress across all 4 tools
 // ════════════════════════════════════════════════════════════════════════
-router.get('/profile-tools/progress/:candidateId', authMiddleware, requireOwnCandidate, asyncHandler(async (req, res) => {
-	const userId = req.user.id;
+router.get(
+	'/profile-tools/progress/:candidateId',
+	authMiddleware,
+	requireOwnCandidate,
+	asyncHandler(async (req, res) => {
+		const userId = req.user.id;
 
-	// Ensure all 4 tool rows exist
-	const tools = ['cv_review', 'linkedin', 'career_diagnosis', 'coaching'];
-	for (const tool of tools) {
-		await ensureProgress(userId, tool);
-	}
+		// Ensure all 4 tool rows exist
+		const tools = ['cv_review', 'linkedin', 'career_diagnosis', 'coaching'];
+		for (const tool of tools) {
+			await ensureProgress(userId, tool);
+		}
 
-	const result = await pool.query(
-		`
+		const result = await pool.query(
+			`
       SELECT tool_type, status, completed_at, updated_at
       FROM profile_tool_progress
       WHERE user_id = $1
       ORDER BY tool_type
     `,
-		[userId],
-	);
+			[userId],
+		);
 
-	// Build a complete map including missing tools
-	const progressMap = Object.fromEntries(tools.map((t) => [t, { toolType: t, status: 'not_started', completedAt: null, updatedAt: null }]));
-	for (const row of result.rows) {
-		progressMap[row.tool_type] = {
-			toolType: row.tool_type,
-			status: row.status,
-			completedAt: row.completed_at,
-			updatedAt: row.updated_at,
-		};
-	}
+		// Build a complete map including missing tools
+		const progressMap = Object.fromEntries(
+			tools.map((t) => [
+				t,
+				{ toolType: t, status: 'not_started', completedAt: null, updatedAt: null },
+			]),
+		);
+		for (const row of result.rows) {
+			progressMap[row.tool_type] = {
+				toolType: row.tool_type,
+				status: row.status,
+				completedAt: row.completed_at,
+				updatedAt: row.updated_at,
+			};
+		}
 
-	const progress = tools.map((t) => progressMap[t]);
-	const completedCount = progress.filter((p) => p.status === 'completed').length;
-	const overallPercent = Math.round((completedCount / tools.length) * 100);
+		const progress = tools.map((t) => progressMap[t]);
+		const completedCount = progress.filter((p) => p.status === 'completed').length;
+		const overallPercent = Math.round((completedCount / tools.length) * 100);
 
-	res.json({
-		success: true,
-		progress,
-		overallPercent,
-		completedCount,
-		totalTools: tools.length,
-	});
-}));
+		res.json({
+			success: true,
+			progress,
+			overallPercent,
+			completedCount,
+			totalTools: tools.length,
+		});
+	}),
+);
 
 module.exports = router;

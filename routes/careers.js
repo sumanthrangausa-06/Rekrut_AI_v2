@@ -56,9 +56,8 @@ router.get('/default', authMiddleware, async (req, res) => {
 				industry: company.industry || 'Technology / SaaS',
 				founded: company.founded_year ? String(company.founded_year) : '2020',
 				trustscore: Math.round(company.trustscore || 75),
-				rating: parseFloat(company.rating || '0') > 0
-					? parseFloat(company.rating).toFixed(1)
-					: '4.5',
+				rating:
+					parseFloat(company.rating || '0') > 0 ? parseFloat(company.rating).toFixed(1) : '4.5',
 				reviewCount: parseInt(company.review_count, 10) || 0,
 			},
 			culture: {
@@ -208,9 +207,8 @@ router.get('/:id', async (req, res) => {
 				industry: company.industry || 'Technology / SaaS',
 				founded: company.founded_year ? String(company.founded_year) : '2020',
 				trustscore: Math.round(company.trustscore || 75),
-				rating: parseFloat(company.rating || '0') > 0
-					? parseFloat(company.rating).toFixed(1)
-					: '4.5',
+				rating:
+					parseFloat(company.rating || '0') > 0 ? parseFloat(company.rating).toFixed(1) : '4.5',
 				reviewCount: parseInt(company.review_count, 10) || 0,
 			},
 			culture: {

@@ -3,7 +3,6 @@ const { AuthorizationCode } = require('simple-oauth2');
 const pool = require('../../lib/db');
 const { encrypt, decrypt } = require('../../lib/crypto-utils');
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13,7 +12,8 @@ const GOOGLE_REDIRECT_URI =
 	process.env.GOOGLE_REDIRECT_URI ||
 	`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/api/calendar/oauth/callback`;
 const OUTLOOK_REDIRECT_URI =
-	process.env.OUTLOOK_REDIRECT_URI || `${process.env.FRONTEND_URL || 'https://rekrut.ai'}/api/calendar/oauth/callback`;
+	process.env.OUTLOOK_REDIRECT_URI ||
+	`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/api/calendar/oauth/callback`;
 
 const GOOGLE_SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
 const OUTLOOK_SCOPES = 'https://graph.microsoft.com/Calendars.ReadWrite';
@@ -103,7 +103,10 @@ async function getConnection(userId, provider) {
 		if (row.access_token) row.access_token = decrypt(row.access_token);
 		if (row.refresh_token) row.refresh_token = decrypt(row.refresh_token);
 	} catch (err) {
-		console.error(`[calendar-service] Failed to decrypt tokens for user ${userId} / ${provider}:`, err.message);
+		console.error(
+			`[calendar-service] Failed to decrypt tokens for user ${userId} / ${provider}:`,
+			err.message,
+		);
 		throw new Error('Calendar token decryption failed. Please reconnect your calendar.');
 	}
 
@@ -134,7 +137,11 @@ async function refreshGoogleToken(connection) {
 	try {
 		const { credentials } = await oauth2Client.refreshAccessToken();
 		await upsertConnection(connection.user_id, 'google', credentials, connection.calendar_id);
-		return { ...connection, access_token: credentials.access_token, expires_at: new Date(credentials.expiry_date) };
+		return {
+			...connection,
+			access_token: credentials.access_token,
+			expires_at: new Date(credentials.expiry_date),
+		};
 	} catch (err) {
 		console.error('[calendar-service] Google token refresh failed:', err.message);
 		// Mark inactive if refresh fails permanently
@@ -162,7 +169,11 @@ async function refreshOutlookToken(connection) {
 		const newAccessToken = await accessToken.refresh({ scope: OUTLOOK_SCOPES });
 		const token = newAccessToken.token;
 		await upsertConnection(connection.user_id, 'outlook', token, connection.calendar_id);
-		return { ...connection, access_token: token.access_token, expires_at: new Date(token.expires_at) };
+		return {
+			...connection,
+			access_token: token.access_token,
+			expires_at: new Date(token.expires_at),
+		};
 	} catch (err) {
 		console.error('[calendar-service] Outlook token refresh failed:', err.message);
 		if (err.message?.includes('invalid_grant')) {
@@ -194,10 +205,9 @@ async function ensureFreshToken(connection) {
  */
 async function getUserDetails(userIds) {
 	if (!userIds || userIds.length === 0) return [];
-	const result = await pool.query(
-		`SELECT id, name, email FROM users WHERE id = ANY($1)`,
-		[userIds],
-	);
+	const result = await pool.query(`SELECT id, name, email FROM users WHERE id = ANY($1)`, [
+		userIds,
+	]);
 	return result.rows;
 }
 
@@ -223,8 +233,10 @@ async function buildEventPayload(interview) {
 	const description = `Interview for ${jobTitle} via Rekrut AI.\n\n${interview.meeting_link ? `Meeting Link: ${interview.meeting_link}\n` : ''}${interview.notes ? `Notes: ${interview.notes}\n` : ''}`;
 
 	const attendees = [];
-	if (candidate.email) attendees.push({ email: candidate.email, displayName: candidate.name || 'Candidate' });
-	if (recruiter.email) attendees.push({ email: recruiter.email, displayName: recruiter.name || 'Recruiter' });
+	if (candidate.email)
+		attendees.push({ email: candidate.email, displayName: candidate.name || 'Candidate' });
+	if (recruiter.email)
+		attendees.push({ email: recruiter.email, displayName: recruiter.name || 'Recruiter' });
 
 	return { title, description, startTime, endTime, attendees, candidate, recruiter };
 }
@@ -234,9 +246,11 @@ async function buildEventPayload(interview) {
  * Supports multi-attendee (recruiter, candidate, panel members).
  */
 async function buildInterviewEventPayload(event) {
-	const userIds = [event.recruiter_id, event.candidate_id, ...(event.panel_member_ids || [])].filter(
-		(v, i, a) => a.indexOf(v) === i,
-	);
+	const userIds = [
+		event.recruiter_id,
+		event.candidate_id,
+		...(event.panel_member_ids || []),
+	].filter((v, i, a) => a.indexOf(v) === i);
 	const users = await getUserDetails(userIds);
 	const userMap = new Map(users.map((u) => [u.id, u]));
 
@@ -881,7 +895,9 @@ async function updateCalendarEvent(userId, provider, eventId, interview) {
 async function deleteCalendarEvent(userId, provider, eventId) {
 	const connection = await getConnection(userId, provider);
 	if (!connection) {
-		console.warn(`[calendar-service] No active ${provider} connection for user ${userId}, skipping delete`);
+		console.warn(
+			`[calendar-service] No active ${provider} connection for user ${userId}, skipping delete`,
+		);
 		return;
 	}
 
@@ -964,7 +980,9 @@ async function syncInterview(interview, operation = 'create') {
 		}
 
 		if (!connection) {
-			console.log(`[calendar-sync] No calendar connection for interview ${interview.id}, skipping sync`);
+			console.log(
+				`[calendar-sync] No calendar connection for interview ${interview.id}, skipping sync`,
+			);
 			return null;
 		}
 

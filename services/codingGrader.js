@@ -82,7 +82,7 @@ function sanitizeSourceCode(code) {
 async function getLanguageJudge0Id(languageSlug) {
 	const result = await pool.query(
 		`SELECT judge0_id FROM sandbox_languages WHERE slug = $1 AND is_active = true`,
-		[languageSlug]
+		[languageSlug],
 	);
 	if (result.rows.length > 0) return result.rows[0].judge0_id;
 	return JUDGE0_FALLBACK_IDS[languageSlug] || null;
@@ -92,7 +92,12 @@ async function callJudge0(endpoint, body) {
 	const url = `${JUDGE0_API_URL}${endpoint}`;
 	const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
 	if (JUDGE0_AUTH_TOKEN) headers['X-Auth-Token'] = JUDGE0_AUTH_TOKEN;
-	const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), timeout: 30000 });
+	const response = await fetch(url, {
+		method: 'POST',
+		headers,
+		body: JSON.stringify(body),
+		timeout: 30000,
+	});
 	if (!response.ok) {
 		const text = await response.text();
 		throw new Error(`Judge0 error (${response.status}): ${text}`);
@@ -122,7 +127,7 @@ async function gradeSubmission(submissionId) {
          FROM coding_submissions s
          JOIN coding_templates t ON s.template_id = t.id
          WHERE s.id = $1`,
-			[submissionId]
+			[submissionId],
 		);
 		if (subResult.rows.length === 0) throw new Error('Submission not found');
 		const submission = subResult.rows[0];
@@ -135,7 +140,7 @@ async function gradeSubmission(submissionId) {
 		// Fetch all test cases
 		const tcResult = await client.query(
 			`SELECT * FROM coding_test_cases WHERE template_id = $1 ORDER BY order_index ASC`,
-			[submission.template_id]
+			[submission.template_id],
 		);
 		const testCases = tcResult.rows;
 		if (testCases.length === 0) throw new Error('No test cases found for template');
@@ -152,11 +157,11 @@ async function gradeSubmission(submissionId) {
 		const limits = {
 			cpuTimeSeconds: Math.min(
 				Math.max(parseInt(submission.time_limit_seconds, 10) || 10, 1),
-				MAX_CPU_TIME_SECONDS
+				MAX_CPU_TIME_SECONDS,
 			),
 			memoryKb: Math.min(
 				Math.max(parseInt(submission.memory_limit_mb, 10) * 1024 || 128000, 32000),
-				MAX_MEMORY_KB
+				MAX_MEMORY_KB,
 			),
 			maxOutputSize: MAX_OUTPUT_SIZE,
 		};
@@ -187,7 +192,10 @@ async function gradeSubmission(submissionId) {
 			let errorMessage = null;
 
 			try {
-				const jResult = await callJudge0('/submissions?base64_encoded=false&wait=true', judge0Payload);
+				const jResult = await callJudge0(
+					'/submissions?base64_encoded=false&wait=true',
+					judge0Payload,
+				);
 				const statusId = jResult.status?.id;
 				actualOutput = normalizeOutput(jResult.stdout);
 				executionTimeMs = jResult.time != null ? jResult.time * 1000 : null;
@@ -228,7 +236,16 @@ async function gradeSubmission(submissionId) {
            memory_used_mb = EXCLUDED.memory_used_mb,
            score_earned = EXCLUDED.score_earned,
            error_message = EXCLUDED.error_message`,
-				[submissionId, tc.id, passed, actualOutput, executionTimeMs, memoryUsedMb, scoreEarned, errorMessage]
+				[
+					submissionId,
+					tc.id,
+					passed,
+					actualOutput,
+					executionTimeMs,
+					memoryUsedMb,
+					scoreEarned,
+					errorMessage,
+				],
 			);
 
 			results.push({
@@ -263,7 +280,7 @@ async function gradeSubmission(submissionId) {
              graded_at = NOW(),
              updated_at = NOW()
          WHERE id = $3`,
-			[score, maxScore, submissionId]
+			[score, maxScore, submissionId],
 		);
 
 		await client.query('COMMIT');
@@ -294,12 +311,15 @@ async function gradeSubmission(submissionId) {
  * @returns {Promise<Object>} run results
  */
 async function runSampleTests(templateId, codeText, language) {
-	const template = await pool.query('SELECT time_limit_seconds, memory_limit_mb FROM coding_templates WHERE id = $1', [templateId]);
+	const template = await pool.query(
+		'SELECT time_limit_seconds, memory_limit_mb FROM coding_templates WHERE id = $1',
+		[templateId],
+	);
 	if (template.rows.length === 0) throw new Error('Template not found');
 
 	const tcResult = await pool.query(
 		`SELECT * FROM coding_test_cases WHERE template_id = $1 AND is_hidden = false ORDER BY order_index ASC`,
-		[templateId]
+		[templateId],
 	);
 	const testCases = tcResult.rows;
 	if (testCases.length === 0) throw new Error('No sample test cases available');
@@ -315,11 +335,11 @@ async function runSampleTests(templateId, codeText, language) {
 	const limits = {
 		cpuTimeSeconds: Math.min(
 			Math.max(parseInt(template.rows[0].time_limit_seconds, 10) || 10, 1),
-			MAX_CPU_TIME_SECONDS
+			MAX_CPU_TIME_SECONDS,
 		),
 		memoryKb: Math.min(
 			Math.max(parseInt(template.rows[0].memory_limit_mb, 10) * 1024 || 128000, 32000),
-			MAX_MEMORY_KB
+			MAX_MEMORY_KB,
 		),
 		maxOutputSize: MAX_OUTPUT_SIZE,
 	};
@@ -345,7 +365,10 @@ async function runSampleTests(templateId, codeText, language) {
 		let errorMessage = null;
 
 		try {
-			const jResult = await callJudge0('/submissions?base64_encoded=false&wait=true', judge0Payload);
+			const jResult = await callJudge0(
+				'/submissions?base64_encoded=false&wait=true',
+				judge0Payload,
+			);
 			const statusId = jResult.status?.id;
 			actualOutput = normalizeOutput(jResult.stdout);
 			executionTimeMs = jResult.time != null ? jResult.time * 1000 : null;
@@ -444,7 +467,8 @@ Be specific. Reference actual code patterns, variable names, and logic.`;
 
 	try {
 		const response = await chat(prompt, {
-			system: 'You are a senior software engineer conducting thorough code reviews. Be constructive, specific, and honest. Always return valid JSON.',
+			system:
+				'You are a senior software engineer conducting thorough code reviews. Be constructive, specific, and honest. Always return valid JSON.',
 			maxTokens: 2048,
 			module: 'coding_assessment',
 			feature: 'ai_code_review',
@@ -498,7 +522,7 @@ async function saveAIReview(submissionId, review) {
 	const reviewJson = JSON.stringify(review);
 	await pool.query(
 		`UPDATE coding_submissions SET ai_review_text = $1, updated_at = NOW() WHERE id = $2`,
-		[reviewJson, submissionId]
+		[reviewJson, submissionId],
 	);
 	return review;
 }
@@ -535,7 +559,9 @@ async function detectPlagiarism(submissionId, candidateId, templateId, codeText)
 	}
 
 	function tokenize(code) {
-		return normalizeCode(code).split(/\s+/).filter((t) => t.length > 0);
+		return normalizeCode(code)
+			.split(/\s+/)
+			.filter((t) => t.length > 0);
 	}
 
 	function getNgrams(tokens, n = 3) {
@@ -564,7 +590,7 @@ async function detectPlagiarism(submissionId, candidateId, templateId, codeText)
        WHERE template_id = $1 AND id != $2 AND status != 'draft' AND code_text IS NOT NULL
        ORDER BY submitted_at DESC NULLS LAST
        LIMIT 50`,
-		[templateId, submissionId]
+		[templateId, submissionId],
 	);
 
 	let maxSimilarity = 0;
@@ -591,7 +617,7 @@ async function detectPlagiarism(submissionId, candidateId, templateId, codeText)
            plagiarism_similarity = $2,
            updated_at = NOW()
        WHERE id = $3`,
-		[flagged, similarityPct, submissionId]
+		[flagged, similarityPct, submissionId],
 	);
 
 	return { flagged, similarity: similarityPct, matchedSubmissionId: matchedId };
@@ -611,7 +637,7 @@ async function getGradingResult(submissionId, isRecruiter = false) {
        FROM coding_submissions s
        JOIN coding_templates t ON s.template_id = t.id
        WHERE s.id = $1`,
-		[submissionId]
+		[submissionId],
 	);
 	if (subResult.rows.length === 0) return null;
 	const submission = subResult.rows[0];
@@ -622,7 +648,7 @@ async function getGradingResult(submissionId, isRecruiter = false) {
        JOIN coding_test_cases tc ON cs.test_case_id = tc.id
        WHERE cs.submission_id = $1
        ORDER BY tc.order_index ASC`,
-		[submissionId]
+		[submissionId],
 	);
 
 	const results = scoresResult.rows.map((r) => ({

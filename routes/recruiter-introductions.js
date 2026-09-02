@@ -4,7 +4,12 @@
 const express = require('express');
 const { body, param, validationResult } = require('express-validator');
 const pool = require('../lib/db');
-const { authMiddleware, requireRole, requireApprovedRecruiter, requireNotSuspended } = require('../lib/auth');
+const {
+	authMiddleware,
+	requireRole,
+	requireApprovedRecruiter,
+	requireNotSuspended,
+} = require('../lib/auth');
 const { requireFeature, checkFeatureAccess } = require('../lib/subscription');
 const emailService = require('../lib/email-service');
 
@@ -63,7 +68,10 @@ router.post(
 	authMiddleware,
 	requireRole('candidate'),
 	requireFeature('recruiter_intros'),
-	[body('job_id').isInt({ min: 1 }).withMessage('job_id is required'), body('message').optional().trim().isLength({ max: 2000 })],
+	[
+		body('job_id').isInt({ min: 1 }).withMessage('job_id is required'),
+		body('message').optional().trim().isLength({ max: 2000 }),
+	],
 	handleValidationErrors,
 	async (req, res) => {
 		try {
@@ -128,12 +136,17 @@ router.post(
 
 			if (matchingEngine && matchingEngine.findMatchingCandidates) {
 				try {
-					const matches = await matchingEngine.findMatchingCandidates(job_id, { limit: 5, minScore: 0.3 });
+					const matches = await matchingEngine.findMatchingCandidates(job_id, {
+						limit: 5,
+						minScore: 0.3,
+					});
 					const candidateMatch = matches.find((m) => m.candidate_id === candidateId);
 					if (candidateMatch) {
 						isTopFive = true;
 						rank = matches.indexOf(candidateMatch) + 1;
-						fitScore = Math.round(candidateMatch.weighted_score || candidateMatch.similarity_score || 0);
+						fitScore = Math.round(
+							candidateMatch.weighted_score || candidateMatch.similarity_score || 0,
+						);
 					}
 				} catch (matchErr) {
 					console.warn('[recruiter-intros] Matching engine error:', matchErr.message);
@@ -201,10 +214,9 @@ router.post(
 			);
 
 			// ── 7. Notify recruiter (non-blocking) ──
-			const candidateInfo = await pool.query(
-				`SELECT name, email FROM users WHERE id = $1`,
-				[candidateId],
-			);
+			const candidateInfo = await pool.query(`SELECT name, email FROM users WHERE id = $1`, [
+				candidateId,
+			]);
 			const candidateName = candidateInfo.rows[0]?.name || 'A candidate';
 
 			// In-app notification to recruiter
@@ -218,7 +230,9 @@ router.post(
 
 			// Email notification to recruiter (non-blocking)
 			try {
-				const recruiterInfo = await pool.query(`SELECT email, name FROM users WHERE id = $1`, [job.recruiter_id]);
+				const recruiterInfo = await pool.query(`SELECT email, name FROM users WHERE id = $1`, [
+					job.recruiter_id,
+				]);
 				const recruiter = recruiterInfo.rows[0];
 				if (recruiter?.email) {
 					await emailService.sendTemplatedEmail({
@@ -233,11 +247,19 @@ router.post(
 							rank: rank || 'N/A',
 						},
 						userId: job.recruiter_id,
-						metadata: { intro_id: intro.id, job_id, candidate_id: candidateId, type: 'intro_request' },
+						metadata: {
+							intro_id: intro.id,
+							job_id,
+							candidate_id: candidateId,
+							type: 'intro_request',
+						},
 					});
 				}
 			} catch (emailErr) {
-				console.error('[recruiter-intros] Email notification failed (non-blocking):', emailErr.message);
+				console.error(
+					'[recruiter-intros] Email notification failed (non-blocking):',
+					emailErr.message,
+				);
 			}
 
 			res.status(201).json({
@@ -308,7 +330,7 @@ router.get('/quota', authMiddleware, requireRole('candidate'), async (req, res) 
 	try {
 		const currentMonday = formatDate(getMondayOfWeek(new Date()));
 
-		let result = await pool.query(
+		const result = await pool.query(
 			`SELECT week_start, used_count, max_count FROM candidate_intro_quota WHERE candidate_id = $1`,
 			[req.user.id],
 		);
@@ -426,7 +448,9 @@ router.patch(
 	requireNotSuspended,
 	[
 		param('id').isInt({ min: 1 }).withMessage('Invalid introduction ID'),
-		body('status').isIn(['accepted', 'rejected']).withMessage("status must be 'accepted' or 'rejected'"),
+		body('status')
+			.isIn(['accepted', 'rejected'])
+			.withMessage("status must be 'accepted' or 'rejected'"),
 		body('notes').optional().trim().isLength({ max: 2000 }),
 	],
 	handleValidationErrors,
@@ -497,7 +521,10 @@ router.patch(
 					});
 				}
 			} catch (emailErr) {
-				console.error('[recruiter-intros] Candidate email failed (non-blocking):', emailErr.message);
+				console.error(
+					'[recruiter-intros] Candidate email failed (non-blocking):',
+					emailErr.message,
+				);
 			}
 
 			res.json({

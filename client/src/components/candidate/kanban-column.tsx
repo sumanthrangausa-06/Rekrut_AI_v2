@@ -1,18 +1,18 @@
-import { useDroppable } from '@dnd-kit/core'
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { Bookmark, Briefcase, FileText, MessageCircle, Trophy } from 'lucide-react'
-import type { KanbanApplication, KanbanItem } from './kanban-card'
-import { KanbanCard } from './kanban-card'
+import { useDroppable } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { Bookmark, Briefcase, FileText, MessageCircle, Trophy } from 'lucide-react';
+import type { KanbanApplication, KanbanItem } from './kanban-card';
+import { KanbanCard } from './kanban-card';
 
 export interface KanbanColumnDef {
-	id: string
-	title: string
-	icon: typeof FileText
-	color: string
-	bgColor: string
-	borderColor: string
-	emptyText: string
-	emptySubtext: string
+	id: string;
+	title: string;
+	icon: typeof FileText;
+	color: string;
+	bgColor: string;
+	borderColor: string;
+	emptyText: string;
+	emptySubtext: string;
 }
 
 export const KANBAN_COLUMNS: KanbanColumnDef[] = [
@@ -56,22 +56,22 @@ export const KANBAN_COLUMNS: KanbanColumnDef[] = [
 		emptyText: 'No offers yet',
 		emptySubtext: 'Offers and hires will appear here',
 	},
-]
+];
 
 interface KanbanColumnProps {
-	column: KanbanColumnDef
-	items: KanbanItem[]
-	onCardClick: (item: KanbanItem) => void
-	onStartOutreach?: (app: KanbanApplication) => void
+	column: KanbanColumnDef;
+	items: KanbanItem[];
+	onCardClick: (item: KanbanItem) => void;
+	onStartOutreach?: (app: KanbanApplication) => void;
 }
 
 export function KanbanColumn({ column, items, onCardClick, onStartOutreach }: KanbanColumnProps) {
 	const { setNodeRef, isOver } = useDroppable({
 		id: column.id,
 		data: { columnId: column.id },
-	})
+	});
 
-	const Icon = column.icon
+	const Icon = column.icon;
 
 	return (
 		<div
@@ -81,30 +81,30 @@ export function KanbanColumn({ column, items, onCardClick, onStartOutreach }: Ka
 			} ${column.bgColor}`}
 		>
 			{/* Header */}
-			<div className='flex items-center justify-between px-4 py-3 border-b border-black/5'>
-				<div className='flex items-center gap-2'>
+			<div className="flex items-center justify-between px-4 py-3 border-b border-black/5">
+				<div className="flex items-center gap-2">
 					<Icon className={`h-4 w-4 ${column.color}`} />
-					<h3 className='font-semibold text-sm'>{column.title}</h3>
+					<h3 className="font-semibold text-sm">{column.title}</h3>
 				</div>
-				<span className='flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-white text-xs font-medium shadow-sm px-2'>
+				<span className="flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-white text-xs font-medium shadow-sm px-2">
 					{items.length}
 				</span>
 			</div>
 
 			{/* Cards */}
-			<div className='flex-1 p-3 space-y-2 min-h-[120px]'>
+			<div className="flex-1 p-3 space-y-2 min-h-[120px]">
 				{items.length === 0 ? (
-					<div className='flex flex-col items-center justify-center py-8 text-center'>
-						<Icon className='h-8 w-8 text-muted-foreground/30 mb-2' />
-						<p className='text-xs font-medium text-muted-foreground'>{column.emptyText}</p>
-						<p className='text-[10px] text-muted-foreground/60 mt-1 max-w-[200px]'>
+					<div className="flex flex-col items-center justify-center py-8 text-center">
+						<Icon className="h-8 w-8 text-muted-foreground/30 mb-2" />
+						<p className="text-xs font-medium text-muted-foreground">{column.emptyText}</p>
+						<p className="text-[10px] text-muted-foreground/60 mt-1 max-w-[200px]">
 							{column.emptySubtext}
 						</p>
 					</div>
 				) : (
 					<SortableContext
 						items={items.map((item) =>
-							item.type === 'application' ? `app-${item.data.id}` : `saved-${item.data.id}`
+							item.type === 'application' ? `app-${item.data.id}` : `saved-${item.data.id}`,
 						)}
 						strategy={verticalListSortingStrategy}
 					>
@@ -121,5 +121,5 @@ export function KanbanColumn({ column, items, onCardClick, onStartOutreach }: Ka
 				)}
 			</div>
 		</div>
-	)
+	);
 }

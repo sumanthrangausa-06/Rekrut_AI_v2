@@ -30,7 +30,9 @@ router.get('/jobs', async (req, res) => {
 
 		const requestedStatus = status.trim().toLowerCase();
 		if (requestedStatus !== 'active') {
-			return res.status(400).json({ error: 'Invalid status. Only active jobs are publicly listed.' });
+			return res
+				.status(400)
+				.json({ error: 'Invalid status. Only active jobs are publicly listed.' });
 		}
 
 		const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
@@ -157,9 +159,13 @@ router.get('/candidates', apiAuthMiddleware, async (req, res) => {
 	try {
 		// Verify the API key has the 'candidates:read' scope (or 'read' as fallback)
 		const scopes = req.apiKey?.scopes || [];
-		const hasScope = scopes.includes('candidates:read') || scopes.includes('read:all') || scopes.includes('admin');
+		const hasScope =
+			scopes.includes('candidates:read') || scopes.includes('read:all') || scopes.includes('admin');
 		if (!hasScope) {
-			return res.status(403).json({ error: 'Insufficient scope. Required: candidates:read', code: 'INSUFFICIENT_SCOPE' });
+			return res.status(403).json({
+				error: 'Insufficient scope. Required: candidates:read',
+				code: 'INSUFFICIENT_SCOPE',
+			});
 		}
 
 		const { limit = 50, page = 1, search, status } = req.query;
@@ -168,10 +174,18 @@ router.get('/candidates', apiAuthMiddleware, async (req, res) => {
 
 		// ponytail: candidates list is scoped to the key creator's company.
 		// If no company, return empty. Upgrade to cross-company admin if needed.
-		const userResult = await pool.query('SELECT company_id FROM users WHERE id = $1', [req.apiKey.createdBy]);
+		const userResult = await pool.query('SELECT company_id FROM users WHERE id = $1', [
+			req.apiKey.createdBy,
+		]);
 		const companyId = userResult.rows[0]?.company_id;
 		if (!companyId) {
-			return res.json({ candidates: [], total: 0, limit: parsedLimit, offset: parsedOffset, page: 1 });
+			return res.json({
+				candidates: [],
+				total: 0,
+				limit: parsedLimit,
+				offset: parsedOffset,
+				page: 1,
+			});
 		}
 
 		let sqlQuery = `

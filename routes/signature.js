@@ -107,12 +107,12 @@ async function verifySignerAccess(req, res, next) {
 
 		// Signer matches by user_id or email
 		const isSigner =
-			(request.party_email && request.party_email.toLowerCase() === (userEmail || '').toLowerCase()) ||
+			(request.party_email &&
+				request.party_email.toLowerCase() === (userEmail || '').toLowerCase()) ||
 			false;
 
 		// Company admin/recruiter can also manage
-		const isCompanyUser =
-			req.user?.company_id && req.user.company_id === request.company_id;
+		const isCompanyUser = req.user?.company_id && req.user.company_id === request.company_id;
 		const isAdmin = req.user?.role === 'admin';
 
 		if (!isSigner && !isCompanyUser && !isAdmin) {
@@ -261,11 +261,7 @@ router.delete('/documents/:id', authMiddleware, verifyDocumentOwnership, async (
 		const { id } = req.params;
 		const { reason } = req.body;
 
-		const document = await signatureService.cancelDocument(
-			parseInt(id, 10),
-			req.user.id,
-			reason,
-		);
+		const document = await signatureService.cancelDocument(parseInt(id, 10), req.user.id, reason);
 
 		res.json({
 			success: true,
@@ -277,8 +273,8 @@ router.delete('/documents/:id', authMiddleware, verifyDocumentOwnership, async (
 		const statusCode = error.message.includes('not found')
 			? 404
 			: error.message.includes('Cannot cancel')
-			  ? 409
-			  : 500;
+				? 409
+				: 500;
 		res.status(statusCode).json({
 			error: error.message,
 			code: statusCode === 409 ? 'CONFLICT' : 'CANCEL_FAILED',
@@ -327,11 +323,7 @@ router.post('/documents/:id/signers', authMiddleware, verifyDocumentOwnership, a
 			});
 		}
 
-		const result = await signatureService.addSigners(
-			parseInt(id, 10),
-			signerList,
-			req.user.id,
-		);
+		const result = await signatureService.addSigners(parseInt(id, 10), signerList, req.user.id);
 
 		res.json({
 			success: true,
@@ -409,12 +401,7 @@ router.post('/requests/:id/view', authMiddleware, verifySignerAccess, async (req
 router.post('/requests/:id/sign', authMiddleware, verifySignerAccess, async (req, res) => {
 	try {
 		const { id } = req.params;
-		const {
-			signature_type,
-			signature_value,
-			document_content,
-			signature_metadata = {},
-		} = req.body;
+		const { signature_type, signature_value, document_content, signature_metadata = {} } = req.body;
 
 		// Decode base64 content if provided (for tamper check)
 		let contentBuffer = null;
@@ -456,8 +443,8 @@ router.post('/requests/:id/sign', authMiddleware, verifySignerAccess, async (req
 		const statusCode = error.message.includes('already')
 			? 409
 			: error.message.includes('not found')
-			  ? 404
-			  : 500;
+				? 404
+				: 500;
 		res.status(statusCode).json({
 			error: error.message,
 			code: statusCode === 409 ? 'CONFLICT' : statusCode === 404 ? 'NOT_FOUND' : 'SIGN_FAILED',
@@ -547,10 +534,7 @@ router.post('/documents/:id/verify', authMiddleware, verifyDocumentOwnership, as
 			}
 		}
 
-		const result = await signatureService.verifyDocumentIntegrity(
-			parseInt(id, 10),
-			contentBuffer,
-		);
+		const result = await signatureService.verifyDocumentIntegrity(parseInt(id, 10), contentBuffer);
 
 		// Also verify the audit chain
 		const auditResult = await signatureService.verifyAuditChain(parseInt(id, 10));
@@ -605,24 +589,19 @@ router.post(
  * POST /api/signatures/admin/expire
  * Trigger expiration check (admin only).
  */
-router.post(
-	'/admin/expire',
-	authMiddleware,
-	requireRole('admin'),
-	async (_req, res) => {
-		try {
-			const count = await signatureService.expireDocuments();
-			res.json({
-				success: true,
-				expired_count: count,
-				message: `${count} document(s) expired`,
-			});
-		} catch (error) {
-			console.error('[signature] Expire error:', error);
-			res.status(500).json({ error: 'Expiration check failed', code: 'EXPIRE_FAILED' });
-		}
-	},
-);
+router.post('/admin/expire', authMiddleware, requireRole('admin'), async (_req, res) => {
+	try {
+		const count = await signatureService.expireDocuments();
+		res.json({
+			success: true,
+			expired_count: count,
+			message: `${count} document(s) expired`,
+		});
+	} catch (error) {
+		console.error('[signature] Expire error:', error);
+		res.status(500).json({ error: 'Expiration check failed', code: 'EXPIRE_FAILED' });
+	}
+});
 
 /**
  * GET /api/signatures/admin/stats

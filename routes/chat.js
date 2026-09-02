@@ -402,7 +402,9 @@ router.post('/conversations/:id/messages', authMiddleware, async (req, res) => {
 		);
 
 		// Get sender info for response
-		const senderRes = await pool.query('SELECT name, email, role FROM users WHERE id = $1', [userId]);
+		const senderRes = await pool.query('SELECT name, email, role FROM users WHERE id = $1', [
+			userId,
+		]);
 		const sender = senderRes.rows[0] || {};
 
 		res.json({
@@ -447,7 +449,9 @@ router.post('/conversations/:id/read', authMiddleware, async (req, res) => {
 		// Reset unread count for current user
 		const isCandidate = userId === conv.candidate_id;
 		const unreadColumn = isCandidate ? 'unread_count_candidate' : 'unread_count_recruiter';
-		await pool.query(`UPDATE conversations SET ${unreadColumn} = 0 WHERE id = $1`, [conversationId]);
+		await pool.query(`UPDATE conversations SET ${unreadColumn} = 0 WHERE id = $1`, [
+			conversationId,
+		]);
 
 		res.json({ success: true });
 	} catch (err) {
@@ -457,91 +461,104 @@ router.post('/conversations/:id/read', authMiddleware, async (req, res) => {
 });
 
 // POST /conversations/:id/upload
-router.post('/conversations/:id/upload', authMiddleware, upload.single('file'), async (req, res) => {
-	try {
-		const conversationId = parseInt(req.params.id, 10);
-		if (Number.isNaN(conversationId)) {
-			return res.status(400).json({ error: 'Invalid conversation ID' });
-		}
+router.post(
+	'/conversations/:id/upload',
+	authMiddleware,
+	upload.single('file'),
+	async (req, res) => {
+		try {
+			const conversationId = parseInt(req.params.id, 10);
+			if (Number.isNaN(conversationId)) {
+				return res.status(400).json({ error: 'Invalid conversation ID' });
+			}
 
-		const userId = req.user.id;
-		const conv = await verifyConversationAccess(conversationId, userId);
-		if (!conv) {
-			return res.status(403).json({ error: 'Access denied' });
-		}
+			const userId = req.user.id;
+			const conv = await verifyConversationAccess(conversationId, userId);
+			if (!conv) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
 
-		if (!req.file) {
-			return res.status(400).json({ error: 'No file uploaded' });
-		}
+			if (!req.file) {
+				return res.status(400).json({ error: 'No file uploaded' });
+			}
 
-		// Upload to R2 via Polsia proxy
-		const formData = new FormData();
-		formData.append('file', new Blob([req.file.buffer], { type: req.file.mimetype }), req.file.originalname);
+			// Upload to R2 via Polsia proxy
+			const formData = new FormData();
+			formData.append(
+				'file',
+				new Blob([req.file.buffer], { type: req.file.mimetype }),
+				req.file.originalname,
+			);
 
-		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-			},
-			body: formData,
-		});
+			const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
+				},
+				body: formData,
+			});
 
-		const uploadResult = await uploadRes.json();
-		if (!uploadResult.success) {
-			throw new Error(uploadResult.error?.message || 'File upload failed');
-		}
+			const uploadResult = await uploadRes.json();
+			if (!uploadResult.success) {
+				throw new Error(uploadResult.error?.message || 'File upload failed');
+			}
 
-		const fileUrl = uploadResult.file.url;
-		const fileType = req.file.mimetype.startsWith('image/') ? 'image' : 'file';
+			const fileUrl = uploadResult.file.url;
+			const fileType = req.file.mimetype.startsWith('image/') ? 'image' : 'file';
 
-		// Insert message with file attachment
-		const result = await pool.query(
-			`INSERT INTO messages
+			// Insert message with file attachment
+			const result = await pool.query(
+				`INSERT INTO messages
 			 (conversation_id, sender_id, content, type, file_url, file_name)
 			 VALUES ($1, $2, $3, $4, $5, $6)
 			 RETURNING *`,
-			[
+				[
+					conversationId,
+					userId,
+					`Sent ${fileType}: ${req.file.originalname}`,
+					fileType,
+					fileUrl,
+					req.file.originalname,
+				],
+			);
+			const message = result.rows[0];
+
+			// Update conversation
+			await pool.query(`UPDATE conversations SET updated_at = NOW() WHERE id = $1`, [
 				conversationId,
+			]);
+
+			// Increment unread for other party
+			const isCandidate = userId === conv.candidate_id;
+			const unreadColumn = isCandidate ? 'unread_count_recruiter' : 'unread_count_candidate';
+			await pool.query(
+				`UPDATE conversations SET ${unreadColumn} = COALESCE(${unreadColumn}, 0) + 1 WHERE id = $1`,
+				[conversationId],
+			);
+
+			// Get sender info
+			const senderRes = await pool.query('SELECT name, email, role FROM users WHERE id = $1', [
 				userId,
-				`Sent ${fileType}: ${req.file.originalname}`,
-				fileType,
-				fileUrl,
-				req.file.originalname,
-			],
-		);
-		const message = result.rows[0];
+			]);
+			const sender = senderRes.rows[0] || {};
 
-		// Update conversation
-		await pool.query(`UPDATE conversations SET updated_at = NOW() WHERE id = $1`, [conversationId]);
-
-		// Increment unread for other party
-		const isCandidate = userId === conv.candidate_id;
-		const unreadColumn = isCandidate ? 'unread_count_recruiter' : 'unread_count_candidate';
-		await pool.query(
-			`UPDATE conversations SET ${unreadColumn} = COALESCE(${unreadColumn}, 0) + 1 WHERE id = $1`,
-			[conversationId],
-		);
-
-		// Get sender info
-		const senderRes = await pool.query('SELECT name, email, role FROM users WHERE id = $1', [userId]);
-		const sender = senderRes.rows[0] || {};
-
-		res.json({
-			success: true,
-			message: {
-				...buildChatMessage(message),
-				sender: {
-					id: userId,
-					name: sender.name || 'Unknown',
-					email: sender.email || '',
-					role: sender.role || 'candidate',
+			res.json({
+				success: true,
+				message: {
+					...buildChatMessage(message),
+					sender: {
+						id: userId,
+						name: sender.name || 'Unknown',
+						email: sender.email || '',
+						role: sender.role || 'candidate',
+					},
 				},
-			},
-		});
-	} catch (err) {
-		console.error('Upload error:', err);
-		res.status(500).json({ error: 'Failed to upload file' });
-	}
-});
+			});
+		} catch (err) {
+			console.error('Upload error:', err);
+			res.status(500).json({ error: 'Failed to upload file' });
+		}
+	},
+);
 
 module.exports = { router, getOrCreateConversation };

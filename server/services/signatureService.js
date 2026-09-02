@@ -123,8 +123,7 @@ async function createDocument(params) {
 
 		// Default expiry if not provided
 		const finalExpiresAt =
-			expiresAt ||
-			new Date(Date.now() + DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+			expiresAt || new Date(Date.now() + DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
 		// Insert document
 		const docResult = await client.query(
@@ -169,15 +168,7 @@ async function createDocument(params) {
 			) VALUES ($1, $2, $3, $4, $5, $6, $7)
 			RETURNING *
 			`,
-			[
-				document.id,
-				'sha256',
-				documentHash,
-				'document_content',
-				null,
-				chainHash,
-				createdBy,
-			],
+			[document.id, 'sha256', documentHash, 'document_content', null, chainHash, createdBy],
 		);
 
 		// Log creation event
@@ -224,10 +215,9 @@ async function cancelDocument(documentId, cancelledBy, reason) {
 		await client.query('BEGIN');
 
 		// Verify document exists and is not already completed/cancelled
-		const docCheck = await client.query(
-			`SELECT status FROM signature_documents WHERE id = $1`,
-			[documentId],
-		);
+		const docCheck = await client.query(`SELECT status FROM signature_documents WHERE id = $1`, [
+			documentId,
+		]);
 
 		if (docCheck.rows.length === 0) {
 			throw new Error('Document not found');
@@ -354,10 +344,9 @@ async function createParty(params) {
 	} = params;
 
 	// Try to find existing party by email (exact match for registered users, or any match)
-	const existing = await pool.query(
-		`SELECT * FROM signing_parties WHERE email = $1 LIMIT 1`,
-		[email.toLowerCase().trim()],
-	);
+	const existing = await pool.query(`SELECT * FROM signing_parties WHERE email = $1 LIMIT 1`, [
+		email.toLowerCase().trim(),
+	]);
 
 	if (existing.rows.length > 0) {
 		// Return existing party — callers can update if needed
@@ -407,10 +396,9 @@ async function addSigners(documentId, parties, sentBy) {
 		await client.query('BEGIN');
 
 		// Verify document is in draft
-		const docCheck = await client.query(
-			`SELECT status FROM signature_documents WHERE id = $1`,
-			[documentId],
-		);
+		const docCheck = await client.query(`SELECT status FROM signature_documents WHERE id = $1`, [
+			documentId,
+		]);
 
 		if (docCheck.rows.length === 0) {
 			throw new Error('Document not found');
@@ -450,10 +438,9 @@ async function addSigners(documentId, parties, sentBy) {
 		await client.query('COMMIT');
 
 		// Fetch updated document
-		const docResult = await pool.query(
-			`SELECT * FROM signature_documents WHERE id = $1`,
-			[documentId],
-		);
+		const docResult = await pool.query(`SELECT * FROM signature_documents WHERE id = $1`, [
+			documentId,
+		]);
 
 		return { requests, document: docResult.rows[0] };
 	} catch (error) {
@@ -963,10 +950,9 @@ async function verifyDocumentIntegrity(documentId, currentContent) {
 		};
 
 		// Get document
-		const docResult = await client.query(
-			`SELECT * FROM signature_documents WHERE id = $1`,
-			[documentId],
-		);
+		const docResult = await client.query(`SELECT * FROM signature_documents WHERE id = $1`, [
+			documentId,
+		]);
 
 		if (docResult.rows.length === 0) {
 			return {
@@ -1002,11 +988,7 @@ async function verifyDocumentIntegrity(documentId, currentContent) {
 		let previousHash = '';
 
 		for (const record of hashRecords.rows) {
-			const expectedChainHash = computeChainHash(
-				previousHash,
-				record.hash_value,
-				'sha256',
-			);
+			const expectedChainHash = computeChainHash(previousHash, record.hash_value, 'sha256');
 
 			const recordValid = record.chain_hash === expectedChainHash;
 			details.chainRecords.push({
@@ -1019,9 +1001,7 @@ async function verifyDocumentIntegrity(documentId, currentContent) {
 
 			if (!recordValid) {
 				chainValid = false;
-				details.errors.push(
-					`Chain hash mismatch at record ${record.id} (${record.hash_scope})`,
-				);
+				details.errors.push(`Chain hash mismatch at record ${record.id} (${record.hash_scope})`);
 			}
 
 			previousHash = record.chain_hash;
@@ -1224,18 +1204,14 @@ async function verifyAuditChain(documentId) {
 		// Verify event data hash
 		const computedEventHash = computeEventHash(event.event_data, 'sha256');
 		if (computedEventHash !== event.verified_hash) {
-			errors.push(
-				`Event ${event.sequence_number}: data hash mismatch (tampered?)`,
-			);
+			errors.push(`Event ${event.sequence_number}: data hash mismatch (tampered?)`);
 			return { valid: false, firstBrokenSequence: event.sequence_number, errors };
 		}
 
 		// Verify chain hash
 		const computedChainHash = computeChainHash(previousHash, event.verified_hash, 'sha256');
 		if (computedChainHash !== event.chain_hash) {
-			errors.push(
-				`Event ${event.sequence_number}: chain hash mismatch`,
-			);
+			errors.push(`Event ${event.sequence_number}: chain hash mismatch`);
 			return { valid: false, firstBrokenSequence: event.sequence_number, errors };
 		}
 
@@ -1255,10 +1231,9 @@ async function verifyAuditChain(documentId) {
  * @returns {Promise<Object|null>}
  */
 async function getDocumentWithParties(documentId) {
-	const docResult = await pool.query(
-		`SELECT * FROM signature_documents WHERE id = $1`,
-		[documentId],
-	);
+	const docResult = await pool.query(`SELECT * FROM signature_documents WHERE id = $1`, [
+		documentId,
+	]);
 
 	if (docResult.rows.length === 0) return null;
 

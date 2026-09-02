@@ -78,10 +78,13 @@ class EuComplianceService {
 	// ── Bias Detection Per Posting ───────────────────────────────────────
 
 	/**
-   * Calculate bias metrics for a specific job posting.
-   * Uses candidate_demographics + job_applications to compute selection rates.
-   */
-	static async calculateBiasMetricsForJob(jobId, { selectionStatuses = ['interview', 'hired', 'offer_extended'] } = {}) {
+	 * Calculate bias metrics for a specific job posting.
+	 * Uses candidate_demographics + job_applications to compute selection rates.
+	 */
+	static async calculateBiasMetricsForJob(
+		jobId,
+		{ selectionStatuses = ['interview', 'hired', 'offer_extended'] } = {},
+	) {
 		const metrics = [];
 
 		// Determine demographic attributes to analyze
@@ -125,7 +128,7 @@ class EuComplianceService {
 			const maxRate = Math.max(...rates);
 			const minRate = Math.min(...rates);
 			const overallRatio = maxRate > 0 ? minRate / maxRate : 0;
-			const flagged = overallRatio < 0.80;
+			const flagged = overallRatio < 0.8;
 
 			const metric = await pool.query(
 				`INSERT INTO bias_metrics (job_id, metric_type, demographic_attribute, group_breakdowns, overall_ratio, flagged, threshold_used, calculated_at, updated_at)
@@ -190,8 +193,8 @@ class EuComplianceService {
 	// ── Explainability ───────────────────────────────────────────────────
 
 	/**
-   * Generate or retrieve an explainability breakdown for a candidate-job pair.
-   */
+	 * Generate or retrieve an explainability breakdown for a candidate-job pair.
+	 */
 	/**
 	 * @param {{ userId: number, jobId: number, applicationId?: number, weightsHash?: string }} options
 	 */
@@ -206,10 +209,9 @@ class EuComplianceService {
 		}
 
 		// Build explanation from existing tables
-		const scoreResult = await pool.query(
-			`SELECT * FROM omniscore_results WHERE user_id = $1`,
-			[userId],
-		);
+		const scoreResult = await pool.query(`SELECT * FROM omniscore_results WHERE user_id = $1`, [
+			userId,
+		]);
 		const score = scoreResult.rows[0] || {};
 
 		const components = await pool.query(
@@ -220,7 +222,9 @@ class EuComplianceService {
 			[userId],
 		);
 
-		const jobResult = await pool.query(`SELECT title, requirements FROM jobs WHERE id = $1`, [jobId]);
+		const jobResult = await pool.query(`SELECT title, requirements FROM jobs WHERE id = $1`, [
+			jobId,
+		]);
 		const job = jobResult.rows[0] || {};
 
 		const matchResult = await pool.query(
@@ -234,15 +238,18 @@ class EuComplianceService {
 
 		// Build weighted factor breakdowns
 		const factorBreakdowns = [];
-		const overallScore = parseFloat(score.overall_score) || parseFloat(match.overall_match_score) || 0;
+		const overallScore =
+			parseFloat(score.overall_score) || parseFloat(match.overall_match_score) || 0;
 
 		// Technical factor
 		if (score.technical_score !== undefined || match.skill_match_score !== undefined) {
 			factorBreakdowns.push({
 				factor: 'Technical Skills',
-				weight: 0.40,
+				weight: 0.4,
 				score: parseFloat(score.technical_score) || parseFloat(match.skill_match_score) || 0,
-				contribution: ((parseFloat(score.technical_score) || parseFloat(match.skill_match_score) || 0) * 0.40).toFixed(2),
+				contribution: (
+					(parseFloat(score.technical_score) || parseFloat(match.skill_match_score) || 0) * 0.4
+				).toFixed(2),
 				explanation: match.skills_matched
 					? `Matched skills: ${Array.isArray(match.skills_matched) ? match.skills_matched.join(', ') : match.skills_matched}`
 					: 'Based on technical assessment and resume parsing',
@@ -254,9 +261,9 @@ class EuComplianceService {
 		if (score.behavioral_score !== undefined) {
 			factorBreakdowns.push({
 				factor: 'Behavioral Fit',
-				weight: 0.30,
+				weight: 0.3,
 				score: parseFloat(score.behavioral_score) || 0,
-				contribution: ((parseFloat(score.behavioral_score) || 0) * 0.30).toFixed(2),
+				contribution: ((parseFloat(score.behavioral_score) || 0) * 0.3).toFixed(2),
 				explanation: 'Derived from interview responses and personality indicators',
 				data_source: 'omniscore_results',
 			});
@@ -266,9 +273,12 @@ class EuComplianceService {
 		if (score.experience_score !== undefined || match.experience_match_score !== undefined) {
 			factorBreakdowns.push({
 				factor: 'Experience Match',
-				weight: 0.20,
+				weight: 0.2,
 				score: parseFloat(score.experience_score) || parseFloat(match.experience_match_score) || 0,
-				contribution: ((parseFloat(score.experience_score) || parseFloat(match.experience_match_score) || 0) * 0.20).toFixed(2),
+				contribution: (
+					(parseFloat(score.experience_score) || parseFloat(match.experience_match_score) || 0) *
+					0.2
+				).toFixed(2),
 				explanation: `Relevance to ${job.title || 'this role'} based on work history`,
 				data_source: 'score_components',
 			});
@@ -278,9 +288,9 @@ class EuComplianceService {
 		if (match.cultural_match_score !== undefined) {
 			factorBreakdowns.push({
 				factor: 'Cultural Fit',
-				weight: 0.10,
+				weight: 0.1,
 				score: parseFloat(match.cultural_match_score) || 0,
-				contribution: ((parseFloat(match.cultural_match_score) || 0) * 0.10).toFixed(2),
+				contribution: ((parseFloat(match.cultural_match_score) || 0) * 0.1).toFixed(2),
 				explanation: match.match_explanation || 'Alignment with company values and team dynamics',
 				data_source: 'candidate_job_matches',
 			});
@@ -435,7 +445,15 @@ class EuComplianceService {
 		return result.rows;
 	}
 
-	static async setRetentionPolicy({ dataType, retentionDays, autoDelete, companyId, policyScope, scopeId, description }) {
+	static async setRetentionPolicy({
+		dataType,
+		retentionDays,
+		autoDelete,
+		companyId,
+		policyScope,
+		scopeId,
+		description,
+	}) {
 		const result = await pool.query(
 			`INSERT INTO data_retention_policies (data_type, retention_days, auto_delete, company_id, policy_scope, scope_id, description, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
@@ -445,20 +463,28 @@ class EuComplianceService {
          description = EXCLUDED.description,
          updated_at = NOW()
        RETURNING *`,
-			[dataType, retentionDays, autoDelete, companyId || null, policyScope || 'global', scopeId || null, description || null],
+			[
+				dataType,
+				retentionDays,
+				autoDelete,
+				companyId || null,
+				policyScope || 'global',
+				scopeId || null,
+				description || null,
+			],
 		);
 		return result.rows[0];
 	}
 
 	/**
-   * Execute automated purge based on retention policies.
-   * Returns summary of what was purged.
-   */
+	 * Execute automated purge based on retention policies.
+	 * Returns summary of what was purged.
+	 */
 	/**
 	 * @param {{ dryRun?: boolean, companyId?: number }} options
 	 */
 	static async executePurge({ dryRun = true, companyId } = {}) {
-		const policies = await this.getRetentionPolicies({ companyId });
+		const policies = await EuComplianceService.getRetentionPolicies({ companyId });
 		const summary = [];
 
 		for (const policy of policies.filter((p) => p.auto_delete)) {
@@ -468,67 +494,89 @@ class EuComplianceService {
 			let deletedCount = 0;
 
 			switch (policy.data_type) {
-			case 'audit_logs': {
-				if (!dryRun) {
-					const r = await pool.query(`DELETE FROM audit_logs WHERE created_at < $1`, [cutoff]);
-					deletedCount = r.rowCount;
-				} else {
-					const r = await pool.query(`SELECT COUNT(*)::int as c FROM audit_logs WHERE created_at < $1`, [cutoff]);
-					deletedCount = r.rows[0].c;
+				case 'audit_logs': {
+					if (!dryRun) {
+						const r = await pool.query(`DELETE FROM audit_logs WHERE created_at < $1`, [cutoff]);
+						deletedCount = r.rowCount;
+					} else {
+						const r = await pool.query(
+							`SELECT COUNT(*)::int as c FROM audit_logs WHERE created_at < $1`,
+							[cutoff],
+						);
+						deletedCount = r.rows[0].c;
+					}
+					break;
 				}
-				break;
-			}
-			case 'interview_recordings': {
-				if (!dryRun) {
-					const r = await pool.query(`DELETE FROM interview_recordings WHERE created_at < $1`, [cutoff]);
-					deletedCount = r.rowCount;
-				} else {
-					const r = await pool.query(`SELECT COUNT(*)::int as c FROM interview_recordings WHERE created_at < $1`, [cutoff]);
-					deletedCount = r.rows[0].c;
+				case 'interview_recordings': {
+					if (!dryRun) {
+						const r = await pool.query(`DELETE FROM interview_recordings WHERE created_at < $1`, [
+							cutoff,
+						]);
+						deletedCount = r.rowCount;
+					} else {
+						const r = await pool.query(
+							`SELECT COUNT(*)::int as c FROM interview_recordings WHERE created_at < $1`,
+							[cutoff],
+						);
+						deletedCount = r.rows[0].c;
+					}
+					break;
 				}
-				break;
-			}
-			case 'assessment_results': {
-				if (!dryRun) {
-					const r = await pool.query(`DELETE FROM assessment_results WHERE created_at < $1`, [cutoff]);
-					deletedCount = r.rowCount;
-				} else {
-					const r = await pool.query(`SELECT COUNT(*)::int as c FROM assessment_results WHERE created_at < $1`, [cutoff]);
-					deletedCount = r.rows[0].c;
+				case 'assessment_results': {
+					if (!dryRun) {
+						const r = await pool.query(`DELETE FROM assessment_results WHERE created_at < $1`, [
+							cutoff,
+						]);
+						deletedCount = r.rowCount;
+					} else {
+						const r = await pool.query(
+							`SELECT COUNT(*)::int as c FROM assessment_results WHERE created_at < $1`,
+							[cutoff],
+						);
+						deletedCount = r.rows[0].c;
+					}
+					break;
 				}
-				break;
-			}
-			case 'candidate_data': {
-				// Anonymize rather than hard-delete for compliance
-				if (!dryRun) {
-					const r = await pool.query(
-						`UPDATE candidate_profiles
+				case 'candidate_data': {
+					// Anonymize rather than hard-delete for compliance
+					if (!dryRun) {
+						const r = await pool.query(
+							`UPDATE candidate_profiles
                SET headline = '[redacted]', bio = '[redacted]', phone = NULL,
                    linkedin_url = NULL, github_url = NULL, portfolio_url = NULL,
                    resume_url = NULL, photo_url = NULL, location = NULL,
                    updated_at = NOW()
                WHERE updated_at < $1`,
-						[cutoff],
-					);
-					deletedCount = r.rowCount;
-				} else {
-					const r = await pool.query(`SELECT COUNT(*)::int as c FROM candidate_profiles WHERE updated_at < $1`, [cutoff]);
-					deletedCount = r.rows[0].c;
+							[cutoff],
+						);
+						deletedCount = r.rowCount;
+					} else {
+						const r = await pool.query(
+							`SELECT COUNT(*)::int as c FROM candidate_profiles WHERE updated_at < $1`,
+							[cutoff],
+						);
+						deletedCount = r.rows[0].c;
+					}
+					break;
 				}
-				break;
-			}
-			case 'ai_decision_explanations': {
-				if (!dryRun) {
-					const r = await pool.query(`DELETE FROM ai_decision_explanations WHERE generated_at < $1`, [cutoff]);
-					deletedCount = r.rowCount;
-				} else {
-					const r = await pool.query(`SELECT COUNT(*)::int as c FROM ai_decision_explanations WHERE generated_at < $1`, [cutoff]);
-					deletedCount = r.rows[0].c;
+				case 'ai_decision_explanations': {
+					if (!dryRun) {
+						const r = await pool.query(
+							`DELETE FROM ai_decision_explanations WHERE generated_at < $1`,
+							[cutoff],
+						);
+						deletedCount = r.rowCount;
+					} else {
+						const r = await pool.query(
+							`SELECT COUNT(*)::int as c FROM ai_decision_explanations WHERE generated_at < $1`,
+							[cutoff],
+						);
+						deletedCount = r.rows[0].c;
+					}
+					break;
 				}
-				break;
-			}
-			default:
-				break;
+				default:
+					break;
 			}
 
 			summary.push({
@@ -545,7 +593,15 @@ class EuComplianceService {
 
 	// ── Consent Management ───────────────────────────────────────────────
 
-	static async recordConsent({ userId, consentType, consented, ipAddress, userAgent, metadata, recordedBy }) {
+	static async recordConsent({
+		userId,
+		consentType,
+		consented,
+		ipAddress,
+		userAgent,
+		metadata,
+		recordedBy,
+	}) {
 		const existing = await pool.query(
 			`SELECT * FROM consent_records WHERE user_id = $1 AND consent_type = $2 ORDER BY created_at DESC LIMIT 1`,
 			[userId, consentType],
@@ -561,7 +617,13 @@ class EuComplianceService {
              revoked_at = NULL, revoked_by = NULL, revocation_reason = NULL
          WHERE id = $5
          RETURNING *`,
-				[consented, consented ? new Date() : null, ipAddress, JSON.stringify(metadata || {}), prev.id],
+				[
+					consented,
+					consented ? new Date() : null,
+					ipAddress,
+					JSON.stringify(metadata || {}),
+					prev.id,
+				],
 			);
 			consentRecord = result.rows[0];
 
@@ -569,14 +631,30 @@ class EuComplianceService {
 			await pool.query(
 				`INSERT INTO consent_history (consent_record_id, user_id, consent_type, previous_value, new_value, changed_at, changed_by, ip_address, user_agent)
          VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7, $8)`,
-				[prev.id, userId, consentType, prev.consented, consented, recordedBy || null, ipAddress, userAgent],
+				[
+					prev.id,
+					userId,
+					consentType,
+					prev.consented,
+					consented,
+					recordedBy || null,
+					ipAddress,
+					userAgent,
+				],
 			);
 		} else {
 			const result = await pool.query(
 				`INSERT INTO consent_records (user_id, consent_type, consented, consented_at, ip_address, metadata, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
          RETURNING *`,
-				[userId, consentType, consented, consented ? new Date() : null, ipAddress, JSON.stringify(metadata || {})],
+				[
+					userId,
+					consentType,
+					consented,
+					consented ? new Date() : null,
+					ipAddress,
+					JSON.stringify(metadata || {}),
+				],
 			);
 			consentRecord = result.rows[0];
 		}
@@ -602,7 +680,16 @@ class EuComplianceService {
 		await pool.query(
 			`INSERT INTO consent_history (consent_record_id, user_id, consent_type, previous_value, new_value, changed_at, changed_by, ip_address, user_agent)
        VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7, $8)`,
-			[consentId, prev.user_id, prev.consent_type, prev.consented, false, revokedBy, ipAddress, userAgent],
+			[
+				consentId,
+				prev.user_id,
+				prev.consent_type,
+				prev.consented,
+				false,
+				revokedBy,
+				ipAddress,
+				userAgent,
+			],
 		);
 
 		return result.rows[0];
@@ -642,7 +729,14 @@ class EuComplianceService {
 
 	// ── Transparency Reports ─────────────────────────────────────────────
 
-	static async generateTransparencyReport({ companyId, periodStart, periodEnd, reportType = 'regulator', generatedBy, format = 'json' }) {
+	static async generateTransparencyReport({
+		companyId,
+		periodStart,
+		periodEnd,
+		reportType = 'regulator',
+		generatedBy,
+		format = 'json',
+	}) {
 		// Risk classifications summary
 		const riskResult = await pool.query(
 			`SELECT risk_level, COUNT(*)::int as count
@@ -759,7 +853,10 @@ class EuComplianceService {
 		}
 
 		const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-		const countResult = await pool.query(`SELECT COUNT(*)::int as total FROM transparency_reports ${where}`, params);
+		const countResult = await pool.query(
+			`SELECT COUNT(*)::int as total FROM transparency_reports ${where}`,
+			params,
+		);
 		const result = await pool.query(
 			`SELECT * FROM transparency_reports ${where} ORDER BY generated_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
 			[...params, limit, offset],

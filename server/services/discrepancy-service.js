@@ -19,7 +19,13 @@ const BASE_URL = process.env.FRONTEND_URL || 'https://rekrut.ai';
  * Create a discrepancy record.
  * Does NOT notify the candidate automatically — caller decides when.
  */
-async function createDiscrepancy({ verificationRequestId, fieldName, declaredValue, verifiedValue, severity }) {
+async function createDiscrepancy({
+	verificationRequestId,
+	fieldName,
+	declaredValue,
+	verifiedValue,
+	severity,
+}) {
 	const result = await pool.query(
 		`
     INSERT INTO discrepancies
@@ -59,7 +65,10 @@ async function notifyCandidate(verificationRequestId) {
 
 	// Build discrepancy list for email
 	const list = discResult.rows
-		.map((d, i) => `${i + 1}. ${d.field_name}: you declared "${d.declared_value || '(empty)'}", but verification shows "${d.verified_value || '(empty)'}" (${d.severity})`)
+		.map(
+			(d, i) =>
+				`${i + 1}. ${d.field_name}: you declared "${d.declared_value || '(empty)'}", but verification shows "${d.verified_value || '(empty)'}" (${d.severity})`,
+		)
 		.join('\n');
 
 	const responseUrl = `${BASE_URL}/candidate/background-check/discrepancies?verification_id=${verificationRequestId}`;
@@ -68,7 +77,7 @@ async function notifyCandidate(verificationRequestId) {
 		to: candidate.email,
 		subject: 'Action Required: Background Check Discrepancy Detected',
 		body: `Hi ${candidate.name || 'there'},\n\nDuring the background check process, ${count} discrepancy(ies) were found between your declared information and what the verifier provided:\n\n${list}\n\nPlease review and respond here:\n${responseUrl}\n\nYou have the opportunity to explain any discrepancies before they are shared with the recruiter.\n\nBest,\nRekrut AI`,
-		html: `<p>Hi ${candidate.name || 'there'},</p><p>During the background check process, <strong>${count} discrepancy(ies)</strong> were found:</p><ul>${discResult.rows.map(d => `<li><strong>${d.field_name}</strong>: declared "${d.declared_value || '(empty)'}", verified "${d.verified_value || '(empty)'}" (${d.severity})</li>`).join('')}</ul><p><a href="${responseUrl}">Review and respond</a></p><p>You have the opportunity to explain before this is shared with the recruiter.</p>`,
+		html: `<p>Hi ${candidate.name || 'there'},</p><p>During the background check process, <strong>${count} discrepancy(ies)</strong> were found:</p><ul>${discResult.rows.map((d) => `<li><strong>${d.field_name}</strong>: declared "${d.declared_value || '(empty)'}", verified "${d.verified_value || '(empty)'}" (${d.severity})</li>`).join('')}</ul><p><a href="${responseUrl}">Review and respond</a></p><p>You have the opportunity to explain before this is shared with the recruiter.</p>`,
 		userId: candidateId,
 		type: 'discrepancy_notification',
 		metadata: { verification_request_id: verificationRequestId, discrepancy_count: count },

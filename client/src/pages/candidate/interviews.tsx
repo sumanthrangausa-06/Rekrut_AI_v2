@@ -16,23 +16,23 @@ import {
 	User,
 	Video,
 	XCircle,
-} from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { EmptyState } from '@/components/domain/empty-state'
-import { UNSPLASH_IMAGES } from '@/lib/avatar'
-import { Skeleton } from '@/components/domain/skeleton'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
-import { apiCall } from '@/lib/api'
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { EmptyState } from '@/components/domain/empty-state';
+import { Skeleton } from '@/components/domain/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { apiCall } from '@/lib/api';
+import { UNSPLASH_IMAGES } from '@/lib/avatar';
 
-const FETCH_TIMEOUT = 10000 // 10 seconds
+const FETCH_TIMEOUT = 10000; // 10 seconds
 
 function withTimeout<T>(promise: Promise<T>, ms = FETCH_TIMEOUT, label = 'Request'): Promise<T> {
 	return Promise.race([
@@ -40,34 +40,34 @@ function withTimeout<T>(promise: Promise<T>, ms = FETCH_TIMEOUT, label = 'Reques
 		new Promise<T>((_, reject) =>
 			setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
 		),
-	])
+	]);
 }
 
 interface Interview {
-	id: number
-	scheduled_at: string
-	duration_minutes: number
-	interview_type: string
-	meeting_link: string | null
-	notes: string | null
-	status: string
-	outcome: string | null
-	feedback: any | null
-	created_at: string
-	job_title: string
-	job_id: number
-	company_name: string
-	company_full_name: string | null
-	recruiter_name: string
-	recruiter_email: string
+	id: number;
+	scheduled_at: string;
+	duration_minutes: number;
+	interview_type: string;
+	meeting_link: string | null;
+	notes: string | null;
+	status: string;
+	outcome: string | null;
+	feedback: any | null;
+	created_at: string;
+	job_title: string;
+	job_id: number;
+	company_name: string;
+	company_full_name: string | null;
+	recruiter_name: string;
+	recruiter_email: string;
 }
 
 const statusConfig: Record<
 	string,
 	{
-		label: string
-		variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive'
-		icon: React.ElementType
+		label: string;
+		variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive';
+		icon: React.ElementType;
 	}
 > = {
 	scheduled: { label: 'Scheduled', variant: 'warning', icon: Clock },
@@ -77,13 +77,13 @@ const statusConfig: Record<
 	declined: { label: 'Declined', variant: 'secondary', icon: XCircle },
 	reschedule_requested: { label: 'Reschedule Requested', variant: 'warning', icon: RefreshCw },
 	no_show: { label: 'No Show', variant: 'destructive', icon: AlertCircle },
-}
+};
 
 const typeConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
 	video: { label: 'Video Call', icon: Video, color: 'bg-blue-100 text-blue-700' },
 	phone: { label: 'Phone', icon: Phone, color: 'bg-green-100 text-green-700' },
 	'in-person': { label: 'In Person', icon: MapPin, color: 'bg-purple-100 text-purple-700' },
-}
+};
 
 function formatDate(d: string) {
 	return new Date(d).toLocaleDateString('en-US', {
@@ -91,32 +91,32 @@ function formatDate(d: string) {
 		month: 'long',
 		day: 'numeric',
 		year: 'numeric',
-	})
+	});
 }
 
 function formatTime(d: string) {
-	return new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+	return new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
 function isToday(d: string) {
-	const date = new Date(d)
-	const today = new Date()
-	return date.toDateString() === today.toDateString()
+	const date = new Date(d);
+	const today = new Date();
+	return date.toDateString() === today.toDateString();
 }
 
 function isFuture(d: string) {
-	return new Date(d) > new Date()
+	return new Date(d) > new Date();
 }
 
 function getTimeUntil(d: string) {
-	const ms = new Date(d).getTime() - Date.now()
-	if (ms < 0) return 'Past'
-	const days = Math.floor(ms / (1000 * 60 * 60 * 24))
-	const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-	if (days > 0) return `in ${days}d ${hours}h`
-	const mins = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))
-	if (hours > 0) return `in ${hours}h ${mins}m`
-	return `in ${mins}m`
+	const ms = new Date(d).getTime() - Date.now();
+	if (ms < 0) return 'Past';
+	const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+	const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+	if (days > 0) return `in ${days}d ${hours}h`;
+	const mins = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+	if (hours > 0) return `in ${hours}h ${mins}m`;
+	return `in ${mins}m`;
 }
 
 const INTERVIEW_TIPS = [
@@ -145,78 +145,78 @@ const INTERVIEW_TIPS = [
 		title: 'Test Your Tech',
 		desc: 'For video interviews, test camera, mic, and internet beforehand.',
 	},
-]
+];
 
 export function CandidateInterviewsPage() {
-	const navigate = useNavigate()
-	const [interviews, setInterviews] = useState<Interview[]>([])
-	const [loading, setLoading] = useState(true)
-	const [tab, setTab] = useState('upcoming')
-	const [showDecline, setShowDecline] = useState<Interview | null>(null)
-	const [showReschedule, setShowReschedule] = useState<Interview | null>(null)
-	const [declineReason, setDeclineReason] = useState('')
-	const [rescheduleReason, setRescheduleReason] = useState('')
-	const [rescheduleTime, setRescheduleTime] = useState('')
-	const [saving, setSaving] = useState(false)
-	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+	const navigate = useNavigate();
+	const [interviews, setInterviews] = useState<Interview[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [tab, setTab] = useState('upcoming');
+	const [showDecline, setShowDecline] = useState<Interview | null>(null);
+	const [showReschedule, setShowReschedule] = useState<Interview | null>(null);
+	const [declineReason, setDeclineReason] = useState('');
+	const [rescheduleReason, setRescheduleReason] = useState('');
+	const [rescheduleTime, setRescheduleTime] = useState('');
+	const [saving, setSaving] = useState(false);
+	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
 	const loadInterviews = useCallback(async () => {
-		setLoading(true)
+		setLoading(true);
 		try {
 			const res = await withTimeout(
 				apiCall<{ success: boolean; interviews: Interview[] }>('/candidate/interviews/scheduled'),
 				FETCH_TIMEOUT,
 				'Interviews',
-			)
-			setInterviews(res.interviews || [])
+			);
+			setInterviews(res.interviews || []);
 		} catch (err) {
-			console.error('Load interviews error:', err)
+			console.error('Load interviews error:', err);
 		} finally {
-			setLoading(false)
+			setLoading(false);
 		}
-	}, [])
+	}, []);
 
 	useEffect(() => {
-		loadInterviews()
-	}, [loadInterviews])
+		loadInterviews();
+	}, [loadInterviews]);
 
 	useEffect(() => {
 		if (message) {
-			const t = setTimeout(() => setMessage(null), 4000)
-			return () => clearTimeout(t)
+			const t = setTimeout(() => setMessage(null), 4000);
+			return () => clearTimeout(t);
 		}
-	}, [message])
+	}, [message]);
 
 	async function acceptInterview(id: number) {
 		try {
-			await apiCall(`/candidate/interviews/${id}/accept`, { method: 'PUT' })
-			await loadInterviews()
+			await apiCall(`/candidate/interviews/${id}/accept`, { method: 'PUT' });
+			await loadInterviews();
 		} catch (err: any) {
-			setMessage({ type: 'error', text: err.message || 'Failed to accept' })
+			setMessage({ type: 'error', text: err.message || 'Failed to accept' });
 		}
 	}
 
 	async function declineInterview() {
-		if (!showDecline) return
-		setSaving(true)
+		if (!showDecline) return;
+		setSaving(true);
 		try {
 			await apiCall(`/candidate/interviews/${showDecline.id}/decline`, {
 				method: 'PUT',
 				body: { reason: declineReason },
-			})
-			setShowDecline(null)
-			setDeclineReason('')
-			await loadInterviews()
+			});
+			setShowDecline(null);
+			setDeclineReason('');
+			await loadInterviews();
 		} catch (err: any) {
-			setMessage({ type: 'error', text: err.message || 'Failed to decline' })
+			setMessage({ type: 'error', text: err.message || 'Failed to decline' });
 		} finally {
-			setSaving(false)
+			setSaving(false);
 		}
 	}
 
 	async function requestReschedule() {
-		if (!showReschedule) return
-		setSaving(true)
+		if (!showReschedule) return;
+		setSaving(true);
 		try {
 			await apiCall(`/candidate/interviews/${showReschedule.id}/reschedule`, {
 				method: 'PUT',
@@ -224,15 +224,15 @@ export function CandidateInterviewsPage() {
 					reason: rescheduleReason,
 					preferred_time: rescheduleTime || undefined,
 				},
-			})
-			setShowReschedule(null)
-			setRescheduleReason('')
-			setRescheduleTime('')
-			await loadInterviews()
+			});
+			setShowReschedule(null);
+			setRescheduleReason('');
+			setRescheduleTime('');
+			await loadInterviews();
 		} catch (err: any) {
-			setMessage({ type: 'error', text: err.message || 'Failed to request reschedule' })
+			setMessage({ type: 'error', text: err.message || 'Failed to request reschedule' });
 		} finally {
-			setSaving(false)
+			setSaving(false);
 		}
 	}
 
@@ -240,34 +240,34 @@ export function CandidateInterviewsPage() {
 		(i) =>
 			isFuture(i.scheduled_at) &&
 			['scheduled', 'confirmed', 'reschedule_requested'].includes(i.status),
-	)
+	);
 	const past = interviews.filter(
 		(i) =>
 			!isFuture(i.scheduled_at) ||
 			['completed', 'cancelled', 'declined', 'no_show'].includes(i.status),
-	)
+	);
 
 	if (loading) {
 		return (
-			<div className='space-y-6 px-4 sm:px-6'>
-				<div className='flex items-center justify-between'>
-					<div className='space-y-2'>
-						<div className='h-8 w-40 rounded bg-muted animate-pulse' />
-						<div className='h-4 w-64 rounded bg-muted animate-pulse' />
+			<div className="space-y-6 px-4 sm:px-6">
+				<div className="flex items-center justify-between">
+					<div className="space-y-2">
+						<div className="h-8 w-40 rounded bg-muted animate-pulse" />
+						<div className="h-4 w-64 rounded bg-muted animate-pulse" />
 					</div>
-					<div className='h-10 w-40 rounded bg-muted animate-pulse' />
+					<div className="h-10 w-40 rounded bg-muted animate-pulse" />
 				</div>
-				<div className='space-y-3'>
-					<Skeleton variant='card' />
-					<Skeleton variant='card' />
-					<Skeleton variant='card' />
+				<div className="space-y-3">
+					<Skeleton variant="card" />
+					<Skeleton variant="card" />
+					<Skeleton variant="card" />
 				</div>
 			</div>
-		)
+		);
 	}
 
 	return (
-		<div className='space-y-6'>
+		<div className="space-y-6">
 			{/* Toast */}
 			{message && (
 				<div
@@ -276,26 +276,26 @@ export function CandidateInterviewsPage() {
 					}`}
 				>
 					{message.type === 'success' ? (
-						<CheckCircle className='h-4 w-4' />
+						<CheckCircle className="h-4 w-4" />
 					) : (
-						<AlertCircle className='h-4 w-4' />
+						<AlertCircle className="h-4 w-4" />
 					)}
 					{message.text}
 				</div>
 			)}
 
 			{/* Header */}
-			<div className='flex items-center justify-between'>
+			<div className="flex items-center justify-between">
 				<div>
-					<h1 className='text-2xl font-heading font-bold'>My Interviews</h1>
-					<p className='text-muted-foreground text-sm'>View and manage your scheduled interviews</p>
+					<h1 className="text-2xl font-heading font-bold">My Interviews</h1>
+					<p className="text-muted-foreground text-sm">View and manage your scheduled interviews</p>
 				</div>
 				<Button
-					variant='outline'
+					variant="outline"
 					onClick={() => navigate('/candidate/ai-coaching')}
-					className='min-h-[44px]'
+					className="min-h-[44px]"
 				>
-					<Briefcase className='h-4 w-4 mr-2' />
+					<Briefcase className="h-4 w-4 mr-2" />
 					Practice Interview
 				</Button>
 			</div>
@@ -312,29 +312,29 @@ export function CandidateInterviewsPage() {
 			)}
 
 			<Tabs value={tab} onValueChange={setTab}>
-				<TabsList className='min-h-[44px]'>
-					<TabsTrigger value='upcoming' className='min-h-[44px]'>
+				<TabsList className="min-h-[44px]">
+					<TabsTrigger value="upcoming" className="min-h-[44px]">
 						Upcoming ({upcoming.length})
 					</TabsTrigger>
-					<TabsTrigger value='past' className='min-h-[44px]'>
+					<TabsTrigger value="past" className="min-h-[44px]">
 						Past ({past.length})
 					</TabsTrigger>
-					<TabsTrigger value='tips' className='min-h-[44px]'>
+					<TabsTrigger value="tips" className="min-h-[44px]">
 						Interview Tips
 					</TabsTrigger>
 				</TabsList>
 
 				{/* Upcoming */}
-				<TabsContent value='upcoming'>
+				<TabsContent value="upcoming">
 					{upcoming.length === 0 ? (
 						<EmptyState
 							icon={Calendar}
-							title='No upcoming interviews'
+							title="No upcoming interviews"
 							description="When recruiters schedule interviews, they'll appear here."
-       image={UNSPLASH_IMAGES.emptyInterviews}
+							image={UNSPLASH_IMAGES.emptyInterviews}
 						/>
 					) : (
-						<div className='space-y-3'>
+						<div className="space-y-3">
 							{upcoming
 								.sort(
 									(a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime(),
@@ -345,13 +345,13 @@ export function CandidateInterviewsPage() {
 										interview={interview}
 										onAccept={() => acceptInterview(interview.id)}
 										onDecline={() => {
-											setShowDecline(interview)
-											setDeclineReason('')
+											setShowDecline(interview);
+											setDeclineReason('');
 										}}
 										onReschedule={() => {
-											setShowReschedule(interview)
-											setRescheduleReason('')
-											setRescheduleTime('')
+											setShowReschedule(interview);
+											setRescheduleReason('');
+											setRescheduleTime('');
 										}}
 										onPractice={() =>
 											navigate(
@@ -365,16 +365,16 @@ export function CandidateInterviewsPage() {
 				</TabsContent>
 
 				{/* Past */}
-				<TabsContent value='past'>
+				<TabsContent value="past">
 					{past.length === 0 ? (
 						<EmptyState
 							icon={Inbox}
-							title='No past interviews'
-							description='Completed, cancelled, or declined interviews will appear here.'
-       image={UNSPLASH_IMAGES.emptyInterviews}
+							title="No past interviews"
+							description="Completed, cancelled, or declined interviews will appear here."
+							image={UNSPLASH_IMAGES.emptyInterviews}
 						/>
 					) : (
-						<div className='space-y-3'>
+						<div className="space-y-3">
 							{past.map((interview) => (
 								<InterviewCard key={interview.id} interview={interview} isPast />
 							))}
@@ -383,18 +383,18 @@ export function CandidateInterviewsPage() {
 				</TabsContent>
 
 				{/* Tips */}
-				<TabsContent value='tips'>
-					<div className='grid gap-4 sm:grid-cols-2'>
+				<TabsContent value="tips">
+					<div className="grid gap-4 sm:grid-cols-2">
 						{INTERVIEW_TIPS.map((tip, i) => (
 							<Card key={tip.title || `tip-${i}`}>
-								<CardContent className='p-4'>
-									<div className='flex gap-3'>
-										<div className='p-2 rounded-lg bg-primary/10 text-primary h-fit'>
-											<tip.icon className='h-5 w-5' />
+								<CardContent className="p-4">
+									<div className="flex gap-3">
+										<div className="p-2 rounded-lg bg-primary/10 text-primary h-fit">
+											<tip.icon className="h-5 w-5" />
 										</div>
 										<div>
-											<h3 className='font-semibold text-sm'>{tip.title}</h3>
-											<p className='text-sm text-muted-foreground mt-1'>{tip.desc}</p>
+											<h3 className="font-semibold text-sm">{tip.title}</h3>
+											<p className="text-sm text-muted-foreground mt-1">{tip.desc}</p>
 										</div>
 									</div>
 								</CardContent>
@@ -414,26 +414,26 @@ export function CandidateInterviewsPage() {
 							` (${showDecline.job_title} at ${showDecline.company_name || showDecline.company_full_name})`}
 					</DialogDescription>
 				</DialogHeader>
-				<div className='space-y-4 mt-4'>
+				<div className="space-y-4 mt-4">
 					<div>
 						<Label>Reason (optional)</Label>
 						<Textarea
 							value={declineReason}
 							onChange={(e) => setDeclineReason(e.target.value)}
-							placeholder='Let the recruiter know why...'
+							placeholder="Let the recruiter know why..."
 							rows={3}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						/>
 					</div>
-					<div className='flex gap-2 justify-end'>
-						<Button variant='outline' onClick={() => setShowDecline(null)} className='min-h-[44px]'>
+					<div className="flex gap-2 justify-end">
+						<Button variant="outline" onClick={() => setShowDecline(null)} className="min-h-[44px]">
 							Cancel
 						</Button>
 						<Button
-							variant='destructive'
+							variant="destructive"
 							onClick={declineInterview}
 							disabled={saving}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						>
 							{saving ? 'Declining...' : 'Decline Interview'}
 						</Button>
@@ -449,38 +449,38 @@ export function CandidateInterviewsPage() {
 						Request a new time for this interview. The recruiter will review your request.
 					</DialogDescription>
 				</DialogHeader>
-				<div className='space-y-4 mt-4'>
+				<div className="space-y-4 mt-4">
 					<div>
 						<Label>Reason</Label>
 						<Textarea
 							value={rescheduleReason}
 							onChange={(e) => setRescheduleReason(e.target.value)}
-							placeholder='Why do you need to reschedule?'
+							placeholder="Why do you need to reschedule?"
 							rows={2}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						/>
 					</div>
 					<div>
 						<Label>Preferred Time (optional)</Label>
 						<Input
-							type='datetime-local'
+							type="datetime-local"
 							value={rescheduleTime}
 							onChange={(e) => setRescheduleTime(e.target.value)}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						/>
 					</div>
-					<div className='flex gap-2 justify-end'>
+					<div className="flex gap-2 justify-end">
 						<Button
-							variant='outline'
+							variant="outline"
 							onClick={() => setShowReschedule(null)}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						>
 							Cancel
 						</Button>
 						<Button
 							onClick={requestReschedule}
 							disabled={saving || !rescheduleReason}
-							className='min-h-[44px]'
+							className="min-h-[44px]"
 						>
 							{saving ? 'Requesting...' : 'Request Reschedule'}
 						</Button>
@@ -488,65 +488,65 @@ export function CandidateInterviewsPage() {
 				</div>
 			</Dialog>
 		</div>
-	)
+	);
 }
 
 function NextInterviewCard({ interview }: { interview: Interview }) {
-	const tConfig = typeConfig[interview.interview_type] || typeConfig.video
-	const TypeIcon = tConfig.icon
-	const isNow = isToday(interview.scheduled_at)
-	const timeUntil = getTimeUntil(interview.scheduled_at)
+	const tConfig = typeConfig[interview.interview_type] || typeConfig.video;
+	const TypeIcon = tConfig.icon;
+	const isNow = isToday(interview.scheduled_at);
+	const timeUntil = getTimeUntil(interview.scheduled_at);
 
 	return (
-		<Card className='border-primary bg-primary/5'>
-			<CardContent className='p-5'>
-				<div className='flex flex-col sm:flex-row items-start gap-4'>
+		<Card className="border-primary bg-primary/5">
+			<CardContent className="p-5">
+				<div className="flex flex-col sm:flex-row items-start gap-4">
 					<div className={`p-3 rounded-xl ${tConfig.color}`}>
-						<TypeIcon className='h-6 w-6' />
+						<TypeIcon className="h-6 w-6" />
 					</div>
-					<div className='flex-1'>
-						<div className='flex items-center gap-2 flex-wrap'>
-							<span className='text-xs font-medium text-primary uppercase tracking-wide'>
+					<div className="flex-1">
+						<div className="flex items-center gap-2 flex-wrap">
+							<span className="text-xs font-medium text-primary uppercase tracking-wide">
 								Next Interview
 							</span>
 							{isNow && (
-								<Badge variant='default' className='bg-primary text-xs'>
+								<Badge variant="default" className="bg-primary text-xs">
 									Today!
 								</Badge>
 							)}
-							<span className='text-xs text-muted-foreground'>{timeUntil}</span>
+							<span className="text-xs text-muted-foreground">{timeUntil}</span>
 						</div>
-						<h2 className='text-lg font-semibold mt-1'>{interview.job_title}</h2>
-						<div className='flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap'>
-							<span className='flex items-center gap-1'>
-								<Building2 className='h-3.5 w-3.5' />{' '}
+						<h2 className="text-lg font-semibold mt-1">{interview.job_title}</h2>
+						<div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
+							<span className="flex items-center gap-1">
+								<Building2 className="h-3.5 w-3.5" />{' '}
 								{interview.company_full_name || interview.company_name}
 							</span>
-							<span className='flex items-center gap-1'>
-								<Calendar className='h-3.5 w-3.5' /> {formatDate(interview.scheduled_at)}
+							<span className="flex items-center gap-1">
+								<Calendar className="h-3.5 w-3.5" /> {formatDate(interview.scheduled_at)}
 							</span>
-							<span className='flex items-center gap-1'>
-								<Clock className='h-3.5 w-3.5' /> {formatTime(interview.scheduled_at)} (
+							<span className="flex items-center gap-1">
+								<Clock className="h-3.5 w-3.5" /> {formatTime(interview.scheduled_at)} (
 								{interview.duration_minutes}min)
 							</span>
 						</div>
 						{interview.recruiter_name && (
-							<p className='text-sm text-muted-foreground mt-1 flex items-center gap-1'>
-								<User className='h-3.5 w-3.5' /> Interviewer: {interview.recruiter_name}
+							<p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+								<User className="h-3.5 w-3.5" /> Interviewer: {interview.recruiter_name}
 							</p>
 						)}
 					</div>
 					{interview.meeting_link && (
-						<a href={interview.meeting_link} target='_blank' rel='noopener noreferrer'>
-							<Button size='lg' className='min-h-[44px]'>
-								<Video className='h-4 w-4 mr-2' /> Join Call
+						<a href={interview.meeting_link} target="_blank" rel="noopener noreferrer">
+							<Button size="lg" className="min-h-[44px]">
+								<Video className="h-4 w-4 mr-2" /> Join Call
 							</Button>
 						</a>
 					)}
 				</div>
 			</CardContent>
 		</Card>
-	)
+	);
 }
 
 function InterviewCard({
@@ -557,75 +557,75 @@ function InterviewCard({
 	onPractice,
 	_isPast,
 }: {
-	interview: Interview
-	onAccept?: () => void
-	onDecline?: () => void
-	onReschedule?: () => void
-	onPractice?: () => void
-	isPast?: boolean
+	interview: Interview;
+	onAccept?: () => void;
+	onDecline?: () => void;
+	onReschedule?: () => void;
+	onPractice?: () => void;
+	isPast?: boolean;
 }) {
-	const config = statusConfig[interview.status] || statusConfig.scheduled
-	const StatusIcon = config.icon
-	const tConfig = typeConfig[interview.interview_type] || typeConfig.video
-	const TypeIcon = tConfig.icon
+	const config = statusConfig[interview.status] || statusConfig.scheduled;
+	const StatusIcon = config.icon;
+	const tConfig = typeConfig[interview.interview_type] || typeConfig.video;
+	const TypeIcon = tConfig.icon;
 	const isUpcoming =
-		isFuture(interview.scheduled_at) && ['scheduled', 'confirmed'].includes(interview.status)
-	const canRespond = interview.status === 'scheduled'
+		isFuture(interview.scheduled_at) && ['scheduled', 'confirmed'].includes(interview.status);
+	const canRespond = interview.status === 'scheduled';
 	const feedback =
 		typeof interview.feedback === 'string'
 			? (() => {
 					try {
-						return JSON.parse(interview.feedback)
+						return JSON.parse(interview.feedback);
 					} catch {
-						return null
+						return null;
 					}
 				})()
-			: interview.feedback
+			: interview.feedback;
 
 	return (
 		<Card>
-			<CardContent className='p-4'>
-				<div className='flex flex-col sm:flex-row gap-4'>
+			<CardContent className="p-4">
+				<div className="flex flex-col sm:flex-row gap-4">
 					{/* Type icon */}
 					<div className={`p-2.5 rounded-xl ${tConfig.color} h-fit`}>
-						<TypeIcon className='h-5 w-5' />
+						<TypeIcon className="h-5 w-5" />
 					</div>
 
 					{/* Details */}
-					<div className='flex-1 min-w-0'>
-						<div className='flex items-center gap-2 flex-wrap'>
-							<h3 className='font-semibold'>{interview.job_title}</h3>
+					<div className="flex-1 min-w-0">
+						<div className="flex items-center gap-2 flex-wrap">
+							<h3 className="font-semibold">{interview.job_title}</h3>
 							<Badge variant={config.variant}>
-								<StatusIcon className='h-3 w-3 mr-1' /> {config.label}
+								<StatusIcon className="h-3 w-3 mr-1" /> {config.label}
 							</Badge>
 						</div>
-						<div className='flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap'>
-							<span className='flex items-center gap-1'>
-								<Building2 className='h-3.5 w-3.5' />{' '}
+						<div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
+							<span className="flex items-center gap-1">
+								<Building2 className="h-3.5 w-3.5" />{' '}
 								{interview.company_full_name || interview.company_name}
 							</span>
-							<span className='flex items-center gap-1'>
-								<Calendar className='h-3.5 w-3.5' /> {formatDate(interview.scheduled_at)}
+							<span className="flex items-center gap-1">
+								<Calendar className="h-3.5 w-3.5" /> {formatDate(interview.scheduled_at)}
 							</span>
-							<span className='flex items-center gap-1'>
-								<Clock className='h-3.5 w-3.5' /> {formatTime(interview.scheduled_at)} (
+							<span className="flex items-center gap-1">
+								<Clock className="h-3.5 w-3.5" /> {formatTime(interview.scheduled_at)} (
 								{interview.duration_minutes}min)
 							</span>
 						</div>
 						{interview.recruiter_name && (
-							<p className='text-sm text-muted-foreground mt-1'>
+							<p className="text-sm text-muted-foreground mt-1">
 								Interviewer: {interview.recruiter_name}
 							</p>
 						)}
 						{interview.notes && (
-							<p className='text-sm text-muted-foreground mt-2 bg-muted p-2 rounded'>
+							<p className="text-sm text-muted-foreground mt-2 bg-muted p-2 rounded">
 								{interview.notes}
 							</p>
 						)}
 						{feedback && (
-							<div className='mt-2 p-2 bg-muted rounded text-sm'>
-								<span className='font-medium'>Result: </span>
-								<span className='capitalize'>
+							<div className="mt-2 p-2 bg-muted rounded text-sm">
+								<span className="font-medium">Result: </span>
+								<span className="capitalize">
 									{interview.outcome?.replace('_', ' ') || 'Completed'}
 								</span>
 							</div>
@@ -633,47 +633,47 @@ function InterviewCard({
 					</div>
 
 					{/* Actions */}
-					<div className='flex flex-wrap gap-2 sm:flex-col'>
+					<div className="flex flex-wrap gap-2 sm:flex-col">
 						{interview.meeting_link && isUpcoming && (
-							<a href={interview.meeting_link} target='_blank' rel='noopener noreferrer'>
-								<Button size='sm' className='w-full min-h-[44px]'>
-									<Video className='h-3.5 w-3.5 mr-1' /> Join Call
+							<a href={interview.meeting_link} target="_blank" rel="noopener noreferrer">
+								<Button size="sm" className="w-full min-h-[44px]">
+									<Video className="h-3.5 w-3.5 mr-1" /> Join Call
 								</Button>
 							</a>
 						)}
 						{canRespond && onAccept && (
-							<Button size='sm' variant='outline' onClick={onAccept} className='min-h-[44px]'>
-								<CheckCircle className='h-3.5 w-3.5 mr-1' /> Accept
+							<Button size="sm" variant="outline" onClick={onAccept} className="min-h-[44px]">
+								<CheckCircle className="h-3.5 w-3.5 mr-1" /> Accept
 							</Button>
 						)}
 						{canRespond && onReschedule && (
-							<Button size='sm' variant='outline' onClick={onReschedule} className='min-h-[44px]'>
-								<RefreshCw className='h-3.5 w-3.5 mr-1' /> Reschedule
+							<Button size="sm" variant="outline" onClick={onReschedule} className="min-h-[44px]">
+								<RefreshCw className="h-3.5 w-3.5 mr-1" /> Reschedule
 							</Button>
 						)}
 						{canRespond && onDecline && (
 							<Button
-								size='sm'
-								variant='ghost'
-								className='text-destructive min-h-[44px]'
+								size="sm"
+								variant="ghost"
+								className="text-destructive min-h-[44px]"
 								onClick={onDecline}
 							>
-								<XCircle className='h-3.5 w-3.5 mr-1' /> Decline
+								<XCircle className="h-3.5 w-3.5 mr-1" /> Decline
 							</Button>
 						)}
 						{isUpcoming && onPractice && (
 							<Button
-								size='sm'
-								variant='outline'
-								className='text-blue-600 border-blue-200 hover:bg-blue-50 min-h-[44px]'
+								size="sm"
+								variant="outline"
+								className="text-blue-600 border-blue-200 hover:bg-blue-50 min-h-[44px]"
 								onClick={onPractice}
 							>
-								<Target className='h-3.5 w-3.5 mr-1' /> Practice
+								<Target className="h-3.5 w-3.5 mr-1" /> Practice
 							</Button>
 						)}
 					</div>
 				</div>
 			</CardContent>
 		</Card>
-	)
+	);
 }

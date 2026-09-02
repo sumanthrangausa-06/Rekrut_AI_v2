@@ -147,15 +147,33 @@ module.exports = {
     `);
 
 		// ── Indexes ───────────────────────────────────────────
-		await client.query(`CREATE INDEX IF NOT EXISTS idx_career_coach_sessions_user ON career_coach_sessions(user_id)`);
-		await client.query(`CREATE INDEX IF NOT EXISTS idx_career_coach_sessions_type ON career_coach_sessions(session_type)`);
-		await client.query(`CREATE INDEX IF NOT EXISTS idx_career_recommendations_user ON career_recommendations(user_id)`);
-		await client.query(`CREATE INDEX IF NOT EXISTS idx_skill_gap_user ON skill_gap_analyses(user_id)`);
-		await client.query(`CREATE INDEX IF NOT EXISTS idx_learning_paths_user ON learning_paths(user_id)`);
-		await client.query(`CREATE INDEX IF NOT EXISTS idx_company_briefs_user ON company_research_briefs(user_id)`);
-		await client.query(`CREATE INDEX IF NOT EXISTS idx_company_briefs_company ON company_research_briefs(company_id)`);
-		await client.query(`CREATE INDEX IF NOT EXISTS idx_app_optimizations_user ON application_optimizations(user_id)`);
-		await client.query(`CREATE INDEX IF NOT EXISTS idx_salary_practice_user ON salary_practice_sessions(user_id)`);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_career_coach_sessions_user ON career_coach_sessions(user_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_career_coach_sessions_type ON career_coach_sessions(session_type)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_career_recommendations_user ON career_recommendations(user_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_skill_gap_user ON skill_gap_analyses(user_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_learning_paths_user ON learning_paths(user_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_company_briefs_user ON company_research_briefs(user_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_company_briefs_company ON company_research_briefs(company_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_app_optimizations_user ON application_optimizations(user_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_salary_practice_user ON salary_practice_sessions(user_id)`,
+		);
 
 		console.log('[migration] career_coach_schema tables created');
 	},

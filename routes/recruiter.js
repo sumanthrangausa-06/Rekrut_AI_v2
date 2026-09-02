@@ -47,7 +47,6 @@ function buildDateFilterSql(startDate, endDate, paramIndexStart = 2) {
 	return { sql: conditions.length ? ' AND ' + conditions.join(' AND ') : '', nextIndex: idx };
 }
 
-
 function badRequest(message) {
 	const err = new Error(message);
 	err.statusCode = 400;
@@ -110,37 +109,43 @@ async function ensureCompany(req, res, next) {
 }
 
 // Dashboard overview
-router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('analytics:read'), async (req, res) => {
-	try {
-		const companyId = req.user.company_id;
-		const days = parseInt(req.query.days, 10) || 30;
-		const dateFilter = days > 0 ? `AND applied_at >= NOW() - INTERVAL '1 day' * $2` : '';
+router.get(
+	'/dashboard',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('analytics:read'),
+	async (req, res) => {
+		try {
+			const companyId = req.user.company_id;
+			const days = parseInt(req.query.days, 10) || 30;
+			const dateFilter = days > 0 ? `AND applied_at >= NOW() - INTERVAL '1 day' * $2` : '';
 
-		// Issue #143: Cache analytics dashboard by company + days
-		const cacheKey = analyticsCache.key('/api/recruiter/dashboard', { companyId, days });
-		const cached = analyticsCache.get(cacheKey);
-		if (cached) {
-			return res.json({ success: true, cached: true, ...cached });
-		}
+			// Issue #143: Cache analytics dashboard by company + days
+			const cacheKey = analyticsCache.key('/api/recruiter/dashboard', { companyId, days });
+			const cached = analyticsCache.get(cacheKey);
+			if (cached) {
+				return res.json({ success: true, cached: true, ...cached });
+			}
 
-		// Get TrustScore
-		const trustScore = await trustscoreService.calculateTrustScore(companyId);
+			// Get TrustScore
+			const trustScore = await trustscoreService.calculateTrustScore(companyId);
 
-		// Get job stats
-		const jobStats = await pool.query(
-			`
+			// Get job stats
+			const jobStats = await pool.query(
+				`
       SELECT
         COUNT(*) FILTER (WHERE status = 'active') as active_jobs,
         COUNT(*) FILTER (WHERE status = 'paused') as paused_jobs,
         COUNT(*) FILTER (WHERE status = 'closed') as closed_jobs
       FROM jobs WHERE company_id = $1
     `,
-			[companyId],
-		);
+				[companyId],
+			);
 
-		// Get application stats (with reviewed count and rejected)
-		const appStats = await pool.query(
-			`
+			// Get application stats (with reviewed count and rejected)
+			const appStats = await pool.query(
+				`
       SELECT
         COUNT(*) as total_applications,
         COUNT(*) FILTER (WHERE status = 'applied') as new_applications,
@@ -152,49 +157,49 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
         COUNT(*) FILTER (WHERE status = 'rejected') as rejected
       FROM job_applications WHERE company_id = $1 ${dateFilter}
     `,
-			[companyId, days],
-		);
+				[companyId, days],
+			);
 
-		// Get total job views (graceful if job_analytics doesn't exist)
-		let totalViews = 0;
-		try {
-			const viewStats = await pool.query(
-				`
+			// Get total job views (graceful if job_analytics doesn't exist)
+			let totalViews = 0;
+			try {
+				const viewStats = await pool.query(
+					`
         SELECT COALESCE(SUM(views), 0) as total_views
         FROM job_analytics WHERE job_id IN (
           SELECT id FROM jobs WHERE company_id = $1
         )
       `,
-				[companyId],
-			);
-			totalViews = parseInt(viewStats.rows[0]?.total_views || '0', 10);
-		} catch (_viewErr) {
-			console.log('[dashboard] job_analytics table not available, total_views = 0');
-		}
+					[companyId],
+				);
+				totalViews = parseInt(viewStats.rows[0]?.total_views || '0', 10);
+			} catch (_viewErr) {
+				console.log('[dashboard] job_analytics table not available, total_views = 0');
+			}
 
-		// Get average time to hire (graceful if hired_at doesn't exist)
-		let avgTimeToHire = null;
-		try {
-			const timeToHire = await pool.query(
-				`
+			// Get average time to hire (graceful if hired_at doesn't exist)
+			let avgTimeToHire = null;
+			try {
+				const timeToHire = await pool.query(
+					`
         SELECT AVG(EXTRACT(EPOCH FROM (hired_at - applied_at)) / 86400) as avg_days
         FROM job_applications
         WHERE company_id = $1 ${dateFilter} AND status = 'hired' AND hired_at IS NOT NULL
       `,
-				[companyId, days],
-			);
-			avgTimeToHire = timeToHire.rows[0]?.avg_days
-				? parseFloat(timeToHire.rows[0].avg_days).toFixed(1)
-				: null;
-		} catch (_timeErr) {
-			console.log('[dashboard] hired_at column not available, avg_time_to_hire = null');
-		}
+					[companyId, days],
+				);
+				avgTimeToHire = timeToHire.rows[0]?.avg_days
+					? parseFloat(timeToHire.rows[0].avg_days).toFixed(1)
+					: null;
+			} catch (_timeErr) {
+				console.log('[dashboard] hired_at column not available, avg_time_to_hire = null');
+			}
 
-		// Get OmniScore distribution (graceful if omniscore_at_apply doesn't exist)
-		let scoreDistribution = { 900: 0, 800: 0, 700: 0, 600: 0, below: 0 };
-		try {
-			const scoreDist = await pool.query(
-				`
+			// Get OmniScore distribution (graceful if omniscore_at_apply doesn't exist)
+			let scoreDistribution = { 900: 0, 800: 0, 700: 0, 600: 0, below: 0 };
+			try {
+				const scoreDist = await pool.query(
+					`
         SELECT
           COUNT(*) FILTER (WHERE omniscore_at_apply >= 900) as "900",
           COUNT(*) FILTER (WHERE omniscore_at_apply >= 800 AND omniscore_at_apply < 900) as "800",
@@ -203,19 +208,19 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
           COUNT(*) FILTER (WHERE omniscore_at_apply < 600 OR omniscore_at_apply IS NULL) as below
         FROM job_applications WHERE company_id = $1 ${dateFilter}
       `,
-				[companyId, days],
-			);
-			scoreDistribution = scoreDist.rows[0] || scoreDistribution;
-		} catch (_scoreErr) {
-			console.log('[dashboard] omniscore_at_apply column not available, using defaults');
-		}
+					[companyId, days],
+				);
+				scoreDistribution = scoreDist.rows[0] || scoreDistribution;
+			} catch (_scoreErr) {
+				console.log('[dashboard] omniscore_at_apply column not available, using defaults');
+			}
 
-		// ─── HIRING VELOCITY ───
-		let hiringVelocity = [];
-		try {
-			const lookbackMonths = days > 0 && days <= 30 ? 1 : days <= 90 ? 3 : 6;
-			const velocityResult = await pool.query(
-				`
+			// ─── HIRING VELOCITY ───
+			let hiringVelocity = [];
+			try {
+				const lookbackMonths = days > 0 && days <= 30 ? 1 : days <= 90 ? 3 : 6;
+				const velocityResult = await pool.query(
+					`
         SELECT
           TO_CHAR(DATE_TRUNC('month', applied_at), 'Mon') as month,
           COUNT(*) as applications,
@@ -227,23 +232,23 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
         ORDER BY DATE_TRUNC('month', applied_at) ASC
         LIMIT 6
       `,
-				[companyId, lookbackMonths],
-			);
-			hiringVelocity = velocityResult.rows.map((r) => ({
-				month: r.month,
-				applications: parseInt(r.applications, 10) || 0,
-				hired: parseInt(r.hired, 10) || 0,
-				interviews: parseInt(r.interviews, 10) || 0,
-			}));
-		} catch (_velErr) {
-			console.log('[dashboard] hiring_velocity query failed, using defaults');
-		}
+					[companyId, lookbackMonths],
+				);
+				hiringVelocity = velocityResult.rows.map((r) => ({
+					month: r.month,
+					applications: parseInt(r.applications, 10) || 0,
+					hired: parseInt(r.hired, 10) || 0,
+					interviews: parseInt(r.interviews, 10) || 0,
+				}));
+			} catch (_velErr) {
+				console.log('[dashboard] hiring_velocity query failed, using defaults');
+			}
 
-		// ─── TIME TO HIRE BY STAGE ───
-		let timeToHireByStage = [];
-		try {
-			const stageResult = await pool.query(
-				`
+			// ─── TIME TO HIRE BY STAGE ───
+			let timeToHireByStage = [];
+			try {
+				const stageResult = await pool.query(
+					`
         SELECT
           'Applied → Screened' as stage,
           AVG(EXTRACT(EPOCH FROM (updated_at - applied_at)) / 86400) as avg_days,
@@ -276,49 +281,49 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
         WHERE company_id = $1 AND status = 'hired'
         AND applied_at IS NOT NULL AND updated_at IS NOT NULL ${dateFilter}
       `,
-				[companyId, days],
-			);
-			timeToHireByStage = stageResult.rows.map((r) => ({
-				stage: r.stage,
-				avg_days: r.avg_days ? parseFloat(r.avg_days).toFixed(1) : 0,
-				count: parseInt(r.count, 10) || 0,
-			}));
-		} catch (_stageErr) {
-			console.log('[dashboard] time_to_hire_by_stage query failed, using defaults');
-		}
+					[companyId, days],
+				);
+				timeToHireByStage = stageResult.rows.map((r) => ({
+					stage: r.stage,
+					avg_days: r.avg_days ? parseFloat(r.avg_days).toFixed(1) : 0,
+					count: parseInt(r.count, 10) || 0,
+				}));
+			} catch (_stageErr) {
+				console.log('[dashboard] time_to_hire_by_stage query failed, using defaults');
+			}
 
-		// ─── SOURCE BREAKDOWN (graceful) ───
-		let sourceBreakdown = [
-			{ name: 'Direct', count: 0, percentage: 0 },
-			{ name: 'LinkedIn', count: 0, percentage: 0 },
-			{ name: 'Indeed', count: 0, percentage: 0 },
-			{ name: 'Referral', count: 0, percentage: 0 },
-		];
-		try {
-			const sourceResult = await pool.query(
-				`
+			// ─── SOURCE BREAKDOWN (graceful) ───
+			let sourceBreakdown = [
+				{ name: 'Direct', count: 0, percentage: 0 },
+				{ name: 'LinkedIn', count: 0, percentage: 0 },
+				{ name: 'Indeed', count: 0, percentage: 0 },
+				{ name: 'Referral', count: 0, percentage: 0 },
+			];
+			try {
+				const sourceResult = await pool.query(
+					`
         SELECT COALESCE(source, 'Direct') as name, COUNT(*) as count
         FROM job_applications
         WHERE company_id = $1 ${dateFilter}
         GROUP BY source
       `,
-				[companyId, days],
-			);
-			const total = sourceResult.rows.reduce((sum, r) => sum + parseInt(r.count, 10), 0) || 1;
-			sourceBreakdown = sourceResult.rows.map((r) => ({
-				name: r.name,
-				count: parseInt(r.count, 10),
-				percentage: Math.round((parseInt(r.count, 10) / total) * 100),
-			}));
-		} catch (_sourceErr) {
-			console.log('[dashboard] source tracking not available, using default breakdown');
-		}
+					[companyId, days],
+				);
+				const total = sourceResult.rows.reduce((sum, r) => sum + parseInt(r.count, 10), 0) || 1;
+				sourceBreakdown = sourceResult.rows.map((r) => ({
+					name: r.name,
+					count: parseInt(r.count, 10),
+					percentage: Math.round((parseInt(r.count, 10) / total) * 100),
+				}));
+			} catch (_sourceErr) {
+				console.log('[dashboard] source tracking not available, using default breakdown');
+			}
 
-		// ─── DIVERSITY METRICS (graceful) ───
-		let diversityMetrics = null;
-		try {
-			const genderResult = await pool.query(
-				`
+			// ─── DIVERSITY METRICS (graceful) ───
+			let diversityMetrics = null;
+			try {
+				const genderResult = await pool.query(
+					`
         SELECT
           COALESCE(cp.gender, 'Unknown') as label,
           COUNT(*) as count
@@ -327,16 +332,17 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
         WHERE ja.company_id = $1 ${dateFilter}
         GROUP BY cp.gender
       `,
-				[companyId, days],
-			);
-			const totalGender = genderResult.rows.reduce((sum, r) => sum + parseInt(r.count, 10), 0) || 1;
-			const genderDistribution = genderResult.rows.map((r) => ({
-				label: r.label,
-				percentage: Math.round((parseInt(r.count, 10) / totalGender) * 100),
-			}));
+					[companyId, days],
+				);
+				const totalGender =
+					genderResult.rows.reduce((sum, r) => sum + parseInt(r.count, 10), 0) || 1;
+				const genderDistribution = genderResult.rows.map((r) => ({
+					label: r.label,
+					percentage: Math.round((parseInt(r.count, 10) / totalGender) * 100),
+				}));
 
-			const ethnicityResult = await pool.query(
-				`
+				const ethnicityResult = await pool.query(
+					`
         SELECT
           COALESCE(cp.ethnicity, 'Unknown') as label,
           COUNT(*) as count
@@ -345,64 +351,64 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
         WHERE ja.company_id = $1 ${dateFilter}
         GROUP BY cp.ethnicity
       `,
-				[companyId, days],
-			);
-			const totalEthnicity =
-				ethnicityResult.rows.reduce((sum, r) => sum + parseInt(r.count, 10), 0) || 1;
-			const ethnicityDistribution = ethnicityResult.rows.map((r) => ({
-				label: r.label,
-				percentage: Math.round((parseInt(r.count, 10) / totalEthnicity) * 100),
-			}));
+					[companyId, days],
+				);
+				const totalEthnicity =
+					ethnicityResult.rows.reduce((sum, r) => sum + parseInt(r.count, 10), 0) || 1;
+				const ethnicityDistribution = ethnicityResult.rows.map((r) => ({
+					label: r.label,
+					percentage: Math.round((parseInt(r.count, 10) / totalEthnicity) * 100),
+				}));
 
-			diversityMetrics = {
-				gender_distribution: genderDistribution,
-				ethnicity_distribution: ethnicityDistribution,
-			};
-		} catch (_divErr) {
-			console.log('[dashboard] diversity metrics not available');
-		}
-		// ─── COST PER HIRE & QUALITY OF HIRE ───
-		let costPerHire = null;
-		let qualityOfHire = null;
-		let conversionRate = null;
-		let offerAcceptanceRate = null;
-		try {
-			// costPerHire: no mock — return null until real cost tracking is implemented
-			const qualityResult = await pool.query(
-				`
+				diversityMetrics = {
+					gender_distribution: genderDistribution,
+					ethnicity_distribution: ethnicityDistribution,
+				};
+			} catch (_divErr) {
+				console.log('[dashboard] diversity metrics not available');
+			}
+			// ─── COST PER HIRE & QUALITY OF HIRE ───
+			const costPerHire = null;
+			let qualityOfHire = null;
+			let conversionRate = null;
+			let offerAcceptanceRate = null;
+			try {
+				// costPerHire: no mock — return null until real cost tracking is implemented
+				const qualityResult = await pool.query(
+					`
         SELECT AVG(omniscore_at_apply) as avg_score
         FROM job_applications
         WHERE company_id = $1 ${dateFilter} AND status = 'hired' AND omniscore_at_apply IS NOT NULL
       `,
-				[companyId, days],
-			);
-			const avgScore = parseFloat(qualityResult.rows[0]?.avg_score) || 0;
-			if (avgScore > 0) {
-				qualityOfHire = Math.min(5, Math.max(1, avgScore / 200)).toFixed(1); // Scale 1000 -> 5
+					[companyId, days],
+				);
+				const avgScore = parseFloat(qualityResult.rows[0]?.avg_score) || 0;
+				if (avgScore > 0) {
+					qualityOfHire = Math.min(5, Math.max(1, avgScore / 200)).toFixed(1); // Scale 1000 -> 5
+				}
+
+				// Conversion rate: total applications / total views
+				if (totalViews > 0) {
+					const totalApps = parseInt(appStats.rows[0].total_applications, 10) || 0;
+					conversionRate = Math.round((totalApps / totalViews) * 100);
+				}
+
+				// Offer acceptance rate: hired / offered
+				const hired = parseInt(appStats.rows[0].hired, 10) || 0;
+				const offered = parseInt(appStats.rows[0].offered, 10) || 0;
+				if (offered > 0) {
+					offerAcceptanceRate = Math.round((hired / offered) * 100);
+				}
+			} catch (_err) {
+				console.log('[dashboard] quality/conversion metrics not available');
 			}
 
-			// Conversion rate: total applications / total views
-			if (totalViews > 0) {
-				const totalApps = parseInt(appStats.rows[0].total_applications, 10) || 0;
-				conversionRate = Math.round((totalApps / totalViews) * 100);
-			}
-
-			// Offer acceptance rate: hired / offered
-			const hired = parseInt(appStats.rows[0].hired, 10) || 0;
-			const offered = parseInt(appStats.rows[0].offered, 10) || 0;
-			if (offered > 0) {
-				offerAcceptanceRate = Math.round((hired / offered) * 100);
-			}
-		} catch (_err) {
-			console.log('[dashboard] quality/conversion metrics not available');
-		}
-
-		// ─── DIVERSITY PIPELINE DROPOFF ───
-		let diversityPipelineDropoff = null;
-		try {
-			const pipelineStages = ['applied', 'screening', 'interviewed', 'offered', 'hired'];
-			const genderPipelineResult = await pool.query(
-				`
+			// ─── DIVERSITY PIPELINE DROPOFF ───
+			let diversityPipelineDropoff = null;
+			try {
+				const pipelineStages = ['applied', 'screening', 'interviewed', 'offered', 'hired'];
+				const genderPipelineResult = await pool.query(
+					`
         SELECT
           COALESCE(cp.gender, 'Unknown') as group_label,
           ja.status as stage,
@@ -412,10 +418,10 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
         WHERE ja.company_id = $1 ${dateFilter}
         GROUP BY cp.gender, ja.status
       `,
-				[companyId, days],
-			);
-			const ethnicityPipelineResult = await pool.query(
-				`
+					[companyId, days],
+				);
+				const ethnicityPipelineResult = await pool.query(
+					`
         SELECT
           COALESCE(cp.ethnicity, 'Unknown') as group_label,
           ja.status as stage,
@@ -425,41 +431,45 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
         WHERE ja.company_id = $1 ${dateFilter}
         GROUP BY cp.ethnicity, ja.status
       `,
-				[companyId, days],
-			);
+					[companyId, days],
+				);
 
-			function buildDropoff(rows) {
-				const groups = {};
-				for (const r of rows) {
-					const g = r.group_label;
-					if (!groups[g]) groups[g] = {};
-					groups[g][r.stage] = parseInt(r.count, 10) || 0;
+				function buildDropoff(rows) {
+					const groups = {};
+					for (const r of rows) {
+						const g = r.group_label;
+						if (!groups[g]) groups[g] = {};
+						groups[g][r.stage] = parseInt(r.count, 10) || 0;
+					}
+					const result = [];
+					for (const [group, counts] of Object.entries(groups)) {
+						const stages = pipelineStages.map((stage) => {
+							const count = counts[stage] || 0;
+							const applied = counts['applied'] || 1;
+							return {
+								stage,
+								count,
+								dropoff: stage === 'applied' ? 0 : Math.round(((applied - count) / applied) * 100),
+							};
+						});
+						result.push({ group, stages });
+					}
+					return result;
 				}
-				const result = [];
-				for (const [group, counts] of Object.entries(groups)) {
-					const stages = pipelineStages.map((stage) => {
-						const count = counts[stage] || 0;
-						const applied = counts['applied'] || 1;
-						return { stage, count, dropoff: stage === 'applied' ? 0 : Math.round(((applied - count) / applied) * 100) };
-					});
-					result.push({ group, stages });
-				}
-				return result;
+
+				diversityPipelineDropoff = {
+					gender: buildDropoff(genderPipelineResult.rows),
+					ethnicity: buildDropoff(ethnicityPipelineResult.rows),
+				};
+			} catch (_err) {
+				console.log('[dashboard] diversity pipeline dropoff not available');
 			}
 
-			diversityPipelineDropoff = {
-				gender: buildDropoff(genderPipelineResult.rows),
-				ethnicity: buildDropoff(ethnicityPipelineResult.rows),
-			};
-		} catch (_err) {
-			console.log('[dashboard] diversity pipeline dropoff not available');
-		}
-
-		// ─── TIME TO HIRE BREAKDOWN ───
-		let timeToHireBreakdown = null;
-		try {
-			const byRoleResult = await pool.query(
-				`
+			// ─── TIME TO HIRE BREAKDOWN ───
+			let timeToHireBreakdown = null;
+			try {
+				const byRoleResult = await pool.query(
+					`
         SELECT
           j.title as dimension,
           AVG(EXTRACT(EPOCH FROM (ja.hired_at - ja.applied_at)) / 86400) as avg_days,
@@ -471,10 +481,10 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
         ORDER BY avg_days DESC
         LIMIT 10
       `,
-				[companyId, days],
-			);
-			const bySourceResult = await pool.query(
-				`
+					[companyId, days],
+				);
+				const bySourceResult = await pool.query(
+					`
         SELECT
           COALESCE(ja.source, 'Direct') as dimension,
           AVG(EXTRACT(EPOCH FROM (ja.hired_at - ja.applied_at)) / 86400) as avg_days,
@@ -485,10 +495,10 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
         ORDER BY avg_days DESC
         LIMIT 10
       `,
-				[companyId, days],
-			);
-			const byRecruiterResult = await pool.query(
-				`
+					[companyId, days],
+				);
+				const byRecruiterResult = await pool.query(
+					`
         SELECT
           u.name as dimension,
           AVG(EXTRACT(EPOCH FROM (ja.hired_at - ja.applied_at)) / 86400) as avg_days,
@@ -501,21 +511,33 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
         ORDER BY avg_days DESC
         LIMIT 10
       `,
-				[companyId, days],
-			);
+					[companyId, days],
+				);
 
-			timeToHireBreakdown = {
-				by_role: byRoleResult.rows.map((r) => ({ dimension: r.dimension, avg_days: r.avg_days ? parseFloat(r.avg_days).toFixed(1) : '0.0', count: parseInt(r.count, 10) || 0 })),
-				by_source: bySourceResult.rows.map((r) => ({ dimension: r.dimension, avg_days: r.avg_days ? parseFloat(r.avg_days).toFixed(1) : '0.0', count: parseInt(r.count, 10) || 0 })),
-				by_recruiter: byRecruiterResult.rows.map((r) => ({ dimension: r.dimension, avg_days: r.avg_days ? parseFloat(r.avg_days).toFixed(1) : '0.0', count: parseInt(r.count, 10) || 0 })),
-			};
-		} catch (_err) {
-			console.log('[dashboard] time-to-hire breakdown not available');
-		}
+				timeToHireBreakdown = {
+					by_role: byRoleResult.rows.map((r) => ({
+						dimension: r.dimension,
+						avg_days: r.avg_days ? parseFloat(r.avg_days).toFixed(1) : '0.0',
+						count: parseInt(r.count, 10) || 0,
+					})),
+					by_source: bySourceResult.rows.map((r) => ({
+						dimension: r.dimension,
+						avg_days: r.avg_days ? parseFloat(r.avg_days).toFixed(1) : '0.0',
+						count: parseInt(r.count, 10) || 0,
+					})),
+					by_recruiter: byRecruiterResult.rows.map((r) => ({
+						dimension: r.dimension,
+						avg_days: r.avg_days ? parseFloat(r.avg_days).toFixed(1) : '0.0',
+						count: parseInt(r.count, 10) || 0,
+					})),
+				};
+			} catch (_err) {
+				console.log('[dashboard] time-to-hire breakdown not available');
+			}
 
-		// Get upcoming interviews
-		const upcomingInterviews = await pool.query(
-			`
+			// Get upcoming interviews
+			const upcomingInterviews = await pool.query(
+				`
       SELECT si.id, si.scheduled_at, si.interview_type, si.status,
              u.name as candidate_name, u.email as candidate_email,
              j.title as job_title
@@ -528,12 +550,12 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
       ORDER BY si.scheduled_at
       LIMIT 5
     `,
-			[companyId],
-		);
+				[companyId],
+			);
 
-		// Get recent applications
-		const recentApps = await pool.query(
-			`
+			// Get recent applications
+			const recentApps = await pool.query(
+				`
       SELECT ja.id, ja.status, ja.applied_at, ja.omniscore_at_apply,
              u.name as candidate_name, u.email as candidate_email,
              j.title as job_title, j.id as job_id
@@ -544,49 +566,56 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
       ORDER BY ja.applied_at DESC
       LIMIT 10
     `,
-			[companyId, days],
-		);
+				[companyId, days],
+			);
 
-		const response = {
-			success: true,
-			trust_score: trustScore,
-			job_stats: {
-				...jobStats.rows[0],
-				total_views: totalViews,
-			},
-			application_stats: {
-				...appStats.rows[0],
-			},
-			avg_time_to_hire: avgTimeToHire,
-			score_distribution: scoreDistribution,
-			source_breakdown: sourceBreakdown,
-			hiring_velocity: hiringVelocity,
-			time_to_hire_by_stage: timeToHireByStage,
-			diversity_metrics: diversityMetrics,
-			diversity_pipeline_dropoff: diversityPipelineDropoff,
-			time_to_hire_breakdown: timeToHireBreakdown,
-			cost_per_hire: costPerHire,
-			quality_of_hire: qualityOfHire,
-			conversion_rate: conversionRate,
-			offer_acceptance_rate: offerAcceptanceRate,
-			upcoming_interviews: upcomingInterviews.rows,
-			recent_applications: recentApps.rows,
-		};
+			const response = {
+				success: true,
+				trust_score: trustScore,
+				job_stats: {
+					...jobStats.rows[0],
+					total_views: totalViews,
+				},
+				application_stats: {
+					...appStats.rows[0],
+				},
+				avg_time_to_hire: avgTimeToHire,
+				score_distribution: scoreDistribution,
+				source_breakdown: sourceBreakdown,
+				hiring_velocity: hiringVelocity,
+				time_to_hire_by_stage: timeToHireByStage,
+				diversity_metrics: diversityMetrics,
+				diversity_pipeline_dropoff: diversityPipelineDropoff,
+				time_to_hire_breakdown: timeToHireBreakdown,
+				cost_per_hire: costPerHire,
+				quality_of_hire: qualityOfHire,
+				conversion_rate: conversionRate,
+				offer_acceptance_rate: offerAcceptanceRate,
+				upcoming_interviews: upcomingInterviews.rows,
+				recent_applications: recentApps.rows,
+			};
 
-		analyticsCache.set(cacheKey, response);
-		res.json(response);
-	} catch (err) {
-		console.error('Dashboard error:', err);
-		res.status(500).json({ error: 'Failed to load dashboard' });
-	}
-});
+			analyticsCache.set(cacheKey, response);
+			res.json(response);
+		} catch (err) {
+			console.error('Dashboard error:', err);
+			res.status(500).json({ error: 'Failed to load dashboard' });
+		}
+	},
+);
 
 // Get all jobs for company
-router.get('/jobs', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:read'), async (req, res) => {
-	try {
-		const { status, limit = 50, offset = 0 } = req.query;
+router.get(
+	'/jobs',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:read'),
+	async (req, res) => {
+		try {
+			const { status, limit = 50, offset = 0 } = req.query;
 
-		let query = `
+			let query = `
       SELECT j.*,
              COALESCE(ja.views, 0) as views,
              COALESCE((SELECT COUNT(*) FROM job_applications japp WHERE japp.job_id = j.id), 0) as application_count,
@@ -595,332 +624,395 @@ router.get('/jobs', authMiddleware, requireApprovedRecruiter, ensureCompany, req
       LEFT JOIN job_analytics ja ON j.id = ja.job_id
       WHERE (j.company_id = $1 OR j.user_id = $2)
     `;
-		const params = [req.user.company_id, req.user.id];
+			const params = [req.user.company_id, req.user.id];
 
-		if (status) {
-			query += ` AND j.status = $${params.length + 1}`;
-			params.push(status);
+			if (status) {
+				query += ` AND j.status = $${params.length + 1}`;
+				params.push(status);
+			}
+
+			query += ` ORDER BY j.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+			params.push(limit, offset);
+
+			const result = await pool.query(query, params);
+
+			res.json({ jobs: result.rows });
+		} catch (err) {
+			console.error('Get jobs error:', err);
+			res.status(500).json({ error: 'Failed to fetch jobs' });
 		}
-
-		query += ` ORDER BY j.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-		params.push(limit, offset);
-
-		const result = await pool.query(query, params);
-
-		res.json({ jobs: result.rows });
-	} catch (err) {
-		console.error('Get jobs error:', err);
-		res.status(500).json({ error: 'Failed to fetch jobs' });
-	}
-});
+	},
+);
 
 // Create job with optional AI optimization
-router.post('/jobs', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:create'), async (req, res) => {
-	try {
-		const {
-			title,
-			description,
-			requirements,
-			location,
-			salary_range,
-			job_type,
-			screening_questions,
-			optimize = false, // Flag to run AI optimization
-		} = req.body;
+router.post(
+	'/jobs',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:create'),
+	async (req, res) => {
+		try {
+			const {
+				title,
+				description,
+				requirements,
+				location,
+				salary_range,
+				job_type,
+				screening_questions,
+				optimize = false, // Flag to run AI optimization
+			} = req.body;
 
-		const sanitizedTitle = normalizeTextField(title, 120, 'Job title');
-		const sanitizedDescription = normalizeTextField(description, 8000, 'Description');
-		const sanitizedRequirements = normalizeTextField(requirements, 8000, 'Requirements');
-		const sanitizedLocation = normalizeTextField(location, 200, 'Location');
+			const sanitizedTitle = normalizeTextField(title, 120, 'Job title');
+			const sanitizedDescription = normalizeTextField(description, 8000, 'Description');
+			const sanitizedRequirements = normalizeTextField(requirements, 8000, 'Requirements');
+			const sanitizedLocation = normalizeTextField(location, 200, 'Location');
 
-		if (!sanitizedTitle) {
-			return res.status(400).json({ error: 'Job title is required' });
-		}
+			if (!sanitizedTitle) {
+				return res.status(400).json({ error: 'Job title is required' });
+			}
 
-		if (salary_range !== undefined && salary_range !== null && salary_range !== '') {
-			const salaryText = String(salary_range).trim();
-			const rangeMatch = salaryText.match(/^(\d+)\s*[-–]\s*(\d+)$/);
-			if (rangeMatch) {
-				const minSalary = normalizeSalary(rangeMatch[1], 'salary_range minimum');
-				const maxSalary = normalizeSalary(rangeMatch[2], 'salary_range maximum');
-				if (minSalary > maxSalary) {
-					return res.status(400).json({ error: 'Minimum salary cannot exceed maximum salary' });
+			if (salary_range !== undefined && salary_range !== null && salary_range !== '') {
+				const salaryText = String(salary_range).trim();
+				const rangeMatch = salaryText.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+				if (rangeMatch) {
+					const minSalary = normalizeSalary(rangeMatch[1], 'salary_range minimum');
+					const maxSalary = normalizeSalary(rangeMatch[2], 'salary_range maximum');
+					if (minSalary > maxSalary) {
+						return res.status(400).json({ error: 'Minimum salary cannot exceed maximum salary' });
+					}
 				}
 			}
-		}
 
-		// Normalize job_type to lowercase to match CHECK constraint
-		const validJobTypes = ['full-time', 'part-time', 'contract', 'internship', 'freelance'];
-		const normalizedJobType = job_type ? job_type.toLowerCase().trim() : 'full-time';
-		if (!validJobTypes.includes(normalizedJobType)) {
-			return res
-				.status(400)
-				.json({ error: `Invalid job type. Must be one of: ${validJobTypes.join(', ')}` });
-		}
+			// Normalize job_type to lowercase to match CHECK constraint
+			const validJobTypes = ['full-time', 'part-time', 'contract', 'internship', 'freelance'];
+			const normalizedJobType = job_type ? job_type.toLowerCase().trim() : 'full-time';
+			if (!validJobTypes.includes(normalizedJobType)) {
+				return res
+					.status(400)
+					.json({ error: `Invalid job type. Must be one of: ${validJobTypes.join(', ')}` });
+			}
 
-		let finalDescription = sanitizedDescription;
-		let finalRequirements = sanitizedRequirements;
-		let optimizationResult = null;
+			let finalDescription = sanitizedDescription;
+			let finalRequirements = sanitizedRequirements;
+			let optimizationResult = null;
 
-		// Run AI optimization if requested
-		if (optimize) {
+			// Run AI optimization if requested
+			if (optimize) {
+				try {
+					optimizationResult = await jobOptimizer.optimizeJobDescription({
+						title: sanitizedTitle,
+						description: sanitizedDescription,
+						requirements: sanitizedRequirements,
+						location: sanitizedLocation,
+						salary_range,
+						job_type,
+						company: req.user.company_name,
+					});
+					finalDescription = optimizationResult.optimized_description || sanitizedDescription;
+					finalRequirements = optimizationResult.optimized_requirements || sanitizedRequirements;
+				} catch (e) {
+					console.error('Job optimization error:', e);
+				}
+			}
+
+			// Create job
+			const result = await pool.query(
+				`INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+				[
+					req.user.id,
+					req.user.company_id,
+					sanitizedTitle,
+					req.user.company_name,
+					finalDescription,
+					finalRequirements,
+					sanitizedLocation,
+					salary_range,
+					normalizedJobType,
+					screening_questions ? JSON.stringify(screening_questions) : null,
+				],
+			);
+
+			const job = result.rows[0];
+
+			// Create analytics entry
+			await pool.query('INSERT INTO job_analytics (job_id) VALUES ($1)', [job.id]);
+
+			// Analyze and add authenticity score
 			try {
-				optimizationResult = await jobOptimizer.optimizeJobDescription({
+				const analysis = await jobOptimizer.analyzeJobPosting({
 					title: sanitizedTitle,
-					description: sanitizedDescription,
-					requirements: sanitizedRequirements,
+					description: finalDescription,
+					requirements: finalRequirements,
 					location: sanitizedLocation,
 					salary_range,
 					job_type,
 					company: req.user.company_name,
 				});
-				finalDescription = optimizationResult.optimized_description || sanitizedDescription;
-				finalRequirements = optimizationResult.optimized_requirements || sanitizedRequirements;
-			} catch (e) {
-				console.error('Job optimization error:', e);
+
+				await trustscoreService.addJobAuthenticityComponent(
+					req.user.company_id,
+					job.id,
+					analysis.overall_score,
+				);
+
+				// Issue #143: Invalidate analytics cache on new job
+				analyticsCache.invalidatePatterns([
+					'/api/recruiter/dashboard',
+					'/api/recruiter/analytics',
+					'/api/recruiter/pipeline-stats',
+					'/api/analytics',
+				]);
+
+				res.json({
+					success: true,
+					job,
+					optimization: optimizationResult,
+					analysis,
+					message: optimize ? 'Job created with AI optimization!' : 'Job created successfully',
+				});
+			} catch (_e) {
+				// Issue #143: Invalidate analytics cache on new job
+				analyticsCache.invalidatePatterns([
+					'/api/recruiter/dashboard',
+					'/api/recruiter/analytics',
+					'/api/recruiter/pipeline-stats',
+					'/api/analytics',
+				]);
+				res.json({ success: true, job });
 			}
+		} catch (err) {
+			if (err.statusCode === 400) {
+				return res
+					.status(400)
+					.json({ error: 'Invalid job data. Please check your input and try again.' });
+			}
+			console.error('Create job error:', err);
+			res.status(500).json({ error: 'Failed to create job' });
 		}
+	},
+);
 
-		// Create job
-		const result = await pool.query(
-			`INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING *`,
-			[
-				req.user.id,
-				req.user.company_id,
-				sanitizedTitle,
-				req.user.company_name,
-				finalDescription,
-				finalRequirements,
-				sanitizedLocation,
-				salary_range,
-				normalizedJobType,
-				screening_questions ? JSON.stringify(screening_questions) : null,
-			],
-		);
-
-		const job = result.rows[0];
-
-		// Create analytics entry
-		await pool.query('INSERT INTO job_analytics (job_id) VALUES ($1)', [job.id]);
-
-		// Analyze and add authenticity score
+// Analyze job posting
+router.post(
+	'/jobs/analyze',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:create'),
+	async (req, res) => {
 		try {
-			const analysis = await jobOptimizer.analyzeJobPosting({
-				title: sanitizedTitle,
-				description: finalDescription,
-				requirements: finalRequirements,
-				location: sanitizedLocation,
-				salary_range,
+			const analysis = await jobOptimizer.analyzeJobPosting(req.body);
+			res.json({ success: true, analysis });
+		} catch (err) {
+			console.error('Analyze job error:', err);
+			res.status(500).json({ error: 'Failed to analyze job' });
+		}
+	},
+);
+
+// Optimize job description with AI
+router.post(
+	'/jobs/optimize',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:create'),
+	async (req, res) => {
+		try {
+			const optimized = await jobOptimizer.optimizeJobDescription(req.body);
+			res.json({ success: true, optimized });
+		} catch (err) {
+			console.error('Optimize job error:', err);
+			res.status(500).json({ error: 'Failed to optimize job' });
+		}
+	},
+);
+
+// Get salary insights
+router.get(
+	'/salary-insights',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:read'),
+	async (req, res) => {
+		try {
+			const { title, location, experience_level } = req.query;
+
+			if (!title) {
+				return res.status(400).json({ error: 'Job title is required' });
+			}
+
+			const insights = await jobOptimizer.getSalaryInsights(title, location, experience_level);
+			res.json({ success: true, insights });
+		} catch (err) {
+			console.error('Salary insights error:', err);
+			res.status(500).json({ error: 'Failed to get salary insights' });
+		}
+	},
+);
+
+// Generate complete job description from title + optional notes
+router.post(
+	'/jobs/generate',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:create'),
+	async (req, res) => {
+		try {
+			const { title, brief_notes, location, job_type } = req.body;
+
+			if (!title) {
+				return res.status(400).json({ error: 'Job title is required' });
+			}
+
+			const generated = await jobOptimizer.generateJobDescription(title, brief_notes, {
+				location,
 				job_type,
 				company: req.user.company_name,
 			});
-
-			await trustscoreService.addJobAuthenticityComponent(
-				req.user.company_id,
-				job.id,
-				analysis.overall_score,
-			);
-
-			// Issue #143: Invalidate analytics cache on new job
-			analyticsCache.invalidatePatterns([
-				'/api/recruiter/dashboard',
-				'/api/recruiter/analytics',
-				'/api/recruiter/pipeline-stats',
-				'/api/analytics',
-			]);
-
-			res.json({
-				success: true,
-				job,
-				optimization: optimizationResult,
-				analysis,
-				message: optimize ? 'Job created with AI optimization!' : 'Job created successfully',
-			});
-		} catch (_e) {
-			// Issue #143: Invalidate analytics cache on new job
-			analyticsCache.invalidatePatterns([
-				'/api/recruiter/dashboard',
-				'/api/recruiter/analytics',
-				'/api/recruiter/pipeline-stats',
-				'/api/analytics',
-			]);
-			res.json({ success: true, job });
+			res.json({ success: true, generated });
+		} catch (err) {
+			console.error('Generate job description error:', err);
+			res.status(500).json({ error: 'Failed to generate job description' });
 		}
-	} catch (err) {
-		if (err.statusCode === 400) {
-			return res
-				.status(400)
-				.json({ error: 'Invalid job data. Please check your input and try again.' });
-		}
-		console.error('Create job error:', err);
-		res.status(500).json({ error: 'Failed to create job' });
-	}
-});
-
-// Analyze job posting
-router.post('/jobs/analyze', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:create'), async (req, res) => {
-	try {
-		const analysis = await jobOptimizer.analyzeJobPosting(req.body);
-		res.json({ success: true, analysis });
-	} catch (err) {
-		console.error('Analyze job error:', err);
-		res.status(500).json({ error: 'Failed to analyze job' });
-	}
-});
-
-// Optimize job description with AI
-router.post('/jobs/optimize', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:create'), async (req, res) => {
-	try {
-		const optimized = await jobOptimizer.optimizeJobDescription(req.body);
-		res.json({ success: true, optimized });
-	} catch (err) {
-		console.error('Optimize job error:', err);
-		res.status(500).json({ error: 'Failed to optimize job' });
-	}
-});
-
-// Get salary insights
-router.get('/salary-insights', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:read'), async (req, res) => {
-	try {
-		const { title, location, experience_level } = req.query;
-
-		if (!title) {
-			return res.status(400).json({ error: 'Job title is required' });
-		}
-
-		const insights = await jobOptimizer.getSalaryInsights(title, location, experience_level);
-		res.json({ success: true, insights });
-	} catch (err) {
-		console.error('Salary insights error:', err);
-		res.status(500).json({ error: 'Failed to get salary insights' });
-	}
-});
-
-// Generate complete job description from title + optional notes
-router.post('/jobs/generate', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:create'), async (req, res) => {
-	try {
-		const { title, brief_notes, location, job_type } = req.body;
-
-		if (!title) {
-			return res.status(400).json({ error: 'Job title is required' });
-		}
-
-		const generated = await jobOptimizer.generateJobDescription(title, brief_notes, {
-			location,
-			job_type,
-			company: req.user.company_name,
-		});
-		res.json({ success: true, generated });
-	} catch (err) {
-		console.error('Generate job description error:', err);
-		res.status(500).json({ error: 'Failed to generate job description' });
-	}
-});
+	},
+);
 
 // Suggest skills and requirements for a role
-router.post('/jobs/suggest-skills', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:create'), async (req, res) => {
-	try {
-		const { title, description, current_skills } = req.body;
+router.post(
+	'/jobs/suggest-skills',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:create'),
+	async (req, res) => {
+		try {
+			const { title, description, current_skills } = req.body;
 
-		if (!title) {
-			return res.status(400).json({ error: 'Job title is required' });
+			if (!title) {
+				return res.status(400).json({ error: 'Job title is required' });
+			}
+
+			const suggestions = await jobOptimizer.suggestSkillsForRole(
+				title,
+				description,
+				current_skills || [],
+			);
+			res.json({ success: true, suggestions });
+		} catch (err) {
+			console.error('Suggest skills error:', err);
+			res.status(500).json({ error: 'Failed to suggest skills' });
 		}
-
-		const suggestions = await jobOptimizer.suggestSkillsForRole(
-			title,
-			description,
-			current_skills || [],
-		);
-		res.json({ success: true, suggestions });
-	} catch (err) {
-		console.error('Suggest skills error:', err);
-		res.status(500).json({ error: 'Failed to suggest skills' });
-	}
-});
+	},
+);
 
 // Suggest optimized job titles
-router.post('/jobs/suggest-title', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:create'), async (req, res) => {
-	try {
-		const { title, description } = req.body;
+router.post(
+	'/jobs/suggest-title',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:create'),
+	async (req, res) => {
+		try {
+			const { title, description } = req.body;
 
-		if (!title) {
-			return res.status(400).json({ error: 'Current job title is required' });
+			if (!title) {
+				return res.status(400).json({ error: 'Current job title is required' });
+			}
+
+			const suggestions = await jobOptimizer.suggestJobTitles(title, description);
+			res.json({ success: true, suggestions });
+		} catch (err) {
+			console.error('Suggest title error:', err);
+			res.status(500).json({ error: 'Failed to suggest titles' });
 		}
-
-		const suggestions = await jobOptimizer.suggestJobTitles(title, description);
-		res.json({ success: true, suggestions });
-	} catch (err) {
-		console.error('Suggest title error:', err);
-		res.status(500).json({ error: 'Failed to suggest titles' });
-	}
-});
+	},
+);
 
 // Update job
-router.put('/jobs/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:update'), async (req, res) => {
-	try {
-		const {
-			title,
-			description,
-			requirements,
-			location,
-			salary_range,
-			job_type,
-			status,
-			screening_questions,
-		} = req.body;
+router.put(
+	'/jobs/:id',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:update'),
+	async (req, res) => {
+		try {
+			const {
+				title,
+				description,
+				requirements,
+				location,
+				salary_range,
+				job_type,
+				status,
+				screening_questions,
+			} = req.body;
 
-		const sanitizedTitle =
-			title !== undefined ? normalizeTextField(title, 120, 'Job title') : title;
-		const sanitizedDescription =
-			description !== undefined
-				? normalizeTextField(description, 8000, 'Description')
-				: description;
-		const sanitizedRequirements =
-			requirements !== undefined
-				? normalizeTextField(requirements, 8000, 'Requirements')
-				: requirements;
-		const sanitizedLocation =
-			location !== undefined ? normalizeTextField(location, 200, 'Location') : location;
+			const sanitizedTitle =
+				title !== undefined ? normalizeTextField(title, 120, 'Job title') : title;
+			const sanitizedDescription =
+				description !== undefined
+					? normalizeTextField(description, 8000, 'Description')
+					: description;
+			const sanitizedRequirements =
+				requirements !== undefined
+					? normalizeTextField(requirements, 8000, 'Requirements')
+					: requirements;
+			const sanitizedLocation =
+				location !== undefined ? normalizeTextField(location, 200, 'Location') : location;
 
-		let normalizedSalaryRange = salary_range;
-		if (salary_range !== undefined && salary_range !== null && salary_range !== '') {
-			const salaryText = String(salary_range).trim();
-			const rangeMatch = salaryText.match(/^(\d+)\s*[-–]\s*(\d+)$/);
-			if (rangeMatch) {
-				const minSalary = normalizeSalary(rangeMatch[1], 'salary_range minimum');
-				const maxSalary = normalizeSalary(rangeMatch[2], 'salary_range maximum');
-				if (minSalary > maxSalary) {
-					return res.status(400).json({ error: 'Minimum salary cannot exceed maximum salary' });
+			let normalizedSalaryRange = salary_range;
+			if (salary_range !== undefined && salary_range !== null && salary_range !== '') {
+				const salaryText = String(salary_range).trim();
+				const rangeMatch = salaryText.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+				if (rangeMatch) {
+					const minSalary = normalizeSalary(rangeMatch[1], 'salary_range minimum');
+					const maxSalary = normalizeSalary(rangeMatch[2], 'salary_range maximum');
+					if (minSalary > maxSalary) {
+						return res.status(400).json({ error: 'Minimum salary cannot exceed maximum salary' });
+					}
+				}
+				normalizedSalaryRange = salaryText;
+			}
+
+			// Normalize job_type to lowercase if provided
+			const normalizedUpdateJobType = job_type ? job_type.toLowerCase().trim() : null;
+			if (normalizedUpdateJobType) {
+				const validJobTypes = ['full-time', 'part-time', 'contract', 'internship', 'freelance'];
+				if (!validJobTypes.includes(normalizedUpdateJobType)) {
+					return res
+						.status(400)
+						.json({ error: `Invalid job type. Must be one of: ${validJobTypes.join(', ')}` });
 				}
 			}
-			normalizedSalaryRange = salaryText;
-		}
 
-		// Normalize job_type to lowercase if provided
-		const normalizedUpdateJobType = job_type ? job_type.toLowerCase().trim() : null;
-		if (normalizedUpdateJobType) {
-			const validJobTypes = ['full-time', 'part-time', 'contract', 'internship', 'freelance'];
-			if (!validJobTypes.includes(normalizedUpdateJobType)) {
-				return res
-					.status(400)
-					.json({ error: `Invalid job type. Must be one of: ${validJobTypes.join(', ')}` });
+			// Verify ownership (company_id or user_id)
+			const existing = await pool.query(
+				'SELECT id FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+				[req.params.id, req.user.company_id, req.user.id],
+			);
+
+			if (existing.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
 			}
-		}
 
-		// Verify ownership (company_id or user_id)
-		const existing = await pool.query(
-			'SELECT id FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
-			[req.params.id, req.user.company_id, req.user.id],
-		);
-
-		if (existing.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
-		}
-
-		const result = await pool.query(
-			`UPDATE jobs SET
+			const result = await pool.query(
+				`UPDATE jobs SET
         title = COALESCE($1, title),
         description = COALESCE($2, description),
         requirements = COALESCE($3, requirements),
@@ -932,37 +1024,44 @@ router.put('/jobs/:id', authMiddleware, requireNotSuspended, requireApprovedRecr
         updated_at = NOW()
        WHERE id = $9
        RETURNING *`,
-			[
-				sanitizedTitle,
-				sanitizedDescription,
-				sanitizedRequirements,
-				sanitizedLocation,
-				normalizedSalaryRange,
-				normalizedUpdateJobType,
-				status,
-				screening_questions || null,
-				req.params.id,
-			],
-		);
+				[
+					sanitizedTitle,
+					sanitizedDescription,
+					sanitizedRequirements,
+					sanitizedLocation,
+					normalizedSalaryRange,
+					normalizedUpdateJobType,
+					status,
+					screening_questions || null,
+					req.params.id,
+				],
+			);
 
-		res.json({ success: true, job: result.rows[0] });
-	} catch (err) {
-		if (err.statusCode === 400) {
-			return res
-				.status(400)
-				.json({ error: 'Invalid job data. Please check your input and try again.' });
+			res.json({ success: true, job: result.rows[0] });
+		} catch (err) {
+			if (err.statusCode === 400) {
+				return res
+					.status(400)
+					.json({ error: 'Invalid job data. Please check your input and try again.' });
+			}
+			console.error('Update job error:', err);
+			res.status(500).json({ error: 'Failed to update job' });
 		}
-		console.error('Update job error:', err);
-		res.status(500).json({ error: 'Failed to update job' });
-	}
-});
+	},
+);
 
 // Get ALL applications for the company
-router.get('/applications', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
-	try {
-		const { status, job_id, limit = 100, offset = 0 } = req.query;
+router.get(
+	'/applications',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	async (req, res) => {
+		try {
+			const { status, job_id, limit = 100, offset = 0 } = req.query;
 
-		let query = `
+			let query = `
       SELECT ja.*,
              u.name as candidate_name, u.email as candidate_email,
              j.title as job_title, j.id as job_id,
@@ -977,262 +1076,293 @@ router.get('/applications', authMiddleware, requireApprovedRecruiter, ensureComp
       LEFT JOIN omni_scores os ON u.id = os.user_id
       WHERE ja.company_id = $1
     `;
-		const params = [req.user.company_id];
+			const params = [req.user.company_id];
 
-		if (status) {
-			query += ` AND ja.status = $${params.length + 1}`;
-			params.push(status);
+			if (status) {
+				query += ` AND ja.status = $${params.length + 1}`;
+				params.push(status);
+			}
+
+			if (job_id) {
+				query += ` AND ja.job_id = $${params.length + 1}`;
+				params.push(job_id);
+			}
+
+			query += ` ORDER BY ja.applied_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+			params.push(limit, offset);
+
+			const result = await pool.query(query, params);
+
+			res.json({ applications: result.rows });
+		} catch (err) {
+			console.error('Get applications error:', err);
+			res.status(500).json({ error: 'Failed to fetch applications' });
 		}
-
-		if (job_id) {
-			query += ` AND ja.job_id = $${params.length + 1}`;
-			params.push(job_id);
-		}
-
-		query += ` ORDER BY ja.applied_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-		params.push(limit, offset);
-
-		const result = await pool.query(query, params);
-
-		res.json({ applications: result.rows });
-	} catch (err) {
-		console.error('Get applications error:', err);
-		res.status(500).json({ error: 'Failed to fetch applications' });
-	}
-});
+	},
+);
 
 // Update application status (alternative route)
-router.put('/applications/:id/status', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
-	try {
-		const { status } = req.body;
-
-		// Validate status against CHECK constraint (chk_job_applications_status)
-		const VALID_APP_STATUSES = [
-			'applied',
-			'screening',
-			'interviewed',
-			'offered',
-			'hired',
-			'rejected',
-			'withdrawn',
-		];
-		if (!VALID_APP_STATUSES.includes(status)) {
-			return res.status(400).json({
-				error: `Invalid status: '${status}'. Must be one of: ${VALID_APP_STATUSES.join(', ')}`,
-			});
-		}
-
-		// Verify application belongs to company
-		const existing = await pool.query(
-			'SELECT id, job_id, candidate_id, status FROM job_applications WHERE id = $1 AND company_id = $2',
-			[req.params.id, req.user.company_id],
-		);
-
-		if (existing.rows.length === 0) {
-			return res.status(404).json({ error: 'Application not found' });
-		}
-
-		const previousStatus = existing.rows[0].status;
-
-		const result = await pool.query(
-			`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-			[status, req.params.id],
-		);
-
-		// ── Send status update notification to candidate (non-blocking) ──
+router.put(
+	'/applications/:id/status',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:manage'),
+	async (req, res) => {
 		try {
-			const candidateInfo = await pool.query(
-				`SELECT u.id, u.email, u.name, j.title as job_title, c.name as company_name
+			const { status } = req.body;
+
+			// Validate status against CHECK constraint (chk_job_applications_status)
+			const VALID_APP_STATUSES = [
+				'applied',
+				'screening',
+				'interviewed',
+				'offered',
+				'hired',
+				'rejected',
+				'withdrawn',
+			];
+			if (!VALID_APP_STATUSES.includes(status)) {
+				return res.status(400).json({
+					error: `Invalid status: '${status}'. Must be one of: ${VALID_APP_STATUSES.join(', ')}`,
+				});
+			}
+
+			// Verify application belongs to company
+			const existing = await pool.query(
+				'SELECT id, job_id, candidate_id, status FROM job_applications WHERE id = $1 AND company_id = $2',
+				[req.params.id, req.user.company_id],
+			);
+
+			if (existing.rows.length === 0) {
+				return res.status(404).json({ error: 'Application not found' });
+			}
+
+			const previousStatus = existing.rows[0].status;
+
+			const result = await pool.query(
+				`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+				[status, req.params.id],
+			);
+
+			// ── Send status update notification to candidate (non-blocking) ──
+			try {
+				const candidateInfo = await pool.query(
+					`SELECT u.id, u.email, u.name, j.title as job_title, c.name as company_name
 				 FROM users u
 				 JOIN job_applications ja ON ja.candidate_id = u.id
 				 JOIN jobs j ON j.id = ja.job_id
 				 JOIN companies c ON c.id = j.company_id
 				 WHERE ja.id = $1`,
-				[req.params.id],
-			);
-			const cand = candidateInfo.rows[0];
-			if (cand?.email) {
-				await emailService.sendTemplatedEmail({
-					to: cand.email,
-					templateName: 'status_update',
-					templateData: {
-						candidate_name: cand.name || 'Candidate',
-						job_title: cand.job_title || 'the position',
-						company_name: cand.company_name || 'Our Company',
-						status: status,
-						feedback: '',
-						next_steps: '',
-					},
-					userId: cand.id,
-					metadata: {
-						application_id: req.params.id,
-						job_id: existing.rows[0].job_id,
-						new_status: status,
-					},
-				});
+					[req.params.id],
+				);
+				const cand = candidateInfo.rows[0];
+				if (cand?.email) {
+					await emailService.sendTemplatedEmail({
+						to: cand.email,
+						templateName: 'status_update',
+						templateData: {
+							candidate_name: cand.name || 'Candidate',
+							job_title: cand.job_title || 'the position',
+							company_name: cand.company_name || 'Our Company',
+							status: status,
+							feedback: '',
+							next_steps: '',
+						},
+						userId: cand.id,
+						metadata: {
+							application_id: req.params.id,
+							job_id: existing.rows[0].job_id,
+							new_status: status,
+						},
+					});
+				}
+			} catch (emailErr) {
+				console.error(
+					'[email] Failed to send application status update email (non-blocking):',
+					emailErr.message,
+				);
 			}
-		} catch (emailErr) {
-			console.error(
-				'[email] Failed to send application status update email (non-blocking):',
-				emailErr.message,
-			);
-		}
 
-		// Audit log
-		await AuditLogger.log({
-			actionType: 'application_status_changed',
-			userId: req.user.id,
-			targetType: 'job_application',
-			targetId: parseInt(req.params.id, 10),
-			metadata: {
-				candidate_id: existing.rows[0].candidate_id,
-				job_id: existing.rows[0].job_id,
-				new_status: status,
-			},
-			req,
-		});
-
-		// ─── Compliance audit trail (Issue #136) ───────────────────────
-		try {
-			await auditLogService.logEvent({
-				eventType: auditLogService.EVENT_TYPES.STATUS_CHANGE,
-				entityType: auditLogService.ENTITY_TYPES.CANDIDATE,
-				entityId: existing.rows[0].candidate_id,
-				actorId: req.user.id,
-				actorRole: req.user.role,
-				jobId: existing.rows[0].job_id,
-				companyId: req.user.company_id,
-				payload: {
-					application_id: parseInt(req.params.id, 10),
-					previous_status: previousStatus,
+			// Audit log
+			await AuditLogger.log({
+				actionType: 'application_status_changed',
+				userId: req.user.id,
+				targetType: 'job_application',
+				targetId: parseInt(req.params.id, 10),
+				metadata: {
+					candidate_id: existing.rows[0].candidate_id,
+					job_id: existing.rows[0].job_id,
 					new_status: status,
 				},
 				req,
 			});
-		} catch (e) {
-			console.error('[compliance-audit] Status change log failed (non-blocking):', e.message);
+
+			// ─── Compliance audit trail (Issue #136) ───────────────────────
+			try {
+				await auditLogService.logEvent({
+					eventType: auditLogService.EVENT_TYPES.STATUS_CHANGE,
+					entityType: auditLogService.ENTITY_TYPES.CANDIDATE,
+					entityId: existing.rows[0].candidate_id,
+					actorId: req.user.id,
+					actorRole: req.user.role,
+					jobId: existing.rows[0].job_id,
+					companyId: req.user.company_id,
+					payload: {
+						application_id: parseInt(req.params.id, 10),
+						previous_status: previousStatus,
+						new_status: status,
+					},
+					req,
+				});
+			} catch (e) {
+				console.error('[compliance-audit] Status change log failed (non-blocking):', e.message);
+			}
+
+			// Issue #143: Invalidate analytics cache on status change
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+			]);
+
+			res.json({ success: true, application: result.rows[0] });
+		} catch (err) {
+			console.error('Update application status error:', err);
+			res.status(500).json({ error: 'Failed to update application' });
 		}
-
-		// Issue #143: Invalidate analytics cache on status change
-		analyticsCache.invalidatePatterns([
-			'/api/recruiter/dashboard',
-			'/api/recruiter/analytics',
-			'/api/recruiter/pipeline-stats',
-		]);
-
-		res.json({ success: true, application: result.rows[0] });
-	} catch (err) {
-		console.error('Update application status error:', err);
-		res.status(500).json({ error: 'Failed to update application' });
-	}
-});
+	},
+);
 
 // Create interview (POST to /interviews)
-router.post('/interviews', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('interviews:schedule'), async (req, res) => {
-	try {
-		const {
-			application_id,
-			scheduled_at,
-			duration = 60,
-			interview_type = 'video',
-			notes,
-		} = req.body;
+router.post(
+	'/interviews',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('interviews:schedule'),
+	async (req, res) => {
+		try {
+			const {
+				application_id,
+				scheduled_at,
+				duration = 60,
+				interview_type = 'video',
+				notes,
+			} = req.body;
 
-		// Get application details
-		const app = await pool.query(
-			'SELECT ja.job_id, ja.candidate_id FROM job_applications ja WHERE ja.id = $1 AND ja.company_id = $2',
-			[application_id, req.user.company_id],
-		);
+			// Get application details
+			const app = await pool.query(
+				'SELECT ja.job_id, ja.candidate_id FROM job_applications ja WHERE ja.id = $1 AND ja.company_id = $2',
+				[application_id, req.user.company_id],
+			);
 
-		if (app.rows.length === 0) {
-			return res.status(404).json({ error: 'Application not found' });
-		}
+			if (app.rows.length === 0) {
+				return res.status(404).json({ error: 'Application not found' });
+			}
 
-		const { job_id, candidate_id } = app.rows[0];
+			const { job_id, candidate_id } = app.rows[0];
 
-		// Auto-generate Jitsi meeting link for video interviews
-		let meeting_link = null;
-		if (interview_type === 'video') {
-			const roomId = `Rekrut AI-${Date.now().toString(36)}-${crypto.randomBytes(6).toString('base64url')}`;
-			meeting_link = `https://meet.jit.si/${roomId}`;
-		}
+			// Auto-generate Jitsi meeting link for video interviews
+			let meeting_link = null;
+			if (interview_type === 'video') {
+				const roomId = `Rekrut AI-${Date.now().toString(36)}-${crypto.randomBytes(6).toString('base64url')}`;
+				meeting_link = `https://meet.jit.si/${roomId}`;
+			}
 
-		const result = await pool.query(
-			`INSERT INTO scheduled_interviews
+			const result = await pool.query(
+				`INSERT INTO scheduled_interviews
        (company_id, job_id, candidate_id, recruiter_id, scheduled_at, duration_minutes, interview_type, meeting_link, notes)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-			[
-				req.user.company_id,
-				job_id,
-				candidate_id,
-				req.user.id,
-				scheduled_at,
-				duration,
-				interview_type,
-				meeting_link,
-				notes,
-			],
-		);
+				[
+					req.user.company_id,
+					job_id,
+					candidate_id,
+					req.user.id,
+					scheduled_at,
+					duration,
+					interview_type,
+					meeting_link,
+					notes,
+				],
+			);
 
-		// Update application status
-		await pool.query(
-			`UPDATE job_applications SET status = 'interviewed', updated_at = NOW() WHERE id = $1`,
-			[application_id],
-		);
+			// Update application status
+			await pool.query(
+				`UPDATE job_applications SET status = 'interviewed', updated_at = NOW() WHERE id = $1`,
+				[application_id],
+			);
 
-		res.json({ success: true, interview: result.rows[0] });
+			res.json({ success: true, interview: result.rows[0] });
 
-		// ── Calendar auto-sync (non-blocking) ──
-		try {
-			await calendarService.syncInterview(result.rows[0], 'create');
-		} catch (calErr) {
-			console.error('[calendar] Auto-sync failed (non-blocking):', calErr.message);
+			// ── Calendar auto-sync (non-blocking) ──
+			try {
+				await calendarService.syncInterview(result.rows[0], 'create');
+			} catch (calErr) {
+				console.error('[calendar] Auto-sync failed (non-blocking):', calErr.message);
+			}
+		} catch (err) {
+			console.error('Create interview error:', err);
+			res.status(500).json({ error: 'Failed to create interview' });
 		}
-	} catch (err) {
-		console.error('Create interview error:', err);
-		res.status(500).json({ error: 'Failed to create interview' });
-	}
-});
+	},
+);
 
 // Delete/cancel interview
-router.delete('/interviews/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('interviews:schedule'), async (req, res) => {
-	try {
-		const result = await pool.query(
-			'DELETE FROM scheduled_interviews WHERE id = $1 AND company_id = $2 RETURNING id, calendar_event_id, calendar_provider, recruiter_id',
-			[req.params.id, req.user.company_id],
-		);
-
-		if (result.rows.length === 0) {
-			return res.status(404).json({ error: 'Interview not found' });
-		}
-
-		// ── Calendar auto-sync (non-blocking) ──
+router.delete(
+	'/interviews/:id',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('interviews:schedule'),
+	async (req, res) => {
 		try {
-			const deleted = result.rows[0];
-			if (deleted.calendar_event_id && deleted.calendar_provider) {
-				await calendarService.deleteCalendarEvent(
-					deleted.recruiter_id,
-					deleted.calendar_provider,
-					deleted.calendar_event_id,
-				);
-			}
-		} catch (calErr) {
-			console.error('[calendar] Auto-sync delete failed (non-blocking):', calErr.message);
-		}
+			const result = await pool.query(
+				'DELETE FROM scheduled_interviews WHERE id = $1 AND company_id = $2 RETURNING id, calendar_event_id, calendar_provider, recruiter_id',
+				[req.params.id, req.user.company_id],
+			);
 
-		res.json({ success: true });
-	} catch (err) {
-		console.error('Delete interview error:', err);
-		res.status(500).json({ error: 'Failed to delete interview' });
-	}
-});
+			if (result.rows.length === 0) {
+				return res.status(404).json({ error: 'Interview not found' });
+			}
+
+			// ── Calendar auto-sync (non-blocking) ──
+			try {
+				const deleted = result.rows[0];
+				if (deleted.calendar_event_id && deleted.calendar_provider) {
+					await calendarService.deleteCalendarEvent(
+						deleted.recruiter_id,
+						deleted.calendar_provider,
+						deleted.calendar_event_id,
+					);
+				}
+			} catch (calErr) {
+				console.error('[calendar] Auto-sync delete failed (non-blocking):', calErr.message);
+			}
+
+			res.json({ success: true });
+		} catch (err) {
+			console.error('Delete interview error:', err);
+			res.status(500).json({ error: 'Failed to delete interview' });
+		}
+	},
+);
 
 // Get all candidates who have applied (for offer creation dropdown)
-router.get('/candidates', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
-	try {
-		const result = await pool.query(
-			`
+router.get(
+	'/candidates',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	async (req, res) => {
+		try {
+			const result = await pool.query(
+				`
       SELECT DISTINCT ON (u.id)
         u.id, u.name, u.email
       FROM job_applications ja
@@ -1240,108 +1370,116 @@ router.get('/candidates', authMiddleware, requireApprovedRecruiter, ensureCompan
       WHERE ja.company_id = $1
       ORDER BY u.id, ja.applied_at DESC
     `,
-			[req.user.company_id],
-		);
+				[req.user.company_id],
+			);
 
-		res.json({ candidates: result.rows });
-	} catch (err) {
-		console.error('Get candidates error:', err);
-		res.status(500).json({ error: 'Failed to fetch candidates' });
-	}
-});
+			res.json({ candidates: result.rows });
+		} catch (err) {
+			console.error('Get candidates error:', err);
+			res.status(500).json({ error: 'Failed to fetch candidates' });
+		}
+	},
+);
 
 // Get full candidate profiles with pipeline data (B-001)
-router.get('/candidates/full', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), dataAccessAudit('candidate_profiles'), async (req, res) => {
-	try {
-		const {
-			search,
-			status,
-			experience,
-			location,
-			skills,
-			minScore,
-			maxScore,
-			page = 1,
-			limit = 20,
-		} = req.query;
-		const companyId = req.user.company_id;
-		const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+router.get(
+	'/candidates/full',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	dataAccessAudit('candidate_profiles'),
+	async (req, res) => {
+		try {
+			const {
+				search,
+				status,
+				experience,
+				location,
+				skills,
+				minScore,
+				maxScore,
+				page = 1,
+				limit = 20,
+			} = req.query;
+			const companyId = req.user.company_id;
+			const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
 
-		// Build WHERE conditions dynamically
-		const conditions = ['ja.company_id = $1'];
-		const params = [companyId];
-		let paramIdx = 2;
+			// Build WHERE conditions dynamically
+			const conditions = ['ja.company_id = $1'];
+			const params = [companyId];
+			let paramIdx = 2;
 
-		if (search) {
-			conditions.push(`(
+			if (search) {
+				conditions.push(`(
         u.name ILIKE $${paramIdx} OR
         cp.headline ILIKE $${paramIdx} OR
         cp.location ILIKE $${paramIdx} OR
         EXISTS (SELECT 1 FROM candidate_skills cs WHERE cs.user_id = u.id AND cs.skill_name ILIKE $${paramIdx})
       )`);
-			params.push(`%${search}%`);
-			paramIdx++;
-		}
-
-		if (status) {
-			conditions.push(`ja.status = $${paramIdx}`);
-			params.push(status);
-			paramIdx++;
-		}
-
-		if (experience) {
-			const [min, max] = experience.split('-').map(Number);
-			if (!Number.isNaN(min) && !Number.isNaN(max)) {
-				conditions.push(
-					`cp.years_experience >= $${paramIdx} AND cp.years_experience <= $${paramIdx + 1}`,
-				);
-				params.push(min, max);
-				paramIdx += 2;
-			} else if (experience === '10+') {
-				conditions.push(`cp.years_experience >= $${paramIdx}`);
-				params.push(10);
+				params.push(`%${search}%`);
 				paramIdx++;
 			}
-		}
 
-		if (location) {
-			conditions.push(`cp.location ILIKE $${paramIdx}`);
-			params.push(`%${location}%`);
-			paramIdx++;
-		}
-
-		if (skills) {
-			const skillList = skills
-				.split(',')
-				.map((s) => s.trim())
-				.filter(Boolean);
-			if (skillList.length > 0) {
-				const skillPlaceholders = skillList.map((_, i) => `$${paramIdx + i}`).join(',');
-				conditions.push(
-					`EXISTS (SELECT 1 FROM candidate_skills cs WHERE cs.user_id = u.id AND cs.skill_name IN (${skillPlaceholders}))`,
-				);
-				params.push(...skillList);
-				paramIdx += skillList.length;
+			if (status) {
+				conditions.push(`ja.status = $${paramIdx}`);
+				params.push(status);
+				paramIdx++;
 			}
-		}
 
-		if (minScore) {
-			conditions.push(`COALESCE(os.total_score, ja.match_score, 0) >= $${paramIdx}`);
-			params.push(parseInt(minScore, 10));
-			paramIdx++;
-		}
+			if (experience) {
+				const [min, max] = experience.split('-').map(Number);
+				if (!Number.isNaN(min) && !Number.isNaN(max)) {
+					conditions.push(
+						`cp.years_experience >= $${paramIdx} AND cp.years_experience <= $${paramIdx + 1}`,
+					);
+					params.push(min, max);
+					paramIdx += 2;
+				} else if (experience === '10+') {
+					conditions.push(`cp.years_experience >= $${paramIdx}`);
+					params.push(10);
+					paramIdx++;
+				}
+			}
 
-		if (maxScore) {
-			conditions.push(`COALESCE(os.total_score, ja.match_score, 0) <= $${paramIdx}`);
-			params.push(parseInt(maxScore, 10));
-			paramIdx++;
-		}
+			if (location) {
+				conditions.push(`cp.location ILIKE $${paramIdx}`);
+				params.push(`%${location}%`);
+				paramIdx++;
+			}
 
-		const whereClause = conditions.join(' AND ');
+			if (skills) {
+				const skillList = skills
+					.split(',')
+					.map((s) => s.trim())
+					.filter(Boolean);
+				if (skillList.length > 0) {
+					const skillPlaceholders = skillList.map((_, i) => `$${paramIdx + i}`).join(',');
+					conditions.push(
+						`EXISTS (SELECT 1 FROM candidate_skills cs WHERE cs.user_id = u.id AND cs.skill_name IN (${skillPlaceholders}))`,
+					);
+					params.push(...skillList);
+					paramIdx += skillList.length;
+				}
+			}
 
-		// Get total count for pagination
-		const countResult = await pool.query(
-			`
+			if (minScore) {
+				conditions.push(`COALESCE(os.total_score, ja.match_score, 0) >= $${paramIdx}`);
+				params.push(parseInt(minScore, 10));
+				paramIdx++;
+			}
+
+			if (maxScore) {
+				conditions.push(`COALESCE(os.total_score, ja.match_score, 0) <= $${paramIdx}`);
+				params.push(parseInt(maxScore, 10));
+				paramIdx++;
+			}
+
+			const whereClause = conditions.join(' AND ');
+
+			// Get total count for pagination
+			const countResult = await pool.query(
+				`
       SELECT COUNT(DISTINCT u.id) as total
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
@@ -1349,14 +1487,14 @@ router.get('/candidates/full', authMiddleware, requireApprovedRecruiter, ensureC
       LEFT JOIN omni_scores os ON os.user_id = u.id
       WHERE ${whereClause}
     `,
-			params,
-		);
+				params,
+			);
 
-		const totalCount = parseInt(countResult.rows[0].total, 10);
+			const totalCount = parseInt(countResult.rows[0].total, 10);
 
-		// Get candidates with full data
-		const result = await pool.query(
-			`
+			// Get candidates with full data
+			const result = await pool.query(
+				`
       SELECT
         u.id,
         u.name,
@@ -1395,94 +1533,111 @@ router.get('/candidates/full', authMiddleware, requireApprovedRecruiter, ensureC
       ORDER BY latest_ja.applied_at DESC
       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
     `,
-			[...params, parseInt(limit, 10), offset],
-		);
+				[...params, parseInt(limit, 10), offset],
+			);
 
-		// Format candidates for frontend
-		const candidates = result.rows.map((row) => ({
-			id: String(row.id),
-			name: row.name,
-			email: row.email,
-			avatar: row.avatar_url,
-			headline: row.headline || 'No headline set',
-			location: row.location || 'Location not specified',
-			experienceYears: row.years_experience || 0,
-			phone: row.phone,
-			skills: row.skills || [],
-			matchScore: row.match_score || 0,
-			omniscore: row.omniscore || 0,
-			scoreTier: row.score_tier,
-			applicationStatus: row.application_status,
-			lastActivity: row.applied_at ? new Date(row.applied_at).toISOString() : null,
-			isTopCandidate: row.omniscore >= 85,
-			salaryMin: row.salary_min,
-			salaryMax: row.salary_max,
-			remotePreference: row.remote_preference,
-			skillCount: row.skill_count || 0,
-		}));
+			// Format candidates for frontend
+			const candidates = result.rows.map((row) => ({
+				id: String(row.id),
+				name: row.name,
+				email: row.email,
+				avatar: row.avatar_url,
+				headline: row.headline || 'No headline set',
+				location: row.location || 'Location not specified',
+				experienceYears: row.years_experience || 0,
+				phone: row.phone,
+				skills: row.skills || [],
+				matchScore: row.match_score || 0,
+				omniscore: row.omniscore || 0,
+				scoreTier: row.score_tier,
+				applicationStatus: row.application_status,
+				lastActivity: row.applied_at ? new Date(row.applied_at).toISOString() : null,
+				isTopCandidate: row.omniscore >= 85,
+				salaryMin: row.salary_min,
+				salaryMax: row.salary_max,
+				remotePreference: row.remote_preference,
+				skillCount: row.skill_count || 0,
+			}));
 
-		res.json({
-			success: true,
-			candidates,
-			pagination: {
-				page: parseInt(page, 10),
-				limit: parseInt(limit, 10),
-				total: totalCount,
-				totalPages: Math.ceil(totalCount / parseInt(limit, 10)),
-			},
-		});
-	} catch (err) {
-		const ref = require('node:crypto').randomUUID();
-		console.error(`[ERROR ref=${ref}] Get full candidates error:`, err);
-		if (process.env.NODE_ENV === 'production') {
-			res.status(500).json({ error: 'Internal server error', ref });
-		} else {
-			res.status(500).json({ error: 'Failed to fetch candidates', ref });
+			res.json({
+				success: true,
+				candidates,
+				pagination: {
+					page: parseInt(page, 10),
+					limit: parseInt(limit, 10),
+					total: totalCount,
+					totalPages: Math.ceil(totalCount / parseInt(limit, 10)),
+				},
+			});
+		} catch (err) {
+			const ref = require('node:crypto').randomUUID();
+			console.error(`[ERROR ref=${ref}] Get full candidates error:`, err);
+			if (process.env.NODE_ENV === 'production') {
+				res.status(500).json({ error: 'Internal server error', ref });
+			} else {
+				res.status(500).json({ error: 'Failed to fetch candidates', ref });
+			}
 		}
-	}
-});
+	},
+);
 
-router.post('/candidates/bulk-status', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
-	try {
-		const { candidateIds, status } = req.body;
-		const VALID = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'];
-		if (!candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {
-			return res.status(400).json({ error: 'candidateIds array required' });
+router.post(
+	'/candidates/bulk-status',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:manage'),
+	async (req, res) => {
+		try {
+			const { candidateIds, status } = req.body;
+			const VALID = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'];
+			if (!candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {
+				return res.status(400).json({ error: 'candidateIds array required' });
+			}
+			if (!VALID.includes(status)) {
+				return res
+					.status(400)
+					.json({ error: `Invalid status. Must be one of: ${VALID.join(', ')}` });
+			}
+			const result = await pool.query(
+				'UPDATE candidates SET status = $1, updated_at = NOW() WHERE id = ANY($2) AND company_id = $3',
+				[status, candidateIds, req.user.company_id],
+			);
+			console.log('[AUDIT] Bulk status update', {
+				userId: req.user.id,
+				count: result.rowCount,
+				fromStatus: 'various',
+				toStatus: status,
+			});
+			res.json({ updated: result.rowCount, candidateIds });
+		} catch (err) {
+			console.error('Bulk status update error:', err);
+			res.status(500).json({ error: 'Failed to update candidate statuses' });
 		}
-		if (!VALID.includes(status)) {
-			return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID.join(', ')}` });
-		}
-		const result = await pool.query(
-			'UPDATE candidates SET status = $1, updated_at = NOW() WHERE id = ANY($2) AND company_id = $3',
-			[status, candidateIds, req.user.company_id],
-		);
-		console.log('[AUDIT] Bulk status update', {
-			userId: req.user.id,
-			count: result.rowCount,
-			fromStatus: 'various',
-			toStatus: status,
-		});
-		res.json({ updated: result.rowCount, candidateIds });
-	} catch (err) {
-		console.error('Bulk status update error:', err);
-		res.status(500).json({ error: 'Failed to update candidate statuses' });
-	}
-});
+	},
+);
 
 // Get pipeline stats (B-001)
-router.get('/pipeline-stats', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('analytics:read'), async (req, res) => {
-	try {
-		const companyId = req.user.company_id;
+router.get(
+	'/pipeline-stats',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('analytics:read'),
+	async (req, res) => {
+		try {
+			const companyId = req.user.company_id;
 
-		// Issue #143: Cache pipeline stats
-		const cacheKey = analyticsCache.key('/api/recruiter/pipeline-stats', { companyId });
-		const cached = analyticsCache.get(cacheKey);
-		if (cached) {
-			return res.json({ success: true, cached: true, ...cached });
-		}
+			// Issue #143: Cache pipeline stats
+			const cacheKey = analyticsCache.key('/api/recruiter/pipeline-stats', { companyId });
+			const cached = analyticsCache.get(cacheKey);
+			if (cached) {
+				return res.json({ success: true, cached: true, ...cached });
+			}
 
-		const stats = await pool.query(
-			`
+			const stats = await pool.query(
+				`
       SELECT
         COUNT(DISTINCT ja.id) as total,
         COUNT(DISTINCT CASE WHEN ja.status = 'applied' THEN ja.id END) as new,
@@ -1494,84 +1649,91 @@ router.get('/pipeline-stats', authMiddleware, requireApprovedRecruiter, ensureCo
       FROM job_applications ja
       WHERE ja.company_id = $1
     `,
-			[companyId],
-		);
+				[companyId],
+			);
 
-		const recentActivity = await pool.query(
-			`
+			const recentActivity = await pool.query(
+				`
       SELECT
         COUNT(DISTINCT CASE WHEN ja.updated_at >= NOW() - INTERVAL '24 hours' THEN ja.id END) as last_24h,
         COUNT(DISTINCT CASE WHEN ja.updated_at >= NOW() - INTERVAL '7 days' THEN ja.id END) as last_7d
       FROM job_applications ja
       WHERE ja.company_id = $1
     `,
-			[companyId],
-		);
+				[companyId],
+			);
 
-		// Graceful fallback if omni_scores table is missing in E2E
-		let topCandidatesCount = 0;
-		try {
-			const topCandidates = await pool.query(
-				`
+			// Graceful fallback if omni_scores table is missing in E2E
+			let topCandidatesCount = 0;
+			try {
+				const topCandidates = await pool.query(
+					`
       SELECT COUNT(DISTINCT u.id) as count
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id
       WHERE ja.company_id = $1 AND COALESCE(os.total_score, ja.match_score, 0) >= 85
     `,
-				[companyId],
-			);
-			topCandidatesCount = parseInt(topCandidates.rows[0].count, 10) || 0;
-		} catch (_topErr) {
-			console.log('[pipeline-stats] omni_scores not available, topCandidates = 0');
+					[companyId],
+				);
+				topCandidatesCount = parseInt(topCandidates.rows[0].count, 10) || 0;
+			} catch (_topErr) {
+				console.log('[pipeline-stats] omni_scores not available, topCandidates = 0');
+			}
+
+			const row = stats.rows[0];
+			const activity = recentActivity.rows[0];
+
+			const response = {
+				stats: {
+					total: parseInt(row.total, 10) || 0,
+					new: parseInt(row.new, 10) || 0,
+					screening: parseInt(row.screening, 10) || 0,
+					interview: parseInt(row.interview, 10) || 0,
+					offer: parseInt(row.offer, 10) || 0,
+					hired: parseInt(row.hired, 10) || 0,
+					rejected: parseInt(row.rejected, 10) || 0,
+					topCandidates: topCandidatesCount,
+					last24h: parseInt(activity.last_24h, 10) || 0,
+					last7d: parseInt(activity.last_7d, 10) || 0,
+				},
+			};
+
+			analyticsCache.set(cacheKey, response);
+			res.json({ success: true, ...response });
+		} catch (err) {
+			const ref = require('node:crypto').randomUUID();
+			console.error(`[ERROR ref=${ref}] Get pipeline stats error:`, err);
+			if (process.env.NODE_ENV === 'production') {
+				res.status(500).json({ error: 'Internal server error', ref });
+			} else {
+				res.status(500).json({ error: 'Failed to fetch pipeline stats', ref });
+			}
 		}
-
-		const row = stats.rows[0];
-		const activity = recentActivity.rows[0];
-
-		const response = {
-			stats: {
-				total: parseInt(row.total, 10) || 0,
-				new: parseInt(row.new, 10) || 0,
-				screening: parseInt(row.screening, 10) || 0,
-				interview: parseInt(row.interview, 10) || 0,
-				offer: parseInt(row.offer, 10) || 0,
-				hired: parseInt(row.hired, 10) || 0,
-				rejected: parseInt(row.rejected, 10) || 0,
-				topCandidates: topCandidatesCount,
-				last24h: parseInt(activity.last_24h, 10) || 0,
-				last7d: parseInt(activity.last_7d, 10) || 0,
-			},
-		};
-
-		analyticsCache.set(cacheKey, response);
-		res.json({ success: true, ...response });
-	} catch (err) {
-		const ref = require('node:crypto').randomUUID();
-		console.error(`[ERROR ref=${ref}] Get pipeline stats error:`, err);
-		if (process.env.NODE_ENV === 'production') {
-			res.status(500).json({ error: 'Internal server error', ref });
-		} else {
-			res.status(500).json({ error: 'Failed to fetch pipeline stats', ref });
-		}
-	}
-});
+	},
+);
 
 // Get applications for a job
-router.get('/jobs/:id/applications', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
-	try {
-		// Verify job belongs to company or user
-		const job = await pool.query(
-			'SELECT id, title, screening_questions FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
-			[req.params.id, req.user.company_id, req.user.id],
-		);
+router.get(
+	'/jobs/:id/applications',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	async (req, res) => {
+		try {
+			// Verify job belongs to company or user
+			const job = await pool.query(
+				'SELECT id, title, screening_questions FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+				[req.params.id, req.user.company_id, req.user.id],
+			);
 
-		if (job.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
-		}
+			if (job.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
 
-		const applications = await pool.query(
-			`
+			const applications = await pool.query(
+				`
       SELECT ja.*,
              u.name as candidate_name, u.email as candidate_email,
              os.total_score as current_omniscore, os.score_tier
@@ -1581,138 +1743,146 @@ router.get('/jobs/:id/applications', authMiddleware, requireApprovedRecruiter, e
       WHERE ja.job_id = $1
       ORDER BY ja.applied_at DESC
     `,
-			[req.params.id],
-		);
+				[req.params.id],
+			);
 
-		res.json({
-			job: job.rows[0],
-			applications: applications.rows,
-		});
-	} catch (err) {
-		console.error('Get applications error:', err);
-		res.status(500).json({ error: 'Failed to fetch applications' });
-	}
-});
+			res.json({
+				job: job.rows[0],
+				applications: applications.rows,
+			});
+		} catch (err) {
+			console.error('Get applications error:', err);
+			res.status(500).json({ error: 'Failed to fetch applications' });
+		}
+	},
+);
 
 // Update application status
-router.put('/applications/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
-	try {
-		const { status, recruiter_notes } = req.body;
+router.put(
+	'/applications/:id',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:manage'),
+	async (req, res) => {
+		try {
+			const { status, recruiter_notes } = req.body;
 
-		// Validate status against pipeline stages
-		if (status && !PIPELINE_STAGES.includes(status)) {
-			return res
-				.status(400)
-				.json({ error: `Invalid status. Must be one of: ${PIPELINE_STAGES.join(', ')}` });
-		}
+			// Validate status against pipeline stages
+			if (status && !PIPELINE_STAGES.includes(status)) {
+				return res
+					.status(400)
+					.json({ error: `Invalid status. Must be one of: ${PIPELINE_STAGES.join(', ')}` });
+			}
 
-		// Verify application belongs to company
-		const existing = await pool.query(
-			'SELECT id, job_id, candidate_id, status as old_status FROM job_applications WHERE id = $1 AND company_id = $2',
-			[req.params.id, req.user.company_id],
-		);
+			// Verify application belongs to company
+			const existing = await pool.query(
+				'SELECT id, job_id, candidate_id, status as old_status FROM job_applications WHERE id = $1 AND company_id = $2',
+				[req.params.id, req.user.company_id],
+			);
 
-		if (existing.rows.length === 0) {
-			return res.status(404).json({ error: 'Application not found' });
-		}
+			if (existing.rows.length === 0) {
+				return res.status(404).json({ error: 'Application not found' });
+			}
 
-		const result = await pool.query(
-			`UPDATE job_applications SET
+			const result = await pool.query(
+				`UPDATE job_applications SET
         status = COALESCE($1, status),
         recruiter_notes = COALESCE($2, recruiter_notes),
         updated_at = NOW()
        WHERE id = $3
        RETURNING *`,
-			[status, recruiter_notes, req.params.id],
-		);
+				[status, recruiter_notes, req.params.id],
+			);
 
-		// Log to activity feed (events table) for status changes
-		if (status && status !== existing.rows[0].old_status) {
-			try {
-				await pool.query(
-					`INSERT INTO events (user_id, event_type, event_data, created_at)
+			// Log to activity feed (events table) for status changes
+			if (status && status !== existing.rows[0].old_status) {
+				try {
+					await pool.query(
+						`INSERT INTO events (user_id, event_type, event_data, created_at)
            VALUES ($1, 'application_status_changed', $2, NOW())`,
-					[
-						req.user.id,
-						JSON.stringify({
-							application_id: parseInt(req.params.id, 10),
-							candidate_id: existing.rows[0].candidate_id,
-							job_id: existing.rows[0].job_id,
-							old_status: existing.rows[0].old_status,
-							new_status: status,
-							changed_by: req.user.id,
-						}),
-					],
-				);
-			} catch (_e) {
-				/* non-critical */
-			}
-		}
-
-		// Update job analytics
-		if (status) {
-			const app = existing.rows[0];
-
-			// Update counters based on status
-			if (status === 'interviewed') {
-				await pool.query(
-					'UPDATE job_analytics SET interviews_scheduled = interviews_scheduled + 1 WHERE job_id = $1',
-					[app.job_id],
-				);
-			} else if (status === 'offered') {
-				await pool.query(
-					'UPDATE job_analytics SET offers_made = offers_made + 1 WHERE job_id = $1',
-					[app.job_id],
-				);
-
-				// Update hiring ratio score
-				await trustscoreService.updateHiringRatioScore(req.user.company_id);
-			} else if (status === 'hired') {
-				await pool.query(
-					'UPDATE job_analytics SET offers_accepted = offers_accepted + 1 WHERE job_id = $1',
-					[app.job_id],
-				);
-			}
-		}
-
-		// Send email notification for status change (non-blocking)
-		if (status && ['offered', 'hired', 'rejected'].includes(status)) {
-			try {
-				const candidateResult = await pool.query(
-					'SELECT u.email, u.name, j.title as job_title, c.name as company_name FROM users u JOIN job_applications ja ON ja.candidate_id = u.id JOIN jobs j ON j.id = ja.job_id JOIN companies c ON c.id = j.company_id WHERE ja.id = $1',
-					[req.params.id],
-				);
-				if (candidateResult.rows.length > 0) {
-					const candidate = candidateResult.rows[0];
-					const templateMap = {
-						offered: 'offer_received',
-						hired: 'hired',
-						rejected: 'rejection',
-					};
-					await emailService.sendTemplatedEmail({
-						to: candidate.email,
-						templateName: templateMap[status],
-						templateData: {
-							candidateName: candidate.name,
-							jobTitle: candidate.job_title,
-							companyName: candidate.company_name,
-							status: status,
-							recruiterNotes: recruiter_notes || '',
-						},
-						userId: existing.rows[0].candidate_id,
-						metadata: { applicationId: req.params.id, jobId: existing.rows[0].job_id },
-					});
+						[
+							req.user.id,
+							JSON.stringify({
+								application_id: parseInt(req.params.id, 10),
+								candidate_id: existing.rows[0].candidate_id,
+								job_id: existing.rows[0].job_id,
+								old_status: existing.rows[0].old_status,
+								new_status: status,
+								changed_by: req.user.id,
+							}),
+						],
+					);
+				} catch (_e) {
+					/* non-critical */
 				}
-			} catch (emailErr) {
-				console.error('Failed to send status change email:', emailErr);
-				/* non-critical */
 			}
-		}
 
-		// If status is being changed, check if this overrides an AI recommendation
-		if (status) {
-			const aiDecision = await pool.query(
-				`
+			// Update job analytics
+			if (status) {
+				const app = existing.rows[0];
+
+				// Update counters based on status
+				if (status === 'interviewed') {
+					await pool.query(
+						'UPDATE job_analytics SET interviews_scheduled = interviews_scheduled + 1 WHERE job_id = $1',
+						[app.job_id],
+					);
+				} else if (status === 'offered') {
+					await pool.query(
+						'UPDATE job_analytics SET offers_made = offers_made + 1 WHERE job_id = $1',
+						[app.job_id],
+					);
+
+					// Update hiring ratio score
+					await trustscoreService.updateHiringRatioScore(req.user.company_id);
+				} else if (status === 'hired') {
+					await pool.query(
+						'UPDATE job_analytics SET offers_accepted = offers_accepted + 1 WHERE job_id = $1',
+						[app.job_id],
+					);
+				}
+			}
+
+			// Send email notification for status change (non-blocking)
+			if (status && ['offered', 'hired', 'rejected'].includes(status)) {
+				try {
+					const candidateResult = await pool.query(
+						'SELECT u.email, u.name, j.title as job_title, c.name as company_name FROM users u JOIN job_applications ja ON ja.candidate_id = u.id JOIN jobs j ON j.id = ja.job_id JOIN companies c ON c.id = j.company_id WHERE ja.id = $1',
+						[req.params.id],
+					);
+					if (candidateResult.rows.length > 0) {
+						const candidate = candidateResult.rows[0];
+						const templateMap = {
+							offered: 'offer_received',
+							hired: 'hired',
+							rejected: 'rejection',
+						};
+						await emailService.sendTemplatedEmail({
+							to: candidate.email,
+							templateName: templateMap[status],
+							templateData: {
+								candidateName: candidate.name,
+								jobTitle: candidate.job_title,
+								companyName: candidate.company_name,
+								status: status,
+								recruiterNotes: recruiter_notes || '',
+							},
+							userId: existing.rows[0].candidate_id,
+							metadata: { applicationId: req.params.id, jobId: existing.rows[0].job_id },
+						});
+					}
+				} catch (emailErr) {
+					console.error('Failed to send status change email:', emailErr);
+					/* non-critical */
+				}
+			}
+
+			// If status is being changed, check if this overrides an AI recommendation
+			if (status) {
+				const aiDecision = await pool.query(
+					`
         SELECT action_type, metadata
         FROM audit_logs
         WHERE target_type = 'job_application' AND target_id = $1
@@ -1720,135 +1890,155 @@ router.put('/applications/:id', authMiddleware, requireNotSuspended, requireAppr
         ORDER BY created_at DESC
         LIMIT 1
       `,
-				[req.params.id],
-			);
+					[req.params.id],
+				);
 
-			if (aiDecision.rows.length > 0) {
-				const aiMetadata = aiDecision.rows[0].metadata || {};
+				if (aiDecision.rows.length > 0) {
+					const aiMetadata = aiDecision.rows[0].metadata || {};
+					await AuditLogger.log({
+						actionType: 'human_override',
+						userId: req.user.id,
+						targetType: 'job_application',
+						targetId: parseInt(req.params.id, 10),
+						metadata: {
+							candidate_id: existing.rows[0].candidate_id,
+							job_id: existing.rows[0].job_id,
+							original_ai_decision: aiMetadata.decision || aiMetadata.status || 'ai_recommended',
+							override_decision: status,
+							override_reason: recruiter_notes || 'Manual status change by recruiter',
+							ai_model: aiMetadata.model || 'unknown',
+							ai_confidence: aiMetadata.confidence || 0.85,
+							job_title: existing.rows[0].job_title || 'Unknown Position',
+						},
+						req,
+					});
+				}
+			}
+
+			// Audit log: Application status change
+			if (status) {
 				await AuditLogger.log({
-					actionType: 'human_override',
+					actionType: 'application_status_changed',
 					userId: req.user.id,
 					targetType: 'job_application',
 					targetId: parseInt(req.params.id, 10),
 					metadata: {
 						candidate_id: existing.rows[0].candidate_id,
 						job_id: existing.rows[0].job_id,
-						original_ai_decision: aiMetadata.decision || aiMetadata.status || 'ai_recommended',
-						override_decision: status,
-						override_reason: recruiter_notes || 'Manual status change by recruiter',
-						ai_model: aiMetadata.model || 'unknown',
-						ai_confidence: aiMetadata.confidence || 0.85,
-						job_title: existing.rows[0].job_title || 'Unknown Position',
+						new_status: status,
+						recruiter_notes: recruiter_notes || null,
 					},
 					req,
 				});
 			}
-		}
 
-		// Audit log: Application status change
-		if (status) {
-			await AuditLogger.log({
-				actionType: 'application_status_changed',
-				userId: req.user.id,
-				targetType: 'job_application',
-				targetId: parseInt(req.params.id, 10),
-				metadata: {
-					candidate_id: existing.rows[0].candidate_id,
-					job_id: existing.rows[0].job_id,
-					new_status: status,
-					recruiter_notes: recruiter_notes || null,
-				},
-				req,
-			});
+			res.json({ success: true, application: result.rows[0] });
+		} catch (err) {
+			console.error('Update application error:', err);
+			res.status(500).json({ error: 'Failed to update application' });
 		}
-
-		res.json({ success: true, application: result.rows[0] });
-	} catch (err) {
-		console.error('Update application error:', err);
-		res.status(500).json({ error: 'Failed to update application' });
-	}
-});
+	},
+);
 
 // Schedule interview
-router.post('/interviews/schedule', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('interviews:schedule'), async (req, res) => {
-	try {
-		let {
-			job_id,
-			candidate_id,
-			scheduled_at,
-			duration_minutes = 60,
-			interview_type = 'video',
-			meeting_link,
-			notes,
-		} = req.body;
+router.post(
+	'/interviews/schedule',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('interviews:schedule'),
+	async (req, res) => {
+		try {
+			let {
+				job_id,
+				candidate_id,
+				scheduled_at,
+				duration_minutes = 60,
+				interview_type = 'video',
+				meeting_link,
+				notes,
+			} = req.body;
 
-		if (!job_id || !candidate_id || !scheduled_at) {
-			return res.status(400).json({ error: 'Job, candidate, and scheduled time are required' });
-		}
+			if (!job_id || !candidate_id || !scheduled_at) {
+				return res.status(400).json({ error: 'Job, candidate, and scheduled time are required' });
+			}
 
-		// Verify job belongs to company
-		const job = await pool.query('SELECT id FROM jobs WHERE id = $1 AND company_id = $2', [
-			job_id,
-			req.user.company_id,
-		]);
+			// Verify job belongs to company
+			const job = await pool.query('SELECT id FROM jobs WHERE id = $1 AND company_id = $2', [
+				job_id,
+				req.user.company_id,
+			]);
 
-		if (job.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
-		}
+			if (job.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
 
-		// Auto-generate Jitsi meeting link for video interviews if not provided
-		if (interview_type === 'video' && !meeting_link) {
-			const roomId = `Rekrut AI-${Date.now().toString(36)}-${crypto.randomBytes(6).toString('base64url')}`;
-			meeting_link = `https://meet.jit.si/${roomId}`;
-		}
+			// Auto-generate Jitsi meeting link for video interviews if not provided
+			if (interview_type === 'video' && !meeting_link) {
+				const roomId = `Rekrut AI-${Date.now().toString(36)}-${crypto.randomBytes(6).toString('base64url')}`;
+				meeting_link = `https://meet.jit.si/${roomId}`;
+			}
 
-		const result = await pool.query(
-			`INSERT INTO scheduled_interviews
+			const result = await pool.query(
+				`INSERT INTO scheduled_interviews
        (company_id, job_id, candidate_id, recruiter_id, scheduled_at, duration_minutes, interview_type, meeting_link, notes)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-			[
-				req.user.company_id,
-				job_id,
-				candidate_id,
-				req.user.id,
-				scheduled_at,
-				duration_minutes,
-				interview_type,
-				meeting_link,
-				notes,
-			],
-		);
+				[
+					req.user.company_id,
+					job_id,
+					candidate_id,
+					req.user.id,
+					scheduled_at,
+					duration_minutes,
+					interview_type,
+					meeting_link,
+					notes,
+				],
+			);
 
-		// Update application status
-		await pool.query(
-			`UPDATE job_applications SET status = 'interviewed', updated_at = NOW()
+			// Update application status
+			await pool.query(
+				`UPDATE job_applications SET status = 'interviewed', updated_at = NOW()
        WHERE job_id = $1 AND candidate_id = $2`,
-			[job_id, candidate_id],
-		);
+				[job_id, candidate_id],
+			);
 
-		// Update job analytics
-		await pool.query(
-			'UPDATE job_analytics SET interviews_scheduled = interviews_scheduled + 1 WHERE job_id = $1',
-			[job_id],
-		);
+			// Update job analytics
+			await pool.query(
+				'UPDATE job_analytics SET interviews_scheduled = interviews_scheduled + 1 WHERE job_id = $1',
+				[job_id],
+			);
 
-		// Add behavior points for scheduling
-		await trustscoreService.addBehaviorComponent(req.user.company_id, 'interview_scheduled', 5, 10);
+			// Add behavior points for scheduling
+			await trustscoreService.addBehaviorComponent(
+				req.user.company_id,
+				'interview_scheduled',
+				5,
+				10,
+			);
 
-		res.json({ success: true, interview: result.rows[0] });
-	} catch (err) {
-		console.error('Schedule interview error:', err);
-		res.status(500).json({ error: 'Failed to schedule interview' });
-	}
-});
+			res.json({ success: true, interview: result.rows[0] });
+		} catch (err) {
+			console.error('Schedule interview error:', err);
+			res.status(500).json({ error: 'Failed to schedule interview' });
+		}
+	},
+);
 
 // Get scheduled interviews
-router.get('/interviews', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('interviews:read'), async (req, res) => {
-	try {
-		const { upcoming_only = 'false', status, limit = 50 } = req.query;
+router.get(
+	'/interviews',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('interviews:read'),
+	async (req, res) => {
+		try {
+			const { upcoming_only = 'false', status, limit = 50 } = req.query;
 
-		let query = `
+			let query = `
       SELECT si.*,
              u.name as candidate_name, u.email as candidate_email,
              j.title as job_title
@@ -1857,36 +2047,44 @@ router.get('/interviews', authMiddleware, requireApprovedRecruiter, ensureCompan
       JOIN jobs j ON si.job_id = j.id
       WHERE si.company_id = $1
     `;
-		const params = [req.user.company_id];
+			const params = [req.user.company_id];
 
-		if (upcoming_only === 'true') {
-			query += ` AND si.scheduled_at > NOW() AND si.status IN ('scheduled', 'confirmed')`;
+			if (upcoming_only === 'true') {
+				query += ` AND si.scheduled_at > NOW() AND si.status IN ('scheduled', 'confirmed')`;
+			}
+
+			if (status) {
+				query += ` AND si.status = $${params.length + 1}`;
+				params.push(status);
+			}
+
+			query += ` ORDER BY si.scheduled_at DESC LIMIT $${params.length + 1}`;
+			params.push(limit);
+
+			const result = await pool.query(query, params);
+
+			res.json({ interviews: result.rows });
+		} catch (err) {
+			console.error('Get interviews error:', err);
+			res.status(500).json({ error: 'Failed to fetch interviews' });
 		}
-
-		if (status) {
-			query += ` AND si.status = $${params.length + 1}`;
-			params.push(status);
-		}
-
-		query += ` ORDER BY si.scheduled_at DESC LIMIT $${params.length + 1}`;
-		params.push(limit);
-
-		const result = await pool.query(query, params);
-
-		res.json({ interviews: result.rows });
-	} catch (err) {
-		console.error('Get interviews error:', err);
-		res.status(500).json({ error: 'Failed to fetch interviews' });
-	}
-});
+	},
+);
 
 // Update interview outcome
-router.put('/interviews/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('interviews:schedule'), async (req, res) => {
-	try {
-		const { status, outcome, feedback, meeting_link } = req.body;
+router.put(
+	'/interviews/:id',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('interviews:schedule'),
+	async (req, res) => {
+		try {
+			const { status, outcome, feedback, meeting_link } = req.body;
 
-		const result = await pool.query(
-			`UPDATE scheduled_interviews SET
+			const result = await pool.query(
+				`UPDATE scheduled_interviews SET
         status = COALESCE($1, status),
         outcome = COALESCE($2, outcome),
         feedback = COALESCE($3, feedback),
@@ -1894,78 +2092,94 @@ router.put('/interviews/:id', authMiddleware, requireNotSuspended, requireApprov
         updated_at = NOW()
        WHERE id = $5 AND company_id = $6
        RETURNING *`,
-			[
-				status,
-				outcome,
-				feedback ? JSON.stringify(feedback) : null,
-				meeting_link,
-				req.params.id,
-				req.user.company_id,
-			],
-		);
+				[
+					status,
+					outcome,
+					feedback ? JSON.stringify(feedback) : null,
+					meeting_link,
+					req.params.id,
+					req.user.company_id,
+				],
+			);
 
-		if (result.rows.length === 0) {
-			return res.status(404).json({ error: 'Interview not found' });
-		}
-
-		res.json({ success: true, interview: result.rows[0] });
-
-		// ── Calendar auto-sync (non-blocking) ──
-		try {
-			if (status === 'cancelled') {
-				await calendarService.syncInterview(result.rows[0], 'delete');
-			} else if (meeting_link) {
-				await calendarService.syncInterview(result.rows[0], 'update');
+			if (result.rows.length === 0) {
+				return res.status(404).json({ error: 'Interview not found' });
 			}
-		} catch (calErr) {
-			console.error('[calendar] Auto-sync update failed (non-blocking):', calErr.message);
+
+			res.json({ success: true, interview: result.rows[0] });
+
+			// ── Calendar auto-sync (non-blocking) ──
+			try {
+				if (status === 'cancelled') {
+					await calendarService.syncInterview(result.rows[0], 'delete');
+				} else if (meeting_link) {
+					await calendarService.syncInterview(result.rows[0], 'update');
+				}
+			} catch (calErr) {
+				console.error('[calendar] Auto-sync update failed (non-blocking):', calErr.message);
+			}
+		} catch (err) {
+			console.error('Update interview error:', err);
+			res.status(500).json({ error: 'Failed to update interview' });
 		}
-	} catch (err) {
-		console.error('Update interview error:', err);
-		res.status(500).json({ error: 'Failed to update interview' });
-	}
-});
+	},
+);
 
 // Generate interview questions for a job
-router.post('/jobs/:id/questions', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:update'), async (req, res) => {
-	try {
-		const job = await pool.query(
-			'SELECT title, description, requirements FROM jobs WHERE id = $1 AND company_id = $2',
-			[req.params.id, req.user.company_id],
-		);
+router.post(
+	'/jobs/:id/questions',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:update'),
+	async (req, res) => {
+		try {
+			const job = await pool.query(
+				'SELECT title, description, requirements FROM jobs WHERE id = $1 AND company_id = $2',
+				[req.params.id, req.user.company_id],
+			);
 
-		if (job.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
+			if (job.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
+
+			const { count = 8 } = req.body;
+			const questions = await jobOptimizer.generateInterviewQuestionsForJob(job.rows[0], count);
+
+			res.json({ success: true, questions });
+		} catch (err) {
+			console.error('Generate questions error:', err);
+			res.status(500).json({ error: 'Failed to generate questions' });
 		}
-
-		const { count = 8 } = req.body;
-		const questions = await jobOptimizer.generateInterviewQuestionsForJob(job.rows[0], count);
-
-		res.json({ success: true, questions });
-	} catch (err) {
-		console.error('Generate questions error:', err);
-		res.status(500).json({ error: 'Failed to generate questions' });
-	}
-});
+	},
+);
 
 // Analyze candidate fit for a job
-router.post('/jobs/:id/analyze-candidate', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
-	try {
-		const { candidate_id } = req.body;
+router.post(
+	'/jobs/:id/analyze-candidate',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	async (req, res) => {
+		try {
+			const { candidate_id } = req.body;
 
-		// Get job details
-		const job = await pool.query('SELECT * FROM jobs WHERE id = $1 AND company_id = $2', [
-			req.params.id,
-			req.user.company_id,
-		]);
+			// Get job details
+			const job = await pool.query('SELECT * FROM jobs WHERE id = $1 AND company_id = $2', [
+				req.params.id,
+				req.user.company_id,
+			]);
 
-		if (job.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
-		}
+			if (job.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
 
-		// Get candidate profile
-		const candidate = await pool.query(
-			`
+			// Get candidate profile
+			const candidate = await pool.query(
+				`
       SELECT u.*, os.total_score as omniscore, os.score_tier,
              AVG(i.overall_score) as avg_interview_score
       FROM users u
@@ -1974,68 +2188,75 @@ router.post('/jobs/:id/analyze-candidate', authMiddleware, requireNotSuspended, 
       WHERE u.id = $1
       GROUP BY u.id, os.total_score, os.score_tier
     `,
-			[candidate_id],
-		);
+				[candidate_id],
+			);
 
-		if (candidate.rows.length === 0) {
-			return res.status(404).json({ error: 'Candidate not found' });
+			if (candidate.rows.length === 0) {
+				return res.status(404).json({ error: 'Candidate not found' });
+			}
+
+			const analysis = await jobOptimizer.analyzeCandidateFit(
+				{
+					name: candidate.rows[0].name,
+					omniscore: candidate.rows[0].omniscore,
+					interview_score: candidate.rows[0].avg_interview_score,
+				},
+				job.rows[0],
+			);
+
+			res.json({ success: true, analysis });
+		} catch (err) {
+			console.error('Analyze candidate error:', err);
+			res.status(500).json({ error: 'Failed to analyze candidate' });
 		}
-
-		const analysis = await jobOptimizer.analyzeCandidateFit(
-			{
-				name: candidate.rows[0].name,
-				omniscore: candidate.rows[0].omniscore,
-				interview_score: candidate.rows[0].avg_interview_score,
-			},
-			job.rows[0],
-		);
-
-		res.json({ success: true, analysis });
-	} catch (err) {
-		console.error('Analyze candidate error:', err);
-		res.status(500).json({ error: 'Failed to analyze candidate' });
-	}
-});
+	},
+);
 
 // Get candidate coaching/practice history (for recruiter review)
-router.get('/candidates/:id/coaching', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
-	try {
-		const candidateId = req.params.id;
+router.get(
+	'/candidates/:id/coaching',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	async (req, res) => {
+		try {
+			const candidateId = req.params.id;
 
-		// Verify candidate has applied to one of recruiter's jobs
-		const hasRelation = await pool.query(
-			`SELECT 1 FROM job_applications ja
+			// Verify candidate has applied to one of recruiter's jobs
+			const hasRelation = await pool.query(
+				`SELECT 1 FROM job_applications ja
        JOIN jobs j ON ja.job_id = j.id
        WHERE ja.candidate_id = $1 AND (j.company_id = $2 OR j.user_id = $3)
        LIMIT 1`,
-			[candidateId, req.user.company_id, req.user.id],
-		);
+				[candidateId, req.user.company_id, req.user.id],
+			);
 
-		if (hasRelation.rows.length === 0) {
-			return res
-				.status(403)
-				.json({ error: 'Access denied — candidate has not applied to your jobs' });
-		}
+			if (hasRelation.rows.length === 0) {
+				return res
+					.status(403)
+					.json({ error: 'Access denied — candidate has not applied to your jobs' });
+			}
 
-		// Get candidate name
-		const candidate = await pool.query('SELECT name, email FROM users WHERE id = $1', [
-			candidateId,
-		]);
+			// Get candidate name
+			const candidate = await pool.query('SELECT name, email FROM users WHERE id = $1', [
+				candidateId,
+			]);
 
-		// Get all coaching sessions
-		const sessions = await pool.query(
-			`SELECT
+			// Get all coaching sessions
+			const sessions = await pool.query(
+				`SELECT
         id, question, category, score, coaching_data, response_type,
         duration_seconds, created_at
        FROM practice_sessions
        WHERE user_id = $1
        ORDER BY created_at DESC`,
-			[candidateId],
-		);
+				[candidateId],
+			);
 
-		// Get aggregate stats
-		const stats = await pool.query(
-			`SELECT
+			// Get aggregate stats
+			const stats = await pool.query(
+				`SELECT
         COUNT(*) as total_sessions,
         AVG(score) as average_score,
         MIN(score) as lowest_score,
@@ -2044,12 +2265,12 @@ router.get('/candidates/:id/coaching', authMiddleware, requireApprovedRecruiter,
         MAX(created_at) as last_session
        FROM practice_sessions
        WHERE user_id = $1`,
-			[candidateId],
-		);
+				[candidateId],
+			);
 
-		// Calculate improvement trend
-		const improvement = await pool.query(
-			`WITH ordered AS (
+			// Calculate improvement trend
+			const improvement = await pool.query(
+				`WITH ordered AS (
         SELECT score, ROW_NUMBER() OVER (ORDER BY created_at) as rn,
                COUNT(*) OVER () as total
         FROM practice_sessions WHERE user_id = $1
@@ -2058,50 +2279,51 @@ router.get('/candidates/:id/coaching', authMiddleware, requireApprovedRecruiter,
         AVG(CASE WHEN rn <= total/2 THEN score END) as first_half_avg,
         AVG(CASE WHEN rn > total/2 THEN score END) as second_half_avg
       FROM ordered`,
-			[candidateId],
-		);
+				[candidateId],
+			);
 
-		let improvementPercent = null;
-		if (improvement.rows[0].first_half_avg && improvement.rows[0].second_half_avg) {
-			const firstHalf = parseFloat(improvement.rows[0].first_half_avg);
-			const secondHalf = parseFloat(improvement.rows[0].second_half_avg);
-			improvementPercent = Math.round(((secondHalf - firstHalf) / firstHalf) * 100);
-		}
+			let improvementPercent = null;
+			if (improvement.rows[0].first_half_avg && improvement.rows[0].second_half_avg) {
+				const firstHalf = parseFloat(improvement.rows[0].first_half_avg);
+				const secondHalf = parseFloat(improvement.rows[0].second_half_avg);
+				improvementPercent = Math.round(((secondHalf - firstHalf) / firstHalf) * 100);
+			}
 
-		// Category breakdown
-		const byCategory = await pool.query(
-			`SELECT category, COUNT(*) as count, AVG(score) as avg_score
+			// Category breakdown
+			const byCategory = await pool.query(
+				`SELECT category, COUNT(*) as count, AVG(score) as avg_score
        FROM practice_sessions WHERE user_id = $1
        GROUP BY category ORDER BY avg_score DESC`,
-			[candidateId],
-		);
+				[candidateId],
+			);
 
-		const parsed = sessions.rows.map((row) => ({
-			...row,
-			coaching_data:
-				typeof row.coaching_data === 'string' ? JSON.parse(row.coaching_data) : row.coaching_data,
-		}));
+			const parsed = sessions.rows.map((row) => ({
+				...row,
+				coaching_data:
+					typeof row.coaching_data === 'string' ? JSON.parse(row.coaching_data) : row.coaching_data,
+			}));
 
-		res.json({
-			success: true,
-			candidate: candidate.rows[0] || { name: 'Unknown', email: '' },
-			stats: {
-				total_sessions: parseInt(stats.rows[0].total_sessions, 10) || 0,
-				average_score: parseFloat(stats.rows[0].average_score) || null,
-				lowest_score: parseFloat(stats.rows[0].lowest_score) || null,
-				highest_score: parseFloat(stats.rows[0].highest_score) || null,
-				improvement_percent: improvementPercent,
-				first_session: stats.rows[0].first_session,
-				last_session: stats.rows[0].last_session,
-			},
-			by_category: byCategory.rows,
-			sessions: parsed,
-		});
-	} catch (err) {
-		console.error('Get candidate coaching history error:', err);
-		res.status(500).json({ error: 'Failed to fetch coaching history' });
-	}
-});
+			res.json({
+				success: true,
+				candidate: candidate.rows[0] || { name: 'Unknown', email: '' },
+				stats: {
+					total_sessions: parseInt(stats.rows[0].total_sessions, 10) || 0,
+					average_score: parseFloat(stats.rows[0].average_score) || null,
+					lowest_score: parseFloat(stats.rows[0].lowest_score) || null,
+					highest_score: parseFloat(stats.rows[0].highest_score) || null,
+					improvement_percent: improvementPercent,
+					first_session: stats.rows[0].first_session,
+					last_session: stats.rows[0].last_session,
+				},
+				by_category: byCategory.rows,
+				sessions: parsed,
+			});
+		} catch (err) {
+			console.error('Get candidate coaching history error:', err);
+			res.status(500).json({ error: 'Failed to fetch coaching history' });
+		}
+	},
+);
 
 // ============= PIPELINE STAGES =============
 
@@ -2119,68 +2341,82 @@ const PIPELINE_STAGES = [
 ];
 
 // GET pipeline stages (so frontend stays in sync)
-router.get('/pipeline-stages', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), (_req, res) => {
-	const active = PIPELINE_STAGES.filter((s) => !['rejected', 'withdrawn'].includes(s));
-	const terminal = ['rejected', 'withdrawn'];
-	res.json({
-		success: true,
-		stages: PIPELINE_STAGES,
-		active_stages: active,
-		terminal_stages: terminal,
-		stage_config: {
-			applied: { label: 'Applied', color: 'blue', order: 0 },
-			screening: { label: 'Screening', color: 'purple', order: 1 },
-			interviewed: { label: 'Interviewed', color: 'cyan', order: 2 },
-			offered: { label: 'Offered', color: 'emerald', order: 3 },
-			hired: { label: 'Hired', color: 'green', order: 4 },
-			rejected: { label: 'Rejected', color: 'red', order: -1 },
-			withdrawn: { label: 'Withdrawn', color: 'gray', order: -1 },
-		},
-	});
-});
+router.get(
+	'/pipeline-stages',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	(_req, res) => {
+		const active = PIPELINE_STAGES.filter((s) => !['rejected', 'withdrawn'].includes(s));
+		const terminal = ['rejected', 'withdrawn'];
+		res.json({
+			success: true,
+			stages: PIPELINE_STAGES,
+			active_stages: active,
+			terminal_stages: terminal,
+			stage_config: {
+				applied: { label: 'Applied', color: 'blue', order: 0 },
+				screening: { label: 'Screening', color: 'purple', order: 1 },
+				interviewed: { label: 'Interviewed', color: 'cyan', order: 2 },
+				offered: { label: 'Offered', color: 'emerald', order: 3 },
+				hired: { label: 'Hired', color: 'green', order: 4 },
+				rejected: { label: 'Rejected', color: 'red', order: -1 },
+				withdrawn: { label: 'Withdrawn', color: 'gray', order: -1 },
+			},
+		});
+	},
+);
 
 // Batch update application status (for bulk actions)
-router.put('/applications/batch-status', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
-	try {
-		const { application_ids, status } = req.body;
+router.put(
+	'/applications/batch-status',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:manage'),
+	async (req, res) => {
+		try {
+			const { application_ids, status } = req.body;
 
-		if (!application_ids || !Array.isArray(application_ids) || application_ids.length === 0) {
-			return res.status(400).json({ error: 'application_ids array required' });
-		}
+			if (!application_ids || !Array.isArray(application_ids) || application_ids.length === 0) {
+				return res.status(400).json({ error: 'application_ids array required' });
+			}
 
-		if (!status || !PIPELINE_STAGES.includes(status)) {
-			return res
-				.status(400)
-				.json({ error: `Invalid status. Must be one of: ${PIPELINE_STAGES.join(', ')}` });
-		}
+			if (!status || !PIPELINE_STAGES.includes(status)) {
+				return res
+					.status(400)
+					.json({ error: `Invalid status. Must be one of: ${PIPELINE_STAGES.join(', ')}` });
+			}
 
-		if (application_ids.length > 50) {
-			return res.status(400).json({ error: 'Max 50 applications per batch' });
-		}
+			if (application_ids.length > 50) {
+				return res.status(400).json({ error: 'Max 50 applications per batch' });
+			}
 
-		// Verify all applications belong to the company
-		const placeholders = application_ids.map((_, i) => `$${i + 2}`).join(',');
-		const verification = await pool.query(
-			`SELECT id FROM job_applications WHERE company_id = $1 AND id IN (${placeholders})`,
-			[req.user.company_id, ...application_ids],
-		);
+			// Verify all applications belong to the company
+			const placeholders = application_ids.map((_, i) => `$${i + 2}`).join(',');
+			const verification = await pool.query(
+				`SELECT id FROM job_applications WHERE company_id = $1 AND id IN (${placeholders})`,
+				[req.user.company_id, ...application_ids],
+			);
 
-		const validIds = verification.rows.map((r) => r.id);
-		if (validIds.length === 0) {
-			return res.status(404).json({ error: 'No valid applications found' });
-		}
+			const validIds = verification.rows.map((r) => r.id);
+			if (validIds.length === 0) {
+				return res.status(404).json({ error: 'No valid applications found' });
+			}
 
-		// Update all valid applications
-		const updatePlaceholders = validIds.map((_, i) => `$${i + 2}`).join(',');
-		const result = await pool.query(
-			`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id IN (${updatePlaceholders}) RETURNING *`,
-			[status, ...validIds],
-		);
+			// Update all valid applications
+			const updatePlaceholders = validIds.map((_, i) => `$${i + 2}`).join(',');
+			const result = await pool.query(
+				`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id IN (${updatePlaceholders}) RETURNING *`,
+				[status, ...validIds],
+			);
 
-		// Check for AI decisions on each application and log human overrides
-		for (const appId of validIds) {
-			const aiDecision = await pool.query(
-				`
+			// Check for AI decisions on each application and log human overrides
+			for (const appId of validIds) {
+				const aiDecision = await pool.query(
+					`
         SELECT action_type, metadata
         FROM audit_logs
         WHERE target_type = 'job_application' AND target_id = $1
@@ -2188,145 +2424,155 @@ router.put('/applications/batch-status', authMiddleware, requireNotSuspended, re
         ORDER BY created_at DESC
         LIMIT 1
       `,
-				[appId],
-			);
+					[appId],
+				);
 
-			if (aiDecision.rows.length > 0) {
-				const aiMetadata = aiDecision.rows[0].metadata || {};
-				await AuditLogger.log({
-					actionType: 'human_override',
-					userId: req.user.id,
-					targetType: 'job_application',
-					targetId: appId,
-					metadata: {
-						original_ai_decision: aiMetadata.decision || aiMetadata.status || 'ai_recommended',
-						override_decision: status,
-						override_reason: 'Batch status change by recruiter',
-						ai_model: aiMetadata.model || 'unknown',
-						ai_confidence: aiMetadata.confidence || 0.85,
-						batch_operation: true,
-					},
-					req,
-				});
+				if (aiDecision.rows.length > 0) {
+					const aiMetadata = aiDecision.rows[0].metadata || {};
+					await AuditLogger.log({
+						actionType: 'human_override',
+						userId: req.user.id,
+						targetType: 'job_application',
+						targetId: appId,
+						metadata: {
+							original_ai_decision: aiMetadata.decision || aiMetadata.status || 'ai_recommended',
+							override_decision: status,
+							override_reason: 'Batch status change by recruiter',
+							ai_model: aiMetadata.model || 'unknown',
+							ai_confidence: aiMetadata.confidence || 0.85,
+							batch_operation: true,
+						},
+						req,
+					});
+				}
 			}
-		}
 
-		// Audit log batch action
-		await AuditLogger.log({
-			actionType: 'batch_status_change',
-			userId: req.user.id,
-			targetType: 'job_applications',
-			targetId: null,
-			metadata: {
-				application_ids: validIds,
-				new_status: status,
-				count: validIds.length,
-			},
-			req,
-		});
+			// Audit log batch action
+			await AuditLogger.log({
+				actionType: 'batch_status_change',
+				userId: req.user.id,
+				targetType: 'job_applications',
+				targetId: null,
+				metadata: {
+					application_ids: validIds,
+					new_status: status,
+					count: validIds.length,
+				},
+				req,
+			});
 
-		// ─── Compliance audit trail (Issue #136) ───────────────────────
-		try {
-			for (const app of result.rows) {
-				await auditLogService.logEvent({
-					eventType: auditLogService.EVENT_TYPES.STATUS_CHANGE,
-					entityType: auditLogService.ENTITY_TYPES.CANDIDATE,
-					entityId: app.candidate_id,
-					actorId: req.user.id,
-					actorRole: req.user.role,
-					jobId: app.job_id,
-					companyId: req.user.company_id,
-					payload: {
-						application_id: app.id,
-						new_status: status,
-						batch: true,
-						batch_size: validIds.length,
-					},
-					req,
-				});
-			}
-		} catch (e) {
-			console.error('[compliance-audit] Batch status change log failed (non-blocking):', e.message);
-		}
-
-		// Send email notifications for batch status changes (non-blocking)
-		if (['offered', 'hired', 'rejected'].includes(status)) {
+			// ─── Compliance audit trail (Issue #136) ───────────────────────
 			try {
-				const templateMap = {
-					offered: 'offer_received',
-					hired: 'hired',
-					rejected: 'rejection',
-				};
-				// Get candidate details for all applications
-				const candidateDetails = await pool.query(
-					`SELECT ja.id, u.email, u.name, j.title as job_title, c.name as company_name
+				for (const app of result.rows) {
+					await auditLogService.logEvent({
+						eventType: auditLogService.EVENT_TYPES.STATUS_CHANGE,
+						entityType: auditLogService.ENTITY_TYPES.CANDIDATE,
+						entityId: app.candidate_id,
+						actorId: req.user.id,
+						actorRole: req.user.role,
+						jobId: app.job_id,
+						companyId: req.user.company_id,
+						payload: {
+							application_id: app.id,
+							new_status: status,
+							batch: true,
+							batch_size: validIds.length,
+						},
+						req,
+					});
+				}
+			} catch (e) {
+				console.error(
+					'[compliance-audit] Batch status change log failed (non-blocking):',
+					e.message,
+				);
+			}
+
+			// Send email notifications for batch status changes (non-blocking)
+			if (['offered', 'hired', 'rejected'].includes(status)) {
+				try {
+					const templateMap = {
+						offered: 'offer_received',
+						hired: 'hired',
+						rejected: 'rejection',
+					};
+					// Get candidate details for all applications
+					const candidateDetails = await pool.query(
+						`SELECT ja.id, u.email, u.name, j.title as job_title, c.name as company_name
 					FROM job_applications ja
 					JOIN users u ON ja.candidate_id = u.id
 					JOIN jobs j ON ja.job_id = j.id
 					JOIN companies c ON c.id = j.company_id
 					WHERE ja.id = ANY($1)`,
-					[validIds],
-				);
-				for (const candidate of candidateDetails.rows) {
-					try {
-						await emailService.sendTemplatedEmail({
-							to: candidate.email,
-							templateName: templateMap[status],
-							templateData: {
-								candidateName: candidate.name,
-								jobTitle: candidate.job_title,
-								companyName: candidate.company_name,
-								status: status,
-								recruiterNotes: '',
-							},
-							userId: null,
-							metadata: { applicationId: candidate.id, batchOperation: true },
-						});
-					} catch (individualEmailErr) {
-						console.error(
-							'Failed to send batch status email for application',
-							candidate.id,
-							':',
-							individualEmailErr,
-						);
-						/* non-critical - continue with other emails */
+						[validIds],
+					);
+					for (const candidate of candidateDetails.rows) {
+						try {
+							await emailService.sendTemplatedEmail({
+								to: candidate.email,
+								templateName: templateMap[status],
+								templateData: {
+									candidateName: candidate.name,
+									jobTitle: candidate.job_title,
+									companyName: candidate.company_name,
+									status: status,
+									recruiterNotes: '',
+								},
+								userId: null,
+								metadata: { applicationId: candidate.id, batchOperation: true },
+							});
+						} catch (individualEmailErr) {
+							console.error(
+								'Failed to send batch status email for application',
+								candidate.id,
+								':',
+								individualEmailErr,
+							);
+							/* non-critical - continue with other emails */
+						}
 					}
+				} catch (emailErr) {
+					console.error('Failed to send batch status change emails:', emailErr);
+					/* non-critical */
 				}
-			} catch (emailErr) {
-				console.error('Failed to send batch status change emails:', emailErr);
-				/* non-critical */
 			}
-		}
 
-		res.json({
-			success: true,
-			updated: result.rows.length,
-			applications: result.rows,
-		});
-	} catch (err) {
-		console.error('Batch status update error:', err);
-		res.status(500).json({ error: 'Failed to update applications' });
-	}
-});
+			res.json({
+				success: true,
+				updated: result.rows.length,
+				applications: result.rows,
+			});
+		} catch (err) {
+			console.error('Batch status update error:', err);
+			res.status(500).json({ error: 'Failed to update applications' });
+		}
+	},
+);
 
 // Get applications grouped by pipeline stage (for kanban view)
-router.get('/pipeline/:jobId', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('analytics:read'), async (req, res) => {
-	try {
-		const jobId = req.params.jobId;
+router.get(
+	'/pipeline/:jobId',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('analytics:read'),
+	async (req, res) => {
+		try {
+			const jobId = req.params.jobId;
 
-		// Verify job belongs to company
-		const job = await pool.query(
-			'SELECT id, title, status FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
-			[jobId, req.user.company_id, req.user.id],
-		);
+			// Verify job belongs to company
+			const job = await pool.query(
+				'SELECT id, title, status FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+				[jobId, req.user.company_id, req.user.id],
+			);
 
-		if (job.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
-		}
+			if (job.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
 
-		// Get all applications for this job with candidate details
-		const applications = await pool.query(
-			`
+			// Get all applications for this job with candidate details
+			const applications = await pool.query(
+				`
       SELECT ja.*,
              u.name as candidate_name, u.email as candidate_email,
              os.total_score as current_omniscore, os.score_tier,
@@ -2338,59 +2584,66 @@ router.get('/pipeline/:jobId', authMiddleware, requireApprovedRecruiter, ensureC
       WHERE ja.job_id = $1
       ORDER BY ja.match_score DESC NULLS LAST, ja.applied_at ASC
     `,
-			[jobId],
-		);
+				[jobId],
+			);
 
-		// Group by pipeline stage
-		const pipeline = {};
-		for (const stage of PIPELINE_STAGES) {
-			pipeline[stage] = [];
+			// Group by pipeline stage
+			const pipeline = {};
+			for (const stage of PIPELINE_STAGES) {
+				pipeline[stage] = [];
+			}
+
+			for (const app of applications.rows) {
+				const stage = PIPELINE_STAGES.includes(app.status) ? app.status : 'applied';
+				pipeline[stage].push(app);
+			}
+
+			// Get stage counts
+			const stageCounts = {};
+			for (const stage of PIPELINE_STAGES) {
+				stageCounts[stage] = pipeline[stage].length;
+			}
+
+			res.json({
+				success: true,
+				job: job.rows[0],
+				pipeline,
+				stage_counts: stageCounts,
+				total: applications.rows.length,
+				stages: PIPELINE_STAGES,
+			});
+		} catch (err) {
+			console.error('Get pipeline error:', err);
+			res.status(500).json({ error: 'Failed to get pipeline' });
 		}
-
-		for (const app of applications.rows) {
-			const stage = PIPELINE_STAGES.includes(app.status) ? app.status : 'applied';
-			pipeline[stage].push(app);
-		}
-
-		// Get stage counts
-		const stageCounts = {};
-		for (const stage of PIPELINE_STAGES) {
-			stageCounts[stage] = pipeline[stage].length;
-		}
-
-		res.json({
-			success: true,
-			job: job.rows[0],
-			pipeline,
-			stage_counts: stageCounts,
-			total: applications.rows.length,
-			stages: PIPELINE_STAGES,
-		});
-	} catch (err) {
-		console.error('Get pipeline error:', err);
-		res.status(500).json({ error: 'Failed to get pipeline' });
-	}
-});
+	},
+);
 
 // Get ranked candidates for a job (by match score)
-router.get('/jobs/:id/ranked-candidates', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
-	try {
-		const jobId = req.params.id;
-		const { min_score = 0 } = req.query;
+router.get(
+	'/jobs/:id/ranked-candidates',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	async (req, res) => {
+		try {
+			const jobId = req.params.id;
+			const { min_score = 0 } = req.query;
 
-		// Verify job belongs to company
-		const job = await pool.query(
-			'SELECT id, title FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
-			[jobId, req.user.company_id, req.user.id],
-		);
+			// Verify job belongs to company
+			const job = await pool.query(
+				'SELECT id, title FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+				[jobId, req.user.company_id, req.user.id],
+			);
 
-		if (job.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
-		}
+			if (job.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
 
-		// Get applications ranked by match score
-		const ranked = await pool.query(
-			`
+			// Get applications ranked by match score
+			const ranked = await pool.query(
+				`
       SELECT ja.*,
              u.name as candidate_name, u.email as candidate_email,
              os.total_score as current_omniscore, os.score_tier,
@@ -2408,33 +2661,40 @@ router.get('/jobs/:id/ranked-candidates', authMiddleware, requireApprovedRecruit
         AND COALESCE(ja.match_score, 0) >= $2
       ORDER BY ja.match_score DESC NULLS LAST, os.total_score DESC NULLS LAST
     `,
-			[jobId, min_score],
-		);
+				[jobId, min_score],
+			);
 
-		res.json({
-			success: true,
-			job: job.rows[0],
-			candidates: ranked.rows,
-			total: ranked.rows.length,
-		});
-	} catch (err) {
-		console.error('Get ranked candidates error:', err);
-		res.status(500).json({ error: 'Failed to get ranked candidates' });
-	}
-});
+			res.json({
+				success: true,
+				job: job.rows[0],
+				candidates: ranked.rows,
+				total: ranked.rows.length,
+			});
+		} catch (err) {
+			console.error('Get ranked candidates error:', err);
+			res.status(500).json({ error: 'Failed to get ranked candidates' });
+		}
+	},
+);
 
 // ============= AI FEATURES =============
 
 // AI Candidate Summary — one-click strengths/concerns/fit assessment
-router.post('/ai/candidate-summary', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
-	try {
-		const { application_id } = req.body;
-		if (!application_id) return res.status(400).json({ error: 'application_id required' });
-		const { chat } = require('../lib/polsia-ai');
+router.post(
+	'/ai/candidate-summary',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	async (req, res) => {
+		try {
+			const { application_id } = req.body;
+			if (!application_id) return res.status(400).json({ error: 'application_id required' });
+			const { chat } = require('../lib/polsia-ai');
 
-		// Get application with all candidate data
-		const app = await pool.query(
-			`
+			// Get application with all candidate data
+			const app = await pool.query(
+				`
       SELECT ja.*, j.title as job_title, j.description as job_desc, j.requirements as job_reqs,
              j.screening_questions,
              u.name as candidate_name, u.email as candidate_email,
@@ -2446,24 +2706,24 @@ router.post('/ai/candidate-summary', authMiddleware, requireApprovedRecruiter, e
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
       WHERE ja.id = $1 AND (j.company_id = $2 OR j.user_id = $3)
     `,
-			[application_id, req.user.company_id, req.user.id],
-		);
+				[application_id, req.user.company_id, req.user.id],
+			);
 
-		if (app.rows.length === 0) return res.status(404).json({ error: 'Application not found' });
-		const a = app.rows[0];
+			if (app.rows.length === 0) return res.status(404).json({ error: 'Application not found' });
+			const a = app.rows[0];
 
-		// Get skills
-		const skills = await pool.query(
-			'SELECT skill_name, category, years_experience, is_verified FROM candidate_skills WHERE user_id = $1',
-			[a.candidate_id],
-		);
-		// Get experience
-		const experience = await pool.query(
-			'SELECT company_name, title, description FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC LIMIT 5',
-			[a.candidate_id],
-		);
+			// Get skills
+			const skills = await pool.query(
+				'SELECT skill_name, category, years_experience, is_verified FROM candidate_skills WHERE user_id = $1',
+				[a.candidate_id],
+			);
+			// Get experience
+			const experience = await pool.query(
+				'SELECT company_name, title, description FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC LIMIT 5',
+				[a.candidate_id],
+			);
 
-		const prompt = `Provide a comprehensive assessment of this candidate for the ${a.job_title} position.
+			const prompt = `Provide a comprehensive assessment of this candidate for the ${a.job_title} position.
 
 CANDIDATE: ${a.candidate_name}
 Headline: ${a.headline || 'Not set'}
@@ -2493,45 +2753,52 @@ Return JSON:
 }
 Only return JSON.`;
 
-		const result = await chat(prompt, {
-			system:
-				'You are a senior recruiter providing candidate assessments. Be objective, data-driven, and concise. Always return valid JSON.',
-			module: 'recruiter_tools',
-			feature: 'candidate_assessment',
-		});
+			const result = await chat(prompt, {
+				system:
+					'You are a senior recruiter providing candidate assessments. Be objective, data-driven, and concise. Always return valid JSON.',
+				module: 'recruiter_tools',
+				feature: 'candidate_assessment',
+			});
 
-		let parsed;
-		try {
-			parsed = JSON.parse(result);
-		} catch {
-			const m = result.match(/\{[\s\S]*\}/);
-			parsed = m ? JSON.parse(m[0]) : { error: 'Parse failed' };
+			let parsed;
+			try {
+				parsed = JSON.parse(result);
+			} catch {
+				const m = result.match(/\{[\s\S]*\}/);
+				parsed = m ? JSON.parse(m[0]) : { error: 'Parse failed' };
+			}
+			res.json({ success: true, summary: parsed });
+		} catch (err) {
+			console.error('AI candidate summary error:', err);
+			res.status(500).json({ error: 'Failed to generate summary' });
 		}
-		res.json({ success: true, summary: parsed });
-	} catch (err) {
-		console.error('AI candidate summary error:', err);
-		res.status(500).json({ error: 'Failed to generate summary' });
-	}
-});
+	},
+);
 
 // AI Screening Questions Suggestions — based on job + recruiter's past bank
-router.post('/ai/suggest-questions', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('interviews:read'), async (req, res) => {
-	try {
-		const { job_title, job_description, existing_questions = [] } = req.body;
-		if (!job_title) return res.status(400).json({ error: 'job_title required' });
-		const { chat } = require('../lib/polsia-ai');
+router.post(
+	'/ai/suggest-questions',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('interviews:read'),
+	async (req, res) => {
+		try {
+			const { job_title, job_description, existing_questions = [] } = req.body;
+			if (!job_title) return res.status(400).json({ error: 'job_title required' });
+			const { chat } = require('../lib/polsia-ai');
 
-		// Get recruiter's past screening questions from question_bank
-		const pastQuestions = await pool.query(
-			`
+			// Get recruiter's past screening questions from question_bank
+			const pastQuestions = await pool.query(
+				`
       SELECT DISTINCT question_text, category, usage_count FROM question_bank
       WHERE recruiter_id = $1
       ORDER BY usage_count DESC LIMIT 20
     `,
-			[req.user.id],
-		);
+				[req.user.id],
+			);
 
-		const prompt = `Suggest screening questions for a ${job_title} position.
+			const prompt = `Suggest screening questions for a ${job_title} position.
 
 Job Description: ${job_description?.substring(0, 500) || 'Not provided'}
 
@@ -2556,190 +2823,219 @@ Return JSON array:
 ]
 Only return JSON array.`;
 
-		const result = await chat(prompt, {
-			system:
-				'You are an expert recruiter designing screening questions. Make them practical and relevant. Always return valid JSON.',
-			module: 'recruiter_tools',
-			feature: 'screening_questions',
-		});
+			const result = await chat(prompt, {
+				system:
+					'You are an expert recruiter designing screening questions. Make them practical and relevant. Always return valid JSON.',
+				module: 'recruiter_tools',
+				feature: 'screening_questions',
+			});
 
-		let parsed;
-		try {
-			parsed = JSON.parse(result);
-		} catch {
-			const m = result.match(/\[[\s\S]*\]/);
-			parsed = m ? JSON.parse(m[0]) : [];
+			let parsed;
+			try {
+				parsed = JSON.parse(result);
+			} catch {
+				const m = result.match(/\[[\s\S]*\]/);
+				parsed = m ? JSON.parse(m[0]) : [];
+			}
+			res.json({ success: true, suggestions: parsed });
+		} catch (err) {
+			console.error('AI suggest questions error:', err);
+			res.status(500).json({ error: 'Failed to suggest questions' });
 		}
-		res.json({ success: true, suggestions: parsed });
-	} catch (err) {
-		console.error('AI suggest questions error:', err);
-		res.status(500).json({ error: 'Failed to suggest questions' });
-	}
-});
+	},
+);
 
 // Save questions to recruiter's question bank
-router.post('/question-bank', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:update'), async (req, res) => {
-	try {
-		const { questions } = req.body;
-		if (!questions || !Array.isArray(questions))
-			return res.status(400).json({ error: 'questions array required' });
+router.post(
+	'/question-bank',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:update'),
+	async (req, res) => {
+		try {
+			const { questions } = req.body;
+			if (!questions || !Array.isArray(questions))
+				return res.status(400).json({ error: 'questions array required' });
 
-		const saved = [];
-		for (const q of questions) {
-			const result = await pool.query(
-				`
+			const saved = [];
+			for (const q of questions) {
+				const result = await pool.query(
+					`
         INSERT INTO question_bank (recruiter_id, question_text, category, question_type, options)
         VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (recruiter_id, question_text) WHERE recruiter_id IS NOT NULL
         DO UPDATE SET usage_count = question_bank.usage_count + 1
         RETURNING *
       `,
-				[
-					req.user.id,
-					q.question || q.question_text,
-					q.category || 'general',
-					q.type || 'text',
-					JSON.stringify(q.options || []),
-				],
-			);
-			saved.push(result.rows[0]);
-		}
+					[
+						req.user.id,
+						q.question || q.question_text,
+						q.category || 'general',
+						q.type || 'text',
+						JSON.stringify(q.options || []),
+					],
+				);
+				saved.push(result.rows[0]);
+			}
 
-		res.json({ success: true, questions: saved });
-	} catch (err) {
-		console.error('Save question bank error:', err);
-		res.status(500).json({ error: 'Failed to save questions' });
-	}
-});
+			res.json({ success: true, questions: saved });
+		} catch (err) {
+			console.error('Save question bank error:', err);
+			res.status(500).json({ error: 'Failed to save questions' });
+		}
+	},
+);
 
 // Get recruiter's question bank
-router.get('/question-bank', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:read'), async (req, res) => {
-	try {
-		const questions = await pool.query(
-			`
+router.get(
+	'/question-bank',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:read'),
+	async (req, res) => {
+		try {
+			const questions = await pool.query(
+				`
       SELECT * FROM question_bank WHERE recruiter_id = $1 ORDER BY usage_count DESC, created_at DESC
     `,
-			[req.user.id],
-		);
-		res.json({ success: true, questions: questions.rows });
-	} catch (err) {
-		console.error('Get question bank error:', err);
-		res.status(500).json({ error: 'Failed to get question bank' });
-	}
-});
+				[req.user.id],
+			);
+			res.json({ success: true, questions: questions.rows });
+		} catch (err) {
+			console.error('Get question bank error:', err);
+			res.status(500).json({ error: 'Failed to get question bank' });
+		}
+	},
+);
 
 // ============= OFFER MANAGEMENT =============
 
 // Create an offer
-router.post('/offers', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
-	try {
-		const {
-			candidate_id,
-			job_id,
-			title,
-			salary,
-			start_date,
-			benefits,
-			location,
-			employment_type,
-			reporting_to,
-		} = req.body;
+router.post(
+	'/offers',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:manage'),
+	async (req, res) => {
+		try {
+			const {
+				candidate_id,
+				job_id,
+				title,
+				salary,
+				start_date,
+				benefits,
+				location,
+				employment_type,
+				reporting_to,
+			} = req.body;
 
-		if (!candidate_id || !job_id) {
-			return res.status(400).json({ error: 'candidate_id and job_id are required' });
-		}
+			if (!candidate_id || !job_id) {
+				return res.status(400).json({ error: 'candidate_id and job_id are required' });
+			}
 
-		// Verify job belongs to company
-		const job = await pool.query(
-			'SELECT id, title, company FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
-			[job_id, req.user.company_id, req.user.id],
-		);
-		if (job.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
-		}
+			// Verify job belongs to company
+			const job = await pool.query(
+				'SELECT id, title, company FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+				[job_id, req.user.company_id, req.user.id],
+			);
+			if (job.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
 
-		// Verify candidate has applied
-		const application = await pool.query(
-			'SELECT id FROM job_applications WHERE job_id = $1 AND candidate_id = $2',
-			[job_id, candidate_id],
-		);
-		if (application.rows.length === 0) {
-			return res.status(400).json({ error: 'Candidate has not applied to this job' });
-		}
+			// Verify candidate has applied
+			const application = await pool.query(
+				'SELECT id FROM job_applications WHERE job_id = $1 AND candidate_id = $2',
+				[job_id, candidate_id],
+			);
+			if (application.rows.length === 0) {
+				return res.status(400).json({ error: 'Candidate has not applied to this job' });
+			}
 
-		const result = await pool.query(
-			`INSERT INTO offers (
+			const result = await pool.query(
+				`INSERT INTO offers (
         candidate_id, job_id, recruiter_id, company_id,
         title, company_name, salary, start_date,
         benefits, location, employment_type, reporting_to,
         status, created_at, updated_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'draft', NOW(), NOW())
       RETURNING *`,
-			[
-				candidate_id,
-				job_id,
-				req.user.id,
-				req.user.company_id,
-				title || job.rows[0].title,
-				req.user.company_name || job.rows[0].company || 'Company',
-				parseFloat(salary) || 0,
-				start_date || null,
-				benefits || null,
-				location || null,
-				employment_type || 'full-time',
-				reporting_to || null,
-			],
-		);
-
-		res.json({ success: true, offer: result.rows[0] });
-
-		// ── Send offer extended notification (non-blocking) ──
-		try {
-			const [candidate, jobInfo] = await Promise.all([
-				pool.query('SELECT id, name, email FROM users WHERE id = $1', [candidate_id]),
-				pool.query('SELECT id, title FROM jobs WHERE id = $1', [job_id]),
-			]);
-
-			const candInfo = candidate.rows[0];
-			const jobData = jobInfo.rows[0];
-
-			if (candInfo?.email) {
-				await emailService.sendTemplatedEmail({
-					to: candInfo.email,
-					templateName: 'offer_extended',
-					templateData: {
-						candidate_name: candInfo.name || 'Candidate',
-						job_title: jobData?.title || 'the position',
-						company_name: req.user.company_name || job.rows[0]?.company || 'Our Company',
-						salary: salary ? `$${parseFloat(salary).toLocaleString()}` : 'Competitive',
-						work_location: location || 'Remote',
-						start_date: start_date || 'To be determined',
-						benefits: benefits || '',
-						offer_link: `${process.env.FRONTEND_URL || 'https://rekrut.ai'}/candidate/offers`,
-						offer_deadline: '7 days',
-					},
-					userId: candidate_id,
-					metadata: { job_id, company_id: req.user.company_id, offer_id: result.rows[0].id },
-				});
-			}
-		} catch (emailErr) {
-			console.error(
-				'[email] Failed to send offer extended email (non-blocking):',
-				emailErr.message,
+				[
+					candidate_id,
+					job_id,
+					req.user.id,
+					req.user.company_id,
+					title || job.rows[0].title,
+					req.user.company_name || job.rows[0].company || 'Company',
+					parseFloat(salary) || 0,
+					start_date || null,
+					benefits || null,
+					location || null,
+					employment_type || 'full-time',
+					reporting_to || null,
+				],
 			);
+
+			res.json({ success: true, offer: result.rows[0] });
+
+			// ── Send offer extended notification (non-blocking) ──
+			try {
+				const [candidate, jobInfo] = await Promise.all([
+					pool.query('SELECT id, name, email FROM users WHERE id = $1', [candidate_id]),
+					pool.query('SELECT id, title FROM jobs WHERE id = $1', [job_id]),
+				]);
+
+				const candInfo = candidate.rows[0];
+				const jobData = jobInfo.rows[0];
+
+				if (candInfo?.email) {
+					await emailService.sendTemplatedEmail({
+						to: candInfo.email,
+						templateName: 'offer_extended',
+						templateData: {
+							candidate_name: candInfo.name || 'Candidate',
+							job_title: jobData?.title || 'the position',
+							company_name: req.user.company_name || job.rows[0]?.company || 'Our Company',
+							salary: salary ? `$${parseFloat(salary).toLocaleString()}` : 'Competitive',
+							work_location: location || 'Remote',
+							start_date: start_date || 'To be determined',
+							benefits: benefits || '',
+							offer_link: `${process.env.FRONTEND_URL || 'https://rekrut.ai'}/candidate/offers`,
+							offer_deadline: '7 days',
+						},
+						userId: candidate_id,
+						metadata: { job_id, company_id: req.user.company_id, offer_id: result.rows[0].id },
+					});
+				}
+			} catch (emailErr) {
+				console.error(
+					'[email] Failed to send offer extended email (non-blocking):',
+					emailErr.message,
+				);
+			}
+		} catch (err) {
+			console.error('Create offer error:', err);
+			res.status(500).json({ error: 'Failed to create offer' });
 		}
-	} catch (err) {
-		console.error('Create offer error:', err);
-		res.status(500).json({ error: 'Failed to create offer' });
-	}
-});
+	},
+);
 
 // List offers for company
-router.get('/offers', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
-	try {
-		const { status, job_id, limit = 50, offset = 0 } = req.query;
+router.get(
+	'/offers',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	async (req, res) => {
+		try {
+			const { status, job_id, limit = 50, offset = 0 } = req.query;
 
-		let query = `
+			let query = `
       SELECT o.*,
              u.name as candidate_name, u.email as candidate_email,
              j.title as job_title
@@ -2748,33 +3044,40 @@ router.get('/offers', authMiddleware, requireApprovedRecruiter, ensureCompany, r
       LEFT JOIN jobs j ON o.job_id = j.id
       WHERE o.company_id = $1
     `;
-		const params = [req.user.company_id];
+			const params = [req.user.company_id];
 
-		if (status) {
-			query += ` AND o.status = $${params.length + 1}`;
-			params.push(status);
+			if (status) {
+				query += ` AND o.status = $${params.length + 1}`;
+				params.push(status);
+			}
+			if (job_id) {
+				query += ` AND o.job_id = $${params.length + 1}`;
+				params.push(job_id);
+			}
+
+			query += ` ORDER BY o.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+			params.push(parseInt(limit, 10), parseInt(offset, 10));
+
+			const result = await pool.query(query, params);
+			res.json({ success: true, offers: result.rows });
+		} catch (err) {
+			console.error('List offers error:', err);
+			res.status(500).json({ error: 'Failed to fetch offers' });
 		}
-		if (job_id) {
-			query += ` AND o.job_id = $${params.length + 1}`;
-			params.push(job_id);
-		}
-
-		query += ` ORDER BY o.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-		params.push(parseInt(limit, 10), parseInt(offset, 10));
-
-		const result = await pool.query(query, params);
-		res.json({ success: true, offers: result.rows });
-	} catch (err) {
-		console.error('List offers error:', err);
-		res.status(500).json({ error: 'Failed to fetch offers' });
-	}
-});
+	},
+);
 
 // Get single offer
-router.get('/offers/:id', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
-	try {
-		const result = await pool.query(
-			`
+router.get(
+	'/offers/:id',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	async (req, res) => {
+		try {
+			const result = await pool.query(
+				`
       SELECT o.*,
              u.name as candidate_name, u.email as candidate_email,
              j.title as job_title, j.description as job_description
@@ -2783,65 +3086,132 @@ router.get('/offers/:id', authMiddleware, requireApprovedRecruiter, ensureCompan
       LEFT JOIN jobs j ON o.job_id = j.id
       WHERE o.id = $1 AND o.company_id = $2
     `,
-			[req.params.id, req.user.company_id],
-		);
+				[req.params.id, req.user.company_id],
+			);
 
-		if (result.rows.length === 0) {
-			return res.status(404).json({ error: 'Offer not found' });
+			if (result.rows.length === 0) {
+				return res.status(404).json({ error: 'Offer not found' });
+			}
+
+			res.json({ success: true, offer: result.rows[0] });
+		} catch (err) {
+			console.error('Get offer error:', err);
+			res.status(500).json({ error: 'Failed to fetch offer' });
 		}
-
-		res.json({ success: true, offer: result.rows[0] });
-	} catch (err) {
-		console.error('Get offer error:', err);
-		res.status(500).json({ error: 'Failed to fetch offer' });
-	}
-});
+	},
+);
 
 // Update offer (edit draft or add details)
-router.put('/offers/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
-	try {
-		const {
-			title,
-			salary,
-			start_date,
-			benefits,
-			location,
-			employment_type,
-			reporting_to,
-			offer_letter_html,
-		} = req.body;
+router.put(
+	'/offers/:id',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:manage'),
+	async (req, res) => {
+		try {
+			const {
+				title,
+				salary,
+				start_date,
+				benefits,
+				location,
+				employment_type,
+				reporting_to,
+				offer_letter_html,
+			} = req.body;
 
-		// Sanitize AI-generated / user-supplied HTML before storage (defence in depth)
-		const sanitizedOfferLetterHtml = offer_letter_html
-			? DOMPurify.sanitize(offer_letter_html, {
-					ALLOWED_TAGS: [
-						'p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-						'ul', 'ol', 'li', 'a', 'div', 'span', 'hr', 'table', 'thead', 'tbody',
-						'tr', 'td', 'th', 'img', 'blockquote', 'pre', 'code', 'sup', 'sub',
-						'section', 'article', 'header', 'footer', 'main', 'aside', 'nav',
-						'figure', 'figcaption', 'details', 'summary', 'mark', 'small', 'time',
-					],
-					ALLOWED_ATTR: [
-						'href', 'title', 'target', 'rel', 'class', 'id', 'style',
-						'src', 'alt', 'width', 'height', 'colspan', 'rowspan', 'datetime',
-					],
-					ALLOW_DATA_ATTR: false,
-					FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur'],
-					KEEP_CONTENT: true,
-			  })
-			: offer_letter_html;
+			// Sanitize AI-generated / user-supplied HTML before storage (defence in depth)
+			const sanitizedOfferLetterHtml = offer_letter_html
+				? DOMPurify.sanitize(offer_letter_html, {
+						ALLOWED_TAGS: [
+							'p',
+							'br',
+							'strong',
+							'em',
+							'u',
+							'h1',
+							'h2',
+							'h3',
+							'h4',
+							'h5',
+							'h6',
+							'ul',
+							'ol',
+							'li',
+							'a',
+							'div',
+							'span',
+							'hr',
+							'table',
+							'thead',
+							'tbody',
+							'tr',
+							'td',
+							'th',
+							'img',
+							'blockquote',
+							'pre',
+							'code',
+							'sup',
+							'sub',
+							'section',
+							'article',
+							'header',
+							'footer',
+							'main',
+							'aside',
+							'nav',
+							'figure',
+							'figcaption',
+							'details',
+							'summary',
+							'mark',
+							'small',
+							'time',
+						],
+						ALLOWED_ATTR: [
+							'href',
+							'title',
+							'target',
+							'rel',
+							'class',
+							'id',
+							'style',
+							'src',
+							'alt',
+							'width',
+							'height',
+							'colspan',
+							'rowspan',
+							'datetime',
+						],
+						ALLOW_DATA_ATTR: false,
+						FORBID_ATTR: [
+							'onerror',
+							'onload',
+							'onclick',
+							'onmouseover',
+							'onmouseout',
+							'onfocus',
+							'onblur',
+						],
+						KEEP_CONTENT: true,
+					})
+				: offer_letter_html;
 
-		// Verify offer belongs to company
-		const existing = await pool.query(
-			'SELECT id, status FROM offers WHERE id = $1 AND company_id = $2',
-			[req.params.id, req.user.company_id],
-		);
-		if (existing.rows.length === 0) {
-			return res.status(404).json({ error: 'Offer not found' });
-		}
+			// Verify offer belongs to company
+			const existing = await pool.query(
+				'SELECT id, status FROM offers WHERE id = $1 AND company_id = $2',
+				[req.params.id, req.user.company_id],
+			);
+			if (existing.rows.length === 0) {
+				return res.status(404).json({ error: 'Offer not found' });
+			}
 
-		const result = await pool.query(
-			`UPDATE offers SET
+			const result = await pool.query(
+				`UPDATE offers SET
         title = COALESCE($1, title),
         salary = COALESCE($2, salary),
         start_date = COALESCE($3, start_date),
@@ -2854,68 +3224,76 @@ router.put('/offers/:id', authMiddleware, requireNotSuspended, requireApprovedRe
         updated_at = NOW()
       WHERE id = $9
       RETURNING *`,
-			[
-				title,
-				salary,
-				start_date,
-				benefits,
-				location,
-				employment_type,
-				reporting_to,
-				sanitizedOfferLetterHtml,
-				req.params.id,
-			],
-		);
+				[
+					title,
+					salary,
+					start_date,
+					benefits,
+					location,
+					employment_type,
+					reporting_to,
+					sanitizedOfferLetterHtml,
+					req.params.id,
+				],
+			);
 
-		res.json({ success: true, offer: result.rows[0] });
-	} catch (err) {
-		console.error('Update offer error:', err);
-		res.status(500).json({ error: 'Failed to update offer' });
-	}
-});
+			res.json({ success: true, offer: result.rows[0] });
+		} catch (err) {
+			console.error('Update offer error:', err);
+			res.status(500).json({ error: 'Failed to update offer' });
+		}
+	},
+);
 
 // Send offer to candidate (changes status from draft to sent)
-router.put('/offers/:id/send', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
-	try {
-		const existing = await pool.query(
-			'SELECT id, status, candidate_id, job_id FROM offers WHERE id = $1 AND company_id = $2',
-			[req.params.id, req.user.company_id],
-		);
-		if (existing.rows.length === 0) {
-			return res.status(404).json({ error: 'Offer not found' });
-		}
-		if (existing.rows[0].status !== 'draft') {
-			return res
-				.status(400)
-				.json({ error: `Cannot send offer with status: ${existing.rows[0].status}` });
-		}
-
-		const result = await pool.query(
-			`UPDATE offers SET status = 'sent', sent_at = NOW(), updated_at = NOW()
-       WHERE id = $1 RETURNING *`,
-			[req.params.id],
-		);
-
-		// Update application status to 'offered'
-		await pool.query(
-			`UPDATE job_applications SET status = 'offered', updated_at = NOW()
-       WHERE job_id = $1 AND candidate_id = $2`,
-			[existing.rows[0].job_id, existing.rows[0].candidate_id],
-		);
-
-		// Update job analytics
+router.put(
+	'/offers/:id/send',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:manage'),
+	async (req, res) => {
 		try {
-			await pool.query(
-				'UPDATE job_analytics SET offers_made = COALESCE(offers_made, 0) + 1 WHERE job_id = $1',
-				[existing.rows[0].job_id],
+			const existing = await pool.query(
+				'SELECT id, status, candidate_id, job_id FROM offers WHERE id = $1 AND company_id = $2',
+				[req.params.id, req.user.company_id],
 			);
-		} catch (_e) {
-			/* non-critical */
-		}
+			if (existing.rows.length === 0) {
+				return res.status(404).json({ error: 'Offer not found' });
+			}
+			if (existing.rows[0].status !== 'draft') {
+				return res
+					.status(400)
+					.json({ error: `Cannot send offer with status: ${existing.rows[0].status}` });
+			}
 
-		// Check if this offer overrides an AI decision
-		const aiDecision = await pool.query(
-			`
+			const result = await pool.query(
+				`UPDATE offers SET status = 'sent', sent_at = NOW(), updated_at = NOW()
+       WHERE id = $1 RETURNING *`,
+				[req.params.id],
+			);
+
+			// Update application status to 'offered'
+			await pool.query(
+				`UPDATE job_applications SET status = 'offered', updated_at = NOW()
+       WHERE job_id = $1 AND candidate_id = $2`,
+				[existing.rows[0].job_id, existing.rows[0].candidate_id],
+			);
+
+			// Update job analytics
+			try {
+				await pool.query(
+					'UPDATE job_analytics SET offers_made = COALESCE(offers_made, 0) + 1 WHERE job_id = $1',
+					[existing.rows[0].job_id],
+				);
+			} catch (_e) {
+				/* non-critical */
+			}
+
+			// Check if this offer overrides an AI decision
+			const aiDecision = await pool.query(
+				`
       SELECT action_type, metadata
       FROM audit_logs
       WHERE target_type = 'job_application' AND target_id = (
@@ -2925,97 +3303,115 @@ router.put('/offers/:id/send', authMiddleware, requireNotSuspended, requireAppro
       ORDER BY created_at DESC
       LIMIT 1
     `,
-			[existing.rows[0].job_id, existing.rows[0].candidate_id],
-		);
+				[existing.rows[0].job_id, existing.rows[0].candidate_id],
+			);
 
-		if (aiDecision.rows.length > 0) {
-			const aiMetadata = aiDecision.rows[0].metadata || {};
+			if (aiDecision.rows.length > 0) {
+				const aiMetadata = aiDecision.rows[0].metadata || {};
+				await AuditLogger.log({
+					actionType: 'human_override',
+					userId: req.user.id,
+					targetType: 'job_application',
+					targetId: existing.rows[0].job_id,
+					metadata: {
+						candidate_id: existing.rows[0].candidate_id,
+						job_id: existing.rows[0].job_id,
+						original_ai_decision: aiMetadata.decision || aiMetadata.status || 'ai_recommended',
+						override_decision: 'offered',
+						override_reason: 'Recruiter sent offer to candidate',
+						ai_model: aiMetadata.model || 'unknown',
+						ai_confidence: aiMetadata.confidence || 0.85,
+						offer_id: parseInt(req.params.id, 10),
+					},
+					req,
+				});
+			}
+
+			// Audit log
 			await AuditLogger.log({
-				actionType: 'human_override',
+				actionType: 'offer_sent',
 				userId: req.user.id,
-				targetType: 'job_application',
-				targetId: existing.rows[0].job_id,
+				targetType: 'offer',
+				targetId: parseInt(req.params.id, 10),
 				metadata: {
 					candidate_id: existing.rows[0].candidate_id,
 					job_id: existing.rows[0].job_id,
-					original_ai_decision: aiMetadata.decision || aiMetadata.status || 'ai_recommended',
-					override_decision: 'offered',
-					override_reason: 'Recruiter sent offer to candidate',
-					ai_model: aiMetadata.model || 'unknown',
-					ai_confidence: aiMetadata.confidence || 0.85,
-					offer_id: parseInt(req.params.id, 10),
 				},
 				req,
 			});
+
+			res.json({ success: true, offer: result.rows[0] });
+		} catch (err) {
+			console.error('Send offer error:', err);
+			res.status(500).json({ error: 'Failed to send offer' });
 		}
-
-		// Audit log
-		await AuditLogger.log({
-			actionType: 'offer_sent',
-			userId: req.user.id,
-			targetType: 'offer',
-			targetId: parseInt(req.params.id, 10),
-			metadata: {
-				candidate_id: existing.rows[0].candidate_id,
-				job_id: existing.rows[0].job_id,
-			},
-			req,
-		});
-
-		res.json({ success: true, offer: result.rows[0] });
-	} catch (err) {
-		console.error('Send offer error:', err);
-		res.status(500).json({ error: 'Failed to send offer' });
-	}
-});
+	},
+);
 
 // Withdraw/cancel offer (recruiter action)
-router.put('/offers/:id/withdraw', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
-	try {
-		const { reason } = req.body;
+router.put(
+	'/offers/:id/withdraw',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:manage'),
+	async (req, res) => {
+		try {
+			const { reason } = req.body;
 
-		const existing = await pool.query(
-			'SELECT id, status FROM offers WHERE id = $1 AND company_id = $2',
-			[req.params.id, req.user.company_id],
-		);
-		if (existing.rows.length === 0) {
-			return res.status(404).json({ error: 'Offer not found' });
-		}
-		if (['accepted', 'declined'].includes(existing.rows[0].status)) {
-			return res.status(400).json({ error: `Cannot withdraw an ${existing.rows[0].status} offer` });
-		}
+			const existing = await pool.query(
+				'SELECT id, status FROM offers WHERE id = $1 AND company_id = $2',
+				[req.params.id, req.user.company_id],
+			);
+			if (existing.rows.length === 0) {
+				return res.status(404).json({ error: 'Offer not found' });
+			}
+			if (['accepted', 'declined'].includes(existing.rows[0].status)) {
+				return res
+					.status(400)
+					.json({ error: `Cannot withdraw an ${existing.rows[0].status} offer` });
+			}
 
-		const result = await pool.query(
-			`UPDATE offers SET status = 'rescinded', decline_reason = $2, updated_at = NOW()
+			const result = await pool.query(
+				`UPDATE offers SET status = 'rescinded', decline_reason = $2, updated_at = NOW()
        WHERE id = $1 RETURNING *`,
-			[req.params.id, reason || 'Rescinded by recruiter'],
-		);
+				[req.params.id, reason || 'Rescinded by recruiter'],
+			);
 
-		res.json({ success: true, offer: result.rows[0] });
-	} catch (err) {
-		console.error('Withdraw offer error:', err);
-		res.status(500).json({ error: 'Failed to withdraw offer' });
-	}
-});
+			res.json({ success: true, offer: result.rows[0] });
+		} catch (err) {
+			console.error('Withdraw offer error:', err);
+			res.status(500).json({ error: 'Failed to withdraw offer' });
+		}
+	},
+);
 
 // ============= AI AGENT ENDPOINTS (Phase 4) =============
 
 // AI Candidate Comparison — side-by-side analysis of 2+ candidates
-router.post('/ai/compare-candidates', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
-	try {
-		const { candidate_ids, job_id } = req.body;
-		if (!candidate_ids || !Array.isArray(candidate_ids) || candidate_ids.length < 2) {
-			return res.status(400).json({ error: 'At least 2 candidate_ids required' });
-		}
-		if (!job_id) return res.status(400).json({ error: 'job_id required' });
-		const { chat } = require('../lib/polsia-ai');
+router.post(
+	'/ai/compare-candidates',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	async (req, res) => {
+		try {
+			const { candidate_ids, job_id } = req.body;
+			if (!candidate_ids || !Array.isArray(candidate_ids) || candidate_ids.length < 2) {
+				return res.status(400).json({ error: 'At least 2 candidate_ids required' });
+			}
+			if (!job_id) return res.status(400).json({ error: 'job_id required' });
+			const { chat } = require('../lib/polsia-ai');
 
-		// Get candidate data for all
-		const candidates = [];
-		for (const cid of candidate_ids.slice(0, 5)) {
-			// Max 5 candidates
-			const data = await pool.query(
-				`
+			// Get candidate data for all
+			const candidates = [];
+			for (const cid of candidate_ids.slice(0, 5)) {
+				// Max 5 candidates
+				const data = await pool.query(
+					`
         SELECT u.name, u.email, cp.headline, cp.location, cp.years_experience, cp.salary_min, cp.salary_max,
                os.total_score as omniscore, os.score_tier,
                ja.match_score, ja.status as app_status, ja.cover_letter,
@@ -3029,18 +3425,18 @@ router.post('/ai/compare-candidates', authMiddleware, requireNotSuspended, requi
         LEFT JOIN job_applications ja ON ja.candidate_id = u.id AND ja.job_id = $2
         WHERE u.id = $1
       `,
-				[cid, job_id],
-			);
-			if (data.rows[0]) candidates.push({ id: cid, ...data.rows[0] });
-		}
+					[cid, job_id],
+				);
+				if (data.rows[0]) candidates.push({ id: cid, ...data.rows[0] });
+			}
 
-		if (candidates.length < 2)
-			return res.status(400).json({ error: 'Need at least 2 valid candidates' });
+			if (candidates.length < 2)
+				return res.status(400).json({ error: 'Need at least 2 valid candidates' });
 
-		// Get job info
-		const job = await pool.query('SELECT title, requirements FROM jobs WHERE id = $1', [job_id]);
+			// Get job info
+			const job = await pool.query('SELECT title, requirements FROM jobs WHERE id = $1', [job_id]);
 
-		const prompt = `Compare these ${candidates.length} candidates for the ${job.rows[0]?.title || 'position'} role.
+			const prompt = `Compare these ${candidates.length} candidates for the ${job.rows[0]?.title || 'position'} role.
 
 ${candidates
 	.map(
@@ -3074,46 +3470,53 @@ Return JSON:
 }
 Only return JSON.`;
 
-		const result = await chat(prompt, {
-			system:
-				'You are a senior talent acquisition specialist comparing candidates. Be objective and data-driven. Always return valid JSON.',
-			module: 'recruiter_tools',
-			feature: 'candidate_comparison',
-		});
+			const result = await chat(prompt, {
+				system:
+					'You are a senior talent acquisition specialist comparing candidates. Be objective and data-driven. Always return valid JSON.',
+				module: 'recruiter_tools',
+				feature: 'candidate_comparison',
+			});
 
-		let parsed;
-		try {
-			parsed = JSON.parse(result);
-		} catch {
-			const m = result.match(/\{[\s\S]*\}/);
-			parsed = m ? JSON.parse(m[0]) : { error: 'Parse failed' };
+			let parsed;
+			try {
+				parsed = JSON.parse(result);
+			} catch {
+				const m = result.match(/\{[\s\S]*\}/);
+				parsed = m ? JSON.parse(m[0]) : { error: 'Parse failed' };
+			}
+			res.json({
+				success: true,
+				comparison: parsed,
+				candidates: candidates.map((c) => ({ id: c.id, name: c.name })),
+			});
+		} catch (err) {
+			console.error('AI compare candidates error:', err);
+			res.status(500).json({ error: 'Failed to compare candidates' });
 		}
-		res.json({
-			success: true,
-			comparison: parsed,
-			candidates: candidates.map((c) => ({ id: c.id, name: c.name })),
-		});
-	} catch (err) {
-		console.error('AI compare candidates error:', err);
-		res.status(500).json({ error: 'Failed to compare candidates' });
-	}
-});
+	},
+);
 
 // AI Bulk Rank — rank all candidates for a job by OmniScore (uses existing scores, no recalculation)
-router.get('/ai/rank-all/:jobId', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
-	try {
-		const jobId = req.params.jobId;
+router.get(
+	'/ai/rank-all/:jobId',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	async (req, res) => {
+		try {
+			const jobId = req.params.jobId;
 
-		// Verify job belongs to company
-		const job = await pool.query(
-			'SELECT id, title FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
-			[jobId, req.user.company_id, req.user.id],
-		);
-		if (job.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
+			// Verify job belongs to company
+			const job = await pool.query(
+				'SELECT id, title FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+				[jobId, req.user.company_id, req.user.id],
+			);
+			if (job.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
 
-		// Get all applicants ranked by composite score (OmniScore + match_score)
-		const ranked = await pool.query(
-			`
+			// Get all applicants ranked by composite score (OmniScore + match_score)
+			const ranked = await pool.query(
+				`
       SELECT ja.id as application_id, ja.candidate_id, ja.match_score, ja.status, ja.applied_at,
              u.name as candidate_name, u.email,
              os.total_score as omniscore, os.score_tier,
@@ -3130,108 +3533,123 @@ router.get('/ai/rank-all/:jobId', authMiddleware, requireApprovedRecruiter, ensu
       WHERE ja.job_id = $1 AND ja.status NOT IN ('withdrawn', 'rejected')
       ORDER BY composite_score DESC
     `,
-			[jobId],
-		);
+				[jobId],
+			);
 
-		res.json({
-			success: true,
-			job: job.rows[0],
-			ranked_candidates: ranked.rows.map((r, i) => ({
-				...r,
-				rank: i + 1,
-				composite_score: Math.round(r.composite_score * 100) / 100,
-				matching_skills: r.matching_skills
-					? typeof r.matching_skills === 'string'
-						? JSON.parse(r.matching_skills)
-						: r.matching_skills
-					: [],
-				missing_skills: r.missing_skills
-					? typeof r.missing_skills === 'string'
-						? JSON.parse(r.missing_skills)
-						: r.missing_skills
-					: [],
-			})),
-			total: ranked.rows.length,
-		});
-	} catch (err) {
-		console.error('AI rank all error:', err);
-		res.status(500).json({ error: 'Failed to rank candidates' });
-	}
-});
+			res.json({
+				success: true,
+				job: job.rows[0],
+				ranked_candidates: ranked.rows.map((r, i) => ({
+					...r,
+					rank: i + 1,
+					composite_score: Math.round(r.composite_score * 100) / 100,
+					matching_skills: r.matching_skills
+						? typeof r.matching_skills === 'string'
+							? JSON.parse(r.matching_skills)
+							: r.matching_skills
+						: [],
+					missing_skills: r.missing_skills
+						? typeof r.missing_skills === 'string'
+							? JSON.parse(r.missing_skills)
+							: r.missing_skills
+						: [],
+				})),
+				total: ranked.rows.length,
+			});
+		} catch (err) {
+			console.error('AI rank all error:', err);
+			res.status(500).json({ error: 'Failed to rank candidates' });
+		}
+	},
+);
 
 // Pipeline Automation Settings — get/set auto-advance rules per job
-router.get('/pipeline/automation/:jobId', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:read'), async (req, res) => {
-	try {
-		const jobId = req.params.jobId;
+router.get(
+	'/pipeline/automation/:jobId',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:read'),
+	async (req, res) => {
+		try {
+			const jobId = req.params.jobId;
 
-		// Verify job belongs to company
-		const job = await pool.query(
-			'SELECT id FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
-			[jobId, req.user.company_id, req.user.id],
-		);
-		if (job.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
+			// Verify job belongs to company
+			const job = await pool.query(
+				'SELECT id FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+				[jobId, req.user.company_id, req.user.id],
+			);
+			if (job.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
 
-		// Get existing automation rules
-		const rules = await pool.query(
-			`
+			// Get existing automation rules
+			const rules = await pool.query(
+				`
       SELECT * FROM pipeline_automation_rules
       WHERE job_id = $1 AND recruiter_id = $2
       ORDER BY from_stage
     `,
-			[jobId, req.user.id],
-		);
+				[jobId, req.user.id],
+			);
 
-		// Default rules if none exist
-		if (rules.rows.length === 0) {
+			// Default rules if none exist
+			if (rules.rows.length === 0) {
+				res.json({
+					success: true,
+					rules: PIPELINE_STAGES.filter((s) => !['rejected', 'withdrawn', 'hired'].includes(s)).map(
+						(stage) => ({
+							from_stage: stage,
+							to_stage: PIPELINE_STAGES[PIPELINE_STAGES.indexOf(stage) + 1] || stage,
+							auto_advance: false,
+							omniscore_threshold: 600,
+							match_score_threshold: 70,
+							auto_reject: false,
+							auto_reject_threshold: 400,
+						}),
+					),
+					enabled: false,
+				});
+				return;
+			}
+
 			res.json({
 				success: true,
-				rules: PIPELINE_STAGES.filter((s) => !['rejected', 'withdrawn', 'hired'].includes(s)).map(
-					(stage) => ({
-						from_stage: stage,
-						to_stage: PIPELINE_STAGES[PIPELINE_STAGES.indexOf(stage) + 1] || stage,
-						auto_advance: false,
-						omniscore_threshold: 600,
-						match_score_threshold: 70,
-						auto_reject: false,
-						auto_reject_threshold: 400,
-					}),
-				),
-				enabled: false,
+				rules: rules.rows,
+				enabled: rules.rows.some((r) => r.auto_advance || r.auto_reject),
 			});
-			return;
+		} catch (err) {
+			console.error('Get pipeline automation error:', err);
+			res.status(500).json({ error: 'Failed to get automation settings' });
 		}
-
-		res.json({
-			success: true,
-			rules: rules.rows,
-			enabled: rules.rows.some((r) => r.auto_advance || r.auto_reject),
-		});
-	} catch (err) {
-		console.error('Get pipeline automation error:', err);
-		res.status(500).json({ error: 'Failed to get automation settings' });
-	}
-});
+	},
+);
 
 // Save pipeline automation rules
-router.put('/pipeline/automation/:jobId', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:update'), async (req, res) => {
-	try {
-		const jobId = req.params.jobId;
-		const { rules } = req.body;
-		if (!rules || !Array.isArray(rules))
-			return res.status(400).json({ error: 'rules array required' });
+router.put(
+	'/pipeline/automation/:jobId',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:update'),
+	async (req, res) => {
+		try {
+			const jobId = req.params.jobId;
+			const { rules } = req.body;
+			if (!rules || !Array.isArray(rules))
+				return res.status(400).json({ error: 'rules array required' });
 
-		// Verify job
-		const job = await pool.query(
-			'SELECT id FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
-			[jobId, req.user.company_id, req.user.id],
-		);
-		if (job.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
+			// Verify job
+			const job = await pool.query(
+				'SELECT id FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+				[jobId, req.user.company_id, req.user.id],
+			);
+			if (job.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
 
-		// Upsert rules
-		const saved = [];
-		for (const rule of rules) {
-			const result = await pool.query(
-				`
+			// Upsert rules
+			const saved = [];
+			for (const rule of rules) {
+				const result = await pool.query(
+					`
         INSERT INTO pipeline_automation_rules (job_id, recruiter_id, from_stage, to_stage, auto_advance, omniscore_threshold, match_score_threshold, auto_reject, auto_reject_threshold)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (job_id, recruiter_id, from_stage) DO UPDATE SET
@@ -3240,250 +3658,278 @@ router.put('/pipeline/automation/:jobId', authMiddleware, requireNotSuspended, r
           updated_at = NOW()
         RETURNING *
       `,
-				[
-					jobId,
-					req.user.id,
-					rule.from_stage,
-					rule.to_stage,
-					rule.auto_advance || false,
-					rule.omniscore_threshold || 600,
-					rule.match_score_threshold || 70,
-					rule.auto_reject || false,
-					rule.auto_reject_threshold || 400,
-				],
-			);
-			saved.push(result.rows[0]);
-		}
+					[
+						jobId,
+						req.user.id,
+						rule.from_stage,
+						rule.to_stage,
+						rule.auto_advance || false,
+						rule.omniscore_threshold || 600,
+						rule.match_score_threshold || 70,
+						rule.auto_reject || false,
+						rule.auto_reject_threshold || 400,
+					],
+				);
+				saved.push(result.rows[0]);
+			}
 
-		res.json({ success: true, rules: saved });
-	} catch (err) {
-		console.error('Save pipeline automation error:', err);
-		res.status(500).json({ error: 'Failed to save automation settings' });
-	}
-});
+			res.json({ success: true, rules: saved });
+		} catch (err) {
+			console.error('Save pipeline automation error:', err);
+			res.status(500).json({ error: 'Failed to save automation settings' });
+		}
+	},
+);
 
 // Recruiter Feedback on candidate — feeds into OmniScore calibration
-router.post('/ai/feedback', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:score'), async (req, res) => {
-	try {
-		const { candidate_id, job_id, feedback_type, notes } = req.body;
-		if (!candidate_id || !feedback_type)
-			return res
-				.status(400)
-				.json({ error: 'candidate_id and feedback_type (good_fit/not_fit) required' });
+router.post(
+	'/ai/feedback',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:score'),
+	async (req, res) => {
+		try {
+			const { candidate_id, job_id, feedback_type, notes } = req.body;
+			if (!candidate_id || !feedback_type)
+				return res
+					.status(400)
+					.json({ error: 'candidate_id and feedback_type (good_fit/not_fit) required' });
 
-		const omniscoreService = require('../services/omniscore');
-		const memoryService = require('../services/memory-service');
+			const omniscoreService = require('../services/omniscore');
+			const memoryService = require('../services/memory-service');
 
-		// Save feedback
-		const result = await pool.query(
-			`
+			// Save feedback
+			const result = await pool.query(
+				`
       INSERT INTO recruiter_feedback (recruiter_id, candidate_id, job_id, feedback_type, notes)
       VALUES ($1, $2, $3, $4, $5)
       ON CONFLICT (recruiter_id, candidate_id, job_id) DO UPDATE SET
         feedback_type = $4, notes = $5, updated_at = NOW()
       RETURNING *
     `,
-			[req.user.id, candidate_id, job_id || null, feedback_type, notes || null],
-		);
+				[req.user.id, candidate_id, job_id || null, feedback_type, notes || null],
+			);
 
-		// Feed into OmniScore: good_fit = +5 behavior points, not_fit = -3
-		try {
-			const points = feedback_type === 'good_fit' ? 5 : -2;
-			const reason =
-				feedback_type === 'good_fit'
-					? 'Positive recruiter feedback'
-					: 'Negative recruiter feedback';
-			await omniscoreService.addBehaviorComponent(candidate_id, reason, Math.max(0, points), 10);
-		} catch (e) {
-			console.error('OmniScore feedback update (non-fatal):', e.message);
+			// Feed into OmniScore: good_fit = +5 behavior points, not_fit = -3
+			try {
+				const points = feedback_type === 'good_fit' ? 5 : -2;
+				const reason =
+					feedback_type === 'good_fit'
+						? 'Positive recruiter feedback'
+						: 'Negative recruiter feedback';
+				await omniscoreService.addBehaviorComponent(candidate_id, reason, Math.max(0, points), 10);
+			} catch (e) {
+				console.error('OmniScore feedback update (non-fatal):', e.message);
+			}
+
+			// Store in memory for MemGPT-style recall
+			try {
+				await memoryService.extractFromRecruiterAction(req.user.id, {
+					type: 'candidate_feedback',
+					feedback_type,
+					candidate_id,
+					job_title: 'position',
+				});
+			} catch (_e) {
+				/* non-critical */
+			}
+
+			res.json({ success: true, feedback: result.rows[0] });
+		} catch (err) {
+			console.error('Recruiter feedback error:', err);
+			res.status(500).json({ error: 'Failed to save feedback' });
 		}
-
-		// Store in memory for MemGPT-style recall
-		try {
-			await memoryService.extractFromRecruiterAction(req.user.id, {
-				type: 'candidate_feedback',
-				feedback_type,
-				candidate_id,
-				job_title: 'position',
-			});
-		} catch (_e) {
-			/* non-critical */
-		}
-
-		res.json({ success: true, feedback: result.rows[0] });
-	} catch (err) {
-		console.error('Recruiter feedback error:', err);
-		res.status(500).json({ error: 'Failed to save feedback' });
-	}
-});
+	},
+);
 
 // Trigger pipeline auto-advance check for a job (event-driven: call after application status change)
-router.post('/pipeline/auto-check/:jobId', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:update'), async (req, res) => {
-	try {
-		const jobId = req.params.jobId;
+router.post(
+	'/pipeline/auto-check/:jobId',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:update'),
+	async (req, res) => {
+		try {
+			const jobId = req.params.jobId;
 
-		// Get automation rules
-		const rules = await pool.query(
-			`
+			// Get automation rules
+			const rules = await pool.query(
+				`
       SELECT * FROM pipeline_automation_rules
       WHERE job_id = $1 AND recruiter_id = $2 AND (auto_advance = true OR auto_reject = true)
     `,
-			[jobId, req.user.id],
-		);
+				[jobId, req.user.id],
+			);
 
-		if (rules.rows.length === 0) {
-			return res.json({ success: true, actions: [], message: 'No automation rules configured' });
-		}
+			if (rules.rows.length === 0) {
+				return res.json({ success: true, actions: [], message: 'No automation rules configured' });
+			}
 
-		const actions = [];
+			const actions = [];
 
-		// Get all active applications for this job
-		const apps = await pool.query(
-			`
+			// Get all active applications for this job
+			const apps = await pool.query(
+				`
       SELECT ja.id, ja.candidate_id, ja.status, ja.match_score,
              os.total_score as omniscore
       FROM job_applications ja
       LEFT JOIN omni_scores os ON os.user_id = ja.candidate_id
       WHERE ja.job_id = $1 AND ja.status NOT IN ('withdrawn', 'rejected', 'hired')
     `,
-			[jobId],
-		);
+				[jobId],
+			);
 
-		for (const app of apps.rows) {
-			for (const rule of rules.rows) {
-				if (app.status !== rule.from_stage) continue;
+			for (const app of apps.rows) {
+				for (const rule of rules.rows) {
+					if (app.status !== rule.from_stage) continue;
 
-				const omniscore = app.omniscore || 300;
-				const matchScore = app.match_score || 0;
+					const omniscore = app.omniscore || 300;
+					const matchScore = app.match_score || 0;
 
-				// Auto-advance check
-				if (
-					rule.auto_advance &&
-					omniscore >= rule.omniscore_threshold &&
-					matchScore >= rule.match_score_threshold
-				) {
-					await pool.query(
-						`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2`,
-						[rule.to_stage, app.id],
-					);
-					actions.push({
-						type: 'advanced',
-						application_id: app.id,
-						candidate_id: app.candidate_id,
-						from: rule.from_stage,
-						to: rule.to_stage,
-						reason: `OmniScore ${omniscore} >= ${rule.omniscore_threshold} and match ${matchScore} >= ${rule.match_score_threshold}`,
-					});
-				}
+					// Auto-advance check
+					if (
+						rule.auto_advance &&
+						omniscore >= rule.omniscore_threshold &&
+						matchScore >= rule.match_score_threshold
+					) {
+						await pool.query(
+							`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2`,
+							[rule.to_stage, app.id],
+						);
+						actions.push({
+							type: 'advanced',
+							application_id: app.id,
+							candidate_id: app.candidate_id,
+							from: rule.from_stage,
+							to: rule.to_stage,
+							reason: `OmniScore ${omniscore} >= ${rule.omniscore_threshold} and match ${matchScore} >= ${rule.match_score_threshold}`,
+						});
+					}
 
-				// Auto-reject check
-				if (rule.auto_reject && omniscore < rule.auto_reject_threshold) {
-					await pool.query(
-						`UPDATE job_applications SET status = 'rejected', updated_at = NOW() WHERE id = $1`,
-						[app.id],
-					);
-					actions.push({
-						type: 'rejected',
-						application_id: app.id,
-						candidate_id: app.candidate_id,
-						from: rule.from_stage,
-						reason: `OmniScore ${omniscore} < ${rule.auto_reject_threshold}`,
-					});
+					// Auto-reject check
+					if (rule.auto_reject && omniscore < rule.auto_reject_threshold) {
+						await pool.query(
+							`UPDATE job_applications SET status = 'rejected', updated_at = NOW() WHERE id = $1`,
+							[app.id],
+						);
+						actions.push({
+							type: 'rejected',
+							application_id: app.id,
+							candidate_id: app.candidate_id,
+							from: rule.from_stage,
+							reason: `OmniScore ${omniscore} < ${rule.auto_reject_threshold}`,
+						});
+					}
 				}
 			}
-		}
 
-		res.json({
-			success: true,
-			actions,
-			total_checked: apps.rows.length,
-			rules_applied: rules.rows.length,
-		});
-	} catch (err) {
-		console.error('Pipeline auto-check error:', err);
-		res.status(500).json({ error: 'Failed to run pipeline automation' });
-	}
-});
+			res.json({
+				success: true,
+				actions,
+				total_checked: apps.rows.length,
+				rules_applied: rules.rows.length,
+			});
+		} catch (err) {
+			console.error('Pipeline auto-check error:', err);
+			res.status(500).json({ error: 'Failed to run pipeline automation' });
+		}
+	},
+);
 
 // Get recruiter analytics dashboard data
-router.get('/analytics', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('analytics:read'), async (req, res) => {
-	try {
-		const companyId = req.user.company_id;
-		const days = parseInt(req.query.days, 10) || 30;
-		const { page, limit, offset } = parsePagination(req.query);
-		const dateFilter = days > 0 ? `AND applied_at >= NOW() - INTERVAL '1 day' * $2` : '';
+router.get(
+	'/analytics',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('analytics:read'),
+	async (req, res) => {
+		try {
+			const companyId = req.user.company_id;
+			const days = parseInt(req.query.days, 10) || 30;
+			const { page, limit, offset } = parsePagination(req.query);
+			const dateFilter = days > 0 ? `AND applied_at >= NOW() - INTERVAL '1 day' * $2` : '';
 
-		// Issue #143: Cache analytics by company + days + pagination
-		const cacheKey = analyticsCache.key('/api/recruiter/analytics', { companyId, days, page, limit });
-		const cached = analyticsCache.get(cacheKey);
-		if (cached) {
-			return res.json({ success: true, cached: true, ...cached });
-		}
+			// Issue #143: Cache analytics by company + days + pagination
+			const cacheKey = analyticsCache.key('/api/recruiter/analytics', {
+				companyId,
+				days,
+				page,
+				limit,
+			});
+			const cached = analyticsCache.get(cacheKey);
+			if (cached) {
+				return res.json({ success: true, cached: true, ...cached });
+			}
 
-		// ─── OVERVIEW ───
+			// ─── OVERVIEW ───
 
-		// Total active jobs for this company
-		const activeJobsResult = await pool.query(
-			`
+			// Total active jobs for this company
+			const activeJobsResult = await pool.query(
+				`
       SELECT COUNT(*) as total_active_jobs
       FROM jobs WHERE company_id = $1 AND status = 'active'
     `,
-			[companyId],
-		);
-		const totalActiveJobs = parseInt(activeJobsResult.rows[0]?.total_active_jobs, 10) || 0;
+				[companyId],
+			);
+			const totalActiveJobs = parseInt(activeJobsResult.rows[0]?.total_active_jobs, 10) || 0;
 
-		// Total applications (all time)
-		const totalAppsResult = await pool.query(
-			`
+			// Total applications (all time)
+			const totalAppsResult = await pool.query(
+				`
       SELECT COUNT(*) as total_applications
       FROM job_applications WHERE company_id = $1 ${dateFilter}
     `,
-			[companyId, days],
-		);
-		const totalApplications = parseInt(totalAppsResult.rows[0]?.total_applications, 10) || 0;
+				[companyId, days],
+			);
+			const totalApplications = parseInt(totalAppsResult.rows[0]?.total_applications, 10) || 0;
 
-		// New applications this week (last 7 days)
-		const newAppsWeekResult = await pool.query(
-			`
+			// New applications this week (last 7 days)
+			const newAppsWeekResult = await pool.query(
+				`
       SELECT COUNT(*) as new_applications_this_week
       FROM job_applications
       WHERE company_id = $1 AND applied_at >= NOW() - INTERVAL '7 days'
     `,
-			[companyId],
-		);
-		const newApplicationsThisWeek =
-			parseInt(newAppsWeekResult.rows[0]?.new_applications_this_week, 10) || 0;
+				[companyId],
+			);
+			const newApplicationsThisWeek =
+				parseInt(newAppsWeekResult.rows[0]?.new_applications_this_week, 10) || 0;
 
-		// Total candidates (unique candidates who applied)
-		const totalCandidatesResult = await pool.query(
-			`
+			// Total candidates (unique candidates who applied)
+			const totalCandidatesResult = await pool.query(
+				`
       SELECT COUNT(DISTINCT candidate_id) as total_candidates
       FROM job_applications WHERE company_id = $1
     `,
-			[companyId],
-		);
-		const totalCandidates = parseInt(totalCandidatesResult.rows[0]?.total_candidates, 10) || 0;
+				[companyId],
+			);
+			const totalCandidates = parseInt(totalCandidatesResult.rows[0]?.total_candidates, 10) || 0;
 
-		// Total job views (graceful)
-		let totalViews = 0;
-		try {
-			const viewsResult = await pool.query(
-				`
+			// Total job views (graceful)
+			let totalViews = 0;
+			try {
+				const viewsResult = await pool.query(
+					`
         SELECT COALESCE(SUM(views), 0) as total_views
         FROM job_analytics WHERE job_id IN (SELECT id FROM jobs WHERE company_id = $1)
       `,
-				[companyId],
-			);
-			totalViews = parseInt(viewsResult.rows[0]?.total_views || '0', 10);
-		} catch (_viewErr) {
-			console.log('[analytics] job_analytics table not available, total_views = 0');
-		}
+					[companyId],
+				);
+				totalViews = parseInt(viewsResult.rows[0]?.total_views || '0', 10);
+			} catch (_viewErr) {
+				console.log('[analytics] job_analytics table not available, total_views = 0');
+			}
 
-		// ─── PIPELINE ───
+			// ─── PIPELINE ───
 
-		// Candidates in pipeline by stage (excluding terminal stages)
-		const pipelineResult = await pool.query(
-			`
+			// Candidates in pipeline by stage (excluding terminal stages)
+			const pipelineResult = await pool.query(
+				`
       SELECT
         status,
         COUNT(*) as count
@@ -3493,18 +3939,21 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, ensureCompany
       GROUP BY status
       ORDER BY count DESC
     `,
-			[companyId, days],
-		);
+				[companyId, days],
+			);
 
-		const candidatesInPipeline = pipelineResult.rows.reduce((acc, row) => {
-			acc[row.status] = parseInt(row.count, 10);
-			return acc;
-		}, {});
-		const totalInPipeline = pipelineResult.rows.reduce((sum, r) => sum + parseInt(r.count, 10), 0);
+			const candidatesInPipeline = pipelineResult.rows.reduce((acc, row) => {
+				acc[row.status] = parseInt(row.count, 10);
+				return acc;
+			}, {});
+			const totalInPipeline = pipelineResult.rows.reduce(
+				(sum, r) => sum + parseInt(r.count, 10),
+				0,
+			);
 
-		// Average time in current stage (days since application, grouped by current status)
-		const timeInStageResult = await pool.query(
-			`
+			// Average time in current stage (days since application, grouped by current status)
+			const timeInStageResult = await pool.query(
+				`
       SELECT
         status,
         AVG(EXTRACT(EPOCH FROM (NOW() - applied_at)) / 86400) as avg_days
@@ -3513,19 +3962,19 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, ensureCompany
       ${dateFilter}
       GROUP BY status
     `,
-			[companyId, days],
-		);
+				[companyId, days],
+			);
 
-		const avgTimeInStage = timeInStageResult.rows.reduce((acc, row) => {
-			acc[row.status] = row.avg_days ? parseFloat(row.avg_days).toFixed(1) : null;
-			return acc;
-		}, {});
+			const avgTimeInStage = timeInStageResult.rows.reduce((acc, row) => {
+				acc[row.status] = row.avg_days ? parseFloat(row.avg_days).toFixed(1) : null;
+				return acc;
+			}, {});
 
-		// ─── APPLICATIONS ───
+			// ─── APPLICATIONS ───
 
-		// All time application counts by status
-		const allTimeAppsResult = await pool.query(
-			`
+			// All time application counts by status
+			const allTimeAppsResult = await pool.query(
+				`
       SELECT
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE status = 'applied') as applied,
@@ -3537,13 +3986,13 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, ensureCompany
         COUNT(*) FILTER (WHERE status = 'withdrawn') as withdrawn
       FROM job_applications WHERE company_id = $1 ${dateFilter}
     `,
-			[companyId, days],
-		);
-		const allTimeApps = allTimeAppsResult.rows[0] || {};
+				[companyId, days],
+			);
+			const allTimeApps = allTimeAppsResult.rows[0] || {};
 
-		// Last 7 days application counts
-		const last7DaysAppsResult = await pool.query(
-			`
+			// Last 7 days application counts
+			const last7DaysAppsResult = await pool.query(
+				`
       SELECT
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE status = 'applied') as applied,
@@ -3556,13 +4005,13 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, ensureCompany
       FROM job_applications
       WHERE company_id = $1 AND applied_at >= NOW() - INTERVAL '7 days'
     `,
-			[companyId],
-		);
-		const last7DaysApps = last7DaysAppsResult.rows[0] || {};
+				[companyId],
+			);
+			const last7DaysApps = last7DaysAppsResult.rows[0] || {};
 
-		// Last 30 days application counts
-		const last30DaysAppsResult = await pool.query(
-			`
+			// Last 30 days application counts
+			const last30DaysAppsResult = await pool.query(
+				`
       SELECT
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE status = 'applied') as applied,
@@ -3575,45 +4024,45 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, ensureCompany
       FROM job_applications
       WHERE company_id = $1 AND applied_at >= NOW() - INTERVAL '30 days'
     `,
-			[companyId],
-		);
-		const last30DaysApps = last30DaysAppsResult.rows[0] || {};
+				[companyId],
+			);
+			const last30DaysApps = last30DaysAppsResult.rows[0] || {};
 
-		// Source breakdown (graceful — mock if source column not tracked yet)
-		let sourceBreakdown = [
-			{ name: 'Direct', count: 0, percentage: 0 },
-			{ name: 'LinkedIn', count: 0, percentage: 0 },
-			{ name: 'Indeed', count: 0, percentage: 0 },
-			{ name: 'Referral', count: 0, percentage: 0 },
-			{ name: 'Other', count: 0, percentage: 0 },
-		];
-		try {
-			const sourceResult = await pool.query(
-				`
+			// Source breakdown (graceful — mock if source column not tracked yet)
+			let sourceBreakdown = [
+				{ name: 'Direct', count: 0, percentage: 0 },
+				{ name: 'LinkedIn', count: 0, percentage: 0 },
+				{ name: 'Indeed', count: 0, percentage: 0 },
+				{ name: 'Referral', count: 0, percentage: 0 },
+				{ name: 'Other', count: 0, percentage: 0 },
+			];
+			try {
+				const sourceResult = await pool.query(
+					`
         SELECT COALESCE(source, 'Direct') as name, COUNT(*) as count
         FROM job_applications
         WHERE company_id = $1 ${dateFilter}
         GROUP BY source
       `,
-				[companyId, days],
-			);
-			const total = sourceResult.rows.reduce((sum, r) => sum + parseInt(r.count, 10), 0) || 1;
-			sourceBreakdown = sourceResult.rows.map((r) => ({
-				name: r.name,
-				count: parseInt(r.count, 10),
-				percentage: Math.round((parseInt(r.count, 10) / total) * 100),
-			}));
-		} catch (_sourceErr) {
-			console.log('[analytics] source tracking not available, using default breakdown');
-		}
+					[companyId, days],
+				);
+				const total = sourceResult.rows.reduce((sum, r) => sum + parseInt(r.count, 10), 0) || 1;
+				sourceBreakdown = sourceResult.rows.map((r) => ({
+					name: r.name,
+					count: parseInt(r.count, 10),
+					percentage: Math.round((parseInt(r.count, 10) / total) * 100),
+				}));
+			} catch (_sourceErr) {
+				console.log('[analytics] source tracking not available, using default breakdown');
+			}
 
-		// ─── CANDIDATES ───
+			// ─── CANDIDATES ───
 
-		// Rejection reasons analysis (from recruiter notes when status = 'rejected')
-		let rejectionReasons = [];
-		try {
-			const reasonsResult = await pool.query(
-				`SELECT 
+			// Rejection reasons analysis (from recruiter notes when status = 'rejected')
+			let rejectionReasons = [];
+			try {
+				const reasonsResult = await pool.query(
+					`SELECT 
 					CASE 
 						WHEN recruiter_notes ILIKE '%skill%' OR recruiter_notes ILIKE '%experience%' THEN 'skills_mismatch'
 						WHEN recruiter_notes ILIKE '%salary%' OR recruiter_notes ILIKE '%compensation%' OR recruiter_notes ILIKE '%pay%' THEN 'salary_expectations'
@@ -3629,34 +4078,34 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, ensureCompany
 				 WHERE a.company_id = $1 AND a.status = 'rejected' AND a.updated_at >= NOW() - INTERVAL '${days} days'
 				 GROUP BY reason
 				 ORDER BY count DESC`,
-				[companyId],
-			);
-			rejectionReasons = reasonsResult.rows;
-		} catch (_err) {
-			console.log('[analytics] rejection reasons tracking not available');
-		}
+					[companyId],
+				);
+				rejectionReasons = reasonsResult.rows;
+			} catch (_err) {
+				console.log('[analytics] rejection reasons tracking not available');
+			}
 
-		// Diversity metrics (from candidate profiles)
-		let diversityMetrics = {
-			male_count: 0,
-			female_count: 0,
-			non_binary_count: 0,
-			gender_unspecified: 0,
-			asian_count: 0,
-			black_count: 0,
-			hispanic_count: 0,
-			white_count: 0,
-			ethnicity_other: 0,
-			ethnicity_unspecified: 0,
-			age_under_25: 0,
-			age_25_34: 0,
-			age_35_44: 0,
-			age_45_54: 0,
-			age_55_plus: 0,
-		};
-		try {
-			const diversityResult = await pool.query(
-				`SELECT 
+			// Diversity metrics (from candidate profiles)
+			let diversityMetrics = {
+				male_count: 0,
+				female_count: 0,
+				non_binary_count: 0,
+				gender_unspecified: 0,
+				asian_count: 0,
+				black_count: 0,
+				hispanic_count: 0,
+				white_count: 0,
+				ethnicity_other: 0,
+				ethnicity_unspecified: 0,
+				age_under_25: 0,
+				age_25_34: 0,
+				age_35_44: 0,
+				age_45_54: 0,
+				age_55_plus: 0,
+			};
+			try {
+				const diversityResult = await pool.query(
+					`SELECT 
 					COUNT(*) FILTER (WHERE u.gender = 'male') as male_count,
 					COUNT(*) FILTER (WHERE u.gender = 'female') as female_count,
 					COUNT(*) FILTER (WHERE u.gender = 'non_binary') as non_binary_count,
@@ -3675,18 +4124,18 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, ensureCompany
 				 FROM job_applications a
 				 JOIN users u ON a.candidate_id = u.id
 				 WHERE a.company_id = $1 AND a.applied_at >= NOW() - INTERVAL '${days} days'`,
-				[companyId],
-			);
-			diversityMetrics = diversityResult.rows[0] || diversityMetrics;
-		} catch (_err) {
-			console.log('[analytics] diversity metrics not available');
-		}
+					[companyId],
+				);
+				diversityMetrics = diversityResult.rows[0] || diversityMetrics;
+			} catch (_err) {
+				console.log('[analytics] diversity metrics not available');
+			}
 
-		// Cost per hire (simplified)
-		let costPerHire = [];
-		try {
-			const costResult = await pool.query(
-				`SELECT 
+			// Cost per hire (simplified)
+			let costPerHire = [];
+			try {
+				const costResult = await pool.query(
+					`SELECT 
 					j.id,
 					j.title,
 					COUNT(DISTINCT a.id) as applicants,
@@ -3697,43 +4146,43 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, ensureCompany
 				 GROUP BY j.id, j.title, j.cost_per_hire
 				 ORDER BY applicants DESC
 				 LIMIT 10`,
-				[companyId],
-			);
-			costPerHire = costResult.rows;
-		} catch (_err) {
-			console.log('[analytics] cost per hire not available');
-		}
+					[companyId],
+				);
+				costPerHire = costResult.rows;
+			} catch (_err) {
+				console.log('[analytics] cost per hire not available');
+			}
 
-		// Offer acceptance rate
-		let offerStats = {
-			offers_extended: 0,
-			offers_accepted: 0,
-			offers_declined: 0,
-			rejected_count: 0,
-		};
-		try {
-			const offerResult = await pool.query(
-				`SELECT 
+			// Offer acceptance rate
+			let offerStats = {
+				offers_extended: 0,
+				offers_accepted: 0,
+				offers_declined: 0,
+				rejected_count: 0,
+			};
+			try {
+				const offerResult = await pool.query(
+					`SELECT 
 					COUNT(*) FILTER (WHERE status = 'offered') as offers_extended,
 					COUNT(*) FILTER (WHERE status = 'hired') as offers_accepted,
 					COUNT(*) FILTER (WHERE status = 'rejected' AND recruiter_notes ILIKE '%offer%') as offers_declined,
 					COUNT(*) FILTER (WHERE status = 'rejected') as rejected_count
 				 FROM job_applications
 				 WHERE company_id = $1 AND updated_at >= NOW() - INTERVAL '${days} days'`,
-				[companyId],
-			);
-			offerStats = offerResult.rows[0] || offerStats;
-		} catch (_err) {
-			console.log('[analytics] offer stats not available');
-		}
+					[companyId],
+				);
+				offerStats = offerResult.rows[0] || offerStats;
+			} catch (_err) {
+				console.log('[analytics] offer stats not available');
+			}
 
-		// ─── CANDIDATES ───
+			// ─── CANDIDATES ───
 
-		// Top skills in demand (from job requirements)
-		let topSkills = [];
-		try {
-			const skillsResult = await pool.query(
-				`
+			// Top skills in demand (from job requirements)
+			let topSkills = [];
+			try {
+				const skillsResult = await pool.query(
+					`
 				SELECT jsonb_array_elements_text(skills_required) as skill, COUNT(*) as count
 				FROM jobs
 				WHERE company_id = $1 AND skills_required IS NOT NULL
@@ -3741,16 +4190,19 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, ensureCompany
 				ORDER BY count DESC
 				LIMIT 10
 				`,
-				[companyId],
-			);
-			topSkills = skillsResult.rows.map((r) => ({ skill: r.skill, count: parseInt(r.count, 10) }));
-		} catch (err) {
-			console.error('[analytics] Failed to fetch top skills:', err.message);
-		}
+					[companyId],
+				);
+				topSkills = skillsResult.rows.map((r) => ({
+					skill: r.skill,
+					count: parseInt(r.count, 10),
+				}));
+			} catch (err) {
+				console.error('[analytics] Failed to fetch top skills:', err.message);
+			}
 
-		// Recent applications (top 10)
-		const recentAppsResult = await pool.query(
-			`
+			// Recent applications (top 10)
+			const recentAppsResult = await pool.query(
+				`
       SELECT
         ja.id, ja.status, ja.applied_at,
         u.name as candidate_name, u.email as candidate_email,
@@ -3762,144 +4214,152 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, ensureCompany
       ORDER BY ja.applied_at DESC
       LIMIT 10
     `,
-			[companyId, days],
-		);
+				[companyId, days],
+			);
 
-		const response = {
-			success: true,
-			// Frontend-compatible AnalyticsData shape
-			job_stats: {
-				active_jobs: totalActiveJobs,
-				paused_jobs: 0, // will be overridden if we fetch it
-				closed_jobs: 0,
-				total_views: totalViews,
-			},
-			application_stats: {
-				total_applications: totalApplications,
-				new_applications: newApplicationsThisWeek,
-				reviewed: parseInt(allTimeApps.screening, 10) || 0,
-				interviewed: parseInt(allTimeApps.interviewed, 10) || 0,
-				offered: parseInt(allTimeApps.offered, 10) || 0,
-				hired: parseInt(allTimeApps.hired, 10) || 0,
-				rejected: parseInt(allTimeApps.rejected, 10) || 0,
-			},
-			avg_time_to_hire: avgTimeInStage?.hired || null,
-			score_distribution: { 900: 0, 800: 0, 700: 0, 600: 0, below: 0 },
-			source_breakdown: sourceBreakdown,
-			// Extended detailed shape
-			overview: {
-				total_active_jobs: totalActiveJobs,
-				total_applications: totalApplications,
-				new_applications_this_week: newApplicationsThisWeek,
-				total_candidates: totalCandidates,
-				total_views: totalViews,
-			},
-			pipeline: {
-				candidates_in_pipeline: candidatesInPipeline,
-				total_in_pipeline: totalInPipeline,
-				average_time_in_stage: avgTimeInStage,
-			},
-			applications: {
-				all_time: {
-					total: parseInt(allTimeApps.total, 10) || 0,
-					applied: parseInt(allTimeApps.applied, 10) || 0,
-					screening: parseInt(allTimeApps.screening, 10) || 0,
+			const response = {
+				success: true,
+				// Frontend-compatible AnalyticsData shape
+				job_stats: {
+					active_jobs: totalActiveJobs,
+					paused_jobs: 0, // will be overridden if we fetch it
+					closed_jobs: 0,
+					total_views: totalViews,
+				},
+				application_stats: {
+					total_applications: totalApplications,
+					new_applications: newApplicationsThisWeek,
+					reviewed: parseInt(allTimeApps.screening, 10) || 0,
 					interviewed: parseInt(allTimeApps.interviewed, 10) || 0,
 					offered: parseInt(allTimeApps.offered, 10) || 0,
 					hired: parseInt(allTimeApps.hired, 10) || 0,
 					rejected: parseInt(allTimeApps.rejected, 10) || 0,
-					withdrawn: parseInt(allTimeApps.withdrawn, 10) || 0,
 				},
-				last_7_days: {
-					total: parseInt(last7DaysApps.total, 10) || 0,
-					applied: parseInt(last7DaysApps.applied, 10) || 0,
-					screening: parseInt(last7DaysApps.screening, 10) || 0,
-					interviewed: parseInt(last7DaysApps.interviewed, 10) || 0,
-					offered: parseInt(last7DaysApps.offered, 10) || 0,
-					hired: parseInt(last7DaysApps.hired, 10) || 0,
-					rejected: parseInt(last7DaysApps.rejected, 10) || 0,
-					withdrawn: parseInt(last7DaysApps.withdrawn, 10) || 0,
-				},
-				last_30_days: {
-					total: parseInt(last30DaysApps.total, 10) || 0,
-					applied: parseInt(last30DaysApps.applied, 10) || 0,
-					screening: parseInt(last30DaysApps.screening, 10) || 0,
-					interviewed: parseInt(last30DaysApps.interviewed, 10) || 0,
-					offered: parseInt(last30DaysApps.offered, 10) || 0,
-					hired: parseInt(last30DaysApps.hired, 10) || 0,
-					rejected: parseInt(last30DaysApps.rejected, 10) || 0,
-					withdrawn: parseInt(last30DaysApps.withdrawn, 10) || 0,
-				},
+				avg_time_to_hire: avgTimeInStage?.hired || null,
+				score_distribution: { 900: 0, 800: 0, 700: 0, 600: 0, below: 0 },
 				source_breakdown: sourceBreakdown,
-			},
-			candidates: {
-				rejection_reasons: rejectionReasons.map((r) => {
-					const totalRejected = parseInt(offerStats.rejected_count, 10) || 1;
-					return {
-						reason: r.reason,
-						count: parseInt(r.count, 10),
-						percentage: Math.round((parseInt(r.count, 10) / totalRejected) * 100),
-						trend: 0, // Would need historical data for trend
-					};
-				}),
-				diversity_metrics: {
-					gender_distribution: [
-						{ label: 'Male', percentage: parseInt(diversityMetrics.male_count, 10) || 0 },
-						{ label: 'Female', percentage: parseInt(diversityMetrics.female_count, 10) || 0 },
-						{
-							label: 'Non-Binary',
-							percentage: parseInt(diversityMetrics.non_binary_count, 10) || 0,
-						},
-						{
-							label: 'Unspecified',
-							percentage: parseInt(diversityMetrics.gender_unspecified, 10) || 0,
-						},
-					],
-					ethnicity_distribution: [
-						{ label: 'Asian', percentage: parseInt(diversityMetrics.asian_count, 10) || 0 },
-						{ label: 'Black', percentage: parseInt(diversityMetrics.black_count, 10) || 0 },
-						{ label: 'Hispanic', percentage: parseInt(diversityMetrics.hispanic_count, 10) || 0 },
-						{ label: 'White', percentage: parseInt(diversityMetrics.white_count, 10) || 0 },
-						{ label: 'Other', percentage: parseInt(diversityMetrics.ethnicity_other, 10) || 0 },
-						{
-							label: 'Unspecified',
-							percentage: parseInt(diversityMetrics.ethnicity_unspecified, 10) || 0,
-						},
-					],
+				// Extended detailed shape
+				overview: {
+					total_active_jobs: totalActiveJobs,
+					total_applications: totalApplications,
+					new_applications_this_week: newApplicationsThisWeek,
+					total_candidates: totalCandidates,
+					total_views: totalViews,
 				},
-				cost_per_hire:
-					costPerHire.length > 0
-						? Math.round(
-								costPerHire.reduce((sum, r) => sum + parseInt(r.cost, 10), 0) / costPerHire.length,
-							)
-						: 0,
-				offer_acceptance_rate:
-					parseInt(offerStats.offers_extended, 10) > 0
-						? Math.round(
-								((parseInt(offerStats.offers_accepted, 10) || 0) /
-									parseInt(offerStats.offers_extended, 10)) *
-									100,
-							)
-						: 0,
-				top_skills_in_demand: topSkills,
-				recent_applications: recentAppsResult.rows,
-			},
-			pagination: { page, limit, offset },
-		};
+				pipeline: {
+					candidates_in_pipeline: candidatesInPipeline,
+					total_in_pipeline: totalInPipeline,
+					average_time_in_stage: avgTimeInStage,
+				},
+				applications: {
+					all_time: {
+						total: parseInt(allTimeApps.total, 10) || 0,
+						applied: parseInt(allTimeApps.applied, 10) || 0,
+						screening: parseInt(allTimeApps.screening, 10) || 0,
+						interviewed: parseInt(allTimeApps.interviewed, 10) || 0,
+						offered: parseInt(allTimeApps.offered, 10) || 0,
+						hired: parseInt(allTimeApps.hired, 10) || 0,
+						rejected: parseInt(allTimeApps.rejected, 10) || 0,
+						withdrawn: parseInt(allTimeApps.withdrawn, 10) || 0,
+					},
+					last_7_days: {
+						total: parseInt(last7DaysApps.total, 10) || 0,
+						applied: parseInt(last7DaysApps.applied, 10) || 0,
+						screening: parseInt(last7DaysApps.screening, 10) || 0,
+						interviewed: parseInt(last7DaysApps.interviewed, 10) || 0,
+						offered: parseInt(last7DaysApps.offered, 10) || 0,
+						hired: parseInt(last7DaysApps.hired, 10) || 0,
+						rejected: parseInt(last7DaysApps.rejected, 10) || 0,
+						withdrawn: parseInt(last7DaysApps.withdrawn, 10) || 0,
+					},
+					last_30_days: {
+						total: parseInt(last30DaysApps.total, 10) || 0,
+						applied: parseInt(last30DaysApps.applied, 10) || 0,
+						screening: parseInt(last30DaysApps.screening, 10) || 0,
+						interviewed: parseInt(last30DaysApps.interviewed, 10) || 0,
+						offered: parseInt(last30DaysApps.offered, 10) || 0,
+						hired: parseInt(last30DaysApps.hired, 10) || 0,
+						rejected: parseInt(last30DaysApps.rejected, 10) || 0,
+						withdrawn: parseInt(last30DaysApps.withdrawn, 10) || 0,
+					},
+					source_breakdown: sourceBreakdown,
+				},
+				candidates: {
+					rejection_reasons: rejectionReasons.map((r) => {
+						const totalRejected = parseInt(offerStats.rejected_count, 10) || 1;
+						return {
+							reason: r.reason,
+							count: parseInt(r.count, 10),
+							percentage: Math.round((parseInt(r.count, 10) / totalRejected) * 100),
+							trend: 0, // Would need historical data for trend
+						};
+					}),
+					diversity_metrics: {
+						gender_distribution: [
+							{ label: 'Male', percentage: parseInt(diversityMetrics.male_count, 10) || 0 },
+							{ label: 'Female', percentage: parseInt(diversityMetrics.female_count, 10) || 0 },
+							{
+								label: 'Non-Binary',
+								percentage: parseInt(diversityMetrics.non_binary_count, 10) || 0,
+							},
+							{
+								label: 'Unspecified',
+								percentage: parseInt(diversityMetrics.gender_unspecified, 10) || 0,
+							},
+						],
+						ethnicity_distribution: [
+							{ label: 'Asian', percentage: parseInt(diversityMetrics.asian_count, 10) || 0 },
+							{ label: 'Black', percentage: parseInt(diversityMetrics.black_count, 10) || 0 },
+							{ label: 'Hispanic', percentage: parseInt(diversityMetrics.hispanic_count, 10) || 0 },
+							{ label: 'White', percentage: parseInt(diversityMetrics.white_count, 10) || 0 },
+							{ label: 'Other', percentage: parseInt(diversityMetrics.ethnicity_other, 10) || 0 },
+							{
+								label: 'Unspecified',
+								percentage: parseInt(diversityMetrics.ethnicity_unspecified, 10) || 0,
+							},
+						],
+					},
+					cost_per_hire:
+						costPerHire.length > 0
+							? Math.round(
+									costPerHire.reduce((sum, r) => sum + parseInt(r.cost, 10), 0) /
+										costPerHire.length,
+								)
+							: 0,
+					offer_acceptance_rate:
+						parseInt(offerStats.offers_extended, 10) > 0
+							? Math.round(
+									((parseInt(offerStats.offers_accepted, 10) || 0) /
+										parseInt(offerStats.offers_extended, 10)) *
+										100,
+								)
+							: 0,
+					top_skills_in_demand: topSkills,
+					recent_applications: recentAppsResult.rows,
+				},
+				pagination: { page, limit, offset },
+			};
 
-		analyticsCache.set(cacheKey, response);
-		res.json(response);
-	} catch (err) {
-		console.error('Recruiter analytics error:', err);
-		res.status(500).json({ error: 'Failed to fetch analytics data' });
-	}
-});
+			analyticsCache.set(cacheKey, response);
+			res.json(response);
+		} catch (err) {
+			console.error('Recruiter analytics error:', err);
+			res.status(500).json({ error: 'Failed to fetch analytics data' });
+		}
+	},
+);
 
 // Saved searches (Issue #109)
-router.get('/saved-searches', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:read'), async (req, res) => {
-	try {
-		// Graceful: create table if it doesn't exist
-		await pool.query(`
+router.get(
+	'/saved-searches',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:read'),
+	async (req, res) => {
+		try {
+			// Graceful: create table if it doesn't exist
+			await pool.query(`
 			CREATE TABLE IF NOT EXISTS saved_searches (
 				id SERIAL PRIMARY KEY,
 				recruiter_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -3912,34 +4372,41 @@ router.get('/saved-searches', authMiddleware, requireApprovedRecruiter, ensureCo
 			)
 		`);
 
-		const result = await pool.query(
-			`SELECT id, name, filters, search_query, alert_enabled, created_at
+			const result = await pool.query(
+				`SELECT id, name, filters, search_query, alert_enabled, created_at
 			 FROM saved_searches WHERE recruiter_id = $1 ORDER BY created_at DESC`,
-			[req.user.id],
-		);
+				[req.user.id],
+			);
 
-		const searches = result.rows.map((s) => ({
-			id: String(s.id),
-			name: s.name,
-			filters: s.filters || {},
-			searchQuery: s.search_query || '',
-			alertEnabled: s.alert_enabled || false,
-			createdAt: s.created_at ? new Date(s.created_at).toISOString() : new Date().toISOString(),
-		}));
+			const searches = result.rows.map((s) => ({
+				id: String(s.id),
+				name: s.name,
+				filters: s.filters || {},
+				searchQuery: s.search_query || '',
+				alertEnabled: s.alert_enabled || false,
+				createdAt: s.created_at ? new Date(s.created_at).toISOString() : new Date().toISOString(),
+			}));
 
-		res.json({ searches });
-	} catch (err) {
-		console.error('Get saved searches error:', err);
-		res.status(500).json({ error: 'Failed to fetch saved searches' });
-	}
-});
+			res.json({ searches });
+		} catch (err) {
+			console.error('Get saved searches error:', err);
+			res.status(500).json({ error: 'Failed to fetch saved searches' });
+		}
+	},
+);
 
-router.post('/saved-searches', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:create'), async (req, res) => {
-	try {
-		const { name, filters, searchQuery, alertEnabled } = req.body;
-		if (!name) return res.status(400).json({ error: 'Name is required' });
+router.post(
+	'/saved-searches',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:create'),
+	async (req, res) => {
+		try {
+			const { name, filters, searchQuery, alertEnabled } = req.body;
+			if (!name) return res.status(400).json({ error: 'Name is required' });
 
-		await pool.query(`
+			await pool.query(`
 			CREATE TABLE IF NOT EXISTS saved_searches (
 				id SERIAL PRIMARY KEY,
 				recruiter_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -3952,40 +4419,60 @@ router.post('/saved-searches', authMiddleware, requireApprovedRecruiter, ensureC
 			)
 		`);
 
-		const result = await pool.query(
-			`INSERT INTO saved_searches (recruiter_id, name, filters, search_query, alert_enabled)
+			const result = await pool.query(
+				`INSERT INTO saved_searches (recruiter_id, name, filters, search_query, alert_enabled)
 			 VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-			[req.user.id, name, JSON.stringify(filters || {}), searchQuery || '', alertEnabled || false],
-		);
+				[
+					req.user.id,
+					name,
+					JSON.stringify(filters || {}),
+					searchQuery || '',
+					alertEnabled || false,
+				],
+			);
 
-		res.json({ success: true, search: result.rows[0] });
-	} catch (err) {
-		console.error('Create saved search error:', err);
-		res.status(500).json({ error: 'Failed to create saved search' });
-	}
-});
-
-router.delete('/saved-searches/:id', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:update'), async (req, res) => {
-	try {
-		const result = await pool.query(
-			'DELETE FROM saved_searches WHERE id = $1 AND recruiter_id = $2 RETURNING id',
-			[req.params.id, req.user.id],
-		);
-		if (result.rows.length === 0) {
-			return res.status(404).json({ error: 'Saved search not found' });
+			res.json({ success: true, search: result.rows[0] });
+		} catch (err) {
+			console.error('Create saved search error:', err);
+			res.status(500).json({ error: 'Failed to create saved search' });
 		}
-		res.json({ success: true });
-	} catch (err) {
-		console.error('Delete saved search error:', err);
-		res.status(500).json({ error: 'Failed to delete saved search' });
-	}
-});
+	},
+);
+
+router.delete(
+	'/saved-searches/:id',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:update'),
+	async (req, res) => {
+		try {
+			const result = await pool.query(
+				'DELETE FROM saved_searches WHERE id = $1 AND recruiter_id = $2 RETURNING id',
+				[req.params.id, req.user.id],
+			);
+			if (result.rows.length === 0) {
+				return res.status(404).json({ error: 'Saved search not found' });
+			}
+			res.json({ success: true });
+		} catch (err) {
+			console.error('Delete saved search error:', err);
+			res.status(500).json({ error: 'Failed to delete saved search' });
+		}
+	},
+);
 
 // GET /api/recruiter/conversations — real implementation (Issue #109)
-router.get('/conversations', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
-	try {
-		// Graceful: create table if it doesn't exist
-		await pool.query(`
+router.get(
+	'/conversations',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	async (req, res) => {
+		try {
+			// Graceful: create table if it doesn't exist
+			await pool.query(`
 			CREATE TABLE IF NOT EXISTS conversations (
 				id SERIAL PRIMARY KEY,
 				job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
@@ -3999,7 +4486,7 @@ router.get('/conversations', authMiddleware, requireApprovedRecruiter, ensureCom
 				updated_at TIMESTAMP DEFAULT NOW()
 			)
 		`);
-		await pool.query(`
+			await pool.query(`
 			CREATE TABLE IF NOT EXISTS messages (
 				id SERIAL PRIMARY KEY,
 				conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
@@ -4014,8 +4501,8 @@ router.get('/conversations', authMiddleware, requireApprovedRecruiter, ensureCom
 			)
 		`);
 
-		const result = await pool.query(
-			`SELECT
+			const result = await pool.query(
+				`SELECT
 				c.id,
 				c.job_id,
 				j.title as job_title,
@@ -4036,41 +4523,48 @@ router.get('/conversations', authMiddleware, requireApprovedRecruiter, ensureCom
 			WHERE c.recruiter_id = $1
 			ORDER BY c.last_message_at DESC NULLS LAST, c.updated_at DESC
 			LIMIT 50`,
-			[req.user.id],
-		);
+				[req.user.id],
+			);
 
-		const conversations = result.rows.map((c) => ({
-			id: String(c.id),
-			job_id: c.job_id ? String(c.job_id) : null,
-			job_title: c.job_title || null,
-			candidate_id: c.candidate_id ? String(c.candidate_id) : null,
-			candidate_name: c.candidate_name || 'Unknown',
-			recruiter_id: c.recruiter_id ? String(c.recruiter_id) : null,
-			recruiter_name: c.recruiter_name || null,
-			company_name: req.user.company_name || null,
-			last_message: c.last_message || null,
-			unread_count: parseInt(c.unread_count, 10) || 0,
-			is_active: c.is_active,
-			created_at: c.created_at ? new Date(c.created_at).toISOString() : null,
-			updated_at: c.updated_at ? new Date(c.updated_at).toISOString() : null,
-			other_user: {
-				id: c.candidate_id ? String(c.candidate_id) : null,
-				name: c.candidate_name || 'Unknown',
-			},
-		}));
+			const conversations = result.rows.map((c) => ({
+				id: String(c.id),
+				job_id: c.job_id ? String(c.job_id) : null,
+				job_title: c.job_title || null,
+				candidate_id: c.candidate_id ? String(c.candidate_id) : null,
+				candidate_name: c.candidate_name || 'Unknown',
+				recruiter_id: c.recruiter_id ? String(c.recruiter_id) : null,
+				recruiter_name: c.recruiter_name || null,
+				company_name: req.user.company_name || null,
+				last_message: c.last_message || null,
+				unread_count: parseInt(c.unread_count, 10) || 0,
+				is_active: c.is_active,
+				created_at: c.created_at ? new Date(c.created_at).toISOString() : null,
+				updated_at: c.updated_at ? new Date(c.updated_at).toISOString() : null,
+				other_user: {
+					id: c.candidate_id ? String(c.candidate_id) : null,
+					name: c.candidate_name || 'Unknown',
+				},
+			}));
 
-		res.json({ conversations });
-	} catch (err) {
-		console.error('Get recruiter conversations error:', err);
-		res.status(500).json({ error: 'Failed to fetch conversations' });
-	}
-});
+			res.json({ conversations });
+		} catch (err) {
+			console.error('Get recruiter conversations error:', err);
+			res.status(500).json({ error: 'Failed to fetch conversations' });
+		}
+	},
+);
 
 // GET /api/recruiter/screenings — real implementation (Issue #109)
-router.get('/screenings', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
-	try {
-		const result = await pool.query(
-			`SELECT
+router.get(
+	'/screenings',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('candidates:read'),
+	async (req, res) => {
+		try {
+			const result = await pool.query(
+				`SELECT
 				js.id,
 				js.job_id,
 				j.title as job_title,
@@ -4096,132 +4590,140 @@ router.get('/screenings', authMiddleware, requireApprovedRecruiter, ensureCompan
 			WHERE j.company_id = $1
 			ORDER BY js.generated_at DESC NULLS LAST
 			LIMIT 50`,
-			[req.user.company_id],
-		);
+				[req.user.company_id],
+			);
 
-		const screenings = result.rows.map((s) => ({
-			id: String(s.id),
-			candidateId: s.candidate_id ? String(s.candidate_id) : null,
-			candidateName: s.candidate_name || 'Unknown',
-			candidateAvatar: s.candidate_avatar || null,
-			candidateHeadline: null,
-			jobId: s.job_id ? String(s.job_id) : null,
-			jobTitle: s.job_title || 'Unknown Job',
-			overallScore: parseInt(s.overall_score, 10) || 0,
-			recommendation: s.status === 'approved' ? 'strong_hire' : s.status === 'rejected' ? 'reject' : 'pending',
-			skillMatch: s.skill_match || null,
-			experienceMatch: s.experience_match || null,
-			cultureFit: s.culture_fit || null,
-			strengths: Array.isArray(s.strengths) ? s.strengths : [],
-			concerns: Array.isArray(s.concerns) ? s.concerns : [],
-			autoQuestions: Array.isArray(s.auto_questions) ? s.auto_questions : [],
-			aiExplanation: s.ai_explanation || '',
-			generatedAt: s.generated_at ? new Date(s.generated_at).toISOString() : null,
-			status: s.status || 'pending',
-			redFlags: s.red_flags || null,
-			scorecard: s.scorecard || null,
-			aiNotes: s.ai_notes || null,
-		}));
+			const screenings = result.rows.map((s) => ({
+				id: String(s.id),
+				candidateId: s.candidate_id ? String(s.candidate_id) : null,
+				candidateName: s.candidate_name || 'Unknown',
+				candidateAvatar: s.candidate_avatar || null,
+				candidateHeadline: null,
+				jobId: s.job_id ? String(s.job_id) : null,
+				jobTitle: s.job_title || 'Unknown Job',
+				overallScore: parseInt(s.overall_score, 10) || 0,
+				recommendation:
+					s.status === 'approved' ? 'strong_hire' : s.status === 'rejected' ? 'reject' : 'pending',
+				skillMatch: s.skill_match || null,
+				experienceMatch: s.experience_match || null,
+				cultureFit: s.culture_fit || null,
+				strengths: Array.isArray(s.strengths) ? s.strengths : [],
+				concerns: Array.isArray(s.concerns) ? s.concerns : [],
+				autoQuestions: Array.isArray(s.auto_questions) ? s.auto_questions : [],
+				aiExplanation: s.ai_explanation || '',
+				generatedAt: s.generated_at ? new Date(s.generated_at).toISOString() : null,
+				status: s.status || 'pending',
+				redFlags: s.red_flags || null,
+				scorecard: s.scorecard || null,
+				aiNotes: s.ai_notes || null,
+			}));
 
-		res.json({ screenings });
-	} catch (err) {
-		console.error('Get screenings error:', err);
-		res.status(500).json({ error: 'Failed to fetch screenings' });
-	}
-});
-
+			res.json({ screenings });
+		} catch (err) {
+			console.error('Get screenings error:', err);
+			res.status(500).json({ error: 'Failed to fetch screenings' });
+		}
+	},
+);
 
 // ─── OFFER ACCEPTANCE PREDICTION (Issue #129) ────────────────────
-router.get('/applications/:id/offer-prediction', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('analytics:read'), async (req, res) => {
-	try {
-		const companyId = req.user.company_id;
-		const applicationId = req.params.id;
+router.get(
+	'/applications/:id/offer-prediction',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('analytics:read'),
+	async (req, res) => {
+		try {
+			const companyId = req.user.company_id;
+			const applicationId = req.params.id;
 
-		// Verify application belongs to company and is in 'offered' status
-		const appResult = await pool.query(
-			`SELECT ja.*, j.title as job_title, j.id as job_id
+			// Verify application belongs to company and is in 'offered' status
+			const appResult = await pool.query(
+				`SELECT ja.*, j.title as job_title, j.id as job_id
 			 FROM job_applications ja
 			 JOIN jobs j ON ja.job_id = j.id
 			 WHERE ja.id = $1 AND ja.company_id = $2`,
-			[applicationId, companyId],
-		);
+				[applicationId, companyId],
+			);
 
-		if (appResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Application not found' });
-		}
+			if (appResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Application not found' });
+			}
 
-		const app = appResult.rows[0];
-		const jobTitle = app.job_title;
-		const jobId = app.job_id;
+			const app = appResult.rows[0];
+			const jobTitle = app.job_title;
+			const jobId = app.job_id;
 
-		// Need at least 5 historical offers company-wide for any prediction
-		const minOffersResult = await pool.query(
-			`SELECT COUNT(*) as total_offers
+			// Need at least 5 historical offers company-wide for any prediction
+			const minOffersResult = await pool.query(
+				`SELECT COUNT(*) as total_offers
 			 FROM job_applications
 			 WHERE company_id = $1 AND status IN ('offered', 'hired')`,
-			[companyId],
-		);
-		const totalOffers = parseInt(minOffersResult.rows[0].total_offers, 10) || 0;
-		if (totalOffers < 5) {
-			return res.json({
-				success: true,
-				insufficient_data: true,
-				message: 'Need at least 5 historical offers to generate a prediction.',
-				prediction: null,
-			});
-		}
+				[companyId],
+			);
+			const totalOffers = parseInt(minOffersResult.rows[0].total_offers, 10) || 0;
+			if (totalOffers < 5) {
+				return res.json({
+					success: true,
+					insufficient_data: true,
+					message: 'Need at least 5 historical offers to generate a prediction.',
+					prediction: null,
+				});
+			}
 
-		// Historical acceptance rate for same job title
-		const titleResult = await pool.query(
-			`SELECT
+			// Historical acceptance rate for same job title
+			const titleResult = await pool.query(
+				`SELECT
 				COUNT(*) FILTER (WHERE status = 'hired') as hired,
 				COUNT(*) FILTER (WHERE status IN ('offered', 'hired')) as offered
 			 FROM job_applications ja
 			 JOIN jobs j ON ja.job_id = j.id
 			 WHERE ja.company_id = $1 AND j.title = $2 AND ja.status IN ('offered', 'hired')`,
-			[companyId, jobTitle],
-		);
-		const titleHired = parseInt(titleResult.rows[0].hired, 10) || 0;
-		const titleOffered = parseInt(titleResult.rows[0].offered, 10) || 0;
-		const titleRate = titleOffered > 0 ? (titleHired / titleOffered) : 0;
+				[companyId, jobTitle],
+			);
+			const titleHired = parseInt(titleResult.rows[0].hired, 10) || 0;
+			const titleOffered = parseInt(titleResult.rows[0].offered, 10) || 0;
+			const titleRate = titleOffered > 0 ? titleHired / titleOffered : 0;
 
-		// Historical acceptance rate company-wide
-		const companyResult = await pool.query(
-			`SELECT
+			// Historical acceptance rate company-wide
+			const companyResult = await pool.query(
+				`SELECT
 				COUNT(*) FILTER (WHERE status = 'hired') as hired,
 				COUNT(*) FILTER (WHERE status IN ('offered', 'hired')) as offered
 			 FROM job_applications
 			 WHERE company_id = $1 AND status IN ('offered', 'hired')`,
-			[companyId],
-		);
-		const companyHired = parseInt(companyResult.rows[0].hired, 10) || 0;
-		const companyOffered = parseInt(companyResult.rows[0].offered, 10) || 0;
-		const companyRate = companyOffered > 0 ? (companyHired / companyOffered) : 0;
+				[companyId],
+			);
+			const companyHired = parseInt(companyResult.rows[0].hired, 10) || 0;
+			const companyOffered = parseInt(companyResult.rows[0].offered, 10) || 0;
+			const companyRate = companyOffered > 0 ? companyHired / companyOffered : 0;
 
-		// Weighted: 60% same-title, 40% company-wide (fallback to company-wide if same-title has < 3 offers)
-		let prediction;
-		if (titleOffered >= 3 && titleRate > 0) {
-			prediction = Math.round(titleRate * 0.6 + companyRate * 0.4);
-		} else {
-			prediction = Math.round(companyRate);
+			// Weighted: 60% same-title, 40% company-wide (fallback to company-wide if same-title has < 3 offers)
+			let prediction;
+			if (titleOffered >= 3 && titleRate > 0) {
+				prediction = Math.round(titleRate * 0.6 + companyRate * 0.4);
+			} else {
+				prediction = Math.round(companyRate);
+			}
+
+			res.json({
+				success: true,
+				insufficient_data: false,
+				prediction,
+				details: {
+					job_title: jobTitle,
+					same_title_acceptance_rate: titleOffered >= 3 ? Math.round(titleRate * 100) : null,
+					company_wide_acceptance_rate: Math.round(companyRate * 100),
+					same_title_sample_size: titleOffered,
+					company_sample_size: companyOffered,
+				},
+			});
+		} catch (err) {
+			console.error('Offer prediction error:', err);
+			res.status(500).json({ error: 'Failed to generate offer prediction' });
 		}
-
-		res.json({
-			success: true,
-			insufficient_data: false,
-			prediction,
-			details: {
-				job_title: jobTitle,
-				same_title_acceptance_rate: titleOffered >= 3 ? Math.round(titleRate * 100) : null,
-				company_wide_acceptance_rate: Math.round(companyRate * 100),
-				same_title_sample_size: titleOffered,
-				company_sample_size: companyOffered,
-			},
-		});
-	} catch (err) {
-		console.error('Offer prediction error:', err);
-		res.status(500).json({ error: 'Failed to generate offer prediction' });
-	}
-});
+	},
+);
 
 module.exports = router;

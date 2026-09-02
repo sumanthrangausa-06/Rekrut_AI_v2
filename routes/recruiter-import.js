@@ -145,7 +145,11 @@ router.post(
 				}
 			} else if (type === 'jobs') {
 				// Validate headers
-				if (!parsed.headers.includes('title') || !parsed.headers.includes('company') || !parsed.headers.includes('location')) {
+				if (
+					!parsed.headers.includes('title') ||
+					!parsed.headers.includes('company') ||
+					!parsed.headers.includes('location')
+				) {
 					throw new Error("CSV must contain 'title', 'company', and 'location' columns");
 				}
 

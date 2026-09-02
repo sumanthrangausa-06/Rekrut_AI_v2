@@ -66,8 +66,15 @@ async function detectMetadataAnomalies(fileBuffer, documentType) {
 			const producer = (info.Producer || '').toLowerCase();
 			const creator = (info.Creator || '').toLowerCase();
 			const softwareSignatures = [
-				'photoshop', 'gimp', 'inkscape', 'illustrator',
-				'canva', 'figma', 'sejda', 'smallpdf', 'ilovepdf',
+				'photoshop',
+				'gimp',
+				'inkscape',
+				'illustrator',
+				'canva',
+				'figma',
+				'sejda',
+				'smallpdf',
+				'ilovepdf',
 			];
 			for (const sig of softwareSignatures) {
 				if (producer.includes(sig) || creator.includes(sig)) {
@@ -80,8 +87,19 @@ async function detectMetadataAnomalies(fileBuffer, documentType) {
 			}
 
 			// Check for suspicious PDF generators (non-standard)
-			const standardGenerators = ['microsoft', 'acrobat', 'pdflatex', 'luatex', 'xetex', 'libreoffice', 'word', 'excel'];
-			const isStandard = standardGenerators.some((g) => producer.includes(g) || creator.includes(g));
+			const standardGenerators = [
+				'microsoft',
+				'acrobat',
+				'pdflatex',
+				'luatex',
+				'xetex',
+				'libreoffice',
+				'word',
+				'excel',
+			];
+			const isStandard = standardGenerators.some(
+				(g) => producer.includes(g) || creator.includes(g),
+			);
 			if (!isStandard && (producer || creator)) {
 				flags.push({
 					type: 'unusual_pdf_generator',
@@ -109,7 +127,8 @@ async function detectMetadataAnomalies(fileBuffer, documentType) {
 					flags.push({
 						type: 'missing_metadata',
 						severity: 'low',
-						details: 'Official document has no PDF metadata — possible scanned forgery or stripped metadata',
+						details:
+							'Official document has no PDF metadata — possible scanned forgery or stripped metadata',
 					});
 				}
 			}
@@ -137,10 +156,10 @@ async function detectMetadataAnomalies(fileBuffer, documentType) {
 			// Check for EXIF header presence and basic structure
 			if (fileBuffer.length > 4) {
 				// JPEG starts with FF D8 FF; look for EXIF marker FF E1
-				if (fileBuffer[0] === 0xFF && fileBuffer[1] === 0xD8) {
+				if (fileBuffer[0] === 0xff && fileBuffer[1] === 0xd8) {
 					let hasExif = false;
 					for (let i = 0; i < Math.min(fileBuffer.length - 1, 65536); i++) {
-						if (fileBuffer[i] === 0xFF && fileBuffer[i + 1] === 0xE1) {
+						if (fileBuffer[i] === 0xff && fileBuffer[i + 1] === 0xe1) {
 							hasExif = true;
 							break;
 						}
@@ -175,9 +194,10 @@ function detectMimeType(buffer) {
 	// PDF
 	if (buffer.toString('ascii', 0, 4) === '%PDF') return 'application/pdf';
 	// JPEG
-	if (buffer[0] === 0xFF && buffer[1] === 0xD8) return 'image/jpeg';
+	if (buffer[0] === 0xff && buffer[1] === 0xd8) return 'image/jpeg';
 	// PNG
-	if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) return 'image/png';
+	if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47)
+		return 'image/png';
 	// WEBP
 	if (buffer.length >= 12 && buffer.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
 	return null;
@@ -255,11 +275,13 @@ Return JSON with:
 		console.error('Visual tampering detection error:', error);
 		return {
 			tamper_detected: false,
-			flagged_areas: [{
-				type: 'visual_analysis_failed',
-				severity: 'low',
-				details: `Visual tamper analysis failed: ${error.message}`,
-			}],
+			flagged_areas: [
+				{
+					type: 'visual_analysis_failed',
+					severity: 'low',
+					details: `Visual tamper analysis failed: ${error.message}`,
+				},
+			],
 			confidence: 0,
 			reasoning: '',
 		};
@@ -297,9 +319,10 @@ async function checkCrossDocumentConsistency(userId) {
 
 		// Extract normalized names and DOBs from each document
 		const docProfiles = documents.map((doc) => {
-			const data = typeof doc.extracted_data === 'string'
-				? JSON.parse(doc.extracted_data || '{}')
-				: (doc.extracted_data || {});
+			const data =
+				typeof doc.extracted_data === 'string'
+					? JSON.parse(doc.extracted_data || '{}')
+					: doc.extracted_data || {};
 
 			const names = extractNames(data);
 			const dobs = extractDOBs(data);
@@ -406,7 +429,14 @@ async function checkCrossDocumentConsistency(userId) {
 function extractNames(data) {
 	const names = [];
 	// Try common field names
-	const nameFields = ['name', 'student_name', 'employee_name', 'full_name', 'candidate_name', 'holder_name'];
+	const nameFields = [
+		'name',
+		'student_name',
+		'employee_name',
+		'full_name',
+		'candidate_name',
+		'holder_name',
+	];
 	for (const field of nameFields) {
 		if (data[field] && typeof data[field] === 'string') {
 			names.push(normalizeName(data[field]));
@@ -450,11 +480,7 @@ function normalizeName(name) {
 function normalizeDate(dateStr) {
 	if (!dateStr) return null;
 	// Remove common separators and normalize
-	const normalized = dateStr
-		.replace(/[\/\.\-]/g, '-')
-		.replace(/\s+/g, ' ')
-		.trim()
-		.toLowerCase();
+	const normalized = dateStr.replace(/[/.-]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
 	return normalized;
 }
 
@@ -754,7 +780,10 @@ async function verifyDocument(documentId, userId) {
 
 		// Step 3: Visual Tamper Detection
 		console.log(`Analyzing visuals for tampering signs...`);
-		const visualTamperResult = await detectVisualTampering(document.file_url, document.document_type);
+		const visualTamperResult = await detectVisualTampering(
+			document.file_url,
+			document.document_type,
+		);
 
 		// Step 4: Authenticity Scoring
 		console.log(`Calculating authenticity score...`);
@@ -781,12 +810,18 @@ async function verifyDocument(documentId, userId) {
 
 		// Determine fraud risk level — incorporate tamper detection
 		let fraudRisk = 'low';
-		const hasHighSeverityTamper = metadataFlags.some((f) => f.severity === 'high') ||
+		const hasHighSeverityTamper =
+			metadataFlags.some((f) => f.severity === 'high') ||
 			visualTamperResult.flagged_areas.some((f) => f.severity === 'high');
-		const hasMediumSeverityTamper = metadataFlags.some((f) => f.severity === 'medium') ||
+		const hasMediumSeverityTamper =
+			metadataFlags.some((f) => f.severity === 'medium') ||
 			visualTamperResult.flagged_areas.some((f) => f.severity === 'medium');
 
-		if (authenticityResult.authenticity_score < 40 || duplicateResult.is_duplicate || hasHighSeverityTamper) {
+		if (
+			authenticityResult.authenticity_score < 40 ||
+			duplicateResult.is_duplicate ||
+			hasHighSeverityTamper
+		) {
 			fraudRisk = 'high';
 		} else if (
 			authenticityResult.authenticity_score < 70 ||

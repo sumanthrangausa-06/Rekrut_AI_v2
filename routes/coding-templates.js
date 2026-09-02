@@ -77,13 +77,13 @@ router.get('/', authMiddleware, async (req, res) => {
        WHERE ${conditions.join(' AND ')}
        ORDER BY role_type ASC, difficulty ASC, created_at DESC
        LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
-			params
+			params,
 		);
 
 		// Count total
 		const countResult = await pool.query(
 			`SELECT COUNT(*) FROM coding_templates WHERE ${conditions.join(' AND ')}`,
-			params.slice(0, -2)
+			params.slice(0, -2),
 		);
 
 		res.json({
@@ -120,7 +120,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
               is_custom, is_active, created_by, created_at, updated_at
        FROM coding_templates
        WHERE id = $1 AND deleted_at IS NULL`,
-			[id]
+			[id],
 		);
 
 		if (templateResult.rows.length === 0) {
@@ -190,7 +190,9 @@ router.post(
 			const validRoles = ['frontend', 'backend', 'data', 'sql', 'algorithms'];
 			const validDifficulties = ['easy', 'medium', 'hard'];
 			if (!validRoles.includes(role_type)) {
-				return res.status(400).json({ error: `role_type must be one of: ${validRoles.join(', ')}` });
+				return res
+					.status(400)
+					.json({ error: `role_type must be one of: ${validRoles.join(', ')}` });
 			}
 			if (!validDifficulties.includes(difficulty)) {
 				return res.status(400).json({
@@ -219,7 +221,7 @@ router.post(
 					req.user.id,
 					true,
 					true,
-				]
+				],
 			);
 			const template = templateResult.rows[0];
 
@@ -240,7 +242,7 @@ router.post(
 							tc.is_hidden !== undefined ? tc.is_hidden : false,
 							tc.weight || 10,
 							i,
-						]
+						],
 					);
 				}
 			}
@@ -272,7 +274,7 @@ router.post(
 		} finally {
 			client.release();
 		}
-	}
+	},
 );
 
 // =============================================================================
@@ -303,7 +305,7 @@ router.put(
 			// Verify ownership or admin
 			const existing = await client.query(
 				'SELECT * FROM coding_templates WHERE id = $1 AND deleted_at IS NULL',
-				[id]
+				[id],
 			);
 			if (existing.rows.length === 0) {
 				return res.status(404).json({ error: 'Template not found' });
@@ -340,7 +342,7 @@ router.put(
 					starter_code ? JSON.stringify(starter_code) : null,
 					is_active !== undefined ? is_active : null,
 					id,
-				]
+				],
 			);
 
 			await client.query('COMMIT');
@@ -359,7 +361,7 @@ router.put(
 		} finally {
 			client.release();
 		}
-	}
+	},
 );
 
 // =============================================================================
@@ -378,7 +380,7 @@ router.delete(
 			// Verify ownership or admin
 			const existing = await pool.query(
 				'SELECT * FROM coding_templates WHERE id = $1 AND deleted_at IS NULL',
-				[id]
+				[id],
 			);
 			if (existing.rows.length === 0) {
 				return res.status(404).json({ error: 'Template not found' });
@@ -388,7 +390,10 @@ router.delete(
 				return res.status(403).json({ error: 'You can only delete your own templates' });
 			}
 
-			await pool.query('UPDATE coding_templates SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1', [id]);
+			await pool.query(
+				'UPDATE coding_templates SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1',
+				[id],
+			);
 
 			await AuditLogger.log({
 				actionType: 'coding_template_deleted',
@@ -404,7 +409,7 @@ router.delete(
 			console.error('[coding-templates] Delete error:', error);
 			res.status(500).json({ error: 'Failed to delete template' });
 		}
-	}
+	},
 );
 
 module.exports = router;

@@ -35,74 +35,97 @@ router.get('/', authMiddleware, requireApprovedRecruiter, requireRecruiter, asyn
 });
 
 // Get detailed score breakdown
-router.get('/breakdown', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
-	try {
-		const breakdown = await trustscoreService.getTrustScoreBreakdown(req.user.company_id);
+router.get(
+	'/breakdown',
+	authMiddleware,
+	requireApprovedRecruiter,
+	requireRecruiter,
+	async (req, res) => {
+		try {
+			const breakdown = await trustscoreService.getTrustScoreBreakdown(req.user.company_id);
 
-		res.json({
-			success: true,
-			...breakdown,
-		});
-	} catch (err) {
-		console.error('Get TrustScore breakdown error:', err);
-		res.status(500).json({ error: 'Failed to get TrustScore breakdown' });
-	}
-});
+			res.json({
+				success: true,
+				...breakdown,
+			});
+		} catch (err) {
+			console.error('Get TrustScore breakdown error:', err);
+			res.status(500).json({ error: 'Failed to get TrustScore breakdown' });
+		}
+	},
+);
 
 // Get score history
-router.get('/history', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
-	try {
-		const { limit = 30 } = req.query;
+router.get(
+	'/history',
+	authMiddleware,
+	requireApprovedRecruiter,
+	requireRecruiter,
+	async (req, res) => {
+		try {
+			const { limit = 30 } = req.query;
 
-		const result = await pool.query(
-			`
+			const result = await pool.query(
+				`
       SELECT previous_score, new_score, change_amount, change_reason, component_type, created_at
       FROM trust_score_history
       WHERE company_id = $1
       ORDER BY created_at DESC
       LIMIT $2
     `,
-			[req.user.company_id, limit],
-		);
+				[req.user.company_id, limit],
+			);
 
-		res.json({
-			success: true,
-			history: result.rows,
-		});
-	} catch (err) {
-		console.error('Get TrustScore history error:', err);
-		res.status(500).json({ error: 'Failed to get TrustScore history' });
-	}
-});
+			res.json({
+				success: true,
+				history: result.rows,
+			});
+		} catch (err) {
+			console.error('Get TrustScore history error:', err);
+			res.status(500).json({ error: 'Failed to get TrustScore history' });
+		}
+	},
+);
 
 // Get recommendations
-router.get('/recommendations', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
-	try {
-		const currentScores = await trustscoreService.calculateTrustScore(req.user.company_id);
-		const v2Scores = await trustscoreService.calculateTrustScoreV2(req.user.company_id);
-		const recommendations = trustscoreService.generateTrustRecommendations(currentScores);
-		const v2Guidance = trustscoreService.generateV2ImprovementGuidance(v2Scores);
+router.get(
+	'/recommendations',
+	authMiddleware,
+	requireApprovedRecruiter,
+	requireRecruiter,
+	async (req, res) => {
+		try {
+			const currentScores = await trustscoreService.calculateTrustScore(req.user.company_id);
+			const v2Scores = await trustscoreService.calculateTrustScoreV2(req.user.company_id);
+			const recommendations = trustscoreService.generateTrustRecommendations(currentScores);
+			const v2Guidance = trustscoreService.generateV2ImprovementGuidance(v2Scores);
 
-		res.json({
-			success: true,
-			current_score: currentScores.total_score,
-			tier: currentScores.tier,
-			recommendations,
-			v2_guidance: v2Guidance,
-		});
-	} catch (err) {
-		console.error('Get TrustScore recommendations error:', err);
-		res.status(500).json({ error: 'Failed to get recommendations' });
-	}
-});
+			res.json({
+				success: true,
+				current_score: currentScores.total_score,
+				tier: currentScores.tier,
+				recommendations,
+				v2_guidance: v2Guidance,
+			});
+		} catch (err) {
+			console.error('Get TrustScore recommendations error:', err);
+			res.status(500).json({ error: 'Failed to get recommendations' });
+		}
+	},
+);
 
 // Get hiring analytics (for TrustScore dashboard)
-router.get('/analytics', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
-	try {
-		const companyId = req.user.company_id;
+router.get(
+	'/analytics',
+	authMiddleware,
+	requireApprovedRecruiter,
+	requireRecruiter,
+	async (req, res) => {
+		try {
+			const companyId = req.user.company_id;
 
-		const stats = await pool.query(
-			`
+			const stats = await pool.query(
+				`
       SELECT
         COUNT(DISTINCT j.id) as total_jobs,
         COUNT(DISTINCT j.id) FILTER (WHERE j.status = 'active') as active_jobs,
@@ -114,11 +137,11 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, requireRecrui
       LEFT JOIN job_analytics ja ON j.id = ja.job_id
       WHERE j.company_id = $1
     `,
-			[companyId],
-		);
+				[companyId],
+			);
 
-		const recentApplications = await pool.query(
-			`
+			const recentApplications = await pool.query(
+				`
       SELECT
         jap.id, jap.status, jap.applied_at, jap.omniscore_at_apply,
         u.name as candidate_name, u.email as candidate_email,
@@ -130,11 +153,11 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, requireRecrui
       ORDER BY jap.applied_at DESC
       LIMIT 10
     `,
-			[companyId],
-		);
+				[companyId],
+			);
 
-		const feedback = await pool.query(
-			`
+			const feedback = await pool.query(
+				`
       SELECT
         AVG(rating) as avg_rating,
         AVG(communication_rating) as avg_communication,
@@ -143,35 +166,36 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, requireRecrui
       FROM candidate_feedback
       WHERE company_id = $1
     `,
-			[companyId],
-		);
+				[companyId],
+			);
 
-		const { total_interviews, total_offers } = stats.rows[0];
-		const ratio = total_interviews > 0 ? ((total_offers / total_interviews) * 100).toFixed(1) : 0;
+			const { total_interviews, total_offers } = stats.rows[0];
+			const ratio = total_interviews > 0 ? ((total_offers / total_interviews) * 100).toFixed(1) : 0;
 
-		res.json({
-			success: true,
-			analytics: {
-				...stats.rows[0],
-				interview_to_offer_ratio: `${ratio}%`,
-				avg_rating: feedback.rows[0].avg_rating
-					? parseFloat(feedback.rows[0].avg_rating).toFixed(1)
-					: null,
-				avg_communication: feedback.rows[0].avg_communication
-					? parseFloat(feedback.rows[0].avg_communication).toFixed(1)
-					: null,
-				avg_process: feedback.rows[0].avg_process
-					? parseFloat(feedback.rows[0].avg_process).toFixed(1)
-					: null,
-				total_reviews: parseInt(feedback.rows[0].total_reviews, 10),
-			},
-			recent_applications: recentApplications.rows,
-		});
-	} catch (err) {
-		console.error('Get analytics error:', err);
-		res.status(500).json({ error: 'Failed to get analytics' });
-	}
-});
+			res.json({
+				success: true,
+				analytics: {
+					...stats.rows[0],
+					interview_to_offer_ratio: `${ratio}%`,
+					avg_rating: feedback.rows[0].avg_rating
+						? parseFloat(feedback.rows[0].avg_rating).toFixed(1)
+						: null,
+					avg_communication: feedback.rows[0].avg_communication
+						? parseFloat(feedback.rows[0].avg_communication).toFixed(1)
+						: null,
+					avg_process: feedback.rows[0].avg_process
+						? parseFloat(feedback.rows[0].avg_process).toFixed(1)
+						: null,
+					total_reviews: parseInt(feedback.rows[0].total_reviews, 10),
+				},
+				recent_applications: recentApplications.rows,
+			});
+		} catch (err) {
+			console.error('Get analytics error:', err);
+			res.status(500).json({ error: 'Failed to get analytics' });
+		}
+	},
+);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // V2 ROUTES — New endpoints
@@ -213,7 +237,10 @@ router.get('/compare', async (req, res) => {
 			return res.status(400).json({ error: 'company_ids parameter required (comma-separated)' });
 		}
 
-		const ids = company_ids.split(',').map((id) => parseInt(id.trim(), 10)).filter(Boolean);
+		const ids = company_ids
+			.split(',')
+			.map((id) => parseInt(id.trim(), 10))
+			.filter(Boolean);
 		if (ids.length < 2) {
 			return res.status(400).json({ error: 'At least 2 company IDs required for comparison' });
 		}
@@ -471,7 +498,14 @@ router.post('/feedback', authMiddleware, async (req, res) => {
         communication = EXCLUDED.communication,
         updated_at = NOW()
     `,
-			[company_id, candidateId, overall_rating, interview_experience_rating || null, communication_rating || null, is_anonymous],
+			[
+				company_id,
+				candidateId,
+				overall_rating,
+				interview_experience_rating || null,
+				communication_rating || null,
+				is_anonymous,
+			],
 		);
 
 		// Recalculate TrustScore for the company
@@ -492,44 +526,52 @@ router.post('/feedback', authMiddleware, async (req, res) => {
  * POST /api/trustscore/company/response — Company responds publicly to a review
  * Body: { review_id, response_text, is_public }
  */
-router.post('/company/response', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
-	try {
-		const companyId = req.user.company_id;
-		const { review_id, response_text, is_public = true } = req.body;
+router.post(
+	'/company/response',
+	authMiddleware,
+	requireApprovedRecruiter,
+	requireRecruiter,
+	async (req, res) => {
+		try {
+			const companyId = req.user.company_id;
+			const { review_id, response_text, is_public = true } = req.body;
 
-		if (!review_id || !response_text?.trim()) {
-			return res.status(400).json({ error: 'review_id and response_text are required' });
-		}
+			if (!review_id || !response_text?.trim()) {
+				return res.status(400).json({ error: 'review_id and response_text are required' });
+			}
 
-		// Verify the review belongs to this company
-		const reviewCheck = await pool.query(
-			`SELECT id FROM company_ratings WHERE id = $1 AND company_id = $2`,
-			[review_id, companyId],
-		);
+			// Verify the review belongs to this company
+			const reviewCheck = await pool.query(
+				`SELECT id FROM company_ratings WHERE id = $1 AND company_id = $2`,
+				[review_id, companyId],
+			);
 
-		if (reviewCheck.rows.length === 0) {
-			return res.status(403).json({ error: 'Review not found or does not belong to your company' });
-		}
+			if (reviewCheck.rows.length === 0) {
+				return res
+					.status(403)
+					.json({ error: 'Review not found or does not belong to your company' });
+			}
 
-		const result = await pool.query(
-			`
+			const result = await pool.query(
+				`
       INSERT INTO company_review_responses (company_id, review_id, responder_id, response_text, is_public)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `,
-			[companyId, review_id, req.user.id, response_text.trim(), is_public],
-		);
+				[companyId, review_id, req.user.id, response_text.trim(), is_public],
+			);
 
-		res.json({
-			success: true,
-			message: 'Response posted successfully',
-			response: result.rows[0],
-		});
-	} catch (err) {
-		console.error('Post company response error:', err);
-		res.status(500).json({ error: 'Failed to post response' });
-	}
-});
+			res.json({
+				success: true,
+				message: 'Response posted successfully',
+				response: result.rows[0],
+			});
+		} catch (err) {
+			console.error('Post company response error:', err);
+			res.status(500).json({ error: 'Failed to post response' });
+		}
+	},
+);
 
 /**
  * GET /api/trustscore/methodology — Published scoring methodology
@@ -557,42 +599,54 @@ router.get('/methodology', async (req, res) => {
  * GET /api/trustscore/brigading-check — Check for suspicious review patterns
  * Recruiter only
  */
-router.get('/brigading-check', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
-	try {
-		const { lookback_days = 30 } = req.query;
-		const report = await trustscoreService.detectReviewBrigading(
-			req.user.company_id,
-			parseInt(lookback_days, 10),
-		);
+router.get(
+	'/brigading-check',
+	authMiddleware,
+	requireApprovedRecruiter,
+	requireRecruiter,
+	async (req, res) => {
+		try {
+			const { lookback_days = 30 } = req.query;
+			const report = await trustscoreService.detectReviewBrigading(
+				req.user.company_id,
+				parseInt(lookback_days, 10),
+			);
 
-		res.json({
-			success: true,
-			...report,
-		});
-	} catch (err) {
-		console.error('Brigading check error:', err);
-		res.status(500).json({ error: 'Failed to check for brigading' });
-	}
-});
+			res.json({
+				success: true,
+				...report,
+			});
+		} catch (err) {
+			console.error('Brigading check error:', err);
+			res.status(500).json({ error: 'Failed to check for brigading' });
+		}
+	},
+);
 
 /**
  * POST /api/trustscore/regenerate-summary — Force AI summary regeneration
  * Recruiter only
  */
-router.post('/regenerate-summary', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
-	try {
-		const summary = await trustscoreService.generateAISummary(req.user.company_id);
+router.post(
+	'/regenerate-summary',
+	authMiddleware,
+	requireApprovedRecruiter,
+	requireRecruiter,
+	async (req, res) => {
+		try {
+			const summary = await trustscoreService.generateAISummary(req.user.company_id);
 
-		res.json({
-			success: true,
-			message: 'AI summary regenerated',
-			summary,
-		});
-	} catch (err) {
-		console.error('Regenerate summary error:', err);
-		res.status(500).json({ error: 'Failed to regenerate summary' });
-	}
-});
+			res.json({
+				success: true,
+				message: 'AI summary regenerated',
+				summary,
+			});
+		} catch (err) {
+			console.error('Regenerate summary error:', err);
+			res.status(500).json({ error: 'Failed to regenerate summary' });
+		}
+	},
+);
 
 /**
  * GET /api/trustscore/public/:companySlug — Legacy public endpoint (preserved)

@@ -68,75 +68,87 @@ function requireCandidate(req, res, next) {
 // ─── GET /api/candidate/jobs/:id/fit-score ───────────────────────────────
 // Returns fit score for a single job
 
-router.get('/jobs/:id/fit-score', authMiddleware, requireCandidate, userRateLimit, async (req, res) => {
-	try {
-		const jobId = parseInt(req.params.id, 10);
-		if (Number.isNaN(jobId) || jobId <= 0) {
-			return sendError(res, 400, 'Invalid job ID', 'Validation');
-		}
+router.get(
+	'/jobs/:id/fit-score',
+	authMiddleware,
+	requireCandidate,
+	userRateLimit,
+	async (req, res) => {
+		try {
+			const jobId = parseInt(req.params.id, 10);
+			if (Number.isNaN(jobId) || jobId <= 0) {
+				return sendError(res, 400, 'Invalid job ID', 'Validation');
+			}
 
-		const result = await calculateFitScore(req.user.id, jobId);
+			const result = await calculateFitScore(req.user.id, jobId);
 
-		res.json({
-			success: true,
-			job_id: jobId,
-			...result,
-		});
-	} catch (err) {
-		if (err.statusCode === 404) {
-			return sendError(res, 404, 'Job not found', 'Fit score', err);
+			res.json({
+				success: true,
+				job_id: jobId,
+				...result,
+			});
+		} catch (err) {
+			if (err.statusCode === 404) {
+				return sendError(res, 404, 'Job not found', 'Fit score', err);
+			}
+			sendError(res, 500, 'Failed to calculate fit score', 'Fit score', err);
 		}
-		sendError(res, 500, 'Failed to calculate fit score', 'Fit score', err);
-	}
-});
+	},
+);
 
 // ─── GET /api/candidate/jobs/fit-scores ──────────────────────────────────
 // Returns batch fit scores
 // Query: job_ids (comma-separated, max 50)
 
-router.get('/jobs/fit-scores', authMiddleware, requireCandidate, userRateLimit, async (req, res) => {
-	try {
-		const { job_ids } = req.query;
+router.get(
+	'/jobs/fit-scores',
+	authMiddleware,
+	requireCandidate,
+	userRateLimit,
+	async (req, res) => {
+		try {
+			const { job_ids } = req.query;
 
-		if (!job_ids || typeof job_ids !== 'string') {
-			return sendError(res, 400, 'job_ids query parameter is required', 'Validation');
-		}
-
-		const rawIds = job_ids
-			.split(',')
-			.map((s) => s.trim())
-			.filter(Boolean);
-
-		if (rawIds.length === 0) {
-			return sendError(res, 400, 'job_ids must contain at least one job ID', 'Validation');
-		}
-
-		if (rawIds.length > 50) {
-			return sendError(res, 400, 'Maximum 50 job IDs allowed', 'Validation');
-		}
-
-		const jobIds = [];
-		for (const raw of rawIds) {
-			const parsed = parseInt(raw, 10);
-			if (Number.isNaN(parsed) || parsed <= 0) {
-				return sendError(res, 400, `Invalid job ID: ${raw}`, 'Validation');
+			if (!job_ids || typeof job_ids !== 'string') {
+				return sendError(res, 400, 'job_ids query parameter is required', 'Validation');
 			}
-			jobIds.push(parsed);
+
+			const rawIds = job_ids
+				.split(',')
+				.map((s) => s.trim())
+				.filter(Boolean);
+
+			if (rawIds.length === 0) {
+				return sendError(res, 400, 'job_ids must contain at least one job ID', 'Validation');
+			}
+
+			if (rawIds.length > 50) {
+				return sendError(res, 400, 'Maximum 50 job IDs allowed', 'Validation');
+			}
+
+			const jobIds = [];
+			for (const raw of rawIds) {
+				const parsed = parseInt(raw, 10);
+				if (Number.isNaN(parsed) || parsed <= 0) {
+					return sendError(res, 400, `Invalid job ID: ${raw}`, 'Validation');
+				}
+				jobIds.push(parsed);
+			}
+
+			// Deduplicate while preserving order
+			const uniqueJobIds = [...new Set(jobIds)];
+
+			const results = await calculateFitScoresBatch(req.user.id, uniqueJobIds);
+
+			res.json({
+				success: true,
+				count: results.length,
+				scores: results,
+			});
+		} catch (err) {
+			sendError(res, 500, 'Failed to calculate fit scores', 'Fit scores batch', err);
 		}
-
-		// Deduplicate while preserving order
-		const uniqueJobIds = [...new Set(jobIds)];
-
-		const results = await calculateFitScoresBatch(req.user.id, uniqueJobIds);
-
-		res.json({
-			success: true,
-			count: results.length,
-			scores: results,
-		});
-	} catch (err) {
-		sendError(res, 500, 'Failed to calculate fit scores', 'Fit scores batch', err);
-	}
-});
+	},
+);
 
 module.exports = router;

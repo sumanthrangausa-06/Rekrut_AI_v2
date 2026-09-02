@@ -610,16 +610,8 @@ router.get('/explain/decision/:applicationId', authMiddleware, async (req, res) 
  */
 router.post('/audit-log', authMiddleware, async (req, res) => {
 	try {
-		const {
-			eventType,
-			entityType,
-			entityId,
-			actorId,
-			actorRole,
-			jobId,
-			companyId,
-			payload,
-		} = req.body;
+		const { eventType, entityType, entityId, actorId, actorRole, jobId, companyId, payload } =
+			req.body;
 
 		if (!eventType || !entityType || !entityId) {
 			return res.status(400).json({ error: 'eventType, entityType, and entityId are required' });
@@ -651,22 +643,12 @@ router.post('/audit-log', authMiddleware, async (req, res) => {
 router.get('/audit-trail', authMiddleware, async (req, res) => {
 	try {
 		// Access control: admin, employer (owner), or recruiter with company access
-		if (
-			!['admin', 'employer', 'recruiter', 'hiring_manager'].includes(req.user?.role)
-		) {
+		if (!['admin', 'employer', 'recruiter', 'hiring_manager'].includes(req.user?.role)) {
 			return res.status(403).json({ error: 'Admin or company access required' });
 		}
 
-		const {
-			candidateId,
-			jobId,
-			recruiterId,
-			startDate,
-			endDate,
-			eventType,
-			limit,
-			offset,
-		} = req.query;
+		const { candidateId, jobId, recruiterId, startDate, endDate, eventType, limit, offset } =
+			req.query;
 
 		const companyId = req.user.role === 'admin' ? undefined : req.user.company_id;
 
@@ -705,8 +687,7 @@ router.get('/audit-trail/candidate/:candidateId', authMiddleware, async (req, re
 		const isOwn = req.user?.role === 'candidate' && req.user?.id === candidateId;
 		const isAdmin = req.user?.role === 'admin';
 		const isCompanyUser =
-			['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) &&
-			req.user?.company_id;
+			['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) && req.user?.company_id;
 
 		if (!isOwn && !isAdmin && !isCompanyUser) {
 			return res.status(403).json({ error: 'Access denied' });
@@ -854,7 +835,8 @@ router.get('/risk-classify/:jobId', authMiddleware, async (req, res) => {
 
 		// Access control
 		const isAdmin = req.user?.role === 'admin';
-		const isCompanyUser = ['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) &&
+		const isCompanyUser =
+			['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) &&
 			req.user?.company_id === record.company_id;
 		if (!isAdmin && !isCompanyUser) {
 			return res.status(403).json({ error: 'Access denied' });
@@ -1017,7 +999,9 @@ router.get('/explain/job/:jobId/candidate/:candidateId', authMiddleware, async (
 
 		// Candidate can view their own explanation
 		const isOwn = req.user?.role === 'candidate' && req.user?.id === candidateId;
-		const isCompanyUser = ['employer', 'recruiter', 'hiring_manager', 'admin'].includes(req.user?.role);
+		const isCompanyUser = ['employer', 'recruiter', 'hiring_manager', 'admin'].includes(
+			req.user?.role,
+		);
 		if (!isOwn && !isCompanyUser) {
 			return res.status(403).json({ error: 'Access denied' });
 		}
@@ -1069,7 +1053,9 @@ router.post('/overrides', authMiddleware, async (req, res) => {
 		} = req.body;
 
 		if (!applicationId || !userId || !jobId || !reason) {
-			return res.status(400).json({ error: 'applicationId, userId, jobId, and reason are required' });
+			return res
+				.status(400)
+				.json({ error: 'applicationId, userId, jobId, and reason are required' });
 		}
 
 		const override = await EuComplianceService.recordHumanOverride({
@@ -1265,7 +1251,9 @@ router.post('/consent/revoke', authMiddleware, async (req, res) => {
 		}
 
 		// Verify ownership
-		const existing = await pool.query('SELECT user_id FROM consent_records WHERE id = $1', [consentId]);
+		const existing = await pool.query('SELECT user_id FROM consent_records WHERE id = $1', [
+			consentId,
+		]);
 		if (existing.rows.length === 0) {
 			return res.status(404).json({ error: 'Consent record not found' });
 		}

@@ -18,13 +18,9 @@ function getSpec(app) {
 router.use(authMiddleware);
 
 // Serve Swagger UI assets and HTML
-router.use(
-	'/',
-	swaggerUi.serve,
-	(req, res, next) => {
-		const spec = getSpec(req.app);
-		swaggerUi.setup(spec, { explorer: true })(req, res, next);
-	},
-);
+router.use('/', swaggerUi.serve, (req, res, next) => {
+	const spec = getSpec(req.app);
+	swaggerUi.setup(spec, { explorer: true })(req, res, next);
+});
 
 module.exports = router;

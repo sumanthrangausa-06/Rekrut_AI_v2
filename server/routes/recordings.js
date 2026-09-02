@@ -36,7 +36,7 @@ function handleValidationErrors(req, res, next) {
 		return res.status(400).json({
 			error: 'Validation failed',
 			details: errors.array().map((e) => ({
-				// @ts-ignore express-validator type mismatch
+				// @ts-expect-error express-validator type mismatch
 				field: e.path || e.param || 'unknown',
 				message: e.msg,
 			})),
@@ -70,7 +70,8 @@ async function canAccessRecording(recordingId, user) {
 	if (!event) return { canAccess: false, recording: null, isRecruiter: false };
 
 	const isRec = isRecruiterRole(user.role);
-	const isOwner = isRec && (event.recruiter_id === user.id || event.recruiter_company_id === user.company_id);
+	const isOwner =
+		isRec && (event.recruiter_id === user.id || event.recruiter_company_id === user.company_id);
 	const isCandidate = event.candidate_id === user.id;
 	const isPanel = (event.panel_member_ids || []).includes(user.id);
 	const isAdmin = user.role === 'admin';
@@ -98,7 +99,11 @@ async function checkAllConsented(recordingId) {
 	const event = eventRes.rows[0];
 	if (!event) return { allConsented: false, missing: [] };
 
-	const participantIds = [event.candidate_id, event.recruiter_id, ...(event.panel_member_ids || [])];
+	const participantIds = [
+		event.candidate_id,
+		event.recruiter_id,
+		...(event.panel_member_ids || []),
+	];
 	const uniqueIds = [...new Set(participantIds)].filter(Boolean);
 
 	const consentRes = await pool.query(
@@ -123,8 +128,11 @@ function generatePlaybackToken(recordingId, userId, expiresInSeconds = 300) {
 		iat: Math.floor(Date.now() / 1000),
 		exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
 	};
-	return Buffer.from(JSON.stringify(payload)).toString('base64url') + '.' +
-		crypto.createHmac('sha256', secret).update(JSON.stringify(payload)).digest('base64url');
+	return (
+		Buffer.from(JSON.stringify(payload)).toString('base64url') +
+		'.' +
+		crypto.createHmac('sha256', secret).update(JSON.stringify(payload)).digest('base64url')
+	);
 }
 
 /**
@@ -136,7 +144,10 @@ function verifyPlaybackToken(token) {
 	try {
 		const [payloadB64, sig] = token.split('.');
 		const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf-8'));
-		const expectedSig = crypto.createHmac('sha256', secret).update(JSON.stringify(payload)).digest('base64url');
+		const expectedSig = crypto
+			.createHmac('sha256', secret)
+			.update(JSON.stringify(payload))
+			.digest('base64url');
 		if (sig !== expectedSig) return null;
 		if (payload.exp < Math.floor(Date.now() / 1000)) return null;
 		return payload;
@@ -152,9 +163,7 @@ router.post(
 	authMiddleware,
 	requirePermission('interviews:schedule'),
 	createRateLimit({ windowMs: 60 * 1000, max: 5, keyPrefix: 'recording-start' }),
-	[
-		body('room_id').isInt({ min: 1 }).withMessage('Valid room_id required'),
-	],
+	[body('room_id').isInt({ min: 1 }).withMessage('Valid room_id required')],
 	handleValidationErrors,
 	async (req, res) => {
 		try {
@@ -179,7 +188,11 @@ router.post(
 				return res.status(404).json({ error: 'Interview event not found' });
 			}
 
-			if (user.role !== 'admin' && event.recruiter_id !== user.id && event.recruiter_company_id !== user.company_id) {
+			if (
+				user.role !== 'admin' &&
+				event.recruiter_id !== user.id &&
+				event.recruiter_company_id !== user.company_id
+			) {
 				return res.status(403).json({ error: 'Not authorized to record this interview' });
 			}
 
@@ -194,7 +207,11 @@ router.post(
 
 			// Check consent for all participants
 			const consentCheck = await (async () => {
-				const participantIds = [event.candidate_id, event.recruiter_id, ...(event.panel_member_ids || [])];
+				const participantIds = [
+					event.candidate_id,
+					event.recruiter_id,
+					...(event.panel_member_ids || []),
+				];
 				const uniqueIds = [...new Set(participantIds)].filter(Boolean);
 				// Check if a recording record already exists (from a previous start attempt)
 				const prevRecordings = await pool.query(
@@ -308,9 +325,17 @@ router.post(
 			}
 
 			if (fileLocation) {
-				await livekitService.completeRecordingRecord(recordingId, fileLocation, durationSeconds, fileSize);
+				await livekitService.completeRecordingRecord(
+					recordingId,
+					fileLocation,
+					durationSeconds,
+					fileSize,
+				);
 			} else {
-				await livekitService.failRecordingRecord(recordingId, 'Egress did not provide file location');
+				await livekitService.failRecordingRecord(
+					recordingId,
+					'Egress did not provide file location',
+				);
 			}
 
 			const updated = await livekitService.findRecordingById(recordingId);
@@ -357,7 +382,11 @@ router.get(
 			if (!event) {
 				return res.status(404).json({ error: 'Interview event not found' });
 			}
-			if (user.role !== 'admin' && event.recruiter_id !== user.id && event.recruiter_company_id !== user.company_id) {
+			if (
+				user.role !== 'admin' &&
+				event.recruiter_id !== user.id &&
+				event.recruiter_company_id !== user.company_id
+			) {
 				return res.status(403).json({ error: 'Not authorized' });
 			}
 
@@ -395,7 +424,10 @@ router.get(
 			const recordingId = parseInt(req.params.id, 10);
 			const user = req.user;
 
-			const { canAccess, recording, event, isRecruiter } = await canAccessRecording(recordingId, user);
+			const { canAccess, recording, event, isRecruiter } = await canAccessRecording(
+				recordingId,
+				user,
+			);
 			if (!canAccess) {
 				return res.status(403).json({ error: 'Not authorized' });
 			}
@@ -617,7 +649,9 @@ router.post(
 					`UPDATE interview_recordings SET status = 'completed', updated_at = NOW() WHERE id = $1`,
 					[parseInt(req.params.id, 10)],
 				);
-			} catch (_e) { /* ignore */ }
+			} catch (_e) {
+				/* ignore */
+			}
 			res.status(500).json({ error: 'Failed to transcribe recording' });
 		}
 	},
@@ -673,7 +707,7 @@ router.get(
 				}, {});
 
 				for (const seg of segments) {
-					// @ts-ignore
+					// @ts-expect-error
 					seg.highlights = highlightsBySegment[seg.id] || [];
 				}
 			}
@@ -712,7 +746,10 @@ router.post(
 	authMiddleware,
 	[
 		param('id').isInt({ min: 1 }).withMessage('Valid recording ID required'),
-		body('consent_type').optional().isIn(['explicit', 'implicit']).withMessage('Invalid consent_type'),
+		body('consent_type')
+			.optional()
+			.isIn(['explicit', 'implicit'])
+			.withMessage('Invalid consent_type'),
 	],
 	handleValidationErrors,
 	async (req, res) => {
@@ -775,7 +812,11 @@ router.post(
 	rateLimits.standard,
 	[
 		param('segmentId').isInt({ min: 1 }).withMessage('Valid segment ID required'),
-		body('note').isString().trim().isLength({ min: 1, max: 2000 }).withMessage('Note required (1-2000 chars)'),
+		body('note')
+			.isString()
+			.trim()
+			.isLength({ min: 1, max: 2000 })
+			.withMessage('Note required (1-2000 chars)'),
 		body('timestamp_ms').optional().isInt({ min: 0 }).withMessage('Invalid timestamp_ms'),
 	],
 	handleValidationErrors,
@@ -810,8 +851,14 @@ router.post(
 			if (!event) {
 				return res.status(404).json({ error: 'Interview event not found' });
 			}
-			if (user.role !== 'admin' && event.recruiter_id !== user.id && event.recruiter_company_id !== user.company_id) {
-				return res.status(403).json({ error: 'Not authorized to add highlights to this recording' });
+			if (
+				user.role !== 'admin' &&
+				event.recruiter_id !== user.id &&
+				event.recruiter_company_id !== user.company_id
+			) {
+				return res
+					.status(403)
+					.json({ error: 'Not authorized to add highlights to this recording' });
 			}
 
 			const result = await pool.query(

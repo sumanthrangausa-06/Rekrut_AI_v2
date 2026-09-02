@@ -18,7 +18,9 @@ function handleValidationErrors(req, res, next) {
 		return res.status(400).json({
 			error: 'Validation failed',
 			// @ts-expect-error express-validator type mismatch
-			details: errors.array().map((e) => ({ field: e.param || e.path || 'unknown', message: e.msg })),
+			details: errors
+				.array()
+				.map((e) => ({ field: e.param || e.path || 'unknown', message: e.msg })),
 		});
 	}
 	next();
@@ -52,17 +54,14 @@ function toLocalIso(utcDate, timezone) {
 // GET /api/interviews — List interview events (role-based)
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.get(
-	'/',
-	authMiddleware,
-	async (req, res) => {
-		try {
-			const user = req.user;
-			const { status, limit = 50, offset = 0 } = req.query;
-			const limitNum = Math.min(parseInt(limit, 10) || 50, 100);
-			const offsetNum = parseInt(offset, 10) || 0;
+router.get('/', authMiddleware, async (req, res) => {
+	try {
+		const user = req.user;
+		const { status, limit = 50, offset = 0 } = req.query;
+		const limitNum = Math.min(parseInt(limit, 10) || 50, 100);
+		const offsetNum = parseInt(offset, 10) || 0;
 
-			let sql = `
+		let sql = `
 				SELECT
 					ie.id,
 					ie.job_application_id,
@@ -90,64 +89,61 @@ router.get(
 				LEFT JOIN job_applications ja ON ie.job_application_id = ja.id
 				LEFT JOIN jobs j ON ja.job_id = j.id
 			`;
-			const params = [];
-			const conditions = [];
+		const params = [];
+		const conditions = [];
 
-			if (isRecruiter(user.role)) {
-				// Recruiters see events where they are the recruiter OR
-				// events for candidates in their company
-				conditions.push(`(ie.recruiter_id = $${params.length + 1} OR ie.candidate_id IN (
+		if (isRecruiter(user.role)) {
+			// Recruiters see events where they are the recruiter OR
+			// events for candidates in their company
+			conditions.push(`(ie.recruiter_id = $${params.length + 1} OR ie.candidate_id IN (
 					SELECT id FROM users WHERE company_id = $${params.length + 2}
 				))`);
-				params.push(user.id, user.company_id || 0);
-			} else {
-				// Candidates see only their own events
-				conditions.push(`ie.candidate_id = $${params.length + 1}`);
-				params.push(user.id);
-			}
-
-			if (status) {
-				conditions.push(`ie.status = $${params.length + 1}`);
-				params.push(status);
-			}
-
-			if (conditions.length > 0) {
-				sql += ' WHERE ' + conditions.join(' AND ');
-			}
-
-			sql += ` ORDER BY ie.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-			params.push(limitNum, offsetNum);
-
-			const result = await pool.query(sql, params);
-
-			// Enrich with proposed slots for each event
-			const events = await Promise.all(
-				result.rows.map(async (evt) => {
-					const slotsRes = await pool.query(
-						`SELECT * FROM proposed_slots WHERE interview_event_id = $1 ORDER BY slot_start`,
-						[evt.id],
-					);
-					return {
-						...evt,
-						scheduled_at_local: evt.scheduled_at
-							? toLocalIso(evt.scheduled_at, evt.timezone)
-							: null,
-						proposed_slots: slotsRes.rows.map((s) => ({
-							...s,
-							slot_start_local: toLocalIso(s.slot_start, s.timezone),
-							slot_end_local: toLocalIso(s.slot_end, s.timezone),
-						})),
-					};
-				}),
-			);
-
-			res.json({ success: true, events, count: events.length });
-		} catch (err) {
-			console.error('[interview-events] List error:', err.message, err.stack);
-			res.status(500).json({ error: 'Failed to list interview events' });
+			params.push(user.id, user.company_id || 0);
+		} else {
+			// Candidates see only their own events
+			conditions.push(`ie.candidate_id = $${params.length + 1}`);
+			params.push(user.id);
 		}
-	},
-);
+
+		if (status) {
+			conditions.push(`ie.status = $${params.length + 1}`);
+			params.push(status);
+		}
+
+		if (conditions.length > 0) {
+			sql += ' WHERE ' + conditions.join(' AND ');
+		}
+
+		sql += ` ORDER BY ie.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+		params.push(limitNum, offsetNum);
+
+		const result = await pool.query(sql, params);
+
+		// Enrich with proposed slots for each event
+		const events = await Promise.all(
+			result.rows.map(async (evt) => {
+				const slotsRes = await pool.query(
+					`SELECT * FROM proposed_slots WHERE interview_event_id = $1 ORDER BY slot_start`,
+					[evt.id],
+				);
+				return {
+					...evt,
+					scheduled_at_local: evt.scheduled_at ? toLocalIso(evt.scheduled_at, evt.timezone) : null,
+					proposed_slots: slotsRes.rows.map((s) => ({
+						...s,
+						slot_start_local: toLocalIso(s.slot_start, s.timezone),
+						slot_end_local: toLocalIso(s.slot_end, s.timezone),
+					})),
+				};
+			}),
+		);
+
+		res.json({ success: true, events, count: events.length });
+	} catch (err) {
+		console.error('[interview-events] List error:', err.message, err.stack);
+		res.status(500).json({ error: 'Failed to list interview events' });
+	}
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/interviews — Create a new interview event with proposed slots
@@ -161,11 +157,25 @@ router.post(
 	[
 		body('job_application_id').isInt({ min: 1 }).withMessage('Valid job_application_id required'),
 		body('candidate_id').isInt({ min: 1 }).withMessage('Valid candidate_id required'),
-		body('duration_minutes').optional().isInt({ min: 15, max: 480 }).withMessage('Duration must be 15-480 minutes'),
-		body('timezone').optional().isString().trim().isLength({ min: 1, max: 100 }).withMessage('Timezone required'),
-		body('proposed_slots').isArray({ min: 1, max: 10 }).withMessage('At least 1 and at most 10 proposed slots required'),
-		body('proposed_slots.*.slot_start').isISO8601().withMessage('Each slot must have a valid ISO8601 start time'),
-		body('proposed_slots.*.slot_end').isISO8601().withMessage('Each slot must have a valid ISO8601 end time'),
+		body('duration_minutes')
+			.optional()
+			.isInt({ min: 15, max: 480 })
+			.withMessage('Duration must be 15-480 minutes'),
+		body('timezone')
+			.optional()
+			.isString()
+			.trim()
+			.isLength({ min: 1, max: 100 })
+			.withMessage('Timezone required'),
+		body('proposed_slots')
+			.isArray({ min: 1, max: 10 })
+			.withMessage('At least 1 and at most 10 proposed slots required'),
+		body('proposed_slots.*.slot_start')
+			.isISO8601()
+			.withMessage('Each slot must have a valid ISO8601 start time'),
+		body('proposed_slots.*.slot_end')
+			.isISO8601()
+			.withMessage('Each slot must have a valid ISO8601 end time'),
 		body('panel_member_ids').optional().isArray().withMessage('panel_member_ids must be an array'),
 		body('notes').optional().trim().isLength({ max: 2000 }).withMessage('Notes too long'),
 	],
@@ -208,7 +218,9 @@ router.post(
 					[panel_member_ids, req.user.company_id || 0],
 				);
 				if (pmCheck.rows.length !== panel_member_ids.length) {
-					return res.status(400).json({ error: 'One or more panel members are invalid or not in your company' });
+					return res
+						.status(400)
+						.json({ error: 'One or more panel members are invalid or not in your company' });
 				}
 			}
 
@@ -218,7 +230,15 @@ router.post(
 				 (job_application_id, recruiter_id, candidate_id, panel_member_ids, duration_minutes, timezone, status, notes, created_at, updated_at)
 				 VALUES ($1, $2, $3, $4, $5, $6, 'proposed', $7, NOW(), NOW())
 				 RETURNING *`,
-				[job_application_id, recruiterId, candidate_id, panel_member_ids, duration_minutes, timezone, notes || null],
+				[
+					job_application_id,
+					recruiterId,
+					candidate_id,
+					panel_member_ids,
+					duration_minutes,
+					timezone,
+					notes || null,
+				],
 			);
 			const event = eventResult.rows[0];
 
@@ -242,9 +262,12 @@ router.post(
 			const batchSize = 10;
 			for (let i = 0; i < proposed_slots.length; i += batchSize) {
 				const batch = proposed_slots.slice(i, i + batchSize);
-				const placeholders = batch.map((_, idx) =>
-					`($${idx * 6 + 1}, $${idx * 6 + 2}, $${idx * 6 + 3}, $${idx * 6 + 4}, $${idx * 6 + 5}, $${idx * 6 + 6})`,
-				).join(', ');
+				const placeholders = batch
+					.map(
+						(_, idx) =>
+							`($${idx * 6 + 1}, $${idx * 6 + 2}, $${idx * 6 + 3}, $${idx * 6 + 4}, $${idx * 6 + 5}, $${idx * 6 + 6})`,
+					)
+					.join(', ');
 				const batchParams = batch.flatMap((s) => [
 					event.id,
 					recruiterId,
@@ -425,7 +448,9 @@ router.post(
 			}
 
 			// Re-fetch the updated event
-			const updatedEventRes = await pool.query('SELECT * FROM interview_events WHERE id = $1', [eventId]);
+			const updatedEventRes = await pool.query('SELECT * FROM interview_events WHERE id = $1', [
+				eventId,
+			]);
 			const updatedEvent = updatedEventRes.rows[0];
 
 			// Create calendar events on all attendees' calendars
@@ -433,10 +458,10 @@ router.post(
 			try {
 				calendarEventIds = await calendarService.createMultiAttendeeEvents(updatedEvent);
 				if (Object.keys(calendarEventIds).length > 0) {
-					await pool.query(
-						`UPDATE interview_events SET calendar_event_ids = $1 WHERE id = $2`,
-						[JSON.stringify(calendarEventIds), eventId],
-					);
+					await pool.query(`UPDATE interview_events SET calendar_event_ids = $1 WHERE id = $2`, [
+						JSON.stringify(calendarEventIds),
+						eventId,
+					]);
 				}
 			} catch (calErr) {
 				console.error('[interview-events] Calendar sync failed (non-blocking):', calErr.message);
@@ -446,7 +471,10 @@ router.post(
 			try {
 				await livekitService.autoCreateRoomForInterview(eventId);
 			} catch (lkErr) {
-				console.error('[interview-events] LiveKit room auto-create failed (non-blocking):', lkErr.message);
+				console.error(
+					'[interview-events] LiveKit room auto-create failed (non-blocking):',
+					lkErr.message,
+				);
 			}
 
 			res.json({
@@ -544,17 +572,19 @@ router.post(
 			);
 
 			// Re-fetch updated event
-			const updatedRes = await pool.query('SELECT * FROM interview_events WHERE id = $1', [eventId]);
+			const updatedRes = await pool.query('SELECT * FROM interview_events WHERE id = $1', [
+				eventId,
+			]);
 			const updatedEvent = updatedRes.rows[0];
 
 			// Update calendar events across all attendees
 			let calendarEventIds = event.calendar_event_ids || {};
 			try {
 				calendarEventIds = await calendarService.updateMultiAttendeeEvents(updatedEvent);
-				await pool.query(
-					`UPDATE interview_events SET calendar_event_ids = $1 WHERE id = $2`,
-					[JSON.stringify(calendarEventIds), eventId],
-				);
+				await pool.query(`UPDATE interview_events SET calendar_event_ids = $1 WHERE id = $2`, [
+					JSON.stringify(calendarEventIds),
+					eventId,
+				]);
 			} catch (calErr) {
 				console.error('[interview-events] Calendar update failed (non-blocking):', calErr.message);
 			}
@@ -602,7 +632,7 @@ router.post(
 
 			// Authorization: recruiter or candidate can cancel
 			const canCancel =
-				isRecruiter(user.role) && event.recruiter_id === user.id ||
+				(isRecruiter(user.role) && event.recruiter_id === user.id) ||
 				event.candidate_id === user.id;
 
 			if (!canCancel) {

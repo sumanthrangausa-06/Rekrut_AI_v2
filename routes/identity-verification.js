@@ -178,7 +178,9 @@ router.post('/aadhaar/initiate-otp', authMiddleware, rateLimitMiddleware, async 
 
 		// Consent MUST be explicit
 		if (consent !== true) {
-			return res.status(400).json({ error: 'Explicit consent is required', code: 'CONSENT_REQUIRED' });
+			return res
+				.status(400)
+				.json({ error: 'Explicit consent is required', code: 'CONSENT_REQUIRED' });
 		}
 
 		if (!aadhaarNumber || typeof aadhaarNumber !== 'string') {
@@ -223,10 +225,22 @@ router.post('/aadhaar/initiate-otp', authMiddleware, rateLimitMiddleware, async 
 
 		// ponytail: Stub UIDAI API call — real integration needs legal review + API keys
 		// TODO: Integrate with UIDAI Aadhaar OTP API (requires legal review, API keys, MOU)
-		console.log(`[identity-verification] UIDAI OTP stub: OTP would be sent to registered mobile for hash ${hash.slice(0, 8)}...`);
+		console.log(
+			`[identity-verification] UIDAI OTP stub: OTP would be sent to registered mobile for hash ${hash.slice(0, 8)}...`,
+		);
 
-		await logIdentityAudit(req.user.id, 'aadhaar_otp_initiated', { verification_id: result.rows[0].id, masked }, req);
-		await logComplianceAudit(req.user.id, 'aadhaar_otp_initiated', { masked, verification_id: result.rows[0].id }, req);
+		await logIdentityAudit(
+			req.user.id,
+			'aadhaar_otp_initiated',
+			{ verification_id: result.rows[0].id, masked },
+			req,
+		);
+		await logComplianceAudit(
+			req.user.id,
+			'aadhaar_otp_initiated',
+			{ masked, verification_id: result.rows[0].id },
+			req,
+		);
 
 		res.json({ success: true, message: 'OTP sent to registered mobile' });
 	} catch (err) {
@@ -275,7 +289,9 @@ router.post('/aadhaar/verify-otp', authMiddleware, rateLimitMiddleware, async (r
 		}
 
 		if (record.status !== 'otp_sent') {
-			return res.status(400).json({ error: 'OTP not initiated or already processed', code: 'INVALID_STATE' });
+			return res
+				.status(400)
+				.json({ error: 'OTP not initiated or already processed', code: 'INVALID_STATE' });
 		}
 
 		// ponytail: Stub OTP validation — always accept "123456" for demo
@@ -288,11 +304,28 @@ router.post('/aadhaar/verify-otp', authMiddleware, rateLimitMiddleware, async (r
        SET status = $2, updated_at = NOW(),
            metadata = metadata || $3
        WHERE id = $1`,
-			[record.id, newStatus, JSON.stringify({ verified_at: verified ? new Date().toISOString() : null, otp_attempted: true })],
+			[
+				record.id,
+				newStatus,
+				JSON.stringify({
+					verified_at: verified ? new Date().toISOString() : null,
+					otp_attempted: true,
+				}),
+			],
 		);
 
-		await logIdentityAudit(req.user.id, `aadhaar_otp_${newStatus}`, { verification_id: record.id, masked: record.masked_value }, req);
-		await logComplianceAudit(req.user.id, `aadhaar_otp_${newStatus}`, { verification_id: record.id, masked: record.masked_value }, req);
+		await logIdentityAudit(
+			req.user.id,
+			`aadhaar_otp_${newStatus}`,
+			{ verification_id: record.id, masked: record.masked_value },
+			req,
+		);
+		await logComplianceAudit(
+			req.user.id,
+			`aadhaar_otp_${newStatus}`,
+			{ verification_id: record.id, masked: record.masked_value },
+			req,
+		);
 
 		res.json({ success: true, verified });
 	} catch (err) {
@@ -308,7 +341,9 @@ router.post('/aadhaar/offline-xml', authMiddleware, rateLimitMiddleware, async (
 		const { xmlData, consent } = req.body;
 
 		if (consent !== true) {
-			return res.status(400).json({ error: 'Explicit consent is required', code: 'CONSENT_REQUIRED' });
+			return res
+				.status(400)
+				.json({ error: 'Explicit consent is required', code: 'CONSENT_REQUIRED' });
 		}
 		if (!xmlData || typeof xmlData !== 'string') {
 			return res.status(400).json({ error: 'xmlData is required' });
@@ -322,12 +357,16 @@ router.post('/aadhaar/offline-xml', authMiddleware, rateLimitMiddleware, async (
 		const maskedAadhaar = uidMatch ? uidMatch[1] : null;
 
 		if (!maskedAadhaar) {
-			return res.status(400).json({ error: 'Invalid Aadhaar XML: uid not found', code: 'INVALID_XML' });
+			return res
+				.status(400)
+				.json({ error: 'Invalid Aadhaar XML: uid not found', code: 'INVALID_XML' });
 		}
 
 		// ponytail: Stub XML signature verification
 		// TODO: Implement real XML signature verification using UIDAI public key
-		console.log('[identity-verification] XML signature verification stub — always passing for demo');
+		console.log(
+			'[identity-verification] XML signature verification stub — always passing for demo',
+		);
 
 		// Derive a synthetic hash from the masked Aadhaar for storage
 		// In production, the XML contains the full Aadhaar number; here we hash the masked
@@ -360,8 +399,18 @@ router.post('/aadhaar/offline-xml', authMiddleware, rateLimitMiddleware, async (
 			[req.user.id, maskedAadhaar, hash, JSON.stringify({ source: 'offline_xml', name })],
 		);
 
-		await logIdentityAudit(req.user.id, 'aadhaar_offline_verified', { verification_id: result.rows[0].id, masked: maskedAadhaar, name }, req);
-		await logComplianceAudit(req.user.id, 'aadhaar_offline_verified', { verification_id: result.rows[0].id, masked: maskedAadhaar, name }, req);
+		await logIdentityAudit(
+			req.user.id,
+			'aadhaar_offline_verified',
+			{ verification_id: result.rows[0].id, masked: maskedAadhaar, name },
+			req,
+		);
+		await logComplianceAudit(
+			req.user.id,
+			'aadhaar_offline_verified',
+			{ verification_id: result.rows[0].id, masked: maskedAadhaar, name },
+			req,
+		);
 
 		res.json({ success: true, details: { name, maskedAadhaar } });
 	} catch (err) {
@@ -377,7 +426,9 @@ router.post('/pan/verify', authMiddleware, rateLimitMiddleware, async (req, res)
 		const { panNumber, consent } = req.body;
 
 		if (consent !== true) {
-			return res.status(400).json({ error: 'Explicit consent is required', code: 'CONSENT_REQUIRED' });
+			return res
+				.status(400)
+				.json({ error: 'Explicit consent is required', code: 'CONSENT_REQUIRED' });
 		}
 		if (!panNumber || typeof panNumber !== 'string') {
 			return res.status(400).json({ error: 'panNumber is required' });
@@ -385,7 +436,9 @@ router.post('/pan/verify', authMiddleware, rateLimitMiddleware, async (req, res)
 
 		const clean = panNumber.toUpperCase().trim();
 		if (!validatePan(clean)) {
-			return res.status(400).json({ error: 'Invalid PAN format. Expected: ABCDE1234F', code: 'INVALID_PAN' });
+			return res
+				.status(400)
+				.json({ error: 'Invalid PAN format. Expected: ABCDE1234F', code: 'INVALID_PAN' });
 		}
 
 		const masked = maskPan(clean);
@@ -404,7 +457,9 @@ router.post('/pan/verify', authMiddleware, rateLimitMiddleware, async (req, res)
 
 		// ponytail: Stub NSDL API call — real integration needs API keys + legal review
 		// TODO: Integrate with NSDL PAN verification API
-		console.log(`[identity-verification] NSDL PAN verification stub for hash ${hash.slice(0, 8)}...`);
+		console.log(
+			`[identity-verification] NSDL PAN verification stub for hash ${hash.slice(0, 8)}...`,
+		);
 
 		await pool.query(
 			`UPDATE identity_verifications
@@ -421,8 +476,18 @@ router.post('/pan/verify', authMiddleware, rateLimitMiddleware, async (req, res)
 			[req.user.id, masked, hash, JSON.stringify({ source: 'nsdl_stub' })],
 		);
 
-		await logIdentityAudit(req.user.id, 'pan_verified', { verification_id: result.rows[0].id, masked }, req);
-		await logComplianceAudit(req.user.id, 'pan_verified', { verification_id: result.rows[0].id, masked }, req);
+		await logIdentityAudit(
+			req.user.id,
+			'pan_verified',
+			{ verification_id: result.rows[0].id, masked },
+			req,
+		);
+		await logComplianceAudit(
+			req.user.id,
+			'pan_verified',
+			{ verification_id: result.rows[0].id, masked },
+			req,
+		);
 
 		res.json({ success: true, message: 'PAN verified' });
 	} catch (err) {
@@ -457,7 +522,12 @@ router.get('/status', authMiddleware, async (req, res) => {
 
 		const result = await pool.query(query, params);
 
-		await logIdentityAudit(req.user.id, 'status_viewed', { type: type || 'all', count: result.rows.length }, req);
+		await logIdentityAudit(
+			req.user.id,
+			'status_viewed',
+			{ type: type || 'all', count: result.rows.length },
+			req,
+		);
 
 		res.json({
 			success: true,
@@ -488,7 +558,9 @@ router.post('/consent', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'purpose is required' });
 		}
 		if (agreed !== true) {
-			return res.status(400).json({ error: 'Consent must be explicitly agreed to', code: 'CONSENT_REQUIRED' });
+			return res
+				.status(400)
+				.json({ error: 'Consent must be explicitly agreed to', code: 'CONSENT_REQUIRED' });
 		}
 
 		// Update the most recent pending record, or create a standalone consent record
@@ -499,7 +571,11 @@ router.post('/consent', authMiddleware, async (req, res) => {
            updated_at = NOW()
        WHERE user_id = $1 AND type = $2 AND status = 'pending'
        RETURNING id`,
-			[req.user.id, type, JSON.stringify({ consent_purpose: purpose, consented_at: new Date().toISOString() })],
+			[
+				req.user.id,
+				type,
+				JSON.stringify({ consent_purpose: purpose, consented_at: new Date().toISOString() }),
+			],
 		);
 
 		const consentId = result.rows.length > 0 ? result.rows[0].id : null;

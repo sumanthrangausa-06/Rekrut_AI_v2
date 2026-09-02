@@ -23,11 +23,17 @@ function fetchJson(url) {
 		const start = Date.now();
 		const req = client.get(url, { timeout: TIMEOUT_MS }, (res) => {
 			let body = '';
-			res.on('data', (chunk) => { body += chunk; });
+			res.on('data', (chunk) => {
+				body += chunk;
+			});
 			res.on('end', () => {
 				const ms = Date.now() - start;
 				let json = null;
-				try { json = JSON.parse(body); } catch { /* ignore parse errors */ }
+				try {
+					json = JSON.parse(body);
+				} catch {
+					/* ignore parse errors */
+				}
 				resolve({ statusCode: res.statusCode, ms, body: json, raw: body });
 			});
 		});
@@ -76,10 +82,7 @@ async function check(name, url) {
 async function main() {
 	log('info', `Starting health check — HEALTH_URL=${HEALTH_URL}, API_URL=${API_URL}`);
 
-	const results = await Promise.all([
-		check('health', HEALTH_URL),
-		check('api-health', API_URL),
-	]);
+	const results = await Promise.all([check('health', HEALTH_URL), check('api-health', API_URL)]);
 
 	const allOk = results.every(Boolean);
 	if (allOk) {

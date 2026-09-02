@@ -431,22 +431,24 @@ async function getDataSufficiency(companyId) {
 	// Count data points per factor
 	const [ratings, feedback, applications, offers, jobsCount, interviews] = await Promise.all([
 		pool.query('SELECT COUNT(*) as count FROM company_ratings WHERE company_id = $1', [companyId]),
-		pool.query('SELECT COUNT(*) as count FROM candidate_feedback WHERE company_id = $1', [companyId]),
+		pool.query('SELECT COUNT(*) as count FROM candidate_feedback WHERE company_id = $1', [
+			companyId,
+		]),
 		pool.query('SELECT COUNT(*) as count FROM job_applications WHERE company_id = $1', [companyId]),
 		pool.query(
 			`SELECT COUNT(*) as count, COUNT(*) FILTER (WHERE status = 'accepted') as accepted FROM offers WHERE company_name = (SELECT name FROM companies WHERE id = $1)`,
 			[companyId],
 		),
 		pool.query('SELECT COUNT(*) as count FROM jobs WHERE company_id = $1', [companyId]),
-		pool.query(
-			`SELECT COUNT(*) as count FROM interview_feedback WHERE company_id = $1`,
-			[companyId],
-		),
+		pool.query(`SELECT COUNT(*) as count FROM interview_feedback WHERE company_id = $1`, [
+			companyId,
+		]),
 	]);
 
 	const counts = {
 		employee_satisfaction: parseInt(ratings.rows[0].count, 10),
-		interview_experience: parseInt(ratings.rows[0].count, 10) + parseInt(interviews.rows[0].count, 10),
+		interview_experience:
+			parseInt(ratings.rows[0].count, 10) + parseInt(interviews.rows[0].count, 10),
 		offer_acceptance_rate: parseInt(offers.rows[0].count, 10),
 		time_to_hire: parseInt(applications.rows[0].count, 10),
 		response_rate: parseInt(applications.rows[0].count, 10),
@@ -506,7 +508,9 @@ async function calculateEmployeeSatisfaction(companyId) {
 	}
 
 	// Map 1-5 rating to 0-100
-	const score = Math.round((parseFloat(avg_rating) / 5) * TRUST_V2_FACTORS.employee_satisfaction.max);
+	const score = Math.round(
+		(parseFloat(avg_rating) / 5) * TRUST_V2_FACTORS.employee_satisfaction.max,
+	);
 	return { score, data_points: parseInt(count, 10), sufficient: true };
 }
 
@@ -984,7 +988,8 @@ function buildBadges(row) {
 	const badges = [];
 	if (row.is_verified) badges.push({ type: 'verified', label: 'Verified' });
 	if (row.total_score >= 800) badges.push({ type: 'trusted', label: 'Highly Trusted' });
-	if (row.feedback_score >= 60) badges.push({ type: 'candidate_approved', label: 'Candidate Approved' });
+	if (row.feedback_score >= 60)
+		badges.push({ type: 'candidate_approved', label: 'Candidate Approved' });
 	if (row.response_rate_score >= 60) badges.push({ type: 'responsive', label: 'Responsive' });
 	if (row.offer_acceptance_rate_score >= 50)
 		badges.push({ type: 'desirable', label: 'Desirable Employer' });
@@ -1253,7 +1258,8 @@ async function detectReviewBrigading(companyId, lookbackDays = 30) {
 		review_count: rows.length,
 		lookback_days: lookbackDays,
 		flags,
-		risk_level: flags.length === 0 ? 'low' : flags.some((f) => f.severity === 'high') ? 'high' : 'medium',
+		risk_level:
+			flags.length === 0 ? 'low' : flags.some((f) => f.severity === 'high') ? 'high' : 'medium',
 		recommendation:
 			flags.length > 0
 				? 'Consider manual review of flagged submissions'

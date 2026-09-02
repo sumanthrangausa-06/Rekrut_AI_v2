@@ -35,7 +35,11 @@ function isRecruiter(user) {
 
 // Rate limits for run/submit (expensive operations)
 const runRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 10, keyPrefix: 'coding-run' });
-const submitRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 5, keyPrefix: 'coding-submit' });
+const submitRateLimit = createRateLimit({
+	windowMs: 60 * 1000,
+	max: 5,
+	keyPrefix: 'coding-submit',
+});
 
 // =============================================================================
 // POST /api/coding-submissions
@@ -61,7 +65,7 @@ router.post('/', authMiddleware, async (req, res) => {
 		const templateResult = await client.query(
 			`SELECT id, starter_code, language_support FROM coding_templates
        WHERE id = $1 AND is_active = true AND deleted_at IS NULL`,
-			[template_id]
+			[template_id],
 		);
 		if (templateResult.rows.length === 0) {
 			return res.status(404).json({ error: 'Template not found or inactive' });
@@ -87,7 +91,7 @@ router.post('/', authMiddleware, async (req, res) => {
          AND job_application_id IS NOT DISTINCT FROM $3
          AND status = 'draft'
        ORDER BY created_at DESC LIMIT 1`,
-			[candidateId, template_id, job_application_id || null]
+			[candidateId, template_id, job_application_id || null],
 		);
 		if (existingResult.rows.length > 0) {
 			return res.json({
@@ -110,7 +114,7 @@ router.post('/', authMiddleware, async (req, res) => {
          (candidate_id, template_id, job_application_id, code_text, language, status, started_at)
        VALUES ($1, $2, $3, $4, $5, 'draft', NOW())
        RETURNING *`,
-			[candidateId, template_id, job_application_id || null, initialCode, language]
+			[candidateId, template_id, job_application_id || null, initialCode, language],
 		);
 
 		const submission = insertResult.rows[0];
@@ -142,10 +146,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 		const userId = req.user.id;
 
 		// Verify ownership
-		const subResult = await pool.query(
-			`SELECT * FROM coding_submissions WHERE id = $1`,
-			[id]
-		);
+		const subResult = await pool.query(`SELECT * FROM coding_submissions WHERE id = $1`, [id]);
 		if (subResult.rows.length === 0) {
 			return res.status(404).json({ error: 'Submission not found' });
 		}
@@ -164,7 +165,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
        SET code_text = $1,
            updated_at = NOW()
        WHERE id = $2`,
-			[code_text || '', id]
+			[code_text || '', id],
 		);
 
 		res.json({ saved: true, submissionId: id });
@@ -189,7 +190,7 @@ router.post('/:id/submit', authMiddleware, submitRateLimit, async (req, res) => 
        FROM coding_submissions s
        JOIN coding_templates t ON s.template_id = t.id
        WHERE s.id = $1`,
-			[id]
+			[id],
 		);
 		if (subResult.rows.length === 0) {
 			return res.status(404).json({ error: 'Submission not found' });
@@ -206,7 +207,7 @@ router.post('/:id/submit', authMiddleware, submitRateLimit, async (req, res) => 
 		// Mark as submitted
 		await pool.query(
 			`UPDATE coding_submissions SET status = 'submitted', submitted_at = NOW(), updated_at = NOW() WHERE id = $1`,
-			[id]
+			[id],
 		);
 
 		// Run plagiarism detection (non-blocking to response)
@@ -214,7 +215,7 @@ router.post('/:id/submit', authMiddleware, submitRateLimit, async (req, res) => 
 			id,
 			submission.candidate_id,
 			submission.template_id,
-			submission.code_text || ''
+			submission.code_text || '',
 		);
 
 		// Run grading (synchronous — waits for all test cases)
@@ -234,7 +235,7 @@ router.post('/:id/submit', authMiddleware, submitRateLimit, async (req, res) => 
 				submission.code_text || '',
 				submission.language,
 				submission.role_type,
-				submission.difficulty
+				submission.difficulty,
 			)
 			.then((review) => codingGrader.saveAIReview(id, review))
 			.catch((err) => console.warn('[coding-submissions] AI review failed:', err.message));
@@ -280,10 +281,7 @@ router.post('/:id/run', authMiddleware, runRateLimit, async (req, res) => {
 		const userId = req.user.id;
 
 		// Verify ownership
-		const subResult = await pool.query(
-			`SELECT * FROM coding_submissions WHERE id = $1`,
-			[id]
-		);
+		const subResult = await pool.query(`SELECT * FROM coding_submissions WHERE id = $1`, [id]);
 		if (subResult.rows.length === 0) {
 			return res.status(404).json({ error: 'Submission not found' });
 		}
@@ -297,7 +295,11 @@ router.post('/:id/run', authMiddleware, runRateLimit, async (req, res) => {
 		const codeToRun = code_text !== undefined ? code_text : submission.code_text || '';
 		const langToRun = language || submission.language;
 
-		const runResult = await codingGrader.runSampleTests(submission.template_id, codeToRun, langToRun);
+		const runResult = await codingGrader.runSampleTests(
+			submission.template_id,
+			codeToRun,
+			langToRun,
+		);
 
 		res.json(runResult);
 	} catch (error) {
@@ -320,7 +322,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
        FROM coding_submissions s
        JOIN coding_templates t ON s.template_id = t.id
        WHERE s.id = $1`,
-			[id]
+			[id],
 		);
 		if (subResult.rows.length === 0) {
 			return res.status(404).json({ error: 'Submission not found' });
@@ -419,13 +421,13 @@ router.get('/candidate/:candidateId', authMiddleware, async (req, res) => {
        WHERE ${conditions.join(' AND ')}
        ORDER BY s.created_at DESC
        LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
-			params
+			params,
 		);
 
 		const countResult = await pool.query(
 			`SELECT COUNT(*) FROM coding_submissions s
        WHERE ${conditions.join(' AND ')}`,
-			params.slice(0, -2)
+			params.slice(0, -2),
 		);
 
 		res.json({

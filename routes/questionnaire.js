@@ -42,7 +42,11 @@ async function getApplication(candidateId, jobId) {
  * Returns { triggered: boolean, reason: string|null }
  */
 function checkKnockout(question, answer) {
-	if (!question.is_knockout || question.knockout_answer === null || question.knockout_answer === undefined) {
+	if (
+		!question.is_knockout ||
+		question.knockout_answer === null ||
+		question.knockout_answer === undefined
+	) {
 		return { triggered: false, reason: null };
 	}
 
@@ -146,84 +150,96 @@ Return ONLY a JSON object with this exact structure:
  * GET /api/questionnaire/:job_id
  * Get full questionnaire for a job (including questions ordered by order_index)
  */
-router.get('/:job_id', authMiddleware, requireRole('recruiter', 'hiring_manager', 'admin', 'employer'), async (req, res) => {
-	try {
-		const { job_id } = req.params;
-		const job = await verifyJobAccess(req.user.id, job_id);
-		if (!job) {
-			return res.status(403).json({ error: 'You do not have access to this job' });
+router.get(
+	'/:job_id',
+	authMiddleware,
+	requireRole('recruiter', 'hiring_manager', 'admin', 'employer'),
+	async (req, res) => {
+		try {
+			const { job_id } = req.params;
+			const job = await verifyJobAccess(req.user.id, job_id);
+			if (!job) {
+				return res.status(403).json({ error: 'You do not have access to this job' });
+			}
+
+			const qResult = await pool.query(`SELECT * FROM screening_questionnaires WHERE job_id = $1`, [
+				job_id,
+			]);
+
+			if (qResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Questionnaire not found for this job' });
+			}
+
+			const questionnaire = qResult.rows[0];
+
+			const questionsResult = await pool.query(
+				`SELECT * FROM screening_questions WHERE questionnaire_id = $1 ORDER BY order_index ASC, id ASC`,
+				[questionnaire.id],
+			);
+
+			res.json({
+				success: true,
+				questionnaire: {
+					...questionnaire,
+					questions: questionsResult.rows,
+				},
+			});
+		} catch (err) {
+			const ref = require('node:crypto').randomUUID();
+			console.error(`[ERROR ref=${ref}] [questionnaire/get] Error:`, err);
+			res.status(500).json({ error: 'Failed to get questionnaire', ref });
 		}
-
-		const qResult = await pool.query(
-			`SELECT * FROM screening_questionnaires WHERE job_id = $1`,
-			[job_id],
-		);
-
-		if (qResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Questionnaire not found for this job' });
-		}
-
-		const questionnaire = qResult.rows[0];
-
-		const questionsResult = await pool.query(
-			`SELECT * FROM screening_questions WHERE questionnaire_id = $1 ORDER BY order_index ASC, id ASC`,
-			[questionnaire.id],
-		);
-
-		res.json({
-			success: true,
-			questionnaire: {
-				...questionnaire,
-				questions: questionsResult.rows,
-			},
-		});
-	} catch (err) {
-		const ref = require('node:crypto').randomUUID();
-		console.error(`[ERROR ref=${ref}] [questionnaire/get] Error:`, err);
-		res.status(500).json({ error: 'Failed to get questionnaire', ref });
-	}
-});
+	},
+);
 
 /**
  * POST /api/questionnaire
  * Create or update a questionnaire for a job (upsert with full question replacement)
  */
-router.post('/', authMiddleware, requireRole('recruiter', 'hiring_manager', 'admin', 'employer'), async (req, res) => {
-	try {
-		const { job_id, pass_threshold = 70, questions = [] } = req.body;
-
-		if (!job_id) {
-			return res.status(400).json({ error: 'job_id is required' });
-		}
-
-		const job = await verifyJobAccess(req.user.id, job_id);
-		if (!job) {
-			return res.status(403).json({ error: 'You do not have access to this job' });
-		}
-
-		// Validate pass_threshold
-		const threshold = Math.max(0, Math.min(100, parseInt(pass_threshold, 10) || 70));
-
-		// Validate questions
-		const validTypes = ['single_choice', 'multiple_choice', 'short_text', 'yes_no', 'numeric'];
-		for (const q of questions) {
-			if (!q.question_text || !q.question_type) {
-				return res.status(400).json({ error: 'Each question must have question_text and question_type' });
-			}
-			if (!validTypes.includes(q.question_type)) {
-				return res.status(400).json({ error: `Invalid question_type: ${q.question_type}` });
-			}
-			if (q.question_type === 'short_text' && q.is_knockout) {
-				return res.status(400).json({ error: 'short_text questions cannot be knockout questions' });
-			}
-		}
-
-		await pool.query('BEGIN');
-
+router.post(
+	'/',
+	authMiddleware,
+	requireRole('recruiter', 'hiring_manager', 'admin', 'employer'),
+	async (req, res) => {
 		try {
-			// Upsert questionnaire
-			const qResult = await pool.query(
-				`
+			const { job_id, pass_threshold = 70, questions = [] } = req.body;
+
+			if (!job_id) {
+				return res.status(400).json({ error: 'job_id is required' });
+			}
+
+			const job = await verifyJobAccess(req.user.id, job_id);
+			if (!job) {
+				return res.status(403).json({ error: 'You do not have access to this job' });
+			}
+
+			// Validate pass_threshold
+			const threshold = Math.max(0, Math.min(100, parseInt(pass_threshold, 10) || 70));
+
+			// Validate questions
+			const validTypes = ['single_choice', 'multiple_choice', 'short_text', 'yes_no', 'numeric'];
+			for (const q of questions) {
+				if (!q.question_text || !q.question_type) {
+					return res
+						.status(400)
+						.json({ error: 'Each question must have question_text and question_type' });
+				}
+				if (!validTypes.includes(q.question_type)) {
+					return res.status(400).json({ error: `Invalid question_type: ${q.question_type}` });
+				}
+				if (q.question_type === 'short_text' && q.is_knockout) {
+					return res
+						.status(400)
+						.json({ error: 'short_text questions cannot be knockout questions' });
+				}
+			}
+
+			await pool.query('BEGIN');
+
+			try {
+				// Upsert questionnaire
+				const qResult = await pool.query(
+					`
           INSERT INTO screening_questionnaires (job_id, pass_threshold, is_active, updated_at)
           VALUES ($1, $2, true, NOW())
           ON CONFLICT (job_id) DO UPDATE SET
@@ -232,212 +248,225 @@ router.post('/', authMiddleware, requireRole('recruiter', 'hiring_manager', 'adm
             updated_at = NOW()
           RETURNING *
         `,
-				[job_id, threshold],
-			);
-
-			// NOTE: The ON CONFLICT above requires a UNIQUE constraint on job_id.
-			// If that doesn't exist yet, we handle it manually:
-			let questionnaire = qResult.rows[0];
-			if (!questionnaire) {
-				// Fallback: check if exists and update, else insert
-				const existing = await pool.query(
-					`SELECT * FROM screening_questionnaires WHERE job_id = $1`,
-					[job_id],
+					[job_id, threshold],
 				);
-				if (existing.rows.length > 0) {
-					const updateResult = await pool.query(
-						`
+
+				// NOTE: The ON CONFLICT above requires a UNIQUE constraint on job_id.
+				// If that doesn't exist yet, we handle it manually:
+				let questionnaire = qResult.rows[0];
+				if (!questionnaire) {
+					// Fallback: check if exists and update, else insert
+					const existing = await pool.query(
+						`SELECT * FROM screening_questionnaires WHERE job_id = $1`,
+						[job_id],
+					);
+					if (existing.rows.length > 0) {
+						const updateResult = await pool.query(
+							`
               UPDATE screening_questionnaires
               SET pass_threshold = $1, is_active = true, updated_at = NOW()
               WHERE job_id = $2
               RETURNING *
             `,
-						[threshold, job_id],
-					);
-					questionnaire = updateResult.rows[0];
-				} else {
-					const insertResult = await pool.query(
-						`
+							[threshold, job_id],
+						);
+						questionnaire = updateResult.rows[0];
+					} else {
+						const insertResult = await pool.query(
+							`
               INSERT INTO screening_questionnaires (job_id, pass_threshold, is_active)
               VALUES ($1, $2, true)
               RETURNING *
             `,
-						[job_id, threshold],
-					);
-					questionnaire = insertResult.rows[0];
+							[job_id, threshold],
+						);
+						questionnaire = insertResult.rows[0];
+					}
 				}
-			}
 
-			// Delete old questions and replace
-			await pool.query(`DELETE FROM screening_questions WHERE questionnaire_id = $1`, [
-				questionnaire.id,
-			]);
+				// Delete old questions and replace
+				await pool.query(`DELETE FROM screening_questions WHERE questionnaire_id = $1`, [
+					questionnaire.id,
+				]);
 
-			const insertedQuestions = [];
-			for (let i = 0; i < questions.length; i++) {
-				const q = questions[i];
-				const iqResult = await pool.query(
-					`
+				const insertedQuestions = [];
+				for (let i = 0; i < questions.length; i++) {
+					const q = questions[i];
+					const iqResult = await pool.query(
+						`
             INSERT INTO screening_questions
               (questionnaire_id, question_text, question_type, options, is_knockout, knockout_answer, order_index, required)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING *
           `,
-					[
-						questionnaire.id,
-						q.question_text,
-						q.question_type,
-						q.options ? JSON.stringify(q.options) : null,
-						q.is_knockout || false,
-						q.knockout_answer !== undefined ? JSON.stringify(q.knockout_answer) : null,
-						q.order_index !== undefined ? q.order_index : i,
-						q.required !== undefined ? q.required : true,
-					],
-				);
-				insertedQuestions.push(iqResult.rows[0]);
+						[
+							questionnaire.id,
+							q.question_text,
+							q.question_type,
+							q.options ? JSON.stringify(q.options) : null,
+							q.is_knockout || false,
+							q.knockout_answer !== undefined ? JSON.stringify(q.knockout_answer) : null,
+							q.order_index !== undefined ? q.order_index : i,
+							q.required !== undefined ? q.required : true,
+						],
+					);
+					insertedQuestions.push(iqResult.rows[0]);
+				}
+
+				await pool.query('COMMIT');
+
+				res.json({
+					success: true,
+					questionnaire: {
+						...questionnaire,
+						questions: insertedQuestions,
+					},
+				});
+			} catch (err) {
+				await pool.query('ROLLBACK');
+				throw err;
 			}
-
-			await pool.query('COMMIT');
-
-			res.json({
-				success: true,
-				questionnaire: {
-					...questionnaire,
-					questions: insertedQuestions,
-				},
-			});
 		} catch (err) {
-			await pool.query('ROLLBACK');
-			throw err;
+			const ref = require('node:crypto').randomUUID();
+			console.error(`[ERROR ref=${ref}] [questionnaire/post] Error:`, err);
+			res.status(500).json({ error: 'Failed to save questionnaire', ref });
 		}
-	} catch (err) {
-		const ref = require('node:crypto').randomUUID();
-		console.error(`[ERROR ref=${ref}] [questionnaire/post] Error:`, err);
-		res.status(500).json({ error: 'Failed to save questionnaire', ref });
-	}
-});
+	},
+);
 
 /**
  * DELETE /api/questionnaire/:job_id
  * Delete questionnaire and all associated questions, responses, evaluations, overrides
  */
-router.delete('/:job_id', authMiddleware, requireRole('recruiter', 'hiring_manager', 'admin', 'employer'), async (req, res) => {
-	try {
-		const { job_id } = req.params;
-		const job = await verifyJobAccess(req.user.id, job_id);
-		if (!job) {
-			return res.status(403).json({ error: 'You do not have access to this job' });
+router.delete(
+	'/:job_id',
+	authMiddleware,
+	requireRole('recruiter', 'hiring_manager', 'admin', 'employer'),
+	async (req, res) => {
+		try {
+			const { job_id } = req.params;
+			const job = await verifyJobAccess(req.user.id, job_id);
+			if (!job) {
+				return res.status(403).json({ error: 'You do not have access to this job' });
+			}
+
+			const qResult = await pool.query(
+				`SELECT id FROM screening_questionnaires WHERE job_id = $1`,
+				[job_id],
+			);
+
+			if (qResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Questionnaire not found' });
+			}
+
+			await pool.query(`DELETE FROM screening_questionnaires WHERE id = $1`, [qResult.rows[0].id]);
+
+			res.json({ success: true, message: 'Questionnaire deleted' });
+		} catch (err) {
+			const ref = require('node:crypto').randomUUID();
+			console.error(`[ERROR ref=${ref}] [questionnaire/delete] Error:`, err);
+			res.status(500).json({ error: 'Failed to delete questionnaire', ref });
 		}
-
-		const qResult = await pool.query(
-			`SELECT id FROM screening_questionnaires WHERE job_id = $1`,
-			[job_id],
-		);
-
-		if (qResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Questionnaire not found' });
-		}
-
-		await pool.query(`DELETE FROM screening_questionnaires WHERE id = $1`, [qResult.rows[0].id]);
-
-		res.json({ success: true, message: 'Questionnaire deleted' });
-	} catch (err) {
-		const ref = require('node:crypto').randomUUID();
-		console.error(`[ERROR ref=${ref}] [questionnaire/delete] Error:`, err);
-		res.status(500).json({ error: 'Failed to delete questionnaire', ref });
-	}
-});
+	},
+);
 
 /**
  * POST /api/questionnaire/:response_id/override
  * Recruiter override of AI screening decision
  */
-router.post('/:response_id/override', authMiddleware, requireRole('recruiter', 'hiring_manager', 'admin', 'employer'), async (req, res) => {
-	try {
-		const { response_id } = req.params;
-		const { override_decision, reason } = req.body;
+router.post(
+	'/:response_id/override',
+	authMiddleware,
+	requireRole('recruiter', 'hiring_manager', 'admin', 'employer'),
+	async (req, res) => {
+		try {
+			const { response_id } = req.params;
+			const { override_decision, reason } = req.body;
 
-		if (!override_decision || !['evaluated', 'rejected'].includes(override_decision)) {
-			return res.status(400).json({ error: 'override_decision must be "evaluated" or "rejected"' });
-		}
+			if (!override_decision || !['evaluated', 'rejected'].includes(override_decision)) {
+				return res
+					.status(400)
+					.json({ error: 'override_decision must be "evaluated" or "rejected"' });
+			}
 
-		// Verify recruiter has access to the job this response belongs to
-		const respCheck = await pool.query(
-			`
+			// Verify recruiter has access to the job this response belongs to
+			const respCheck = await pool.query(
+				`
       SELECT sr.*, sq.job_id
       FROM screening_responses sr
       JOIN screening_questionnaires sq ON sq.id = sr.questionnaire_id
       WHERE sr.id = $1
     `,
-			[response_id],
-		);
+				[response_id],
+			);
 
-		if (respCheck.rows.length === 0) {
-			return res.status(404).json({ error: 'Response not found' });
-		}
+			if (respCheck.rows.length === 0) {
+				return res.status(404).json({ error: 'Response not found' });
+			}
 
-		const response = respCheck.rows[0];
-		const job = await verifyJobAccess(req.user.id, response.job_id);
-		if (!job) {
-			return res.status(403).json({ error: 'You do not have access to this job' });
-		}
+			const response = respCheck.rows[0];
+			const job = await verifyJobAccess(req.user.id, response.job_id);
+			if (!job) {
+				return res.status(403).json({ error: 'You do not have access to this job' });
+			}
 
-		const originalDecision = response.status;
+			const originalDecision = response.status;
 
-		await pool.query('BEGIN');
-		try {
-			// Update response status
-			await pool.query(
-				`
+			await pool.query('BEGIN');
+			try {
+				// Update response status
+				await pool.query(
+					`
           UPDATE screening_responses
           SET status = $1, updated_at = NOW()
           WHERE id = $2
         `,
-				[override_decision, response_id],
-			);
+					[override_decision, response_id],
+				);
 
-			// Record override
-			await pool.query(
-				`
+				// Record override
+				await pool.query(
+					`
           INSERT INTO screening_overrides
             (response_id, recruiter_id, original_decision, override_decision, reason)
           VALUES ($1, $2, $3, $4, $5)
         `,
-				[response_id, req.user.id, originalDecision, override_decision, reason || null],
-			);
+					[response_id, req.user.id, originalDecision, override_decision, reason || null],
+				);
 
-			await pool.query('COMMIT');
+				await pool.query('COMMIT');
 
-			// Audit log
-			await AuditLogger.log({
-				actionType: 'screening_override',
-				userId: req.user.id,
-				targetType: 'screening_response',
-				targetId: parseInt(response_id, 10),
-				metadata: {
-					response_id: parseInt(response_id, 10),
-					original_decision: originalDecision,
-					override_decision,
-					reason: reason || null,
-					job_id: response.job_id,
-				},
-				req,
-			});
+				// Audit log
+				await AuditLogger.log({
+					actionType: 'screening_override',
+					userId: req.user.id,
+					targetType: 'screening_response',
+					targetId: parseInt(response_id, 10),
+					metadata: {
+						response_id: parseInt(response_id, 10),
+						original_decision: originalDecision,
+						override_decision,
+						reason: reason || null,
+						job_id: response.job_id,
+					},
+					req,
+				});
 
-			res.json({
-				success: true,
-				message: `Screening decision overridden from "${originalDecision}" to "${override_decision}"`,
-			});
+				res.json({
+					success: true,
+					message: `Screening decision overridden from "${originalDecision}" to "${override_decision}"`,
+				});
+			} catch (err) {
+				await pool.query('ROLLBACK');
+				throw err;
+			}
 		} catch (err) {
-			await pool.query('ROLLBACK');
-			throw err;
+			const ref = require('node:crypto').randomUUID();
+			console.error(`[ERROR ref=${ref}] [questionnaire/override] Error:`, err);
+			res.status(500).json({ error: 'Failed to override screening decision', ref });
 		}
-	} catch (err) {
-		const ref = require('node:crypto').randomUUID();
-		console.error(`[ERROR ref=${ref}] [questionnaire/override] Error:`, err);
-		res.status(500).json({ error: 'Failed to override screening decision', ref });
-	}
-});
+	},
+);
 
 // ─── Candidate Endpoints ──────────────────────────────────────────────────
 
@@ -587,7 +616,9 @@ router.post('/save', authMiddleware, async (req, res) => {
 
 		const response = respResult.rows[0];
 		if (response.status !== 'in_progress') {
-			return res.status(400).json({ error: `Cannot save: screening is already ${response.status}` });
+			return res
+				.status(400)
+				.json({ error: `Cannot save: screening is already ${response.status}` });
 		}
 
 		// Merge new answers with existing
@@ -642,7 +673,9 @@ router.post('/submit', authMiddleware, async (req, res) => {
 
 		const response = respResult.rows[0];
 		if (response.status !== 'in_progress') {
-			return res.status(400).json({ error: `Cannot submit: screening is already ${response.status}` });
+			return res
+				.status(400)
+				.json({ error: `Cannot submit: screening is already ${response.status}` });
 		}
 
 		// Get all questions for this questionnaire
@@ -719,7 +752,10 @@ router.post('/submit', authMiddleware, async (req, res) => {
 						totalScore += evalResult.score;
 						evaluatedCount++;
 					} catch (aiErr) {
-						console.error(`[questionnaire/submit] AI eval failed for Q${question.id}:`, aiErr.message);
+						console.error(
+							`[questionnaire/submit] AI eval failed for Q${question.id}:`,
+							aiErr.message,
+						);
 						// Continue with other questions — don't fail the whole submission
 					}
 				}
@@ -754,7 +790,8 @@ router.post('/submit', authMiddleware, async (req, res) => {
 				// No short_text answers to evaluate — auto-pass if no knockouts
 				status = 'evaluated';
 				overallScore = 100;
-				aiExplanation = 'No free-text questions required evaluation. All knockout questions passed.';
+				aiExplanation =
+					'No free-text questions required evaluation. All knockout questions passed.';
 			}
 		} else {
 			// No short_text questions — auto-pass if no knockouts
@@ -877,63 +914,69 @@ router.get('/result/:response_id', authMiddleware, async (req, res) => {
  * GET /api/questionnaire/response-by-application/:application_id
  * Get screening response for a specific application (recruiter only)
  */
-router.get('/response-by-application/:application_id', authMiddleware, requireRole('recruiter', 'hiring_manager', 'admin', 'employer'), async (req, res) => {
-	try {
-		const { application_id } = req.params;
+router.get(
+	'/response-by-application/:application_id',
+	authMiddleware,
+	requireRole('recruiter', 'hiring_manager', 'admin', 'employer'),
+	async (req, res) => {
+		try {
+			const { application_id } = req.params;
 
-		// Verify recruiter has access to the job this application belongs to
-		const appCheck = await pool.query(
-			`
+			// Verify recruiter has access to the job this application belongs to
+			const appCheck = await pool.query(
+				`
 			SELECT ja.*, j.company_id
 			FROM job_applications ja
 			JOIN jobs j ON j.id = ja.job_id
 			WHERE ja.id = $1
 			`,
-			[application_id],
-		);
+				[application_id],
+			);
 
-		if (appCheck.rows.length === 0) {
-			return res.status(404).json({ error: 'Application not found' });
-		}
+			if (appCheck.rows.length === 0) {
+				return res.status(404).json({ error: 'Application not found' });
+			}
 
-		const app = appCheck.rows[0];
-		const userResult = await pool.query('SELECT company_id FROM users WHERE id = $1', [req.user.id]);
-		const userCompanyId = userResult.rows[0]?.company_id;
+			const app = appCheck.rows[0];
+			const userResult = await pool.query('SELECT company_id FROM users WHERE id = $1', [
+				req.user.id,
+			]);
+			const userCompanyId = userResult.rows[0]?.company_id;
 
-		if (app.company_id !== userCompanyId && app.user_id !== req.user.id) {
-			return res.status(403).json({ error: 'Access denied' });
-		}
+			if (app.company_id !== userCompanyId && app.user_id !== req.user.id) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
 
-		const respResult = await pool.query(
-			`
+			const respResult = await pool.query(
+				`
 			SELECT sr.*, sq.job_id, sq.pass_threshold
 			FROM screening_responses sr
 			JOIN screening_questionnaires sq ON sq.id = sr.questionnaire_id
 			WHERE sr.application_id = $1
 			`,
-			[application_id],
-		);
+				[application_id],
+			);
 
-		if (respResult.rows.length === 0) {
-			return res.status(404).json({ error: 'No screening response found for this application' });
-		}
+			if (respResult.rows.length === 0) {
+				return res.status(404).json({ error: 'No screening response found for this application' });
+			}
 
-		const response = respResult.rows[0];
+			const response = respResult.rows[0];
 
-		// Get evaluations
-		const evalResult = await pool.query(
-			`
+			// Get evaluations
+			const evalResult = await pool.query(
+				`
 			SELECT sqe.*, sq.question_text, sq.question_type
 			FROM screening_question_evaluations sqe
 			JOIN screening_questions sq ON sq.id = sqe.question_id
 			WHERE sqe.response_id = $1
 			`,
-			[response.id],
-		);
+				[response.id],
+			);
 
-		// Get override info
-		const overrideResult = await pool.query(
-			`
+			// Get override info
+			const overrideResult = await pool.query(
+				`
 			SELECT so.*, u.name as recruiter_name
 			FROM screening_overrides so
 			JOIN users u ON u.id = so.recruiter_id
@@ -941,33 +984,34 @@ router.get('/response-by-application/:application_id', authMiddleware, requireRo
 			ORDER BY so.created_at DESC
 			LIMIT 1
 			`,
-			[response.id],
-		);
+				[response.id],
+			);
 
-		res.json({
-			success: true,
-			response: {
-				id: response.id,
-				application_id: response.application_id,
-				candidate_id: response.candidate_id,
-				questionnaire_id: response.questionnaire_id,
-				answers: response.answers,
-				status: response.status,
-				started_at: response.started_at,
-				completed_at: response.completed_at,
-				overall_score: response.overall_score,
-				ai_explanation: response.ai_explanation,
-				knockout_triggered: response.knockout_triggered,
-				knockout_reason: response.knockout_reason,
-			},
-			evaluations: evalResult.rows,
-			override: overrideResult.rows[0] || null,
-		});
-	} catch (err) {
-		const ref = require('node:crypto').randomUUID();
-		console.error(`[ERROR ref=${ref}] [questionnaire/response-by-application] Error:`, err);
-		res.status(500).json({ error: 'Failed to get screening response', ref });
-	}
-});
+			res.json({
+				success: true,
+				response: {
+					id: response.id,
+					application_id: response.application_id,
+					candidate_id: response.candidate_id,
+					questionnaire_id: response.questionnaire_id,
+					answers: response.answers,
+					status: response.status,
+					started_at: response.started_at,
+					completed_at: response.completed_at,
+					overall_score: response.overall_score,
+					ai_explanation: response.ai_explanation,
+					knockout_triggered: response.knockout_triggered,
+					knockout_reason: response.knockout_reason,
+				},
+				evaluations: evalResult.rows,
+				override: overrideResult.rows[0] || null,
+			});
+		} catch (err) {
+			const ref = require('node:crypto').randomUUID();
+			console.error(`[ERROR ref=${ref}] [questionnaire/response-by-application] Error:`, err);
+			res.status(500).json({ error: 'Failed to get screening response', ref });
+		}
+	},
+);
 
 module.exports = router;

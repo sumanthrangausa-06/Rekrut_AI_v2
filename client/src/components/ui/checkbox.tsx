@@ -1,36 +1,35 @@
-import React from 'react'
-import { useId } from 'react'
-import { cn } from '@/lib/utils'
+import React, { useId } from 'react';
+import { cn } from '@/lib/utils';
 
 interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
-	checked?: boolean
-	onCheckedChange?: (checked: boolean) => void
-	label?: React.ReactNode
-	id?: string
+	checked?: boolean;
+	onCheckedChange?: (checked: boolean) => void;
+	label?: React.ReactNode;
+	id?: string;
 }
 
 const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
 	({ className, checked, onCheckedChange, label, id, ...props }, ref) => {
 		// biome-ignore lint/correctness/useHookAtTopLevel: useId is at the top level of the forwardRef render function
-		const uniqueId = id || useId()
+		const uniqueId = id || useId();
 		const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-			onCheckedChange?.(e.target.checked)
-			props.onChange?.(e)
-		}
+			onCheckedChange?.(e.target.checked);
+			props.onChange?.(e);
+		};
 
 		return (
 			<label
 				htmlFor={uniqueId}
 				className={cn('flex items-center gap-2 cursor-pointer select-none', className)}
 			>
-				<div className='relative flex items-center'>
+				<div className="relative flex items-center">
 					<input
 						ref={ref}
 						id={uniqueId}
-						type='checkbox'
+						type="checkbox"
 						checked={checked}
 						onChange={handleChange}
-						className='peer sr-only'
+						className="peer sr-only"
 						{...props}
 					/>
 					<div
@@ -43,24 +42,24 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
 					>
 						{checked && (
 							<svg
-								className='h-3 w-3 text-primary-foreground'
-								viewBox='0 0 24 24'
-								fill='none'
-								stroke='currentColor'
-								strokeWidth='3'
-								strokeLinecap='round'
-								strokeLinejoin='round'
+								className="h-3 w-3 text-primary-foreground"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="3"
+								strokeLinecap="round"
+								strokeLinejoin="round"
 							>
-								<polyline points='20 6 9 17 4 12' />
+								<polyline points="20 6 9 17 4 12" />
 							</svg>
 						)}
 					</div>
 				</div>
-				{label && <span className='text-sm'>{label}</span>}
+				{label && <span className="text-sm">{label}</span>}
 			</label>
-		)
+		);
 	},
-)
-Checkbox.displayName = 'Checkbox'
+);
+Checkbox.displayName = 'Checkbox';
 
-export { Checkbox }
+export { Checkbox };

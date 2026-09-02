@@ -21,7 +21,9 @@ function requireOwnerOrAdmin(req, res, next) {
 				if (result.rows.length > 0 && result.rows[0].owner_id === req.user.id) {
 					return next();
 				}
-				return res.status(403).json({ error: 'Only company owners and admins can manage API keys' });
+				return res
+					.status(403)
+					.json({ error: 'Only company owners and admins can manage API keys' });
 			})
 			.catch((err) => {
 				console.error('[api-keys] Owner check error:', err.message);
@@ -48,7 +50,13 @@ router.post('/api-keys', authMiddleware, requireOwnerOrAdmin, async (req, res) =
 			`INSERT INTO api_keys (key_hash, name, scopes, rate_limit, created_by)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id, name, scopes, rate_limit, is_active, created_at`,
-			[keyHash, name.trim(), JSON.stringify(Array.isArray(scopes) ? scopes : [scopes]), rate_limit, req.user.id],
+			[
+				keyHash,
+				name.trim(),
+				JSON.stringify(Array.isArray(scopes) ? scopes : [scopes]),
+				rate_limit,
+				req.user.id,
+			],
 		);
 
 		const keyRecord = result.rows[0];
@@ -115,10 +123,10 @@ router.delete('/api-keys/:id', authMiddleware, requireOwnerOrAdmin, async (req, 
 		}
 
 		// Verify ownership before revoking
-		const existing = await pool.query(
-			'SELECT id FROM api_keys WHERE id = $1 AND created_by = $2',
-			[keyId, req.user.id],
-		);
+		const existing = await pool.query('SELECT id FROM api_keys WHERE id = $1 AND created_by = $2', [
+			keyId,
+			req.user.id,
+		]);
 		if (existing.rows.length === 0) {
 			return res.status(404).json({ error: 'API key not found' });
 		}

@@ -40,11 +40,11 @@ const JUDGE0_API_URL = process.env.JUDGE0_API_URL || 'http://localhost:2358';
 const JUDGE0_AUTH_TOKEN = process.env.JUDGE0_AUTH_TOKEN || null;
 
 // Hard limits — enforced before sending to Judge0
-const MAX_SOURCE_CODE_SIZE = 64 * 1024;        // 64 KB
-const MAX_STDIN_SIZE = 8 * 1024;               // 8 KB
-const MAX_CPU_TIME_SECONDS = 15;               // 15 seconds
-const MAX_MEMORY_KB = 512 * 1024;              // 512 MB
-const MAX_OUTPUT_SIZE = 16 * 1024;             // 16 KB
+const MAX_SOURCE_CODE_SIZE = 64 * 1024; // 64 KB
+const MAX_STDIN_SIZE = 8 * 1024; // 8 KB
+const MAX_CPU_TIME_SECONDS = 15; // 15 seconds
+const MAX_MEMORY_KB = 512 * 1024; // 512 MB
+const MAX_OUTPUT_SIZE = 16 * 1024; // 16 KB
 
 // Rate limits specific to sandbox
 const sandboxRateLimits = {
@@ -61,15 +61,15 @@ const sandboxRateLimits = {
 // =============================================================================
 
 const JUDGE0_STATUS = {
-	1: { id: 1,  description: 'In Queue' },
-	2: { id: 2,  description: 'Processing' },
-	3: { id: 3,  description: 'Accepted' },
-	4: { id: 4,  description: 'Wrong Answer' },
-	5: { id: 5,  description: 'Time Limit Exceeded' },
-	6: { id: 6,  description: 'Compilation Error' },
-	7: { id: 7,  description: 'Runtime Error (SIGSEGV)' },
-	8: { id: 8,  description: 'Runtime Error (SIGXFSZ)' },
-	9: { id: 9,  description: 'Runtime Error (SIGFPE)' },
+	1: { id: 1, description: 'In Queue' },
+	2: { id: 2, description: 'Processing' },
+	3: { id: 3, description: 'Accepted' },
+	4: { id: 4, description: 'Wrong Answer' },
+	5: { id: 5, description: 'Time Limit Exceeded' },
+	6: { id: 6, description: 'Compilation Error' },
+	7: { id: 7, description: 'Runtime Error (SIGSEGV)' },
+	8: { id: 8, description: 'Runtime Error (SIGXFSZ)' },
+	9: { id: 9, description: 'Runtime Error (SIGFPE)' },
 	10: { id: 10, description: 'Runtime Error (SIGABRT)' },
 	11: { id: 11, description: 'Runtime Error (SIGBUS)' },
 	12: { id: 12, description: 'Runtime Error (SIGKILL)' },
@@ -90,9 +90,7 @@ function generateToken() {
 function sanitizeSourceCode(code) {
 	if (typeof code !== 'string') return '';
 	// Strip null bytes and control characters (except newlines and tabs)
-	return code
-		.replace(/\x00/g, '')
-		.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+	return code.replace(/\x00/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 }
 
 function validateResourceLimits(limits) {
@@ -183,7 +181,7 @@ router.get('/languages', async (_req, res) => {
               is_active, display_order
        FROM sandbox_languages
        WHERE is_active = true
-       ORDER BY display_order ASC, name ASC`
+       ORDER BY display_order ASC, name ASC`,
 		);
 		res.json({ languages: result.rows });
 	} catch (error) {
@@ -242,10 +240,12 @@ router.post(
 				`SELECT id, judge0_id, default_cpu_time_seconds, default_memory_kb, default_max_output_size
          FROM sandbox_languages
          WHERE slug = $1 AND is_active = true`,
-				[languageSlug]
+				[languageSlug],
 			);
 			if (langResult.rows.length === 0) {
-				return res.status(400).json({ error: 'Unsupported language', code: 'UNSUPPORTED_LANGUAGE' });
+				return res
+					.status(400)
+					.json({ error: 'Unsupported language', code: 'UNSUPPORTED_LANGUAGE' });
 			}
 			const language = langResult.rows[0];
 
@@ -288,7 +288,7 @@ router.post(
 					'In Queue',
 					ctx.ip,
 					ctx.userAgent,
-				]
+				],
 			);
 
 			// ── Submit to Judge0 (fire-and-forget style) ─────────────────────
@@ -304,7 +304,10 @@ router.post(
 
 			let judge0Token = null;
 			try {
-				const judge0Result = await callJudge0('/submissions?base64_encoded=false&wait=false', judge0Payload);
+				const judge0Result = await callJudge0(
+					'/submissions?base64_encoded=false&wait=false',
+					judge0Payload,
+				);
 				judge0Token = judge0Result.token;
 
 				// Update DB with Judge0 token mapping
@@ -314,7 +317,7 @@ router.post(
                  status_id = $1,
                  status_description = $2
              WHERE token = $3`,
-					[1, 'In Queue', token]
+					[1, 'In Queue', token],
 				);
 			} catch (judgeErr) {
 				console.error('[sandbox] Judge0 submission error:', judgeErr.message);
@@ -325,7 +328,7 @@ router.post(
                  stderr = $3,
                  completed_at = NOW()
              WHERE token = $4`,
-					[15, 'Internal Error', `Sandbox engine error: ${judgeErr.message}`, token]
+					[15, 'Internal Error', `Sandbox engine error: ${judgeErr.message}`, token],
 				);
 				return res.status(503).json({
 					token,
@@ -358,7 +361,7 @@ router.post(
 			console.error('[sandbox] Submit error:', error);
 			res.status(500).json({ error: 'Failed to submit code' });
 		}
-	}
+	},
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -381,7 +384,7 @@ router.get(
          FROM sandbox_submissions s
          JOIN sandbox_languages l ON s.language_id = l.id
          WHERE s.token = $1`,
-				[token]
+				[token],
 			);
 			if (subResult.rows.length === 0) {
 				return res.status(404).json({ error: 'Submission not found' });
@@ -437,7 +440,7 @@ router.get(
 						judge0Result.stdout ? Buffer.byteLength(judge0Result.stdout, 'utf8') : null,
 						isCompleted,
 						token,
-					]
+					],
 				);
 
 				// Re-fetch updated row
@@ -446,7 +449,7 @@ router.get(
            FROM sandbox_submissions s
            JOIN sandbox_languages l ON s.language_id = l.id
            WHERE s.token = $1`,
-					[token]
+					[token],
 				);
 
 				return res.json(formatSubmissionResponse(updatedResult.rows[0]));
@@ -459,7 +462,7 @@ router.get(
 			console.error('[sandbox] Result error:', error);
 			res.status(500).json({ error: 'Failed to fetch result' });
 		}
-	}
+	},
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -501,10 +504,12 @@ router.post(
 				`SELECT id, judge0_id, default_cpu_time_seconds, default_memory_kb
          FROM sandbox_languages
          WHERE slug = $1 AND is_active = true`,
-				[languageSlug]
+				[languageSlug],
 			);
 			if (langResult.rows.length === 0) {
-				return res.status(400).json({ error: 'Unsupported language', code: 'UNSUPPORTED_LANGUAGE' });
+				return res
+					.status(400)
+					.json({ error: 'Unsupported language', code: 'UNSUPPORTED_LANGUAGE' });
 			}
 			const language = langResult.rows[0];
 
@@ -550,7 +555,7 @@ router.post(
 					enable_network: false,
 				};
 
-				let tcResult = {
+				const tcResult = {
 					testCaseId: tc.id,
 					name: tc.name,
 					passed: false,
@@ -566,7 +571,7 @@ router.post(
 				try {
 					const judge0Response = await callJudge0(
 						'/submissions?base64_encoded=false&wait=true',
-						judge0Payload
+						judge0Payload,
 					);
 
 					const statusId = judge0Response.status?.id;
@@ -617,7 +622,8 @@ router.post(
 			}
 
 			// ── Calculate score ──────────────────────────────────────────────
-			const score = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100 * 100) / 100 : 0;
+			const score =
+				totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100 * 100) / 100 : 0;
 			const passed = score >= 60; // Default passing threshold
 
 			// ── Store aggregated result ──────────────────────────────────────
@@ -654,7 +660,7 @@ router.post(
 					JSON.stringify({ results, totalPoints, earnedPoints }),
 					ctx.ip,
 					ctx.userAgent,
-				]
+				],
 			);
 
 			// Audit log
@@ -688,7 +694,7 @@ router.post(
 			console.error('[sandbox] Validate error:', error);
 			res.status(500).json({ error: 'Failed to validate code' });
 		}
-	}
+	},
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -738,7 +744,7 @@ router.get(
        WHERE 1=1 ${whereClause}
        ORDER BY s.submitted_at DESC
        LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
-				params
+				params,
 			);
 
 			res.json({
@@ -750,7 +756,7 @@ router.get(
 			console.error('[sandbox] List submissions error:', error);
 			res.status(500).json({ error: 'Failed to list submissions' });
 		}
-	}
+	},
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -772,7 +778,7 @@ router.get(
          FROM sandbox_submissions s
          JOIN sandbox_languages l ON s.language_id = l.id
          WHERE s.token = $1`,
-				[token]
+				[token],
 			);
 
 			if (result.rows.length === 0) {
@@ -791,7 +797,7 @@ router.get(
 			console.error('[sandbox] Get submission error:', error);
 			res.status(500).json({ error: 'Failed to get submission' });
 		}
-	}
+	},
 );
 
 // =============================================================================
@@ -850,7 +856,7 @@ router.post(
 					points || 10,
 					orderIndex || 0,
 					ctx.userId,
-				]
+				],
 			);
 
 			await AuditLogger.log({
@@ -867,47 +873,40 @@ router.post(
 			console.error('[sandbox] Create test case error:', error);
 			res.status(500).json({ error: 'Failed to create test case' });
 		}
-	}
+	},
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/sandbox/test-cases
 // List test cases for an assessment or job
 // ─────────────────────────────────────────────────────────────────────────────
-router.get(
-	'/test-cases',
-	authMiddleware,
-	rateLimits.standard,
-	async (req, res) => {
-		const { assessmentId, jobId } = req.query;
+router.get('/test-cases', authMiddleware, rateLimits.standard, async (req, res) => {
+	const { assessmentId, jobId } = req.query;
 
-		try {
-			if (!assessmentId && !jobId) {
-				return res.status(400).json({ error: 'assessmentId or jobId is required' });
-			}
+	try {
+		if (!assessmentId && !jobId) {
+			return res.status(400).json({ error: 'assessmentId or jobId is required' });
+		}
 
-			const where = assessmentId
-				? 'WHERE assessment_id = $1'
-				: 'WHERE job_id = $1';
-			const param = assessmentId || jobId;
+		const where = assessmentId ? 'WHERE assessment_id = $1' : 'WHERE job_id = $1';
+		const param = assessmentId || jobId;
 
-			const result = await pool.query(
-				`SELECT id, assessment_id, job_id, name, description,
+		const result = await pool.query(
+			`SELECT id, assessment_id, job_id, name, description,
               stdin, expected_stdout, expected_exit_code,
               is_hidden, points, order_index, created_at
        FROM sandbox_test_cases
        ${where}
        ORDER BY order_index ASC, created_at ASC`,
-				[param]
-			);
+			[param],
+		);
 
-			res.json({ testCases: result.rows });
-		} catch (error) {
-			console.error('[sandbox] List test cases error:', error);
-			res.status(500).json({ error: 'Failed to list test cases' });
-		}
+		res.json({ testCases: result.rows });
+	} catch (error) {
+		console.error('[sandbox] List test cases error:', error);
+		res.status(500).json({ error: 'Failed to list test cases' });
 	}
-);
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PUT /api/sandbox/test-cases/:id
@@ -955,7 +954,7 @@ router.put(
 					points !== undefined ? points : null,
 					orderIndex !== undefined ? orderIndex : null,
 					id,
-				]
+				],
 			);
 
 			if (result.rows.length === 0) {
@@ -967,7 +966,7 @@ router.put(
 			console.error('[sandbox] Update test case error:', error);
 			res.status(500).json({ error: 'Failed to update test case' });
 		}
-	}
+	},
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -982,10 +981,9 @@ router.delete(
 	async (req, res) => {
 		try {
 			const { id } = req.params;
-			const result = await pool.query(
-				'DELETE FROM sandbox_test_cases WHERE id = $1 RETURNING *',
-				[id]
-			);
+			const result = await pool.query('DELETE FROM sandbox_test_cases WHERE id = $1 RETURNING *', [
+				id,
+			]);
 
 			if (result.rows.length === 0) {
 				return res.status(404).json({ error: 'Test case not found' });
@@ -996,7 +994,7 @@ router.delete(
 			console.error('[sandbox] Delete test case error:', error);
 			res.status(500).json({ error: 'Failed to delete test case' });
 		}
-	}
+	},
 );
 
 // =============================================================================

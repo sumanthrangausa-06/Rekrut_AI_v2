@@ -1,6 +1,6 @@
-import { cleanup } from '@testing-library/react'
-import { afterEach, vi } from 'vitest'
-import '@testing-library/jest-dom/vitest'
+import { cleanup } from '@testing-library/react';
+import { afterEach, vi } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 
 // Mock window.matchMedia for tests
 Object.defineProperty(window, 'matchMedia', {
@@ -15,8 +15,8 @@ Object.defineProperty(window, 'matchMedia', {
 		removeEventListener: vi.fn(),
 		dispatchEvent: vi.fn(),
 	})),
-})
+});
 
 afterEach(() => {
-	cleanup()
-})
+	cleanup();
+});

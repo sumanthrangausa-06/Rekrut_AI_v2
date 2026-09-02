@@ -1,12 +1,12 @@
-import * as React from 'react'
-import { cn } from '@/lib/utils'
+import * as React from 'react';
+import { cn } from '@/lib/utils';
 
 interface TabsContextType {
-	value: string
-	onChange: (value: string) => void
+	value: string;
+	onChange: (value: string) => void;
 }
 
-const TabsContext = React.createContext<TabsContextType>({ value: '', onChange: () => {} })
+const TabsContext = React.createContext<TabsContextType>({ value: '', onChange: () => {} });
 
 export function Tabs({
 	value,
@@ -14,24 +14,24 @@ export function Tabs({
 	children,
 	className,
 }: {
-	value: string
-	onValueChange: (value: string) => void
-	children: React.ReactNode
-	className?: string
+	value: string;
+	onValueChange: (value: string) => void;
+	children: React.ReactNode;
+	className?: string;
 }) {
 	return (
 		<TabsContext.Provider value={{ value, onChange: onValueChange }}>
 			<div className={className}>{children}</div>
 		</TabsContext.Provider>
-	)
+	);
 }
 
 export function TabsList({
 	children,
 	className,
 }: {
-	children: React.ReactNode
-	className?: string
+	children: React.ReactNode;
+	className?: string;
 }) {
 	return (
 		<div
@@ -42,7 +42,7 @@ export function TabsList({
 		>
 			{children}
 		</div>
-	)
+	);
 }
 
 export function TabsTrigger({
@@ -50,11 +50,11 @@ export function TabsTrigger({
 	children,
 	className,
 }: {
-	value: string
-	children: React.ReactNode
-	className?: string
+	value: string;
+	children: React.ReactNode;
+	className?: string;
 }) {
-	const ctx = React.useContext(TabsContext)
+	const ctx = React.useContext(TabsContext);
 	return (
 		<button
 			onClick={() => ctx.onChange(value)}
@@ -66,7 +66,7 @@ export function TabsTrigger({
 		>
 			{children}
 		</button>
-	)
+	);
 }
 
 export function TabsContent({
@@ -74,11 +74,11 @@ export function TabsContent({
 	children,
 	className,
 }: {
-	value: string
-	children: React.ReactNode
-	className?: string
+	value: string;
+	children: React.ReactNode;
+	className?: string;
 }) {
-	const ctx = React.useContext(TabsContext)
-	if (ctx.value !== value) return null
-	return <div className={cn('mt-2', className)}>{children}</div>
+	const ctx = React.useContext(TabsContext);
+	if (ctx.value !== value) return null;
+	return <div className={cn('mt-2', className)}>{children}</div>;
 }

@@ -26,7 +26,7 @@ function handleValidationErrors(req, res, next) {
 		return res.status(400).json({
 			error: 'Validation failed',
 			details: errors.array().map((e) => ({
-				// @ts-ignore express-validator type mismatch across versions
+				// @ts-expect-error express-validator type mismatch across versions
 				field: e.path || e.param || 'unknown',
 				message: e.msg,
 			})),
@@ -42,9 +42,7 @@ router.post(
 	authMiddleware,
 	requirePermission('interviews:schedule'),
 	rateLimits.standard,
-	[
-		body('interview_event_id').isInt({ min: 1 }).withMessage('Valid interview_event_id required'),
-	],
+	[body('interview_event_id').isInt({ min: 1 }).withMessage('Valid interview_event_id required')],
 	handleValidationErrors,
 	async (req, res) => {
 		try {
@@ -53,17 +51,18 @@ router.post(
 
 			// Verify the interview event exists and user is the recruiter
 			const pool = require('../../lib/db');
-			const eventRes = await pool.query(
-				`SELECT * FROM interview_events WHERE id = $1`,
-				[interviewEventId],
-			);
+			const eventRes = await pool.query(`SELECT * FROM interview_events WHERE id = $1`, [
+				interviewEventId,
+			]);
 			if (eventRes.rows.length === 0) {
 				return res.status(404).json({ error: 'Interview event not found' });
 			}
 			const event = eventRes.rows[0];
 
 			if (user.role !== 'admin' && event.recruiter_id !== user.id) {
-				return res.status(403).json({ error: 'Not authorized to create a room for this interview' });
+				return res
+					.status(403)
+					.json({ error: 'Not authorized to create a room for this interview' });
 			}
 
 			// Idempotent: return existing room if active
@@ -183,10 +182,9 @@ router.delete(
 
 			// Verify user owns the interview
 			const pool = require('../../lib/db');
-			const eventRes = await pool.query(
-				`SELECT * FROM interview_events WHERE id = $1`,
-				[room.interview_event_id],
-			);
+			const eventRes = await pool.query(`SELECT * FROM interview_events WHERE id = $1`, [
+				room.interview_event_id,
+			]);
 			if (eventRes.rows.length === 0) {
 				return res.status(404).json({ error: 'Associated interview event not found' });
 			}

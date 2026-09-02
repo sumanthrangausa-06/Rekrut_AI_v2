@@ -189,7 +189,9 @@ function generateImprovementFactors(componentsByType) {
  * Caches result in ai_decision_explanations.
  */
 async function explainDecisionForJob(userId, jobId, applicationId) {
-	const scoreResult = await pool.query('SELECT * FROM omniscore_results WHERE user_id = $1', [userId]);
+	const scoreResult = await pool.query('SELECT * FROM omniscore_results WHERE user_id = $1', [
+		userId,
+	]);
 	const score = scoreResult.rows[0] || {};
 
 	const components = await pool.query(
@@ -209,14 +211,17 @@ async function explainDecisionForJob(userId, jobId, applicationId) {
 	);
 	const match = matchResult.rows[0] || {};
 
-	const overallScore = parseFloat(score.overall_score) || parseFloat(match.overall_match_score) || 0;
+	const overallScore =
+		parseFloat(score.overall_score) || parseFloat(match.overall_match_score) || 0;
 	const factorBreakdowns = [];
 
 	factorBreakdowns.push({
 		factor: 'Technical Skills',
-		weight: 0.40,
+		weight: 0.4,
 		score: parseFloat(score.technical_score) || parseFloat(match.skill_match_score) || 0,
-		contribution: ((parseFloat(score.technical_score) || parseFloat(match.skill_match_score) || 0) * 0.40).toFixed(2),
+		contribution: (
+			(parseFloat(score.technical_score) || parseFloat(match.skill_match_score) || 0) * 0.4
+		).toFixed(2),
 		explanation: match.skills_matched
 			? `Matched skills: ${Array.isArray(match.skills_matched) ? match.skills_matched.join(', ') : match.skills_matched}`
 			: 'Based on technical assessment and resume parsing',
@@ -225,27 +230,29 @@ async function explainDecisionForJob(userId, jobId, applicationId) {
 
 	factorBreakdowns.push({
 		factor: 'Behavioral Fit',
-		weight: 0.30,
+		weight: 0.3,
 		score: parseFloat(score.behavioral_score) || 0,
-		contribution: ((parseFloat(score.behavioral_score) || 0) * 0.30).toFixed(2),
+		contribution: ((parseFloat(score.behavioral_score) || 0) * 0.3).toFixed(2),
 		explanation: 'Derived from interview responses and personality indicators',
 		data_source: 'omniscore_results',
 	});
 
 	factorBreakdowns.push({
 		factor: 'Experience Match',
-		weight: 0.20,
+		weight: 0.2,
 		score: parseFloat(score.experience_score) || parseFloat(match.experience_match_score) || 0,
-		contribution: ((parseFloat(score.experience_score) || parseFloat(match.experience_match_score) || 0) * 0.20).toFixed(2),
+		contribution: (
+			(parseFloat(score.experience_score) || parseFloat(match.experience_match_score) || 0) * 0.2
+		).toFixed(2),
 		explanation: `Relevance to ${job.title || 'this role'} based on work history`,
 		data_source: 'score_components',
 	});
 
 	factorBreakdowns.push({
 		factor: 'Cultural Fit',
-		weight: 0.10,
+		weight: 0.1,
 		score: parseFloat(match.cultural_match_score) || 0,
-		contribution: ((parseFloat(match.cultural_match_score) || 0) * 0.10).toFixed(2),
+		contribution: ((parseFloat(match.cultural_match_score) || 0) * 0.1).toFixed(2),
 		explanation: match.match_explanation || 'Alignment with company values and team dynamics',
 		data_source: 'candidate_job_matches',
 	});

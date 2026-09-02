@@ -211,8 +211,16 @@ router.put('/profile', authMiddleware, async (req, res) => {
 		const sanitizedSalaryMin = normalizePositiveInteger(salary_min, 'salary_min');
 		const sanitizedSalaryMax = normalizePositiveInteger(salary_max, 'salary_max');
 		const sanitizedSalaryCurrency = normalizeTextField(salary_currency, 3, 'salary_currency');
-		const sanitizedTimezonePreference = normalizeTextField(timezone_preference, 100, 'timezone_preference');
-		const sanitizedTravelWillingness = normalizeTextField(travel_willingness, 50, 'travel_willingness');
+		const sanitizedTimezonePreference = normalizeTextField(
+			timezone_preference,
+			100,
+			'timezone_preference',
+		);
+		const sanitizedTravelWillingness = normalizeTextField(
+			travel_willingness,
+			50,
+			'travel_willingness',
+		);
 		const sanitizedYearsExperience = normalizePositiveInteger(
 			years_experience,
 			'years_experience',
@@ -275,8 +283,8 @@ router.put('/profile', authMiddleware, async (req, res) => {
 					JSON.stringify(preferred_job_types),
 					JSON.stringify(preferred_locations),
 					remote_preference,
-			timezone_preference,
-			travel_willingness,
+					timezone_preference,
+					travel_willingness,
 					sanitizedYearsExperience,
 				],
 			);
@@ -347,7 +355,11 @@ router.post('/profile/photo', authMiddleware, upload.single('photo'), async (req
 
 		// Upload to R2 via Polsia proxy using native FormData
 		const formData = new FormData();
-		formData.append('file', new Blob([req.file.buffer], { type: req.file.mimetype }), req.file.originalname);
+		formData.append(
+			'file',
+			new Blob([req.file.buffer], { type: req.file.mimetype }),
+			req.file.originalname,
+		);
 
 		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
 			method: 'POST',
@@ -399,12 +411,18 @@ router.post('/profile/resume', authMiddleware, upload.single('resume'), async (r
 			'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 		];
 		if (!allowedTypes.includes(req.file.mimetype)) {
-			return res.status(400).json({ error: 'Invalid file type. Only PDF, DOC, and DOCX are allowed.' });
+			return res
+				.status(400)
+				.json({ error: 'Invalid file type. Only PDF, DOC, and DOCX are allowed.' });
 		}
 
 		// Upload to R2 via Polsia proxy using native FormData
 		const formData = new FormData();
-		formData.append('file', new Blob([req.file.buffer], { type: req.file.mimetype }), req.file.originalname);
+		formData.append(
+			'file',
+			new Blob([req.file.buffer], { type: req.file.mimetype }),
+			req.file.originalname,
+		);
 
 		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
 			method: 'POST',
@@ -474,7 +492,11 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
 
 		// Upload to R2 via Polsia proxy using native FormData
 		const formData = new FormData();
-		formData.append('file', new Blob([req.file.buffer], { type: req.file.mimetype }), req.file.originalname);
+		formData.append(
+			'file',
+			new Blob([req.file.buffer], { type: req.file.mimetype }),
+			req.file.originalname,
+		);
 
 		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
 			method: 'POST',
@@ -942,9 +964,7 @@ function generateMockAnalysis() {
 		},
 	];
 
-	const overallScore = Math.round(
-		sections.reduce((sum, s) => sum + s.score, 0) / sections.length,
-	);
+	const overallScore = Math.round(sections.reduce((sum, s) => sum + s.score, 0) / sections.length);
 
 	return {
 		overall_score: overallScore,
@@ -1014,11 +1034,21 @@ router.post('/cv/analyze', authMiddleware, async (req, res) => {
 						updated_at = NOW()
 					WHERE id = $1
 					`,
-					[analysisId, mock.overall_score, JSON.stringify(mock.section_scores), JSON.stringify(mock.recommendations)],
+					[
+						analysisId,
+						mock.overall_score,
+						JSON.stringify(mock.section_scores),
+						JSON.stringify(mock.recommendations),
+					],
 				);
-				console.log(`[CV Review] Mock analysis completed for user ${req.user.id}, analysis ${analysisId}`);
+				console.log(
+					`[CV Review] Mock analysis completed for user ${req.user.id}, analysis ${analysisId}`,
+				);
 			} catch (asyncErr) {
-				console.error(`[CV Review] Async mock analysis failed for analysis ${analysisId}:`, asyncErr.message);
+				console.error(
+					`[CV Review] Async mock analysis failed for analysis ${analysisId}:`,
+					asyncErr.message,
+				);
 				try {
 					await pool.query(
 						"UPDATE cv_analyses SET status = 'failed', updated_at = NOW() WHERE id = $1",
@@ -1141,7 +1171,7 @@ router.post('/cv-review', authMiddleware, async (req, res) => {
 		}
 
 		let reviewText = cv_text || '';
-		let resolvedDocumentId = document_id || null;
+		const resolvedDocumentId = document_id || null;
 
 		// If document_id provided, fetch parsed resume text
 		if (document_id) {
@@ -1919,7 +1949,8 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 		let paramIndex = 1;
 
 		// Exclude dismissed jobs from main feed
-		let whereClause = "WHERE j.status = 'active' AND NOT EXISTS (SELECT 1 FROM candidate_job_actions cja WHERE cja.job_id = j.id AND cja.user_id = $1 AND cja.action_type = 'dismiss')";
+		let whereClause =
+			"WHERE j.status = 'active' AND NOT EXISTS (SELECT 1 FROM candidate_job_actions cja WHERE cja.job_id = j.id AND cja.user_id = $1 AND cja.action_type = 'dismiss')";
 		params.push(userId);
 		paramIndex++;
 
@@ -2331,10 +2362,10 @@ router.post('/jobs/:jobId/dismiss', authMiddleware, async (req, res) => {
 			"DELETE FROM candidate_job_actions WHERE user_id = $1 AND job_id = $2 AND action_type = 'like'",
 			[req.user.id, jobId],
 		);
-		await pool.query(
-			'DELETE FROM saved_jobs WHERE user_id = $1 AND job_id = $2',
-			[req.user.id, jobId],
-		);
+		await pool.query('DELETE FROM saved_jobs WHERE user_id = $1 AND job_id = $2', [
+			req.user.id,
+			jobId,
+		]);
 
 		res.json({ success: true });
 	} catch (err) {
@@ -2384,185 +2415,197 @@ router.get('/jobs/dismissed', authMiddleware, async (req, res) => {
 	}
 });
 
-
 // Helper: shared application submission logic (manual + auto-apply)
-async function submitApplication({ candidateId, jobId, coverLetter, screeningAnswers, appliedVia, autoApplyProfileData }) {
-  // Get profile + skills + omniscore
-  const profile = await pool.query(
-    `
+async function submitApplication({
+	candidateId,
+	jobId,
+	coverLetter,
+	screeningAnswers,
+	appliedVia,
+	autoApplyProfileData,
+}) {
+	// Get profile + skills + omniscore
+	const profile = await pool.query(
+		`
       SELECT cp.*, u.name, u.email, os.total_score as omniscore
       FROM users u
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id
       WHERE u.id = $1
     `,
-    [candidateId],
-  );
+		[candidateId],
+	);
 
-  const skills = await pool.query('SELECT skill_name FROM candidate_skills WHERE user_id = $1', [
-    candidateId,
-  ]);
+	const skills = await pool.query('SELECT skill_name FROM candidate_skills WHERE user_id = $1', [
+		candidateId,
+	]);
 
-  const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
-  if (job.rows.length === 0) {
-    const err = new Error('Job not found');
-    err.statusCode = 404;
-    throw err;
-  }
+	const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
+	if (job.rows.length === 0) {
+		const err = new Error('Job not found');
+		err.statusCode = 404;
+		throw err;
+	}
 
-  const existingApplication = await pool.query(
-    'SELECT id FROM job_applications WHERE candidate_id = $1 AND job_id = $2',
-    [candidateId, jobId],
-  );
-  if (existingApplication.rows.length > 0) {
-    const err = new Error('You have already applied to this job');
-    err.statusCode = 400;
-    throw err;
-  }
+	const existingApplication = await pool.query(
+		'SELECT id FROM job_applications WHERE candidate_id = $1 AND job_id = $2',
+		[candidateId, jobId],
+	);
+	if (existingApplication.rows.length > 0) {
+		const err = new Error('You have already applied to this job');
+		err.statusCode = 400;
+		throw err;
+	}
 
-  const candidateProfile = {
-    ...profile.rows[0],
-    skills: skills.rows,
-  };
+	const candidateProfile = {
+		...profile.rows[0],
+		skills: skills.rows,
+	};
 
-  const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
-    candidateId,
-  ]);
-  const subscriptionId = user.rows[0]?.stripe_subscription_id;
+	const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
+		candidateId,
+	]);
+	const subscriptionId = user.rows[0]?.stripe_subscription_id;
 
-  let matchScore = 50;
-  try {
-    const match = await generateJobMatchScore(candidateProfile, job.rows[0], { subscriptionId });
-    matchScore = match.match_score;
-  } catch (_e) {}
+	let matchScore = 50;
+	try {
+		const match = await generateJobMatchScore(candidateProfile, job.rows[0], { subscriptionId });
+		matchScore = match.match_score;
+	} catch (_e) {}
 
-  const omniscore = profile.rows[0]?.omniscore || null;
+	const omniscore = profile.rows[0]?.omniscore || null;
 
-  const result = await pool.query(
-    `
+	const result = await pool.query(
+		`
       INSERT INTO job_applications (candidate_id, job_id, company_id, cover_letter, match_score, omniscore_at_apply, screening_answers, is_auto_applied, applied_via)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `,
-    [
-      candidateId,
-      jobId,
-      job.rows[0].company_id,
-      coverLetter || (autoApplyProfileData?.cover_letter_template || ''),
-      matchScore,
-      omniscore,
-      JSON.stringify(screeningAnswers || {}),
-      appliedVia === 'auto_apply',
-      appliedVia || 'manual',
-    ],
-  );
+		[
+			candidateId,
+			jobId,
+			job.rows[0].company_id,
+			coverLetter || autoApplyProfileData?.cover_letter_template || '',
+			matchScore,
+			omniscore,
+			JSON.stringify(screeningAnswers || {}),
+			appliedVia === 'auto_apply',
+			appliedVia || 'manual',
+		],
+	);
 
-  // Smart data enrichment from screening answers (manual only)
-  if (appliedVia === 'manual' && screeningAnswers && Object.keys(screeningAnswers).length > 0) {
-    try {
-      const screeningQs = job.rows[0].screening_questions || [];
-      const updates = {};
-      for (const q of screeningQs) {
-        const answer = screeningAnswers[q.id];
-        if (!answer) continue;
-        if (q.category === 'salary' && answer) {
-          const nums = String(answer).match(/\d[\d,]*/g);
-          if (nums && nums.length > 0) {
-            updates.salary_min = parseInt(nums[0].replace(/,/g, ''), 10);
-            if (nums.length > 1) updates.salary_max = parseInt(nums[1].replace(/,/g, ''), 10);
-          }
-        } else if (q.category === 'availability') {
-          updates.availability = String(answer);
-        } else if (q.category === 'experience') {
-          const bracket = String(answer);
-          if (bracket.includes('0-1')) updates.years_experience = 1;
-          else if (bracket.includes('1-3')) updates.years_experience = 2;
-          else if (bracket.includes('3-5')) updates.years_experience = 4;
-          else if (bracket.includes('5-10')) updates.years_experience = 7;
-          else if (bracket.includes('10+')) updates.years_experience = 12;
-        }
-      }
-      if (Object.keys(updates).length > 0) {
-        const setClauses = [];
-        const values = [candidateId];
-        let idx = 2;
-        for (const [key, val] of Object.entries(updates)) {
-          setClauses.push(`${key} = COALESCE(${idx}, ${key})`);
-          values.push(val);
-          idx++;
-        }
-        await pool.query(
-          `UPDATE candidate_profiles SET ${setClauses.join(', ')}, updated_at = NOW() WHERE user_id = $1`,
-          values,
-        );
-      }
-    } catch (enrichErr) {
-      console.error('Profile enrichment from screening (non-blocking):', enrichErr.message);
-    }
-  }
+	// Smart data enrichment from screening answers (manual only)
+	if (appliedVia === 'manual' && screeningAnswers && Object.keys(screeningAnswers).length > 0) {
+		try {
+			const screeningQs = job.rows[0].screening_questions || [];
+			const updates = {};
+			for (const q of screeningQs) {
+				const answer = screeningAnswers[q.id];
+				if (!answer) continue;
+				if (q.category === 'salary' && answer) {
+					const nums = String(answer).match(/\d[\d,]*/g);
+					if (nums && nums.length > 0) {
+						updates.salary_min = parseInt(nums[0].replace(/,/g, ''), 10);
+						if (nums.length > 1) updates.salary_max = parseInt(nums[1].replace(/,/g, ''), 10);
+					}
+				} else if (q.category === 'availability') {
+					updates.availability = String(answer);
+				} else if (q.category === 'experience') {
+					const bracket = String(answer);
+					if (bracket.includes('0-1')) updates.years_experience = 1;
+					else if (bracket.includes('1-3')) updates.years_experience = 2;
+					else if (bracket.includes('3-5')) updates.years_experience = 4;
+					else if (bracket.includes('5-10')) updates.years_experience = 7;
+					else if (bracket.includes('10+')) updates.years_experience = 12;
+				}
+			}
+			if (Object.keys(updates).length > 0) {
+				const setClauses = [];
+				const values = [candidateId];
+				let idx = 2;
+				for (const [key, val] of Object.entries(updates)) {
+					setClauses.push(`${key} = COALESCE(${idx}, ${key})`);
+					values.push(val);
+					idx++;
+				}
+				await pool.query(
+					`UPDATE candidate_profiles SET ${setClauses.join(', ')}, updated_at = NOW() WHERE user_id = $1`,
+					values,
+				);
+			}
+		} catch (enrichErr) {
+			console.error('Profile enrichment from screening (non-blocking):', enrichErr.message);
+		}
+	}
 
-  // Auto-create conversation (non-blocking)
-  try {
-    const { getOrCreateConversation } = require('../routes/chat');
-    await getOrCreateConversation(jobId, candidateId, job.rows[0].user_id, job.rows[0].company_id);
-  } catch (convErr) {
-    console.error('[apply] Auto-create conversation failed (non-blocking):', convErr.message);
-  }
+	// Auto-create conversation (non-blocking)
+	try {
+		const { getOrCreateConversation } = require('../routes/chat');
+		await getOrCreateConversation(jobId, candidateId, job.rows[0].user_id, job.rows[0].company_id);
+	} catch (convErr) {
+		console.error('[apply] Auto-create conversation failed (non-blocking):', convErr.message);
+	}
 
-  // Send candidate notification (non-blocking)
-  try {
-    const jobInfo = job.rows[0];
-    const userInfo = profile.rows[0];
-    await emailService.sendTemplatedEmail({
-      to: userInfo?.email,
-      templateName: 'candidate_application_submitted',
-      templateData: {
-        name: userInfo?.name || 'Candidate',
-        job_title: jobInfo?.title || 'the position',
-        company_name: jobInfo?.company || 'Our Company',
-        location: jobInfo?.location || 'Remote',
-        applied_date: new Date().toISOString(),
-        application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/candidate/applications`,
-      },
-      userId: candidateId,
-      metadata: { job_id: jobInfo?.id, company_id: jobInfo?.company_id },
-    });
-  } catch (emailErr) {
-    console.error('[email] Failed to send application submitted email (non-blocking):', emailErr.message);
-  }
+	// Send candidate notification (non-blocking)
+	try {
+		const jobInfo = job.rows[0];
+		const userInfo = profile.rows[0];
+		await emailService.sendTemplatedEmail({
+			to: userInfo?.email,
+			templateName: 'candidate_application_submitted',
+			templateData: {
+				name: userInfo?.name || 'Candidate',
+				job_title: jobInfo?.title || 'the position',
+				company_name: jobInfo?.company || 'Our Company',
+				location: jobInfo?.location || 'Remote',
+				applied_date: new Date().toISOString(),
+				application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/candidate/applications`,
+			},
+			userId: candidateId,
+			metadata: { job_id: jobInfo?.id, company_id: jobInfo?.company_id },
+		});
+	} catch (emailErr) {
+		console.error(
+			'[email] Failed to send application submitted email (non-blocking):',
+			emailErr.message,
+		);
+	}
 
-  // Send recruiter notification (non-blocking)
-  try {
-    const jobInfo = job.rows[0];
-    const userInfo = profile.rows[0];
-    const recruiterResult = await pool.query(
-      'SELECT u.id, u.email, u.name FROM users u JOIN jobs j ON j.user_id = u.id WHERE j.id = $1',
-      [jobId],
-    );
-    const recruiter = recruiterResult.rows[0];
-    if (recruiter?.email) {
-      await emailService.sendTemplatedEmail({
-        to: recruiter.email,
-        templateName: 'recruiter_new_application',
-        templateData: {
-          name: recruiter.name || 'Recruiter',
-          candidate_name: userInfo?.name || 'Candidate',
-          candidate_email: userInfo?.email || '',
-          job_title: jobInfo?.title || 'the position',
-          omniscore: omniscore || 'N/A',
-          verification_status: 'verified',
-          applied_date: new Date().toISOString(),
-          application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/recruiter/applications`,
-        },
-        userId: recruiter.id,
-        metadata: { job_id: jobInfo?.id, candidate_id: candidateId },
-      });
-    }
-  } catch (emailErr) {
-    console.error('[email] Failed to send recruiter notification (non-blocking):', emailErr.message);
-  }
+	// Send recruiter notification (non-blocking)
+	try {
+		const jobInfo = job.rows[0];
+		const userInfo = profile.rows[0];
+		const recruiterResult = await pool.query(
+			'SELECT u.id, u.email, u.name FROM users u JOIN jobs j ON j.user_id = u.id WHERE j.id = $1',
+			[jobId],
+		);
+		const recruiter = recruiterResult.rows[0];
+		if (recruiter?.email) {
+			await emailService.sendTemplatedEmail({
+				to: recruiter.email,
+				templateName: 'recruiter_new_application',
+				templateData: {
+					name: recruiter.name || 'Recruiter',
+					candidate_name: userInfo?.name || 'Candidate',
+					candidate_email: userInfo?.email || '',
+					job_title: jobInfo?.title || 'the position',
+					omniscore: omniscore || 'N/A',
+					verification_status: 'verified',
+					applied_date: new Date().toISOString(),
+					application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/recruiter/applications`,
+				},
+				userId: recruiter.id,
+				metadata: { job_id: jobInfo?.id, candidate_id: candidateId },
+			});
+		}
+	} catch (emailErr) {
+		console.error(
+			'[email] Failed to send recruiter notification (non-blocking):',
+			emailErr.message,
+		);
+	}
 
-  return result.rows[0];
+	return result.rows[0];
 }
 // Apply to a job
 router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
@@ -2843,10 +2886,22 @@ router.put('/applications/:id/withdraw', authMiddleware, async (req, res) => {
 router.put('/applications/:id/status', authMiddleware, async (req, res) => {
 	try {
 		const { status } = req.body;
-		const validStatuses = ['applied', 'screening', 'shortlisted', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn'];
+		const validStatuses = [
+			'applied',
+			'screening',
+			'shortlisted',
+			'reviewing',
+			'interviewed',
+			'offered',
+			'hired',
+			'rejected',
+			'withdrawn',
+		];
 
 		if (!status || !validStatuses.includes(status)) {
-			return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+			return res
+				.status(400)
+				.json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
 		}
 
 		// Verify application belongs to candidate
@@ -4325,11 +4380,44 @@ function getSkillDimension(skillName, category) {
 	if (cat === 'domain' || cat === 'business') return 'strategic_thinking';
 	if (cat === 'stakeholder') return 'stakeholder_management';
 
-	if (name.includes('lead') || name.includes('manage') || name.includes('mentor') || name.includes('coach')) return 'leadership';
-	if (name.includes('communi') || name.includes('writing') || name.includes('present') || name.includes('speak')) return 'communication';
-	if (name.includes('strateg') || name.includes('product') || name.includes('research') || name.includes('roadmap')) return 'strategic_thinking';
-	if (name.includes('stakeholder') || name.includes('client') || name.includes('consult') || name.includes('partner') || name.includes('negotiat')) return 'stakeholder_management';
-	if (name.includes('project') || name.includes('agile') || name.includes('scrum') || name.includes('delivery') || name.includes('ci/cd') || name.includes('devops')) return 'execution';
+	if (
+		name.includes('lead') ||
+		name.includes('manage') ||
+		name.includes('mentor') ||
+		name.includes('coach')
+	)
+		return 'leadership';
+	if (
+		name.includes('communi') ||
+		name.includes('writing') ||
+		name.includes('present') ||
+		name.includes('speak')
+	)
+		return 'communication';
+	if (
+		name.includes('strateg') ||
+		name.includes('product') ||
+		name.includes('research') ||
+		name.includes('roadmap')
+	)
+		return 'strategic_thinking';
+	if (
+		name.includes('stakeholder') ||
+		name.includes('client') ||
+		name.includes('consult') ||
+		name.includes('partner') ||
+		name.includes('negotiat')
+	)
+		return 'stakeholder_management';
+	if (
+		name.includes('project') ||
+		name.includes('agile') ||
+		name.includes('scrum') ||
+		name.includes('delivery') ||
+		name.includes('ci/cd') ||
+		name.includes('devops')
+	)
+		return 'execution';
 
 	return 'problem_solving';
 }
@@ -4345,9 +4433,22 @@ function inferTargetRole(headline, skills) {
 	const h = (headline || '').toLowerCase();
 	const skillNames = (skills || []).map((s) => (s.skill_name || '').toLowerCase());
 
-	if (h.includes('product') || h.includes('pm') || skillNames.some((s) => s.includes('product'))) return 'Product Manager';
-	if (h.includes('data') || h.includes('analytics') || h.includes('ml ') || skillNames.some((s) => s.includes('machine learning') || s.includes('data science'))) return 'Data Scientist';
-	if (h.includes('design') || h.includes('ux') || h.includes('ui') || skillNames.some((s) => s.includes('figma') || s.includes('design'))) return 'UX Designer';
+	if (h.includes('product') || h.includes('pm') || skillNames.some((s) => s.includes('product')))
+		return 'Product Manager';
+	if (
+		h.includes('data') ||
+		h.includes('analytics') ||
+		h.includes('ml ') ||
+		skillNames.some((s) => s.includes('machine learning') || s.includes('data science'))
+	)
+		return 'Data Scientist';
+	if (
+		h.includes('design') ||
+		h.includes('ux') ||
+		h.includes('ui') ||
+		skillNames.some((s) => s.includes('figma') || s.includes('design'))
+	)
+		return 'UX Designer';
 	return 'Software Engineer';
 }
 
@@ -4488,7 +4589,10 @@ function generateAlternativeRoles(candidateScores, primaryRole) {
 
 	const bestPerRole = {};
 	for (const alt of alternatives) {
-		if (!bestPerRole[alt.role] || alt.competitiveness_score > bestPerRole[alt.role].competitiveness_score) {
+		if (
+			!bestPerRole[alt.role] ||
+			alt.competitiveness_score > bestPerRole[alt.role].competitiveness_score
+		) {
 			bestPerRole[alt.role] = alt;
 		}
 	}
@@ -4507,18 +4611,24 @@ function generateRecommendations(gaps) {
 		const dimKey = Object.entries(labels).find(([, v]) => v === gap.dimension)?.[0] || '';
 
 		const recs = {
-			problem_solving: 'Practice algorithmic challenges and system design. Consider advanced technical certifications.',
+			problem_solving:
+				'Practice algorithmic challenges and system design. Consider advanced technical certifications.',
 			execution: 'Take ownership of end-to-end projects. Learn Agile/Scrum and delivery tooling.',
-			communication: 'Practice technical writing and presentations. Seek opportunities to lead meetings.',
-			leadership: 'Mentor junior colleagues or lead a small initiative. Consider leadership training.',
-			strategic_thinking: 'Study product/business strategy. Participate in roadmap and planning sessions.',
-			stakeholder_management: 'Engage with cross-functional partners. Practice expectation management.',
+			communication:
+				'Practice technical writing and presentations. Seek opportunities to lead meetings.',
+			leadership:
+				'Mentor junior colleagues or lead a small initiative. Consider leadership training.',
+			strategic_thinking:
+				'Study product/business strategy. Participate in roadmap and planning sessions.',
+			stakeholder_management:
+				'Engage with cross-functional partners. Practice expectation management.',
 		};
 
 		recommendations.push({
 			dimension: gap.dimension,
 			priority: gap.gap > 20 ? 'high' : 'medium',
-			action: recs[dimKey] || `Improve your ${gap.dimension.toLowerCase()} through structured practice.`,
+			action:
+				recs[dimKey] || `Improve your ${gap.dimension.toLowerCase()} through structured practice.`,
 		});
 	}
 
@@ -4547,92 +4657,122 @@ async function careerDiagnosisRateLimit(req, res, next) {
 }
 
 // POST /career-diagnosis — Run 360° skills assessment
-router.post('/career-diagnosis', authMiddleware, requireRole('candidate'), careerDiagnosisRateLimit, async (req, res) => {
-	try {
-		// Fetch candidate profile
-		const profileResult = await pool.query(
-			`SELECT cp.*, u.name, u.email
+router.post(
+	'/career-diagnosis',
+	authMiddleware,
+	requireRole('candidate'),
+	careerDiagnosisRateLimit,
+	async (req, res) => {
+		try {
+			// Fetch candidate profile
+			const profileResult = await pool.query(
+				`SELECT cp.*, u.name, u.email
 			 FROM users u
 			 LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
 			 WHERE u.id = $1`,
-			[req.user.id],
-		);
+				[req.user.id],
+			);
 
-		if (profileResult.rows.length === 0 || !profileResult.rows[0].user_id) {
-			return res.status(404).json({
-				error: 'No candidate profile found. Please complete your profile first.',
-				code: 'PROFILE_NOT_FOUND',
-			});
-		}
+			if (profileResult.rows.length === 0 || !profileResult.rows[0].user_id) {
+				return res.status(404).json({
+					error: 'No candidate profile found. Please complete your profile first.',
+					code: 'PROFILE_NOT_FOUND',
+				});
+			}
 
-		const profile = profileResult.rows[0];
+			const profile = profileResult.rows[0];
 
-		// Fetch supporting data in parallel
-		const [skillsRes, experienceRes, educationRes, assessmentsRes, omniRes] = await Promise.all([
-			pool.query('SELECT skill_name, category, level, years_experience FROM candidate_skills WHERE user_id = $1', [req.user.id]),
-			pool.query('SELECT title, company_name, start_date, end_date, is_current FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC', [req.user.id]),
-			pool.query('SELECT degree, field_of_study, institution FROM education WHERE user_id = $1', [req.user.id]),
-			pool.query('SELECT score, title FROM skill_assessments WHERE user_id = $1 AND score IS NOT NULL', [req.user.id]),
-			pool.query('SELECT total_score FROM omni_scores WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1', [req.user.id]),
-		]);
+			// Fetch supporting data in parallel
+			const [skillsRes, experienceRes, educationRes, assessmentsRes, omniRes] = await Promise.all([
+				pool.query(
+					'SELECT skill_name, category, level, years_experience FROM candidate_skills WHERE user_id = $1',
+					[req.user.id],
+				),
+				pool.query(
+					'SELECT title, company_name, start_date, end_date, is_current FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC',
+					[req.user.id],
+				),
+				pool.query('SELECT degree, field_of_study, institution FROM education WHERE user_id = $1', [
+					req.user.id,
+				]),
+				pool.query(
+					'SELECT score, title FROM skill_assessments WHERE user_id = $1 AND score IS NOT NULL',
+					[req.user.id],
+				),
+				pool.query(
+					'SELECT total_score FROM omni_scores WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+					[req.user.id],
+				),
+			]);
 
-		const skills = skillsRes.rows;
-		const experience = experienceRes.rows;
-		const education = educationRes.rows;
-		const assessments = assessmentsRes.rows;
-		const omniScore = omniRes.rows[0]?.total_score || null;
+			const skills = skillsRes.rows;
+			const experience = experienceRes.rows;
+			const education = educationRes.rows;
+			const assessments = assessmentsRes.rows;
+			const omniScore = omniRes.rows[0]?.total_score || null;
 
-		// Calculate dimension scores
-		const dimensionScores = calculateDimensionScores(profile, skills, experience, education, assessments);
+			// Calculate dimension scores
+			const dimensionScores = calculateDimensionScores(
+				profile,
+				skills,
+				experience,
+				education,
+				assessments,
+			);
 
-		// Infer target role and level
-		const targetRole = inferTargetRole(profile.headline, skills);
-		const targetLevel = inferLevel(profile.years_experience);
+			// Infer target role and level
+			const targetRole = inferTargetRole(profile.headline, skills);
+			const targetLevel = inferLevel(profile.years_experience);
 
-		// Generate analysis
-		const gapAnalysis = generateGapAnalysis(dimensionScores, targetRole, targetLevel);
-		const marketCompetitiveness = calculateCompetitiveness(dimensionScores, targetRole, targetLevel);
-		const alternativeRoles = generateAlternativeRoles(dimensionScores, targetRole);
-		const recommendations = generateRecommendations(gapAnalysis);
+			// Generate analysis
+			const gapAnalysis = generateGapAnalysis(dimensionScores, targetRole, targetLevel);
+			const marketCompetitiveness = calculateCompetitiveness(
+				dimensionScores,
+				targetRole,
+				targetLevel,
+			);
+			const alternativeRoles = generateAlternativeRoles(dimensionScores, targetRole);
+			const recommendations = generateRecommendations(gapAnalysis);
 
-		const diagnosisData = {
-			target_role: targetRole,
-			target_level: targetLevel,
-			dimension_scores: dimensionScores,
-			gap_analysis: gapAnalysis,
-			market_competitiveness_score: marketCompetitiveness,
-			alternative_roles: alternativeRoles,
-			recommendations,
-			omni_score: omniScore,
-			profile_summary: {
-				years_experience: parseFloat(profile.years_experience) || 0,
-				skill_count: skills.length,
-				assessment_count: assessments.length,
-				education_count: education.length,
-			},
-		};
+			const diagnosisData = {
+				target_role: targetRole,
+				target_level: targetLevel,
+				dimension_scores: dimensionScores,
+				gap_analysis: gapAnalysis,
+				market_competitiveness_score: marketCompetitiveness,
+				alternative_roles: alternativeRoles,
+				recommendations,
+				omni_score: omniScore,
+				profile_summary: {
+					years_experience: parseFloat(profile.years_experience) || 0,
+					skill_count: skills.length,
+					assessment_count: assessments.length,
+					education_count: education.length,
+				},
+			};
 
-		// Persist diagnosis
-		const insertResult = await pool.query(
-			`INSERT INTO career_diagnoses (user_id, diagnosis_data)
+			// Persist diagnosis
+			const insertResult = await pool.query(
+				`INSERT INTO career_diagnoses (user_id, diagnosis_data)
 			 VALUES ($1, $2)
 			 RETURNING id, created_at`,
-			[req.user.id, JSON.stringify(diagnosisData)],
-		);
+				[req.user.id, JSON.stringify(diagnosisData)],
+			);
 
-		res.json({
-			success: true,
-			diagnosis: {
-				id: insertResult.rows[0].id,
-				...diagnosisData,
-				created_at: insertResult.rows[0].created_at,
-			},
-		});
-	} catch (err) {
-		console.error('Career diagnosis error:', err);
-		res.status(500).json({ error: 'Failed to generate career diagnosis' });
-	}
-});
+			res.json({
+				success: true,
+				diagnosis: {
+					id: insertResult.rows[0].id,
+					...diagnosisData,
+					created_at: insertResult.rows[0].created_at,
+				},
+			});
+		} catch (err) {
+			console.error('Career diagnosis error:', err);
+			res.status(500).json({ error: 'Failed to generate career diagnosis' });
+		}
+	},
+);
 
 // GET /career-diagnosis — Return latest diagnosis for logged-in candidate
 router.get('/career-diagnosis', authMiddleware, requireRole('candidate'), async (req, res) => {
@@ -4669,7 +4809,6 @@ router.get('/career-diagnosis', authMiddleware, requireRole('candidate'), async 
 		res.status(500).json({ error: 'Failed to get career diagnosis' });
 	}
 });
-
 
 // ============= LINKEDIN PROFILE IMPORT (#79) =============
 
@@ -4719,7 +4858,10 @@ async function fetchLinkedInProfile(accessToken) {
 			profile._raw.me = me;
 		}
 	} catch (apiErr) {
-		console.log('[LinkedIn Import] v2/me unavailable (expected without r_basicprofile):', apiErr.message);
+		console.log(
+			'[LinkedIn Import] v2/me unavailable (expected without r_basicprofile):',
+			apiErr.message,
+		);
 	}
 
 	// 3. Attempt v2 positions (requires r_basicprofile)
@@ -4822,7 +4964,12 @@ async function mergeLinkedInProfile(userId, linkedinProfile) {
 			     updated_at = NOW()
 			 WHERE id = $1
 			 RETURNING name, title`,
-			[userId, linkedinProfile.name, linkedinProfile.headline, JSON.stringify(linkedinProfile._raw)],
+			[
+				userId,
+				linkedinProfile.name,
+				linkedinProfile.headline,
+				JSON.stringify(linkedinProfile._raw),
+			],
 		);
 		if (userRes.rows.length > 0) {
 			summary.user_updated = true;
@@ -4923,7 +5070,12 @@ async function mergeLinkedInProfile(userId, linkedinProfile) {
 					category = COALESCE(NULLIF($3, ''), candidate_skills.category),
 					level = GREATEST(candidate_skills.level, $4)
 				`,
-				[userId, skill.name, skill.category || 'technical', Math.max(1, Math.min(5, skill.level || 3))],
+				[
+					userId,
+					skill.name,
+					skill.category || 'technical',
+					Math.max(1, Math.min(5, skill.level || 3)),
+				],
 			);
 			summary.skills_added++;
 		} catch (skillErr) {
@@ -5007,5 +5159,3 @@ router.post('/linkedin/import', authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
-
-

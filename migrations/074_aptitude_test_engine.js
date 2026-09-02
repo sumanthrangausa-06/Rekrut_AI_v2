@@ -144,9 +144,15 @@ exports.up = async (client) => {
 			category: 'logic',
 			difficulty: 1,
 			text: 'If all roses are flowers and some flowers fade quickly, then which statement must be true?',
-			options: ['All roses fade quickly', 'Some roses fade quickly', 'No roses fade quickly', 'Roses are not flowers'],
+			options: [
+				'All roses fade quickly',
+				'Some roses fade quickly',
+				'No roses fade quickly',
+				'Roses are not flowers',
+			],
 			answer: 'Some roses fade quickly',
-			explanation: 'Since all roses are flowers and some flowers fade quickly, it follows that some roses (being flowers) may fade quickly.',
+			explanation:
+				'Since all roses are flowers and some flowers fade quickly, it follows that some roses (being flowers) may fade quickly.',
 		},
 		{
 			category: 'logic',
@@ -162,7 +168,8 @@ exports.up = async (client) => {
 			text: 'A bat and a ball cost $11 in total. The bat costs $10 more than the ball. How much does the ball cost?',
 			options: ['$1', '$0.50', '$2', '$1.50'],
 			answer: '$0.50',
-			explanation: 'If the ball costs $0.50, the bat costs $10.50 ($10 more). $0.50 + $10.50 = $11.',
+			explanation:
+				'If the ball costs $0.50, the bat costs $10.50 ($10 more). $0.50 + $10.50 = $11.',
 		},
 		{
 			category: 'logic',
@@ -178,7 +185,8 @@ exports.up = async (client) => {
 			text: 'If it takes 5 machines 5 minutes to make 5 widgets, how long would it take 100 machines to make 100 widgets?',
 			options: ['5 minutes', '100 minutes', '20 minutes', '500 minutes'],
 			answer: '5 minutes',
-			explanation: 'Each machine makes 1 widget in 5 minutes. 100 machines make 100 widgets in the same 5 minutes.',
+			explanation:
+				'Each machine makes 1 widget in 5 minutes. 100 machines make 100 widgets in the same 5 minutes.',
 		},
 		{
 			category: 'logic',
@@ -186,20 +194,22 @@ exports.up = async (client) => {
 			text: 'In a lake, there is a patch of lily pads. Every day, the patch doubles in size. If it takes 48 days for the patch to cover the entire lake, how long would it take for the patch to cover half of the lake?',
 			options: ['24 days', '47 days', '46 days', '12 days'],
 			answer: '47 days',
-			explanation: 'Since the patch doubles every day, on day 47 it covers half the lake, and on day 48 it covers the entire lake.',
+			explanation:
+				'Since the patch doubles every day, on day 47 it covers half the lake, and on day 48 it covers the entire lake.',
 		},
 		{
 			category: 'logic',
 			difficulty: 4,
 			text: 'Three people check into a hotel room that costs $30. They each contribute $10. Later, the manager realizes the room is only $25 and gives $5 to the bellboy to return. The bellboy keeps $2 and gives $1 to each guest. Now each guest paid $9 ($27 total) and the bellboy has $2. Where is the missing dollar?',
 			options: [
-				'It is in the manager\'s pocket',
+				"It is in the manager's pocket",
 				'There is no missing dollar — the accounting is misleading',
 				'The bellboy has it hidden',
 				'It was never there',
 			],
 			answer: 'There is no missing dollar — the accounting is misleading',
-			explanation: 'The $27 includes the $25 room + $2 bellboy. Adding the $2 again is double-counting. The guests have $3 back. $25 + $2 + $3 = $30.',
+			explanation:
+				'The $27 includes the $25 room + $2 bellboy. Adding the $2 again is double-counting. The guests have $3 back. $25 + $2 + $3 = $30.',
 		},
 		{
 			category: 'logic',
@@ -212,7 +222,8 @@ exports.up = async (client) => {
 				'Some Yips are Zorgs',
 			],
 			answer: 'No Zorgs are Xams',
-			explanation: 'All Zorgs are Yips, and no Yips are Xams. Therefore no Zorgs can be Xams (transitive property).',
+			explanation:
+				'All Zorgs are Yips, and no Yips are Xams. Therefore no Zorgs can be Xams (transitive property).',
 		},
 		{
 			category: 'logic',
@@ -220,15 +231,17 @@ exports.up = async (client) => {
 			text: 'A farmer has 17 sheep and all but 9 die. How many sheep are left?',
 			options: ['8', '9', '17', '0'],
 			answer: '9',
-			explanation: '"All but 9 die" means 9 survive. This is a trick question testing careful reading.',
+			explanation:
+				'"All but 9 die" means 9 survive. This is a trick question testing careful reading.',
 		},
 		{
 			category: 'logic',
 			difficulty: 5,
-			text: 'Four people need to cross a bridge at night. They have one torch. The bridge can only hold two people at a time. Their crossing times are: A=1min, B=2min, C=5min, D=10min. When two cross together, they move at the slower person\'s pace. What is the minimum total time for all to cross?',
+			text: "Four people need to cross a bridge at night. They have one torch. The bridge can only hold two people at a time. Their crossing times are: A=1min, B=2min, C=5min, D=10min. When two cross together, they move at the slower person's pace. What is the minimum total time for all to cross?",
 			options: ['17 minutes', '19 minutes', '21 minutes', '23 minutes'],
 			answer: '17 minutes',
-			explanation: 'A+B cross (2), A returns (1), C+D cross (10), B returns (2), A+B cross (2). Total: 2+1+10+2+2 = 17.',
+			explanation:
+				'A+B cross (2), A returns (1), C+D cross (10), B returns (2), A+B cross (2). Total: 2+1+10+2+2 = 17.',
 		},
 
 		// ─── VERBAL (10) ───
@@ -238,7 +251,8 @@ exports.up = async (client) => {
 			text: 'Choose the word that is most nearly OPPOSITE in meaning to: BENEVOLENT',
 			options: ['Kind', 'Malevolent', 'Generous', 'Charitable'],
 			answer: 'Malevolent',
-			explanation: 'Benevolent means well-meaning and kindly. Malevolent means having or showing a wish to do evil to others.',
+			explanation:
+				'Benevolent means well-meaning and kindly. Malevolent means having or showing a wish to do evil to others.',
 		},
 		{
 			category: 'verbal',
@@ -254,7 +268,8 @@ exports.up = async (client) => {
 			text: 'Choose the word that does NOT belong: Carpenter, Mason, Electrician, Baker',
 			options: ['Carpenter', 'Mason', 'Electrician', 'Baker'],
 			answer: 'Baker',
-			explanation: 'Carpenter, Mason, and Electrician are construction trades. Baker is a food profession.',
+			explanation:
+				'Carpenter, Mason, and Electrician are construction trades. Baker is a food profession.',
 		},
 		{
 			category: 'verbal',
@@ -284,9 +299,15 @@ exports.up = async (client) => {
 			category: 'verbal',
 			difficulty: 4,
 			text: 'Choose the pair with the same relationship: EPHEMERAL : PERMANENCE',
-			options: ['Arid : Moisture', 'Erratic : Predictability', 'Fervent : Apathy', 'Taciturn : Silence'],
+			options: [
+				'Arid : Moisture',
+				'Erratic : Predictability',
+				'Fervent : Apathy',
+				'Taciturn : Silence',
+			],
 			answer: 'Erratic : Predictability',
-			explanation: 'Ephemeral is the opposite of permanence; erratic is the opposite of predictability.',
+			explanation:
+				'Ephemeral is the opposite of permanence; erratic is the opposite of predictability.',
 		},
 		{
 			category: 'verbal',
@@ -299,7 +320,8 @@ exports.up = async (client) => {
 				'Between you and I, the plan will not works.',
 			],
 			answer: 'Between you and me, the plan will not work.',
-			explanation: '"Between" is a preposition requiring the objective case (me, not I). "Will not work" is the correct verb form.',
+			explanation:
+				'"Between" is a preposition requiring the objective case (me, not I). "Will not work" is the correct verb form.',
 		},
 		{
 			category: 'verbal',
@@ -312,7 +334,8 @@ exports.up = async (client) => {
 				'The manager ignored the budget',
 			],
 			answer: 'The manager was excessively frugal',
-			explanation: 'Parsimonious means unwilling to spend money or use resources; stingy or frugal to excess.',
+			explanation:
+				'Parsimonious means unwilling to spend money or use resources; stingy or frugal to excess.',
 		},
 		{
 			category: 'verbal',
@@ -325,7 +348,8 @@ exports.up = async (client) => {
 				'humility... arrogance',
 			],
 			answer: 'impulsiveness... restraint',
-			explanation: 'The word "although" signals a contrast. The CEO was known for impulsiveness but showed restraint.',
+			explanation:
+				'The word "although" signals a contrast. The CEO was known for impulsiveness but showed restraint.',
 		},
 
 		// ─── NUMERICAL (10) ───
@@ -351,7 +375,8 @@ exports.up = async (client) => {
 			text: 'A store sells an item for $80 after a 20% discount. What was the original price?',
 			options: ['$96', '$100', '$104', '$110'],
 			answer: '$100',
-			explanation: 'If $80 is 80% of the original price (after 20% off), then original price = $80 ÷ 0.80 = $100.',
+			explanation:
+				'If $80 is 80% of the original price (after 20% off), then original price = $80 ÷ 0.80 = $100.',
 		},
 		{
 			category: 'numerical',
@@ -367,7 +392,8 @@ exports.up = async (client) => {
 			text: 'A car travels 240 miles in 4 hours. If it increases its speed by 10 mph, how long will it take to travel 300 miles?',
 			options: ['4 hours', '4.5 hours', '5 hours', '5.5 hours'],
 			answer: '4.5 hours',
-			explanation: 'Original speed = 240 ÷ 4 = 60 mph. New speed = 70 mph. Time = 300 ÷ 70 ≈ 4.29 hours ≈ 4.5 hours.',
+			explanation:
+				'Original speed = 240 ÷ 4 = 60 mph. New speed = 70 mph. Time = 300 ÷ 70 ≈ 4.29 hours ≈ 4.5 hours.',
 		},
 		{
 			category: 'numerical',
@@ -375,7 +401,8 @@ exports.up = async (client) => {
 			text: 'If 8 workers can complete a job in 6 days, how many days will it take 12 workers to complete the same job?',
 			options: ['3', '4', '5', '6'],
 			answer: '4',
-			explanation: 'Total work = 8 workers × 6 days = 48 worker-days. With 12 workers: 48 ÷ 12 = 4 days.',
+			explanation:
+				'Total work = 8 workers × 6 days = 48 worker-days. With 12 workers: 48 ÷ 12 = 4 days.',
 		},
 		{
 			category: 'numerical',
@@ -383,7 +410,8 @@ exports.up = async (client) => {
 			text: 'A rectangle has a perimeter of 36 cm. If the length is twice the width, what is the area?',
 			options: ['48 cm²', '72 cm²', '36 cm²', '24 cm²'],
 			answer: '72 cm²',
-			explanation: 'Let width = w, length = 2w. Perimeter = 2(w + 2w) = 6w = 36, so w = 6. Length = 12. Area = 6 × 12 = 72 cm².',
+			explanation:
+				'Let width = w, length = 2w. Perimeter = 2(w + 2w) = 6w = 36, so w = 6. Length = 12. Area = 6 × 12 = 72 cm².',
 		},
 		{
 			category: 'numerical',
@@ -407,7 +435,8 @@ exports.up = async (client) => {
 			text: 'The sum of three consecutive even numbers is 54. What is the largest number?',
 			options: ['16', '18', '20', '22'],
 			answer: '20',
-			explanation: 'Let the numbers be x, x+2, x+4. Then 3x + 6 = 54, so x = 16. The numbers are 16, 18, 20. Largest = 20.',
+			explanation:
+				'Let the numbers be x, x+2, x+4. Then 3x + 6 = 54, so x = 16. The numbers are 16, 18, 20. Largest = 20.',
 		},
 	];
 
@@ -431,5 +460,7 @@ exports.up = async (client) => {
 		);
 	}
 
-	console.log(`[migration] Aptitude test engine tables created and ${questions.length} questions seeded`);
+	console.log(
+		`[migration] Aptitude test engine tables created and ${questions.length} questions seeded`,
+	);
 };

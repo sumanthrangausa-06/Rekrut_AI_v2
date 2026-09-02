@@ -43,10 +43,7 @@ function parseMentions(text) {
 async function resolveMentions(usernames) {
 	if (usernames.length === 0) return [];
 	// ponytail: match against user name (no username column in users table)
-	const result = await pool.query(
-		`SELECT id, name FROM users WHERE name = ANY($1)`,
-		[usernames],
-	);
+	const result = await pool.query(`SELECT id, name FROM users WHERE name = ANY($1)`, [usernames]);
 	return result.rows;
 }
 
@@ -421,10 +418,9 @@ router.get('/activity/:jobId', authMiddleware, requireHiringTeam, async (req, re
 			[jobId, parseInt(limit, 10), parseInt(offset, 10)],
 		);
 
-		const countResult = await pool.query(
-			`SELECT COUNT(*) FROM hiring_activity WHERE job_id = $1`,
-			[jobId],
-		);
+		const countResult = await pool.query(`SELECT COUNT(*) FROM hiring_activity WHERE job_id = $1`, [
+			jobId,
+		]);
 
 		res.json({
 			success: true,

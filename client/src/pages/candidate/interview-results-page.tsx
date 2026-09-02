@@ -23,23 +23,23 @@ import {
 	Volume2,
 	Wand2,
 	Zap,
-} from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
-import { cn } from '@/lib/utils'
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
 
-import type { MockSession, SessionFeedback } from './coaching-types'
-import { scoreBg, scoreColor, scoreLabel, ScoreBar } from './coaching-utils'
+import type { MockSession, SessionFeedback } from './coaching-types';
+import { ScoreBar, scoreBg, scoreColor, scoreLabel } from './coaching-utils';
 
 interface InterviewResultsPageProps {
-	mockSession: MockSession | null
-	mockFeedback: SessionFeedback
-	viewingHistorySession: boolean
-	onBack: () => void
-	onNewInterview: () => void
+	mockSession: MockSession | null;
+	mockFeedback: SessionFeedback;
+	viewingHistorySession: boolean;
+	onBack: () => void;
+	onNewInterview: () => void;
 }
 
 export function InterviewResultsPage({
@@ -49,36 +49,36 @@ export function InterviewResultsPage({
 	onBack,
 	onNewInterview,
 }: InterviewResultsPageProps) {
-	const [expandedSection, setExpandedSection] = useState<string | null>('overview')
-	const [animatedScore, setAnimatedScore] = useState(0)
+	const [expandedSection, setExpandedSection] = useState<string | null>('overview');
+	const [animatedScore, setAnimatedScore] = useState(0);
 
 	const toggleSection = (section: string) => {
-		setExpandedSection((prev) => (prev === section ? null : section))
-	}
+		setExpandedSection((prev) => (prev === section ? null : section));
+	};
 
-	const overallScore = mockFeedback.overall_score
-	const readiness = mockFeedback.interview_readiness
+	const overallScore = mockFeedback.overall_score;
+	const readiness = mockFeedback.interview_readiness;
 
 	// Animate score on mount
 	useEffect(() => {
-		const duration = 1200
-		const steps = 60
-		const increment = overallScore / steps
-		let current = 0
+		const duration = 1200;
+		const steps = 60;
+		const increment = overallScore / steps;
+		let current = 0;
 		const timer = setInterval(() => {
-			current += increment
+			current += increment;
 			if (current >= overallScore) {
-				setAnimatedScore(overallScore)
-				clearInterval(timer)
+				setAnimatedScore(overallScore);
+				clearInterval(timer);
 			} else {
-				setAnimatedScore(Number(current.toFixed(1)))
+				setAnimatedScore(Number(current.toFixed(1)));
 			}
-		}, duration / steps)
-		return () => clearInterval(timer)
-	}, [overallScore])
+		}, duration / steps);
+		return () => clearInterval(timer);
+	}, [overallScore]);
 
-	const circumference = 2 * Math.PI * 42
-	const strokeDashoffset = circumference - (animatedScore / 10) * circumference
+	const circumference = 2 * Math.PI * 42;
+	const strokeDashoffset = circumference - (animatedScore / 10) * circumference;
 
 	return (
 		<div className="space-y-6 max-w-4xl mx-auto pb-8">
@@ -116,13 +116,21 @@ export function InterviewResultsPage({
 				<div
 					className={cn(
 						'absolute -top-20 -right-20 h-40 w-40 rounded-full blur-3xl opacity-20',
-						overallScore >= 8 ? 'bg-emerald-500' : overallScore >= 6 ? 'bg-amber-500' : 'bg-red-500',
+						overallScore >= 8
+							? 'bg-emerald-500'
+							: overallScore >= 6
+								? 'bg-amber-500'
+								: 'bg-red-500',
 					)}
 				/>
 				<div
 					className={cn(
 						'absolute -bottom-20 -left-20 h-40 w-40 rounded-full blur-3xl opacity-10',
-						overallScore >= 8 ? 'bg-emerald-500' : overallScore >= 6 ? 'bg-amber-500' : 'bg-red-500',
+						overallScore >= 8
+							? 'bg-emerald-500'
+							: overallScore >= 6
+								? 'bg-amber-500'
+								: 'bg-red-500',
 					)}
 				/>
 
@@ -161,12 +169,7 @@ export function InterviewResultsPage({
 								/>
 							</svg>
 							<div className="absolute inset-0 flex flex-col items-center justify-center">
-								<span
-									className={cn(
-										'text-3xl font-bold tabular-nums',
-										scoreColor(overallScore),
-									)}
-								>
+								<span className={cn('text-3xl font-bold tabular-nums', scoreColor(overallScore))}>
 									{animatedScore.toFixed(1)}
 								</span>
 								<span className="text-[10px] text-muted-foreground">/ 10</span>
@@ -175,12 +178,7 @@ export function InterviewResultsPage({
 
 						{/* Score Details */}
 						<div className="flex-1 text-center sm:text-left">
-							<h3
-								className={cn(
-									'text-2xl font-bold',
-									scoreColor(overallScore),
-								)}
-							>
+							<h3 className={cn('text-2xl font-bold', scoreColor(overallScore))}>
 								{scoreLabel(overallScore)}
 							</h3>
 							<p className="text-sm text-muted-foreground mt-1">
@@ -231,7 +229,9 @@ export function InterviewResultsPage({
 				<div className="space-y-4 pt-2">
 					{(mockFeedback as any).content && (
 						<ScoreBar
-							score={(mockFeedback as any).content._failed ? null : (mockFeedback as any).content.score}
+							score={
+								(mockFeedback as any).content._failed ? null : (mockFeedback as any).content.score
+							}
 							label="Answer Content"
 							icon={Brain}
 						/>
@@ -244,11 +244,7 @@ export function InterviewResultsPage({
 						/>
 					)}
 					{mockFeedback.presentation && (
-						<ScoreBar
-							score={mockFeedback.presentation.score}
-							label="Presentation"
-							icon={Eye}
-						/>
+						<ScoreBar score={mockFeedback.presentation.score} label="Presentation" icon={Eye} />
 					)}
 					{mockFeedback.voice_analysis && (
 						<ScoreBar
@@ -273,7 +269,10 @@ export function InterviewResultsPage({
 						{mockFeedback.strengths.length > 0 ? (
 							<ul className="space-y-2">
 								{mockFeedback.strengths.map((s, i) => (
-									<li key={i} className="flex items-start gap-2 text-sm text-emerald-700 dark:text-emerald-300/80">
+									<li
+										key={i}
+										className="flex items-start gap-2 text-sm text-emerald-700 dark:text-emerald-300/80"
+									>
 										<span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
 										{s}
 									</li>
@@ -296,7 +295,10 @@ export function InterviewResultsPage({
 						{mockFeedback.improvements.length > 0 ? (
 							<ul className="space-y-2">
 								{mockFeedback.improvements.map((s, i) => (
-									<li key={i} className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300/80">
+									<li
+										key={i}
+										className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300/80"
+									>
 										<span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
 										{s}
 									</li>
@@ -390,7 +392,9 @@ export function InterviewResultsPage({
 						<h4 className="text-sm font-semibold flex items-center gap-2 text-violet-800 dark:text-violet-300 mb-2">
 							<Lightbulb className="h-4 w-4" /> #1 Tip to Improve
 						</h4>
-						<p className="text-sm text-violet-700 dark:text-violet-300/80">{mockFeedback.top_tip}</p>
+						<p className="text-sm text-violet-700 dark:text-violet-300/80">
+							{mockFeedback.top_tip}
+						</p>
 					</CardContent>
 				</div>
 			)}
@@ -421,8 +425,11 @@ export function InterviewResultsPage({
 					<div className="space-y-3 pt-2 max-h-[50vh] overflow-y-auto">
 						{mockSession.conversation.map((turn, i) => {
 							const time = turn.timestamp
-								? new Date(turn.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-								: ''
+								? new Date(turn.timestamp).toLocaleTimeString([], {
+										hour: '2-digit',
+										minute: '2-digit',
+									})
+								: '';
 							return (
 								<div key={turn.id || `turn-${i}`} className="flex gap-2.5">
 									<div
@@ -456,13 +463,13 @@ export function InterviewResultsPage({
 										<p className="text-xs leading-relaxed whitespace-pre-wrap">{turn.text}</p>
 									</div>
 								</div>
-							)
+							);
 						})}
 					</div>
 				</SectionAccordion>
 			)}
 		</div>
-	)
+	);
 }
 
 // ===== SECTION ACCORDION =====
@@ -475,15 +482,15 @@ function SectionAccordion({
 	score,
 	children,
 }: {
-	title: string
-	icon: React.ElementType
-	sectionKey: string
-	expandedSection: string | null
-	toggleSection: (key: string) => void
-	score?: number | null
-	children: React.ReactNode
+	title: string;
+	icon: React.ElementType;
+	sectionKey: string;
+	expandedSection: string | null;
+	toggleSection: (key: string) => void;
+	score?: number | null;
+	children: React.ReactNode;
 }) {
-	const isExpanded = expandedSection === sectionKey
+	const isExpanded = expandedSection === sectionKey;
 	return (
 		<Card className="overflow-hidden border-white/10">
 			<button
@@ -501,7 +508,7 @@ function SectionAccordion({
 			</button>
 			{isExpanded && <div className="px-4 pb-4">{children}</div>}
 		</Card>
-	)
+	);
 }
 
 // ===== CONTENT DETAIL =====
@@ -509,7 +516,9 @@ function ContentDetail({ feedback }: { feedback: any }) {
 	return (
 		<div className="space-y-4">
 			{feedback.detailed_feedback && (
-				<p className="text-sm text-muted-foreground leading-relaxed">{feedback.detailed_feedback}</p>
+				<p className="text-sm text-muted-foreground leading-relaxed">
+					{feedback.detailed_feedback}
+				</p>
 			)}
 
 			{feedback.strengths?.length > 0 && (
@@ -519,7 +528,9 @@ function ContentDetail({ feedback }: { feedback: any }) {
 					</h5>
 					<ul className="space-y-1">
 						{feedback.strengths.map((s: string, i: number) => (
-							<li key={i} className="text-xs text-emerald-700 dark:text-emerald-300/70">{s}</li>
+							<li key={i} className="text-xs text-emerald-700 dark:text-emerald-300/70">
+								{s}
+							</li>
 						))}
 					</ul>
 				</div>
@@ -532,7 +543,9 @@ function ContentDetail({ feedback }: { feedback: any }) {
 					</h5>
 					<ul className="space-y-1">
 						{feedback.improvements.map((s: string, i: number) => (
-							<li key={i} className="text-xs text-amber-700 dark:text-amber-300/70">{s}</li>
+							<li key={i} className="text-xs text-amber-700 dark:text-amber-300/70">
+								{s}
+							</li>
 						))}
 					</ul>
 				</div>
@@ -545,7 +558,9 @@ function ContentDetail({ feedback }: { feedback: any }) {
 					</h5>
 					<ul className="space-y-1">
 						{feedback.specific_tips.map((s: string, i: number) => (
-							<li key={i} className="text-xs text-violet-700 dark:text-violet-300/70">{s}</li>
+							<li key={i} className="text-xs text-violet-700 dark:text-violet-300/70">
+								{s}
+							</li>
 						))}
 					</ul>
 				</div>
@@ -568,7 +583,7 @@ function ContentDetail({ feedback }: { feedback: any }) {
 				)}
 			</div>
 		</div>
-	)
+	);
 }
 
 // ===== COMMUNICATION DETAIL =====
@@ -615,7 +630,11 @@ function CommunicationDetail({ feedback }: { feedback: any }) {
 						{Object.entries(feedback.filler_words)
 							.filter(([, count]) => (count as number) > 0)
 							.map(([word, count]) => (
-								<Badge key={word} variant="outline" className="text-[10px] bg-white/50 dark:bg-white/5">
+								<Badge
+									key={word}
+									variant="outline"
+									className="text-[10px] bg-white/50 dark:bg-white/5"
+								>
 									"{word}" × {count as number}
 								</Badge>
 							))}
@@ -626,7 +645,8 @@ function CommunicationDetail({ feedback }: { feedback: any }) {
 			{feedback.voice_analysis && (
 				<div className="space-y-2 pt-1">
 					<h5 className="text-xs font-semibold flex items-center gap-1.5">
-						<Mic className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" /> Voice & Tone Analysis
+						<Mic className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" /> Voice & Tone
+						Analysis
 					</h5>
 					<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
 						{[
@@ -635,9 +655,9 @@ function CommunicationDetail({ feedback }: { feedback: any }) {
 							{ key: 'energy', label: 'Energy', icon: Zap },
 							{ key: 'articulation', label: 'Articulation', icon: MessageSquare },
 						].map((item) => {
-							const data = feedback.voice_analysis[item.key]
-							if (!data) return null
-							const ItemIcon = item.icon
+							const data = feedback.voice_analysis[item.key];
+							if (!data) return null;
+							const ItemIcon = item.icon;
 							return (
 								<div
 									key={item.key}
@@ -655,9 +675,11 @@ function CommunicationDetail({ feedback }: { feedback: any }) {
 											{data.score}/10
 										</span>
 									</div>
-									<p className="text-[10px] text-muted-foreground leading-relaxed">{data.feedback}</p>
+									<p className="text-[10px] text-muted-foreground leading-relaxed">
+										{data.feedback}
+									</p>
 								</div>
-							)
+							);
 						})}
 					</div>
 					{feedback.voice_analysis.voice_summary && (
@@ -670,7 +692,7 @@ function CommunicationDetail({ feedback }: { feedback: any }) {
 				</div>
 			)}
 		</div>
-	)
+	);
 }
 
 // ===== PRESENTATION DETAIL =====
@@ -684,17 +706,13 @@ function PresentationDetail({ feedback }: { feedback: any }) {
 					{ key: 'body_language', label: 'Body Language', icon: Monitor },
 					{ key: 'professional_appearance', label: 'Appearance', icon: Monitor },
 				].map((item) => {
-					const data = feedback[item.key]
-					if (!data) return null
-					const ItemIcon = item.icon
+					const data = feedback[item.key];
+					if (!data) return null;
+					const ItemIcon = item.icon;
 					return (
 						<div
 							key={item.key}
-							className={cn(
-								'p-2.5 rounded-xl border',
-								scoreBg(data.score),
-								'dark:bg-opacity-10',
-							)}
+							className={cn('p-2.5 rounded-xl border', scoreBg(data.score), 'dark:bg-opacity-10')}
 						>
 							<div className="flex items-center justify-between mb-1">
 								<span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
@@ -706,7 +724,7 @@ function PresentationDetail({ feedback }: { feedback: any }) {
 							</div>
 							<p className="text-[10px] text-muted-foreground leading-relaxed">{data.feedback}</p>
 						</div>
-					)
+					);
 				})}
 			</div>
 			{feedback.summary && (
@@ -715,11 +733,19 @@ function PresentationDetail({ feedback }: { feedback: any }) {
 				</div>
 			)}
 		</div>
-	)
+	);
 }
 
 // ===== MINI SCORE CARD =====
-function MiniScoreCard({ label, score, feedback }: { label: string; score: number; feedback: string }) {
+function MiniScoreCard({
+	label,
+	score,
+	feedback,
+}: {
+	label: string;
+	score: number;
+	feedback: string;
+}) {
 	return (
 		<div className={cn('p-3 rounded-xl border', scoreBg(score), 'dark:bg-opacity-10')}>
 			<div className="flex items-center justify-between mb-1">
@@ -728,7 +754,7 @@ function MiniScoreCard({ label, score, feedback }: { label: string; score: numbe
 			</div>
 			<p className="text-[10px] text-muted-foreground leading-relaxed">{feedback}</p>
 		</div>
-	)
+	);
 }
 
 // ===== STAT CARD =====
@@ -738,5 +764,5 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 			<div className="text-lg font-bold">{value}</div>
 			<div className="text-[10px] text-muted-foreground">{label}</div>
 		</div>
-	)
+	);
 }

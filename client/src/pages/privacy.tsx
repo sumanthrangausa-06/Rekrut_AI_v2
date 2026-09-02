@@ -1,4 +1,3 @@
-import { SEO } from '@/components/SEO'
 import {
 	ArrowLeft,
 	Bell,
@@ -10,61 +9,62 @@ import {
 	Shield,
 	Trash2,
 	UserCheck,
-} from 'lucide-react'
-import { useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Logo } from '@/components/ui/logo'
-import { trackEvent } from '@/lib/analytics'
+} from 'lucide-react';
+import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { SEO } from '@/components/SEO';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Logo } from '@/components/ui/logo';
+import { trackEvent } from '@/lib/analytics';
 
 function Header() {
 	return (
-		<header className='border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80'>
-			<div className='mx-auto flex min-h-16 max-w-7xl flex-col gap-3 px-4 py-4 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:py-0'>
+		<header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+			<div className="mx-auto flex min-h-16 max-w-7xl flex-col gap-3 px-4 py-4 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:py-0">
 				<Link
-					to='/'
-					className='flex items-center gap-2'
+					to="/"
+					className="flex items-center gap-2"
 					onClick={() => trackEvent('privacy_nav_logo_click')}
 				>
-					<Logo size='md' />
-					<span className='font-heading text-xl font-bold'>Rekrut AI</span>
+					<Logo size="md" />
+					<span className="font-heading text-xl font-bold">Rekrut AI</span>
 				</Link>
-				<Link to='/' onClick={() => trackEvent('privacy_back_click')}>
-					<Button variant='ghost' size='sm' className='gap-2'>
-						<ArrowLeft className='h-4 w-4' />
+				<Link to="/" onClick={() => trackEvent('privacy_back_click')}>
+					<Button variant="ghost" size="sm" className="gap-2">
+						<ArrowLeft className="h-4 w-4" />
 						Back to home
 					</Button>
 				</Link>
 			</div>
 		</header>
-	)
+	);
 }
 
 function Footer() {
 	return (
-		<footer className='border-t bg-muted/30'>
-			<div className='mx-auto max-w-7xl px-4 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground'>
+		<footer className="border-t bg-muted/30">
+			<div className="mx-auto max-w-7xl px-4 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
 				<p>© {new Date().getFullYear()} Rekrut AI. All rights reserved.</p>
-				<div className='flex items-center gap-4'>
+				<div className="flex items-center gap-4">
 					<Link
-						to='/terms'
-						className='hover:text-primary transition-colors'
+						to="/terms"
+						className="hover:text-primary transition-colors"
 						onClick={() => trackEvent('privacy_footer_terms_click')}
 					>
 						Terms
 					</Link>
 					<Link
-						to='/about'
-						className='hover:text-primary transition-colors'
+						to="/about"
+						className="hover:text-primary transition-colors"
 						onClick={() => trackEvent('privacy_footer_about_click')}
 					>
 						About
 					</Link>
 					<Link
-						to='/contact'
-						className='hover:text-primary transition-colors'
+						to="/contact"
+						className="hover:text-primary transition-colors"
 						onClick={() => trackEvent('privacy_footer_contact_click')}
 					>
 						Contact
@@ -72,7 +72,7 @@ function Footer() {
 				</div>
 			</div>
 		</footer>
-	)
+	);
 }
 
 const sections = [
@@ -199,37 +199,37 @@ Response time: We aim to respond to all privacy inquiries within 48 hours.
 
 For users in the European Union, you also have the right to lodge a complaint with your local data protection authority.`,
 	},
-]
+];
 
 export function PrivacyPage() {
 	useEffect(() => {
-		trackEvent('page_view_privacy')
-	}, [])
+		trackEvent('page_view_privacy');
+	}, []);
 
 	return (
-		<div className='min-h-dvh-safe bg-background'>
+		<div className="min-h-dvh-safe bg-background">
 			<SEO
-				title='Privacy Policy — How We Protect Your Data'
-				description='Rekrut AI is committed to protecting your privacy. Learn how we collect, use, disclose, and safeguard your information.'
-				canonical='/privacy'
+				title="Privacy Policy — How We Protect Your Data"
+				description="Rekrut AI is committed to protecting your privacy. Learn how we collect, use, disclose, and safeguard your information."
+				canonical="/privacy"
 				noindex={true}
 			/>
 			<Header />
 
 			<main>
-				<section className='relative overflow-hidden'>
-					<div className='absolute inset-0 pointer-events-none'>
-						<div className='absolute -top-40 -right-40 h-96 w-96 rounded-full bg-primary/10 blur-3xl' />
+				<section className="relative overflow-hidden">
+					<div className="absolute inset-0 pointer-events-none">
+						<div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
 					</div>
-					<div className='relative mx-auto max-w-4xl px-4 py-16 sm:py-24'>
-						<div className='text-center'>
-							<Badge variant='outline' className='mb-4'>
+					<div className="relative mx-auto max-w-4xl px-4 py-16 sm:py-24">
+						<div className="text-center">
+							<Badge variant="outline" className="mb-4">
 								Legal
 							</Badge>
-							<h1 className='font-heading text-4xl font-bold tracking-tight sm:text-5xl'>
+							<h1 className="font-heading text-4xl font-bold tracking-tight sm:text-5xl">
 								Privacy Policy
 							</h1>
-							<p className='mt-4 text-muted-foreground'>
+							<p className="mt-4 text-muted-foreground">
 								Last updated:{' '}
 								{new Date().toLocaleDateString('en-US', {
 									year: 'numeric',
@@ -239,17 +239,17 @@ export function PrivacyPage() {
 							</p>
 						</div>
 
-						<div className='mt-12 space-y-6'>
+						<div className="mt-12 space-y-6">
 							{sections.map((section) => (
-								<Card key={section.title} className='border-0 bg-card shadow-sm'>
-									<CardContent className='p-6 sm:p-8'>
-										<div className='flex items-center gap-3 mb-4'>
-											<div className='flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10'>
-												<section.icon className='h-5 w-5 text-primary' />
+								<Card key={section.title} className="border-0 bg-card shadow-sm">
+									<CardContent className="p-6 sm:p-8">
+										<div className="flex items-center gap-3 mb-4">
+											<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+												<section.icon className="h-5 w-5 text-primary" />
 											</div>
-											<h2 className='font-heading text-lg font-semibold'>{section.title}</h2>
+											<h2 className="font-heading text-lg font-semibold">{section.title}</h2>
 										</div>
-										<div className='text-sm leading-relaxed text-muted-foreground whitespace-pre-line'>
+										<div className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">
 											{section.content}
 										</div>
 									</CardContent>
@@ -257,12 +257,12 @@ export function PrivacyPage() {
 							))}
 						</div>
 
-						<div className='mt-12 text-center'>
-							<p className='text-sm text-muted-foreground'>
+						<div className="mt-12 text-center">
+							<p className="text-sm text-muted-foreground">
 								Questions about privacy?{' '}
 								<Link
-									to='/contact'
-									className='text-primary underline underline-offset-4 hover:text-primary/80'
+									to="/contact"
+									className="text-primary underline underline-offset-4 hover:text-primary/80"
 									onClick={() => trackEvent('privacy_contact_click')}
 								>
 									Contact our privacy team
@@ -275,5 +275,5 @@ export function PrivacyPage() {
 
 			<Footer />
 		</div>
-	)
+	);
 }
