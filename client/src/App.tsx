@@ -184,9 +184,7 @@ const HistoryPage = lazy(() =>
 const CandidatePostHireFeedbackPage = lazy(() =>
 	import('@/pages/candidate/post-hire-feedback').then((m) => ({ default: m.PostHireFeedbackPage })),
 )
-const OfferManagementPage = lazy(() =>
-	import('@/pages/candidate/offer-management').then((m) => ({ default: m.OfferManagementPage })),
-)
+
 const ReferralsPage = lazy(() =>
 	import('@/pages/candidate/referrals').then((m) => ({ default: m.ReferralsPage })),
 )

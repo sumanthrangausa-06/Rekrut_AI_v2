@@ -749,7 +749,7 @@ async function calculateDiversityMetrics(companyId) {
 
 	// Geographic diversity as a proxy: more locations = more diverse
 	const diversityRatio = distinctLocations / total;
-	let score = Math.round(diversityRatio * 100); // max 100, but capped at 0 since this is placeholder
+	const score = Math.round(diversityRatio * 100); // max 100, but capped at 0 since this is placeholder
 
 	return {
 		score: 0, // Stays 0 until we have real demographic data

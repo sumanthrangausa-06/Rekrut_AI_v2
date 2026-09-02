@@ -5,7 +5,7 @@ const { authMiddleware, requireRole } = require('../lib/auth');
 const auditLogService = require('../services/auditLogService');
 const { AuditLogger } = auditLogService;
 const BiasDetection = require('../services/biasDetection');
-const ScoreExplainer = require('../services/scoreExplainer');
+const { explainOmniScore, explainDecision } = require('../services/scoreExplainer');
 
 function canAccessUserRecord(req, userId) {
 	const targetId = Number(userId);
@@ -552,7 +552,7 @@ router.get('/explain/omniscore/:userId', authMiddleware, async (req, res) => {
 	try {
 		const { userId } = req.params;
 
-		const explanation = await ScoreExplainer.explainOmniScore(parseInt(userId, 10));
+		const explanation = await explainOmniScore(parseInt(userId, 10));
 
 		await AuditLogger.log({
 			actionType: 'score_explanation_viewed',
@@ -578,7 +578,7 @@ router.get('/explain/decision/:applicationId', authMiddleware, async (req, res) 
 	try {
 		const { applicationId } = req.params;
 
-		const explanation = await ScoreExplainer.explainDecision(parseInt(applicationId, 10));
+		const explanation = await explainDecision(parseInt(applicationId, 10));
 
 		await AuditLogger.log({
 			actionType: 'decision_explanation_viewed',
