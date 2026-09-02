@@ -189,16 +189,8 @@ export function SettingsPage() {
 		}
 	}, [activeTab, loadConnections])
 
-	async function handleConnectProvider(provider: string) {
-		try {
-			const data = await apiCall<{ url: string; configured: boolean }>(`/auth/oauth/connect/${provider}`)
-			if (data.url) {
-				window.location.href = data.url
-			}
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : `Failed to connect ${provider}`
-			showToast(msg, 'error')
-		}
+	function handleConnectProvider(provider: string) {
+		window.location.href = `/api/auth/oauth/connect/${provider}`
 	}
 
 	async function handleDisconnectProvider(provider: string) {

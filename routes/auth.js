@@ -541,7 +541,7 @@ function verifyOauthState(req, state) {
 
 // ============= OAUTH: GOOGLE =============
 
-// Get Google OAuth URL
+// Get Google OAuth URL — redirects directly to Google
 router.get('/google/url', (req, res) => {
 	const clientId = process.env.GOOGLE_CLIENT_ID;
 	const redirectUri =
@@ -571,7 +571,7 @@ router.get('/google/url', (req, res) => {
 		`&access_type=offline` +
 		`&prompt=consent`;
 
-	res.json({ url, configured: true });
+	res.redirect(url);
 });
 
 // Google OAuth callback
@@ -888,7 +888,7 @@ router.get('/google/callback', async (req, res) => {
 
 // ============= OAUTH: LINKEDIN =============
 
-// Get LinkedIn OAuth URL
+// Get LinkedIn OAuth URL — redirects directly to LinkedIn
 router.get('/linkedin/url', (req, res) => {
 	const clientId = process.env.LINKEDIN_CLIENT_ID;
 	const redirectUri =
@@ -915,7 +915,7 @@ router.get('/linkedin/url', (req, res) => {
 		`&state=${state}` +
 		`&scope=${scope}`;
 
-	res.json({ url, configured: true });
+	res.redirect(url);
 });
 
 // LinkedIn OAuth callback
@@ -1219,7 +1219,7 @@ router.get('/oauth/connect/:provider', authMiddleware, async (req, res) => {
 				`&scope=${scope}`;
 		}
 
-		res.json({ url, configured: true });
+		res.redirect(url);
 	} catch (err) {
 		console.error('OAuth connect initiate error:', err);
 		res.status(500).json({ error: 'Failed to initiate OAuth connection' });

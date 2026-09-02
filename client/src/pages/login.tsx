@@ -228,11 +228,7 @@ export function LoginPage() {
 												className='w-full h-11 gap-2'
 												onClick={async () => {
 																		trackEvent('login_social_click', { provider: 'google' })
-																		try {
-																			const res = await fetch('/api/auth/google/url')
-																			const data = await res.json()
-																			if (data.url) window.location.href = data.url
-																		} catch { window.location.href = '/api/auth/google/url' }
+																		window.location.href = '/api/auth/google/url'
 																	}}
 											>
 												<svg className='h-4 w-4' viewBox='0 0 24 24'>
@@ -263,11 +259,7 @@ export function LoginPage() {
 												className='w-full h-11 gap-2'
 												onClick={async () => {
 																		trackEvent('login_social_click', { provider: 'linkedin' })
-																		try {
-																			const res = await fetch('/api/auth/linkedin/url')
-																			const data = await res.json()
-																			if (data.url) window.location.href = data.url
-																		} catch { window.location.href = '/api/auth/linkedin/url' }
+																		window.location.href = '/api/auth/linkedin/url'
 																	}}
 											>
 												<svg className='h-4 w-4' fill='#0A66C2' viewBox='0 0 24 24'>
