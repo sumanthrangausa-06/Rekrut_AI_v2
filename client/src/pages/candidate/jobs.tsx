@@ -1,39 +1,30 @@
 import {
 	Bookmark,
-	BookmarkPlus,
 	Brain,
 	Briefcase,
 	CheckCircle2,
 	Clock,
 	Filter,
-	Globe,
 	Heart,
 	History,
 	Loader2,
 	MapPin,
 	RotateCcw,
 	Search,
-	SlidersHorizontal,
 	Sparkles,
-	Target,
 	ThumbsUp,
 	TrendingUp,
 	X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { JobFilterValues } from '@/components/candidate';
 import { JobCard, JobFilterBar } from '@/components/candidate';
 import { JobDetailDrawer } from '@/components/domain/job-detail-drawer';
-import { ScoreRing } from '@/components/domain/score-ring';
 import { SEO } from '@/components/SEO';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Tooltip } from '@/components/ui/tooltip';
 import { useAuth } from '@/contexts/auth-context';
 import { useSubscription } from '@/hooks/use-subscription';
 import { trackEvent } from '@/lib/analytics';
@@ -141,14 +132,14 @@ const DEFAULT_FILTERS: FilterState = {
 	matchPreferences: false,
 };
 
-function matchLevelLabel(level: string): string {
+function _matchLevelLabel(level: string): string {
 	if (level === 'excellent') return 'Excellent Match';
 	if (level === 'good') return 'Good Match';
 	if (level === 'fair') return 'Fair Match';
 	return '';
 }
 
-function timeAgo(dateStr: string) {
+function _timeAgo(dateStr: string) {
 	const diff = Date.now() - new Date(dateStr).getTime();
 	const days = Math.floor(diff / 86400000);
 	if (days === 0) return 'Today';
@@ -181,7 +172,7 @@ export function CandidateJobsPage() {
 	// === Filter state ===
 	const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 	const [activeFilterCount, setActiveFilterCount] = useState(0);
-	const [showFiltersMobile, setShowFiltersMobile] = useState(false);
+	const [_showFiltersMobile, setShowFiltersMobile] = useState(false);
 
 	// === AI search ===
 	const [aiSearchMode, setAiSearchMode] = useState(false);
@@ -274,7 +265,7 @@ export function CandidateJobsPage() {
 			setFilters((prev) => ({ ...prev, search: skillParam }));
 			setPage(1);
 		}
-	}, [searchParams]);
+	}, [searchParams, filters.search]);
 
 	// Load recent searches from localStorage
 	useEffect(() => {
@@ -684,7 +675,7 @@ export function CandidateJobsPage() {
 				j.location?.toLowerCase().includes(filters.remoteType.toLowerCase());
 
 			const matchRemoteOnly = !filters.remoteOnly || j.remote_type === 'remote';
-			const matchPreferences =
+			const _matchPreferences =
 				!filters.matchPreferences ||
 				(!userPreferences.remote_preference &&
 					(!userPreferences.preferred_job_types ||
@@ -878,7 +869,7 @@ export function CandidateJobsPage() {
 									<span className="break-words">
 										AI found {aiResults.length} matching jobs for "{aiSearchQuery}"
 									</span>
-									<button
+									<button type="button"
 										className="underline ml-1 hover:text-white shrink-0"
 										onClick={clearAiSearch}
 									>
@@ -934,7 +925,7 @@ export function CandidateJobsPage() {
 							<History className="h-3.5 w-3.5 text-indigo-200 shrink-0" />
 							<span className="text-xs text-indigo-200 shrink-0">Recent:</span>
 							{recentSearches.slice(0, 3).map((rs, i) => (
-								<button
+								<button type="button"
 									key={rs.query || `rs-${i}`}
 									onClick={() => setFilters(rs.filters)}
 									className="text-xs text-white/80 hover:text-white bg-white/10 rounded-full px-2.5 py-1.5 transition-colors whitespace-nowrap flex items-center gap-1 min-h-[44px]"
@@ -955,7 +946,7 @@ export function CandidateJobsPage() {
 					{/* Toolbar with tabs */}
 					<div className="shrink-0 flex items-center justify-between px-4 py-2 border-b bg-background gap-2">
 						<div className="flex items-center gap-1 overflow-x-auto scrollbar-hide min-h-[44px]">
-							<button
+							<button type="button"
 								onClick={() => setActiveTab('all')}
 								className={cn(
 									'px-3 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 min-h-[44px] whitespace-nowrap',
@@ -970,7 +961,7 @@ export function CandidateJobsPage() {
 									{filtered.length}
 								</Badge>
 							</button>
-							<button
+							<button type="button"
 								onClick={() => setActiveTab('liked')}
 								className={cn(
 									'px-3 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 min-h-[44px] whitespace-nowrap',
@@ -987,7 +978,7 @@ export function CandidateJobsPage() {
 									</Badge>
 								)}
 							</button>
-							<button
+							<button type="button"
 								onClick={() => setActiveTab('dismissed')}
 								className={cn(
 									'px-3 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 min-h-[44px] whitespace-nowrap',
@@ -1005,7 +996,7 @@ export function CandidateJobsPage() {
 								)}
 							</button>
 							{activeFilterCount > 0 && (
-								<button
+								<button type="button"
 									onClick={clearAllFilters}
 									className="text-xs text-primary hover:underline flex items-center gap-1 ml-2 min-h-[44px] px-2 shrink-0"
 								>
@@ -1016,7 +1007,7 @@ export function CandidateJobsPage() {
 								<div className="flex items-center gap-1.5 ml-2 shrink-0">
 									<Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 px-2.5 py-1 text-xs font-medium gap-1.5">
 										<span>Skill: {searchParams.get('skill')}</span>
-										<button
+										<button type="button"
 											onClick={clearSkillFilter}
 											className="inline-flex items-center justify-center rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-800/50 p-0.5 transition-colors"
 											aria-label="Clear skill filter"
@@ -1052,7 +1043,7 @@ export function CandidateJobsPage() {
 							onToggleSkill={toggleSkill}
 							onClearAll={clearAllFilters}
 						/>
-						<button
+						<button type="button"
 							onClick={() => setSearch('matchPreferences', !filters.matchPreferences)}
 							title={
 								!userPreferences.remote_preference &&

@@ -126,7 +126,7 @@ export function ActivityFeed({ jobId }: ActivityFeedProps) {
 		setHasMore(true);
 		load(false);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [jobId]);
+	}, [load]);
 
 	return (
 		<div className="space-y-3">
@@ -180,7 +180,7 @@ export function ActivityFeed({ jobId }: ActivityFeedProps) {
 
 					{hasMore && (
 						<div className="flex justify-center pt-2">
-							<button
+							<button type="button"
 								onClick={() => load(true)}
 								disabled={loading}
 								className="text-sm text-primary hover:underline disabled:opacity-50"

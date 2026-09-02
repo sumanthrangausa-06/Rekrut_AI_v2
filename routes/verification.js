@@ -58,7 +58,7 @@ function canAccessCandidate(req, candidateId) {
 /**
  * Helper: get client IP for rate limiting
  */
-function getClientIp(req) {
+function _getClientIp(req) {
 	return req.ip || req.connection?.remoteAddress || 'unknown';
 }
 

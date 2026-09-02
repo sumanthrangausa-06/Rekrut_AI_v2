@@ -119,7 +119,7 @@ export function MockInterviewDebugPage() {
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			const data = await res.json();
 			setDebugData(data);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to run diagnostics');
 		} finally {
 			setLoading(false);
@@ -138,7 +138,7 @@ export function MockInterviewDebugPage() {
 				if (!res.ok) throw new Error(`HTTP ${res.status}`);
 				const data = await res.json();
 				setPerQuestionData(data);
-			} catch (err: any) {
+			} catch (err: unknown) {
 				console.error('Failed to load per-question data:', err);
 			} finally {
 				setLoadingPQ(false);
@@ -238,7 +238,7 @@ export function MockInterviewDebugPage() {
 						<CardContent className="space-y-2">
 							{debugData.tests.map((test, idx) => (
 								<div key={idx} className="border rounded-lg">
-									<button
+									<button type="button"
 										onClick={() => toggleExpand(idx)}
 										className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
 									>

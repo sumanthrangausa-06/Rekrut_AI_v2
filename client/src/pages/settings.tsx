@@ -72,7 +72,7 @@ export function SettingsPage() {
 	// Clear error when switching tabs
 	useEffect(() => {
 		setError('');
-	}, [activeTab]);
+	}, []);
 	const [name, setName] = useState(user?.name || '');
 	const [email, setEmail] = useState(user?.email || '');
 	const [bio, setBio] = useState('');
@@ -215,7 +215,7 @@ export function SettingsPage() {
 				'success',
 			);
 			await loadConnections();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			const msg = err?.message || `Failed to disconnect ${provider}`;
 			if (err?.code === 'LAST_AUTH_METHOD') {
 				showToast(
@@ -510,7 +510,7 @@ export function SettingsPage() {
 							<Globe className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
 						)}
 						<p className="text-sm flex-1">{toast.message}</p>
-						<button
+						<button type="button"
 							onClick={() => dismissToast(toast.id)}
 							className="shrink-0 text-muted-foreground hover:text-foreground min-h-[28px] min-w-[28px] flex items-center justify-center rounded"
 						>

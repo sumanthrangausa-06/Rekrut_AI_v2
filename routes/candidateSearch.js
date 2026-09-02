@@ -94,7 +94,7 @@ function buildSearchWhere(params) {
 	// Experience range
 	if (params.experience_min !== undefined && params.experience_min !== '') {
 		const min = parseInt(params.experience_min, 10);
-		if (!isNaN(min)) {
+		if (!Number.isNaN(min)) {
 			conditions.push(`csi.experience_years >= $${idx}`);
 			queryParams.push(min);
 			idx++;
@@ -102,7 +102,7 @@ function buildSearchWhere(params) {
 	}
 	if (params.experience_max !== undefined && params.experience_max !== '') {
 		const max = parseInt(params.experience_max, 10);
-		if (!isNaN(max)) {
+		if (!Number.isNaN(max)) {
 			conditions.push(`csi.experience_years <= $${idx}`);
 			queryParams.push(max);
 			idx++;
@@ -112,7 +112,7 @@ function buildSearchWhere(params) {
 	// OmniScore minimum
 	if (params.omni_score_min !== undefined && params.omni_score_min !== '') {
 		const min = parseInt(params.omni_score_min, 10);
-		if (!isNaN(min)) {
+		if (!Number.isNaN(min)) {
 			conditions.push(`csi.omni_score >= $${idx}`);
 			queryParams.push(min);
 			idx++;
@@ -430,7 +430,7 @@ router.get('/search/saved', authMiddleware, requireRecruiter, async (req, res) =
 
 router.delete('/search/saved/:id', authMiddleware, requireRecruiter, async (req, res) => {
 	const searchId = parseInt(req.params.id, 10);
-	if (isNaN(searchId)) {
+	if (Number.isNaN(searchId)) {
 		return res.status(400).json({ error: 'Invalid search ID' });
 	}
 
@@ -471,7 +471,7 @@ router.delete('/search/saved/:id', authMiddleware, requireRecruiter, async (req,
 
 router.get('/:id/preview', authMiddleware, requireRecruiter, async (req, res) => {
 	const candidateId = parseInt(req.params.id, 10);
-	if (isNaN(candidateId)) {
+	if (Number.isNaN(candidateId)) {
 		return res.status(400).json({ error: 'Invalid candidate ID' });
 	}
 
@@ -579,7 +579,7 @@ router.get('/:id/preview', authMiddleware, requireRecruiter, async (req, res) =>
 
 router.post('/:id/invite', authMiddleware, requireRecruiter, async (req, res) => {
 	const candidateId = parseInt(req.params.id, 10);
-	if (isNaN(candidateId)) {
+	if (Number.isNaN(candidateId)) {
 		return res.status(400).json({ error: 'Invalid candidate ID' });
 	}
 

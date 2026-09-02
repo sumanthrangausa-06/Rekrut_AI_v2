@@ -640,7 +640,7 @@ export function CandidateProfilePage() {
 		} finally {
 			setLoading(false);
 		}
-	}, []);
+	}, [user?.name, user?.email]);
 
 	useEffect(() => {
 		loadProfile();
@@ -1030,7 +1030,7 @@ export function CandidateProfilePage() {
 						{ key: 'alerts', label: 'Job Alerts', icon: Bell },
 						{ key: 'personal', label: 'Settings', icon: Settings },
 					].map(({ key, label, icon: Icon }) => (
-						<button
+						<button type="button"
 							key={key}
 							onClick={() => setTab(key)}
 							className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 whitespace-nowrap min-h-[44px] ${
@@ -1187,7 +1187,7 @@ function CollapsibleSection({
 	const [open, setOpen] = useResponsiveDefaultOpen();
 	return (
 		<div className="border rounded-xl bg-card">
-			<button
+			<button type="button"
 				onClick={() => setOpen(!open)}
 				className="w-full flex items-center justify-between p-4 hover:bg-muted/50 rounded-xl transition-colors"
 			>
@@ -1752,7 +1752,7 @@ function AvatarUpload({
 					<User className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground" />
 				)}
 			</div>
-			<button
+			<button type="button"
 				onClick={() => fileRef.current?.click()}
 				disabled={uploading}
 				className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -1872,7 +1872,7 @@ function ResumeUpload({
 					</Button>
 				</div>
 			) : (
-				<button
+				<button type="button"
 					onClick={() => fileRef.current?.click()}
 					disabled={uploading}
 					className="flex w-full items-center gap-3 rounded-lg border border-dashed border-muted-foreground/30 px-4 py-6 hover:bg-muted/30 transition-colors"
@@ -2509,7 +2509,7 @@ function ExperienceTab({
 				<div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
 					<div className="fixed inset-0 bg-black/50" onClick={() => setEditing(null)} />
 					<div className="relative z-50 w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] overflow-y-auto border bg-background p-4 sm:p-6 shadow-lg rounded-t-2xl sm:rounded-lg">
-						<button onClick={() => setEditing(null)} className="absolute right-3 top-3">
+						<button type="button" onClick={() => setEditing(null)} className="absolute right-3 top-3">
 							<X className="h-4 w-4" />
 						</button>
 						<h2 className="text-lg font-semibold mb-4">
@@ -2755,7 +2755,7 @@ function EducationTab({
 				<div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
 					<div className="fixed inset-0 bg-black/50" onClick={() => setEditing(null)} />
 					<div className="relative z-50 w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] overflow-y-auto border bg-background p-4 sm:p-6 shadow-lg rounded-t-2xl sm:rounded-lg">
-						<button onClick={() => setEditing(null)} className="absolute right-3 top-3">
+						<button type="button" onClick={() => setEditing(null)} className="absolute right-3 top-3">
 							<X className="h-4 w-4" />
 						</button>
 						<h2 className="text-lg font-semibold mb-4">
@@ -3012,7 +3012,7 @@ function SkillsTab({
 									{showSuggestions && suggestions.length > 0 && (
 										<div className="absolute z-20 mt-1 w-full rounded-md border bg-popover shadow-md max-h-60 overflow-auto">
 											{suggestions.map((s, i) => (
-												<button
+												<button type="button"
 													key={s}
 													onMouseDown={(e) => {
 														e.preventDefault();
@@ -3099,7 +3099,7 @@ function SkillsTab({
 														{skill.endorsements}
 													</Badge>
 												)}
-												<button
+												<button type="button"
 													onClick={() => removeSkill(skill.id)}
 													className="ml-0.5 rounded-full p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all"
 												>

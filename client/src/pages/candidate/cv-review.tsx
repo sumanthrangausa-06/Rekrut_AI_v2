@@ -95,7 +95,7 @@ function SectionAccordion({
 }) {
 	return (
 		<Card className="overflow-hidden">
-			<button
+			<button type="button"
 				onClick={onToggle}
 				className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left"
 			>
@@ -194,7 +194,7 @@ export function CVReviewPage() {
 						});
 					}
 					// pending → keep polling
-				} catch (err: any) {
+				} catch (err: unknown) {
 					clearPoll();
 					setState({
 						kind: 'failed',
@@ -218,7 +218,7 @@ export function CVReviewPage() {
 				method: 'POST',
 			});
 			startPolling(data.analysis_id);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			const code = (err as Error & { code?: string }).code;
 			if (code === 'UPGRADE_REQUIRED') {
 				setState({ kind: 'upgrade_required' });

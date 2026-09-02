@@ -137,7 +137,7 @@ export function AiOnboardingRecruiter() {
 			setLoading(true);
 			const data = await apiCall<OnboardingPlan[]>('/onboarding/plans/list');
 			setPlans(data);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message);
 		} finally {
 			setLoading(false);
@@ -191,7 +191,7 @@ export function AiOnboardingRecruiter() {
 			setCandidateId('');
 			setJobId('');
 			await loadPlans();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to generate plan');
 		} finally {
 			setGenerating(false);
@@ -206,7 +206,7 @@ export function AiOnboardingRecruiter() {
 			// Expand all phases by default
 			const phases = data.phase_progress.map((p) => p.phase);
 			setExpandedPhases(new Set(phases));
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message);
 		} finally {
 			setLoadingPlan(false);
@@ -322,7 +322,7 @@ export function AiOnboardingRecruiter() {
 						return (
 							<Card key={phase.phase}>
 								<CardContent className="p-0">
-									<button
+									<button type="button"
 										onClick={() => togglePhase(phase.phase)}
 										className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
 									>
@@ -404,7 +404,7 @@ export function AiOnboardingRecruiter() {
 				<div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2">
 					<AlertTriangle className="h-4 w-4 shrink-0" />
 					{error}
-					<button onClick={() => setError('')} className="ml-auto text-xs underline">
+					<button type="button" onClick={() => setError('')} className="ml-auto text-xs underline">
 						Dismiss
 					</button>
 				</div>

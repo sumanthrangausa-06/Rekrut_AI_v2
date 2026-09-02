@@ -1242,7 +1242,7 @@ function ActivityFeed({
 					<div className="flex items-center gap-2">
 						<div className="flex gap-0.5 bg-muted rounded-md p-0.5">
 							{(['live', '1h', '24h', '7d'] as const).map((range) => (
-								<button
+								<button type="button"
 									key={range}
 									onClick={() => handleDateRange(range)}
 									className={cn(
@@ -1276,7 +1276,7 @@ function ActivityFeed({
 					</div>
 					<div className="flex gap-1 flex-wrap">
 						{categories.map((cat) => (
-							<button
+							<button type="button"
 								key={cat}
 								onClick={() => setFilter(cat)}
 								className={cn(
@@ -1588,7 +1588,7 @@ function ModuleChainRow({
 
 	return (
 		<div className="border rounded-xl overflow-hidden transition-all hover:shadow-sm">
-			<button
+			<button type="button"
 				onClick={() => setExpanded(!expanded)}
 				className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/30 transition-colors"
 			>
@@ -2625,7 +2625,7 @@ function NlQueryPanel() {
 						"What's our OpenAI vs NIM split?",
 						'Which module had the most failures?',
 					].map((q) => (
-						<button
+						<button type="button"
 							key={q}
 							onClick={() => {
 								setQuestion(q);
@@ -3081,7 +3081,7 @@ export function AiHealthPage() {
 						{tabs.map((tab) => {
 							const TabIcon = tab.icon;
 							return (
-								<button
+								<button type="button"
 									key={tab.id}
 									onClick={() => setActiveTab(tab.id)}
 									className={cn(

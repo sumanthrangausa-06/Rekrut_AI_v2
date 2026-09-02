@@ -39,7 +39,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { apiCall } from '@/lib/api';
@@ -704,7 +703,7 @@ export function RecruiterJobApplicantsPage() {
 														)}
 														<span>{timeAgo(app.applied_at)}</span>
 														{app.cover_letter && <FileText className="h-2.5 w-2.5" />}
-														<button
+														<button type="button"
 															className="text-[10px] text-indigo-600 hover:underline"
 															onClick={(e) => {
 																e.stopPropagation();
@@ -857,7 +856,7 @@ export function RecruiterJobApplicantsPage() {
 																	<FileText className="h-3 w-3" /> Cover letter
 																</span>
 															)}
-															<button
+															<button type="button"
 																className="flex items-center gap-1 text-xs text-indigo-600 hover:underline"
 																onClick={(e) => {
 																	e.stopPropagation();

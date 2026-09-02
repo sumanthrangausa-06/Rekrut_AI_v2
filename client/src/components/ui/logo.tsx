@@ -1,5 +1,4 @@
 import type React from 'react';
-import type React from 'react';
 
 export type LogoSize = 'sm' | 'md' | 'lg' | 'xl';
 

@@ -126,7 +126,7 @@ export function RecruiterJobAssessmentPage() {
 				body: { jobId: Number(jobId) },
 			});
 			setAssessment(data.assessment);
-		} catch (e: any) {
+		} catch (e: unknown) {
 			if (e.message?.includes('already exists')) {
 				loadAssessment();
 			} else {
@@ -298,7 +298,7 @@ export function RecruiterJobAssessmentPage() {
 
 			{/* Tabs */}
 			<div className="flex gap-1 border-b">
-				<button
+				<button type="button"
 					className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
 						tab === 'questions'
 							? 'border-violet-600 text-violet-600'
@@ -308,7 +308,7 @@ export function RecruiterJobAssessmentPage() {
 				>
 					Questions ({assessment.questions?.length || 0})
 				</button>
-				<button
+				<button type="button"
 					className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
 						tab === 'results'
 							? 'border-violet-600 text-violet-600'

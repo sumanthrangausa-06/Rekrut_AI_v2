@@ -20,7 +20,6 @@ import {
 	Shield,
 	Sparkles,
 	Star,
-	Target,
 	TrendingUp,
 	UserCheck,
 	Users,
@@ -34,7 +33,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { RecruiterDashboardSkeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/auth-context';
 import { apiCall } from '@/lib/api';
@@ -211,7 +209,7 @@ function timeAgo(dateStr: string): string {
 }
 
 function buildDailyAppData(
-	apps: RecruiterDashboardData['recent_applications'],
+	apps: RecruiterDashboardData['recent_applications'] | undefined,
 	days = 30,
 ): { label: string; value: number; fullDate: string }[] {
 	const result: { label: string; value: number; fullDate: string }[] = [];
@@ -245,7 +243,7 @@ function buildDailyAppData(
 	return result;
 }
 
-function computeMomChange(apps: RecruiterDashboardData['recent_applications']): {
+function computeMomChange(apps: RecruiterDashboardData['recent_applications'] | undefined): {
 	trend: 'up' | 'down' | 'neutral';
 	change: number;
 } {
@@ -274,7 +272,9 @@ function computeMomChange(apps: RecruiterDashboardData['recent_applications']): 
 	};
 }
 
-function computeHiresThisMonth(apps: RecruiterDashboardData['recent_applications']): number {
+function computeHiresThisMonth(
+	apps: RecruiterDashboardData['recent_applications'] | undefined,
+): number {
 	if (!apps) return 0;
 	const now = new Date();
 	return apps.filter(
@@ -282,7 +282,9 @@ function computeHiresThisMonth(apps: RecruiterDashboardData['recent_applications
 	).length;
 }
 
-function computeAvgTimeToFill(apps: RecruiterDashboardData['recent_applications']): string {
+function computeAvgTimeToFill(
+	apps: RecruiterDashboardData['recent_applications'] | undefined,
+): string {
 	if (!apps) return '—';
 	const hired = apps.filter((a) => a.status === 'hired');
 	if (hired.length === 0) return '—';
@@ -372,7 +374,7 @@ function FunnelChart({
 
 	return (
 		<div className="space-y-2">
-			{stages.map((stage, i) => {
+			{stages.map((stage, _i) => {
 				const pct = total > 0 ? Math.round((stage.count / total) * 100) : 0;
 				const widthPct = Math.max(20, (stage.count / max) * 100);
 				return (
@@ -405,7 +407,7 @@ function FunnelChart({
 	);
 }
 
-function BarChart({
+function _BarChart({
 	data,
 	max,
 }: {
@@ -431,7 +433,7 @@ function BarChart({
 	);
 }
 
-function DonutChart({
+function _DonutChart({
 	data,
 	total,
 }: {
@@ -611,7 +613,7 @@ function ActivityItem({
 		}
 	};
 
-	const initials = activity.actorName
+	const _initials = activity.actorName
 		.split(' ')
 		.map((n) => n[0])
 		.join('')
@@ -924,7 +926,7 @@ export function RecruiterDashboard() {
 						>
 							Upgrade
 						</Button>
-						<button
+						<button type="button"
 							onClick={() => setShowUpgradeBanner(false)}
 							className="shrink-0 text-muted-foreground hover:text-foreground min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md p-2"
 						>

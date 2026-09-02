@@ -9,7 +9,7 @@
 
 const express = require('express');
 const pool = require('../lib/db');
-const { authMiddleware, requireRole } = require('../lib/auth');
+const { authMiddleware } = require('../lib/auth');
 const verificationService = require('../server/services/verification-service');
 const discrepancyService = require('../server/services/discrepancy-service');
 const auditLogService = require('../services/auditLogService');

@@ -30,7 +30,7 @@ export function NotFoundPage() {
 						<Home className="w-4 h-4" />
 						Go Home
 					</Link>
-					<button
+					<button type="button"
 						onClick={() => window.history.back()}
 						className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-muted text-muted-foreground rounded-lg font-medium hover:bg-muted/80 transition-colors"
 					>

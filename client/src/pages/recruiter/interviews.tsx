@@ -234,7 +234,7 @@ export function RecruiterInterviewsPage() {
 				},
 			);
 			setSuggestedSlots(res.slots || []);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			console.error('Smart scheduling error:', err);
 		} finally {
 			setLoadingSlots(false);
@@ -266,7 +266,7 @@ export function RecruiterInterviewsPage() {
 			setShowSchedule(false);
 			resetScheduleForm();
 			await loadData();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to schedule' });
 		} finally {
 			setSaving(false);
@@ -299,7 +299,7 @@ export function RecruiterInterviewsPage() {
 			setTemplateJobId('');
 			setTemplateTitle('');
 			await loadData();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to create template' });
 		} finally {
 			setCreatingTemplate(false);
@@ -324,7 +324,7 @@ export function RecruiterInterviewsPage() {
 				},
 			});
 			await loadData();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to send screening' });
 		}
 	}
@@ -334,7 +334,7 @@ export function RecruiterInterviewsPage() {
 		try {
 			const res = await apiCall<any>(`/interviews/screening/${sessionId}/report`);
 			setShowScreeningReport(res);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to load report' });
 		}
 	}
@@ -349,7 +349,7 @@ export function RecruiterInterviewsPage() {
 			});
 			setShowAiScores(res);
 			await loadData();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to run AI evaluation' });
 		} finally {
 			setEvaluating(null);
@@ -375,7 +375,7 @@ export function RecruiterInterviewsPage() {
 			});
 			setShowFeedback(null);
 			await loadData();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to save feedback' });
 		} finally {
 			setSaving(false);
@@ -387,7 +387,7 @@ export function RecruiterInterviewsPage() {
 		try {
 			await apiCall(`/recruiter/interviews/${id}`, { method: 'DELETE' });
 			await loadData();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to cancel' });
 		}
 	}
@@ -399,7 +399,7 @@ export function RecruiterInterviewsPage() {
 				body: { status },
 			});
 			await loadData();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to update' });
 		}
 	}
@@ -949,7 +949,7 @@ export function RecruiterInterviewsPage() {
 						{suggestedSlots.length > 0 && (
 							<div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
 								{suggestedSlots.map((slot, _i) => (
-									<button
+									<button type="button"
 										key={slot.start}
 										onClick={() => selectSlot(slot)}
 										className="text-left p-2 bg-white rounded border border-blue-100 hover:border-blue-400 hover:bg-blue-50 transition-colors text-xs min-h-[44px]"
@@ -1136,7 +1136,7 @@ export function RecruiterInterviewsPage() {
 						<Label>Rating (1-5)</Label>
 						<div className="flex gap-1 mt-1">
 							{[1, 2, 3, 4, 5].map((n) => (
-								<button
+								<button type="button"
 									key={n}
 									onClick={() => setFbRating(n.toString())}
 									className="p-1 min-h-[44px]"

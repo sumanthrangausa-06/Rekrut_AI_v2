@@ -19,7 +19,7 @@ const { scanFile, logScanEvent } = require('../lib/virus-scanner');
 const {
 	verifyDocument,
 	applyDocumentScoresToOmniScore,
-	logDocumentAccess,
+
 } = require('../services/document-verification');
 
 const router = express.Router();
@@ -223,7 +223,7 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 		});
 	} catch (error) {
 		console.error('[candidate-documents] Upload error:', error);
-		if (error.message && error.message.includes('File upload failed')) {
+		if (error.message?.includes('File upload failed')) {
 			return res.status(502).json({ error: 'File storage service unavailable' });
 		}
 		res.status(500).json({ error: 'Failed to upload document' });

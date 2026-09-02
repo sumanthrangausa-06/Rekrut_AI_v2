@@ -56,7 +56,7 @@ export function Dialog({ open, onOpenChange, onClose, children, className, style
 				)}
 				style={style}
 			>
-				<button
+				<button type="button"
 					onClick={handleClose}
 					className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-sm opacity-70 hover:opacity-100 min-h-[44px] min-w-[44px] flex items-center justify-center"
 				>

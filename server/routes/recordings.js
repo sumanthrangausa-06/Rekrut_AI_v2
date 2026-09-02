@@ -88,7 +88,7 @@ async function canAccessRecording(recordingId, user) {
 /**
  * Check if all participants have consented to recording.
  */
-async function checkAllConsented(recordingId) {
+async function _checkAllConsented(recordingId) {
 	const recording = await livekitService.findRecordingById(recordingId);
 	if (!recording) return { allConsented: false, missing: [] };
 
@@ -138,7 +138,7 @@ function generatePlaybackToken(recordingId, userId, expiresInSeconds = 300) {
 /**
  * Verify a playback token.
  */
-function verifyPlaybackToken(token) {
+function _verifyPlaybackToken(token) {
 	const secret = process.env.JWT_SECRET;
 	if (!secret || !token) return null;
 	try {
@@ -296,7 +296,7 @@ router.post(
 			}
 
 			// Stop LiveKit Egress
-			const egressInfo = await livekitService.stopRoomRecording(recording.livekit_egress_id);
+			const _egressInfo = await livekitService.stopRoomRecording(recording.livekit_egress_id);
 
 			// Poll briefly for completed file info (non-blocking, best effort)
 			let fileLocation = null;
@@ -424,7 +424,7 @@ router.get(
 			const recordingId = parseInt(req.params.id, 10);
 			const user = req.user;
 
-			const { canAccess, recording, event, isRecruiter } = await canAccessRecording(
+			const { canAccess, recording, isRecruiter } = await canAccessRecording(
 				recordingId,
 				user,
 			);
@@ -501,7 +501,7 @@ router.get(
 			const recordingId = parseInt(req.params.id, 10);
 			const user = req.user;
 
-			const { canAccess, recording, isRecruiter } = await canAccessRecording(recordingId, user);
+			const { canAccess, recording } = await canAccessRecording(recordingId, user);
 			if (!canAccess) {
 				return res.status(403).json({ error: 'Not authorized' });
 			}
@@ -602,7 +602,7 @@ router.post(
 				subscriptionId: user.subscription_id,
 			});
 
-			if (!whisperResult || !whisperResult.text) {
+			if (!whisperResult?.text) {
 				await pool.query(
 					`UPDATE interview_recordings SET status = 'completed', updated_at = NOW() WHERE id = $1`,
 					[recordingId],
@@ -837,7 +837,7 @@ router.post(
 			if (segRes.rows.length === 0) {
 				return res.status(404).json({ error: 'Transcript segment not found' });
 			}
-			const { recording_id: recordingId, interview_event_id: eventId } = segRes.rows[0];
+			const { interview_event_id: eventId } = segRes.rows[0];
 
 			// Verify recruiter access to this interview event
 			const eventRes = await pool.query(

@@ -44,7 +44,7 @@ export function CandidateProctoringConsentPage() {
 				// Already consented — redirect to session status
 				navigate(`/candidate/proctoring/${sessionId}`);
 			}
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to load proctoring session');
 		} finally {
 			setLoading(false);
@@ -65,7 +65,7 @@ export function CandidateProctoringConsentPage() {
 			});
 			// Navigate to the session status/in-proctoring page
 			navigate(`/candidate/proctoring/${sessionId}`);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to record consent');
 		} finally {
 			setConsenting(false);

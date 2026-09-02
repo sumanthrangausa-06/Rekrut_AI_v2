@@ -133,7 +133,7 @@ export function SignatureCanvas({ onChange, className }: SignatureCanvasProps) {
 		}
 		const dataUrl = exportToPng();
 		onChange?.(dataUrl);
-	}, [hasDrawn, strokes, exportToPng, onChange]);
+	}, [hasDrawn, exportToPng, onChange]);
 
 	const getPoint = useCallback((e: React.MouseEvent | React.TouchEvent): Point | null => {
 		const canvas = canvasRef.current;

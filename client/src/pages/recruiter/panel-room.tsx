@@ -4,7 +4,6 @@ import {
 	ChevronLeft,
 	Clock,
 	Eye,
-	EyeOff,
 	FileText,
 	Lock,
 	MessageSquare,
@@ -12,7 +11,6 @@ import {
 	Send,
 	Star,
 	Users,
-	XCircle,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -22,8 +20,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/auth-context';
@@ -130,7 +126,7 @@ function RatingStars({
 	return (
 		<div className="flex gap-0.5">
 			{[1, 2, 3, 4, 5].map((n) => (
-				<button
+				<button type="button"
 					key={n}
 					onClick={() => onChange?.(n)}
 					disabled={readonly}
@@ -204,7 +200,7 @@ export function RecruiterPanelRoomPage() {
 		try {
 			const res = await apiCall<{ panel: Panel }>(`/panels/${panelId}`);
 			setPanel(res.panel);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to load panel' });
 		} finally {
 			setLoading(false);
@@ -273,7 +269,7 @@ export function RecruiterPanelRoomPage() {
 				submitted_count: number;
 			}>(`/panels/${panelId}/scorecards`);
 			setAllScorecards(res);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			// 403 expected when not all submitted
 			console.error('Scorecards error:', err);
 		}
@@ -284,7 +280,7 @@ export function RecruiterPanelRoomPage() {
 		try {
 			const res = await apiCall<AggregateResult>(`/panels/${panelId}/aggregate`);
 			setAggregate(res);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Aggregate not available yet' });
 		} finally {
 			setLoadingAggregate(false);
@@ -325,7 +321,7 @@ export function RecruiterPanelRoomPage() {
 			setNoteInput('');
 			await loadNotes();
 			setMessage({ type: 'success', text: 'Note added' });
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to add note' });
 		} finally {
 			setSendingNote(false);
@@ -365,7 +361,7 @@ export function RecruiterPanelRoomPage() {
 			setMessage({ type: 'success', text: 'Scorecard saved' });
 			await loadCriteriaAndScorecard();
 			await loadAllScorecards();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to save scorecard' });
 		} finally {
 			setSavingScorecard(false);
@@ -382,7 +378,7 @@ export function RecruiterPanelRoomPage() {
 			setMessage({ type: 'success', text: 'Scorecard submitted!' });
 			await loadCriteriaAndScorecard();
 			await loadAllScorecards();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to submit scorecard' });
 		} finally {
 			setSubmitting(false);
@@ -563,7 +559,7 @@ export function RecruiterPanelRoomPage() {
 						<Card>
 							<CardContent className="p-4 space-y-3">
 								<div className="flex gap-2 flex-wrap">
-									<button
+									<button type="button"
 										onClick={() => setNoteVisibility('shared')}
 										className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors min-h-[36px] ${
 											noteVisibility === 'shared'
@@ -573,7 +569,7 @@ export function RecruiterPanelRoomPage() {
 									>
 										<MessageSquare className="h-3.5 w-3.5" /> Shared
 									</button>
-									<button
+									<button type="button"
 										onClick={() => setNoteVisibility('private')}
 										className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors min-h-[36px] ${
 											noteVisibility === 'private'
@@ -651,7 +647,7 @@ export function RecruiterPanelRoomPage() {
 						<Card>
 							<CardContent className="p-4 space-y-3">
 								<div className="flex gap-2 flex-wrap">
-									<button
+									<button type="button"
 										onClick={() => {
 											setNoteVisibility('private');
 											setActiveTab('notes');
@@ -742,7 +738,7 @@ export function RecruiterPanelRoomPage() {
 								) : (
 									<div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
 										{Object.entries(recommendationConfig).map(([key, config]) => (
-											<button
+											<button type="button"
 												key={key}
 												onClick={() => setOverallRec(key)}
 												className={`p-2 rounded-lg border text-sm font-medium transition-colors min-h-[44px] ${

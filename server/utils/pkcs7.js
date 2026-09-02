@@ -119,7 +119,7 @@ const u = {
 	sequence: (items) => derTlv(0, 0x10, true, Buffer.concat(items)),
 	set: (items) => derTlv(0, 0x11, true, Buffer.concat(items)),
 	utcTime: (date) => {
-		const s = date.toISOString().replace(/[-:]/g, '').slice(2, 14) + 'Z';
+		const s = `${date.toISOString().replace(/[-:]/g, '').slice(2, 14)}Z`;
 		return derTlv(0, 0x17, false, Buffer.from(s, 'ascii'));
 	},
 	ia5String: (str) => derTlv(0, 0x16, false, Buffer.from(str, 'ascii')),
@@ -253,7 +253,7 @@ function createPKCS7DetachedSignature(documentHash, options) {
 		const certDer = pemToDer(certPem);
 		// For a real implementation we'd parse the issuer name and serial from cert.
 		// Here we use a simplified placeholder that includes the cert hash.
-		const certHash = crypto.createHash(hashAlg).update(certDer).digest();
+		const _certHash = crypto.createHash(hashAlg).update(certDer).digest();
 		issuerSerial = u.sequence([
 			// DirectoryName placeholder
 			u.sequence([]),
@@ -338,7 +338,7 @@ function verifyPKCS7DetachedSignature(
 	pkcs7Input,
 	documentHash,
 	publicKeyOrCert,
-	hashAlg = 'sha256',
+	_hashAlg = 'sha256',
 ) {
 	try {
 		let pkcs7Der;

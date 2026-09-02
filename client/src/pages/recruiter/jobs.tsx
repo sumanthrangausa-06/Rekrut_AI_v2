@@ -258,13 +258,13 @@ export function RecruiterJobsPage() {
 						<option value="draft">Draft</option>
 					</select>
 					<div className="flex rounded-md border overflow-hidden">
-						<button
+						<button type="button"
 							className={`px-3 py-2 text-sm ${viewMode === 'list' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : 'bg-background text-muted-foreground'}`}
 							onClick={() => setViewMode('list')}
 						>
 							<List className="h-4 w-4" />
 						</button>
-						<button
+						<button type="button"
 							className={`px-3 py-2 text-sm ${viewMode === 'grid' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : 'bg-background text-muted-foreground'}`}
 							onClick={() => setViewMode('grid')}
 						>

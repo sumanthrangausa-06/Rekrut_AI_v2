@@ -19,7 +19,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
 import { apiCall } from '@/lib/api';
@@ -120,6 +119,16 @@ export function ScreeningQuestionnairePage() {
 	const questions = questionnaire?.questions || [];
 	const currentQuestion = questions[currentIndex];
 
+	// ─── Load results helper ─────────────────────────────────────────────
+	const loadResults = useCallback(async (rid: number) => {
+		try {
+			const data = await apiCall<ResultResponse>(`/api/questionnaire/result/${rid}`);
+			setResultDetail(data);
+		} catch {
+			// ignore
+		}
+	}, []);
+
 	// ─── Load questionnaire ──────────────────────────────────────────────
 
 	const loadQuestionnaire = useCallback(async () => {
@@ -152,16 +161,7 @@ export function ScreeningQuestionnairePage() {
 		} finally {
 			setLoading(false);
 		}
-	}, [jobId]);
-
-	const loadResults = useCallback(async (rid: number) => {
-		try {
-			const data = await apiCall<ResultResponse>(`/api/questionnaire/result/${rid}`);
-			setResultDetail(data);
-		} catch {
-			// ignore
-		}
-	}, []);
+	}, [jobId, loadResults]);
 
 	useEffect(() => {
 		loadQuestionnaire();
@@ -169,18 +169,16 @@ export function ScreeningQuestionnairePage() {
 
 	// ─── Auto-save every 30s ─────────────────────────────────────────────
 
-	useEffect(() => {
-		if (!started || !responseId || submitted) return;
-
-		autoSaveRef.current = setInterval(() => {
-			handleAutoSave();
-		}, 30000);
-
-		return () => {
-			if (autoSaveRef.current) clearInterval(autoSaveRef.current);
-		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [started, responseId, submitted, answers]);
+	// Get answers that have been touched for the current question + any already saved
+	const getCurrentAnswersForSave = (): Record<string, string | string[] | number> => {
+		const toSave: Record<string, string | string[] | number> = {};
+		for (const q of questions) {
+			if (answers[q.id] !== undefined && answers[q.id] !== '' && answers[q.id] !== null) {
+				toSave[q.id] = answers[q.id];
+			}
+		}
+		return toSave;
+	};
 
 	const handleAutoSave = async () => {
 		if (!responseId || submitted) return;
@@ -200,16 +198,18 @@ export function ScreeningQuestionnairePage() {
 		}
 	};
 
-	// Get answers that have been touched for the current question + any already saved
-	const getCurrentAnswersForSave = (): Record<string, string | string[] | number> => {
-		const toSave: Record<string, string | string[] | number> = {};
-		for (const q of questions) {
-			if (answers[q.id] !== undefined && answers[q.id] !== '' && answers[q.id] !== null) {
-				toSave[q.id] = answers[q.id];
-			}
-		}
-		return toSave;
-	};
+	useEffect(() => {
+		if (!started || !responseId || submitted) return;
+
+		autoSaveRef.current = setInterval(() => {
+			handleAutoSave();
+		}, 30000);
+
+		return () => {
+			if (autoSaveRef.current) clearInterval(autoSaveRef.current);
+		};
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [started, responseId, submitted, handleAutoSave]);
 
 	// ─── Start session ───────────────────────────────────────────────────
 
@@ -654,7 +654,7 @@ export function ScreeningQuestionnairePage() {
 			{/* Question pills */}
 			<div className="flex gap-1.5 flex-wrap">
 				{questions.map((q, i) => (
-					<button
+					<button type="button"
 						key={q.id}
 						onClick={() => goToQuestion(i)}
 						className={`w-8 h-8 rounded-full text-xs font-medium transition-all min-h-[32px] ${

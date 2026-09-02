@@ -599,7 +599,7 @@ export function JobCard({
 				{/* Fit Score Breakdown inline */}
 				{fitScore != null && breakdownEntries.length > 0 && (
 					<div className="mt-3 pt-3 border-t border-border/40">
-						<button
+						<button type="button"
 							onClick={(e) => {
 								e.stopPropagation();
 								setShowFitBreakdown((prev) => !prev);
@@ -660,7 +660,7 @@ export function JobCard({
 					!fitScore &&
 					(job.matching_skills?.length || job.missing_skills?.length || job.explanation) && (
 						<div className="mt-3 pt-3 border-t border-border/40">
-							<button
+							<button type="button"
 								onClick={(e) => {
 									e.stopPropagation();
 									setShowCompactMatch((prev) => !prev);

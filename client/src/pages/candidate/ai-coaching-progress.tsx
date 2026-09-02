@@ -154,7 +154,7 @@ export function HistoryTab({
 			<div className="flex items-center gap-2">
 				<span className="text-sm font-medium text-muted-foreground">Filter:</span>
 				{['all', 'behavioral', 'technical', 'situational'].map((cat) => (
-					<button
+					<button type="button"
 						key={cat}
 						onClick={() => onFilterChange(cat)}
 						className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
@@ -387,7 +387,7 @@ export function HistoryTab({
 												{/* Answer Content Section */}
 												{cd.content && (
 													<div className="border rounded-lg overflow-hidden">
-														<button
+														<button type="button"
 															onClick={() =>
 																setReviewExpanded(reviewExpanded === 'content' ? null : 'content')
 															}
@@ -520,7 +520,7 @@ export function HistoryTab({
 												{/* Communication & Speech Section */}
 												{cd.communication && (
 													<div className="border rounded-lg overflow-hidden">
-														<button
+														<button type="button"
 															onClick={() =>
 																setReviewExpanded(
 																	reviewExpanded === 'communication' ? null : 'communication',
@@ -707,7 +707,7 @@ export function HistoryTab({
 
 												{/* Body Language & Presentation */}
 												<div className="border rounded-lg overflow-hidden">
-													<button
+													<button type="button"
 														onClick={() =>
 															setReviewExpanded(
 																reviewExpanded === 'presentation' ? null : 'presentation',
@@ -959,7 +959,7 @@ export function HistoryTab({
 											<div className="mt-3 space-y-2">
 												{/* Content section */}
 												<div className="border rounded-lg overflow-hidden">
-													<button
+													<button type="button"
 														onClick={() =>
 															setReviewExpanded(reviewExpanded === 'content' ? null : 'content')
 														}
@@ -1047,7 +1047,7 @@ export function HistoryTab({
 
 												{/* Communication section */}
 												<div className="border rounded-lg overflow-hidden">
-													<button
+													<button type="button"
 														onClick={() =>
 															setReviewExpanded(
 																reviewExpanded === 'communication' ? null : 'communication',
@@ -1194,7 +1194,7 @@ export function HistoryTab({
 
 												{/* Presentation section */}
 												<div className="border rounded-lg overflow-hidden">
-													<button
+													<button type="button"
 														onClick={() =>
 															setReviewExpanded(
 																reviewExpanded === 'presentation' ? null : 'presentation',

@@ -6,7 +6,6 @@ import {
 	Gavel,
 	History,
 	Loader2,
-	MessageSquare,
 	Scale,
 	ShieldAlert,
 	Sparkles,
@@ -26,7 +25,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
 	Dialog,
-	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
@@ -168,7 +166,7 @@ export function CandidateAiScreeningPage() {
 			setSelectedScreening((prev) => (prev ? { ...prev, human_review_status: 'requested' } : prev));
 			setShowRequestDialog(false);
 			setRequestReason('');
-		} catch (err: any) {
+		} catch (err: unknown) {
 			console.error('Failed to request review:', err);
 			setRequestError(err?.message || 'Failed to request human review. Please try again.');
 		} finally {
@@ -332,7 +330,7 @@ export function CandidateAiScreeningPage() {
 
 /* ─── Score Bar ─────────────────────────────────────────────────────────── */
 
-function ScoreBar({ label, score, color }: { label: string; score: number; color: string }) {
+function _ScoreBar({ label, score, color }: { label: string; score: number; color: string }) {
 	return (
 		<div className="space-y-1.5">
 			<div className="flex items-center justify-between text-xs">

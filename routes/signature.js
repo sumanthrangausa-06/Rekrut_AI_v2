@@ -84,7 +84,7 @@ async function verifyDocumentOwnership(req, res, next) {
 
 async function verifySignerAccess(req, res, next) {
 	const { id } = req.params;
-	const userId = req.user?.id;
+	const _userId = req.user?.id;
 	const userEmail = req.user?.email;
 
 	try {

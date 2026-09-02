@@ -209,7 +209,7 @@ router.post('/availability', authMiddleware, rateLimits.strict, async (req, res)
 
 		const tMin = new Date(time_min);
 		const tMax = new Date(time_max);
-		if (isNaN(tMin.getTime()) || isNaN(tMax.getTime())) {
+		if (Number.isNaN(tMin.getTime()) || Number.isNaN(tMax.getTime())) {
 			return res.status(400).json({ error: 'Invalid date format' });
 		}
 		if (tMax <= tMin) {

@@ -659,7 +659,7 @@ function CompanyBrandingTab({
 								<Badge key={v} variant="secondary" className="gap-1 pr-1">
 									<Star className="h-3 w-3 text-amber-500" />
 									{v}
-									<button
+									<button type="button"
 										onClick={() => setValues(values.filter((_, idx) => idx !== i))}
 										className="ml-1 hover:text-destructive"
 									>
@@ -689,7 +689,7 @@ function CompanyBrandingTab({
 								<Badge key={b} variant="outline" className="gap-1 pr-1">
 									<Award className="h-3 w-3 text-emerald-500" />
 									{b}
-									<button
+									<button type="button"
 										onClick={() => setBenefits(benefits.filter((_, idx) => idx !== i))}
 										className="ml-1 hover:text-destructive"
 									>
@@ -1024,7 +1024,7 @@ function AuditLogTab() {
 				'/company/audit-log',
 			);
 			setLogs(data.logs || []);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to load audit log');
 		} finally {
 			setLoading(false);

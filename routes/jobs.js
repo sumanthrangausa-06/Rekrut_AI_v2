@@ -6,7 +6,6 @@ const pool = require('../lib/db');
 const {
 	authMiddleware,
 	optionalAuth,
-	requireRole,
 	requireApprovedRecruiter,
 	requireNotSuspended,
 } = require('../lib/auth');

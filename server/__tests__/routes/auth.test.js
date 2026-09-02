@@ -20,7 +20,7 @@ describe('Authentication API', () => {
 			expect(res.body.user).not.toHaveProperty('password');
 		});
 
-		it('rejects duplicate email', async () => {
+		it('rejects duplicate email with secure response', async () => {
 			// First registration
 			await request(app).post('/api/auth/register').send({
 				email: 'duplicate@example.com',
@@ -29,7 +29,7 @@ describe('Authentication API', () => {
 				role: 'candidate',
 			});
 
-			// Duplicate registration
+			// Duplicate registration returns 200 to prevent email enumeration
 			const res = await request(app).post('/api/auth/register').send({
 				email: 'duplicate@example.com',
 				password: TEST_PASSWORD,
@@ -37,8 +37,9 @@ describe('Authentication API', () => {
 				role: 'candidate',
 			});
 
-			expect(res.status).toBe(400);
-			expect(res.body).toHaveProperty('error');
+			expect(res.status).toBe(200);
+			expect(res.body).toHaveProperty('success', true);
+			expect(res.body.message).toMatch(/confirmation/i);
 		});
 
 		it('validates required fields', async () => {

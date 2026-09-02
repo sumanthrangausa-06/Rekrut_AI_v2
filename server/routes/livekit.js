@@ -133,7 +133,7 @@ router.post(
 			}
 
 			const room = await livekitService.findRoomById(roomId);
-			if (!room || room.status !== 'active') {
+			if (room?.status !== 'active') {
 				return res.status(404).json({ error: 'Room not found or closed' });
 			}
 

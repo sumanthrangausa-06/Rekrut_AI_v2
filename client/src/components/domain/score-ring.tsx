@@ -94,7 +94,7 @@ export function ScoreRing({
 		if (score !== displayedScore && !hasAnimated) {
 			setDisplayedScore(animate ? 0 : score);
 		}
-	}, [score]);
+	}, [score, hasAnimated, displayedScore, animate]);
 
 	return (
 		<div

@@ -624,7 +624,7 @@ router.get('/:id/aggregate', authMiddleware, verifyPanelMember, async (req, res)
 		}
 
 		// Compute aggregate recommendation
-		const recommendationOrder = [
+		const _recommendationOrder = [
 			'strong_hire',
 			'hire',
 			'lean_hire',

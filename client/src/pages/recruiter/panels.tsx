@@ -1,14 +1,12 @@
 import {
 	AlertCircle,
 	CheckCircle,
-	ChevronLeft,
 	Clock,
 	Eye,
 	LayoutGrid,
 	MessageSquare,
 	Plus,
 	Settings,
-	Star,
 	Trash2,
 	Users,
 	XCircle,
@@ -21,10 +19,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { apiCall } from '@/lib/api';
 
 interface Panel {
@@ -126,7 +122,7 @@ export function RecruiterPanelsPage() {
 		try {
 			const res = await apiCall<{ panels: Panel[]; total: number }>(`/panels/${jobId}`);
 			setPanels(res.panels || []);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to load panels' });
 		} finally {
 			setLoading(false);
@@ -192,7 +188,7 @@ export function RecruiterPanelsPage() {
 			if (res.panel?.id) {
 				navigate(`/recruiter/panels/${res.panel.id}`);
 			}
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to create panel' });
 		} finally {
 			setCreating(false);
@@ -210,7 +206,7 @@ export function RecruiterPanelsPage() {
 		try {
 			const res = await apiCall<{ panel: { members: any[] } }>(`/panels/${panelId}`);
 			setPanelMembers(res.panel?.members || []);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to load panel members' });
 		} finally {
 			setLoadingMembers(false);
@@ -225,7 +221,7 @@ export function RecruiterPanelsPage() {
 			setShowDelete(null);
 			setMessage({ type: 'success', text: 'Panel deleted' });
 			await loadPanels(selectedJobId);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to delete panel' });
 		} finally {
 			setDeleting(false);
@@ -505,7 +501,7 @@ export function RecruiterPanelsPage() {
 						) : (
 							<div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 max-h-60 overflow-y-auto">
 								{team.map((member) => (
-									<button
+									<button type="button"
 										key={member.id}
 										onClick={() => toggleMember(member.id)}
 										className={`flex items-center gap-2 p-2 rounded-lg border text-left transition-colors min-h-[44px] ${

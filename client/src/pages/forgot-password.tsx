@@ -79,7 +79,7 @@ export function ForgotPasswordPage() {
 							</Button>
 							<p className="text-center text-sm">
 								Didn't receive the email?{' '}
-								<button
+								<button type="button"
 									onClick={() => setSuccess(false)}
 									className="font-medium text-primary hover:underline"
 								>

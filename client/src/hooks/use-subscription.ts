@@ -49,12 +49,6 @@ export function useSubscription() {
 				case 'assessments':
 				case 'ai_coaching':
 					return true;
-				case 'auto_apply':
-				case 'cv_review':
-				case 'linkedin_optimizer':
-				case 'career_diagnosis':
-				case 'recruiter_intros':
-				case 'top_matches':
 				default:
 					return false;
 			}

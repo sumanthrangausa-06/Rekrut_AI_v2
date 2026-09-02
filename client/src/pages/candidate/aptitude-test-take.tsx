@@ -57,7 +57,7 @@ export function CandidateAptitudeTestTakePage() {
 	const [passed, setPassed] = useState(false);
 	const [antiCheatScore, setAntiCheatScore] = useState(100);
 	const [timeLeft, setTimeLeft] = useState(0);
-	const [totalDuration, setTotalDuration] = useState(0);
+	const [_totalDuration, setTotalDuration] = useState(0);
 	const [tabWarningCount, setTabWarningCount] = useState(0);
 	const startTimeRef = useRef(Date.now());
 	const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -189,7 +189,7 @@ export function CandidateAptitudeTestTakePage() {
 		return () => {
 			if (timerRef.current) clearInterval(timerRef.current);
 		};
-	}, [question, completed, handleSubmit]);
+	}, [question, completed, handleSubmit, timeLeft]);
 
 	// Track tab switches
 	useEffect(() => {
@@ -377,7 +377,7 @@ export function CandidateAptitudeTestTakePage() {
 				<CardContent>
 					<div className="space-y-2">
 						{question.options.map((option, i) => (
-							<button
+							<button type="button"
 								key={`${question.id}-${option}-${i}`}
 								onClick={() => setSelectedAnswer(option)}
 								className={`w-full text-left rounded-lg border p-3 text-sm transition-colors min-h-[44px] ${

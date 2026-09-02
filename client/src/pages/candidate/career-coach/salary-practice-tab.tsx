@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 
 interface ChatMessage {
 	role: 'user' | 'ai';
@@ -37,7 +36,7 @@ export function SalaryPracticeTab() {
 		if (scrollRef.current) {
 			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
 		}
-	}, [messages]);
+	}, []);
 
 	async function handleStart() {
 		if (!jobId || !offeredSalary || !targetSalary) return;
@@ -64,7 +63,7 @@ export function SalaryPracticeTab() {
 				},
 			]);
 			setPhase('chat');
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message);
 		} finally {
 			setLoading(false);
@@ -115,7 +114,7 @@ export function SalaryPracticeTab() {
 			if (data.conversationShouldEnd) {
 				await handleFinalize();
 			}
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message);
 		} finally {
 			setLoading(false);
@@ -142,7 +141,7 @@ export function SalaryPracticeTab() {
 			if (!res.ok) throw new Error(data.error || 'Failed to finalize');
 			setFinalResult(data);
 			setPhase('done');
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message);
 		} finally {
 			setLoading(false);

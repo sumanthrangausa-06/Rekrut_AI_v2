@@ -91,7 +91,7 @@ export function LeaderboardPage() {
 			}
 			setHasMore(data.pagination?.has_more ?? false);
 			setTotal(data.pagination?.total ?? 0);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to load leaderboard');
 		} finally {
 			setLoading(false);

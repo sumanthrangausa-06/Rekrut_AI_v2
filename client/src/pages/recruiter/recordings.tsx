@@ -26,7 +26,6 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { useAuth } from '@/contexts/auth-context';
 import { apiCall } from '@/lib/api';
 
 interface Recording {
@@ -85,7 +84,7 @@ function ToastContainer({
 						<AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
 					)}
 					<p className="text-sm flex-1">{toast.message}</p>
-					<button
+					<button type="button"
 						onClick={() => onDismiss(toast.id)}
 						className="shrink-0 text-muted-foreground hover:text-foreground min-h-[28px] min-w-[28px] flex items-center justify-center rounded"
 					>
@@ -149,7 +148,7 @@ export function RecruiterRecordingsPage() {
 	const [toasts, setToasts] = useState<Toast[]>([]);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [transcribingId, setTranscribingId] = useState<number | null>(null);
-	const [deletingId, setDeletingId] = useState<number | null>(null);
+	const [deletingId, _setDeletingId] = useState<number | null>(null);
 	const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
 	const showToast = useCallback((message: string, type: ToastType = 'info') => {
@@ -170,7 +169,7 @@ export function RecruiterRecordingsPage() {
 				'/recruiter/interviews?upcoming_only=false',
 			);
 			setEvents(data.interviews || []);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			console.error('Failed to load events:', err);
 		}
 	}, []);
@@ -187,7 +186,7 @@ export function RecruiterRecordingsPage() {
 				`/interviews/recordings?event_id=${selectedEventId}`,
 			);
 			setRecordings(data.recordings || []);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			showToast(err.message || 'Failed to load recordings', 'error');
 		} finally {
 			setLoading(false);
@@ -219,7 +218,7 @@ export function RecruiterRecordingsPage() {
 			await apiCall(`/interviews/recordings/${recordingId}/transcribe`, { method: 'POST' });
 			showToast('Transcription started', 'success');
 			await loadRecordings();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			showToast(err.message || 'Failed to start transcription', 'error');
 		} finally {
 			setTranscribingId(null);

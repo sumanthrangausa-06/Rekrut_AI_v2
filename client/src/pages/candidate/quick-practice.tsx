@@ -202,7 +202,7 @@ export function QuickPractice({
 						`Got ${label}: ${settings.width || '?'}x${settings.height || '?'} ${at.length > 0 ? '🎙' : ''}`,
 					);
 					break;
-				} catch (err: any) {
+				} catch (err: unknown) {
 					console.warn(`[camera] ${label} error: ${err?.name} ${err?.message}`);
 					setCameraStatus(`${label}: ${err?.name}`);
 					if (err.name === 'NotAllowedError' && !ac) {
@@ -237,7 +237,7 @@ export function QuickPractice({
 					console.log(
 						`[camera] play() succeeded, readyState=${v.readyState}, videoWidth=${v.videoWidth}`,
 					);
-				} catch (e: any) {
+				} catch (e: unknown) {
 					console.warn('[camera] play() failed, retrying:', e?.message);
 					try {
 						await v.play();
@@ -264,7 +264,7 @@ export function QuickPractice({
 					setCameraStatus('Track ended');
 				});
 			}
-		} catch (err: any) {
+		} catch (err: unknown) {
 			console.error('Camera access error:', err?.name, err?.message);
 			setCameraStatus(`Error: ${err?.name} ${err?.message}`);
 			if (err.name === 'NotAllowedError') {
@@ -527,7 +527,7 @@ export function QuickPractice({
 					return false; // signal retry needed
 				}
 				return true; // don't retry on other responses
-			} catch (err: any) {
+			} catch (err: unknown) {
 				if (err.name === 'AbortError' || abortController.signal.aborted) {
 					if (attempt === 1) return false; // retry on timeout
 					alert(
@@ -581,7 +581,7 @@ export function QuickPractice({
 				setTextCoaching(res.coaching);
 				onSessionComplete();
 			}
-		} catch (err: any) {
+		} catch (err: unknown) {
 			if (err.name === 'AbortError' || abortController.signal.aborted) {
 				alert('Analysis is taking longer than expected. Please try again.');
 			} else {
@@ -764,7 +764,7 @@ export function QuickPractice({
 										How would you like to respond?
 									</p>
 									<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-										<button
+										<button type="button"
 											onClick={() => setResponseMode('video')}
 											className="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-primary/20 hover:border-primary/50 hover:bg-primary/5 transition-all group"
 										>
@@ -780,7 +780,7 @@ export function QuickPractice({
 											<Badge className="bg-primary/10 text-primary border-0">Recommended</Badge>
 										</button>
 
-										<button
+										<button type="button"
 											onClick={() => setResponseMode('text')}
 											className="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-muted hover:border-muted-foreground/30 hover:bg-muted/50 transition-all group"
 										>
@@ -1188,7 +1188,7 @@ export function QuickPractice({
 
 									{!isRecording && !recordingDone && !submitting && !cameraError && (
 										<div className="text-center">
-											<button
+											<button type="button"
 												onClick={() => {
 													stopCamera();
 													setResponseMode('select');
@@ -1318,7 +1318,7 @@ export function QuickPractice({
 							<div className="mt-4 space-y-2">
 								{/* Content Analysis */}
 								<div className="border rounded-lg overflow-hidden">
-									<button
+									<button type="button"
 										onClick={() =>
 											setExpandedSection(expandedSection === 'content' ? null : 'content')
 										}
@@ -1402,7 +1402,7 @@ export function QuickPractice({
 
 								{/* Communication Analysis */}
 								<div className="border rounded-lg overflow-hidden">
-									<button
+									<button type="button"
 										onClick={() =>
 											setExpandedSection(
 												expandedSection === 'communication' ? null : 'communication',
@@ -1576,7 +1576,7 @@ export function QuickPractice({
 
 								{/* Presentation Analysis */}
 								<div className="border rounded-lg overflow-hidden">
-									<button
+									<button type="button"
 										onClick={() =>
 											setExpandedSection(expandedSection === 'presentation' ? null : 'presentation')
 										}

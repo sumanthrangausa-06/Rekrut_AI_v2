@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const fs = require('fs');
+const fs = require('node:fs');
 
 const RECRUITER_STORAGE = 'e2e/.auth/recruiter.json';
 const CANDIDATE_STORAGE = 'e2e/.auth/candidate.json';

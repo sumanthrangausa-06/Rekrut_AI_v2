@@ -1,21 +1,10 @@
-import {
-	ChevronDown,
-	ChevronUp,
-	DollarSign,
-	Globe,
-	MapPin,
-	RotateCcw,
-	SlidersHorizontal,
-	Tag,
-	X,
-} from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { DollarSign, Globe, MapPin, RotateCcw, SlidersHorizontal, Tag } from 'lucide-react';
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 
 export interface JobFilterValues {
@@ -42,7 +31,7 @@ interface JobFilterBarProps {
 	onClearAll: () => void;
 }
 
-function SalaryLabel({ value }: { value: number }) {
+function _SalaryLabel({ value }: { value: number }) {
 	return (
 		<span className="text-xs font-medium text-muted-foreground">${(value / 1000).toFixed(0)}k</span>
 	);
@@ -102,7 +91,7 @@ export function JobFilterBar({
 				</div>
 
 				{/* Remote toggle */}
-				<button
+				<button type="button"
 					onClick={() => onFilterChange('remoteOnly', !filters.remoteOnly)}
 					className={cn(
 						'flex items-center gap-1.5 h-9 px-3 rounded-md border text-xs font-medium transition-colors whitespace-nowrap',
@@ -160,7 +149,7 @@ export function JobFilterBar({
 
 				{/* Active filter badge + clear */}
 				{activeFilterCount > 0 && (
-					<button
+					<button type="button"
 						onClick={onClearAll}
 						className="text-xs text-indigo-600 hover:underline flex items-center gap-1 ml-1 shrink-0"
 					>
@@ -267,7 +256,7 @@ export function JobFilterBar({
 
 						{/* Remote toggle */}
 						<div>
-							<button
+							<button type="button"
 								onClick={() => onFilterChange('remoteOnly', !filters.remoteOnly)}
 								className={cn(
 									'w-full flex items-center justify-between h-14 px-4 rounded-xl border transition-colors',
@@ -357,7 +346,7 @@ export function JobFilterBar({
 								</label>
 								<div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
 									{allSkills.map((skill) => (
-										<button
+										<button type="button"
 											key={skill}
 											onClick={() => onToggleSkill(skill)}
 											className={cn(
@@ -405,7 +394,7 @@ function MobileRadioOption({
 	onClick: () => void;
 }) {
 	return (
-		<button
+		<button type="button"
 			onClick={onClick}
 			className={cn(
 				'w-full flex items-center gap-3 h-12 px-3 rounded-lg border transition-colors text-left',

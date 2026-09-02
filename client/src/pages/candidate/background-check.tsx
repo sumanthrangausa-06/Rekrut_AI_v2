@@ -158,7 +158,7 @@ export function CandidateBackgroundCheckPage() {
 	const [education, setEducation] = useState<EducationEntry[]>([]);
 	const [verifications, setVerifications] = useState<VerificationRequest[]>([]);
 	const [discrepancies, setDiscrepancies] = useState<Discrepancy[]>([]);
-	const [references, setReferences] = useState<ReferenceCheck[]>([]);
+	const [_references, setReferences] = useState<ReferenceCheck[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [activeTab, setActiveTab] = useState('employment');
 	const [error, setError] = useState<string | null>(null);
@@ -199,7 +199,7 @@ export function CandidateBackgroundCheckPage() {
 	useEffect(() => {
 		if (!candidateId) return;
 		loadAll();
-	}, [candidateId]);
+	}, [candidateId, loadAll]);
 
 	async function loadAll() {
 		if (!candidateId) return;

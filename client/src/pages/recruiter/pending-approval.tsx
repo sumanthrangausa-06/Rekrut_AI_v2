@@ -58,7 +58,7 @@ export function RecruiterPendingApprovalPage() {
 			setNextCheckIn((prev) => (prev > 0 ? prev - 1 : 30));
 		}, 1000);
 		return () => clearInterval(timer);
-	}, [lastChecked]);
+	}, []);
 
 	// Manual refresh handler
 	const handleManualRefresh = async () => {

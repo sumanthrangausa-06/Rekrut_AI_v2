@@ -976,7 +976,7 @@ export function CandidateOmniScorePage() {
 											</span>
 											<div className="flex gap-1">
 												{[1, 2, 3, 4, 5].map((val) => (
-													<button
+													<button type="button"
 														key={val}
 														onClick={() => setRatings((r) => ({ ...r, [key]: val }))}
 														className="p-0.5 hover:scale-110 transition-transform"

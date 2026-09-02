@@ -344,7 +344,7 @@ export function AssessmentTakePage() {
 					{question.type === 'multiple_choice' && question.options ? (
 						<div className="space-y-2">
 							{question.options.map((option, i) => (
-								<button
+								<button type="button"
 									key={option}
 									onClick={() => setSelectedAnswer(option)}
 									className={`w-full text-left rounded-lg border p-3 text-sm transition-colors min-h-[44px] ${

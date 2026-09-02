@@ -177,7 +177,7 @@ export function CalendarPicker({
 					const isTodayDate = isToday(day);
 
 					return (
-						<button
+						<button type="button"
 							key={day}
 							disabled={disabled || disabled}
 							onClick={() => handleDateClick(day)}

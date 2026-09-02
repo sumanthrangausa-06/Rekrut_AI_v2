@@ -383,7 +383,9 @@ function calcEducationCredentials(data) {
 	details.push(`Education quality (+${degreePts})`);
 
 	// GPA bonus (max 10)
-	const gpas = data.education.map((e) => parseFloat(e.gpa)).filter((g) => !isNaN(g) && g > 0);
+	const gpas = data.education
+		.map((e) => parseFloat(e.gpa))
+		.filter((g) => !Number.isNaN(g) && g > 0);
 	if (gpas.length > 0) {
 		const avgGpa = gpas.reduce((a, b) => a + b, 0) / gpas.length;
 		const gpaPts = Math.min(10, avgGpa * 2.5);
@@ -597,7 +599,7 @@ function calcGrowthTrajectory(data) {
 }
 
 // ─── Fraud Detection Heuristics ─────────────────────────────
-function detectFraudSignals(userId, data, factors) {
+function detectFraudSignals(_userId, data, factors) {
 	const signals = [];
 
 	// 1. Resume inflation: self-reported skills vs verified ratio

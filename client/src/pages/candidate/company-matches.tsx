@@ -382,7 +382,7 @@ export function CompanyMatchesPage() {
 				? `${p.headline}${p.bio ? ` — ${p.bio.slice(0, 200)}` : ''}`
 				: p.bio || '';
 			setPositioning(defaultPositioning);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err?.message || 'Failed to load profile');
 		} finally {
 			setProfileLoading(false);
@@ -400,7 +400,7 @@ export function CompanyMatchesPage() {
 			setMatches(data.matches || []);
 			setMatchesPage(data.page || 1);
 			setMatchesTotalPages(data.totalPages || 1);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			const code = (err as Error & { code?: string }).code;
 			if (code === 'UPGRADE_REQUIRED') {
 				setStep(0); // Will show upgrade UI
@@ -424,7 +424,7 @@ export function CompanyMatchesPage() {
 			);
 			setAnalysis(data);
 			setStep(3);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err?.message || 'Failed to analyze company');
 		} finally {
 			setAnalysisLoading(false);
@@ -443,7 +443,7 @@ export function CompanyMatchesPage() {
 			);
 			setOutreach(data);
 			setStep(4);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err?.message || 'Failed to generate outreach strategy');
 		} finally {
 			setOutreachLoading(false);
@@ -747,7 +747,7 @@ export function CompanyMatchesPage() {
 														</div>
 
 														{/* Expandable Match Reason */}
-														<button
+														<button type="button"
 															onClick={(e) => {
 																e.stopPropagation();
 																setExpandedMatchId(expandedMatchId === match.id ? null : match.id);

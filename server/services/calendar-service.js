@@ -252,7 +252,7 @@ async function buildInterviewEventPayload(event) {
 		...(event.panel_member_ids || []),
 	].filter((v, i, a) => a.indexOf(v) === i);
 	const users = await getUserDetails(userIds);
-	const userMap = new Map(users.map((u) => [u.id, u]));
+	const _userMap = new Map(users.map((u) => [u.id, u]));
 
 	// Fetch job title via job_application -> job
 	let jobTitle = 'Interview';

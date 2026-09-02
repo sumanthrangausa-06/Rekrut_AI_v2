@@ -84,7 +84,7 @@ router.post(
 	asyncHandler(async (req, res) => {
 		const { targetRole, yearsAhead } = req.body;
 
-		const { result, jobs, candidate } = await generateCareerPaths(req.user.id, {
+		const { result } = await generateCareerPaths(req.user.id, {
 			targetRole,
 			yearsAhead,
 		});
@@ -129,7 +129,7 @@ router.post(
 	asyncHandler(async (req, res) => {
 		const { targetRole } = req.body;
 
-		const { result, jobs, candidate } = await analyzeSkillGaps(req.user.id, { targetRole });
+		const { result } = await analyzeSkillGaps(req.user.id, { targetRole });
 
 		const sessionId = await saveSession(req.user.id, 'skill_gap', { targetRole }, result);
 		await incrementUsage(req.user.id, 'ai_coaching');

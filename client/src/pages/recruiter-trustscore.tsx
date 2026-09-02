@@ -145,7 +145,7 @@ function ToastContainer({
 						<AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
 					)}
 					<p className="text-sm flex-1">{toast.message}</p>
-					<button
+					<button type="button"
 						onClick={() => onDismiss(toast.id)}
 						className="shrink-0 text-muted-foreground hover:text-foreground min-h-[28px] min-w-[28px] flex items-center justify-center rounded"
 					>
@@ -166,7 +166,7 @@ function scoreColorClass(score: number, max: number): string {
 	return 'text-red-400';
 }
 
-function progressColorClass(score: number, max: number): string {
+function _progressColorClass(score: number, max: number): string {
 	const pct = max > 0 ? score / max : 0;
 	if (pct >= 0.8) return 'bg-green-500';
 	if (pct >= 0.5) return 'bg-yellow-500';
@@ -237,7 +237,7 @@ export function RecruiterTrustscorePage() {
 			]);
 			setTrustscore(tsData.trustscore);
 			setBreakdown(bdData);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to load TrustScore data');
 			showToast(err.message || 'Failed to load TrustScore data', 'error');
 		} finally {
@@ -267,7 +267,7 @@ export function RecruiterTrustscorePage() {
 					<AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
 					<h2 className="text-xl font-bold mb-2">Failed to load TrustScore</h2>
 					<p className="text-muted-foreground mb-4">{error || 'Something went wrong'}</p>
-					<button
+					<button type="button"
 						onClick={loadData}
 						className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
 					>

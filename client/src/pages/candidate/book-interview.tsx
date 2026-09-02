@@ -97,7 +97,7 @@ export function BookInterviewPage() {
 			);
 			setInterview(res.interview);
 			trackEvent('candidate_book_interview_view', { interviewId: Number(interviewId) });
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to load interview details');
 		} finally {
 			setLoading(false);
@@ -126,7 +126,7 @@ export function BookInterviewPage() {
 				interviewId: interview.id,
 				slotId: selectedSlotId,
 			});
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to confirm interview');
 		} finally {
 			setConfirming(false);
@@ -309,7 +309,7 @@ export function BookInterviewPage() {
 						{offeredSlots.map((slot) => {
 							const isSelected = selectedSlotId === slot.id;
 							return (
-								<button
+								<button type="button"
 									key={slot.id}
 									onClick={() => setSelectedSlotId(slot.id)}
 									className={`text-left p-4 rounded-xl border-2 transition-all ${

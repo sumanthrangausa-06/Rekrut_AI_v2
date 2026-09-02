@@ -70,7 +70,7 @@ function SheetTitle({ children, className }: { children: React.ReactNode; classN
 function SheetClose({ className }: { className?: string }) {
 	const ctx = React.useContext(SheetContext);
 	return (
-		<button
+		<button type="button"
 			onClick={ctx.onClose}
 			className={cn(
 				'rounded-sm opacity-70 hover:opacity-100 transition-opacity min-h-[44px] min-w-[44px] flex items-center justify-center',

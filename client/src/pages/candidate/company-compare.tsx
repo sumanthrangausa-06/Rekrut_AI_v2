@@ -64,7 +64,7 @@ interface LeaderboardCompany {
 
 // ─── Helpers ────────────────────────────────────────────────
 
-const tierColors: Record<string, string> = {
+const _tierColors: Record<string, string> = {
 	exceptional: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/30',
 	excellent: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
 	trusted: 'bg-green-500/10 text-green-600 border-green-500/30',
@@ -97,7 +97,7 @@ export function CompanyComparePage() {
 	const selectedIds = idsParam
 		.split(',')
 		.map((id) => parseInt(id.trim(), 10))
-		.filter((id) => !isNaN(id) && id > 0);
+		.filter((id) => !Number.isNaN(id) && id > 0);
 
 	const [comparison, setComparison] = useState<ComparisonResponse | null>(null);
 	const [loading, setLoading] = useState(false);
@@ -121,7 +121,7 @@ export function CompanyComparePage() {
 				`/trustscore/compare?company_ids=${selectedIds.join(',')}`,
 			);
 			setComparison(data);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to load comparison');
 		} finally {
 			setLoading(false);
@@ -226,7 +226,7 @@ export function CompanyComparePage() {
 						)}
 						<div className="space-y-2 max-h-64 overflow-y-auto">
 							{searchResults.map((c) => (
-								<button
+								<button type="button"
 									key={c.company_id}
 									onClick={() => addCompany(c.company_id)}
 									className="w-full flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors text-left"
@@ -292,7 +292,7 @@ export function CompanyComparePage() {
 					<div className="flex-1">
 						<p className="text-sm font-medium text-red-800">{error}</p>
 					</div>
-					<button onClick={() => setError(null)} className="shrink-0">
+					<button type="button" onClick={() => setError(null)} className="shrink-0">
 						<X className="h-4 w-4 text-red-600" />
 					</button>
 				</div>
@@ -321,7 +321,7 @@ export function CompanyComparePage() {
 							{searchResults
 								.filter((c) => !selectedIds.includes(c.company_id))
 								.map((c) => (
-									<button
+									<button type="button"
 										key={c.company_id}
 										onClick={() => addCompany(c.company_id)}
 										className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors text-left"
@@ -371,7 +371,7 @@ export function CompanyComparePage() {
 						{comparison.companies.map((company) => (
 							<Card key={company.id} className="overflow-hidden">
 								<CardContent className="p-4 text-center relative">
-									<button
+									<button type="button"
 										onClick={() => removeCompany(company.id)}
 										className="absolute top-2 right-2 p-1 rounded hover:bg-muted text-muted-foreground"
 										aria-label="Remove company"

@@ -52,6 +52,7 @@ export function LinkedInOptimizerPage() {
 	const [loading, setLoading] = useState(true);
 	const [result, setResult] = useState<LinkedInTipsResult | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [activeTab, setActiveTab] = useState('tips');
 
 	const loadTips = useCallback(async () => {
 		setLoading(true);
@@ -65,7 +66,7 @@ export function LinkedInOptimizerPage() {
 			} else {
 				setError(res.error || 'Failed to load LinkedIn tips.');
 			}
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err?.message || 'Failed to load LinkedIn tips.');
 		} finally {
 			setLoading(false);
@@ -228,7 +229,7 @@ export function LinkedInOptimizerPage() {
 			</Card>
 
 			{/* Tabs */}
-			<Tabs defaultValue="tips">
+			<Tabs value={activeTab} onValueChange={setActiveTab}>
 				<TabsList>
 					<TabsTrigger value="tips">
 						<Lightbulb className="h-4 w-4 mr-1.5" />

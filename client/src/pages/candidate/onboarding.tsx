@@ -1445,12 +1445,12 @@ export function CandidateOnboardingPage() {
 			) {
 				loadAIPrefill();
 			}
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message);
 		} finally {
 			setLoading(false);
 		}
-	}, []);
+	}, [loadAIPrefill]);
 
 	useEffect(() => {
 		loadProgress();
@@ -1632,7 +1632,7 @@ export function CandidateOnboardingPage() {
 				body: { checklist_id: progress.checklist.id, step, data },
 			});
 			return true;
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message);
 			return false;
 		} finally {
@@ -1671,7 +1671,7 @@ export function CandidateOnboardingPage() {
 				},
 			);
 			setDocuments(res.documents);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message);
 		} finally {
 			setGeneratingDocs(false);
@@ -1697,7 +1697,7 @@ export function CandidateOnboardingPage() {
 			});
 			setCurrentStep(6);
 			await loadProgress();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message);
 		} finally {
 			setSigning(false);
@@ -1802,7 +1802,7 @@ export function CandidateOnboardingPage() {
 					</p>
 					<p className="text-sm text-muted-foreground mt-4">
 						Switch to the{' '}
-						<button
+						<button type="button"
 							onClick={() => setActiveView('ai-plan')}
 							className="text-primary underline font-medium"
 						>
@@ -1815,7 +1815,7 @@ export function CandidateOnboardingPage() {
 		);
 	}
 
-	const checklist = progress.checklist ?? [];
+	const checklist = progress.checklist as ChecklistData;
 	const wizard = progress.wizard;
 
 	// ─── Completed ────────────────────────────────────────────────────
@@ -1970,7 +1970,7 @@ export function CandidateOnboardingPage() {
 								{i > 0 && (
 									<div className={`h-px w-3 sm:w-6 ${isComplete ? 'bg-primary' : 'bg-border'}`} />
 								)}
-								<button
+								<button type="button"
 									onClick={() => {
 										if (isComplete || isCurrent) setCurrentStep(step.id);
 									}}

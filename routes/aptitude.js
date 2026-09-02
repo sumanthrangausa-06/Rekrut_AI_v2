@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
-const { rateLimits } = require('../lib/distributed-rate-limiter');
 const { AuditLogger } = require('../services/auditLogService');
 
 const RECRUITER_ROLES = ['employer', 'recruiter', 'hiring_manager', 'admin'];
@@ -662,7 +661,7 @@ router.get('/aptitude-tests/attempt/:id', authMiddleware, async (req, res) => {
  * GET /recruiter/aptitude-tests
  * List all aptitude tests.
  */
-router.get('/recruiter/aptitude-tests', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/recruiter/aptitude-tests', authMiddleware, requireRecruiter, async (_req, res) => {
 	try {
 		const result = await pool.query(
 			`

@@ -4,8 +4,6 @@
 import {
 	AlertCircle,
 	Brain,
-	Camera,
-	CameraOff,
 	Expand,
 	FileText,
 	Hand,
@@ -118,7 +116,7 @@ export function InterviewActiveLayout({
 	const [controlsMobileOpen, setControlsMobileOpen] = useState(false);
 	const [isFullscreen, setIsFullscreen] = useState(false);
 	const [isVideoOn, setIsVideoOn] = useState(true);
-	const [isMicOn, setIsMicOn] = useState(true);
+	const [_isMicOn, setIsMicOn] = useState(true);
 	const [showReactions, setShowReactions] = useState(false);
 	const [raisedHand, setRaisedHand] = useState(false);
 	const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -142,7 +140,7 @@ export function InterviewActiveLayout({
 	// Auto-scroll chat
 	useEffect(() => {
 		chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-	}, [mockSession.conversation.length, mockLiveTranscript, voiceProcessing, chatEndRef]);
+	}, [chatEndRef]);
 
 	// Fullscreen toggle
 	const toggleFullscreen = () => {
@@ -498,7 +496,7 @@ export function InterviewActiveLayout({
 								<div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-300 text-xs">
 									<AlertCircle className="h-3 w-3" />
 									<span className="max-w-[200px] sm:max-w-sm truncate">{voiceError}</span>
-									<button
+									<button type="button"
 										onClick={() => setVoiceError(null)}
 										className="ml-1 text-red-400 hover:text-red-200"
 									>
@@ -543,7 +541,7 @@ export function InterviewActiveLayout({
 				<div className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl">
 					{/* Mic */}
 					<Tooltip content={candidateRecording ? 'Stop recording' : 'Start speaking'}>
-						<button
+						<button type="button"
 							onClick={toggleMic}
 							className={cn(
 								'h-11 w-11 rounded-xl flex items-center justify-center transition-all duration-200',
@@ -558,7 +556,7 @@ export function InterviewActiveLayout({
 
 					{/* Video */}
 					<Tooltip content={mockCameraReady ? 'Turn off camera' : 'Turn on camera'}>
-						<button
+						<button type="button"
 							onClick={toggleVideo}
 							className={cn(
 								'h-11 w-11 rounded-xl flex items-center justify-center transition-all duration-200',
@@ -574,7 +572,7 @@ export function InterviewActiveLayout({
 					{/* Reactions */}
 					<div className="relative">
 						<Tooltip content="Reactions">
-							<button
+							<button type="button"
 								onClick={() => setShowReactions(!showReactions)}
 								className="h-11 w-11 rounded-xl flex items-center justify-center bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all duration-200"
 							>
@@ -585,7 +583,7 @@ export function InterviewActiveLayout({
 						{showReactions && (
 							<div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-2 rounded-xl bg-black/80 backdrop-blur-xl border border-white/10 shadow-xl flex gap-1">
 								{reactions.map((r) => (
-									<button
+									<button type="button"
 										key={r}
 										onClick={() => setShowReactions(false)}
 										className="h-8 w-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-lg transition-colors"
@@ -599,7 +597,7 @@ export function InterviewActiveLayout({
 
 					{/* Screen Share */}
 					<Tooltip content="Screen share (coming soon)">
-						<button
+						<button type="button"
 							disabled
 							className="h-11 w-11 rounded-xl flex items-center justify-center bg-white/5 text-white/30 cursor-not-allowed transition-all duration-200"
 						>
@@ -609,7 +607,7 @@ export function InterviewActiveLayout({
 
 					{/* Hand raise */}
 					<Tooltip content={raisedHand ? 'Lower hand' : 'Raise hand'}>
-						<button
+						<button type="button"
 							onClick={() => setRaisedHand(!raisedHand)}
 							className={cn(
 								'h-11 w-11 rounded-xl flex items-center justify-center transition-all duration-200',
@@ -627,7 +625,7 @@ export function InterviewActiveLayout({
 
 					{/* Effects */}
 					<Tooltip content="Effects (coming soon)">
-						<button
+						<button type="button"
 							disabled
 							className="h-11 w-11 rounded-xl flex items-center justify-center bg-white/5 text-white/30 cursor-not-allowed transition-all duration-200"
 						>
@@ -637,7 +635,7 @@ export function InterviewActiveLayout({
 
 					{/* Settings */}
 					<Tooltip content="Settings">
-						<button className="h-11 w-11 rounded-xl flex items-center justify-center bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all duration-200">
+						<button type="button" className="h-11 w-11 rounded-xl flex items-center justify-center bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all duration-200">
 							<Settings className="h-5 w-5" />
 						</button>
 					</Tooltip>
@@ -647,7 +645,7 @@ export function InterviewActiveLayout({
 
 					{/* End Call */}
 					<Tooltip content="End interview">
-						<button
+						<button type="button"
 							onClick={endMockInterview}
 							className="h-11 px-5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium shadow-lg shadow-red-600/30 flex items-center gap-2 transition-all duration-200 hover:scale-105"
 						>
@@ -780,7 +778,7 @@ function MobileControlButton({
 	disabled?: boolean;
 }) {
 	return (
-		<button
+		<button type="button"
 			onClick={onClick}
 			disabled={disabled}
 			className={cn(
@@ -827,7 +825,7 @@ function ChatPanelContent({
 		if (scrollRef.current) {
 			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
 		}
-	}, [conversation.length, mockLiveTranscript, voiceProcessing]);
+	}, []);
 
 	return (
 		<>
@@ -882,10 +880,10 @@ function ChatPanelContent({
 					<div className="flex items-end gap-2">
 						{/* Attachment / formatting icons */}
 						<div className="flex items-center gap-1 shrink-0 pb-1">
-							<button className="h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors">
+							<button type="button" className="h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors">
 								<FileText className="h-4 w-4" />
 							</button>
-							<button className="h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors">
+							<button type="button" className="h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors">
 								<Smile className="h-4 w-4" />
 							</button>
 						</div>

@@ -23,7 +23,7 @@ const JUDGE0_API_URL = process.env.JUDGE0_API_URL || 'http://localhost:2358';
 const JUDGE0_AUTH_TOKEN = process.env.JUDGE0_AUTH_TOKEN || null;
 
 const MAX_SOURCE_CODE_SIZE = 64 * 1024;
-const MAX_STDIN_SIZE = 8 * 1024;
+const _MAX_STDIN_SIZE = 8 * 1024;
 const MAX_CPU_TIME_SECONDS = 15;
 const MAX_MEMORY_KB = 512 * 1024;
 const MAX_OUTPUT_SIZE = 16 * 1024;
@@ -46,7 +46,7 @@ const JUDGE0_FALLBACK_IDS = {
 };
 
 // Judge0 Status IDs
-const JUDGE0_STATUS = {
+const _JUDGE0_STATUS = {
 	1: { id: 1, description: 'In Queue' },
 	2: { id: 2, description: 'Processing' },
 	3: { id: 3, description: 'Accepted' },
@@ -263,7 +263,7 @@ async function gradeSubmission(submissionId) {
 			});
 
 			// Short-circuit on compilation error
-			if (errorMessage && errorMessage.startsWith('Compilation Error')) {
+			if (errorMessage?.startsWith('Compilation Error')) {
 				break;
 			}
 		}
@@ -407,7 +407,7 @@ async function runSampleTests(templateId, codeText, language) {
 			errorMessage,
 		});
 
-		if (errorMessage && errorMessage.startsWith('Compilation Error')) {
+		if (errorMessage?.startsWith('Compilation Error')) {
 			break;
 		}
 	}
@@ -518,7 +518,7 @@ Be specific. Reference actual code patterns, variable names, and logic.`;
  * Save AI review to a submission.
  */
 async function saveAIReview(submissionId, review) {
-	const reviewText = review.overall_review || review.overallReview || '';
+	const _reviewText = review.overall_review || review.overallReview || '';
 	const reviewJson = JSON.stringify(review);
 	await pool.query(
 		`UPDATE coding_submissions SET ai_review_text = $1, updated_at = NOW() WHERE id = $2`,

@@ -42,7 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
 							An unexpected error occurred. Please try refreshing the page.
 						</p>
 						<div className="flex gap-3 justify-center">
-							<button
+							<button type="button"
 								onClick={() => {
 									this.setState({ hasError: false, error: null });
 									window.location.reload();
@@ -52,7 +52,7 @@ export class ErrorBoundary extends Component<Props, State> {
 								<RefreshCw className="h-4 w-4" />
 								Refresh Page
 							</button>
-							<button
+							<button type="button"
 								onClick={() => {
 									this.setState({ hasError: false, error: null });
 									window.location.href = '/dashboard';
@@ -101,7 +101,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
 					<p className="mb-4 text-sm text-muted-foreground max-w-sm">
 						Something went wrong loading this page. Try refreshing or navigate to another page.
 					</p>
-					<button
+					<button type="button"
 						onClick={() => this.setState({ hasError: false, error: null })}
 						className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
 					>

@@ -18,7 +18,7 @@ const { analyticsCache } = require('../lib/analytics-cache');
 
 // ── Analytics helpers (Issue #143) ──────────────────────────────
 
-function parseDateRange(query, defaultDays = 30) {
+function _parseDateRange(query, defaultDays = 30) {
 	const from = query.from || query.start_date;
 	const to = query.to || query.end_date;
 	return {
@@ -33,7 +33,7 @@ function parsePagination(query, defaults = { page: 1, limit: 50 }) {
 	return { page, limit, offset: (page - 1) * limit };
 }
 
-function buildDateFilterSql(startDate, endDate, paramIndexStart = 2) {
+function _buildDateFilterSql(startDate, endDate, paramIndexStart = 2) {
 	const conditions = [];
 	let idx = paramIndexStart;
 	if (startDate) {
@@ -44,7 +44,7 @@ function buildDateFilterSql(startDate, endDate, paramIndexStart = 2) {
 		conditions.push(`created_at <= $${idx}`);
 		idx++;
 	}
-	return { sql: conditions.length ? ' AND ' + conditions.join(' AND ') : '', nextIndex: idx };
+	return { sql: conditions.length ? ` AND ${conditions.join(' AND ')}` : '', nextIndex: idx };
 }
 
 function badRequest(message) {
@@ -445,7 +445,7 @@ router.get(
 					for (const [group, counts] of Object.entries(groups)) {
 						const stages = pipelineStages.map((stage) => {
 							const count = counts[stage] || 0;
-							const applied = counts['applied'] || 1;
+							const applied = counts.applied || 1;
 							return {
 								stage,
 								count,
@@ -4653,7 +4653,7 @@ router.get(
 
 			const app = appResult.rows[0];
 			const jobTitle = app.job_title;
-			const jobId = app.job_id;
+			const _jobId = app.job_id;
 
 			// Need at least 5 historical offers company-wide for any prediction
 			const minOffersResult = await pool.query(

@@ -12,7 +12,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { EmptyState } from '@/components/domain/empty-state';
 import { Skeleton } from '@/components/domain/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -62,7 +61,7 @@ export function RecruiterPanelScorecardCriteriaPage() {
 			]);
 			setCriteria(criteriaRes.criteria || []);
 			if (jobRes.job) setJobTitle(jobRes.job.title);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to load criteria' });
 		} finally {
 			setLoading(false);
@@ -118,7 +117,7 @@ export function RecruiterPanelScorecardCriteriaPage() {
 
 			setMessage({ type: 'success', text: 'Criteria saved successfully' });
 			await loadData();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to save criteria' });
 		} finally {
 			setSaving(false);
@@ -133,7 +132,7 @@ export function RecruiterPanelScorecardCriteriaPage() {
 			setShowDelete(null);
 			setMessage({ type: 'success', text: 'Criterion deleted' });
 			await loadData();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setMessage({ type: 'error', text: err.message || 'Failed to delete criterion' });
 		} finally {
 			setDeleting(false);
@@ -235,7 +234,7 @@ export function RecruiterPanelScorecardCriteriaPage() {
 							<CardContent className="p-4 space-y-3">
 								<div className="flex items-start gap-2">
 									<div className="flex flex-col gap-1 pt-1">
-										<button
+										<button type="button"
 											onClick={() => moveCriterion(index, 'up')}
 											disabled={index === 0}
 											className="p-1 rounded hover:bg-muted disabled:opacity-30 min-h-[28px]"
@@ -243,7 +242,7 @@ export function RecruiterPanelScorecardCriteriaPage() {
 										>
 											<GripVertical className="h-4 w-4 rotate-90" />
 										</button>
-										<button
+										<button type="button"
 											onClick={() => moveCriterion(index, 'down')}
 											disabled={index === criteria.length - 1}
 											className="p-1 rounded hover:bg-muted disabled:opacity-30 min-h-[28px]"
@@ -310,7 +309,7 @@ export function RecruiterPanelScorecardCriteriaPage() {
 
 									<div className="flex flex-col items-center gap-1 pt-1">
 										{criterion.id && !criterion.isNew && (
-											<button
+											<button type="button"
 												onClick={() => setShowDelete(criterion)}
 												className="p-2 rounded hover:bg-red-50 text-destructive min-h-[44px]"
 												aria-label="Delete criterion"
@@ -319,7 +318,7 @@ export function RecruiterPanelScorecardCriteriaPage() {
 											</button>
 										)}
 										{(!criterion.id || criterion.isNew) && (
-											<button
+											<button type="button"
 												onClick={() => removeCriterion(index)}
 												className="p-2 rounded hover:bg-red-50 text-destructive min-h-[44px]"
 												aria-label="Remove criterion"

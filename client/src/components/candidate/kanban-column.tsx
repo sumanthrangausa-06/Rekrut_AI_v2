@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Bookmark, Briefcase, FileText, MessageCircle, Trophy } from 'lucide-react';
+import { Bookmark, FileText, MessageCircle, Trophy } from 'lucide-react';
 import type { KanbanApplication, KanbanItem } from './kanban-card';
 import { KanbanCard } from './kanban-card';
 

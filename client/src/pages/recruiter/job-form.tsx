@@ -866,7 +866,7 @@ export function RecruiterJobFormPage() {
 						const isCompleted = step > stepNum || (visitedSteps.has(stepNum) && step !== stepNum);
 						const Icon = s.icon;
 						return (
-							<button
+							<button type="button"
 								key={stepNum}
 								onClick={() => goToStep(stepNum)}
 								className="flex flex-col items-center gap-1.5 group relative min-h-[44px]"
@@ -942,7 +942,7 @@ export function RecruiterJobFormPage() {
 						</Button>
 					</div>
 					{previousPostings.slice(0, 5).map((p, i) => (
-						<button
+						<button type="button"
 							key={p.id || p.title || `posting-${i}`}
 							onClick={() => applyTemplate(p)}
 							className="w-full text-left rounded-md border bg-white p-3 text-sm hover:border-indigo-300 hover:bg-blue-50/60 transition-colors cursor-pointer min-h-[44px]"
@@ -1027,7 +1027,7 @@ export function RecruiterJobFormPage() {
 										</Button>
 									</div>
 									{titleSuggestions.map((s, _i) => (
-										<button
+										<button type="button"
 											key={s.title}
 											onClick={() => {
 												setTitle(s.title);
@@ -1431,7 +1431,7 @@ export function RecruiterJobFormPage() {
 											(q) => q.question.toLowerCase() === t.question.toLowerCase(),
 										);
 										return (
-											<button
+											<button type="button"
 												key={t.question}
 												onClick={() => !alreadyAdded && addQuestion(t)}
 												disabled={alreadyAdded}
@@ -1489,7 +1489,7 @@ export function RecruiterJobFormPage() {
 												(sq) => sq.question.toLowerCase() === q.question.toLowerCase(),
 											);
 											return (
-												<button
+												<button type="button"
 													key={q.id || i}
 													onClick={() => {
 														if (!alreadyAdded) {

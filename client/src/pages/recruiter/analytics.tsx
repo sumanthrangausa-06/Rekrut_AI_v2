@@ -439,7 +439,7 @@ ${data.diversity_pipeline_dropoff.gender
 }
 
 <div class="no-print" style="margin-top:40px;text-align:center;">
-<button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer;">Print / Save as PDF</button>
+<button type="button" onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer;">Print / Save as PDF</button>
 </div>
 </body>
 </html>

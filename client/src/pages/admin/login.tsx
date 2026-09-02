@@ -91,7 +91,6 @@ export function AdminLoginPage() {
 								value={username}
 								onChange={(e) => setUsername(e.target.value)}
 								required
-								autoFocus
 								autoComplete="username"
 								className={cn(
 									'w-full rounded-lg border bg-slate-900/50 px-4 py-2.5 text-white placeholder-slate-500',

@@ -111,7 +111,7 @@ router.get('/', authMiddleware, async (req, res) => {
 		}
 
 		if (conditions.length > 0) {
-			sql += ' WHERE ' + conditions.join(' AND ');
+			sql += ` WHERE ${conditions.join(' AND ')}`;
 		}
 
 		sql += ` ORDER BY ie.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;

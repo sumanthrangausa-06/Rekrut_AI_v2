@@ -71,7 +71,7 @@ async function generateToken({ identity, name, roomName, ttlMs = 60 * 60 * 1000 
 
 // ─── Room Management ────────────────────────────────────────────────────────
 
-function getRoomClient() {
+function _getRoomClient() {
 	const { RoomServiceClient } = require('livekit-server-sdk');
 	const { apiKey, apiSecret, livekitUrl } = getConfig();
 	// RoomServiceClient expects the LiveKit host URL (ws:// or wss://) stripped to http/s
@@ -430,7 +430,7 @@ async function completeRecordingRecord(recordingId, storagePath, durationSeconds
  * @param {number} recordingId
  * @param {string} [reason]
  */
-async function failRecordingRecord(recordingId, reason) {
+async function failRecordingRecord(recordingId, _reason) {
 	await pool.query(
 		`UPDATE interview_recordings
 		 SET status = 'failed',

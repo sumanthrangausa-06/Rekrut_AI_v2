@@ -132,7 +132,7 @@ async function detectMetadataAnomalies(fileBuffer, documentType) {
 					});
 				}
 			}
-		} else if (mimeType && mimeType.startsWith('image/')) {
+		} else if (mimeType?.startsWith('image/')) {
 			// Basic image buffer inspection for EXIF-like signatures
 			const bufStr = fileBuffer.toString('binary', 0, Math.min(fileBuffer.length, 4096));
 
@@ -346,13 +346,13 @@ async function checkCrossDocumentConsistency(userId) {
 		const allNames = new Set();
 		const allDobs = new Set();
 		docProfiles.forEach((dp) => {
-			dp.names.forEach((n) => allNames.add(n));
-			dp.dobs.forEach((d) => allDobs.add(d));
+			dp.names.forEach((n) => { allNames.add(n); });
+			dp.dobs.forEach((d) => { allDobs.add(d); });
 		});
 
 		// If we have more than one document, check for name mismatches
 		if (docProfiles.length > 1 && allNames.size > 1) {
-			const nameGroups = Array.from(allNames);
+			const _nameGroups = Array.from(allNames);
 			// Find the most common name
 			const nameCounts = {};
 			docProfiles.forEach((dp) => {
@@ -444,7 +444,7 @@ function extractNames(data) {
 	}
 	// Also check metadata.names if present
 	if (data.names && Array.isArray(data.names)) {
-		data.names.forEach((n) => names.push(normalizeName(n)));
+		data.names.forEach((n) => { names.push(normalizeName(n)); });
 	}
 	return [...new Set(names)].filter(Boolean);
 }

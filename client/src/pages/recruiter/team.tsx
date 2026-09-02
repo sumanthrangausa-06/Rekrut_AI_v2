@@ -7,7 +7,6 @@ import {
 	Mail,
 	PauseCircle,
 	PlayCircle,
-	Plus,
 	ShieldAlert,
 	UserPlus,
 	Users,
@@ -79,7 +78,7 @@ function ToastContainer({
 						<AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
 					)}
 					<p className="text-sm flex-1">{toast.message}</p>
-					<button
+					<button type="button"
 						onClick={() => onDismiss(toast.id)}
 						className="shrink-0 text-muted-foreground hover:text-foreground min-h-[28px] min-w-[28px] flex items-center justify-center rounded"
 					>
@@ -149,7 +148,7 @@ export function RecruiterTeamPage() {
 			setError(null);
 			const data = await apiCall<{ members: TeamMember[] }>('/company/team/members');
 			setMembers(data.members || []);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to load team members');
 		} finally {
 			setLoading(false);
@@ -170,7 +169,7 @@ export function RecruiterTeamPage() {
 					prev.map((m) => (m.id === id ? { ...m, suspended_at: new Date().toISOString() } : m)),
 				);
 				showToast('Team member suspended', 'success');
-			} catch (err: any) {
+			} catch (err: unknown) {
 				showToast(err.message || 'Failed to suspend team member', 'error');
 			} finally {
 				setSuspendingId(null);
@@ -187,7 +186,7 @@ export function RecruiterTeamPage() {
 				await apiCall(`/company/team/members/${id}/reinstate`, { method: 'POST' });
 				setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, suspended_at: null } : m)));
 				showToast('Team member reinstated', 'success');
-			} catch (err: any) {
+			} catch (err: unknown) {
 				showToast(err.message || 'Failed to reinstate team member', 'error');
 			} finally {
 				setReinstatingId(null);
@@ -212,7 +211,7 @@ export function RecruiterTeamPage() {
 			setInviteEmail('');
 			setInviteName('');
 			showToast(`${data.member.name || data.member.email} invited successfully`, 'success');
-		} catch (err: any) {
+		} catch (err: unknown) {
 			showToast(err.message || 'Failed to invite team member', 'error');
 		} finally {
 			setInviting(false);

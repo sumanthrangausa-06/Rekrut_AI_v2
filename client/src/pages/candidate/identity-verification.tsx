@@ -165,7 +165,7 @@ export function CandidateIdentityVerificationPage() {
 
 	useEffect(() => {
 		loadStatus();
-	}, []);
+	}, [loadStatus]);
 
 	// ── Aadhaar validation ──
 	function handleAadhaarChange(value: string) {

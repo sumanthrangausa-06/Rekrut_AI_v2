@@ -4,6 +4,7 @@ const pool = require('../lib/db');
  * Bias Detection Service
  * Analyzes demographic parity, score distributions, and identifies biased patterns
  */
+// biome-ignore lint/complexity/noStaticOnlyClass: Service pattern with static methods for backward compatibility
 class BiasDetection {
 	/**
 	 * Analyze demographic parity for a SPECIFIC job posting.

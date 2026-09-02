@@ -1929,7 +1929,6 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 			job_type,
 			salary_min,
 			salary_max,
-			salary_currency,
 			remoteType,
 			experienceLevel,
 			skills,
@@ -4538,7 +4537,7 @@ function calculateCompetitiveness(candidateScores, role, level) {
 	return Math.round((weightedScore / totalWeight) * 100);
 }
 
-function findBestMatch(candidateScores) {
+function _findBestMatch(candidateScores) {
 	const roles = marketBenchmarks.getRoles();
 	const levels = marketBenchmarks.getLevels();
 	let best = { role: roles[0], level: levels[0], score: 0 };

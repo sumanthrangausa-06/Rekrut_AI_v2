@@ -299,6 +299,15 @@ jest.mock('../../../lib/metrics-collector', () => ({
 	requestLogger: jest.fn((_req, _res, next) => next()),
 }));
 
+// ─── Mock RBAC middleware ───────────────────────────────────────────────────
+jest.mock('../../../middleware/rbac', () => ({
+	requirePermission: jest.fn(() => (_req, _res, next) => next()),
+	requireRole: jest.fn(() => (_req, _res, next) => next()),
+	checkPermission: jest.fn().mockResolvedValue(true),
+	checkRole: jest.fn().mockResolvedValue(true),
+	invalidateUserCache: jest.fn(),
+}));
+
 // ─── Mock isomorphic-dompurify ──────────────────────────────────────────────
 jest.mock('isomorphic-dompurify', () => {
 	return jest.fn((html) => html);

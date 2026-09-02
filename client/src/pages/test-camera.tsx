@@ -83,7 +83,7 @@ function Level1({
 							msg: `play() succeeded, readyState=${videoRef.current.readyState}`,
 							type: 'success',
 						});
-					} catch (e: any) {
+					} catch (e: unknown) {
 						onLog({ time: timestamp(), msg: `play() failed: ${e?.message}`, type: 'error' });
 					}
 
@@ -130,7 +130,7 @@ function Level1({
 						}
 					}, 1500);
 				}
-			} catch (err: any) {
+			} catch (err: unknown) {
 				onLog({
 					time: timestamp(),
 					msg: `getUserMedia error: ${err?.name} — ${err?.message}`,
@@ -246,7 +246,7 @@ function Level2({
 						}
 					}, 1500);
 				}
-			} catch (err: any) {
+			} catch (err: unknown) {
 				onLog({
 					time: timestamp(),
 					msg: `[L2] Error: ${err?.name} — ${err?.message}`,
@@ -334,7 +334,7 @@ function Level3({
 					type: 'info',
 				});
 				setCameraReady(true);
-			} catch (err: any) {
+			} catch (err: unknown) {
 				onLog({
 					time: timestamp(),
 					msg: `[L3] Error: ${err?.name} — ${err?.message}`,
@@ -378,7 +378,7 @@ function Level3({
 					msg: `[L3] play() ok, readyState=${v.readyState}`,
 					type: 'success',
 				});
-			} catch (e: any) {
+			} catch (e: unknown) {
 				onLog({ time: timestamp(), msg: `[L3] play() error: ${e?.message}`, type: 'error' });
 			}
 
@@ -559,7 +559,7 @@ function Level4({
 						ctx.drawImage(video, 0, 0, 320, 240);
 					}, 500);
 				}
-			} catch (err: any) {
+			} catch (err: unknown) {
 				onLog({
 					time: timestamp(),
 					msg: `[L4] Error: ${err?.name} — ${err?.message}`,
@@ -655,7 +655,7 @@ function Level5({
 
 				// DO NOT attach to video element — mimics ai-coaching exactly
 				setCameraReady(true);
-			} catch (err: any) {
+			} catch (err: unknown) {
 				onLog({
 					time: timestamp(),
 					msg: `[L5] Error: ${err?.name} — ${err?.message}`,
@@ -695,7 +695,7 @@ function Level5({
 			try {
 				await v.play();
 				onLog({ time: timestamp(), msg: `[L5] play() ok`, type: 'success' });
-			} catch (e: any) {
+			} catch (e: unknown) {
 				onLog({ time: timestamp(), msg: `[L5] play() error: ${e?.message}`, type: 'error' });
 				// Retry like ai-coaching
 				setTimeout(() => {
@@ -872,7 +872,7 @@ export function TestCameraPage() {
 									? '#93c5fd'
 									: '#d1d5db';
 					return (
-						<button
+						<button type="button"
 							key={level}
 							onClick={() => (activeLevel === level ? stopTest() : startTest(level))}
 							disabled={activeLevel !== null && activeLevel !== level}
@@ -897,7 +897,7 @@ export function TestCameraPage() {
 			</div>
 
 			{activeLevel && (
-				<button
+				<button type="button"
 					onClick={stopTest}
 					style={{
 						marginBottom: 12,

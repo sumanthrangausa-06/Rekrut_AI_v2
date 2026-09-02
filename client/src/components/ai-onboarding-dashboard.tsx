@@ -44,9 +44,16 @@ interface OnboardingTask {
 	notes: string | null;
 }
 
+interface Milestone {
+	day: number;
+	title: string;
+	description: string;
+	phase?: string;
+}
+
 interface PlanData {
 	plan_summary?: string;
-	milestones?: Array<{ day: number; title: string; description: string }>;
+	milestones?: Milestone[];
 }
 
 interface OnboardingPlan {
@@ -159,7 +166,7 @@ export function AiOnboardingDashboard() {
 			if (firstPending) {
 				setExpandedPhases(new Set([firstPending.phase]));
 			}
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message);
 		} finally {
 			setLoadingPlan(false);
@@ -176,7 +183,7 @@ export function AiOnboardingDashboard() {
 				const activePlanItem = data.find((p) => p.status === 'active') || data[0];
 				await loadPlanProgress(activePlanItem.id);
 			}
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message);
 		} finally {
 			setLoading(false);
@@ -202,7 +209,7 @@ export function AiOnboardingDashboard() {
 			if (activePlan) {
 				await loadPlanProgress(activePlan.plan.id);
 			}
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message);
 		} finally {
 			setCompletingTask(null);
@@ -231,7 +238,7 @@ export function AiOnboardingDashboard() {
 				...prev,
 				{ role: 'assistant', content: data.response, timestamp: new Date().toISOString() },
 			]);
-		} catch (_err: any) {
+		} catch (_err: unknown) {
 			setChatMessages((prev) => [
 				...prev,
 				{
@@ -317,7 +324,7 @@ export function AiOnboardingDashboard() {
 				<div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2">
 					<AlertTriangle className="h-4 w-4 shrink-0" />
 					{error}
-					<button onClick={() => setError('')} className="ml-auto text-xs underline">
+					<button type="button" onClick={() => setError('')} className="ml-auto text-xs underline">
 						Dismiss
 					</button>
 				</div>
@@ -536,7 +543,7 @@ export function AiOnboardingDashboard() {
 								>
 									<CardContent className="p-0">
 										{/* Phase Header */}
-										<button
+										<button type="button"
 											onClick={() => togglePhase(phase.phase)}
 											className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors rounded-t-lg"
 										>
@@ -685,7 +692,7 @@ export function AiOnboardingDashboard() {
 			{/* AI Chatbot */}
 			<Card>
 				<CardContent className="p-5">
-					<button
+					<button type="button"
 						onClick={() => setChatOpen(!chatOpen)}
 						className="w-full flex items-center justify-between"
 					>
@@ -752,7 +759,7 @@ function ChatWidget({
 						<div className="flex flex-wrap gap-2 justify-center mt-3">
 							{['What should I do today?', 'Who is my manager?', 'What documents do I need?'].map(
 								(q) => (
-									<button
+									<button type="button"
 										key={q}
 										onClick={() => {
 											onInputChange(q);

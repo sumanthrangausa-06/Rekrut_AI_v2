@@ -13,7 +13,7 @@ const MAX_HEIGHT = 200;
 
 export function SignatureUploader({ onChange, className }: SignatureUploaderProps) {
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-	const [croppedUrl, setCroppedUrl] = useState<string | null>(null);
+	const [_croppedUrl, setCroppedUrl] = useState<string | null>(null);
 	const [isCropping, setIsCropping] = useState(false);
 	const [crop, setCrop] = useState({ x: 0, y: 0, width: 0, height: 0 });
 	const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);

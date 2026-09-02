@@ -491,7 +491,7 @@ router.get(
 			ORDER BY drq.created_at ASC
 			LIMIT $2 OFFSET $3
 			`,
-				[status, parseInt(limit), parseInt(offset)],
+				[status, parseInt(limit, 10), parseInt(offset, 10)],
 			);
 
 			const countResult = await pool.query(
@@ -502,9 +502,9 @@ router.get(
 			res.json({
 				success: true,
 				reviews: result.rows,
-				total: parseInt(countResult.rows[0].count),
-				limit: parseInt(limit),
-				offset: parseInt(offset),
+				total: parseInt(countResult.rows[0].count, 10),
+				limit: parseInt(limit, 10),
+				offset: parseInt(offset, 10),
 			});
 		} catch (error) {
 			console.error('Get review queue error:', error);

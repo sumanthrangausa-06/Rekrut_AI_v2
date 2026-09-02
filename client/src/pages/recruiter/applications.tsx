@@ -816,7 +816,7 @@ function AiScreeningSummary({ appId }: { appId: number }) {
 
 	return (
 		<div className="rounded-lg border bg-muted/30 p-3">
-			<button
+			<button type="button"
 				onClick={() => setExpanded(!expanded)}
 				className="w-full flex items-center justify-between min-h-[44px]"
 			>
@@ -903,7 +903,7 @@ function CandidateCoachingSection({ candidateId }: { candidateId: number }) {
 
 	return (
 		<div>
-			<button
+			<button type="button"
 				onClick={() => setExpanded(!expanded)}
 				className="w-full flex items-center justify-between py-1 min-h-[44px]"
 			>
@@ -994,7 +994,7 @@ function CandidateCoachingSection({ candidateId }: { candidateId: number }) {
 							const isExpanded = expandedSession === s.id;
 							return (
 								<div key={s.id} className="rounded-lg border">
-									<button
+									<button type="button"
 										onClick={() => setExpandedSession(isExpanded ? null : s.id)}
 										className="w-full flex items-center gap-2 p-2.5 hover:bg-muted/30 transition-colors text-left min-h-[44px]"
 									>
@@ -1096,7 +1096,7 @@ function SortButton({
 }) {
 	const isActive = current === field;
 	return (
-		<button
+		<button type="button"
 			onClick={() => onToggle(field)}
 			className={`flex items-center gap-1 px-2 py-1 rounded hover:bg-muted transition-colors ${
 				isActive ? 'text-foreground font-medium' : ''

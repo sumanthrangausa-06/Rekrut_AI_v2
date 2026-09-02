@@ -50,7 +50,7 @@ async function resolveMentions(usernames) {
 /** Insert in-app notifications for mentions */
 async function notifyMentions(commentId, entityType, entityId, authorName, content, mentions) {
 	if (mentions.length === 0) return;
-	const snippet = content.length > 100 ? content.slice(0, 100) + '…' : content;
+	const snippet = content.length > 100 ? `${content.slice(0, 100)}…` : content;
 	for (const user of mentions) {
 		try {
 			await pool.query(
@@ -71,7 +71,7 @@ async function notifyMentions(commentId, entityType, entityId, authorName, conte
 }
 
 /** Log hiring activity */
-async function logActivity(jobId, userId, actionType, description, metadata = {}) {
+async function _logActivity(jobId, userId, actionType, description, metadata = {}) {
 	try {
 		await pool.query(
 			`INSERT INTO hiring_activity (job_id, user_id, action_type, description, metadata)

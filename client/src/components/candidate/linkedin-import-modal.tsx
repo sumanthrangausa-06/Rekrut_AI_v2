@@ -304,7 +304,7 @@ export function LinkedInImportModal({
 							{missingFields.map((field) => {
 								const Icon = field.icon;
 								return (
-									<button
+									<button type="button"
 										key={field.label}
 										onClick={() => handleNavigate(field.section)}
 										className="flex items-center gap-3 rounded-xl border bg-card p-3 hover:bg-muted/50 transition-colors text-left group focus:outline-none focus:ring-2 focus:ring-primary/50"

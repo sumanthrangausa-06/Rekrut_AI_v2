@@ -1,23 +1,19 @@
 import {
-	AlertTriangle,
 	Award,
 	Bookmark,
 	BookmarkPlus,
 	Briefcase,
 	Building2,
 	CheckCircle,
-	CheckCircle2,
 	ChevronLeft,
 	ChevronRight,
 	Clock,
 	DollarSign,
 	ExternalLink,
-	Globe,
 	GraduationCap,
 	Loader2,
 	MapPin,
 	Send,
-	Sparkles,
 	Target,
 	X,
 	Zap,
@@ -26,7 +22,6 @@ import { useEffect, useRef, useState } from 'react';
 import { MatchExplanation } from '@/components/domain/match-explanation';
 import { ScoreRing } from '@/components/domain/score-ring';
 import { Avatar } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -255,7 +250,7 @@ export function JobDetailContent({
 					</div>
 					<div className="flex items-center gap-1.5 shrink-0">
 						{onToggleSave && (
-							<button
+							<button type="button"
 								onClick={onToggleSave}
 								className="p-2 rounded-lg hover:bg-muted transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
 								aria-label={isSaved ? 'Unsave' : 'Save'}
@@ -268,7 +263,7 @@ export function JobDetailContent({
 							</button>
 						)}
 						{showCloseButton && onClose && (
-							<button
+							<button type="button"
 								onClick={onClose}
 								className="p-2 rounded-lg hover:bg-muted transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
 								aria-label="Close drawer"

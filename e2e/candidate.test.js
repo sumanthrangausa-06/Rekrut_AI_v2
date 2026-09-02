@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const fs = require('fs');
+const fs = require('node:fs');
 
 const CANDIDATE_STORAGE = 'e2e/.auth/candidate.json';
 const RECRUITER_STORAGE = 'e2e/.auth/recruiter.json';
@@ -117,7 +117,7 @@ test.describe('Candidate Core Flow', () => {
 			throw new Error(`Failed to seed job: ${createRes.status()} ${await createRes.text()}`);
 		}
 		const jobData = await createRes.json();
-		const jobId = jobData.job?.id || jobData.id;
+		const _jobId = jobData.job?.id || jobData.id;
 
 		// Navigate to jobs page
 		await page.goto('/candidate/jobs');

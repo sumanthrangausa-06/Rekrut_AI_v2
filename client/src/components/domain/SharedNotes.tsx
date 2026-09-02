@@ -159,7 +159,7 @@ export function SharedNotes({ candidateId, currentUserId }: SharedNotesProps) {
 									</button>
 								))}
 								{rating && (
-									<button
+									<button type="button"
 										onClick={() => setRating(null)}
 										className="text-xs text-muted-foreground ml-1"
 									>

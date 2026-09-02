@@ -7,7 +7,7 @@ const { calculateFitScore, calculateFitScoresBatch } = require('../services/fitS
 const router = express.Router();
 
 // Rate limit: 100 requests/minute per user (keyed by user ID, not IP)
-const fitScoreRateLimit = createRateLimit({
+const _fitScoreRateLimit = createRateLimit({
 	windowMs: 60 * 1000, // 1 minute
 	max: 100,
 	keyPrefix: 'fitscore',

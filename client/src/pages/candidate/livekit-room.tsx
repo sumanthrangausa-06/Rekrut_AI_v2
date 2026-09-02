@@ -374,41 +374,38 @@ function RoomControlBar({
 			</Button>
 
 			{/* Recording controls — recruiters only */}
-			{isRecruiter && (
-				<>
-					{recording ? (
-						<Button
-							variant="destructive"
-							size="icon"
-							onClick={onStopRecording}
-							disabled={stoppingRecording}
-							className="rounded-full h-12 w-12 min-h-[44px] min-w-[44px] bg-red-600 hover:bg-red-700"
-							aria-label="Stop recording"
-						>
-							{stoppingRecording ? (
-								<Loader2 className="h-5 w-5 animate-spin" />
-							) : (
-								<Square className="h-5 w-5" />
-							)}
-						</Button>
-					) : (
-						<Button
-							variant="destructive"
-							size="icon"
-							onClick={onStartRecording}
-							disabled={startingRecording}
-							className="rounded-full h-12 w-12 min-h-[44px] min-w-[44px] bg-red-600 hover:bg-red-700"
-							aria-label="Start recording"
-						>
-							{startingRecording ? (
-								<Loader2 className="h-5 w-5 animate-spin" />
-							) : (
-								<PlayCircle className="h-5 w-5" />
-							)}
-						</Button>
-					)}
-				</>
-			)}
+			{isRecruiter &&
+				(recording ? (
+					<Button
+						variant="destructive"
+						size="icon"
+						onClick={onStopRecording}
+						disabled={stoppingRecording}
+						className="rounded-full h-12 w-12 min-h-[44px] min-w-[44px] bg-red-600 hover:bg-red-700"
+						aria-label="Stop recording"
+					>
+						{stoppingRecording ? (
+							<Loader2 className="h-5 w-5 animate-spin" />
+						) : (
+							<Square className="h-5 w-5" />
+						)}
+					</Button>
+				) : (
+					<Button
+						variant="destructive"
+						size="icon"
+						onClick={onStartRecording}
+						disabled={startingRecording}
+						className="rounded-full h-12 w-12 min-h-[44px] min-w-[44px] bg-red-600 hover:bg-red-700"
+						aria-label="Start recording"
+					>
+						{startingRecording ? (
+							<Loader2 className="h-5 w-5 animate-spin" />
+						) : (
+							<PlayCircle className="h-5 w-5" />
+						)}
+					</Button>
+				))}
 
 			<Button
 				variant="destructive"
@@ -608,7 +605,7 @@ function RoomUI({
 			} else {
 				showToast(data.error || 'Failed to start recording');
 			}
-		} catch (err: any) {
+		} catch (err: unknown) {
 			showToast(err.message || 'Failed to start recording');
 		} finally {
 			setStartingRecording(false);
@@ -624,7 +621,7 @@ function RoomUI({
 			});
 			setRecording(null);
 			showToast('Recording stopped');
-		} catch (err: any) {
+		} catch (err: unknown) {
 			showToast(err.message || 'Failed to stop recording');
 		} finally {
 			setStoppingRecording(false);
@@ -647,7 +644,7 @@ function RoomUI({
 					prev.map((p) => (p.userId === userId ? { ...p, consented: true } : p)),
 				);
 				showToast('Consent recorded');
-			} catch (err: any) {
+			} catch (err: unknown) {
 				showToast(err.message || 'Failed to record consent');
 			} finally {
 				setConsentLoading(false);
@@ -764,7 +761,7 @@ export function LiveKitRoomPage() {
 				method: 'POST',
 			});
 			setTokenData(data);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to join room. Please check your room ID and try again.');
 		} finally {
 			setLoading(false);

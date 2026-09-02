@@ -43,7 +43,7 @@ export function useAIChat(context?: ChatContext) {
 	const [messages, setMessages] = useState<ChatMessage[]>(loadMessagesFromStorage);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const abortRef = useRef<AbortController | null>(null);
+	const _abortRef = useRef<AbortController | null>(null);
 
 	// Persist messages to localStorage
 	useEffect(() => {

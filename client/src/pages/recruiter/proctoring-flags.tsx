@@ -59,7 +59,7 @@ export function RecruiterProctoringFlagsPage() {
 			}>(`/proctoring/flags?status=${filterStatus}&limit=${limit}&offset=${offset}`);
 			setFlags(data.flags);
 			setTotal(data.total);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to load flags');
 		} finally {
 			setLoading(false);
@@ -68,7 +68,7 @@ export function RecruiterProctoringFlagsPage() {
 
 	useEffect(() => {
 		setOffset(0);
-	}, [filterStatus]);
+	}, []);
 
 	useEffect(() => {
 		loadFlags();
@@ -159,7 +159,7 @@ export function RecruiterProctoringFlagsPage() {
 									{ key: 'rejected', label: 'Rejected' },
 									{ key: 'all', label: 'All' },
 								].map((tab) => (
-									<button
+									<button type="button"
 										key={tab.key}
 										onClick={() => setFilterStatus(tab.key)}
 										className={`px-3 py-1.5 text-sm font-medium transition-colors ${

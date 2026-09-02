@@ -14,7 +14,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { CompanyBrief } from './types';
 
@@ -50,7 +49,7 @@ export function CompanyResearchTab() {
 			const data = await res.json();
 			if (!res.ok) throw new Error(data.error || 'Failed to research company');
 			setResult(data);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message);
 		} finally {
 			setLoading(false);

@@ -415,7 +415,6 @@ router.post('/offers/:id/accept', authMiddleware, async (req, res) => {
 		}
 
 		// Get country-specific checklist items
-		let defaultItems;
 		const COUNTRY_CHECKLIST_ITEMS = {
 			US: [
 				{ id: 1, task: 'Complete I-9 form (Employment Eligibility)', required: true },
@@ -463,7 +462,7 @@ router.post('/offers/:id/accept', authMiddleware, async (req, res) => {
 				{ id: 6, task: 'Sign employee handbook', required: true },
 			],
 		};
-		defaultItems = COUNTRY_CHECKLIST_ITEMS[offerCountryCode] || COUNTRY_CHECKLIST_ITEMS.US;
+		const defaultItems = COUNTRY_CHECKLIST_ITEMS[offerCountryCode] || COUNTRY_CHECKLIST_ITEMS.US;
 
 		await pool.query(
 			`INSERT INTO onboarding_checklists

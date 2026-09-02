@@ -1,7 +1,7 @@
 const express = require('express');
 const crypto = require('node:crypto');
 const pool = require('../lib/db');
-const { authMiddleware, requireRole } = require('../lib/auth');
+const { authMiddleware } = require('../lib/auth');
 
 const router = express.Router();
 

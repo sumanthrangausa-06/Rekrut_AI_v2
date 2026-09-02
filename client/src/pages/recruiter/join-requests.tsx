@@ -63,7 +63,7 @@ function ToastContainer({
 						<AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
 					)}
 					<p className="text-sm flex-1">{toast.message}</p>
-					<button
+					<button type="button"
 						onClick={() => onDismiss(toast.id)}
 						className="shrink-0 text-muted-foreground hover:text-foreground min-h-[28px] min-w-[28px] flex items-center justify-center rounded"
 					>
@@ -124,7 +124,7 @@ export function RecruiterJoinRequestsPage() {
 				'/company/join-requests',
 			);
 			setRequests(data.requests || []);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to load join requests');
 			console.error('Failed to load join requests:', err);
 		} finally {
@@ -150,7 +150,7 @@ export function RecruiterJoinRequestsPage() {
 				);
 				showToast('Recruiter approved and added to company', 'success');
 				await loadRequests();
-			} catch (err: any) {
+			} catch (err: unknown) {
 				showToast(err.message || 'Failed to approve request', 'error');
 			} finally {
 				setProcessingId(null);
@@ -182,7 +182,7 @@ export function RecruiterJoinRequestsPage() {
 			setRejectRequestId(null);
 			setRejectReason('');
 			await loadRequests();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			showToast(err.message || 'Failed to reject request', 'error');
 		} finally {
 			setIsRejecting(false);

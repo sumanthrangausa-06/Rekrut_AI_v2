@@ -663,7 +663,7 @@ export function CandidateJobDetailPage() {
 
 	const score = matchBreakdown?.overall_score ? Math.round(matchBreakdown.overall_score) : null;
 	const canOneClick = profileCompleteness >= 80;
-	const skillsRequired = job?.skills_required || [];
+	const _skillsRequired = job?.skills_required || [];
 	const matchingSkills = matchBreakdown?.dimensions?.skills?.matching || [];
 	const missingSkills = matchBreakdown?.dimensions?.skills?.missing || [];
 
@@ -835,7 +835,7 @@ export function CandidateJobDetailPage() {
 							</div>
 						</div>
 						<div className="flex flex-wrap items-center gap-2 shrink-0">
-							<button
+							<button type="button"
 								onClick={toggleSave}
 								className="p-2 rounded-lg hover:bg-muted transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
 								aria-label={saved ? 'Unsave' : 'Save'}
@@ -863,36 +863,34 @@ export function CandidateJobDetailPage() {
 								)}
 								{audioLoading ? 'Generating...' : isPlaying ? 'Playing...' : 'Listen'}
 							</Button>
-							{!applied && user && (
-								<>
-									{!isPro ? (
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={() => navigate('/pricing')}
-											className="gap-1.5 min-h-[44px] border-amber-300 text-amber-700 hover:bg-amber-50"
-										>
-											<Lock className="h-4 w-4" /> Upgrade to Auto-Apply
-										</Button>
-									) : (
-										<Button
-											size="sm"
-											onClick={handleAutoApply}
-											disabled={
-												autoApplyLoading || (autoApplyRemaining !== null && autoApplyRemaining <= 0)
-											}
-											className="gap-1.5 min-h-[44px] bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-sm"
-										>
-											{autoApplyLoading ? (
-												<Loader2 className="h-4 w-4 animate-spin" />
-											) : (
-												<Zap className="h-4 w-4" />
-											)}
-											Auto-Apply
-										</Button>
-									)}
-								</>
-							)}
+							{!applied &&
+								user &&
+								(!isPro ? (
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => navigate('/pricing')}
+										className="gap-1.5 min-h-[44px] border-amber-300 text-amber-700 hover:bg-amber-50"
+									>
+										<Lock className="h-4 w-4" /> Upgrade to Auto-Apply
+									</Button>
+								) : (
+									<Button
+										size="sm"
+										onClick={handleAutoApply}
+										disabled={
+											autoApplyLoading || (autoApplyRemaining !== null && autoApplyRemaining <= 0)
+										}
+										className="gap-1.5 min-h-[44px] bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-sm"
+									>
+										{autoApplyLoading ? (
+											<Loader2 className="h-4 w-4 animate-spin" />
+										) : (
+											<Zap className="h-4 w-4" />
+										)}
+										Auto-Apply
+									</Button>
+								))}
 							{applied ? (
 								<Badge variant="success" className="gap-1 text-sm py-1.5 px-3">
 									<CheckCircle className="h-3.5 w-3.5" /> Applied
@@ -916,34 +914,31 @@ export function CandidateJobDetailPage() {
 									: matchBreakdown?.overall_score != null
 										? Math.round(matchBreakdown.overall_score) >= 70
 										: false) &&
-								!introRequested && (
-									<>
-										{!canUseFeature('recruiter_intros') ? (
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={() => navigate('/pricing')}
-												className="gap-1.5 min-h-[44px] border-amber-300 text-amber-700 hover:bg-amber-50"
-											>
-												<Lock className="h-4 w-4" /> Request Intro
-											</Button>
+								!introRequested &&
+								(!canUseFeature('recruiter_intros') ? (
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => navigate('/pricing')}
+										className="gap-1.5 min-h-[44px] border-amber-300 text-amber-700 hover:bg-amber-50"
+									>
+										<Lock className="h-4 w-4" /> Request Intro
+									</Button>
+								) : (
+									<Button
+										size="sm"
+										onClick={handleRequestIntro}
+										disabled={introLoading}
+										className="gap-1.5 min-h-[44px] bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-sm"
+									>
+										{introLoading ? (
+											<Loader2 className="h-4 w-4 animate-spin" />
 										) : (
-											<Button
-												size="sm"
-												onClick={handleRequestIntro}
-												disabled={introLoading}
-												className="gap-1.5 min-h-[44px] bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-sm"
-											>
-												{introLoading ? (
-													<Loader2 className="h-4 w-4 animate-spin" />
-												) : (
-													<Handshake className="h-4 w-4" />
-												)}
-												Request Intro
-											</Button>
+											<Handshake className="h-4 w-4" />
 										)}
-									</>
-								)}
+										Request Intro
+									</Button>
+								))}
 							{introRequested && (
 								<Badge
 									variant="outline"
@@ -1139,7 +1134,7 @@ export function CandidateJobDetailPage() {
 				<div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
 					<div className="fixed inset-0 bg-black/50" onClick={() => setShowOneClickModal(false)} />
 					<div className="relative z-50 w-full max-w-2xl max-h-[90vh] overflow-y-auto border bg-background p-4 sm:p-6 shadow-lg rounded-t-2xl sm:rounded-lg">
-						<button
+						<button type="button"
 							onClick={() => setShowOneClickModal(false)}
 							className="absolute right-4 top-4 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md p-2 hover:bg-muted transition-colors"
 						>

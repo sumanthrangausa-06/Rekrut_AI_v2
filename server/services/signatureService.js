@@ -12,7 +12,7 @@
  * @module server/services/signatureService
  */
 
-const crypto = require('node:crypto');
+const _crypto = require('node:crypto');
 const pool = require('../../lib/db');
 const {
 	computeDocumentHash,
@@ -20,7 +20,7 @@ const {
 	computeChainHash,
 	computeEventHash,
 	createPKCS7DetachedSignature,
-	verifyPKCS7DetachedSignature,
+
 	generateTestKeyPair,
 } = require('../utils/pkcs7');
 const auditLogService = require('../../services/auditLogService');

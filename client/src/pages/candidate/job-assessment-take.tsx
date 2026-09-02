@@ -86,7 +86,7 @@ export function JobAssessmentTakePage() {
 				setTimeLeft(data.question.timeLimit || 120);
 				startTimeRef.current = Date.now();
 			}
-		} catch (e: any) {
+		} catch (e: unknown) {
 			console.error('Failed to start assessment:', e);
 		} finally {
 			setLoading(false);
@@ -147,7 +147,7 @@ export function JobAssessmentTakePage() {
 				},
 				data.feedback ? 1500 : 0,
 			);
-		} catch (e: any) {
+		} catch (e: unknown) {
 			console.error('Submit failed:', e);
 		} finally {
 			setSubmitting(false);
@@ -307,7 +307,7 @@ export function JobAssessmentTakePage() {
 					{question.type === 'multiple_choice' && question.options && (
 						<div className="space-y-2">
 							{question.options.map((opt, _i) => (
-								<button
+								<button type="button"
 									key={opt}
 									className={`w-full text-left rounded-lg border-2 p-3.5 min-h-[44px] transition-all ${
 										selectedAnswer === opt

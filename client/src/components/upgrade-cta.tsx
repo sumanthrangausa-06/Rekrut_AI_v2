@@ -29,7 +29,7 @@ export function UpgradeCTA({ feature, children, fallback }: UpgradeCTAProps) {
 			<p className="mb-4 text-sm text-yellow-700 dark:text-yellow-300">
 				This feature is available exclusively on the Pro plan. Upgrade to unlock it and more.
 			</p>
-			<button
+			<button type="button"
 				onClick={() => navigate('/pricing')}
 				className="inline-flex items-center rounded-lg bg-yellow-500 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
 			>

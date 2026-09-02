@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { authMiddleware, requireRole } = require('../lib/auth');
 const pool = require('../lib/db');
-const { chat, safeParseJSON, handleAIError } = require('../lib/polsia-ai');
+const { chat, safeParseJSON } = require('../lib/polsia-ai');
 const { AuditLogger } = require('../services/auditLogService');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────

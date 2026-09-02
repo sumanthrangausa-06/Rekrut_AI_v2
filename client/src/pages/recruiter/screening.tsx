@@ -1,7 +1,6 @@
 import {
 	AlertTriangle,
 	ArrowLeft,
-	ArrowRight,
 	Ban,
 	BarChart3,
 	BrainCircuit,
@@ -11,7 +10,6 @@ import {
 	ChevronRight,
 	ClipboardList,
 	Clock,
-	FileText,
 	Gavel,
 	Heart,
 	History,
@@ -25,7 +23,6 @@ import {
 	Send,
 	ShieldAlert,
 	Sparkles,
-	Star,
 	StickyNote,
 	Target,
 	ThumbsDown,
@@ -48,7 +45,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
 	Dialog,
-	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
@@ -56,7 +52,6 @@ import {
 } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { Select } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { trackEvent } from '@/lib/analytics';
@@ -844,7 +839,7 @@ function ScreeningDetail({
 		if (activeTab === 'audit') {
 			loadAuditLog();
 		}
-	}, [activeTab]);
+	}, [activeTab, loadAuditLog]);
 
 	const handleHumanReview = async () => {
 		if (!humanReviewDecision || !humanReviewReason.trim()) return;
@@ -1113,7 +1108,7 @@ function ScreeningDetail({
 									size={140}
 									strokeWidth={12}
 									label="Overall Fit"
-									sublabel={screening.recommendation_reason?.slice(0, 60) + '...'}
+									sublabel={`${screening.recommendation_reason?.slice(0, 60)}...`}
 								/>
 								<div className="mt-4 w-full space-y-3">
 									{scoreBreakdown.map((item) => (

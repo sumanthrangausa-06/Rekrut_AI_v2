@@ -708,7 +708,7 @@ export function RecruiterCandidatesPage() {
 							key={search.id}
 							className="flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs group"
 						>
-							<button
+							<button type="button"
 								onClick={() => handleLoadSavedSearch(search)}
 								className="flex items-center gap-1 hover:text-indigo-600 transition-colors"
 							>
@@ -716,7 +716,7 @@ export function RecruiterCandidatesPage() {
 								{search.name}
 								{search.alertEnabled && <span className="text-amber-500">★</span>}
 							</button>
-							<button
+							<button type="button"
 								onClick={() => handleDeleteSavedSearch(search.id)}
 								className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
 							>
@@ -815,7 +815,7 @@ export function RecruiterCandidatesPage() {
 							Recent:
 						</span>
 						{recentSearches.map((query) => (
-							<button
+							<button type="button"
 								key={query}
 								onClick={() => setSearchQuery(query)}
 								className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
@@ -823,7 +823,7 @@ export function RecruiterCandidatesPage() {
 								{query}
 							</button>
 						))}
-						<button
+						<button type="button"
 							onClick={() => {
 								setRecentSearches([]);
 								localStorage.removeItem('recruiter_recent_searches');
@@ -979,7 +979,7 @@ export function RecruiterCandidatesPage() {
 									<div key={candidate.id} className="relative group">
 										{/* Selection checkbox */}
 										<div className="absolute top-3 left-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-											<button
+											<button type="button"
 												onClick={() => toggleSelectCandidate(candidate.id)}
 												className="flex h-5 w-5 items-center justify-center rounded border bg-background shadow-sm hover:border-indigo-400 min-h-[44px] min-w-[44px]"
 											>

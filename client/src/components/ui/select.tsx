@@ -67,7 +67,7 @@ function SelectTrigger({
 	...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
 	return (
-		<button
+		<button type="button"
 			className={cn(
 				'flex h-10 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
 				className,

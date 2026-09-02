@@ -300,7 +300,7 @@ router.post('/:id/analyze', authMiddleware, async (req, res) => {
 		}
 
 		const companyId = parseInt(req.params.id, 10);
-		if (isNaN(companyId)) {
+		if (Number.isNaN(companyId)) {
 			return res.status(400).json({ error: 'Invalid company ID' });
 		}
 
@@ -370,7 +370,7 @@ router.post('/:id/outreach', authMiddleware, async (req, res) => {
 		}
 
 		const companyId = parseInt(req.params.id, 10);
-		if (isNaN(companyId)) {
+		if (Number.isNaN(companyId)) {
 			return res.status(400).json({ error: 'Invalid company ID' });
 		}
 

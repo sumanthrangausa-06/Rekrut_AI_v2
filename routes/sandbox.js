@@ -155,7 +155,7 @@ function normalizeStdout(stdout) {
 // =============================================================================
 
 // Attach user context for all sandbox routes
-function sandboxContext(req, res, next) {
+function sandboxContext(req, _res, next) {
 	req.sandboxContext = {
 		userId: req.user?.id || null,
 		userRole: req.user?.role || 'anonymous',
@@ -302,13 +302,13 @@ router.post(
 				enable_network: false,
 			};
 
-			let judge0Token = null;
+			let _judge0Token = null;
 			try {
 				const judge0Result = await callJudge0(
 					'/submissions?base64_encoded=false&wait=false',
 					judge0Payload,
 				);
-				judge0Token = judge0Result.token;
+				_judge0Token = judge0Result.token;
 
 				// Update DB with Judge0 token mapping
 				await pool.query(
@@ -616,7 +616,7 @@ router.post(
 				results.push(tcResult);
 
 				// Short-circuit on compilation error — no point running more test cases
-				if (tcResult.error && tcResult.error.startsWith('Compilation Error')) {
+				if (tcResult.error?.startsWith('Compilation Error')) {
 					break;
 				}
 			}

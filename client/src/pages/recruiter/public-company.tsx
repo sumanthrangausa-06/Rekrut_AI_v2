@@ -9,7 +9,6 @@ import {
 	Globe,
 	Heart,
 	Linkedin,
-	Loader2,
 	MapPin,
 	MessageSquare,
 	Shield,

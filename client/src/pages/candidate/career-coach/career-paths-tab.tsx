@@ -42,7 +42,7 @@ export function CareerPathsTab() {
 			const data = await res.json();
 			if (!res.ok) throw new Error(data.error || 'Failed to generate career paths');
 			setResult(data);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message);
 		} finally {
 			setLoading(false);

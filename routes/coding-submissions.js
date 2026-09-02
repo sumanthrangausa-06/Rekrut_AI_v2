@@ -20,8 +20,8 @@
 
 const express = require('express');
 const pool = require('../lib/db');
-const { authMiddleware, requireRole } = require('../lib/auth');
-const { createRateLimit, rateLimits } = require('../lib/distributed-rate-limiter');
+const { authMiddleware } = require('../lib/auth');
+const { createRateLimit } = require('../lib/distributed-rate-limiter');
 const { AuditLogger } = require('../services/auditLogService');
 const codingGrader = require('../services/codingGrader');
 

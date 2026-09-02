@@ -7,6 +7,7 @@ const auditLogService = require('./auditLogService');
  * four-fifths rule, explainability, human oversight, data retention,
  * consent management, and transparency report generation.
  */
+// biome-ignore lint/complexity/noStaticOnlyClass: Service pattern with static methods for backward compatibility
 class EuComplianceService {
 	// ── Risk Classification ──────────────────────────────────────────────
 

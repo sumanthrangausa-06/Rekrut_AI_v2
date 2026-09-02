@@ -119,7 +119,7 @@ function HowItWorksAccordion() {
 						key={i}
 						className="border rounded-lg overflow-hidden bg-white/50 dark:bg-slate-900/50"
 					>
-						<button
+						<button type="button"
 							onClick={() => setOpenIndex(isOpen ? null : i)}
 							className="w-full flex items-center justify-between px-4 py-3 text-left text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
 						>

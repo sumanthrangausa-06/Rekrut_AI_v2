@@ -1,7 +1,6 @@
 import {
 	AlertCircle,
 	CheckCircle,
-	Clock,
 	FileAudio,
 	Highlighter,
 	Loader2,
@@ -115,7 +114,7 @@ function ToastContainer({
 						<AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
 					)}
 					<p className="text-sm flex-1">{toast.message}</p>
-					<button
+					<button type="button"
 						onClick={() => onDismiss(toast.id)}
 						className="shrink-0 text-muted-foreground hover:text-foreground min-h-[28px] min-w-[28px] flex items-center justify-center rounded"
 					>
@@ -250,7 +249,7 @@ export function RecordingPlaybackPage() {
 				colorMap[speaker] = idx;
 			});
 			setSpeakerColorMap(colorMap);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			showToast(err.message || 'Failed to load recording', 'error');
 		} finally {
 			setLoading(false);
@@ -330,7 +329,7 @@ export function RecordingPlaybackPage() {
 			setHighlightNote('');
 			setSelectedSegmentId(null);
 			await loadData();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			showToast(err.message || 'Failed to add highlight', 'error');
 		} finally {
 			setAddingHighlight(false);

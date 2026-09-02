@@ -119,7 +119,7 @@ export function RecruiterOnboardingPage() {
 				'Onboarding summary',
 			);
 			setCandidates(data);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err?.message || 'Failed to load onboarding data');
 			setCandidates([]);
 		} finally {
@@ -142,7 +142,7 @@ export function RecruiterOnboardingPage() {
 				'Candidate documents',
 			);
 			setCandidateDocs(docs);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err?.message || 'Failed to load candidate documents');
 			setCandidateDocs([]);
 		} finally {
@@ -162,7 +162,7 @@ export function RecruiterOnboardingPage() {
 			const url = URL.createObjectURL(blob);
 			window.open(url, '_blank');
 			setTimeout(() => URL.revokeObjectURL(url), 10000);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err.message || 'Failed to download document');
 		}
 	}

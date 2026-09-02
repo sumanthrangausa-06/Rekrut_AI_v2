@@ -10,7 +10,7 @@ const {
 	requireApprovedRecruiter,
 	requireNotSuspended,
 } = require('../lib/auth');
-const { requireFeature, checkFeatureAccess } = require('../lib/subscription');
+const { requireFeature } = require('../lib/subscription');
 const emailService = require('../lib/email-service');
 
 let matchingEngine;
@@ -134,7 +134,7 @@ router.post(
 			let fitScore = null;
 			let isTopFive = false;
 
-			if (matchingEngine && matchingEngine.findMatchingCandidates) {
+			if (matchingEngine?.findMatchingCandidates) {
 				try {
 					const matches = await matchingEngine.findMatchingCandidates(job_id, {
 						limit: 5,

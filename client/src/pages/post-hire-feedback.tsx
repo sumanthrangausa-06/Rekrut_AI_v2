@@ -246,7 +246,7 @@ export function RecruiterPostHireFeedbackPage() {
 								Would you recommend this candidate to others?
 							</Label>
 							<div className="flex gap-3">
-								<button
+								<button type="button"
 									onClick={() => setForm((prev) => ({ ...prev, wouldRecommend: true }))}
 									className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition ${
 										form.wouldRecommend === true
@@ -257,7 +257,7 @@ export function RecruiterPostHireFeedbackPage() {
 									<ThumbsUp className="w-4 h-4" />
 									Yes
 								</button>
-								<button
+								<button type="button"
 									onClick={() => setForm((prev) => ({ ...prev, wouldRecommend: false }))}
 									className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition ${
 										form.wouldRecommend === false
@@ -275,7 +275,7 @@ export function RecruiterPostHireFeedbackPage() {
 								Would you hire through Rekrut AI again?
 							</Label>
 							<div className="flex gap-3">
-								<button
+								<button type="button"
 									onClick={() => setForm((prev) => ({ ...prev, hireAgain: true }))}
 									className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition ${
 										form.hireAgain === true
@@ -286,7 +286,7 @@ export function RecruiterPostHireFeedbackPage() {
 									<ThumbsUp className="w-4 h-4" />
 									Yes
 								</button>
-								<button
+								<button type="button"
 									onClick={() => setForm((prev) => ({ ...prev, hireAgain: false }))}
 									className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition ${
 										form.hireAgain === false

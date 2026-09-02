@@ -217,7 +217,7 @@ export function NotificationCenter({ className }: { className?: string }) {
 			};
 
 			await audio.play();
-		} catch (err: any) {
+		} catch (err: unknown) {
 			console.error('[NotificationCenter] Voice playback error:', err);
 			setPlayingId(null);
 			setAudioError(err.message || 'Voice playback failed');
@@ -267,7 +267,7 @@ export function NotificationCenter({ className }: { className?: string }) {
 						{audioError && (
 							<div className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-md flex items-center gap-2">
 								<span className="flex-1">{audioError}</span>
-								<button
+								<button type="button"
 									className="text-red-700 hover:text-red-900 font-medium"
 									onClick={() => setAudioError(null)}
 								>

@@ -20,7 +20,7 @@ function cspMiddleware(req, res, next) {
 			// Vite dev server (development only)
 			...(process.env.NODE_ENV !== 'production' ? ["'unsafe-eval'"] : []),
 			// Allow scripts with a nonce (set on <script nonce="..."> tags)
-			(req, res) => `'nonce-${res.locals.cspNonce}'`,
+			(_req, res) => `'nonce-${res.locals.cspNonce}'`,
 			// Google OAuth (if used)
 			'https://accounts.google.com',
 			'https://apis.google.com',

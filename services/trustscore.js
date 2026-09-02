@@ -1,6 +1,6 @@
 // TrustScore Service v2 — Deep company scoring and accountability (Issue #122)
 const pool = require('../lib/db');
-const { chat, safeParseJSON, handleAIError } = require('../lib/polsia-ai');
+const { chat } = require('../lib/polsia-ai');
 
 // Score ranges and tiers (0-1000 scale)
 const TRUST_SCORE_RANGES = {
@@ -429,7 +429,7 @@ async function recordScoreChange(companyId, previousScore, newScore, reason, com
  */
 async function getDataSufficiency(companyId) {
 	// Count data points per factor
-	const [ratings, feedback, applications, offers, jobsCount, interviews] = await Promise.all([
+	const [ratings, _feedback, applications, offers, _jobsCount, interviews] = await Promise.all([
 		pool.query('SELECT COUNT(*) as count FROM company_ratings WHERE company_id = $1', [companyId]),
 		pool.query('SELECT COUNT(*) as count FROM candidate_feedback WHERE company_id = $1', [
 			companyId,
@@ -753,7 +753,7 @@ async function calculateDiversityMetrics(companyId) {
 
 	// Geographic diversity as a proxy: more locations = more diverse
 	const diversityRatio = distinctLocations / total;
-	const score = Math.round(diversityRatio * 100); // max 100, but capped at 0 since this is placeholder
+	const _score = Math.round(diversityRatio * 100); // max 100, but capped at 0 since this is placeholder
 
 	return {
 		score: 0, // Stays 0 until we have real demographic data
@@ -1222,7 +1222,7 @@ async function detectReviewBrigading(companyId, lookbackDays = 30) {
 		if (!textGroups[key]) textGroups[key] = [];
 		textGroups[key].push(r);
 	}
-	for (const [key, group] of Object.entries(textGroups)) {
+	for (const [_key, group] of Object.entries(textGroups)) {
 		if (group.length >= 2) {
 			flags.push({
 				type: 'similar_text',
@@ -1241,7 +1241,7 @@ async function detectReviewBrigading(companyId, lookbackDays = 30) {
 		if (!timeBuckets[hour]) timeBuckets[hour] = [];
 		timeBuckets[hour].push(r);
 	}
-	for (const [hour, group] of Object.entries(timeBuckets)) {
+	for (const [_hour, group] of Object.entries(timeBuckets)) {
 		if (group.length >= 3) {
 			flags.push({
 				type: 'rapid_fire',

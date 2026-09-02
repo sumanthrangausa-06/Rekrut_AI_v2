@@ -175,7 +175,7 @@ export function RecruiterCommunicationsPage() {
 								<p className="text-center text-gray-500 py-8">No messages found</p>
 							) : (
 								filteredMessages.map((message) => (
-									<button
+									<button type="button"
 										key={message.id}
 										onClick={() => {
 											setSelectedMessage(message);
@@ -207,7 +207,7 @@ export function RecruiterCommunicationsPage() {
 												)}
 												{message.type}
 											</Badge>
-											<button
+											<button type="button"
 												onClick={(e) => {
 													e.stopPropagation();
 													toggleStar(message.id);
@@ -218,7 +218,7 @@ export function RecruiterCommunicationsPage() {
 													className={`w-4 h-4 ${message.starred ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400'}`}
 												/>
 											</button>
-											<button
+											<button type="button"
 												onClick={(e) => {
 													e.stopPropagation();
 													deleteMessage(message.id);
@@ -250,7 +250,7 @@ export function RecruiterCommunicationsPage() {
 											</div>
 										</div>
 										<div className="flex items-center gap-2">
-											<button
+											<button type="button"
 												onClick={() => toggleStar(selectedMessage.id)}
 												className="p-2 hover:bg-gray-100 rounded"
 											>
@@ -258,7 +258,7 @@ export function RecruiterCommunicationsPage() {
 													className={`w-5 h-5 ${selectedMessage.starred ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400'}`}
 												/>
 											</button>
-											<button
+											<button type="button"
 												onClick={() => deleteMessage(selectedMessage.id)}
 												className="p-2 hover:bg-gray-100 rounded"
 											>

@@ -185,7 +185,7 @@ export function RecruiterAssessmentsPage() {
 		} finally {
 			setLoading(false);
 		}
-	}, []);
+	}, [sortBy, filterStatus, filterSkill]);
 
 	useEffect(() => {
 		loadData();

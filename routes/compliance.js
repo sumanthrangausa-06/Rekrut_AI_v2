@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../lib/db');
-const { authMiddleware, requireRole } = require('../lib/auth');
+const { authMiddleware } = require('../lib/auth');
 const auditLogService = require('../services/auditLogService');
 const { AuditLogger } = auditLogService;
 const BiasDetection = require('../services/biasDetection');

@@ -289,7 +289,7 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 		if (!msgSearchQuery) {
 			messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 		}
-	}, [messages, msgSearchQuery]);
+	}, [msgSearchQuery]);
 
 	// Poll for new messages
 	useEffect(() => {
@@ -534,7 +534,7 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 										const otherName =
 											mode === 'candidate' ? conv.recruiter_name : conv.candidate_name;
 										return (
-											<button
+											<button type="button"
 												key={conv.id}
 												onClick={() => {
 													setActiveConv(conv.id);

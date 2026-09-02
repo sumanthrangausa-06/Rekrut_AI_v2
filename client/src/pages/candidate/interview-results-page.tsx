@@ -7,7 +7,6 @@ import {
 	CheckCircle2,
 	ChevronDown,
 	ChevronUp,
-	Clock,
 	Eye,
 	FileText,
 	Lightbulb,
@@ -15,20 +14,17 @@ import {
 	Mic,
 	Monitor,
 	Plus,
-	Sparkles,
 	Star,
 	TrendingUp,
 	Trophy,
 	User,
 	Volume2,
-	Wand2,
 	Zap,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
 import type { MockSession, SessionFeedback } from './coaching-types';
@@ -493,7 +489,7 @@ function SectionAccordion({
 	const isExpanded = expandedSection === sectionKey;
 	return (
 		<Card className="overflow-hidden border-white/10">
-			<button
+			<button type="button"
 				onClick={() => toggleSection(sectionKey)}
 				className="w-full flex items-center justify-between p-4 hover:bg-muted/30 transition-colors text-left"
 			>

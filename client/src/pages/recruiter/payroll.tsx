@@ -204,7 +204,7 @@ export function RecruiterPayrollPage() {
 			if (dashRes.status === 'rejected') {
 				setError((dashRes.reason as Error)?.message || 'Failed to load payroll dashboard');
 			}
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err?.message || 'Failed to load payroll data');
 		} finally {
 			setLoading(false);
@@ -254,7 +254,7 @@ export function RecruiterPayrollPage() {
 			);
 			setRunPaychecks(res.paychecks || []);
 			setSelectedRun(res.payrollRun);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			setError(err?.message || 'Failed to load payroll run details');
 			setRunPaychecks([]);
 		} finally {

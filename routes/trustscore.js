@@ -266,7 +266,7 @@ router.get('/compare', async (req, res) => {
 router.get('/company/:id/public', async (req, res) => {
 	try {
 		const companyId = parseInt(req.params.id, 10);
-		if (!companyId || isNaN(companyId)) {
+		if (!companyId || Number.isNaN(companyId)) {
 			return res.status(400).json({ error: 'Invalid company ID' });
 		}
 

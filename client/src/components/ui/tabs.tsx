@@ -56,7 +56,7 @@ export function TabsTrigger({
 }) {
 	const ctx = React.useContext(TabsContext);
 	return (
-		<button
+		<button type="button"
 			onClick={() => ctx.onChange(value)}
 			className={cn(
 				'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none min-h-[36px]',

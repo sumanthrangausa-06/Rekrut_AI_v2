@@ -544,7 +544,7 @@ router.post(
 		// Normalize URL
 		let normalizedUrl = String(linkedInUrl).trim();
 		if (!normalizedUrl.startsWith('http')) {
-			normalizedUrl = 'https://' + normalizedUrl;
+			normalizedUrl = `https://${normalizedUrl}`;
 		}
 		try {
 			new URL(normalizedUrl);

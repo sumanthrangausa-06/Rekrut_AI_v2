@@ -76,7 +76,7 @@ export function AIChatFAB() {
 	// Auto-scroll to bottom when messages change or loading starts
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-	}, [messages, loading]);
+	}, []);
 
 	// Focus textarea when opening
 	useEffect(() => {
@@ -142,7 +142,7 @@ export function AIChatFAB() {
 				className={cn(
 					'flex flex-col bg-card border shadow-2xl overflow-hidden transition-all duration-300 ease-out origin-bottom-right',
 					// Mobile: full screen
-					'isOpen'
+					isOpen
 						? 'fixed inset-0 rounded-none sm:static sm:inset-auto sm:w-[400px] sm:h-[600px] sm:rounded-2xl'
 						: 'w-0 h-0 opacity-0 scale-95 pointer-events-none sm:w-0 sm:h-0',
 					// Minimized: tiny peek or fully hidden
@@ -320,7 +320,7 @@ export function AIChatFAB() {
 
 			{/* ─── Minimized Pill ───────────────────────────────── */}
 			{isMinimized && (
-				<button
+				<button type="button"
 					onClick={handleRestore}
 					className={cn(
 						'flex items-center gap-2 px-4 py-2.5 bg-black text-white rounded-full shadow-lg',
@@ -335,7 +335,7 @@ export function AIChatFAB() {
 
 			{/* ─── FAB Button ───────────────────────────────────── */}
 			{(isClosed || isMinimized) && (
-				<button
+				<button type="button"
 					onClick={handleOpen}
 					className={cn(
 						'h-14 w-14 rounded-full bg-black text-white shadow-lg flex items-center justify-center',

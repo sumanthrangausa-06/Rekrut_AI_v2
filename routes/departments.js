@@ -43,7 +43,7 @@ router.post('/', authMiddleware, requirePermission('company:manage'), async (req
 			return res.status(400).json({ error: 'No company associated with this account' });
 		}
 		const { name, description, parent_department_id } = req.body;
-		if (!name || !name.trim()) {
+		if (!name?.trim()) {
 			return res.status(400).json({ error: 'Department name is required' });
 		}
 

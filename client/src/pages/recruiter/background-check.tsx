@@ -18,7 +18,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall } from '@/lib/api';
@@ -76,6 +75,7 @@ type Discrepancy = {
 	candidate_response: string | null;
 	created_at: string;
 	verification_type: string;
+	verification_request_id?: number;
 };
 
 type ReferenceCheck = {
@@ -98,7 +98,7 @@ type CandidateBgData = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-const verificationStatusConfig: Record<
+const _verificationStatusConfig: Record<
 	string,
 	{ icon: React.ReactNode; color: string; label: string }
 > = {
@@ -160,7 +160,7 @@ export function RecruiterBackgroundCheckPage() {
 			}
 		}, 300);
 		return () => clearTimeout(timer);
-	}, [searchQuery]);
+	}, [searchQuery, performSearch]);
 
 	async function performSearch(q: string) {
 		setSearching(true);

@@ -1,4 +1,4 @@
-const path = require('path');
+const _path = require('node:path');
 
 // ─── Mock PostgreSQL pool ────────────────────────────────────────────────────
 // Inline mock factory to avoid Jest out-of-scope variable restriction.
@@ -65,6 +65,12 @@ jest.mock('../../lib/db', () => {
 		// Auth routes: INSERT user
 		if (normalized.includes('insert into users') && normalized.includes('returning')) {
 			const email = params.find((p) => typeof p === 'string' && p.includes('@')) || params[0];
+			// Simulate unique constraint violation for duplicate emails
+			if (mockUsers.has(email)) {
+				const error = new Error('duplicate key value violates unique constraint "users_email_key"');
+				error.code = '23505';
+				throw error;
+			}
 			const newUser = {
 				id: nextUserId++,
 				email: params[0],
@@ -201,12 +207,21 @@ jest.mock('../../lib/email-service', () => {
 
 jest.mock('../../lib/distributed-rate-limiter', () => {
 	const rateLimitMiddleware = jest.fn((_req, _res, next) => next());
+	class DistributedRateLimiter {
+		async checkLimit() {
+			return { allowed: true, count: 1, retryAfter: 0 };
+		}
+		startCleanup() {}
+	}
 	return {
+		createRateLimit: jest.fn(() => rateLimitMiddleware),
+		DistributedRateLimiter,
 		rateLimits: {
 			strict: rateLimitMiddleware,
 			standard: rateLimitMiddleware,
-			lenient: rateLimitMiddleware,
 			ai: rateLimitMiddleware,
+			public: rateLimitMiddleware,
+			admin: rateLimitMiddleware,
 		},
 		distributedRateLimiter: {
 			checkLimit: jest.fn().mockResolvedValue({ allowed: true, count: 1, retryAfter: 0 }),
@@ -230,8 +245,8 @@ jest.mock('isomorphic-dompurify', () => {
 
 // ─── Environment ────────────────────────────────────────────────────────────
 process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = require('crypto').randomBytes(64).toString('hex');
-process.env.SESSION_SECRET = require('crypto').randomBytes(64).toString('hex');
+process.env.JWT_SECRET = require('node:crypto').randomBytes(64).toString('hex');
+process.env.SESSION_SECRET = require('node:crypto').randomBytes(64).toString('hex');
 process.env.DATABASE_URL = 'postgresql://localhost:5432/test';
 process.env.FRONTEND_URL = 'http://localhost:5173';
 
