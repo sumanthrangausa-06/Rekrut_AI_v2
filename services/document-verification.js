@@ -346,8 +346,12 @@ async function checkCrossDocumentConsistency(userId) {
 		const allNames = new Set();
 		const allDobs = new Set();
 		docProfiles.forEach((dp) => {
-			dp.names.forEach((n) => { allNames.add(n); });
-			dp.dobs.forEach((d) => { allDobs.add(d); });
+			dp.names.forEach((n) => {
+				allNames.add(n);
+			});
+			dp.dobs.forEach((d) => {
+				allDobs.add(d);
+			});
 		});
 
 		// If we have more than one document, check for name mismatches
@@ -444,7 +448,9 @@ function extractNames(data) {
 	}
 	// Also check metadata.names if present
 	if (data.names && Array.isArray(data.names)) {
-		data.names.forEach((n) => { names.push(normalizeName(n)); });
+		data.names.forEach((n) => {
+			names.push(normalizeName(n));
+		});
 	}
 	return [...new Set(names)].filter(Boolean);
 }

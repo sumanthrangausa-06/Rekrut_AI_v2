@@ -19,7 +19,6 @@ const { scanFile, logScanEvent } = require('../lib/virus-scanner');
 const {
 	verifyDocument,
 	applyDocumentScoresToOmniScore,
-
 } = require('../services/document-verification');
 
 const router = express.Router();

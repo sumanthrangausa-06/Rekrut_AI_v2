@@ -1,56 +1,57 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
-  "vcs": {
-    "enabled": true,
-    "clientKind": "git",
-    "useIgnoreFile": false
-  },
-  "files": {
-    "ignoreUnknown": false,
-    "includes": ["**", "!dist", "!node_modules", "!coverage", "!**/*.css"]
-  },
-  "formatter": {
-    "enabled": false,
-    "indentStyle": "tab",
-    "indentWidth": 2,
-    "lineWidth": 100
-  },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "recommended": true,
-      "correctness": {
-        "noUnusedVariables": "error",
-        "noUnusedFunctionParameters": "error",
-        "noUnusedImports": "error",
-        "useExhaustiveDependencies": "warn"
-      },
-      "suspicious": {
-        "noExplicitAny": "warn",
-        "noArrayIndexKey": "warn",
-        "noShadowRestrictedNames": "error"
-      },
-      "a11y": {
-        "noLabelWithoutControl": "warn",
-        "noStaticElementInteractions": "warn",
-        "noSvgWithoutTitle": "warn",
-        "useKeyWithClickEvents": "warn",
-        "useValidAnchor": "warn",
-        "useMediaCaption": "warn",
-        "useSemanticElements": "warn",
-        "useButtonType": "error"
-      },
-      "style": {
-        "noNonNullAssertion": "warn"
-      }
-    }
-  },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "single",
-      "jsxQuoteStyle": "double",
-      "semicolons": "always",
-      "trailingCommas": "all"
-    }
-  }
+	"root": false,
+	"$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": false
+	},
+	"files": {
+		"ignoreUnknown": false,
+		"includes": ["**", "!dist", "!node_modules", "!coverage", "!**/*.css"]
+	},
+	"formatter": {
+		"enabled": false,
+		"indentStyle": "tab",
+		"indentWidth": 2,
+		"lineWidth": 100
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"correctness": {
+				"noUnusedVariables": "error",
+				"noUnusedFunctionParameters": "error",
+				"noUnusedImports": "error",
+				"useExhaustiveDependencies": "warn"
+			},
+			"suspicious": {
+				"noExplicitAny": "warn",
+				"noArrayIndexKey": "warn",
+				"noShadowRestrictedNames": "error"
+			},
+			"a11y": {
+				"noLabelWithoutControl": "warn",
+				"noStaticElementInteractions": "warn",
+				"noSvgWithoutTitle": "warn",
+				"useKeyWithClickEvents": "warn",
+				"useValidAnchor": "warn",
+				"useMediaCaption": "warn",
+				"useSemanticElements": "warn",
+				"useButtonType": "error"
+			},
+			"style": {
+				"noNonNullAssertion": "warn"
+			}
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "single",
+			"jsxQuoteStyle": "double",
+			"semicolons": "always",
+			"trailingCommas": "all"
+		}
+	}
 }

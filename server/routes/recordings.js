@@ -424,10 +424,7 @@ router.get(
 			const recordingId = parseInt(req.params.id, 10);
 			const user = req.user;
 
-			const { canAccess, recording, isRecruiter } = await canAccessRecording(
-				recordingId,
-				user,
-			);
+			const { canAccess, recording, isRecruiter } = await canAccessRecording(recordingId, user);
 			if (!canAccess) {
 				return res.status(403).json({ error: 'Not authorized' });
 			}
