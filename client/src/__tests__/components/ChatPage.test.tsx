@@ -5,7 +5,7 @@ import { ChatPage } from '@/components/domain/chat';
 
 // Mock the API module
 vi.mock('@/lib/api', () => ({
-	apiCall: vi.fn(() => Promise.reject(new Error('mock'))),
+	apiCall: vi.fn(),
 }));
 
 import { apiCall } from '@/lib/api';
@@ -16,9 +16,57 @@ function renderWithRouter(component: React.ReactNode) {
 	return render(<BrowserRouter>{component}</BrowserRouter>);
 }
 
+const mockConversations = [
+	{
+		id: 1,
+		recruiter_name: 'Alice Smith',
+		candidate_name: 'Bob Jones',
+		job_title: 'Frontend Developer',
+		company_name: 'Acme Corp',
+		last_message: {
+			content: 'Hello!',
+			created_at: new Date().toISOString(),
+		},
+		unread_count: 2,
+		is_active: true,
+		other_user: {
+			id: 1,
+			name: 'Alice Smith',
+			role: 'recruiter',
+			is_online: true,
+		},
+	},
+];
+
+const mockMessages = [
+	{
+		id: 1,
+		conversation_id: 1,
+		sender_id: 1,
+		content: 'Hello there!',
+		type: 'text',
+		created_at: new Date().toISOString(),
+		is_read: true,
+		sender: {
+			id: 1,
+			name: 'Alice Smith',
+			role: 'recruiter',
+		},
+	},
+];
+
 describe('ChatPage', () => {
 	beforeEach(() => {
 		mockApiCall.mockClear();
+		mockApiCall.mockImplementation((endpoint: string) => {
+			if (endpoint === '/candidate/conversations' || endpoint === '/recruiter/conversations') {
+				return Promise.resolve({ conversations: mockConversations });
+			}
+			if (endpoint?.startsWith('/conversations/') && endpoint?.endsWith('/messages')) {
+				return Promise.resolve({ messages: mockMessages });
+			}
+			return Promise.resolve({});
+		});
 	});
 
 	it('renders chat interface', async () => {

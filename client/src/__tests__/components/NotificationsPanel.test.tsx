@@ -12,6 +12,31 @@ vi.mock('@/lib/analytics', () => ({
 	trackEvent: vi.fn(),
 }));
 
+import { apiCall } from '@/lib/api';
+
+const mockApiCall = vi.mocked(apiCall);
+
+const mockNotifications = [
+	{
+		id: 1,
+		type: 'interview',
+		title: 'Interview Scheduled',
+		message: 'Your interview for Frontend Developer is scheduled for tomorrow at 2 PM.',
+		read: false,
+		created_at: new Date().toISOString(),
+		metadata: {},
+	},
+	{
+		id: 2,
+		type: 'success',
+		title: 'New Job Match',
+		message: 'You have a new job match! Check out the Senior Developer role at Tech Corp.',
+		read: false,
+		created_at: new Date().toISOString(),
+		metadata: {},
+	},
+];
+
 function renderWithRouter(component: React.ReactNode) {
 	return render(<BrowserRouter>{component}</BrowserRouter>);
 }
@@ -19,6 +44,16 @@ function renderWithRouter(component: React.ReactNode) {
 describe('NotificationCenter', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		mockApiCall.mockClear();
+		mockApiCall.mockImplementation((endpoint: string) => {
+			if (endpoint === '/notifications/in-app?limit=50') {
+				return Promise.resolve({
+					notifications: mockNotifications,
+					unread_count: 2,
+				});
+			}
+			return Promise.resolve({});
+		});
 	});
 
 	it('renders notifications button', () => {
