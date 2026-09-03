@@ -137,7 +137,7 @@ export function AiOnboardingRecruiter() {
 			setLoading(true);
 			const data = await apiCall<OnboardingPlan[]>('/onboarding/plans/list');
 			setPlans(data);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setLoading(false);
@@ -191,7 +191,7 @@ export function AiOnboardingRecruiter() {
 			setCandidateId('');
 			setJobId('');
 			await loadPlans();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to generate plan');
 		} finally {
 			setGenerating(false);
@@ -206,7 +206,7 @@ export function AiOnboardingRecruiter() {
 			// Expand all phases by default
 			const phases = data.phase_progress.map((p) => p.phase);
 			setExpandedPhases(new Set(phases));
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setLoadingPlan(false);

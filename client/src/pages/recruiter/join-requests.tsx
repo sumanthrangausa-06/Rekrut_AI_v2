@@ -124,7 +124,7 @@ export function RecruiterJoinRequestsPage() {
 				'/company/join-requests',
 			);
 			setRequests(data.requests || []);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to load join requests');
 			console.error('Failed to load join requests:', err);
 		} finally {
@@ -150,7 +150,7 @@ export function RecruiterJoinRequestsPage() {
 				);
 				showToast('Recruiter approved and added to company', 'success');
 				await loadRequests();
-			} catch (err: unknown) {
+			} catch (err: any) {
 				showToast(err.message || 'Failed to approve request', 'error');
 			} finally {
 				setProcessingId(null);
@@ -182,7 +182,7 @@ export function RecruiterJoinRequestsPage() {
 			setRejectRequestId(null);
 			setRejectReason('');
 			await loadRequests();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			showToast(err.message || 'Failed to reject request', 'error');
 		} finally {
 			setIsRejecting(false);

@@ -66,7 +66,7 @@ export function LinkedInOptimizerPage() {
 			} else {
 				setError(res.error || 'Failed to load LinkedIn tips.');
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err?.message || 'Failed to load LinkedIn tips.');
 		} finally {
 			setLoading(false);

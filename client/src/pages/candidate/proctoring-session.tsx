@@ -72,7 +72,7 @@ export function CandidateProctoringSessionPage() {
 			setSession(data.session);
 			setEvents(data.events);
 			setFlags(data.flags);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to load session');
 		} finally {
 			setLoading(false);
@@ -89,7 +89,7 @@ export function CandidateProctoringSessionPage() {
 		try {
 			await apiCall(`/proctoring/session/${sessionId}/complete`, { method: 'POST' });
 			await loadSession();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to complete session');
 		} finally {
 			setCompleting(false);

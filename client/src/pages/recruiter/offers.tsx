@@ -191,7 +191,7 @@ export function RecruiterOffersPage() {
 				const refreshed = offers.find((o) => o.id === newOffer.id) || newOffer;
 				setSelectedOffer(refreshed as Offer);
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({
 				type: 'error',
 				text: err instanceof Error ? err.message : 'Failed to create offer',
@@ -230,7 +230,7 @@ export function RecruiterOffersPage() {
 					);
 				}
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({
 				type: 'error',
 				text: err instanceof Error ? err.message : 'Failed to generate offer letter',
@@ -280,7 +280,7 @@ export function RecruiterOffersPage() {
 			await apiCall(`/onboarding/offers/${id}/withdraw`, { method: 'POST' });
 			setSelectedOffer(null);
 			loadData();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({
 				type: 'error',
 				text: err instanceof Error ? err.message : 'Failed to withdraw offer',

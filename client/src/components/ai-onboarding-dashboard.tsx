@@ -166,7 +166,7 @@ export function AiOnboardingDashboard() {
 			if (firstPending) {
 				setExpandedPhases(new Set([firstPending.phase]));
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setLoadingPlan(false);
@@ -183,7 +183,7 @@ export function AiOnboardingDashboard() {
 				const activePlanItem = data.find((p) => p.status === 'active') || data[0];
 				await loadPlanProgress(activePlanItem.id);
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setLoading(false);
@@ -209,7 +209,7 @@ export function AiOnboardingDashboard() {
 			if (activePlan) {
 				await loadPlanProgress(activePlan.plan.id);
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setCompletingTask(null);
@@ -238,7 +238,7 @@ export function AiOnboardingDashboard() {
 				...prev,
 				{ role: 'assistant', content: data.response, timestamp: new Date().toISOString() },
 			]);
-		} catch (_err: unknown) {
+		} catch (_err: any) {
 			setChatMessages((prev) => [
 				...prev,
 				{

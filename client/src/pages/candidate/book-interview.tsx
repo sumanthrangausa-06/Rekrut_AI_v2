@@ -97,7 +97,7 @@ export function BookInterviewPage() {
 			);
 			setInterview(res.interview);
 			trackEvent('candidate_book_interview_view', { interviewId: Number(interviewId) });
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to load interview details');
 		} finally {
 			setLoading(false);
@@ -126,7 +126,7 @@ export function BookInterviewPage() {
 				interviewId: interview.id,
 				slotId: selectedSlotId,
 			});
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to confirm interview');
 		} finally {
 			setConfirming(false);

@@ -153,7 +153,7 @@ export function AssessmentTakePage() {
 					setTimeLeft(result.nextQuestion.timeLimit || 120);
 					startTimeRef.current = Date.now();
 				}
-			} catch (err: unknown) {
+			} catch (err: any) {
 				alert(err instanceof Error ? err.message : 'Failed to submit answer');
 			} finally {
 				setSubmitting(false);

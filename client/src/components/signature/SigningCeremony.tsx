@@ -39,7 +39,7 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 		recordView,
 		sign,
 		decline,
-		loading: apiLoading,
+		loading: _apiLoading,
 		error: apiError,
 		clearError,
 	} = useSignature();

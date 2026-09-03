@@ -89,7 +89,7 @@ export function CandidateAssessmentsPage() {
 				}),
 			);
 			navigate(`/candidate/assessments/${data.sessionId}/take`);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Failed to start assessment');
 		} finally {
 			setStarting(null);

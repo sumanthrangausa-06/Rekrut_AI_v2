@@ -86,7 +86,7 @@ export function JobAssessmentTakePage() {
 				setTimeLeft(data.question.timeLimit || 120);
 				startTimeRef.current = Date.now();
 			}
-		} catch (e: unknown) {
+		} catch (e: any) {
 			console.error('Failed to start assessment:', e);
 		} finally {
 			setLoading(false);
@@ -147,7 +147,7 @@ export function JobAssessmentTakePage() {
 				},
 				data.feedback ? 1500 : 0,
 			);
-		} catch (e: unknown) {
+		} catch (e: any) {
 			console.error('Submit failed:', e);
 		} finally {
 			setSubmitting(false);

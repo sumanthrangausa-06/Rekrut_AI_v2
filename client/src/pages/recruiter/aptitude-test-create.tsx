@@ -86,7 +86,7 @@ export function RecruiterAptitudeTestCreatePage() {
 				});
 			}
 			navigate('/recruiter/aptitude-tests');
-		} catch (err: unknown) {
+		} catch (err: any) {
 			const msg = err instanceof Error ? err.message : 'Failed to save test';
 			alert(msg);
 		} finally {

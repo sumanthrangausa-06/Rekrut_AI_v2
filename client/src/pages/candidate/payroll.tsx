@@ -170,7 +170,7 @@ export function CandidatePayrollPage() {
 			});
 			setShowBankEdit(false);
 			await loadAll();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Failed to update bank details');
 		} finally {
 			setSavingBank(false);

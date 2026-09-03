@@ -237,7 +237,7 @@ export function RecruiterTrustscorePage() {
 			]);
 			setTrustscore(tsData.trustscore);
 			setBreakdown(bdData);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to load TrustScore data');
 			showToast(err.message || 'Failed to load TrustScore data', 'error');
 		} finally {

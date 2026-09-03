@@ -252,7 +252,7 @@ export function RecruiterJobApplicantsPage() {
 			if (screeningData?.response.application_id) {
 				await loadScreeningData(screeningData.response.application_id);
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Failed to override');
 		} finally {
 			setOverrideSubmitting(false);

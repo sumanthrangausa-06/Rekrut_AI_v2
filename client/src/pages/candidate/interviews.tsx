@@ -191,7 +191,7 @@ export function CandidateInterviewsPage() {
 		try {
 			await apiCall(`/candidate/interviews/${id}/accept`, { method: 'PUT' });
 			await loadInterviews();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to accept' });
 		}
 	}
@@ -207,7 +207,7 @@ export function CandidateInterviewsPage() {
 			setShowDecline(null);
 			setDeclineReason('');
 			await loadInterviews();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to decline' });
 		} finally {
 			setSaving(false);
@@ -229,7 +229,7 @@ export function CandidateInterviewsPage() {
 			setRescheduleReason('');
 			setRescheduleTime('');
 			await loadInterviews();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to request reschedule' });
 		} finally {
 			setSaving(false);
@@ -555,7 +555,7 @@ function InterviewCard({
 	onDecline,
 	onReschedule,
 	onPractice,
-	isPast,
+	isPast: _isPast,
 }: {
 	interview: Interview;
 	onAccept?: () => void;

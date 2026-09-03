@@ -68,7 +68,7 @@ export function RecruiterAptitudeTestsPage() {
 				body: { is_active: !current },
 			});
 			setTests((prev) => prev.map((t) => (t.id === testId ? { ...t, is_active: !current } : t)));
-		} catch (err: unknown) {
+		} catch (err: any) {
 			const msg = err instanceof Error ? err.message : 'Failed to update test';
 			alert(msg);
 		} finally {
@@ -82,7 +82,7 @@ export function RecruiterAptitudeTestsPage() {
 		try {
 			await apiCall(`/recruiter/aptitude-tests/${testId}`, { method: 'DELETE' });
 			setTests((prev) => prev.filter((t) => t.id !== testId));
-		} catch (err: unknown) {
+		} catch (err: any) {
 			const msg = err instanceof Error ? err.message : 'Failed to delete test';
 			alert(msg);
 		} finally {

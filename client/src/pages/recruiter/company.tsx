@@ -756,7 +756,7 @@ function TeamTab({
 				prev.map((m) => (m.id === memberId ? { ...m, suspended_at: new Date().toISOString() } : m)),
 			);
 			showMessage('success', 'Team member suspended');
-		} catch (err: unknown) {
+		} catch (err: any) {
 			showMessage('error', err instanceof Error ? err.message : 'Failed to suspend');
 		} finally {
 			setSuspendingId(null);
@@ -769,7 +769,7 @@ function TeamTab({
 			await apiCall(`/company/team/members/${memberId}/reinstate`, { method: 'POST' });
 			setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, suspended_at: null } : m)));
 			showMessage('success', 'Team member reinstated');
-		} catch (err: unknown) {
+		} catch (err: any) {
 			showMessage('error', err instanceof Error ? err.message : 'Failed to reinstate');
 		} finally {
 			setReinstatingId(null);
@@ -792,7 +792,7 @@ function TeamTab({
 			setInviteEmail('');
 			setInviteName('');
 			showMessage('success', `${data.member.name || data.member.email} invited`);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			showMessage('error', err instanceof Error ? err.message : 'Failed to invite');
 		} finally {
 			setInviting(false);
@@ -1024,7 +1024,7 @@ function AuditLogTab() {
 				'/company/audit-log',
 			);
 			setLogs(data.logs || []);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to load audit log');
 		} finally {
 			setLoading(false);

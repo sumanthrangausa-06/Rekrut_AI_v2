@@ -155,7 +155,7 @@ export function ScreeningQuestionnairePage() {
 					return;
 				}
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			const msg = err instanceof Error ? err.message : 'Failed to load questionnaire';
 			setError(msg);
 		} finally {
@@ -223,7 +223,7 @@ export function ScreeningQuestionnairePage() {
 			});
 			setResponseId(data.response_id);
 			setStarted(true);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			const msg = err instanceof Error ? err.message : 'Failed to start screening';
 			setError(msg);
 		} finally {
@@ -291,7 +291,7 @@ export function ScreeningQuestionnairePage() {
 			setSubmitResult(data);
 			setSubmitted(true);
 			await loadResults(responseId);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			const msg = err instanceof Error ? err.message : 'Failed to submit';
 			setError(msg);
 		} finally {

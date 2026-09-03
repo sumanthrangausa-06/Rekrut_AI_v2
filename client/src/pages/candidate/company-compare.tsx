@@ -121,7 +121,7 @@ export function CompanyComparePage() {
 				`/trustscore/compare?company_ids=${selectedIds.join(',')}`,
 			);
 			setComparison(data);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to load comparison');
 		} finally {
 			setLoading(false);

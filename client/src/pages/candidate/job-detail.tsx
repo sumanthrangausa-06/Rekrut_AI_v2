@@ -197,7 +197,7 @@ export function CandidateJobDetailPage() {
 			showToast('Auto-applied successfully!');
 			const u = await usageFor('auto_apply');
 			setAutoApplyRemaining(u.remaining);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			const msg = err instanceof Error ? err.message : '';
 			const code = (err as Error & { code?: string }).code;
 			if (msg.toLowerCase().includes('already') || code === 'ALREADY_APPLIED') {
@@ -234,7 +234,7 @@ export function CandidateJobDetailPage() {
 			});
 			setIntroRequested(true);
 			showToast('Introduction request sent!');
-		} catch (err: unknown) {
+		} catch (err: any) {
 			const msg = err instanceof Error ? err.message : '';
 			const code = (err as Error & { code?: string }).code;
 			if (
@@ -382,7 +382,7 @@ export function CandidateJobDetailPage() {
 					}
 				}, 100);
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Failed to generate audio');
 		} finally {
 			setAudioLoading(false);
@@ -474,7 +474,7 @@ export function CandidateJobDetailPage() {
 			setShowApplyForm(false);
 			setShowOneClickModal(false);
 			trackEvent('application_submitted', { job_id: job.id });
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Failed to apply');
 		} finally {
 			setApplying(false);
@@ -516,7 +516,7 @@ export function CandidateJobDetailPage() {
 				},
 			);
 			if (data.cover_letter) setCoverLetter(data.cover_letter);
-		} catch (_err: unknown) {
+		} catch (_err: any) {
 			alert('AI generation failed. Try again.');
 		} finally {
 			setGeneratingCL(false);

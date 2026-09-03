@@ -131,7 +131,6 @@ function RatingStars({
 					onClick={() => onChange?.(n)}
 					disabled={readonly}
 					className={`p-0.5 min-h-[32px] ${readonly ? 'cursor-default' : 'cursor-pointer'}`}
-					type="button"
 				>
 					<Star
 						className={`${starSize} transition-colors ${
@@ -200,7 +199,7 @@ export function RecruiterPanelRoomPage() {
 		try {
 			const res = await apiCall<{ panel: Panel }>(`/panels/${panelId}`);
 			setPanel(res.panel);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to load panel' });
 		} finally {
 			setLoading(false);
@@ -269,7 +268,7 @@ export function RecruiterPanelRoomPage() {
 				submitted_count: number;
 			}>(`/panels/${panelId}/scorecards`);
 			setAllScorecards(res);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			// 403 expected when not all submitted
 			console.error('Scorecards error:', err);
 		}
@@ -280,7 +279,7 @@ export function RecruiterPanelRoomPage() {
 		try {
 			const res = await apiCall<AggregateResult>(`/panels/${panelId}/aggregate`);
 			setAggregate(res);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Aggregate not available yet' });
 		} finally {
 			setLoadingAggregate(false);
@@ -321,7 +320,7 @@ export function RecruiterPanelRoomPage() {
 			setNoteInput('');
 			await loadNotes();
 			setMessage({ type: 'success', text: 'Note added' });
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to add note' });
 		} finally {
 			setSendingNote(false);
@@ -361,7 +360,7 @@ export function RecruiterPanelRoomPage() {
 			setMessage({ type: 'success', text: 'Scorecard saved' });
 			await loadCriteriaAndScorecard();
 			await loadAllScorecards();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to save scorecard' });
 		} finally {
 			setSavingScorecard(false);
@@ -378,7 +377,7 @@ export function RecruiterPanelRoomPage() {
 			setMessage({ type: 'success', text: 'Scorecard submitted!' });
 			await loadCriteriaAndScorecard();
 			await loadAllScorecards();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to submit scorecard' });
 		} finally {
 			setSubmitting(false);

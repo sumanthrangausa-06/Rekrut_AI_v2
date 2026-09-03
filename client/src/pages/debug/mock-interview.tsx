@@ -119,7 +119,7 @@ export function MockInterviewDebugPage() {
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			const data = await res.json();
 			setDebugData(data);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to run diagnostics');
 		} finally {
 			setLoading(false);
@@ -138,7 +138,7 @@ export function MockInterviewDebugPage() {
 				if (!res.ok) throw new Error(`HTTP ${res.status}`);
 				const data = await res.json();
 				setPerQuestionData(data);
-			} catch (err: unknown) {
+			} catch (err: any) {
 				console.error('Failed to load per-question data:', err);
 			} finally {
 				setLoadingPQ(false);

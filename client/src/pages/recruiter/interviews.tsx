@@ -234,7 +234,7 @@ export function RecruiterInterviewsPage() {
 				},
 			);
 			setSuggestedSlots(res.slots || []);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			console.error('Smart scheduling error:', err);
 		} finally {
 			setLoadingSlots(false);
@@ -266,7 +266,7 @@ export function RecruiterInterviewsPage() {
 			setShowSchedule(false);
 			resetScheduleForm();
 			await loadData();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to schedule' });
 		} finally {
 			setSaving(false);
@@ -299,7 +299,7 @@ export function RecruiterInterviewsPage() {
 			setTemplateJobId('');
 			setTemplateTitle('');
 			await loadData();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to create template' });
 		} finally {
 			setCreatingTemplate(false);
@@ -324,7 +324,7 @@ export function RecruiterInterviewsPage() {
 				},
 			});
 			await loadData();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to send screening' });
 		}
 	}
@@ -334,7 +334,7 @@ export function RecruiterInterviewsPage() {
 		try {
 			const res = await apiCall<any>(`/interviews/screening/${sessionId}/report`);
 			setShowScreeningReport(res);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to load report' });
 		}
 	}
@@ -349,7 +349,7 @@ export function RecruiterInterviewsPage() {
 			});
 			setShowAiScores(res);
 			await loadData();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to run AI evaluation' });
 		} finally {
 			setEvaluating(null);
@@ -375,7 +375,7 @@ export function RecruiterInterviewsPage() {
 			});
 			setShowFeedback(null);
 			await loadData();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to save feedback' });
 		} finally {
 			setSaving(false);
@@ -387,7 +387,7 @@ export function RecruiterInterviewsPage() {
 		try {
 			await apiCall(`/recruiter/interviews/${id}`, { method: 'DELETE' });
 			await loadData();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to cancel' });
 		}
 	}
@@ -399,7 +399,7 @@ export function RecruiterInterviewsPage() {
 				body: { status },
 			});
 			await loadData();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to update' });
 		}
 	}

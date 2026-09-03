@@ -1181,7 +1181,7 @@ function CollapsibleSection({
 	icon: Icon,
 	count,
 	children,
-	defaultOpen = true,
+	defaultOpen: _defaultOpen = true,
 	action,
 }: CollapsibleSectionProps) {
 	const [open, setOpen] = useResponsiveDefaultOpen();

@@ -63,7 +63,7 @@ export function SalaryPracticeTab() {
 				},
 			]);
 			setPhase('chat');
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setLoading(false);
@@ -114,7 +114,7 @@ export function SalaryPracticeTab() {
 			if (data.conversationShouldEnd) {
 				await handleFinalize();
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setLoading(false);
@@ -141,7 +141,7 @@ export function SalaryPracticeTab() {
 			if (!res.ok) throw new Error(data.error || 'Failed to finalize');
 			setFinalResult(data);
 			setPhase('done');
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setLoading(false);

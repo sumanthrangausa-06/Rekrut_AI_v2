@@ -3,14 +3,14 @@
   "vcs": {
     "enabled": true,
     "clientKind": "git",
-    "useIgnoreFile": true
+    "useIgnoreFile": false
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!dist/**", "!node_modules/**", "!coverage/**"]
+    "includes": ["**", "!dist", "!node_modules", "!coverage", "!**/*.css"]
   },
   "formatter": {
-    "enabled": true,
+    "enabled": false,
     "indentStyle": "tab",
     "indentWidth": 2,
     "lineWidth": 100

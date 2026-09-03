@@ -108,7 +108,7 @@ export function CandidateAptitudeTestsPage() {
 				}),
 			);
 			navigate(`/aptitude-tests/${testId}/take?attempt=${data.attemptId}`);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			const msg = err instanceof Error ? err.message : 'Failed to start test';
 			alert(msg);
 		} finally {

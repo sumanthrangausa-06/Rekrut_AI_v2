@@ -123,7 +123,7 @@ export function RecruiterProctoringFlagDetailPage() {
 			setFlag(matchedFlag || null);
 			setReviewDecision((matchedFlag?.review_decision as 'approved' | 'rejected') || '');
 			setReviewNotes(matchedFlag?.review_notes || '');
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to load flag details');
 		} finally {
 			setLoading(false);
@@ -143,7 +143,7 @@ export function RecruiterProctoringFlagDetailPage() {
 				body: { decision: reviewDecision, notes: reviewNotes },
 			});
 			await loadData();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to submit review');
 		} finally {
 			setSubmitting(false);

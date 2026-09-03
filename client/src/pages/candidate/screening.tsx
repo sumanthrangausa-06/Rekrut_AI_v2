@@ -78,7 +78,7 @@ export function CandidateScreeningPage() {
 				setAnswers(restored);
 				setCurrentQuestion(Math.min(data.responses.length, (data.questions?.length || 1) - 1));
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to load screening session');
 		} finally {
 			setLoading(false);
@@ -120,7 +120,7 @@ export function CandidateScreeningPage() {
 				started_at: new Date().toISOString(),
 				expires_at: data.expires_at,
 			});
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setLoading(false);
@@ -143,7 +143,7 @@ export function CandidateScreeningPage() {
 			if (currentQuestion < (screening?.questions?.length || 0) - 1) {
 				setCurrentQuestion((prev) => prev + 1);
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setSubmitting(false);
@@ -159,7 +159,7 @@ export function CandidateScreeningPage() {
 			const data = await res.json();
 			if (!res.ok) throw new Error(data.error || 'Failed to complete');
 			setCompleted(true);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setCompleting(false);

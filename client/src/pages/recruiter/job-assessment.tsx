@@ -126,7 +126,7 @@ export function RecruiterJobAssessmentPage() {
 				body: { jobId: Number(jobId) },
 			});
 			setAssessment(data.assessment);
-		} catch (e: unknown) {
+		} catch (e: any) {
 			if (e.message?.includes('already exists')) {
 				loadAssessment();
 			} else {

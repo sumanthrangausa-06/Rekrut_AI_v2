@@ -217,7 +217,7 @@ export function NotificationCenter({ className }: { className?: string }) {
 			};
 
 			await audio.play();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			console.error('[NotificationCenter] Voice playback error:', err);
 			setPlayingId(null);
 			setAudioError(err.message || 'Voice playback failed');

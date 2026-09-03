@@ -202,7 +202,7 @@ export function QuickPractice({
 						`Got ${label}: ${settings.width || '?'}x${settings.height || '?'} ${at.length > 0 ? '🎙' : ''}`,
 					);
 					break;
-				} catch (err: unknown) {
+				} catch (err: any) {
 					console.warn(`[camera] ${label} error: ${err?.name} ${err?.message}`);
 					setCameraStatus(`${label}: ${err?.name}`);
 					if (err.name === 'NotAllowedError' && !ac) {
@@ -237,7 +237,7 @@ export function QuickPractice({
 					console.log(
 						`[camera] play() succeeded, readyState=${v.readyState}, videoWidth=${v.videoWidth}`,
 					);
-				} catch (e: unknown) {
+				} catch (e: any) {
 					console.warn('[camera] play() failed, retrying:', e?.message);
 					try {
 						await v.play();
@@ -264,7 +264,7 @@ export function QuickPractice({
 					setCameraStatus('Track ended');
 				});
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			console.error('Camera access error:', err?.name, err?.message);
 			setCameraStatus(`Error: ${err?.name} ${err?.message}`);
 			if (err.name === 'NotAllowedError') {
@@ -527,7 +527,7 @@ export function QuickPractice({
 					return false; // signal retry needed
 				}
 				return true; // don't retry on other responses
-			} catch (err: unknown) {
+			} catch (err: any) {
 				if (err.name === 'AbortError' || abortController.signal.aborted) {
 					if (attempt === 1) return false; // retry on timeout
 					alert(
@@ -581,7 +581,7 @@ export function QuickPractice({
 				setTextCoaching(res.coaching);
 				onSessionComplete();
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			if (err.name === 'AbortError' || abortController.signal.aborted) {
 				alert('Analysis is taking longer than expected. Please try again.');
 			} else {

@@ -605,7 +605,7 @@ function RoomUI({
 			} else {
 				showToast(data.error || 'Failed to start recording');
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			showToast(err.message || 'Failed to start recording');
 		} finally {
 			setStartingRecording(false);
@@ -621,7 +621,7 @@ function RoomUI({
 			});
 			setRecording(null);
 			showToast('Recording stopped');
-		} catch (err: unknown) {
+		} catch (err: any) {
 			showToast(err.message || 'Failed to stop recording');
 		} finally {
 			setStoppingRecording(false);
@@ -644,7 +644,7 @@ function RoomUI({
 					prev.map((p) => (p.userId === userId ? { ...p, consented: true } : p)),
 				);
 				showToast('Consent recorded');
-			} catch (err: unknown) {
+			} catch (err: any) {
 				showToast(err.message || 'Failed to record consent');
 			} finally {
 				setConsentLoading(false);
@@ -761,7 +761,7 @@ export function LiveKitRoomPage() {
 				method: 'POST',
 			});
 			setTokenData(data);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to join room. Please check your room ID and try again.');
 		} finally {
 			setLoading(false);

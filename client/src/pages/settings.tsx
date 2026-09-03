@@ -215,7 +215,7 @@ export function SettingsPage() {
 				'success',
 			);
 			await loadConnections();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			const msg = err?.message || `Failed to disconnect ${provider}`;
 			if (err?.code === 'LAST_AUTH_METHOD') {
 				showToast(

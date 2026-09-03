@@ -112,7 +112,7 @@ function deriveScoreBreakdown(props: MatchExplanationProps): ScoreBreakdownItem[
 
 function generateWhyMatchReasons(props: MatchExplanationProps): string[] {
 	const reasons: string[] = [];
-	const { matchingSkills, missingSkills, explanation, weightedScore, successPrediction } = props;
+	const { matchingSkills, explanation, weightedScore, successPrediction } = props;
 
 	// Build specific reasons from available data
 	if (explanation?.why_matched) {

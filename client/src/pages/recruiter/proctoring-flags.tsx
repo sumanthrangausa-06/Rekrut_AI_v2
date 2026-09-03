@@ -59,7 +59,7 @@ export function RecruiterProctoringFlagsPage() {
 			}>(`/proctoring/flags?status=${filterStatus}&limit=${limit}&offset=${offset}`);
 			setFlags(data.flags);
 			setTotal(data.total);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to load flags');
 		} finally {
 			setLoading(false);

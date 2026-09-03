@@ -9,7 +9,7 @@ interface UpgradeCTAProps {
 }
 
 export function UpgradeCTA({ feature, children, fallback }: UpgradeCTAProps) {
-	const { canUseFeature, isPro } = useSubscription();
+	const { canUseFeature, isPro: _isPro } = useSubscription();
 	const navigate = useNavigate();
 	const allowed = canUseFeature(feature);
 

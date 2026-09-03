@@ -122,7 +122,7 @@ export function RecruiterPanelsPage() {
 		try {
 			const res = await apiCall<{ panels: Panel[]; total: number }>(`/panels/${jobId}`);
 			setPanels(res.panels || []);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to load panels' });
 		} finally {
 			setLoading(false);
@@ -188,7 +188,7 @@ export function RecruiterPanelsPage() {
 			if (res.panel?.id) {
 				navigate(`/recruiter/panels/${res.panel.id}`);
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to create panel' });
 		} finally {
 			setCreating(false);
@@ -206,7 +206,7 @@ export function RecruiterPanelsPage() {
 		try {
 			const res = await apiCall<{ panel: { members: any[] } }>(`/panels/${panelId}`);
 			setPanelMembers(res.panel?.members || []);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to load panel members' });
 		} finally {
 			setLoadingMembers(false);
@@ -221,7 +221,7 @@ export function RecruiterPanelsPage() {
 			setShowDelete(null);
 			setMessage({ type: 'success', text: 'Panel deleted' });
 			await loadPanels(selectedJobId);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to delete panel' });
 		} finally {
 			setDeleting(false);

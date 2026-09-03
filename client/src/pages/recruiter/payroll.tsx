@@ -204,7 +204,7 @@ export function RecruiterPayrollPage() {
 			if (dashRes.status === 'rejected') {
 				setError((dashRes.reason as Error)?.message || 'Failed to load payroll dashboard');
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err?.message || 'Failed to load payroll data');
 		} finally {
 			setLoading(false);
@@ -235,7 +235,7 @@ export function RecruiterPayrollPage() {
 			setPayDate('');
 			await loadAll();
 			setTab('runs');
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Failed to create payroll run');
 		} finally {
 			setCreating(false);
@@ -254,7 +254,7 @@ export function RecruiterPayrollPage() {
 			);
 			setRunPaychecks(res.paychecks || []);
 			setSelectedRun(res.payrollRun);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err?.message || 'Failed to load payroll run details');
 			setRunPaychecks([]);
 		} finally {
@@ -269,7 +269,7 @@ export function RecruiterPayrollPage() {
 			await apiCall(`/payroll/runs/${runId}/process`, { method: 'POST' });
 			setSelectedRun(null);
 			await loadAll();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Failed to process payroll');
 		} finally {
 			setProcessing(false);
@@ -309,7 +309,7 @@ export function RecruiterPayrollPage() {
 			});
 			setSelectedEmployee(null);
 			await loadAll();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Failed to save pay config');
 		} finally {
 			setSavingConfig(false);

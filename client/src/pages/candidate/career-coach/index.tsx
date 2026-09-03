@@ -5,7 +5,7 @@ import {
 	FileText,
 	History,
 	Lock,
-	Map,
+	Map as MapIcon,
 	Sparkles,
 	TrendingUp,
 } from 'lucide-react';
@@ -26,7 +26,7 @@ import { SalaryPracticeTab } from './salary-practice-tab';
 import { SkillGapsTab } from './skill-gaps-tab';
 
 export function CareerCoachPage() {
-	const { user } = useAuth();
+	const { user: _user } = useAuth();
 	const [activeTab, setActiveTab] = useState('career-paths');
 	const [accessData, setAccessData] = useState<{
 		access: { allowed: boolean; remaining: number | null; tier: string };
@@ -113,7 +113,7 @@ export function CareerCoachPage() {
 				<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
 					<TabsList className="grid w-full grid-cols-3 sm:grid-cols-6">
 						<TabsTrigger value="career-paths" className="gap-1.5">
-							<Map className="h-4 w-4" />
+							<MapIcon className="h-4 w-4" />
 							<span className="hidden sm:inline">Career Paths</span>
 						</TabsTrigger>
 						<TabsTrigger value="skill-gaps" className="gap-1.5">

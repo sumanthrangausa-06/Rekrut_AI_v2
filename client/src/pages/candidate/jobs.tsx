@@ -231,7 +231,7 @@ export function CandidateJobsPage() {
 			showToast('Auto-applied successfully!');
 			const u = await usageFor('auto_apply');
 			setAutoApplyRemaining(u.remaining);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			const msg = err instanceof Error ? err.message : '';
 			const code = (err as Error & { code?: string }).code;
 			if (msg.toLowerCase().includes('already') || code === 'ALREADY_APPLIED') {

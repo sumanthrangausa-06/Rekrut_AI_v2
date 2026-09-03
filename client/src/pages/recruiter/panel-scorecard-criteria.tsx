@@ -61,7 +61,7 @@ export function RecruiterPanelScorecardCriteriaPage() {
 			]);
 			setCriteria(criteriaRes.criteria || []);
 			if (jobRes.job) setJobTitle(jobRes.job.title);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to load criteria' });
 		} finally {
 			setLoading(false);
@@ -117,7 +117,7 @@ export function RecruiterPanelScorecardCriteriaPage() {
 
 			setMessage({ type: 'success', text: 'Criteria saved successfully' });
 			await loadData();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to save criteria' });
 		} finally {
 			setSaving(false);
@@ -132,7 +132,7 @@ export function RecruiterPanelScorecardCriteriaPage() {
 			setShowDelete(null);
 			setMessage({ type: 'success', text: 'Criterion deleted' });
 			await loadData();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to delete criterion' });
 		} finally {
 			setDeleting(false);

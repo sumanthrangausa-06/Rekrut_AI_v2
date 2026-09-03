@@ -194,7 +194,7 @@ export function CVReviewPage() {
 						});
 					}
 					// pending → keep polling
-				} catch (err: unknown) {
+				} catch (err: any) {
 					clearPoll();
 					setState({
 						kind: 'failed',
@@ -218,7 +218,7 @@ export function CVReviewPage() {
 				method: 'POST',
 			});
 			startPolling(data.analysis_id);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			const code = (err as Error & { code?: string }).code;
 			if (code === 'UPGRADE_REQUIRED') {
 				setState({ kind: 'upgrade_required' });

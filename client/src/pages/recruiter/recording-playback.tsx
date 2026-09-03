@@ -249,7 +249,7 @@ export function RecordingPlaybackPage() {
 				colorMap[speaker] = idx;
 			});
 			setSpeakerColorMap(colorMap);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			showToast(err.message || 'Failed to load recording', 'error');
 		} finally {
 			setLoading(false);
@@ -329,7 +329,7 @@ export function RecordingPlaybackPage() {
 			setHighlightNote('');
 			setSelectedSegmentId(null);
 			await loadData();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			showToast(err.message || 'Failed to add highlight', 'error');
 		} finally {
 			setAddingHighlight(false);

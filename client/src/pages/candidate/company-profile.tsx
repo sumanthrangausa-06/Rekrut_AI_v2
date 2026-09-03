@@ -110,7 +110,7 @@ export function CompanyProfilePage() {
 			} else {
 				throw new Error(res.message || 'Failed to update profile');
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to update profile' });
 		} finally {
 			setSaving(false);

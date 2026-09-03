@@ -1,4 +1,4 @@
-import { AlertCircle, Briefcase, ChevronRight, Clock, Map, TrendingUp } from 'lucide-react';
+import { AlertCircle, Briefcase, ChevronRight, Clock, Map as MapIcon, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,7 @@ export function CareerPathsTab() {
 			const data = await res.json();
 			if (!res.ok) throw new Error(data.error || 'Failed to generate career paths');
 			setResult(data);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setLoading(false);
@@ -54,7 +54,7 @@ export function CareerPathsTab() {
 			<Card>
 				<CardHeader>
 					<CardTitle className="flex items-center gap-2">
-						<Map className="h-5 w-5 text-indigo-500" />
+						<MapIcon className="h-5 w-5 text-indigo-500" />
 						Career Path Recommendations
 					</CardTitle>
 					<CardDescription>

@@ -466,7 +466,7 @@ export function RecruiterJobFormPage() {
 				setRequirements(data.generated.requirements || '');
 				flashSuccess('Description & requirements generated!');
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'AI generation failed');
 		} finally {
 			setAiGenerating(false);
@@ -492,7 +492,7 @@ export function RecruiterJobFormPage() {
 				setSuggestedRequirements(data.suggestions.suggested_requirements || []);
 				setShowSkillPanel(true);
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Skill suggestion failed');
 		} finally {
 			setAiSuggestingSkills(false);
@@ -518,7 +518,7 @@ export function RecruiterJobFormPage() {
 				setTitleSuggestions(data.suggestions.suggestions);
 				setShowTitleSuggestions(true);
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Title suggestion failed');
 		} finally {
 			setAiSuggestingTitles(false);
@@ -610,7 +610,7 @@ export function RecruiterJobFormPage() {
 			trackEvent('job_form_save_success', { isEdit, title });
 			clearDraft();
 			navigate('/recruiter/jobs');
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Failed to save job');
 			trackEvent('job_form_save_error', { error: err instanceof Error ? err.message : 'unknown' });
 		} finally {

@@ -1445,7 +1445,7 @@ export function CandidateOnboardingPage() {
 			) {
 				loadAIPrefill();
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setLoading(false);
@@ -1632,7 +1632,7 @@ export function CandidateOnboardingPage() {
 				body: { checklist_id: progress.checklist.id, step, data },
 			});
 			return true;
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 			return false;
 		} finally {
@@ -1671,7 +1671,7 @@ export function CandidateOnboardingPage() {
 				},
 			);
 			setDocuments(res.documents);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setGeneratingDocs(false);
@@ -1697,7 +1697,7 @@ export function CandidateOnboardingPage() {
 			});
 			setCurrentStep(6);
 			await loadProgress();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setSigning(false);

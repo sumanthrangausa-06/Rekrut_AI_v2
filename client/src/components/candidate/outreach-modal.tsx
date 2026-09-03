@@ -99,7 +99,7 @@ export function OutreachModal({ application, open, onClose }: OutreachModalProps
 				setMessage(TEMPLATES[method] || '');
 				setStatus('pending');
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Failed to create outreach attempt');
 		} finally {
 			setSubmitting(false);
@@ -111,7 +111,7 @@ export function OutreachModal({ application, open, onClose }: OutreachModalProps
 		try {
 			await apiCall(`/candidate/outreach/${id}`, { method: 'DELETE' });
 			setAttempts((prev) => prev.filter((a) => a.id !== id));
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Failed to delete');
 		}
 	};
@@ -128,7 +128,7 @@ export function OutreachModal({ application, open, onClose }: OutreachModalProps
 			if (data.attempt) {
 				setAttempts((prev) => prev.map((a) => (a.id === id ? data.attempt : a)));
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Failed to update status');
 		}
 	};

@@ -38,7 +38,7 @@ import { apiCall } from '@/lib/api';
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
-type FitBreakdown = {
+type _FitBreakdown = {
 	skills_match: number;
 	experience_match: number;
 	education_match: number;
@@ -166,7 +166,7 @@ export function CandidateAiScreeningPage() {
 			setSelectedScreening((prev) => (prev ? { ...prev, human_review_status: 'requested' } : prev));
 			setShowRequestDialog(false);
 			setRequestReason('');
-		} catch (err: unknown) {
+		} catch (err: any) {
 			console.error('Failed to request review:', err);
 			setRequestError(err?.message || 'Failed to request human review. Please try again.');
 		} finally {

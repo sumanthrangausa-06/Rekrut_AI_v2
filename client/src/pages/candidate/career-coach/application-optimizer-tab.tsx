@@ -54,7 +54,7 @@ export function ApplicationOptimizerTab() {
 			const data = await res.json();
 			if (!res.ok) throw new Error(data.error || 'Failed to optimize application');
 			setResult(data);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setLoading(false);

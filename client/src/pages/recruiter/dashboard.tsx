@@ -87,14 +87,6 @@ interface QuickStat {
 	bgColor: string;
 }
 
-interface PerformanceMetric {
-	label: string;
-	value: string | number;
-	target: string | number;
-	progress: number;
-	description: string;
-}
-
 interface RecruiterDashboardData {
 	trust_score: {
 		total_score: number;

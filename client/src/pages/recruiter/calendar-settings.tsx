@@ -56,7 +56,7 @@ export function CalendarSettingsPage() {
 			]);
 			setStatus(statusRes);
 			setConnections(connRes.connections || []);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to load calendar status' });
 		} finally {
 			setLoading(false);
@@ -110,7 +110,7 @@ export function CalendarSettingsPage() {
 			} else {
 				setMessage({ type: 'error', text: 'No auth URL returned' });
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || `Failed to connect ${provider}` });
 		} finally {
 			setConnecting(null);
@@ -130,7 +130,7 @@ export function CalendarSettingsPage() {
 			});
 			trackEvent('calendar_disconnect', { provider });
 			await loadData();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to disconnect' });
 		}
 	}
@@ -142,7 +142,7 @@ export function CalendarSettingsPage() {
 			setMessage({ type: 'success', text: 'Calendar synced successfully' });
 			trackEvent('calendar_manual_sync', { connectionId });
 			await loadData();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Sync failed' });
 		} finally {
 			setSyncing(null);

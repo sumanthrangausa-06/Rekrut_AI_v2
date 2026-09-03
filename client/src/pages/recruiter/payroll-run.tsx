@@ -102,7 +102,7 @@ export function RecruiterPayrollRunPage() {
 		try {
 			const res = await apiCall<PayrollRunData>(`/payroll/runs/${id}`);
 			setData(res);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err instanceof Error ? err.message : 'Failed to load payroll run');
 		} finally {
 			setLoading(false);
@@ -116,7 +116,7 @@ export function RecruiterPayrollRunPage() {
 			await apiCall(`/payroll/runs/${id}/process`, { method: 'POST' });
 			setShowConfirm(false);
 			await loadPayrollRun();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Failed to process payroll');
 		} finally {
 			setProcessing(false);

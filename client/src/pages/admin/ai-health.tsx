@@ -2787,7 +2787,7 @@ export function AiHealthPage() {
 			setError(null);
 			setLastRefresh(new Date());
 			setCountdown(30);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err instanceof Error ? err.message : 'Failed to fetch');
 		} finally {
 			setLoading(false);

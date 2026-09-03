@@ -150,7 +150,7 @@ export function CandidateOffersPage() {
 			setSignatureName('');
 			setSelectedOffer(null);
 			loadOffers();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({
 				type: 'error',
 				text: err instanceof Error ? err.message : 'Failed to accept offer',
@@ -172,7 +172,7 @@ export function CandidateOffersPage() {
 			setSelectedOffer(null);
 			setDeclineReason('');
 			loadOffers();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMessage({
 				type: 'error',
 				text: err instanceof Error ? err.message : 'Failed to decline offer',

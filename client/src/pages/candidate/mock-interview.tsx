@@ -250,7 +250,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 				}
 			}
 			setMockCameraReady(true);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setMockCameraError(err.message || 'Camera error');
 		}
 	}
@@ -856,7 +856,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 							setVoiceError(errorMsg);
 						}
 					}
-				} catch (err: unknown) {
+				} catch (err: any) {
 					if (err.name === 'AbortError') {
 						console.warn('[voice] Request timed out after 28s');
 						setVoiceError(
@@ -886,7 +886,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 			setMockLiveTranscript('');
 			mockLiveTranscriptRef.current = '';
 			startMockSpeechRecognition();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			console.error('Mic access error:', err);
 			setVoiceError('Microphone access denied. Please allow microphone access to use voice mode.');
 			setCandidateRecording(false);
@@ -974,7 +974,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 					playInterviewerAudio(res.first_message.text);
 				}
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			const msg = err.message || 'Failed to start interview';
 			if (
 				msg.includes('429') ||
@@ -1064,7 +1064,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 			} finally {
 				clearTimeout(textTimeout);
 			}
-		} catch (err: unknown) {
+		} catch (err: any) {
 			if (err.name === 'AbortError') {
 				setVoiceError('AI is taking too long. Please try sending your response again.');
 			} else {
@@ -1171,7 +1171,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 				mockFramesRef.current = [];
 				onSessionComplete();
 			}
-		} catch (_err: unknown) {
+		} catch (_err: any) {
 			stopMockCamera();
 			setMockFeedback({
 				overall_score: 0,

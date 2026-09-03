@@ -71,7 +71,7 @@ export function ReferralsPage() {
 		try {
 			const result = await apiCall<ReferralsResponse>('/referrals');
 			setData(result);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message || 'Failed to load referrals');
 		} finally {
 			setLoading(false);
@@ -88,7 +88,7 @@ export function ReferralsPage() {
 			await apiCall('/referrals/generate', { method: 'POST' });
 			await loadData();
 			setToastMessage({ message: 'Your referral code is ready!', type: 'success' });
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setToastMessage({ message: err.message || 'Failed to generate code', type: 'error' });
 		} finally {
 			setGenerating(false);
@@ -129,7 +129,7 @@ export function ReferralsPage() {
 			await apiCall('/referrals/claim', { method: 'POST' });
 			await loadData();
 			setToastMessage({ message: 'Rewards claimed successfully!', type: 'success' });
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setToastMessage({ message: err.message || 'Failed to claim rewards', type: 'error' });
 		} finally {
 			setClaiming(false);

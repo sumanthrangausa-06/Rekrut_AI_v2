@@ -49,7 +49,7 @@ export function CompanyResearchTab() {
 			const data = await res.json();
 			if (!res.ok) throw new Error(data.error || 'Failed to research company');
 			setResult(data);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			setError(err.message);
 		} finally {
 			setLoading(false);

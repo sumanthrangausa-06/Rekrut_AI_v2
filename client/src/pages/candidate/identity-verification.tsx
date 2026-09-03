@@ -113,7 +113,7 @@ const statusConfig: Record<
 // ─── Component ────────────────────────────────────────────────────────────
 
 export function CandidateIdentityVerificationPage() {
-	const { user } = useAuth();
+	const { user: _user } = useAuth();
 
 	// ── Global state ──
 	const [verifications, setVerifications] = useState<VerificationRecord[]>([]);
@@ -216,7 +216,7 @@ export function CandidateIdentityVerificationPage() {
 			setAadhaarHash(aadhaarMasked);
 			showToast(data.message || 'OTP sent to registered mobile');
 			trackEvent('identity_aadhaar_otp_initiated');
-		} catch (err: unknown) {
+		} catch (err: any) {
 			handleApiError(err, 'Failed to send OTP');
 		} finally {
 			setAadhaarSubmitting(false);
@@ -246,7 +246,7 @@ export function CandidateIdentityVerificationPage() {
 				showToast('Invalid OTP. Please try again.');
 			}
 			await loadStatus();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			handleApiError(err, 'Failed to verify OTP');
 		} finally {
 			setAadhaarOtpSubmitting(false);
@@ -268,7 +268,7 @@ export function CandidateIdentityVerificationPage() {
 			trackEvent('identity_aadhaar_xml_verified');
 			setXmlData('');
 			await loadStatus();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			handleApiError(err, 'Failed to verify XML');
 		} finally {
 			setXmlSubmitting(false);
@@ -303,7 +303,7 @@ export function CandidateIdentityVerificationPage() {
 			setPanValid(null);
 			setPanConsent(false);
 			await loadStatus();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			handleApiError(err, 'Failed to verify PAN');
 		} finally {
 			setPanSubmitting(false);

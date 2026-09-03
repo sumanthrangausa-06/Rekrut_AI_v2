@@ -169,7 +169,7 @@ export function RecruiterRecordingsPage() {
 				'/recruiter/interviews?upcoming_only=false',
 			);
 			setEvents(data.interviews || []);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			console.error('Failed to load events:', err);
 		}
 	}, []);
@@ -186,7 +186,7 @@ export function RecruiterRecordingsPage() {
 				`/interviews/recordings?event_id=${selectedEventId}`,
 			);
 			setRecordings(data.recordings || []);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			showToast(err.message || 'Failed to load recordings', 'error');
 		} finally {
 			setLoading(false);
@@ -218,7 +218,7 @@ export function RecruiterRecordingsPage() {
 			await apiCall(`/interviews/recordings/${recordingId}/transcribe`, { method: 'POST' });
 			showToast('Transcription started', 'success');
 			await loadRecordings();
-		} catch (err: unknown) {
+		} catch (err: any) {
 			showToast(err.message || 'Failed to start transcription', 'error');
 		} finally {
 			setTranscribingId(null);

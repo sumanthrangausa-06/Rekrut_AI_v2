@@ -40,7 +40,7 @@ interface AnswerResponse {
 }
 
 export function CandidateAptitudeTestTakePage() {
-	const { id: testId } = useParams();
+	const { id: _testId } = useParams();
 	const [searchParams] = useSearchParams();
 	const navigate = useNavigate();
 	const attemptId = Number(searchParams.get('attempt'));
@@ -155,7 +155,7 @@ export function CandidateAptitudeTestTakePage() {
 					}
 					startTimeRef.current = Date.now();
 				}
-			} catch (err: unknown) {
+			} catch (err: any) {
 				const msg = err instanceof Error ? err.message : 'Failed to submit answer';
 				alert(msg);
 			} finally {

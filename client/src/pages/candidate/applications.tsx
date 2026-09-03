@@ -175,7 +175,7 @@ export function CandidateApplicationsPage() {
 				method: 'PUT',
 				body: JSON.stringify({ status: newStatus }),
 			});
-		} catch (err: unknown) {
+		} catch (err: any) {
 			// Revert on error
 			setApplications((prev) =>
 				prev.map((a) => (a.id === app.id ? { ...a, status: app.status } : a)),
@@ -198,7 +198,7 @@ export function CandidateApplicationsPage() {
 			);
 			setWithdrawTarget(null);
 			setSelectedApp(null);
-		} catch (err: unknown) {
+		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'Failed to withdraw application');
 		} finally {
 			setWithdrawing(false);
