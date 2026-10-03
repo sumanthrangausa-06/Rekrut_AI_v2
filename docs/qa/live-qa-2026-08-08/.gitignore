@@ -1,0 +1,4 @@
+# Playwright storage_state files contain live session tokens - never commit
+candidate-auth.json
+recruiter-auth.json
+*-auth.json
