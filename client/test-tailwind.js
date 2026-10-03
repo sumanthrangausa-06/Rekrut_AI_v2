@@ -1,5 +1,5 @@
 const { createContext } = require('tailwindcss/src/lib/setupContextUtils');
-const path = require('path');
+const path = require('node:path');
 
 const configPath = path.resolve(__dirname, 'tailwind.config.ts');
 const context = createContext({ configPath });

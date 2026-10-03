@@ -1,0 +1,80 @@
+{
+  "log": [
+    {
+      "issue": 22,
+      "label": "employer login",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/recruiter/pending-approval"
+    },
+    {
+      "issue": 15,
+      "label": "Analytics page renders",
+      "ok": true,
+      "detail": "body_len=1644"
+    },
+    {
+      "issue": 15,
+      "label": "Analytics has NO mock Hiring Velocity data",
+      "ok": true,
+      "detail": "mock_velocity=False body_snippet=Skip to content\nRekrut AI\nDashboard\nJobs\nApplications\nAssessments\nCandidates\nInterviews\nOffers\nOnboarding\nOmniScore\nAnalytics\nCompliance (EU AI Act)\nCompany\nTeam\nPayroll\nJoin Requests\n2\nSettings\nSign "
+    },
+    {
+      "issue": 15,
+      "label": "Analytics has NO fake trend badges",
+      "ok": true,
+      "detail": "trend_badges=False"
+    },
+    {
+      "issue": 22,
+      "label": "Sidebar has OPPORTUNITIES section",
+      "ok": false,
+      "detail": "found=False"
+    },
+    {
+      "issue": 22,
+      "label": "Sidebar has IMPROVE YOUR PROFILE section",
+      "ok": false,
+      "detail": "found=False"
+    },
+    {
+      "issue": 22,
+      "label": "Sidebar has NEW nav items (Top Matches, CV Review, etc.)",
+      "ok": false,
+      "detail": "found=False"
+    },
+    {
+      "issue": 146,
+      "label": "Bundle split into multiple chunks (>5)",
+      "ok": false,
+      "detail": "chunk_count=1 total_js_kb=14KB largest_chunk_kb=12KB"
+    },
+    {
+      "issue": 146,
+      "label": "Largest single chunk < 500KB (split working)",
+      "ok": true,
+      "detail": "largest_chunk=12KB top5=[('landing-zJzMapVy.js', 12), ('SEO-cMxBU9_X.js', 1), ('index-BbJesHIY.js', 0), ('card-C8Ro85oW.js', 0), ('analytics-2NS47VHz.js', 0)]"
+    }
+  ],
+  "js_chunks": [
+    {
+      "name": "index-BbJesHIY.js",
+      "size": 300
+    },
+    {
+      "name": "landing-zJzMapVy.js",
+      "size": 12720
+    },
+    {
+      "name": "SEO-cMxBU9_X.js",
+      "size": 1323
+    },
+    {
+      "name": "card-C8Ro85oW.js",
+      "size": 300
+    },
+    {
+      "name": "analytics-2NS47VHz.js",
+      "size": 300
+    }
+  ]
+}

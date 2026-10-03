@@ -2,13 +2,13 @@
 // Provides unified voice AI capabilities: text-to-speech and speech-to-text
 // Stores generated audio locally; supports Cartesia Sonic (TTS) and Ink-Whisper (STT)
 
-const fetch = require('node-fetch');
 const fs = require('node:fs');
 const path = require('node:path');
 const { promisify } = require('node:util');
 const writeFile = promisify(fs.writeFile);
 const mkdir = promisify(fs.mkdir);
 const crypto = require('node:crypto');
+const pool = require('../lib/db');
 
 const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
 const CARTESIA_API_URL = 'https://api.cartesia.ai';
@@ -98,6 +98,47 @@ function isNetworkError(err) {
 	);
 }
 
+// ─── DB Cache Helpers ──────────────────────────────────────────────────────
+
+function getCacheKey(text, voiceId) {
+	return crypto
+		.createHash('sha256')
+		.update(text + (voiceId || ''))
+		.digest('hex');
+}
+
+async function getCachedAudio(textHash, voice) {
+	try {
+		const result = await pool.query(
+			`SELECT audio_data FROM tts_cache
+			 WHERE text_hash = $1 AND voice = $2 AND created_at > NOW() - INTERVAL '24 hours'`,
+			[textHash, voice],
+		);
+		return result.rows[0]?.audio_data || null;
+	} catch (err) {
+		console.warn('[cartesia-voice] Cache lookup failed:', err.message);
+		return null; // # ponytail: silent cache miss, never block synthesis on DB error
+	}
+}
+
+async function saveCachedAudio(textHash, voice, audioData, textPreview) {
+	try {
+		await pool.query(
+			`INSERT INTO tts_cache (text_hash, voice, audio_data, text_preview, created_at)
+			 VALUES ($1, $2, $3, $4, NOW())
+			 ON CONFLICT (text_hash) DO UPDATE SET
+			   voice = EXCLUDED.voice,
+			   audio_data = EXCLUDED.audio_data,
+			   text_preview = EXCLUDED.text_preview,
+			   created_at = EXCLUDED.created_at`,
+			[textHash, voice, audioData, textPreview],
+		);
+	} catch (err) {
+		console.warn('[cartesia-voice] Cache save failed:', err.message);
+		// # ponytail: silent cache write failure, audio already saved to disk
+	}
+}
+
 async function ensureAudioDir() {
 	try {
 		await mkdir(AUDIO_STORAGE_DIR, { recursive: true });
@@ -135,10 +176,36 @@ async function synthesize({ text, voiceId, speed, emotion, language, modelId }) 
 		throw new CartesiaValidationError('text exceeds 5000 character limit');
 	}
 
+	const resolvedVoiceId = voiceId || CARTESIA_DEFAULT_VOICE_ID;
+	const cacheKey = getCacheKey(text, resolvedVoiceId);
+
+	// ── Check DB cache ──────────────────────────────────────────────────────
+	const cachedAudio = await getCachedAudio(cacheKey, resolvedVoiceId);
+	if (cachedAudio) {
+		await ensureAudioDir();
+		const fileName = generateAudioFileName('mp3');
+		const filePath = path.join(AUDIO_STORAGE_DIR, fileName);
+		await writeFile(filePath, cachedAudio);
+
+		const estimatedDuration = Math.ceil(((text.length / 150) * 10) / (speed || 1));
+		return {
+			fileName,
+			filePath,
+			publicUrl: `/audio/${fileName}`,
+			audioUrl: `/audio/${fileName}`,
+			duration: estimatedDuration,
+			textLength: text.length,
+			creditsUsed: 0, // # ponytail: cached, no API credits burned
+			format: 'mp3',
+			sampleRate: 44100,
+			cached: true,
+		};
+	}
+
 	const body = {
 		model_id: modelId || 'sonic-2',
 		transcript: text,
-		voice: { mode: 'id', id: voiceId || CARTESIA_DEFAULT_VOICE_ID },
+		voice: { mode: 'id', id: resolvedVoiceId },
 		output_format: {
 			container: 'mp3',
 			encoding: 'mp3',
@@ -173,6 +240,10 @@ async function synthesize({ text, voiceId, speed, emotion, language, modelId }) 
 
 		const buffer = Buffer.from(await res.arrayBuffer());
 
+		// Save to DB cache (fire-and-forget on error)
+		const textPreview = text.slice(0, 100);
+		await saveCachedAudio(cacheKey, resolvedVoiceId, buffer, textPreview);
+
 		// Save to local storage
 		await ensureAudioDir();
 		const fileName = generateAudioFileName('mp3');
@@ -192,6 +263,7 @@ async function synthesize({ text, voiceId, speed, emotion, language, modelId }) 
 			creditsUsed: text.length,
 			format: 'mp3',
 			sampleRate: 44100,
+			cached: false,
 		};
 	} catch (err) {
 		if (err instanceof CartesiaError) throw err;
@@ -240,51 +312,12 @@ async function transcribe({ audioBuffer, fileName, language, model }) {
 						? 'audio/webm'
 						: 'audio/wav';
 
-	// Build multipart form data manually (no form-data dependency needed for simple cases)
-	const boundary = `----CartesiaFormBoundary${crypto.randomBytes(16).toString('hex')}`;
-	const formParts = [];
-
-	// file field
-	formParts.push(
-		Buffer.from(
-			`--${boundary}\r\n` +
-				`Content-Disposition: form-data; name="file"; filename="audio.${ext}"\r\n` +
-				`Content-Type: ${mimeType}\r\n\r\n`,
-		),
-	);
-	formParts.push(audioBuffer);
-	formParts.push(Buffer.from('\r\n'));
-
-	// model field
-	formParts.push(
-		Buffer.from(
-			`--${boundary}\r\n` +
-				`Content-Disposition: form-data; name="model"\r\n\r\n` +
-				`${model || 'ink-whisper'}\r\n`,
-		),
-	);
-
-	// language field
-	formParts.push(
-		Buffer.from(
-			`--${boundary}\r\n` +
-				`Content-Disposition: form-data; name="language"\r\n\r\n` +
-				`${language || 'en'}\r\n`,
-		),
-	);
-
-	// timestamp_granularities field (word-level)
-	formParts.push(
-		Buffer.from(
-			`--${boundary}\r\n` +
-				`Content-Disposition: form-data; name="timestamp_granularities[]"\r\n\r\n` +
-				`word\r\n`,
-		),
-	);
-
-	formParts.push(Buffer.from(`--${boundary}--\r\n`));
-
-	const formBody = Buffer.concat(formParts);
+	// Build multipart form data using native FormData (Node.js 18+)
+	const form = new FormData();
+	form.append('file', new Blob([audioBuffer], { type: mimeType }), `audio.${ext}`);
+	form.append('model', model || 'ink-whisper');
+	form.append('language', language || 'en');
+	form.append('timestamp_granularities[]', 'word');
 
 	try {
 		const res = await fetch(CARTESIA_STT_URL, {
@@ -292,9 +325,8 @@ async function transcribe({ audioBuffer, fileName, language, model }) {
 			headers: {
 				'Cartesia-Version': '2024-06-10',
 				'X-API-Key': CARTESIA_API_KEY,
-				'Content-Type': `multipart/form-data; boundary=${boundary}`,
 			},
-			body: formBody,
+			body: form,
 			timeout: 60000, // 60s for STT (longer audio files)
 		});
 

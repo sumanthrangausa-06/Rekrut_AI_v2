@@ -8,7 +8,7 @@ const router = express.Router();
 const { authMiddleware } = require('../lib/auth');
 const screener = require('../lib/recruiter-screener');
 const pool = require('../lib/db');
-const { AuditLogger } = require('../services/auditLogger');
+const { AuditLogger } = require('../services/auditLogService');
 
 /**
  * POST /api/screening/analyze

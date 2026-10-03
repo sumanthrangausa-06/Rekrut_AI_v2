@@ -1,0 +1,23 @@
+New recruiter join request for {{company_name}}
+
+Hi {{owner_name}},
+
+A new recruiter has requested to join {{company_name}} on Rekrut AI.
+
+---
+Request Details
+---
+Name: {{recruiter_name}}
+Email: {{recruiter_email}}
+Company: {{company_name}}
+Request Time: {{request_time}}
+
+Action required: Approve or decline this request from your recruiter dashboard:
+{{dashboard_link}}
+
+Rekrut AI helps you manage your hiring team securely — only approved recruiters can access your company data.
+
+---
+Rekrut AI — The candidate credit score platform
+rekrutai.co
+Need help? support@rekrutai.co

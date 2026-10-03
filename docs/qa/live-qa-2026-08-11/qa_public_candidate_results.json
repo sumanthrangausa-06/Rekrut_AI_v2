@@ -1,0 +1,133 @@
+{
+  "log": [
+    {
+      "step": "Wake staging (spin-up)",
+      "ok": true,
+      "detail": "4723ms",
+      "severity": "none"
+    },
+    {
+      "step": "US-P01 Home loads",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/ has_hero=True stuck_spinner=False",
+      "severity": "none"
+    },
+    {
+      "step": "US-P02 Public /jobs renders",
+      "ok": true,
+      "detail": "has_job_keywords=False stuck_spinner=False",
+      "severity": "none"
+    },
+    {
+      "step": "US-P03 Login page form",
+      "ok": true,
+      "detail": "email_field=True pw_field=True",
+      "severity": "none"
+    },
+    {
+      "step": "US-P04 Register page form",
+      "ok": true,
+      "detail": "field_count=True",
+      "severity": "none"
+    },
+    {
+      "step": "US-P05 Forgot-password page",
+      "ok": true,
+      "detail": "https://rekrutai-staging.onrender.com/forgot-password",
+      "severity": "none"
+    },
+    {
+      "step": "US-P06 404 page shows not-found UI",
+      "ok": true,
+      "detail": "body_snippet=!\n404\nPage Not Found\n\nThe page you're looking for doesn't exist or has been move",
+      "severity": "none"
+    },
+    {
+      "step": "US-C01 Candidate registration",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/register visible_errors=[]",
+      "severity": "high"
+    },
+    {
+      "step": "US-C02 Candidate login redirect",
+      "ok": false,
+      "detail": "url=https://rekrutai-staging.onrender.com/login",
+      "severity": "high"
+    },
+    {
+      "step": "US-C03 Candidate dashboard",
+      "ok": false,
+      "detail": "url=https://rekrutai-staging.onrender.com/login body=445 spinner=False vis_errors=[]",
+      "severity": "medium"
+    },
+    {
+      "step": "US-C04 Candidate job board",
+      "ok": false,
+      "detail": "url=https://rekrutai-staging.onrender.com/login body=445 spinner=False vis_errors=[]",
+      "severity": "high"
+    },
+    {
+      "step": "US-C07 Candidate profile",
+      "ok": false,
+      "detail": "url=https://rekrutai-staging.onrender.com/login body=445 spinner=False vis_errors=[]",
+      "severity": "medium"
+    },
+    {
+      "step": "US-C08 OmniScore",
+      "ok": false,
+      "detail": "url=https://rekrutai-staging.onrender.com/login body=445 spinner=False vis_errors=[]",
+      "severity": "medium"
+    },
+    {
+      "step": "US-C09 My applications",
+      "ok": false,
+      "detail": "url=https://rekrutai-staging.onrender.com/login body=445 spinner=False vis_errors=[]",
+      "severity": "medium"
+    },
+    {
+      "step": "US-C10 Settings",
+      "ok": false,
+      "detail": "url=https://rekrutai-staging.onrender.com/login body=445 spinner=False vis_errors=[]",
+      "severity": "medium"
+    },
+    {
+      "step": "US-C10b Interviews tab",
+      "ok": false,
+      "detail": "url=https://rekrutai-staging.onrender.com/login body=445 spinner=False vis_errors=[]",
+      "severity": "medium"
+    },
+    {
+      "step": "US-C10c Assessments tab",
+      "ok": false,
+      "detail": "url=https://rekrutai-staging.onrender.com/login body=445 spinner=False vis_errors=[]",
+      "severity": "medium"
+    },
+    {
+      "step": "US-C05 Apply to job",
+      "ok": false,
+      "detail": "No job cards found on /candidate/jobs \u2014 board may be empty",
+      "severity": "medium"
+    },
+    {
+      "step": "Candidate session console errors",
+      "ok": false,
+      "detail": "count=1 first10=['Failed to load resource: the server responded with a status of 401 ()']",
+      "severity": "none"
+    },
+    {
+      "step": "Candidate session API failures (4xx/5xx)",
+      "ok": false,
+      "detail": "count=1 failures=[{'url': 'https://rekrutai-staging.onrender.com/api/auth/login', 'status': 401}]",
+      "severity": "none"
+    }
+  ],
+  "api_failures": [
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/auth/login",
+      "status": 401
+    }
+  ],
+  "console_errors": [
+    "Failed to load resource: the server responded with a status of 401 ()"
+  ]
+}

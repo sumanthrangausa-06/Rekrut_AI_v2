@@ -1,5 +1,4 @@
 {
-	"root": true,
 	"$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
 	"vcs": {
 		"enabled": false,
@@ -15,8 +14,7 @@
 			"scripts/**/*.js",
 			"migrations/**/*.js",
 			"e2e/**/*.js",
-			"server/**/*.js",
-			"client/src/**/*.{js,jsx,ts,tsx}"
+			"server/**/*.js"
 		]
 	},
 	"formatter": {

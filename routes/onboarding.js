@@ -155,18 +155,77 @@ FORMAT RULES:
 		// Sanitize AI-generated HTML before storage (defence in depth)
 		cleanHtml = DOMPurify.sanitize(cleanHtml, {
 			ALLOWED_TAGS: [
-				'p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-				'ul', 'ol', 'li', 'a', 'div', 'span', 'hr', 'table', 'thead', 'tbody',
-				'tr', 'td', 'th', 'img', 'blockquote', 'pre', 'code', 'sup', 'sub',
-				'section', 'article', 'header', 'footer', 'main', 'aside', 'nav',
-				'figure', 'figcaption', 'details', 'summary', 'mark', 'small', 'time',
+				'p',
+				'br',
+				'strong',
+				'em',
+				'u',
+				'h1',
+				'h2',
+				'h3',
+				'h4',
+				'h5',
+				'h6',
+				'ul',
+				'ol',
+				'li',
+				'a',
+				'div',
+				'span',
+				'hr',
+				'table',
+				'thead',
+				'tbody',
+				'tr',
+				'td',
+				'th',
+				'img',
+				'blockquote',
+				'pre',
+				'code',
+				'sup',
+				'sub',
+				'section',
+				'article',
+				'header',
+				'footer',
+				'main',
+				'aside',
+				'nav',
+				'figure',
+				'figcaption',
+				'details',
+				'summary',
+				'mark',
+				'small',
+				'time',
 			],
 			ALLOWED_ATTR: [
-				'href', 'title', 'target', 'rel', 'class', 'id', 'style',
-				'src', 'alt', 'width', 'height', 'colspan', 'rowspan', 'datetime',
+				'href',
+				'title',
+				'target',
+				'rel',
+				'class',
+				'id',
+				'style',
+				'src',
+				'alt',
+				'width',
+				'height',
+				'colspan',
+				'rowspan',
+				'datetime',
 			],
 			ALLOW_DATA_ATTR: false,
-			FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur'],
+			FORBID_ATTR: [
+				'onerror',
+				'onload',
+				'onclick',
+				'onmouseover',
+				'onmouseout',
+				'onfocus',
+				'onblur',
+			],
 			KEEP_CONTENT: true,
 		});
 
@@ -356,7 +415,6 @@ router.post('/offers/:id/accept', authMiddleware, async (req, res) => {
 		}
 
 		// Get country-specific checklist items
-		let defaultItems;
 		const COUNTRY_CHECKLIST_ITEMS = {
 			US: [
 				{ id: 1, task: 'Complete I-9 form (Employment Eligibility)', required: true },
@@ -404,7 +462,7 @@ router.post('/offers/:id/accept', authMiddleware, async (req, res) => {
 				{ id: 6, task: 'Sign employee handbook', required: true },
 			],
 		};
-		defaultItems = COUNTRY_CHECKLIST_ITEMS[offerCountryCode] || COUNTRY_CHECKLIST_ITEMS.US;
+		const defaultItems = COUNTRY_CHECKLIST_ITEMS[offerCountryCode] || COUNTRY_CHECKLIST_ITEMS.US;
 
 		await pool.query(
 			`INSERT INTO onboarding_checklists
@@ -661,6 +719,33 @@ router.post('/feedback/schedule', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Error scheduling feedback:', err);
 		res.status(500).json({ error: 'Failed to schedule feedback' });
+	}
+});
+
+// Get employee's completed feedback
+router.get('/feedback/completed', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`SELECT id, day_mark, completed_at as submitted_at, satisfaction_score, would_recommend, comments
+			 FROM post_hire_feedback
+			 WHERE employee_id = $1 AND status = 'completed'
+			 ORDER BY completed_at DESC`,
+			[req.user.id],
+		);
+
+		const feedback = result.rows.map((row) => ({
+			id: row.id,
+			day_mark: row.day_mark,
+			submitted_at: row.submitted_at ? new Date(row.submitted_at).toISOString() : '',
+			satisfaction_score: row.satisfaction_score || 0,
+			would_recommend: row.would_recommend || false,
+			comments: row.comments || '',
+		}));
+
+		res.json({ feedback });
+	} catch (err) {
+		console.error('Error fetching completed feedback:', err);
+		res.status(500).json({ error: 'Failed to fetch completed feedback' });
 	}
 });
 

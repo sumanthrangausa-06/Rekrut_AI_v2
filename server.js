@@ -12,6 +12,21 @@ const { cspMiddleware } = require('./server/middleware/csp');
 // Load environment variables from .env file
 require('dotenv').config();
 
+// ─── Sentry Error Tracking ───────────────────────────────────────────────
+// Initialize BEFORE express app so request handlers are instrumented
+const Sentry = require('@sentry/node');
+if (process.env.SENTRY_DSN) {
+	Sentry.init({
+		dsn: process.env.SENTRY_DSN,
+		tracesSampleRate: 1.0,
+		profilesSampleRate: 1.0,
+		environment: process.env.NODE_ENV || 'development',
+	});
+	console.log('[sentry] Initialized');
+} else {
+	console.log('[sentry] SENTRY_DSN not set — error tracking disabled');
+}
+
 const pool = require('./lib/db');
 
 // ─── Startup Environment Validation ─────────────────────────────────────
@@ -65,48 +80,58 @@ if (missingStripe.length > 0) {
 const nodeEnv = process.env.NODE_ENV || 'development';
 const stripeSecret = process.env.STRIPE_SECRET_KEY || '';
 if (nodeEnv !== 'production' && stripeSecret.startsWith('sk_live_')) {
-	console.error('[FATAL] Non-production environment detected with live Stripe key. Refusing to start.');
+	console.error(
+		'[FATAL] Non-production environment detected with live Stripe key. Refusing to start.',
+	);
 	console.error(`  NODE_ENV: ${nodeEnv}`);
 	console.error(`  STRIPE_SECRET_KEY prefix: sk_live_*`);
 	process.exit(1);
 }
 
-// Guard against a non-production environment booting against the production database.
-// Fatal locally, where it is always a mistake; Render manages its env vars deliberately,
-// so warn there instead. Reuses the dbUrl read above — a second `const dbUrl` here is a
-// SyntaxError that takes the whole process down at startup.
+// Fatal guard: prevent non-production environments from booting against the production
+// database. Staging and dev each have their own Neon branch, so a match here is always a
+// misconfiguration rather than a deliberate setup. Reuses the dbUrl read above — a second
+// `const dbUrl` here is a SyntaxError that takes the whole process down at startup.
 const PROD_DB_HOSTNAME = 'ep-calm-field-aipg6g97-pooler.c-4.us-east-1.aws.neon.tech';
 if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
-	const isRender = process.env.RENDER === 'true' || !!process.env.RENDER_SERVICE_ID;
-	if (isRender) {
-		console.warn('[WARN] Non-production Render environment detected with production database endpoint.');
-		console.warn(`  NODE_ENV: ${nodeEnv}`);
-		console.warn(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
-		console.warn('  Allowing startup — Render env vars are intentionally managed.');
-	} else {
-		console.error('[FATAL] Non-production environment detected with production database endpoint. Refusing to start.');
-		console.error(`  NODE_ENV: ${nodeEnv}`);
-		console.error(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
-		process.exit(1);
-	}
+	console.error(
+		'[FATAL] Non-production environment detected with production database endpoint. Refusing to start.',
+	);
+	console.error(`  NODE_ENV: ${nodeEnv}`);
+	console.error(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
+	process.exit(1);
 }
 
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
+const interviewEventsRoutes = require('./routes/interview-events'); // Issue #127 — Calendar scheduling
 const quickPracticeRoutes = require('./routes/quick-practice'); // ISOLATED from Mock Interview (#32717)
 const omniscoreRoutes = require('./routes/omniscore');
 const companyRoutes = require('./routes/company');
+const departmentRoutes = require('./routes/departments'); // Issue #139 — Department hierarchy
+const { router: auditRoutes } = require('./routes/audit');
 const trustscoreRoutes = require('./routes/trustscore');
 const recruiterRoutes = require('./routes/recruiter');
+const recruiterImportRoutes = require('./routes/recruiter-import'); // Issue #141 — Bulk import
+const matchingRoutes = require('./routes/matching');
+const companyMatchRoutes = require('./routes/candidate-company-matches'); // Issue #27 — Company Matches
+const recruiterIntroductionRoutes = require('./routes/recruiter-introductions'); // Issue #38 — Recruiter Introductions
 const candidateRoutes = require('./routes/candidate');
 const assessmentRoutes = require('./routes/assessments');
-const matchingRoutes = require('./routes/matching');
-const documentRoutes = require('./routes/documents');
+const panelRoutes = require('./routes/panels');
+const _documentRoutes = require('./routes/documents');
+const careerCoachRoutes = require('./routes/career-coach'); // Issue #121 — AI Career Coach
+const candidateDocumentRoutes = require('./routes/candidate-documents');
+const fitScoreRoutes = require('./routes/fitScore'); // Issue #76 — Job Fit Score API
+const profileEnhancementRoutes = require('./routes/profile-enhancement'); // Issue #26 — Profile Enhancement Tools
+const recruiterDocumentRoutes = require('./routes/recruiter-documents');
 const payrollRoutes = require('./routes/payroll');
 const complianceRoutes = require('./routes/compliance');
 const onboardingRoutes = require('./routes/onboarding');
 const analyticsRoutes = require('./routes/analytics');
+const { queryProfiler } = require('./lib/query-profiler');
+const { analyticsCache } = require('./lib/analytics-cache');
 const countryRoutes = require('./routes/countries');
 const adminRoutes = require('./routes/admin');
 const { requireAdmin } = require('./routes/admin');
@@ -116,12 +141,35 @@ const notificationsRoutes = require('./routes/notifications');
 const billingRoutes = require('./routes/billing');
 const voiceNotificationsRoutes = require('./routes/voice-notifications');
 const screeningRoutes = require('./routes/screening');
+const proctoringRoutes = require('./routes/proctoring');
+const aiScreenerRoutes = require('./routes/ai-screener');
+const questionnaireRoutes = require('./routes/questionnaire');
 const settingsRoutes = require('./routes/settings');
 const signatureRoutes = require('./routes/signature');
-const verificationRoutes = require('./routes/verification');
+const chatRoutes = require('./routes/chat');
+const candidateSearchRoutes = require('./routes/candidateSearch'); // Issue #3 — Candidate Search API
+const sandboxRoutes = require('./routes/sandbox');
+const codingTemplateRoutes = require('./routes/coding-templates');
+const codingSubmissionRoutes = require('./routes/coding-submissions');
+const livekitRoutes = require('./server/routes/livekit'); // Issue #124 — LiveKit video infrastructure
+const backgroundCheckRoutes = require('./routes/background-check'); // Issue #133 — Background check
+const recordingRoutes = require('./server/routes/recordings'); // Issue #126 — Interview recording, playback & AI transcript
+const collaborationRoutes = require('./routes/collaboration'); // Issue #128 — Real-time collaboration for hiring teams
+const apiKeyRoutes = require('./routes/api-keys'); // Issue #140 — Public API key management
+const publicApiRoutes = require('./routes/public-api'); // Issue #140 — Public API v1
+const referralRoutes = require('./routes/referrals'); // Issue #80 — Refer & Earn
+
+// ─── Prometheus metrics (Phase 1 observability — Issue #144) ─────────────
+const prometheus = require('./server/middleware/prometheus');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Sentry request handler — must be the first middleware on the app
+if (process.env.SENTRY_DSN) {
+	app.use(Sentry.Handlers.requestHandler());
+	app.use(Sentry.Handlers.tracingHandler());
+}
 
 // Disable x-powered-by header
 app.disable('x-powered-by');
@@ -269,48 +317,109 @@ app.get('/health', async (_req, res) => {
 	}
 });
 
-// API health alias for monitoring consistency
-app.get('/api/health', async (_req, res) => {
-	const HEALTH_TIMEOUT_MS = 3000;
-	let responded = false;
+// API health alias for monitoring consistency — delegated to routes/health.js
+const healthRoutes = require('./routes/health');
+app.use('/api/health', healthRoutes);
 
-	const timeout = setTimeout(() => {
-		if (!responded) {
-			responded = true;
-			res.status(200).json({
-				status: 'degraded',
-				timestamp: new Date().toISOString(),
-				db: { connected: false, error: 'Health check timed out' },
-				issues: { healthCheckTimeout: true },
-			});
-		}
-	}, HEALTH_TIMEOUT_MS);
-
-	try {
-		const { runHealthCheck } = require('./lib/db-health');
-		const health = await runHealthCheck();
-		if (responded) return;
-		clearTimeout(timeout);
-		res.status(200).json({
-			status: health.healthy ? 'ok' : 'degraded',
-			timestamp: new Date().toISOString(),
-			db: health.connection,
-			tables: health.tables,
-			pool: health.pool,
-			env: health.env,
-			issues: health.issues,
-		});
-	} catch (_err) {
-		if (responded) return;
-		clearTimeout(timeout);
-		res.status(200).json({
-			status: 'degraded',
-			timestamp: new Date().toISOString(),
-			db: { connected: false, error: 'Health check failed' },
-			issues: { healthCheckError: true },
-		});
-	}
+// Issue #143: Analytics performance health endpoint
+app.get('/health/analytics', (_req, res) => {
+	res.json({
+		timestamp: new Date().toISOString(),
+		cache: analyticsCache.stats(),
+		queries: queryProfiler.stats(),
+	});
 });
+
+// Issue #51: Self-hosted status page — serve static HTML
+app.get('/status', (_req, res) => {
+	res.sendFile(path.join(__dirname, 'public', 'status.html'));
+});
+
+// Issue #51: Detailed health check — includes DB, external services, uptime, memory
+app.get('/health/detailed', async (_req, res) => {
+	const start = Date.now();
+	const { runHealthCheckFast } = require('./lib/db-health');
+
+	// Collect all checks in parallel where possible
+	const [dbHealth, aiHealth] = await Promise.allSettled([
+		runHealthCheckFast(),
+		(async () => {
+			// Lightweight external service checks — env presence only (no API calls to avoid cost/latency)
+			const services = {
+				openai: { configured: !!process.env.OPENAI_API_KEY },
+				anthropic: { configured: !!process.env.ANTHROPIC_API_KEY || !!process.env.POLSIA_API_KEY },
+				polsia: { configured: !!process.env.POLSIA_API_KEY },
+				stripe: { configured: !!process.env.STRIPE_SECRET_KEY },
+				sentry: { configured: !!process.env.SENTRY_DSN },
+				livekit: { configured: !!process.env.LIVEKIT_API_KEY && !!process.env.LIVEKIT_API_SECRET },
+				google_oauth: {
+					configured: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET,
+				},
+				smtp: {
+					configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
+				},
+			};
+			return services;
+		})(),
+	]);
+
+	const mem = process.memoryUsage();
+	const uptimeSec = process.uptime();
+
+	const responseTime = Date.now() - start;
+	const db =
+		dbHealth.status === 'fulfilled'
+			? dbHealth.value
+			: { healthy: false, error: dbHealth.reason?.message };
+	const external = aiHealth.status === 'fulfilled' ? aiHealth.value : {};
+
+	const healthy = db.status === 'fulfilled' ? db.value.healthy : false;
+
+	res.status(healthy ? 200 : 200).json({
+		status: healthy ? 'ok' : 'degraded',
+		timestamp: new Date().toISOString(),
+		responseTimeMs: responseTime,
+		uptime: {
+			seconds: Math.round(uptimeSec),
+			formatted: formatUptime(uptimeSec),
+		},
+		memory: {
+			rss: `${Math.round(mem.rss / 1024 / 1024)}MB`,
+			heapUsed: `${Math.round(mem.heapUsed / 1024 / 1024)}MB`,
+			heapTotal: `${Math.round(mem.heapTotal / 1024 / 1024)}MB`,
+			external: `${Math.round(mem.external / 1024 / 1024)}MB`,
+		},
+		db:
+			db.status === 'fulfilled'
+				? {
+						connected: db.value.connection?.connected,
+						latencyMs: db.value.connection?.latencyMs,
+						pool: db.value.pool,
+						issues: db.value.issues,
+					}
+				: { connected: false, error: db.reason?.message },
+		externalServices: external,
+		node: {
+			version: process.version,
+			platform: process.platform,
+			arch: process.arch,
+			pid: process.pid,
+		},
+	});
+});
+
+function formatUptime(seconds) {
+	const d = Math.floor(seconds / 86400);
+	const h = Math.floor((seconds % 86400) / 3600);
+	const m = Math.floor((seconds % 3600) / 60);
+	const s = Math.round(seconds % 60);
+	const parts = [];
+	if (d) parts.push(`${d}d`);
+	if (h) parts.push(`${h}h`);
+	if (m) parts.push(`${m}m`);
+	parts.push(`${s}s`);
+	return parts.join(' ');
+}
 
 // CORS — restricted to known origins only
 const ALLOWED_ORIGINS = [
@@ -337,6 +446,10 @@ app.use(
 		credentials: true,
 	}),
 );
+
+// Prometheus metrics middleware — measures request duration & counts
+// Placed after CORS so timing covers the full request lifecycle.
+app.use(prometheus.middleware);
 
 // Permissions-Policy: deny-by-default, allow only camera and microphone for same-origin
 app.use((_req, res, next) => {
@@ -418,6 +531,9 @@ app.get('/csrf-token', (req, res) => {
 	res.json({ csrfToken: req.csrfToken });
 });
 
+// GET /metrics — Prometheus scrape endpoint (no auth required)
+app.get('/metrics', prometheus.metricsHandler);
+
 // Apply CSRF protection to all subsequent state-changing routes
 app.use(csrfProtection);
 
@@ -446,7 +562,7 @@ app.use(
 			secure: process.env.NODE_ENV === 'production',
 			httpOnly: true,
 			maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-			sameSite: 'strict',
+			sameSite: 'lax', // 'lax' required for OAuth callbacks (Google redirects back cross-site)
 		},
 	}),
 );
@@ -516,27 +632,58 @@ app.use('/api/admin', adminRoutes);
 // API Routes - Email Tracking (must be before auth to allow pixel tracking without auth)
 app.use('/api/email', require('./routes/email-tracking'));
 
+// API Routes - Chat (Issue #114 — mounted BEFORE candidate/recruiter to intercept /api/candidate/conversations, /api/recruiter/conversations)
+app.use('/api', chatRoutes.router);
+
 // API Routes - Candidate side
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
+app.use('/api/interviews', interviewEventsRoutes); // Issue #127 — Calendar interview scheduling (mounted BEFORE mock routes)
 app.use('/api/interviews', quickPracticeRoutes); // ISOLATED Quick Practice — must be BEFORE interview routes (#32717)
 app.use('/api/interviews', interviewRoutes); // Mock Interview + video analysis (no practice routes)
+
+// API Routes - Collaboration (Issue #128)
+app.use('/api/collaboration', collaborationRoutes);
+
+// API Routes - LiveKit Video Infrastructure (Issue #124)
+app.use('/api/livekit', livekitRoutes);
+
+// API Routes - Interview Recordings (Issue #126)
+app.use('/api/interviews/recordings', recordingRoutes);
+
+// API Routes - Interview Panels (Issue #125 — Multi-interviewer panel with scorecards and shared notes)
+app.use('/api/panels', panelRoutes);
 app.use('/api/omniscore', omniscoreRoutes);
 app.use('/api/candidate/omniscore', omniscoreRoutes);
 app.use('/api/recruiter/omniscore', omniscoreRoutes);
 app.use('/api/candidate', candidateRoutes);
+app.use('/api/candidate', fitScoreRoutes); // Issue #76 — Job Fit Score API
+app.use('/api', profileEnhancementRoutes); // Issue #26 — Profile Enhancement Tools
 app.use('/api/assessments', assessmentRoutes);
+app.use('/api/career-coach', careerCoachRoutes); // Issue #121 — AI Career Coach
 
 // API Routes - Recruiter/Company side
+app.use('/api/company', auditRoutes);
 app.use('/api/company', companyRoutes);
+app.use('/api/departments', departmentRoutes); // Issue #139 — Department hierarchy
+app.use('/api/careers', require('./routes/careers'));
 app.use('/api/trustscore', trustscoreRoutes);
 app.use('/api/recruiter', recruiterRoutes);
+app.use('/api/recruiter', recruiterImportRoutes); // Issue #141 — Bulk import
+app.use('/api/recruiter', apiKeyRoutes); // Issue #140 — Public API key management
+
+// API Routes - Public API v1 (Issue #140)
+app.use('/api/v1', publicApiRoutes);
 
 // API Routes - Matching Engine
 app.use('/api/matching', matchingRoutes);
+app.use('/api/candidate/company-matches', companyMatchRoutes); // Issue #27 — Company Matches
+app.use('/api/recruiter-intros', recruiterIntroductionRoutes); // Issue #38 — Recruiter Introductions
+app.use('/api/referrals', referralRoutes); // Issue #80 — Refer & Earn
 
-// API Routes - Document Verification
-app.use('/api/documents', documentRoutes);
+// Issue #115: Candidate document management — mounted BEFORE /api/documents so /candidate/documents takes priority
+app.use('/api/candidate/documents', candidateDocumentRoutes);
+app.use('/api/recruiter/candidates', recruiterDocumentRoutes);
 
 // API Routes - Payroll
 app.use('/api/payroll', payrollRoutes);
@@ -567,7 +714,14 @@ app.use('/api/notifications', voiceNotificationsRoutes);
 app.use('/api/billing', billingRoutes);
 
 // API Routes - AI Screening (Recruiter AI Coach)
+app.use('/api/proctoring', proctoringRoutes);
 app.use('/api/screening', screeningRoutes);
+
+// API Routes - AI Recruiter Screener (Issue #112)
+app.use('/api', aiScreenerRoutes);
+
+// API Routes - Screening Questionnaire (Issue #110)
+app.use('/api/questionnaire', questionnaireRoutes);
 
 // API Routes - Settings (profile, notifications, privacy, avatar)
 app.use('/api/settings', settingsRoutes);
@@ -575,17 +729,37 @@ app.use('/api/settings', settingsRoutes);
 // API Routes - E-Signature Engine
 app.use('/api/signatures', signatureRoutes);
 
+// Issue #3 — Candidate Search API (mounted BEFORE verification to take priority for /search and /:id/preview)
+app.use('/api/candidates', candidateSearchRoutes);
+
 // API Routes - Identity Verification
+const verificationRoutes = require('./routes/verification');
 app.use('/api/candidates', verificationRoutes);
+
+// Issue #133 — Background Check (employment/education verification, discrepancy detection, reference checks)
+app.use('/api/candidates', backgroundCheckRoutes.candidateRouter);
+app.use('/api', backgroundCheckRoutes.router);
+
+const identityVerificationRoutes = require('./routes/identity-verification'); // Issue #135 — Aadhaar/PAN verification
+app.use('/api/identity-verification', identityVerificationRoutes);
 
 const voiceRoutes = require('./routes/voice');
 const ttsRoutes = require('./routes/tts');
+const aptitudeRoutes = require('./routes/aptitude');
 app.use('/api/voice', voiceRoutes);
 app.use('/api/tts', ttsRoutes);
+app.use('/api/aptitude', aptitudeRoutes);
 
 // API Routes - Calendar Integration (Google + Outlook)
 const calendarRoutes = require('./routes/calendar');
 app.use('/api/calendar', calendarRoutes);
+
+// API Routes - Code Sandbox (Issue #117 — self-hosted Judge0 execution engine)
+app.use('/api/sandbox', sandboxRoutes);
+
+// API Routes - Coding Templates & Submissions (Issue #119 — technical test templates & auto-grading)
+app.use('/api/coding-templates', codingTemplateRoutes);
+app.use('/api/coding-submissions', codingSubmissionRoutes);
 
 // Comprehensive Monitoring Metrics — protected by admin auth
 app.get('/api/admin/metrics', requireAdmin, async (_req, res) => {
@@ -1692,7 +1866,7 @@ app.get('/api/admin/routes', requireAdmin, (_req, res) => {
 			{ file: 'routes/company.js', domain: 'Company', endpoints: 7 },
 			{ file: 'routes/jobs.js', domain: 'Jobs', endpoints: 6 },
 			{ file: 'routes/matching.js', domain: 'Matching', endpoints: 6 },
-			{ file: 'routes/trustscore.js', domain: 'TrustScore', endpoints: 6 },
+			{ file: 'routes/trustscore.js', domain: 'TrustScore', endpoints: 13 },
 			{ file: 'routes/admin.js', domain: 'Admin', endpoints: 3 },
 			{ file: 'routes/analytics.js', domain: 'Analytics', endpoints: 2 },
 			{ file: 'routes/countries.js', domain: 'Countries', endpoints: 4 },
@@ -1719,13 +1893,13 @@ app.get('/robots.txt', (_req, res) => {
 	res.type('text/plain');
 	res.send(
 		`User-agent: *\n` +
-		`Allow: /\n` +
-		`Disallow: /admin\n` +
-		`Disallow: /api\n` +
-		`Disallow: /debug\n` +
-		`Disallow: /settings\n` +
-		`Disallow: /recruiter/\n` +
-		`Sitemap: https://rekrutai.co/sitemap.xml\n`,
+			`Allow: /\n` +
+			`Disallow: /admin\n` +
+			`Disallow: /api\n` +
+			`Disallow: /debug\n` +
+			`Disallow: /settings\n` +
+			`Disallow: /recruiter/\n` +
+			`Sitemap: https://rekrutai.co/sitemap.xml\n`,
 	);
 });
 
@@ -1813,6 +1987,100 @@ app.use(
 	}),
 );
 
+// ─── Known SPA routes (Issue #106) ─────────────────────────────────────────
+// Pre-compiled regex patterns for all valid SPA routes (extracted from client/src/App.tsx)
+const KNOWN_ROUTES = [
+	// Public routes
+	'^/$',
+	'^/(login|register|forgot-password|reset-password)$',
+	'^/(test-camera|pricing|payment-success)$',
+	'^/screening/[^/]+$',
+	'^/blog(/[^/]+)?$',
+	'^/(about|contact|privacy|terms)$',
+	'^/company/[^/]+$',
+	'^/careers/[^/]+$',
+	'^/(recruiter-register|employee-payroll)$',
+	'^/dashboard$',
+
+	// Candidate routes
+	'^/candidate$',
+	'^/candidate/jobs$',
+	'^/candidate/jobs/[^/]+$',
+	'^/candidate/(applications|profile)$',
+	'^/candidate/assessments$',
+	'^/candidate/assessments/[^/]+/take$',
+	'^/candidate/assessments/[^/]+/results$',
+	'^/candidate/assessment-results$',
+	'^/candidate/job-assessment/[^/]+$',
+	'^/candidate/(interviews|ai-coaching|career-coach|omniscore)$',
+	'^/candidate/(documents|interview-practice)$',
+	'^/candidate/(video-interview|interview-analysis|history)$',
+	'^/candidate/(feedback|saved-jobs|top-matches)$',
+	'^/candidate/(company-matches|ai-search|cv-review)$',
+	'^/candidate/(linkedin-optimizer|career-diagnosis)$',
+	'^/candidate/offers/manage$',
+	'^/candidate/company-profile$',
+	'^/candidate/interview$',
+	'^/candidate/(chat|offers|onboarding)$',
+	'^/candidate/(payroll|settings)$',
+	'^/candidate/(referrals|ai-screening|background-check|livekit-room)$',
+
+	// Recruiter pending approval
+	'^/recruiter/pending-approval$',
+
+	'^/candidate/proctoring/[^/]+$',
+	'^/candidate/proctoring/[^/]+/consent$',
+	// Recruiter routes
+	'^/recruiter$',
+	'^/recruiter/jobs$',
+	'^/recruiter/jobs/new$',
+	'^/recruiter/jobs/[^/]+/applicants$',
+	'^/recruiter/jobs/[^/]+/edit$',
+	'^/recruiter/jobs/[^/]+$',
+	'^/recruiter/jobs/[^/]+/assessment$',
+	'^/recruiter/(applications|assessments|candidates)$',
+	'^/recruiter/(screening|chat|career-page)$',
+	'^/recruiter/(interviews|offers|onboarding)$',
+	'^/recruiter/(analytics|communications|trustscore)$',
+	'^/recruiter/(onboarding-ai|onboarding-docs|company)$',
+	'^/recruiter/team$',
+	'^/recruiter/team/join-requests$',
+	'^/recruiter/profile$',
+	'^/recruiter/payroll$',
+	'^/recruiter/payroll-dashboard$',
+	'^/recruiter/payroll-run/[^/]+$',
+	'^/recruiter/job-create$',
+	'^/recruiter/omniscore$',
+	'^/recruiter/post-hire-feedback$',
+	'^/recruiter/compliance$',
+	'^/recruiter/proctoring$',
+	'^/recruiter/proctoring/[^/]+$',
+	'^/recruiter/(panels|recordings|calendar|background-check)$',
+
+	// Settings
+	'^/settings$',
+
+	// Signature
+	'^/signature/[^/]+/[^/]+$',
+
+	// Debug
+	'^/debug/mock-interview$',
+
+	// Admin routes
+	'^/(admin/login|admin-login)$',
+	'^/admin$',
+	'^/admin/(dashboard|revenue|ai-health)$',
+	'^/admin/(agents|compliance|eu-ai-act)$',
+	'^/admin/(agent-dashboard|analytics|email-queue)$',
+].map((pattern) => new RegExp(pattern));
+
+function isKnownSpaRoute(routePath) {
+	return KNOWN_ROUTES.some((regex) => regex.test(routePath));
+}
+
+// API Documentation — auto-generated OpenAPI spec with Swagger UI (Issue #52)
+app.use('/api/docs', require('./routes/docs'));
+
 // SPA fallback — serve React index.html for all non-API routes that don't match a file
 app.get('*', (req, res) => {
 	if (!req.path.startsWith('/api/') && req.path !== '/api') {
@@ -1830,7 +2098,8 @@ app.get('*', (req, res) => {
 		}
 
 		if (indexHtml) {
-			res.send(indexHtml);
+			const statusCode = isKnownSpaRoute(req.path) ? 200 : 404;
+			res.status(statusCode).send(indexHtml);
 		} else {
 			// Fallback message if React build doesn't exist
 			res.status(503).json({
@@ -1842,6 +2111,12 @@ app.get('*', (req, res) => {
 		res.status(404).json({ error: 'API endpoint not found' });
 	}
 });
+
+// Sentry error handler — captures exceptions and sends to Sentry
+// Must be registered BEFORE the global error handler but AFTER all routes
+if (process.env.SENTRY_DSN) {
+	app.use(Sentry.Handlers.errorHandler());
+}
 
 // Global error handler — return JSON for API routes, HTML for everything else
 app.use((err, _req, res, _next) => {
@@ -1859,6 +2134,10 @@ const server =
 	process.env.NODE_ENV !== 'test'
 		? app.listen(PORT, () => {
 				console.log(`Rekrut AI running on port ${PORT}`);
+
+				// Issue #143: Install query profiler for slow query logging
+				queryProfiler.install();
+				console.log('[analytics] Query profiler installed (threshold: 2000ms)');
 
 				// Start distributed rate limiter cleanup
 				try {

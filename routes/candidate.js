@@ -1,11 +1,9 @@
 // Candidate Profile API Routes
 const express = require('express');
-const fetch = require('node-fetch');
-const FormData = require('form-data');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
-const { authMiddleware } = require('../lib/auth');
+const { authMiddleware, requireRole } = require('../lib/auth');
 const pool = require('../lib/db');
 const {
 	parseResume,
@@ -16,8 +14,11 @@ const {
 } = require('../lib/polsia-ai');
 
 const omniscoreService = require('../services/omniscore');
-const { rateLimits } = require('../lib/distributed-rate-limiter');
+const { decrypt } = require('../lib/crypto-utils');
+const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-limiter');
+const marketBenchmarks = require('../lib/market-benchmarks');
 const emailService = require('../lib/email-service');
+const { checkFeatureAccess, incrementUsage } = require('../lib/subscription');
 const calendarService = require('../server/services/calendar-service');
 
 let matchingEngine;
@@ -190,9 +191,12 @@ router.put('/profile', authMiddleware, async (req, res) => {
 			availability,
 			salary_min,
 			salary_max,
+			salary_currency,
 			preferred_job_types,
 			preferred_locations,
 			remote_preference,
+			timezone_preference,
+			travel_willingness,
 			years_experience,
 		} = req.body;
 
@@ -206,6 +210,17 @@ router.put('/profile', authMiddleware, async (req, res) => {
 		const sanitizedAvailability = normalizeTextField(availability, 60, 'Availability');
 		const sanitizedSalaryMin = normalizePositiveInteger(salary_min, 'salary_min');
 		const sanitizedSalaryMax = normalizePositiveInteger(salary_max, 'salary_max');
+		const sanitizedSalaryCurrency = normalizeTextField(salary_currency, 3, 'salary_currency');
+		const sanitizedTimezonePreference = normalizeTextField(
+			timezone_preference,
+			100,
+			'timezone_preference',
+		);
+		const sanitizedTravelWillingness = normalizeTextField(
+			travel_willingness,
+			50,
+			'travel_willingness',
+		);
 		const sanitizedYearsExperience = normalizePositiveInteger(
 			years_experience,
 			'years_experience',
@@ -242,10 +257,13 @@ router.put('/profile', authMiddleware, async (req, res) => {
           availability = COALESCE($9, availability),
           salary_min = COALESCE($10, salary_min),
           salary_max = COALESCE($11, salary_max),
-          preferred_job_types = COALESCE($12, preferred_job_types),
-          preferred_locations = COALESCE($13, preferred_locations),
-          remote_preference = COALESCE($14, remote_preference),
-          years_experience = COALESCE($15, years_experience),
+          salary_currency = COALESCE($12, salary_currency),
+          preferred_job_types = COALESCE($13, preferred_job_types),
+          preferred_locations = COALESCE($14, preferred_locations),
+          remote_preference = COALESCE($15, remote_preference),
+          timezone_preference = COALESCE($16, timezone_preference),
+          travel_willingness = COALESCE($17, travel_willingness),
+          years_experience = COALESCE($18, years_experience),
           updated_at = NOW()
         WHERE user_id = $1
         RETURNING *
@@ -265,6 +283,8 @@ router.put('/profile', authMiddleware, async (req, res) => {
 					JSON.stringify(preferred_job_types),
 					JSON.stringify(preferred_locations),
 					remote_preference,
+					timezone_preference,
+					travel_willingness,
 					sanitizedYearsExperience,
 				],
 			);
@@ -275,9 +295,11 @@ router.put('/profile', authMiddleware, async (req, res) => {
           user_id, headline, bio, location, phone,
           linkedin_url, github_url, portfolio_url,
           availability, salary_min, salary_max,
+          salary_currency,
           preferred_job_types, preferred_locations,
-          remote_preference, years_experience
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          remote_preference, timezone_preference, travel_willingness,
+          years_experience
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING *
       `,
 				[
@@ -292,9 +314,12 @@ router.put('/profile', authMiddleware, async (req, res) => {
 					sanitizedAvailability,
 					sanitizedSalaryMin,
 					sanitizedSalaryMax,
+					sanitizedSalaryCurrency,
 					JSON.stringify(preferred_job_types || ['full-time']),
 					JSON.stringify(preferred_locations || []),
 					remote_preference || 'hybrid',
+					sanitizedTimezonePreference,
+					sanitizedTravelWillingness,
 					sanitizedYearsExperience || 0,
 				],
 			);
@@ -328,17 +353,18 @@ router.post('/profile/photo', authMiddleware, upload.single('photo'), async (req
 			return res.status(400).json({ error: 'No file uploaded' });
 		}
 
+		// Upload to R2 via Polsia proxy using native FormData
 		const formData = new FormData();
-		formData.append('file', req.file.buffer, {
-			filename: req.file.originalname,
-			contentType: req.file.mimetype,
-		});
+		formData.append(
+			'file',
+			new Blob([req.file.buffer], { type: req.file.mimetype }),
+			req.file.originalname,
+		);
 
 		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-				...formData.getHeaders(),
 			},
 			body: formData,
 		});
@@ -371,27 +397,37 @@ router.post('/profile/photo', authMiddleware, upload.single('photo'), async (req
 	}
 });
 
-// ============= RESUME PARSING =============
-
-// Upload and parse resume
-router.post('/resume/upload', authMiddleware, upload.single('resume'), async (req, res) => {
+// Upload profile resume (simple — stores file, no AI parsing or auto-apply)
+router.post('/profile/resume', authMiddleware, upload.single('resume'), async (req, res) => {
 	try {
 		if (!req.file) {
 			return res.status(400).json({ error: 'No file uploaded' });
 		}
 
-		// Upload to R2
+		// Validate file type: PDF, DOC, DOCX only
+		const allowedTypes = [
+			'application/pdf',
+			'application/msword',
+			'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+		];
+		if (!allowedTypes.includes(req.file.mimetype)) {
+			return res
+				.status(400)
+				.json({ error: 'Invalid file type. Only PDF, DOC, and DOCX are allowed.' });
+		}
+
+		// Upload to R2 via Polsia proxy using native FormData
 		const formData = new FormData();
-		formData.append('file', req.file.buffer, {
-			filename: req.file.originalname,
-			contentType: req.file.mimetype,
-		});
+		formData.append(
+			'file',
+			new Blob([req.file.buffer], { type: req.file.mimetype }),
+			req.file.originalname,
+		);
 
 		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-				...formData.getHeaders(),
 			},
 			body: formData,
 		});
@@ -401,7 +437,80 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
 			throw new Error(uploadResult.error?.message || 'Upload failed');
 		}
 
-		// Save parsed resume record
+		await pool.query(
+			`
+			INSERT INTO parsed_resumes (user_id, original_filename, file_url, parsing_status)
+			VALUES ($1, $2, $3, 'processing')
+			RETURNING id
+			`,
+			[req.user.id, req.file.originalname, uploadResult.file.url],
+		);
+
+		// Update profile with resume URL
+		await pool.query(
+			`
+			INSERT INTO candidate_profiles (user_id, resume_url)
+			VALUES ($1, $2)
+			ON CONFLICT (user_id) DO UPDATE SET resume_url = $2, updated_at = NOW()
+			`,
+			[req.user.id, uploadResult.file.url],
+		);
+
+		res.json({ success: true, resume_url: uploadResult.file.url });
+	} catch (err) {
+		console.error('Profile resume upload error:', err);
+		res.status(500).json({ error: 'Failed to upload resume' });
+	}
+});
+
+// Remove profile resume
+router.delete('/profile/resume', authMiddleware, async (req, res) => {
+	try {
+		await pool.query(
+			`
+			UPDATE candidate_profiles
+			SET resume_url = NULL, updated_at = NOW()
+			WHERE user_id = $1
+			`,
+			[req.user.id],
+		);
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Profile resume delete error:', err);
+		res.status(500).json({ error: 'Failed to remove resume' });
+	}
+});
+
+// ============= RESUME PARSING =============
+
+// Upload and parse resume
+router.post('/resume/upload', authMiddleware, upload.single('resume'), async (req, res) => {
+	try {
+		if (!req.file) {
+			return res.status(400).json({ error: 'No file uploaded' });
+		}
+
+		// Upload to R2 via Polsia proxy using native FormData
+		const formData = new FormData();
+		formData.append(
+			'file',
+			new Blob([req.file.buffer], { type: req.file.mimetype }),
+			req.file.originalname,
+		);
+
+		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
+			},
+			body: formData,
+		});
+
+		const uploadResult = await uploadRes.json();
+		if (!uploadResult.success) {
+			throw new Error(uploadResult.error?.message || 'Upload failed');
+		}
+
 		const resumeRecord = await pool.query(
 			`
       INSERT INTO parsed_resumes (user_id, original_filename, file_url, parsing_status)
@@ -795,6 +904,393 @@ router.post('/resume/apply', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Apply resume error:', err);
 		res.status(500).json({ error: 'Failed to apply resume data' });
+	}
+});
+
+// ============= CV REVIEW / ANALYSIS =============
+
+// Helper: generate realistic mock CV analysis
+function generateMockAnalysis() {
+	const sections = [
+		{
+			name: 'Experience',
+			score: Math.floor(Math.random() * 25) + 65, // 65-90
+			impact: 'Highest',
+			recommendations: [
+				'Quantify achievements with metrics (e.g., "increased revenue by 20%")',
+				'Use strong action verbs at the beginning of each bullet point',
+				'Include 3-5 bullet points per role with clear outcomes',
+			],
+		},
+		{
+			name: 'Skills',
+			score: Math.floor(Math.random() * 30) + 60, // 60-90
+			impact: 'Medium',
+			recommendations: [
+				'Group skills by category (e.g., Technical, Soft Skills, Languages)',
+				'Prioritize skills mentioned in target job descriptions',
+				'Remove outdated or irrelevant skills to keep the list focused',
+			],
+		},
+		{
+			name: 'ATS & Recruiter Optimization',
+			score: Math.floor(Math.random() * 35) + 55, // 55-90
+			impact: 'Highest',
+			recommendations: [
+				'Include relevant keywords from the job posting naturally',
+				'Avoid tables, headers/footers, and graphics that confuse ATS parsers',
+				'Use standard section headings like "Work Experience" and "Education"',
+			],
+		},
+		{
+			name: 'Formatting & Layout',
+			score: Math.floor(Math.random() * 30) + 60, // 60-90
+			impact: 'Low',
+			recommendations: [
+				'Maintain consistent spacing and alignment throughout',
+				'Use a clean, professional font (e.g., Arial, Calibri, Helvetica)',
+				'Keep the resume to 1-2 pages for optimal readability',
+			],
+		},
+		{
+			name: 'Education',
+			score: Math.floor(Math.random() * 20) + 70, // 70-90
+			impact: 'Low',
+			recommendations: [
+				'Include relevant coursework or certifications if applicable',
+				'List GPA only if it is 3.5 or above and recent',
+				'Add honors, awards, or extracurriculars that demonstrate leadership',
+			],
+		},
+	];
+
+	const overallScore = Math.round(sections.reduce((sum, s) => sum + s.score, 0) / sections.length);
+
+	return {
+		overall_score: overallScore,
+		section_scores: sections,
+		recommendations: sections.flatMap((s) =>
+			s.recommendations.map((r) => ({
+				section: s.name,
+				impact: s.impact,
+				text: r,
+			})),
+		),
+	};
+}
+
+// Trigger CV analysis (async-style)
+router.post('/cv/analyze', authMiddleware, async (req, res) => {
+	try {
+		// Premium gating: CV Review is Pro-only
+		const access = await checkFeatureAccess(req.user, 'cv_review');
+		if (!access.allowed) {
+			return res.status(403).json({
+				error: 'Upgrade to Pro to access CV Review',
+				code: 'UPGRADE_REQUIRED',
+				feature: 'cv_review',
+				upgradeUrl: '/pricing',
+			});
+		}
+
+		// Check user has uploaded documents (parsed_resumes)
+		const docs = await pool.query(
+			'SELECT id FROM parsed_resumes WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+			[req.user.id],
+		);
+
+		if (docs.rows.length === 0) {
+			return res.status(400).json({
+				error: 'No uploaded document found. Please upload your CV first.',
+				code: 'NO_DOCUMENT',
+			});
+		}
+
+		const documentId = docs.rows[0].id;
+
+		// Create analysis record in pending state
+		const result = await pool.query(
+			`
+			INSERT INTO cv_analyses (user_id, document_id, status)
+			VALUES ($1, $2, 'pending')
+			RETURNING id
+			`,
+			[req.user.id, documentId],
+		);
+
+		const analysisId = result.rows[0].id;
+
+		// Async mock analysis — complete immediately in MVP
+		setImmediate(async () => {
+			try {
+				const mock = generateMockAnalysis();
+				await pool.query(
+					`
+					UPDATE cv_analyses
+					SET status = 'completed',
+						overall_score = $2,
+						section_scores = $3,
+						recommendations = $4,
+						updated_at = NOW()
+					WHERE id = $1
+					`,
+					[
+						analysisId,
+						mock.overall_score,
+						JSON.stringify(mock.section_scores),
+						JSON.stringify(mock.recommendations),
+					],
+				);
+				console.log(
+					`[CV Review] Mock analysis completed for user ${req.user.id}, analysis ${analysisId}`,
+				);
+			} catch (asyncErr) {
+				console.error(
+					`[CV Review] Async mock analysis failed for analysis ${analysisId}:`,
+					asyncErr.message,
+				);
+				try {
+					await pool.query(
+						"UPDATE cv_analyses SET status = 'failed', updated_at = NOW() WHERE id = $1",
+						[analysisId],
+					);
+				} catch (markErr) {
+					console.error('[CV Review] Failed to mark analysis as failed:', markErr.message);
+				}
+			}
+		});
+
+		res.json({ success: true, analysis_id: analysisId, status: 'pending' });
+	} catch (err) {
+		console.error('CV analyze error:', err);
+		res.status(500).json({ error: 'Failed to start CV analysis' });
+	}
+});
+
+// Get analysis result by ID
+router.get('/cv/analysis/:id', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`
+			SELECT id, user_id, document_id, status, overall_score, section_scores, recommendations, created_at, updated_at
+			FROM cv_analyses
+			WHERE id = $1 AND user_id = $2
+			`,
+			[req.params.id, req.user.id],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Analysis not found' });
+		}
+
+		const row = result.rows[0];
+		res.json({
+			success: true,
+			analysis: {
+				id: row.id,
+				user_id: row.user_id,
+				document_id: row.document_id,
+				status: row.status,
+				overall_score: row.overall_score,
+				section_scores: row.section_scores,
+				recommendations: row.recommendations,
+				created_at: row.created_at,
+				updated_at: row.updated_at,
+			},
+		});
+	} catch (err) {
+		console.error('Get CV analysis error:', err);
+		res.status(500).json({ error: 'Failed to get CV analysis' });
+	}
+});
+
+// List user's analyses with pagination
+router.get('/cv/analyses', authMiddleware, async (req, res) => {
+	try {
+		const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+		const offset = parseInt(req.query.offset, 10) || 0;
+
+		const analysesResult = await pool.query(
+			`
+			SELECT id, user_id, document_id, status, overall_score, created_at, updated_at
+			FROM cv_analyses
+			WHERE user_id = $1
+			ORDER BY created_at DESC
+			LIMIT $2 OFFSET $3
+			`,
+			[req.user.id, limit, offset],
+		);
+
+		const countResult = await pool.query(
+			'SELECT COUNT(*) as total FROM cv_analyses WHERE user_id = $1',
+			[req.user.id],
+		);
+		const total = parseInt(countResult.rows[0].total, 10);
+
+		res.json({
+			success: true,
+			analyses: analysesResult.rows,
+			pagination: {
+				total,
+				limit,
+				offset,
+				page: Math.floor(offset / limit) + 1,
+				has_more: offset + analysesResult.rows.length < total,
+			},
+		});
+	} catch (err) {
+		console.error('List CV analyses error:', err);
+		res.status(500).json({ error: 'Failed to list CV analyses' });
+	}
+});
+
+// ============= AI CV REVIEW (#82) =============
+
+// POST /cv-review — create AI-powered CV review
+router.post('/cv-review', authMiddleware, async (req, res) => {
+	try {
+		const { document_id, cv_text } = req.body;
+
+		// Validate input: at least one source required
+		if (!document_id && !cv_text) {
+			return res.status(400).json({
+				error: 'Either document_id or cv_text is required',
+				code: 'MISSING_INPUT',
+			});
+		}
+
+		// Premium gating
+		const access = await checkFeatureAccess(req.user, 'cv_review');
+		if (!access.allowed) {
+			return res.status(403).json({
+				error: 'Upgrade to Pro to access CV Review',
+				code: 'UPGRADE_REQUIRED',
+				feature: 'cv_review',
+				upgradeUrl: '/pricing',
+			});
+		}
+
+		let reviewText = cv_text || '';
+		const resolvedDocumentId = document_id || null;
+
+		// If document_id provided, fetch parsed resume text
+		if (document_id) {
+			const docResult = await pool.query(
+				'SELECT id, parsed_data FROM parsed_resumes WHERE id = $1 AND user_id = $2',
+				[document_id, req.user.id],
+			);
+			if (docResult.rows.length === 0) {
+				return res.status(404).json({
+					error: 'Document not found',
+					code: 'DOCUMENT_NOT_FOUND',
+				});
+			}
+			// Use parsed_data JSONB as text source
+			const parsedData = docResult.rows[0].parsed_data;
+			reviewText = parsedData ? JSON.stringify(parsedData) : '';
+			if (!reviewText.trim()) {
+				return res.status(400).json({
+					error: 'Document has no parsed content. Please upload a valid CV.',
+					code: 'EMPTY_DOCUMENT',
+				});
+			}
+		}
+
+		// Build AI prompt
+		const prompt = `You are an expert CV/resume reviewer. Review the following CV and provide structured feedback.
+
+CV CONTENT:
+${reviewText.substring(0, 12000)}
+
+Provide your analysis as a JSON object with exactly this structure:
+{
+  "score": <number 0-100>,
+  "sections": [
+    {
+      "name": "<section name>",
+      "score": <number 0-100>,
+      "feedback": "<detailed feedback for this section>",
+      "priority": "<highest|medium|optional>"
+    }
+  ],
+  "overall_feedback": "<2-3 sentence overall summary>"
+}
+
+Evaluate these areas: Experience, Skills, Education, Formatting, and ATS Optimization. Be constructive and specific.`;
+
+		// Call AI
+		const { chat } = require('../lib/polsia-ai');
+		const aiResponse = await chat(prompt, {
+			task: 'cv-review',
+			module: 'candidate',
+			feature: 'cv_review',
+		});
+
+		// Parse AI response
+		const { safeParseJSON } = require('../lib/polsia-ai');
+		const reviewData = safeParseJSON(aiResponse);
+		if (!reviewData) {
+			return res.status(502).json({
+				error: 'AI response could not be parsed',
+				code: 'AI_PARSE_ERROR',
+			});
+		}
+
+		// Save to cv_reviews table
+		const insertResult = await pool.query(
+			`
+			INSERT INTO cv_reviews (user_id, document_id, review_data)
+			VALUES ($1, $2, $3)
+			RETURNING id, user_id, document_id, review_data, created_at
+			`,
+			[req.user.id, resolvedDocumentId, JSON.stringify(reviewData)],
+		);
+
+		// Track usage
+		try {
+			await incrementUsage(req.user.id, 'cv_review');
+		} catch (usageErr) {
+			console.error('[CV Review] Usage tracking failed (non-fatal):', usageErr.message);
+		}
+
+		res.json({
+			success: true,
+			review: insertResult.rows[0],
+		});
+	} catch (err) {
+		console.error('CV review error:', err);
+		res.status(500).json({ error: 'Failed to generate CV review' });
+	}
+});
+
+// GET /cv-review — return most recent CV review for authenticated user
+router.get('/cv-review', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`
+			SELECT id, user_id, document_id, review_data, created_at
+			FROM cv_reviews
+			WHERE user_id = $1
+			ORDER BY created_at DESC
+			LIMIT 1
+			`,
+			[req.user.id],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({
+				error: 'No CV review found',
+				code: 'NOT_FOUND',
+			});
+		}
+
+		res.json({
+			success: true,
+			review: result.rows[0],
+		});
+	} catch (err) {
+		console.error('Get CV review error:', err);
+		res.status(500).json({ error: 'Failed to get CV review' });
 	}
 });
 
@@ -1452,7 +1948,8 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 		let paramIndex = 1;
 
 		// Exclude dismissed jobs from main feed
-		let whereClause = "WHERE j.status = 'active' AND NOT EXISTS (SELECT 1 FROM candidate_job_actions cja WHERE cja.job_id = j.id AND cja.user_id = $1 AND cja.action_type = 'dismiss')";
+		let whereClause =
+			"WHERE j.status = 'active' AND NOT EXISTS (SELECT 1 FROM candidate_job_actions cja WHERE cja.job_id = j.id AND cja.user_id = $1 AND cja.action_type = 'dismiss')";
 		params.push(userId);
 		paramIndex++;
 
@@ -1864,10 +2361,10 @@ router.post('/jobs/:jobId/dismiss', authMiddleware, async (req, res) => {
 			"DELETE FROM candidate_job_actions WHERE user_id = $1 AND job_id = $2 AND action_type = 'like'",
 			[req.user.id, jobId],
 		);
-		await pool.query(
-			'DELETE FROM saved_jobs WHERE user_id = $1 AND job_id = $2',
-			[req.user.id, jobId],
-		);
+		await pool.query('DELETE FROM saved_jobs WHERE user_id = $1 AND job_id = $2', [
+			req.user.id,
+			jobId,
+		]);
 
 		res.json({ success: true });
 	} catch (err) {
@@ -1917,189 +2414,214 @@ router.get('/jobs/dismissed', authMiddleware, async (req, res) => {
 	}
 });
 
-// Apply to a job
-router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
-	try {
-		const { cover_letter, screening_answers } = req.body;
-
-		// Get match score
-		const profile = await pool.query(
-			`
-      SELECT cp.*, u.name, os.total_score as omniscore
+// Helper: shared application submission logic (manual + auto-apply)
+async function submitApplication({
+	candidateId,
+	jobId,
+	coverLetter,
+	screeningAnswers,
+	appliedVia,
+	autoApplyProfileData,
+}) {
+	// Get profile + skills + omniscore
+	const profile = await pool.query(
+		`
+      SELECT cp.*, u.name, u.email, os.total_score as omniscore
       FROM users u
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id
       WHERE u.id = $1
     `,
-			[req.user.id],
-		);
+		[candidateId],
+	);
 
-		const skills = await pool.query('SELECT skill_name FROM candidate_skills WHERE user_id = $1', [
-			req.user.id,
-		]);
+	const skills = await pool.query('SELECT skill_name FROM candidate_skills WHERE user_id = $1', [
+		candidateId,
+	]);
 
-		const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [req.params.jobId]);
-		if (job.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
-		}
+	const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
+	if (job.rows.length === 0) {
+		const err = new Error('Job not found');
+		err.statusCode = 404;
+		throw err;
+	}
 
-		const existingApplication = await pool.query(
-			'SELECT id FROM job_applications WHERE candidate_id = $1 AND job_id = $2',
-			[req.user.id, req.params.jobId],
-		);
-		if (existingApplication.rows.length > 0) {
-			return res.status(400).json({ error: 'You have already applied to this job' });
-		}
+	const existingApplication = await pool.query(
+		'SELECT id FROM job_applications WHERE candidate_id = $1 AND job_id = $2',
+		[candidateId, jobId],
+	);
+	if (existingApplication.rows.length > 0) {
+		const err = new Error('You have already applied to this job');
+		err.statusCode = 400;
+		throw err;
+	}
 
-		const candidateProfile = {
-			...profile.rows[0],
-			skills: skills.rows,
-		};
+	const candidateProfile = {
+		...profile.rows[0],
+		skills: skills.rows,
+	};
 
-		const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
-			req.user.id,
-		]);
-		const subscriptionId = user.rows[0]?.stripe_subscription_id;
+	const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
+		candidateId,
+	]);
+	const subscriptionId = user.rows[0]?.stripe_subscription_id;
 
-		let matchScore = 50;
-		try {
-			const match = await generateJobMatchScore(candidateProfile, job.rows[0], { subscriptionId });
-			matchScore = match.match_score;
-		} catch (_e) {}
+	let matchScore = 50;
+	try {
+		const match = await generateJobMatchScore(candidateProfile, job.rows[0], { subscriptionId });
+		matchScore = match.match_score;
+	} catch (_e) {}
 
-		// Get omniscore for application
-		const omniscore = profile.rows[0]?.omniscore || null;
+	const omniscore = profile.rows[0]?.omniscore || null;
 
-		const result = await pool.query(
-			`
-      INSERT INTO job_applications (candidate_id, job_id, company_id, cover_letter, match_score, omniscore_at_apply, screening_answers)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+	const result = await pool.query(
+		`
+      INSERT INTO job_applications (candidate_id, job_id, company_id, cover_letter, match_score, omniscore_at_apply, screening_answers, is_auto_applied, applied_via)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `,
-			[
-				req.user.id,
-				req.params.jobId,
-				job.rows[0].company_id,
-				cover_letter,
-				matchScore,
-				omniscore,
-				JSON.stringify(screening_answers || {}),
-			],
+		[
+			candidateId,
+			jobId,
+			job.rows[0].company_id,
+			coverLetter || autoApplyProfileData?.cover_letter_template || '',
+			matchScore,
+			omniscore,
+			JSON.stringify(screeningAnswers || {}),
+			appliedVia === 'auto_apply',
+			appliedVia || 'manual',
+		],
+	);
+
+	// Smart data enrichment from screening answers (manual only)
+	if (appliedVia === 'manual' && screeningAnswers && Object.keys(screeningAnswers).length > 0) {
+		try {
+			const screeningQs = job.rows[0].screening_questions || [];
+			const updates = {};
+			for (const q of screeningQs) {
+				const answer = screeningAnswers[q.id];
+				if (!answer) continue;
+				if (q.category === 'salary' && answer) {
+					const nums = String(answer).match(/\d[\d,]*/g);
+					if (nums && nums.length > 0) {
+						updates.salary_min = parseInt(nums[0].replace(/,/g, ''), 10);
+						if (nums.length > 1) updates.salary_max = parseInt(nums[1].replace(/,/g, ''), 10);
+					}
+				} else if (q.category === 'availability') {
+					updates.availability = String(answer);
+				} else if (q.category === 'experience') {
+					const bracket = String(answer);
+					if (bracket.includes('0-1')) updates.years_experience = 1;
+					else if (bracket.includes('1-3')) updates.years_experience = 2;
+					else if (bracket.includes('3-5')) updates.years_experience = 4;
+					else if (bracket.includes('5-10')) updates.years_experience = 7;
+					else if (bracket.includes('10+')) updates.years_experience = 12;
+				}
+			}
+			if (Object.keys(updates).length > 0) {
+				const setClauses = [];
+				const values = [candidateId];
+				let idx = 2;
+				for (const [key, val] of Object.entries(updates)) {
+					setClauses.push(`${key} = COALESCE(${idx}, ${key})`);
+					values.push(val);
+					idx++;
+				}
+				await pool.query(
+					`UPDATE candidate_profiles SET ${setClauses.join(', ')}, updated_at = NOW() WHERE user_id = $1`,
+					values,
+				);
+			}
+		} catch (enrichErr) {
+			console.error('Profile enrichment from screening (non-blocking):', enrichErr.message);
+		}
+	}
+
+	// Auto-create conversation (non-blocking)
+	try {
+		const { getOrCreateConversation } = require('../routes/chat');
+		await getOrCreateConversation(jobId, candidateId, job.rows[0].user_id, job.rows[0].company_id);
+	} catch (convErr) {
+		console.error('[apply] Auto-create conversation failed (non-blocking):', convErr.message);
+	}
+
+	// Send candidate notification (non-blocking)
+	try {
+		const jobInfo = job.rows[0];
+		const userInfo = profile.rows[0];
+		await emailService.sendTemplatedEmail({
+			to: userInfo?.email,
+			templateName: 'candidate_application_submitted',
+			templateData: {
+				name: userInfo?.name || 'Candidate',
+				job_title: jobInfo?.title || 'the position',
+				company_name: jobInfo?.company || 'Our Company',
+				location: jobInfo?.location || 'Remote',
+				applied_date: new Date().toISOString(),
+				application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/candidate/applications`,
+			},
+			userId: candidateId,
+			metadata: { job_id: jobInfo?.id, company_id: jobInfo?.company_id },
+		});
+	} catch (emailErr) {
+		console.error(
+			'[email] Failed to send application submitted email (non-blocking):',
+			emailErr.message,
 		);
+	}
 
-		// ── Smart Data Enrichment: Extract profile data from screening answers ──
-		if (screening_answers && Object.keys(screening_answers).length > 0) {
-			try {
-				const screeningQs = job.rows[0].screening_questions || [];
-				const updates = {};
-
-				for (const q of screeningQs) {
-					const answer = screening_answers[q.id];
-					if (!answer) continue;
-
-					if (q.category === 'salary' && answer) {
-						const nums = String(answer).match(/\d[\d,]*/g);
-						if (nums && nums.length > 0) {
-							updates.salary_min = parseInt(nums[0].replace(/,/g, ''), 10);
-							if (nums.length > 1) updates.salary_max = parseInt(nums[1].replace(/,/g, ''), 10);
-						}
-					} else if (q.category === 'availability') {
-						updates.availability = String(answer);
-					} else if (q.category === 'experience') {
-						const bracket = String(answer);
-						if (bracket.includes('0-1')) updates.years_experience = 1;
-						else if (bracket.includes('1-3')) updates.years_experience = 2;
-						else if (bracket.includes('3-5')) updates.years_experience = 4;
-						else if (bracket.includes('5-10')) updates.years_experience = 7;
-						else if (bracket.includes('10+')) updates.years_experience = 12;
-					} else if (q.category === 'work_authorization') {
-						// Store as a profile note
-					}
-				}
-
-				if (Object.keys(updates).length > 0) {
-					const setClauses = [];
-					const values = [req.user.id];
-					let idx = 2;
-					for (const [key, val] of Object.entries(updates)) {
-						setClauses.push(`${key} = COALESCE($${idx}, ${key})`);
-						values.push(val);
-						idx++;
-					}
-					if (setClauses.length > 0) {
-						await pool.query(
-							`UPDATE candidate_profiles SET ${setClauses.join(', ')}, updated_at = NOW() WHERE user_id = $1`,
-							values,
-						);
-					}
-				}
-			} catch (enrichErr) {
-				console.error('Profile enrichment from screening (non-blocking):', enrichErr.message);
-			}
-		}
-
-		res.json({ success: true, application: result.rows[0] });
-
-		// ── Send application submitted notification to candidate (non-blocking) ──
-		try {
-			const jobInfo = job.rows[0];
-			const userInfo = profile.rows[0];
+	// Send recruiter notification (non-blocking)
+	try {
+		const jobInfo = job.rows[0];
+		const userInfo = profile.rows[0];
+		const recruiterResult = await pool.query(
+			'SELECT u.id, u.email, u.name FROM users u JOIN jobs j ON j.user_id = u.id WHERE j.id = $1',
+			[jobId],
+		);
+		const recruiter = recruiterResult.rows[0];
+		if (recruiter?.email) {
 			await emailService.sendTemplatedEmail({
-				to: userInfo?.email,
-				templateName: 'candidate_application_submitted',
+				to: recruiter.email,
+				templateName: 'recruiter_new_application',
 				templateData: {
-					name: userInfo?.name || 'Candidate',
+					name: recruiter.name || 'Recruiter',
+					candidate_name: userInfo?.name || 'Candidate',
+					candidate_email: userInfo?.email || '',
 					job_title: jobInfo?.title || 'the position',
-					company_name: jobInfo?.company || 'Our Company',
-					location: jobInfo?.location || 'Remote',
+					omniscore: omniscore || 'N/A',
+					verification_status: 'verified',
 					applied_date: new Date().toISOString(),
-					application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/candidate/applications`,
+					application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/recruiter/applications`,
 				},
-				userId: req.user.id,
-				metadata: { job_id: jobInfo?.id, company_id: jobInfo?.company_id },
+				userId: recruiter.id,
+				metadata: { job_id: jobInfo?.id, candidate_id: candidateId },
 			});
-		} catch (emailErr) {
-			console.error(
-				'[email] Failed to send application submitted email (non-blocking):',
-				emailErr.message,
-			);
 		}
+	} catch (emailErr) {
+		console.error(
+			'[email] Failed to send recruiter notification (non-blocking):',
+			emailErr.message,
+		);
+	}
 
-		// ── Send application received notification to recruiter (non-blocking) ──
-		try {
-			const jobInfo = job.rows[0];
-			const userInfo = profile.rows[0];
-			// Get recruiter email for this job
-			const recruiterResult = await pool.query(
-				'SELECT u.id, u.email, u.name FROM users u JOIN jobs j ON j.user_id = u.id WHERE j.id = $1',
-				[req.params.jobId],
-			);
-			const recruiter = recruiterResult.rows[0];
-			if (recruiter?.email) {
-				await emailService.sendTemplatedEmail({
-					to: recruiter.email,
-					templateName: 'recruiter_new_application',
-					templateData: {
-						name: recruiter.name || 'Recruiter',
-						candidate_name: userInfo?.name || 'Candidate',
-						candidate_email: userInfo?.email || '',
-						job_title: jobInfo?.title || 'the position',
-						omniscore: omniscore || 'N/A',
-						verification_status: 'verified',
-						applied_date: new Date().toISOString(),
-						application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/recruiter/applications`,
-					},
-					userId: recruiter.id,
-					metadata: { job_id: jobInfo?.id, candidate_id: req.user.id },
-				});
-			}
-		} catch (emailErr) {
-			console.error(
-				'[email] Failed to send recruiter notification (non-blocking):',
-				emailErr.message,
-			);
-		}
+	return result.rows[0];
+}
+// Apply to a job
+router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
+	try {
+		const { cover_letter, screening_answers } = req.body;
+		const application = await submitApplication({
+			candidateId: req.user.id,
+			jobId: req.params.jobId,
+			coverLetter: cover_letter,
+			screeningAnswers: screening_answers,
+			appliedVia: 'manual',
+		});
+		res.json({ success: true, application });
 	} catch (err) {
+		if (err.statusCode) {
+			return res.status(err.statusCode).json({ error: err.message });
+		}
 		console.error('Apply to job error:', err);
 		res.status(500).json({ error: 'Failed to apply to job' });
 	}
@@ -2110,11 +2632,14 @@ router.get('/applications', authMiddleware, async (req, res) => {
 	try {
 		const applications = await pool.query(
 			`
-      SELECT ja.*, j.title, j.company, j.location, j.salary_range, j.job_type,
-             j.screening_questions, u.company_name as posted_by_company
+      SELECT ja.*, ja.is_auto_applied, j.title, j.company, j.location, j.salary_range, j.job_type,
+             j.screening_questions, u.company_name as posted_by_company,
+             ri.status as intro_status, ri.id as intro_id,
+             (SELECT COUNT(*) FROM outreach_attempts oa WHERE oa.application_id = ja.id) as outreach_count
       FROM job_applications ja
       JOIN jobs j ON ja.job_id = j.id
       LEFT JOIN users u ON j.user_id = u.id
+      LEFT JOIN recruiter_introductions ri ON ri.job_id = ja.job_id AND ri.candidate_id = ja.candidate_id
       WHERE ja.candidate_id = $1
       ORDER BY ja.applied_at DESC
     `,
@@ -2125,6 +2650,202 @@ router.get('/applications', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Get applications error:', err);
 		res.status(500).json({ error: 'Failed to get applications' });
+	}
+});
+
+// Auto-apply to a job (Pro feature, rate-limited) — uses stored auto-apply profile
+router.post('/applications/auto-apply', authMiddleware, async (req, res) => {
+	try {
+		const { job_id } = req.body;
+		if (!job_id) {
+			return res.status(400).json({ error: 'job_id is required' });
+		}
+
+		// Check feature access
+		const access = await checkFeatureAccess(req.user, 'auto_apply');
+		if (!access.allowed) {
+			return res.status(403).json({
+				error: 'Upgrade to Pro to access Auto-Apply',
+				code: 'UPGRADE_REQUIRED',
+				feature: 'auto_apply',
+				upgradeUrl: '/pricing',
+			});
+		}
+
+		// Check auto-apply profile is active and consented
+		const aap = await pool.query(
+			'SELECT * FROM auto_apply_profiles WHERE user_id = $1 AND is_active = TRUE AND gdpr_consent = TRUE',
+			[req.user.id],
+		);
+		if (aap.rows.length === 0) {
+			return res.status(400).json({
+				error: 'Auto-apply is not activated. Please activate auto-apply first.',
+				code: 'AUTO_APPLY_NOT_ACTIVATED',
+			});
+		}
+
+		const application = await submitApplication({
+			candidateId: req.user.id,
+			jobId: job_id,
+			appliedVia: 'auto_apply',
+			autoApplyProfileData: aap.rows[0].profile_data,
+		});
+
+		await incrementUsage(req.user.id, 'auto_apply');
+		res.json({ success: true, application });
+	} catch (err) {
+		if (err.statusCode) {
+			return res.status(err.statusCode).json({ error: err.message });
+		}
+		console.error('Auto-apply error:', err);
+		res.status(500).json({ error: 'Failed to auto-apply to job' });
+	}
+});
+
+// ============= AUTO-APPLY PROFILE MANAGEMENT (#83) =============
+
+// Activate auto-apply with GDPR consent
+router.post('/auto-apply/activate', authMiddleware, async (req, res) => {
+	try {
+		const { gdpr_consent, profile_data } = req.body;
+
+		if (!gdpr_consent) {
+			return res.status(400).json({
+				error: 'GDPR consent is required to activate auto-apply',
+				code: 'CONSENT_REQUIRED',
+			});
+		}
+
+		// Upsert: create or update profile, set active + consent
+		const result = await pool.query(
+			`
+				INSERT INTO auto_apply_profiles (user_id, profile_data, is_active, gdpr_consent, consent_date, updated_at)
+				VALUES ($1, $2, TRUE, TRUE, NOW(), NOW())
+				ON CONFLICT (user_id) DO UPDATE SET
+					is_active = TRUE,
+					gdpr_consent = TRUE,
+					consent_date = NOW(),
+					profile_data = COALESCE($2, auto_apply_profiles.profile_data),
+					updated_at = NOW()
+				RETURNING *
+			`,
+			[req.user.id, JSON.stringify(profile_data || {})],
+		);
+
+		res.json({ success: true, auto_apply: result.rows[0] });
+	} catch (err) {
+		console.error('Auto-apply activate error:', err);
+		res.status(500).json({ error: 'Failed to activate auto-apply' });
+	}
+});
+
+// Deactivate auto-apply
+router.post('/auto-apply/deactivate', authMiddleware, async (req, res) => {
+	try {
+		await pool.query(
+			`
+				UPDATE auto_apply_profiles
+				SET is_active = FALSE, updated_at = NOW()
+				WHERE user_id = $1
+			`,
+			[req.user.id],
+		);
+		res.json({ success: true, message: 'Auto-apply deactivated' });
+	} catch (err) {
+		console.error('Auto-apply deactivate error:', err);
+		res.status(500).json({ error: 'Failed to deactivate auto-apply' });
+	}
+});
+
+// Get auto-apply status and profile
+router.get('/auto-apply/status', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			'SELECT id, user_id, profile_data, is_active, gdpr_consent, consent_date, created_at, updated_at FROM auto_apply_profiles WHERE user_id = $1',
+			[req.user.id],
+		);
+
+		if (result.rows.length === 0) {
+			return res.json({ success: true, auto_apply: null, is_active: false });
+		}
+
+		res.json({ success: true, auto_apply: result.rows[0], is_active: result.rows[0].is_active });
+	} catch (err) {
+		console.error('Auto-apply status error:', err);
+		res.status(500).json({ error: 'Failed to get auto-apply status' });
+	}
+});
+
+// Update auto-apply profile data
+router.put('/auto-apply/profile', authMiddleware, async (req, res) => {
+	try {
+		const { profile_data } = req.body;
+		if (!profile_data || typeof profile_data !== 'object') {
+			return res.status(400).json({ error: 'profile_data object is required' });
+		}
+
+		const result = await pool.query(
+			`
+				INSERT INTO auto_apply_profiles (user_id, profile_data, updated_at)
+				VALUES ($1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE SET
+					profile_data = $2,
+					updated_at = NOW()
+				RETURNING *
+			`,
+			[req.user.id, JSON.stringify(profile_data)],
+		);
+
+		res.json({ success: true, auto_apply: result.rows[0] });
+	} catch (err) {
+		console.error('Auto-apply profile update error:', err);
+		res.status(500).json({ error: 'Failed to update auto-apply profile' });
+	}
+});
+
+// One-click auto-apply by job ID in URL (rate-limited)
+router.post('/jobs/:id/auto-apply', authMiddleware, rateLimits.standard, async (req, res) => {
+	try {
+		const jobId = req.params.id;
+
+		// Check feature access
+		const access = await checkFeatureAccess(req.user, 'auto_apply');
+		if (!access.allowed) {
+			return res.status(403).json({
+				error: 'Upgrade to Pro to access Auto-Apply',
+				code: 'UPGRADE_REQUIRED',
+				feature: 'auto_apply',
+				upgradeUrl: '/pricing',
+			});
+		}
+
+		// Check auto-apply profile is active and consented
+		const aap = await pool.query(
+			'SELECT * FROM auto_apply_profiles WHERE user_id = $1 AND is_active = TRUE AND gdpr_consent = TRUE',
+			[req.user.id],
+		);
+		if (aap.rows.length === 0) {
+			return res.status(400).json({
+				error: 'Auto-apply is not activated. Please activate auto-apply first.',
+				code: 'AUTO_APPLY_NOT_ACTIVATED',
+			});
+		}
+
+		const application = await submitApplication({
+			candidateId: req.user.id,
+			jobId,
+			appliedVia: 'auto_apply',
+			autoApplyProfileData: aap.rows[0].profile_data,
+		});
+
+		await incrementUsage(req.user.id, 'auto_apply');
+		res.json({ success: true, application });
+	} catch (err) {
+		if (err.statusCode) {
+			return res.status(err.statusCode).json({ error: err.message });
+		}
+		console.error('One-click auto-apply error:', err);
+		res.status(500).json({ error: 'Failed to auto-apply to job' });
 	}
 });
 
@@ -2164,10 +2885,22 @@ router.put('/applications/:id/withdraw', authMiddleware, async (req, res) => {
 router.put('/applications/:id/status', authMiddleware, async (req, res) => {
 	try {
 		const { status } = req.body;
-		const validStatuses = ['applied', 'screening', 'shortlisted', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn'];
+		const validStatuses = [
+			'applied',
+			'screening',
+			'shortlisted',
+			'reviewing',
+			'interviewed',
+			'offered',
+			'hired',
+			'rejected',
+			'withdrawn',
+		];
 
 		if (!status || !validStatuses.includes(status)) {
-			return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+			return res
+				.status(400)
+				.json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
 		}
 
 		// Verify application belongs to candidate
@@ -3338,6 +4071,1089 @@ Only return JSON.`;
 	} catch (err) {
 		console.error('AI resume score error:', err);
 		res.status(500).json({ error: 'Failed to score resume' });
+	}
+});
+
+// GET /api/candidate/list — returns candidates for the recruiter's company (Issue #109)
+router.get('/list', authMiddleware, async (req, res) => {
+	try {
+		// Only recruiters/hiring managers can access this
+		const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+		if (!recruiterRoles.includes(req.user.role)) {
+			return res.status(403).json({ error: 'Recruiter access required' });
+		}
+
+		const companyId = req.user.company_id;
+		if (!companyId) {
+			return res.status(403).json({ error: 'No company associated' });
+		}
+
+		const result = await pool.query(
+			`SELECT DISTINCT ON (u.id)
+				u.id,
+				u.name,
+				u.email
+			FROM job_applications ja
+			JOIN users u ON ja.candidate_id = u.id
+			WHERE ja.company_id = $1
+			ORDER BY u.id, ja.applied_at DESC
+			LIMIT 200`,
+			[companyId],
+		);
+
+		res.json(result.rows);
+	} catch (err) {
+		console.error('Get candidate list error:', err);
+		res.status(500).json({ error: 'Failed to fetch candidates' });
+	}
+});
+
+// GET /api/candidate/documents — returns documents for the authenticated candidate (Issue #109)
+router.get('/documents', authMiddleware, async (req, res) => {
+	try {
+		const userId = req.user.id;
+
+		// Graceful: create table if it doesn't exist
+		await pool.query(`
+			CREATE TABLE IF NOT EXISTS documents (
+				id SERIAL PRIMARY KEY,
+				user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+				name VARCHAR(500) NOT NULL,
+				type VARCHAR(50) DEFAULT 'other',
+				url TEXT,
+				size INTEGER DEFAULT 0,
+				status VARCHAR(50) DEFAULT 'pending',
+				fraud_score NUMERIC(3,2),
+				oer_text TEXT,
+				oer_confidence NUMERIC(4,3),
+				document_score INTEGER,
+				verification_details JSONB DEFAULT '{}',
+				created_at TIMESTAMP DEFAULT NOW()
+			)
+		`);
+
+		const result = await pool.query(
+			`SELECT
+				id,
+				name,
+				type,
+				url,
+				size,
+				status,
+				fraud_score as fraudScore,
+				oer_text as ocrText,
+				oer_confidence as ocrConfidence,
+				document_score as documentScore,
+				verification_details as verificationDetails,
+				created_at as uploadedAt
+			FROM documents
+			WHERE user_id = $1
+			ORDER BY created_at DESC`,
+			[userId],
+		);
+
+		const documents = result.rows.map((d) => ({
+			id: String(d.id),
+			name: d.name,
+			type: d.type || 'other',
+			url: d.url || '',
+			size: parseInt(d.size, 10) || 0,
+			uploadedAt: d.uploadedat ? new Date(d.uploadedat).toISOString() : new Date().toISOString(),
+			status: d.status || 'pending',
+			fraudScore: d.fraudscore ? parseFloat(d.fraudscore) : undefined,
+			ocrText: d.ocrtext || undefined,
+			ocrConfidence: d.ocrconfidence ? parseFloat(d.ocrconfidence) : undefined,
+			documentScore: d.documentscore ? parseInt(d.documentscore, 10) : undefined,
+			verificationDetails: d.verificationdetails || undefined,
+		}));
+
+		res.json({ documents });
+	} catch (err) {
+		console.error('Get candidate documents error:', err);
+		res.status(500).json({ error: 'Failed to fetch documents' });
+	}
+});
+
+// POST /api/candidate/documents/upload — upload a document for the authenticated candidate (Issue #109)
+router.post('/documents/upload', authMiddleware, async (req, res) => {
+	try {
+		const userId = req.user.id;
+		const { name, type, url, size } = req.body;
+
+		if (!name || !url) {
+			return res.status(400).json({ error: 'Name and URL are required' });
+		}
+
+		await pool.query(`
+			CREATE TABLE IF NOT EXISTS documents (
+				id SERIAL PRIMARY KEY,
+				user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+				name VARCHAR(500) NOT NULL,
+				type VARCHAR(50) DEFAULT 'other',
+				url TEXT,
+				size INTEGER DEFAULT 0,
+				status VARCHAR(50) DEFAULT 'pending',
+				fraud_score NUMERIC(3,2),
+				oer_text TEXT,
+				oer_confidence NUMERIC(4,3),
+				document_score INTEGER,
+				verification_details JSONB DEFAULT '{}',
+				created_at TIMESTAMP DEFAULT NOW()
+			)
+		`);
+
+		const result = await pool.query(
+			`INSERT INTO documents (user_id, name, type, url, size, status)
+			 VALUES ($1, $2, $3, $4, $5, 'pending')
+			 RETURNING *`,
+			[userId, name, type || 'other', url, size || 0],
+		);
+
+		const d = result.rows[0];
+		res.json({
+			document: {
+				id: String(d.id),
+				name: d.name,
+				type: d.type || 'other',
+				url: d.url || '',
+				size: parseInt(d.size, 10) || 0,
+				uploadedAt: d.created_at ? new Date(d.created_at).toISOString() : new Date().toISOString(),
+				status: 'pending',
+			},
+		});
+	} catch (err) {
+		console.error('Upload document error:', err);
+		res.status(500).json({ error: 'Failed to upload document' });
+	}
+});
+
+// DELETE /api/candidate/documents/:id — delete a document (Issue #109)
+router.delete('/documents/:id', authMiddleware, async (req, res) => {
+	try {
+		const userId = req.user.id;
+		const result = await pool.query(
+			'DELETE FROM documents WHERE id = $1 AND user_id = $2 RETURNING id',
+			[req.params.id, userId],
+		);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Document not found' });
+		}
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Delete document error:', err);
+		res.status(500).json({ error: 'Failed to delete document' });
+	}
+});
+
+// ============= OUTREACH ATTEMPTS =============
+
+// List outreach attempts for an application
+router.get('/outreach/:applicationId', authMiddleware, async (req, res) => {
+	try {
+		const applicationId = parseInt(req.params.applicationId, 10);
+		if (!applicationId || applicationId <= 0) {
+			return res.status(400).json({ error: 'Invalid application ID' });
+		}
+
+		// Verify ownership
+		const appCheck = await pool.query(
+			'SELECT id FROM job_applications WHERE id = $1 AND candidate_id = $2',
+			[applicationId, req.user.id],
+		);
+		if (appCheck.rows.length === 0) {
+			return res.status(404).json({ error: 'Application not found' });
+		}
+
+		const result = await pool.query(
+			`
+			SELECT id, application_id, method, message, status, created_at, updated_at
+			FROM outreach_attempts
+			WHERE application_id = $1 AND user_id = $2
+			ORDER BY created_at DESC
+			`,
+			[applicationId, req.user.id],
+		);
+
+		res.json({ success: true, attempts: result.rows });
+	} catch (err) {
+		console.error('Get outreach error:', err);
+		res.status(500).json({ error: 'Failed to get outreach attempts' });
+	}
+});
+
+// Create new outreach attempt
+router.post('/outreach', authMiddleware, async (req, res) => {
+	try {
+		const { application_id, method, message, status } = req.body;
+
+		if (!application_id) {
+			return res.status(400).json({ error: 'application_id is required' });
+		}
+		if (!method || !['email', 'linkedin', 'phone', 'other'].includes(method)) {
+			return res.status(400).json({ error: 'method must be email, linkedin, phone, or other' });
+		}
+
+		// Verify ownership
+		const appCheck = await pool.query(
+			'SELECT id FROM job_applications WHERE id = $1 AND candidate_id = $2',
+			[application_id, req.user.id],
+		);
+		if (appCheck.rows.length === 0) {
+			return res.status(404).json({ error: 'Application not found' });
+		}
+
+		const result = await pool.query(
+			`
+			INSERT INTO outreach_attempts (application_id, user_id, method, message, status)
+			VALUES ($1, $2, $3, $4, $5)
+			RETURNING id, application_id, method, message, status, created_at, updated_at
+			`,
+			[application_id, req.user.id, method, message || null, status || 'pending'],
+		);
+
+		res.json({ success: true, attempt: result.rows[0] });
+	} catch (err) {
+		console.error('Create outreach error:', err);
+		res.status(500).json({ error: 'Failed to create outreach attempt' });
+	}
+});
+
+// Update outreach status
+router.put('/outreach/:id', authMiddleware, async (req, res) => {
+	try {
+		const { status } = req.body;
+		if (!status || !['pending', 'sent', 'replied', 'follow_up', 'no_response'].includes(status)) {
+			return res.status(400).json({ error: 'Invalid status' });
+		}
+
+		const result = await pool.query(
+			`
+			UPDATE outreach_attempts
+			SET status = $3, updated_at = NOW()
+			WHERE id = $1 AND user_id = $2
+			RETURNING id, application_id, method, message, status, created_at, updated_at
+			`,
+			[req.params.id, req.user.id, status],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Outreach attempt not found' });
+		}
+
+		res.json({ success: true, attempt: result.rows[0] });
+	} catch (err) {
+		console.error('Update outreach error:', err);
+		res.status(500).json({ error: 'Failed to update outreach attempt' });
+	}
+});
+
+// Delete outreach attempt
+router.delete('/outreach/:id', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			'DELETE FROM outreach_attempts WHERE id = $1 AND user_id = $2 RETURNING id',
+			[req.params.id, req.user.id],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Outreach attempt not found' });
+		}
+
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Delete outreach error:', err);
+		res.status(500).json({ error: 'Failed to delete outreach attempt' });
+	}
+});
+
+// ============= CAREER DIAGNOSIS (#77) =============
+
+// Skill name/category → dimension mapping
+function getSkillDimension(skillName, category) {
+	const name = (skillName || '').toLowerCase();
+	const cat = (category || 'technical').toLowerCase();
+
+	if (cat === 'soft' || cat === 'language') return 'communication';
+	if (cat === 'management' || cat === 'leadership') return 'leadership';
+	if (cat === 'tool' || cat === 'framework') return 'execution';
+	if (cat === 'domain' || cat === 'business') return 'strategic_thinking';
+	if (cat === 'stakeholder') return 'stakeholder_management';
+
+	if (
+		name.includes('lead') ||
+		name.includes('manage') ||
+		name.includes('mentor') ||
+		name.includes('coach')
+	)
+		return 'leadership';
+	if (
+		name.includes('communi') ||
+		name.includes('writing') ||
+		name.includes('present') ||
+		name.includes('speak')
+	)
+		return 'communication';
+	if (
+		name.includes('strateg') ||
+		name.includes('product') ||
+		name.includes('research') ||
+		name.includes('roadmap')
+	)
+		return 'strategic_thinking';
+	if (
+		name.includes('stakeholder') ||
+		name.includes('client') ||
+		name.includes('consult') ||
+		name.includes('partner') ||
+		name.includes('negotiat')
+	)
+		return 'stakeholder_management';
+	if (
+		name.includes('project') ||
+		name.includes('agile') ||
+		name.includes('scrum') ||
+		name.includes('delivery') ||
+		name.includes('ci/cd') ||
+		name.includes('devops')
+	)
+		return 'execution';
+
+	return 'problem_solving';
+}
+
+function inferLevel(years) {
+	const y = parseFloat(years) || 0;
+	if (y < 2) return 'junior';
+	if (y < 5) return 'mid';
+	return 'senior';
+}
+
+function inferTargetRole(headline, skills) {
+	const h = (headline || '').toLowerCase();
+	const skillNames = (skills || []).map((s) => (s.skill_name || '').toLowerCase());
+
+	if (h.includes('product') || h.includes('pm') || skillNames.some((s) => s.includes('product')))
+		return 'Product Manager';
+	if (
+		h.includes('data') ||
+		h.includes('analytics') ||
+		h.includes('ml ') ||
+		skillNames.some((s) => s.includes('machine learning') || s.includes('data science'))
+	)
+		return 'Data Scientist';
+	if (
+		h.includes('design') ||
+		h.includes('ux') ||
+		h.includes('ui') ||
+		skillNames.some((s) => s.includes('figma') || s.includes('design'))
+	)
+		return 'UX Designer';
+	return 'Software Engineer';
+}
+
+function calculateDimensionScores(profile, skills, experience, education, assessments) {
+	const scores = {
+		problem_solving: 0,
+		execution: 0,
+		communication: 0,
+		leadership: 0,
+		strategic_thinking: 0,
+		stakeholder_management: 0,
+	};
+
+	const yearsExp = parseFloat(profile?.years_experience) || 0;
+	const baseScore = yearsExp < 2 ? 35 : yearsExp < 5 ? 55 : 75;
+
+	for (const dim of Object.keys(scores)) {
+		scores[dim] = baseScore;
+	}
+
+	for (const skill of skills || []) {
+		const dim = getSkillDimension(skill.skill_name, skill.category);
+		const level = parseInt(skill.level, 10) || 3;
+		scores[dim] = Math.min(100, scores[dim] + level * 8);
+	}
+
+	for (const assessment of assessments || []) {
+		const score = parseInt(assessment.score, 10) || 0;
+		if (score > 0) {
+			const boost = (score / 100) * 12;
+			for (const dim of Object.keys(scores)) {
+				scores[dim] = Math.min(100, scores[dim] + boost);
+			}
+		}
+	}
+
+	const degrees = (education || []).map((e) => (e.degree || '').toLowerCase());
+	if (degrees.some((d) => d.includes('phd') || d.includes('doctorate'))) {
+		scores.problem_solving = Math.min(100, scores.problem_solving + 15);
+		scores.strategic_thinking = Math.min(100, scores.strategic_thinking + 10);
+	} else if (degrees.some((d) => d.includes('master') || d.includes('mba'))) {
+		scores.problem_solving = Math.min(100, scores.problem_solving + 10);
+		scores.strategic_thinking = Math.min(100, scores.strategic_thinking + 5);
+	} else if (degrees.some((d) => d.includes('bachelor'))) {
+		scores.problem_solving = Math.min(100, scores.problem_solving + 5);
+	}
+
+	for (const exp of experience || []) {
+		const title = (exp.title || '').toLowerCase();
+		if (title.includes('senior') || title.includes('lead') || title.includes('principal')) {
+			scores.leadership = Math.min(100, scores.leadership + 10);
+			scores.strategic_thinking = Math.min(100, scores.strategic_thinking + 5);
+		}
+		if (title.includes('manager') || title.includes('director')) {
+			scores.leadership = Math.min(100, scores.leadership + 15);
+			scores.stakeholder_management = Math.min(100, scores.stakeholder_management + 10);
+		}
+		if (title.includes('architect')) {
+			scores.strategic_thinking = Math.min(100, scores.strategic_thinking + 15);
+			scores.problem_solving = Math.min(100, scores.problem_solving + 10);
+		}
+	}
+
+	for (const dim of Object.keys(scores)) {
+		scores[dim] = Math.round(scores[dim]);
+	}
+
+	return scores;
+}
+
+function calculateCompetitiveness(candidateScores, role, level) {
+	const benchmark = marketBenchmarks.getBenchmark(role, level);
+	if (!benchmark) return 0;
+
+	const weights = marketBenchmarks.getRoleWeights(role);
+	let totalWeight = 0;
+	let weightedScore = 0;
+
+	for (const dim of Object.keys(candidateScores)) {
+		const weight = weights[dim] || 1.0;
+		const bench = benchmark[dim] || 50;
+		const ratio = bench > 0 ? Math.min(1, candidateScores[dim] / bench) : 0;
+		weightedScore += ratio * weight;
+		totalWeight += weight;
+	}
+
+	return Math.round((weightedScore / totalWeight) * 100);
+}
+
+function _findBestMatch(candidateScores) {
+	const roles = marketBenchmarks.getRoles();
+	const levels = marketBenchmarks.getLevels();
+	let best = { role: roles[0], level: levels[0], score: 0 };
+
+	for (const role of roles) {
+		for (const level of levels) {
+			const score = calculateCompetitiveness(candidateScores, role, level);
+			if (score > best.score) {
+				best = { role, level, score };
+			}
+		}
+	}
+	return best;
+}
+
+function generateGapAnalysis(candidateScores, role, level) {
+	const benchmark = marketBenchmarks.getBenchmark(role, level);
+	const labels = marketBenchmarks.getDimensionLabels();
+	const gaps = [];
+
+	for (const dim of Object.keys(candidateScores)) {
+		const bench = benchmark[dim] || 50;
+		const gap = bench - candidateScores[dim];
+		gaps.push({
+			dimension: labels[dim] || dim,
+			candidate_score: candidateScores[dim],
+			market_benchmark: bench,
+			gap: Math.round(gap),
+			status: gap > 15 ? 'needs_improvement' : gap > 5 ? 'near_target' : 'on_target',
+		});
+	}
+
+	return gaps.sort((a, b) => b.gap - a.gap);
+}
+
+function generateAlternativeRoles(candidateScores, primaryRole) {
+	const roles = marketBenchmarks.getRoles();
+	const levels = marketBenchmarks.getLevels();
+	const alternatives = [];
+
+	for (const role of roles) {
+		if (role === primaryRole) continue;
+		for (const level of levels) {
+			const score = calculateCompetitiveness(candidateScores, role, level);
+			alternatives.push({ role, level, competitiveness_score: score });
+		}
+	}
+
+	const bestPerRole = {};
+	for (const alt of alternatives) {
+		if (
+			!bestPerRole[alt.role] ||
+			alt.competitiveness_score > bestPerRole[alt.role].competitiveness_score
+		) {
+			bestPerRole[alt.role] = alt;
+		}
+	}
+
+	return Object.values(bestPerRole)
+		.sort((a, b) => b.competitiveness_score - a.competitiveness_score)
+		.slice(0, 3);
+}
+
+function generateRecommendations(gaps) {
+	const recommendations = [];
+	const labels = marketBenchmarks.getDimensionLabels();
+
+	for (const gap of gaps) {
+		if (gap.gap <= 5) continue;
+		const dimKey = Object.entries(labels).find(([, v]) => v === gap.dimension)?.[0] || '';
+
+		const recs = {
+			problem_solving:
+				'Practice algorithmic challenges and system design. Consider advanced technical certifications.',
+			execution: 'Take ownership of end-to-end projects. Learn Agile/Scrum and delivery tooling.',
+			communication:
+				'Practice technical writing and presentations. Seek opportunities to lead meetings.',
+			leadership:
+				'Mentor junior colleagues or lead a small initiative. Consider leadership training.',
+			strategic_thinking:
+				'Study product/business strategy. Participate in roadmap and planning sessions.',
+			stakeholder_management:
+				'Engage with cross-functional partners. Practice expectation management.',
+		};
+
+		recommendations.push({
+			dimension: gap.dimension,
+			priority: gap.gap > 20 ? 'high' : 'medium',
+			action:
+				recs[dimKey] || `Improve your ${gap.dimension.toLowerCase()} through structured practice.`,
+		});
+	}
+
+	return recommendations.slice(0, 6);
+}
+
+// Per-user rate limit: 5 requests per hour
+async function careerDiagnosisRateLimit(req, res, next) {
+	if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'e2e') {
+		return next();
+	}
+	const key = `career-diagnosis:user:${req.user.id}`;
+	const result = await distributedRateLimiter.checkLimit(key, 60 * 60 * 1000, 5);
+	res.setHeader('X-RateLimit-Limit', 5);
+	res.setHeader('X-RateLimit-Remaining', Math.max(0, 5 - result.count));
+	res.setHeader('X-RateLimit-Reset', Math.ceil(new Date(result.resetAt).getTime() / 1000));
+	if (!result.allowed) {
+		return res.status(429).json({
+			error: 'Rate limit exceeded',
+			code: 'RATE_LIMIT_EXCEEDED',
+			retry_after: result.retryAfter,
+			message: `Career diagnosis limit: 5 per hour. Try again in ${result.retryAfter} seconds.`,
+		});
+	}
+	next();
+}
+
+// POST /career-diagnosis — Run 360° skills assessment
+router.post(
+	'/career-diagnosis',
+	authMiddleware,
+	requireRole('candidate'),
+	careerDiagnosisRateLimit,
+	async (req, res) => {
+		try {
+			// Fetch candidate profile
+			const profileResult = await pool.query(
+				`SELECT cp.*, u.name, u.email
+			 FROM users u
+			 LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+			 WHERE u.id = $1`,
+				[req.user.id],
+			);
+
+			if (profileResult.rows.length === 0 || !profileResult.rows[0].user_id) {
+				return res.status(404).json({
+					error: 'No candidate profile found. Please complete your profile first.',
+					code: 'PROFILE_NOT_FOUND',
+				});
+			}
+
+			const profile = profileResult.rows[0];
+
+			// Fetch supporting data in parallel
+			const [skillsRes, experienceRes, educationRes, assessmentsRes, omniRes] = await Promise.all([
+				pool.query(
+					'SELECT skill_name, category, level, years_experience FROM candidate_skills WHERE user_id = $1',
+					[req.user.id],
+				),
+				pool.query(
+					'SELECT title, company_name, start_date, end_date, is_current FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC',
+					[req.user.id],
+				),
+				pool.query('SELECT degree, field_of_study, institution FROM education WHERE user_id = $1', [
+					req.user.id,
+				]),
+				pool.query(
+					'SELECT score, title FROM skill_assessments WHERE user_id = $1 AND score IS NOT NULL',
+					[req.user.id],
+				),
+				pool.query(
+					'SELECT total_score FROM omni_scores WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+					[req.user.id],
+				),
+			]);
+
+			const skills = skillsRes.rows;
+			const experience = experienceRes.rows;
+			const education = educationRes.rows;
+			const assessments = assessmentsRes.rows;
+			const omniScore = omniRes.rows[0]?.total_score || null;
+
+			// Calculate dimension scores
+			const dimensionScores = calculateDimensionScores(
+				profile,
+				skills,
+				experience,
+				education,
+				assessments,
+			);
+
+			// Infer target role and level
+			const targetRole = inferTargetRole(profile.headline, skills);
+			const targetLevel = inferLevel(profile.years_experience);
+
+			// Generate analysis
+			const gapAnalysis = generateGapAnalysis(dimensionScores, targetRole, targetLevel);
+			const marketCompetitiveness = calculateCompetitiveness(
+				dimensionScores,
+				targetRole,
+				targetLevel,
+			);
+			const alternativeRoles = generateAlternativeRoles(dimensionScores, targetRole);
+			const recommendations = generateRecommendations(gapAnalysis);
+
+			const diagnosisData = {
+				target_role: targetRole,
+				target_level: targetLevel,
+				dimension_scores: dimensionScores,
+				gap_analysis: gapAnalysis,
+				market_competitiveness_score: marketCompetitiveness,
+				alternative_roles: alternativeRoles,
+				recommendations,
+				omni_score: omniScore,
+				profile_summary: {
+					years_experience: parseFloat(profile.years_experience) || 0,
+					skill_count: skills.length,
+					assessment_count: assessments.length,
+					education_count: education.length,
+				},
+			};
+
+			// Persist diagnosis
+			const insertResult = await pool.query(
+				`INSERT INTO career_diagnoses (user_id, diagnosis_data)
+			 VALUES ($1, $2)
+			 RETURNING id, created_at`,
+				[req.user.id, JSON.stringify(diagnosisData)],
+			);
+
+			res.json({
+				success: true,
+				diagnosis: {
+					id: insertResult.rows[0].id,
+					...diagnosisData,
+					created_at: insertResult.rows[0].created_at,
+				},
+			});
+		} catch (err) {
+			console.error('Career diagnosis error:', err);
+			res.status(500).json({ error: 'Failed to generate career diagnosis' });
+		}
+	},
+);
+
+// GET /career-diagnosis — Return latest diagnosis for logged-in candidate
+router.get('/career-diagnosis', authMiddleware, requireRole('candidate'), async (req, res) => {
+	try {
+		const result = await pool.query(
+			`SELECT id, user_id, diagnosis_data, created_at, updated_at
+			 FROM career_diagnoses
+			 WHERE user_id = $1
+			 ORDER BY created_at DESC
+			 LIMIT 1`,
+			[req.user.id],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({
+				error: 'No career diagnosis found. Run a diagnosis first.',
+				code: 'NOT_FOUND',
+			});
+		}
+
+		const row = result.rows[0];
+		res.json({
+			success: true,
+			diagnosis: {
+				id: row.id,
+				user_id: row.user_id,
+				...row.diagnosis_data,
+				created_at: row.created_at,
+				updated_at: row.updated_at,
+			},
+		});
+	} catch (err) {
+		console.error('Get career diagnosis error:', err);
+		res.status(500).json({ error: 'Failed to get career diagnosis' });
+	}
+});
+
+// ============= LINKEDIN PROFILE IMPORT (#79) =============
+
+/**
+ * Fetch LinkedIn profile data using stored OAuth token.
+ * Uses OpenID Connect userinfo (guaranteed with current scope)
+ * and attempts v2 profile API for extended fields.
+ */
+async function fetchLinkedInProfile(accessToken) {
+	const headers = { Authorization: `Bearer ${accessToken}` };
+
+	// 1. OpenID Connect userinfo — always available with `openid profile email` scope
+	const userinfoRes = await fetch('https://api.linkedin.com/v2/userinfo', { headers });
+	if (!userinfoRes.ok) {
+		const errBody = await userinfoRes.text().catch(() => '');
+		throw new Error(`LinkedIn userinfo failed: ${userinfoRes.status} ${errBody}`);
+	}
+	const userinfo = await userinfoRes.json();
+
+	const profile = {
+		sub: userinfo.sub,
+		name: userinfo.name,
+		firstName: userinfo.given_name,
+		lastName: userinfo.family_name,
+		email: userinfo.email,
+		picture: userinfo.picture,
+		headline: null,
+		summary: null,
+		vanityName: null,
+		experience: [],
+		education: [],
+		skills: [],
+		_raw: { userinfo },
+	};
+
+	// 2. Attempt v2 basic profile for headline / summary (requires r_basicprofile partner scope)
+	try {
+		const meRes = await fetch(
+			'https://api.linkedin.com/v2/me?projection=(id,firstName,lastName,headline,summary,vanityName)',
+			{ headers, signal: AbortSignal.timeout(5000) },
+		);
+		if (meRes.ok) {
+			const me = await meRes.json();
+			profile.headline = me.headline || null;
+			profile.summary = me.summary || null;
+			profile.vanityName = me.vanityName || null;
+			profile._raw.me = me;
+		}
+	} catch (apiErr) {
+		console.log(
+			'[LinkedIn Import] v2/me unavailable (expected without r_basicprofile):',
+			apiErr.message,
+		);
+	}
+
+	// 3. Attempt v2 positions (requires r_basicprofile)
+	try {
+		const positionsRes = await fetch(
+			`https://api.linkedin.com/v2/positions?owner=urn:li:person:${profile.sub}&count=50`,
+			{ headers, signal: AbortSignal.timeout(5000) },
+		);
+		if (positionsRes.ok) {
+			const positions = await positionsRes.json();
+			profile._raw.positions = positions;
+			if (positions.elements) {
+				profile.experience = positions.elements.map((p) => ({
+					company: p.companyName,
+					title: p.title,
+					location: p.locationName,
+					description: p.description,
+					start_date: p.startDate
+						? `${p.startDate.year}-${String(p.startDate.month || 1).padStart(2, '0')}`
+						: null,
+					end_date: p.endDate
+						? `${p.endDate.year}-${String(p.endDate.month || 1).padStart(2, '0')}`
+						: 'Present',
+					is_current: !p.endDate,
+				}));
+			}
+		}
+	} catch (apiErr) {
+		console.log('[LinkedIn Import] v2/positions unavailable:', apiErr.message);
+	}
+
+	// 4. Attempt v2 educations (requires r_basicprofile)
+	try {
+		const eduRes = await fetch(
+			`https://api.linkedin.com/v2/educations?owner=urn:li:person:${profile.sub}&count=50`,
+			{ headers, signal: AbortSignal.timeout(5000) },
+		);
+		if (eduRes.ok) {
+			const educations = await eduRes.json();
+			profile._raw.educations = educations;
+			if (educations.elements) {
+				profile.education = educations.elements.map((e) => ({
+					institution: e.schoolName,
+					degree: e.degreeName,
+					field: e.fieldOfStudy,
+					start_date: e.startDate ? `${e.startDate.year}` : null,
+					end_date: e.endDate ? `${e.endDate.year}` : 'Present',
+					is_current: !e.endDate,
+				}));
+			}
+		}
+	} catch (apiErr) {
+		console.log('[LinkedIn Import] v2/educations unavailable:', apiErr.message);
+	}
+
+	// 5. Attempt v2 skills (requires r_basicprofile)
+	try {
+		const skillsRes = await fetch(
+			`https://api.linkedin.com/v2/skills?owner=urn:li:person:${profile.sub}&count=50`,
+			{ headers, signal: AbortSignal.timeout(5000) },
+		);
+		if (skillsRes.ok) {
+			const skillsData = await skillsRes.json();
+			profile._raw.skills = skillsData;
+			if (skillsData.elements) {
+				profile.skills = skillsData.elements.map((s) => ({
+					name: s.name,
+					level: 3, // LinkedIn v2 does not expose proficiency level
+					category: 'technical',
+				}));
+			}
+		}
+	} catch (apiErr) {
+		console.log('[LinkedIn Import] v2/skills unavailable:', apiErr.message);
+	}
+
+	return profile;
+}
+
+/**
+ * Merge LinkedIn profile data into existing candidate profile.
+ * Strategy: fill gaps only (do not overwrite manually-entered data).
+ */
+async function mergeLinkedInProfile(userId, linkedinProfile) {
+	const summary = {
+		user_updated: false,
+		profile_updated: false,
+		experience_added: 0,
+		education_added: 0,
+		skills_added: 0,
+	};
+
+	// 1. Update users.name (only if empty)
+	if (linkedinProfile.name) {
+		const userRes = await pool.query(
+			`UPDATE users
+			 SET name = COALESCE(NULLIF(TRIM(name), ''), $2),
+			     title = COALESCE(NULLIF(TRIM(title), ''), $3),
+			     linkedin_data = $4,
+			     updated_at = NOW()
+			 WHERE id = $1
+			 RETURNING name, title`,
+			[
+				userId,
+				linkedinProfile.name,
+				linkedinProfile.headline,
+				JSON.stringify(linkedinProfile._raw),
+			],
+		);
+		if (userRes.rows.length > 0) {
+			summary.user_updated = true;
+		}
+	}
+
+	// 2. Upsert candidate_profiles (merge, don't overwrite)
+	await pool.query(
+		`
+		INSERT INTO candidate_profiles (user_id, headline, bio, photo_url)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id) DO UPDATE SET
+			headline = COALESCE(NULLIF(candidate_profiles.headline, ''), EXCLUDED.headline),
+			bio      = COALESCE(NULLIF(candidate_profiles.bio, ''), EXCLUDED.bio),
+			photo_url = COALESCE(candidate_profiles.photo_url, EXCLUDED.photo_url),
+			updated_at = NOW()
+		`,
+		[userId, linkedinProfile.headline, linkedinProfile.summary, linkedinProfile.picture],
+	);
+	summary.profile_updated = true;
+
+	// 3. Merge work experience (skip duplicates by company+title)
+	for (let i = 0; i < linkedinProfile.experience.length; i++) {
+		const exp = linkedinProfile.experience[i];
+		if (!exp.company || !exp.title) continue;
+
+		const existing = await pool.query(
+			`SELECT id FROM work_experience
+			 WHERE user_id = $1 AND LOWER(company_name) = LOWER($2) AND LOWER(title) = LOWER($3)`,
+			[userId, exp.company, exp.title],
+		);
+		if (existing.rows.length > 0) continue;
+
+		await pool.query(
+			`
+			INSERT INTO work_experience (
+				user_id, company_name, title, location,
+				start_date, end_date, is_current, description, order_index
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			`,
+			[
+				userId,
+				exp.company,
+				exp.title,
+				exp.location || null,
+				exp.start_date ? new Date(`${exp.start_date}-01`) : null,
+				exp.end_date && exp.end_date !== 'Present' ? new Date(`${exp.end_date}-01`) : null,
+				exp.is_current || false,
+				exp.description || null,
+				i,
+			],
+		);
+		summary.experience_added++;
+	}
+
+	// 4. Merge education (skip duplicates by institution+degree)
+	for (let i = 0; i < linkedinProfile.education.length; i++) {
+		const edu = linkedinProfile.education[i];
+		if (!edu.institution) continue;
+
+		const existing = await pool.query(
+			`SELECT id FROM education
+			 WHERE user_id = $1 AND LOWER(institution) = LOWER($2) AND LOWER(COALESCE(degree, '')) = LOWER(COALESCE($3, ''))`,
+			[userId, edu.institution, edu.degree || ''],
+		);
+		if (existing.rows.length > 0) continue;
+
+		await pool.query(
+			`
+			INSERT INTO education (
+				user_id, institution, degree, field_of_study,
+				start_date, end_date, is_current, order_index
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			`,
+			[
+				userId,
+				edu.institution,
+				edu.degree || null,
+				edu.field || null,
+				edu.start_date ? new Date(`${edu.start_date}-01-01`) : null,
+				edu.end_date && edu.end_date !== 'Present' ? new Date(`${edu.end_date}-01-01`) : null,
+				edu.is_current || false,
+				i,
+			],
+		);
+		summary.education_added++;
+	}
+
+	// 5. Merge skills (upsert with level = GREATEST(existing, new))
+	for (const skill of linkedinProfile.skills) {
+		if (!skill.name) continue;
+		try {
+			await pool.query(
+				`
+				INSERT INTO candidate_skills (user_id, skill_name, category, level)
+				VALUES ($1, $2, $3, $4)
+				ON CONFLICT (user_id, skill_name) DO UPDATE SET
+					category = COALESCE(NULLIF($3, ''), candidate_skills.category),
+					level = GREATEST(candidate_skills.level, $4)
+				`,
+				[
+					userId,
+					skill.name,
+					skill.category || 'technical',
+					Math.max(1, Math.min(5, skill.level || 3)),
+				],
+			);
+			summary.skills_added++;
+		} catch (skillErr) {
+			console.error('[LinkedIn Import] Skip skill insert:', skillErr.message);
+		}
+	}
+
+	return summary;
+}
+
+// POST /linkedin/import — One-click LinkedIn profile sync
+router.post('/linkedin/import', authMiddleware, async (req, res) => {
+	try {
+		const userId = req.user.id;
+
+		// 1. Find the user's LinkedIn OAuth connection
+		const connResult = await pool.query(
+			`SELECT access_token, refresh_token, provider_user_id, profile_data
+			 FROM oauth_connections
+			 WHERE user_id = $1 AND provider = 'linkedin'`,
+			[userId],
+		);
+
+		if (connResult.rows.length === 0) {
+			return res.status(400).json({
+				error: 'No LinkedIn connection found. Please connect your LinkedIn account first.',
+				code: 'LINKEDIN_NOT_CONNECTED',
+			});
+		}
+
+		const conn = connResult.rows[0];
+
+		// 2. Decrypt access token
+		let accessToken;
+		try {
+			accessToken = decrypt(conn.access_token);
+		} catch (decryptErr) {
+			console.error('[LinkedIn Import] Token decryption failed:', decryptErr.message);
+			return res.status(500).json({
+				error: 'Failed to decrypt LinkedIn token. Please reconnect your account.',
+				code: 'TOKEN_DECRYPT_FAILED',
+			});
+		}
+
+		if (!accessToken) {
+			return res.status(400).json({
+				error: 'LinkedIn access token is missing. Please reconnect your account.',
+				code: 'TOKEN_MISSING',
+			});
+		}
+
+		// 3. Fetch profile from LinkedIn
+		const linkedinProfile = await fetchLinkedInProfile(accessToken);
+
+		// 4. Merge into local profile (merge strategy — fill gaps only)
+		const summary = await mergeLinkedInProfile(userId, linkedinProfile);
+
+		// 5. Trigger async profile updates
+		triggerProfileUpdate(userId, 'linkedin_import');
+
+		res.json({
+			success: true,
+			message: 'LinkedIn profile imported successfully',
+			summary,
+			linkedin: {
+				name: linkedinProfile.name,
+				headline: linkedinProfile.headline,
+				experience_count: linkedinProfile.experience.length,
+				education_count: linkedinProfile.education.length,
+				skills_count: linkedinProfile.skills.length,
+			},
+		});
+	} catch (err) {
+		console.error('LinkedIn import error:', err.message, err.stack);
+		res.status(500).json({
+			error: 'LinkedIn profile import failed',
+			code: 'IMPORT_FAILED',
+			detail: err.message,
+		});
 	}
 });
 

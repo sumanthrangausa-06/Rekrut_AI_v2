@@ -1,5 +1,4 @@
 const express = require('express');
-const fetch = require('node-fetch');
 const crypto = require('node:crypto');
 const pool = require('../lib/db');
 const { optionalAuth, authMiddleware } = require('../lib/auth');
@@ -367,6 +366,16 @@ router.post('/webhook', async (req, res) => {
 					}
 					break;
 				}
+				case 'customer.subscription.updated': {
+					const subscription = event.data?.object;
+					if (subscription?.id) {
+						await pool.query(
+							`UPDATE users SET subscription_status = $1 WHERE stripe_subscription_id = $2`,
+							[subscription.status, subscription.id],
+						);
+					}
+					break;
+				}
 				case 'customer.subscription.deleted': {
 					const subscription = event.data?.object;
 					if (subscription?.id) {
@@ -478,7 +487,7 @@ router.post('/cancel-subscription', optionalAuth, async (req, res) => {
 		});
 
 		await pool.query(`UPDATE users SET subscription_status = $1 WHERE id = $2`, [
-			'cancelled',
+			deleted.status, // ponytail: sync actual Stripe status (active until period end)
 			req.user.id,
 		]);
 

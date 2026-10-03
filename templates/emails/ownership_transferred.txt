@@ -1,0 +1,17 @@
+You are now the owner of {{companyName}} on Rekrut AI
+
+Hi {{name}},
+
+You have been assigned as the new owner of {{companyName}} on Rekrut AI.
+
+---
+What this means
+---
+As the company owner, you now have full administrative control over the company account, including managing team members, approving join requests, and viewing the audit log.
+
+If you have any questions, please contact our support team at support@rekrutai.co.
+
+---
+Rekrut AI — The candidate credit score platform
+rekrutai.co
+Need help? support@rekrutai.co

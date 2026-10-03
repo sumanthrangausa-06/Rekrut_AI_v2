@@ -11,6 +11,12 @@
  * - POST /api/notifications/templates - Create template (admin)
  * - GET /api/notifications/stats - Get statistics (admin)
  * - POST /api/notifications/test - Send test email
+ *
+ * In-App Notification Endpoints:
+ * - GET /api/notifications/in-app - Get in-app notifications
+ * - PUT /api/notifications/in-app/:id/read - Mark notification as read
+ * - POST /api/notifications/in-app/mark-all-read - Mark all as read
+ * - GET /api/notifications/in-app/unread-count - Get unread count
  */
 
 const express = require('express');
@@ -914,6 +920,189 @@ router.get('/voice/:id', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('[notifications/voice] Serve error:', err.message);
 		res.status(500).json({ error: 'Failed to serve audio file' });
+	}
+});
+
+// ─── In-App Notifications ────────────────────────────────────────────────
+
+/**
+ * GET /api/notifications/in-app
+ * Get in-app notifications for the current user.
+ *
+ * Query params:
+ * - limit: number (default 20)
+ * - offset: number (default 0)
+ * - read: 'true' | 'false' | undefined (filter by read status)
+ */
+router.get('/in-app', authMiddleware, async (req, res) => {
+	try {
+		const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+		const offset = parseInt(req.query.offset, 10) || 0;
+		const readFilter = req.query.read;
+
+		// Build query
+		let query = `
+      SELECT id, type, title, message, read, read_at, metadata, created_at
+      FROM user_notifications
+      WHERE user_id = $1
+    `;
+		const params = [req.user.id];
+		let paramIdx = 2;
+
+		// For recruiters with a company, optionally scope by company context if
+		// metadata contains company_id. However, the spec says filter by company
+		// context "appropriately" — the user_notifications table stores per-user
+		// rows, so filtering by user_id is the primary gate. We also include
+		// any company_id match in metadata for extra scoping when applicable.
+		if (req.user.company_id) {
+			query += ` AND (
+        metadata->>'company_id' IS NULL
+        OR metadata->>'company_id' = $${paramIdx++}
+      )`;
+			params.push(String(req.user.company_id));
+		}
+
+		if (readFilter === 'true') {
+			query += ` AND read = true`;
+		} else if (readFilter === 'false') {
+			query += ` AND read = false`;
+		}
+
+		query += ` ORDER BY created_at DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
+		params.push(limit, offset);
+
+		const result = await pool.query(query, params);
+
+		// Get total count for pagination
+		let countQuery = `SELECT COUNT(*) FROM user_notifications WHERE user_id = $1`;
+		const countParams = [req.user.id];
+		let countIdx = 2;
+
+		if (req.user.company_id) {
+			countQuery += ` AND (metadata->>'company_id' IS NULL OR metadata->>'company_id' = $${countIdx++})`;
+			countParams.push(String(req.user.company_id));
+		}
+		if (readFilter === 'true') {
+			countQuery += ` AND read = true`;
+		} else if (readFilter === 'false') {
+			countQuery += ` AND read = false`;
+		}
+
+		const countResult = await pool.query(countQuery, countParams);
+
+		// Get unread count for the nav badge
+		let unreadQuery = `SELECT COUNT(*) FROM user_notifications WHERE user_id = $1 AND read = false`;
+		const unreadParams = [req.user.id];
+		let unreadIdx = 2;
+
+		if (req.user.company_id) {
+			unreadQuery += ` AND (metadata->>'company_id' IS NULL OR metadata->>'company_id' = $${unreadIdx++})`;
+			unreadParams.push(String(req.user.company_id));
+		}
+
+		const unreadResult = await pool.query(unreadQuery, unreadParams);
+
+		res.json({
+			success: true,
+			notifications: result.rows,
+			total: parseInt(countResult.rows[0].count, 10),
+			unread_count: parseInt(unreadResult.rows[0].count, 10),
+			limit,
+			offset,
+		});
+	} catch (err) {
+		console.error('[notifications/in-app] List error:', err.message);
+		res.status(500).json({ error: 'Failed to get in-app notifications' });
+	}
+});
+
+/**
+ * PUT /api/notifications/in-app/:id/read
+ * Mark a single in-app notification as read.
+ */
+router.put('/in-app/:id/read', authMiddleware, async (req, res) => {
+	try {
+		const notificationId = parseInt(req.params.id, 10);
+		if (Number.isNaN(notificationId)) {
+			return res.status(400).json({ error: 'Invalid notification ID' });
+		}
+
+		const result = await pool.query(
+			`
+      UPDATE user_notifications
+      SET read = true, read_at = NOW()
+      WHERE id = $1 AND user_id = $2
+      RETURNING id, type, title, message, read, read_at, metadata, created_at
+    `,
+			[notificationId, req.user.id],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Notification not found' });
+		}
+
+		res.json({ success: true, notification: result.rows[0] });
+	} catch (err) {
+		console.error('[notifications/in-app] Mark read error:', err.message);
+		res.status(500).json({ error: 'Failed to mark notification as read' });
+	}
+});
+
+/**
+ * POST /api/notifications/in-app/mark-all-read
+ * Mark all in-app notifications as read for the current user.
+ */
+router.post('/in-app/mark-all-read', authMiddleware, async (req, res) => {
+	try {
+		let query = `
+      UPDATE user_notifications
+      SET read = true, read_at = NOW()
+      WHERE user_id = $1 AND read = false
+    `;
+		const params = [req.user.id];
+		let paramIdx = 2;
+
+		if (req.user.company_id) {
+			query += ` AND (metadata->>'company_id' IS NULL OR metadata->>'company_id' = $${paramIdx++})`;
+			params.push(String(req.user.company_id));
+		}
+
+		const result = await pool.query(query, params);
+
+		res.json({
+			success: true,
+			marked_count: parseInt(result.rowCount, 10),
+		});
+	} catch (err) {
+		console.error('[notifications/in-app] Mark all read error:', err.message);
+		res.status(500).json({ error: 'Failed to mark all notifications as read' });
+	}
+});
+
+/**
+ * GET /api/notifications/in-app/unread-count
+ * Return the unread notification count for the nav badge.
+ */
+router.get('/in-app/unread-count', authMiddleware, async (req, res) => {
+	try {
+		let query = `SELECT COUNT(*) FROM user_notifications WHERE user_id = $1 AND read = false`;
+		const params = [req.user.id];
+		let paramIdx = 2;
+
+		if (req.user.company_id) {
+			query += ` AND (metadata->>'company_id' IS NULL OR metadata->>'company_id' = $${paramIdx++})`;
+			params.push(String(req.user.company_id));
+		}
+
+		const result = await pool.query(query, params);
+
+		res.json({
+			success: true,
+			count: parseInt(result.rows[0].count, 10),
+		});
+	} catch (err) {
+		console.error('[notifications/in-app] Unread count error:', err.message);
+		res.status(500).json({ error: 'Failed to get unread count' });
 	}
 });
 

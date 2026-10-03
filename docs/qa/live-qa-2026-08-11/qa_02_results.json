@@ -1,0 +1,272 @@
+{
+  "log": [
+    {
+      "step": "US-R01 Employer registration",
+      "ok": false,
+      "detail": "url=https://rekrutai-staging.onrender.com/register",
+      "severity": "high"
+    },
+    {
+      "step": "US-R02 Employer login + dashboard",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/recruiter/pending-approval",
+      "severity": "none"
+    },
+    {
+      "step": "US-R03 Recruiter dashboard renders (no spinner)",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/recruiter stuck=False",
+      "severity": "none"
+    },
+    {
+      "step": "US-R03 Dashboard shows REAL data (no mock charts)",
+      "ok": false,
+      "detail": "Source Breakdown shows '100 total/Direct 42' or '+65%' for brand-new account",
+      "severity": "high"
+    },
+    {
+      "step": "US-R04 Create job posting",
+      "ok": false,
+      "detail": "No submit button found. inputs=[\"type=text name='' ph='e.g. Senior Software Engineer'\", \"type=text name='' ph='Leave blank to use your company name'\", \"type=text name='' ph='e.g. Engineering, Sales, Marketing'\", \"type=text name='' ph=''\", \"type=text name='' ph=''\"]",
+      "severity": "medium"
+    },
+    {
+      "step": "US-R05 Recruiter jobs list (job visible after create)",
+      "ok": false,
+      "detail": "url=https://rekrutai-staging.onrender.com/recruiter/jobs job_visible=False",
+      "severity": "medium"
+    },
+    {
+      "step": "US-R06 Recruiter candidates",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/recruiter/candidates stuck=False mock=False body=743",
+      "severity": "none"
+    },
+    {
+      "step": "US-R07 Recruiter analytics (check mock data)",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/recruiter/analytics stuck=False mock=False body=1779",
+      "severity": "none"
+    },
+    {
+      "step": "US-R08 Recruiter applications",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/recruiter/applications stuck=False mock=False body=482",
+      "severity": "none"
+    },
+    {
+      "step": "US-R09 Company profile page",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/recruiter/company has_company=True server_error=False",
+      "severity": "none"
+    },
+    {
+      "step": "US-R09b Team tab loads",
+      "ok": false,
+      "detail": "server_error=True owner_visible=True",
+      "severity": "high"
+    },
+    {
+      "step": "US-R10 Join-requests page accessible",
+      "ok": false,
+      "detail": "url=https://rekrutai-staging.onrender.com/recruiter/join-requests company_not_found=False 404=True body=!\n404\npage not found\n\nthe page you're looking for doesn't exist or has been move",
+      "severity": "medium"
+    },
+    {
+      "step": "Logout before pending-recruiter test",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/login",
+      "severity": "none"
+    },
+    {
+      "step": "US-R11 Pending recruiter holding screen shown",
+      "ok": false,
+      "detail": "url=https://rekrutai-staging.onrender.com/register pending_msg=False still_on_register=True",
+      "severity": "high"
+    },
+    {
+      "step": "US-R12 Pending recruiter blocked from recruiter dashboard",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/login blocked=True",
+      "severity": "none"
+    },
+    {
+      "step": "Console errors (whole session)",
+      "ok": false,
+      "detail": "count=33 sample=['Failed to load resource: the server responded with a status of 404 ()', 'Failed to load resource: the server responded with a status of 404 ()', 'Failed to load resource: the server responded with a status of 404 ()']",
+      "severity": "none"
+    },
+    {
+      "step": "API 4xx/5xx (whole session)",
+      "ok": false,
+      "detail": "count=33 breakdown=[('company/join-requests', 404), ('recruiter/saved-searches', 404), ('team/members', 500)]",
+      "severity": "none"
+    }
+  ],
+  "api_failures": [
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/recruiter/saved-searches",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/recruiter/saved-searches",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/team/members",
+      "status": 500
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/team/members",
+      "status": 500
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/join-requests",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/team/members",
+      "status": 500
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/team/members",
+      "status": 500
+    }
+  ],
+  "console_errors": [
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 500 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 500 ()",
+    "Failed to load resource: the server responded with a status of 404 ()"
+  ]
+}
