@@ -455,6 +455,16 @@ module.exports = {
 			return;
 		}
 
+		// Issue #183: the table-creating migration
+		// (2024-06-13-add-email-templates) does not define the variables and
+		// is_system columns this seed inserts. Add them idempotently so the
+		// seed works on fresh databases.
+		await client.query(`
+      ALTER TABLE notification_templates
+        ADD COLUMN IF NOT EXISTS variables JSONB,
+        ADD COLUMN IF NOT EXISTS is_system BOOLEAN DEFAULT false
+    `);
+
 		for (const template of templates) {
 			// Use ON CONFLICT to avoid duplicates
 			await client.query(

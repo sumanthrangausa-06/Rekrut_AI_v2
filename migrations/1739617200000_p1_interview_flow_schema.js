@@ -161,51 +161,51 @@ module.exports = {
 		// Per PostgreSQL best practices: FK columns MUST have manual indexes
 
 		// interviews
-		await client.query(`CREATE INDEX idx_interviews_user_id ON interviews(user_id)`);
-		await client.query(`CREATE INDEX idx_interviews_job_id ON interviews(job_id)`);
+		await client.query(`CREATE INDEX IF NOT EXISTS idx_interviews_user_id ON interviews(user_id)`);
+		await client.query(`CREATE INDEX IF NOT EXISTS idx_interviews_job_id ON interviews(job_id)`);
 
 		// interview_evaluations
 		await client.query(
-			`CREATE INDEX idx_interview_evaluations_interview_id ON interview_evaluations(interview_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_interview_evaluations_interview_id ON interview_evaluations(interview_id)`,
 		);
 		await client.query(
-			`CREATE INDEX idx_interview_evaluations_job_id ON interview_evaluations(job_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_interview_evaluations_job_id ON interview_evaluations(job_id)`,
 		);
 		await client.query(
-			`CREATE INDEX idx_interview_evaluations_company_id ON interview_evaluations(company_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_interview_evaluations_company_id ON interview_evaluations(company_id)`,
 		);
 
 		// interview_composite_scores
 		await client.query(
-			`CREATE INDEX idx_interview_composite_scores_interview_id ON interview_composite_scores(interview_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_interview_composite_scores_interview_id ON interview_composite_scores(interview_id)`,
 		);
 		await client.query(
-			`CREATE INDEX idx_interview_composite_scores_job_id ON interview_composite_scores(job_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_interview_composite_scores_job_id ON interview_composite_scores(job_id)`,
 		);
 		await client.query(
-			`CREATE INDEX idx_interview_composite_scores_company_id ON interview_composite_scores(company_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_interview_composite_scores_company_id ON interview_composite_scores(company_id)`,
 		);
 		await client.query(
-			`CREATE INDEX idx_interview_composite_scores_screening ON interview_composite_scores(screening_session_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_interview_composite_scores_screening ON interview_composite_scores(screening_session_id)`,
 		);
 
 		// interview_reminders
 		await client.query(
-			`CREATE INDEX idx_interview_reminders_interview_id ON interview_reminders(interview_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_interview_reminders_interview_id ON interview_reminders(interview_id)`,
 		);
 		await client.query(
-			`CREATE INDEX idx_interview_reminders_recipient_id ON interview_reminders(recipient_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_interview_reminders_recipient_id ON interview_reminders(recipient_id)`,
 		);
 
 		// scheduled_interviews
 		await client.query(
-			`CREATE INDEX idx_scheduled_interviews_candidate_id ON scheduled_interviews(candidate_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_scheduled_interviews_candidate_id ON scheduled_interviews(candidate_id)`,
 		);
 		await client.query(
-			`CREATE INDEX idx_scheduled_interviews_recruiter_id ON scheduled_interviews(recruiter_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_scheduled_interviews_recruiter_id ON scheduled_interviews(recruiter_id)`,
 		);
 		await client.query(
-			`CREATE INDEX idx_scheduled_interviews_job_id ON scheduled_interviews(job_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_scheduled_interviews_job_id ON scheduled_interviews(job_id)`,
 		);
 
 		// --- Phase 5: Add missing updated_at columns ---
