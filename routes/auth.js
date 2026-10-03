@@ -580,7 +580,8 @@ function verifyOauthState(req, state) {
 /**
  * Determine user role from email domain for OAuth signup.
  * Shared by Google and LinkedIn flows (ponytail: fix once, not per-caller).
- * Returns { role, pendingApproval, existingCompany }.
+ * Returns 'recruiter' if the domain matches a registered company, else 'candidate'.
+ * Note: OAuth is job-seeker only — a 'recruiter' result means redirect to email signup.
  */
 async function determineRoleFromEmail(email) {
 	const { isBlockedEmailDomain, extractDomain } = require('../services/domain-validator');
@@ -589,70 +590,21 @@ async function determineRoleFromEmail(email) {
 	const emailDomain = extractDomain(email);
 	const domainCheck = isBlockedEmailDomain(email);
 
-	let role = 'candidate';
-	let pendingApproval = false;
-	let existingCompany = null;
-
 	if (!domainCheck.blocked && emailDomain) {
-		existingCompany = await findCompanyByDomain(emailDomain);
+		const existingCompany = await findCompanyByDomain(emailDomain);
 		if (existingCompany) {
-			role = 'recruiter';
-			pendingApproval = true;
+			return 'recruiter';
 		}
 	}
 
-	return { role, pendingApproval, existingCompany, emailDomain };
-}
-
-/**
- * Create a recruiter join request and notify the company owner (non-blocking).
- * Shared by Google and LinkedIn signup flows.
- */
-async function handleRecruiterJoinRequest(user, existingCompany, emailDomain) {
-	const { createJoinRequest } = require('../services/domain-validator');
-	await createJoinRequest(user.id, existingCompany.id, user.email, emailDomain);
-
-	try {
-		const ownerResult = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [
-			existingCompany.owner_id,
-		]);
-		const owner = ownerResult.rows[0];
-		if (owner) {
-			await emailService.sendEmailAsync({
-				to: owner.email,
-				templateName: 'recruiter_join_request',
-				templateData: {
-					owner_name: owner.name || 'there',
-					recruiter_name: user.name || 'A new recruiter',
-					recruiter_email: user.email,
-					company_name: existingCompany.name,
-					dashboard_link: `${process.env.FRONTEND_URL || 'https://rekrut.ai'}/recruiter`,
-					request_time: new Date().toLocaleString('en-US', {
-						weekday: 'long',
-						year: 'numeric',
-						month: 'long',
-						day: 'numeric',
-						hour: '2-digit',
-						minute: '2-digit',
-						timeZoneName: 'short',
-					}),
-				},
-				userId: owner.id,
-				metadata: {
-					company_id: existingCompany.id,
-					requester_id: user.id,
-					trigger: 'join_request_created',
-				},
-			});
-		}
-	} catch (emailErr) {
-		console.error('[auth] Failed to send recruiter join request email (non-blocking):', emailErr.message);
-	}
+	return 'candidate';
 }
 
 /**
  * Build the post-OAuth redirect URL based on role and approval status.
  * Frontend routes are /candidate and /recruiter (dashboard is the index route).
+ * Note: OAuth signup is job-seeker only now; recruiters are redirected to
+ * email signup before reaching here, so this only handles candidate + edge cases.
  */
 async function buildOAuthRedirectUrl(user) {
 	if (user.role === 'recruiter') {
@@ -879,8 +831,15 @@ router.get('/google/callback', async (req, res) => {
 			if (!user.oauth_provider) user.oauth_provider = 'google';
 		} else {
 			// ── New user: determine role based on email domain (shared helper) ──
-			const { role, pendingApproval, existingCompany, emailDomain } =
-				await determineRoleFromEmail(googleUser.email);
+			const role = await determineRoleFromEmail(googleUser.email);
+
+			// Employers must sign up via email — OAuth is for job seekers only.
+			// Redirect to employer registration instead of creating a recruiter via OAuth.
+			if (role === 'recruiter') {
+				return res.redirect(
+					`/register?role=recruiter&oauth_employer_blocked=true&email=${encodeURIComponent(googleUser.email)}`,
+				);
+			}
 
 			const result = await pool.query(
 				`INSERT INTO users (email, name, google_id, avatar_url, oauth_provider, role)
@@ -889,10 +848,6 @@ router.get('/google/callback', async (req, res) => {
 				[googleUser.email, googleUser.name, googleUser.id, googleUser.picture, role],
 			);
 			user = result.rows[0];
-
-			if (pendingApproval && existingCompany) {
-				await handleRecruiterJoinRequest(user, existingCompany, emailDomain);
-			}
 		}
 
 		// Build profile_data with extended fields
@@ -1134,8 +1089,15 @@ router.get('/linkedin/callback', async (req, res) => {
 			const fullName =
 				linkedinUser.name ||
 				`${linkedinUser.given_name || ''} ${linkedinUser.family_name || ''}`.trim();
-			const { role, pendingApproval, existingCompany, emailDomain } =
-				await determineRoleFromEmail(linkedinUser.email);
+			const role = await determineRoleFromEmail(linkedinUser.email);
+
+			// Employers must sign up via email — OAuth is for job seekers only.
+			if (role === 'recruiter') {
+				return res.redirect(
+					`/register?role=recruiter&oauth_employer_blocked=true&email=${encodeURIComponent(linkedinUser.email)}`,
+				);
+			}
+
 			const result = await pool.query(
 				`INSERT INTO users (email, name, linkedin_id, avatar_url, oauth_provider, role)
          VALUES ($1, $2, $3, $4, 'linkedin', $5)
@@ -1143,10 +1105,6 @@ router.get('/linkedin/callback', async (req, res) => {
 				[linkedinUser.email, fullName, linkedinUser.sub, linkedinUser.picture, role],
 			);
 			user = result.rows[0];
-
-			if (pendingApproval && existingCompany) {
-				await handleRecruiterJoinRequest(user, existingCompany, emailDomain);
-			}
 		}
 
 		// Store OAuth connection — encrypt token at rest (AES-256-GCM)
