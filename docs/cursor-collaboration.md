@@ -10,9 +10,30 @@
 
 | Role | Who | Responsibilities |
 |------|-----|-----------------|
-| **Implementer** | Suga (cron) | Picks issues, implements end-to-end, deploys to staging |
-| **QA** | Cursor | Tests on staging, verifies functionality, reports bugs |
+| **Implementer** | Suga (cron) | Picks issues, implements end-to-end, deploys to staging, moves to next issue |
+| **QA** | Cursor | Tests `ready-for-qa` issues on staging asynchronously, reports bugs |
 | **Final Review** | Ranga | Reviews QA-passed issues, closes them |
+
+---
+
+## How It Works (Async)
+
+Suga and Cursor work **independently** — no blocking, no waiting.
+
+```
+Suga (every hour)          Cursor (when you work)
+        │                            │
+        ▼                            ▼
+   Pick issue #N              Find ready-for-qa issues
+   Implement                  Test on staging
+   Deploy to staging          │
+   Add ready-for-qa label     ├─ Pass → add qa-passed
+   Move to next issue         └─ Fail → add qa-failed, reopen
+        │                            │
+        ▼                            ▼
+   Pick issue #N+1            Suga will pick up qa-failed
+   (keeps working)            issues in future runs
+```
 
 ---
 
@@ -21,140 +42,62 @@
 | Label | Meaning | Who Adds |
 |-------|---------|----------|
 | `in-progress` | Suga is implementing | Suga |
-| `ready-for-qa` | Deployed to staging, ready for Cursor testing | Suga |
+| `ready-for-qa` | On staging, ready for Cursor | Suga |
 | `qa-in-progress` | Cursor is testing | Cursor |
-| `qa-passed` | Cursor approved, ready for Ranga | Cursor |
+| `qa-passed` | Cursor approved | Cursor |
 | `qa-failed` | Cursor found bugs, needs fix | Cursor |
 
 ---
 
-## Workflow
+## For Cursor: How to QA
 
-```
-GitHub Issue
-     │
-     ▼
-┌─────────────┐
-│  in-progress │ ← Suga picks issue, adds label
-└─────────────┘
-     │
-     ▼
-┌─────────────┐
-│  IMPLEMENT   │ ← Suga builds on dev branch
-│  (frontend   │    end-to-end: frontend + backend + db
-│   + backend  │
-│   + database)│
-└─────────────┘
-     │
-     ▼
-┌─────────────┐
-│   STAGING    │ ← Suga merges dev→staging
-│   DEPLOY     │    verifies deployment
-└─────────────┘
-     │
-     ▼
-┌─────────────┐
-│ ready-for-qa │ ← Suga adds label, comments checklist
-└─────────────┘
-     │
-     ▼
-┌─────────────┐
-│ qa-in-progress│ ← Cursor picks up, tests on staging
-└─────────────┘
-     │
-     ▼
-┌─────────────┐     ┌─────────────┐
-│  qa-passed   │────▶│   CLOSED    │ ← Ranga reviews & closes
-│  (Cursor)    │     │  (Ranga)    │
-└─────────────┘     └─────────────┘
-     │
-     ▼
-┌─────────────┐
-│  qa-failed   │ ← Cursor found bugs, reassigns to Suga
-└─────────────┘
-     │
-     ▼
-  (back to IMPLEMENT)
-```
+### 1. Find Issues to Test
 
----
-
-## How Cursor Finds Work
-
-Cursor should run this command to find issues to QA:
 ```bash
 gh issue list --label ready-for-qa --state open
 ```
 
-When picking up an issue for QA:
-1. Add `qa-in-progress` label
-2. Remove `ready-for-qa` label
-3. Comment: "Starting QA on staging."
+### 2. Pick One and Mark as In Progress
 
----
-
-## QA Checklist (Cursor)
-
-For every `ready-for-qa` issue, test on **staging** (not dev, not prod):
-
-- [ ] **Staging URL loads** — `https://rekrutai-staging.onrender.com`
-- [ ] **Feature works** — main happy path
-- [ ] **Edge cases** — empty states, error states, invalid input
-- [ ] **Mobile responsive** — test on small screen or resize browser
-- [ ] **Auth flows** — login, logout, role-based access
-- [ ] **No console errors** — check browser dev tools
-- [ ] **API responses** — check network tab for 200s, no 500s
-
----
-
-## Handoff Comments
-
-### Suga → Cursor (after staging deploy)
-
-```
-**Ready for QA ✅**
-
-Deployed to staging: https://rekrutai-staging.onrender.com
-Branch: dev → staging (merged)
-Commit: [hash]
-
-**What was built:**
-- Frontend: [components/pages]
-- Backend: [API routes]
-- Database: [schema changes]
-
-**QA Focus:**
-- [ ] Test [specific scenario]
-- [ ] Check [specific edge case]
-
-Staging is ready for testing.
+```bash
+gh issue edit <number> --add-label qa-in-progress --remove-label ready-for-qa
+gh issue comment <number> --body "Starting QA on staging."
 ```
 
-### Cursor → Suga (QA failed)
+### 3. Test on Staging (Not Dev, Not Prod)
 
+**URL:** `https://rekrutai-staging.onrender.com`
+
+**Checklist for every issue:**
+- [ ] Feature works (happy path)
+- [ ] Edge cases (empty states, errors, invalid input)
+- [ ] Mobile responsive (resize browser or use dev tools)
+- [ ] No console errors (check browser dev tools)
+- [ ] API returns 200s (check network tab)
+
+### 4. Report Results
+
+**If QA Passes:**
+```bash
+gh issue edit <number> --add-label qa-passed --remove-label qa-in-progress
+gh issue comment <number> --body "QA passed ✅. Tested on staging. Ready for final review."
 ```
-**QA Failed ❌**
 
-Found issues on staging:
+**If QA Fails:**
+```bash
+gh issue edit <number> --add-label qa-failed --remove-label qa-in-progress
+gh issue comment <number> --body "QA failed ❌. Issues found:
 1. [Bug description + steps to reproduce]
 2. [Another bug]
-
-Screenshots: [attach if possible]
+Reopening for fix."
 ```
 
-### Cursor → Ranga (QA passed)
-
+**If you reopen:**
+```bash
+gh issue reopen <number>
 ```
-**QA Passed ✅**
 
-Tested on staging:
-- ✅ Feature works
-- ✅ Edge cases handled
-- ✅ Mobile responsive
-- ✅ No console errors
-
-Ready for final review.
-```
+Suga will automatically pick up `qa-failed` issues in future runs and fix them.
 
 ---
 
@@ -162,19 +105,11 @@ Ready for final review.
 
 | Environment | URL | Used For |
 |------------|-----|----------|
-| Dev | `rekrutai-dev.onrender.com` | Development, Suga implements here |
-| Staging | `rekrutai-staging.onrender.com` | QA testing, Cursor tests here |
-| Production | `rekrutai.co` | Live site, Ranga deploys here |
+| Dev | `rekrutai-dev.onrender.com` | Development only |
+| **Staging** | **`rekrutai-staging.onrender.com`** | **Cursor tests here** |
+| Production | `rekrutai.co` | Live site, never test here |
 
-**Cursor: Always test on staging.** Never test on production.
-
----
-
-## Communication
-
-- **GitHub Issues** — primary coordination (labels, comments, assignments)
-- **Commit messages** — quick status updates
-- **Telegram** — only for urgent escalations
+**Cursor: Always test on staging.**
 
 ---
 
@@ -184,19 +119,19 @@ Ready for final review.
 # Find issues to QA
 gh issue list --label ready-for-qa --state open
 
-# Start QA on an issue
+# Start QA
 gh issue edit <number> --add-label qa-in-progress --remove-label ready-for-qa
-gh issue comment <number> --body "Starting QA on staging."
 
-# Mark QA passed
+# QA passed
 gh issue edit <number> --add-label qa-passed --remove-label qa-in-progress
-gh issue comment <number> --body "QA passed ✅. Ready for final review."
+gh issue comment <number> --body "QA passed ✅"
 
-# Mark QA failed
+# QA failed
 gh issue edit <number> --add-label qa-failed --remove-label qa-in-progress
-gh issue comment <number> --body "QA failed ❌. Issues found: [list]"
+gh issue reopen <number>
+gh issue comment <number> --body "QA failed ❌: [bug description]"
 ```
 
 ---
 
-*Cursor: Read this file at the start of every session. Check for `ready-for-qa` issues. Test on staging. Report clearly.*
+*Cursor: Read this file at the start of every session. Check for `ready-for-qa` issues. Test on staging. Report clearly. No need to coordinate with Suga — work asynchronously.*

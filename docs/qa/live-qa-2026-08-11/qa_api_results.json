@@ -1,0 +1,62 @@
+{
+  "#162 team/members not 500": {
+    "ok": true,
+    "detail": "status=400 body={\"error\":\"No company associated with this account\"}"
+  },
+  "#162 notifications endpoint exists (not 404)": {
+    "ok": false,
+    "detail": "status=404 body={\"error\":\"API endpoint not found\"}"
+  },
+  "#162 audit-log endpoint exists (not 500)": {
+    "ok": false,
+    "detail": "status=404 body={\"error\":\"Company not found\"}"
+  },
+  "#157 GET /team/members returns 200": {
+    "ok": false,
+    "detail": "status=400 body={\"error\":\"No company associated with this account\"}"
+  },
+  "#155 GET /api/notifications returns 200": {
+    "ok": false,
+    "detail": "status=404 body={\"error\":\"API endpoint not found\"}"
+  },
+  "#155 GET /api/notifications/unread-count returns 200": {
+    "ok": false,
+    "detail": "status=404 body={\"error\":\"API endpoint not found\"}"
+  },
+  "#154 GET /company/join-requests not 404": {
+    "ok": true,
+    "detail": "status=400 body={\"error\":\"No company associated with this account\"}"
+  },
+  "#154 GET /company/join-requests returns 200": {
+    "ok": false,
+    "detail": "status=400 body={\"error\":\"No company associated with this account\"}"
+  },
+  "#156 GET /company/audit-log returns 200": {
+    "ok": false,
+    "detail": "status=404 body={\"error\":\"Company not found\"}"
+  },
+  "#163 GET /api/interviews not 500": {
+    "ok": true,
+    "detail": "status=404 body={\"error\":\"API endpoint not found\"}"
+  },
+  "#163 GET /candidate/interviews not 500": {
+    "ok": true,
+    "detail": "status=404 body={\"error\":\"API endpoint not found\"}"
+  },
+  "#164 /api/admin/analytics returns 401 not 404": {
+    "ok": true,
+    "detail": "status=401 body={\"error\":\"Admin authentication required\"}"
+  },
+  "#164 /api/admin/agents/runs returns 401 not 404": {
+    "ok": true,
+    "detail": "status=401 body={\"error\":\"Admin authentication required\"}"
+  },
+  "#164 /api/admin/agents/stats returns 401 not 404": {
+    "ok": true,
+    "detail": "status=401 body={\"error\":\"Admin authentication required\"}"
+  },
+  "#165 POST /candidate/linkedin/import exists (not 404)": {
+    "ok": false,
+    "detail": "status=404 body=<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /api"
+  }
+}
