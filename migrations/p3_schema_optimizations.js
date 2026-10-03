@@ -17,6 +17,8 @@ module.exports = {
 		}
 
 		// Helper to run ALTER statements safely (skip if table doesn't exist)
+		// Issue #183: a failed ALTER aborts the whole migration transaction,
+		// so each attempt runs inside a SAVEPOINT that is rolled back on error.
 		async function safeAlter(sql) {
 			// Extract table name from ALTER TABLE statement
 			const match = sql.match(/ALTER\s+TABLE\s+(\w+)/i);
@@ -27,9 +29,12 @@ module.exports = {
 				);
 				return;
 			}
+			await db.query('SAVEPOINT p3_safe_alter');
 			try {
 				await db.query(sql);
+				await db.query('RELEASE SAVEPOINT p3_safe_alter');
 			} catch (err) {
+				await db.query('ROLLBACK TO SAVEPOINT p3_safe_alter');
 				if (err.message.includes('does not exist')) {
 					console.log(
 						`[migration] Skipping ALTER (column doesn't exist): ${sql.trim().substring(0, 60)}...`,
@@ -47,6 +52,8 @@ module.exports = {
 		}
 
 		// Helper to run CREATE INDEX IF NOT EXISTS safely
+		// Issue #183: same SAVEPOINT protection as safeAlter — a failed index
+		// build must not poison the migration transaction.
 		async function safeCreateIndex(sql) {
 			const tableName = extractTableName(sql);
 			if (tableName && !(await tableExists(tableName))) {
@@ -55,9 +62,12 @@ module.exports = {
 				);
 				return;
 			}
+			await db.query('SAVEPOINT p3_safe_index');
 			try {
 				await db.query(sql);
+				await db.query('RELEASE SAVEPOINT p3_safe_index');
 			} catch (err) {
+				await db.query('ROLLBACK TO SAVEPOINT p3_safe_index');
 				if (err.message.includes('already exists')) {
 					console.log(`[migration] Index already exists, skipping`);
 				} else {

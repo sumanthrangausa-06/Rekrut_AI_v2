@@ -30,7 +30,9 @@ const client = {
     if (indexMatch) {
       const table = indexMatch[1].toLowerCase();
       if (!existingTables.has(table)) {
-        throw new Error(`ERROR: relation "${table}" does not exist`);
+        const err = new Error(`ERROR: relation "${table}" does not exist`);
+        err.code = '42P01'; // undefined_table — matches real Postgres
+        throw err;
       }
       return { rows: [] };
     }
@@ -40,25 +42,27 @@ const client = {
     if (alterMatch) {
       const table = alterMatch[1].toLowerCase();
       if (!existingTables.has(table)) {
-        throw new Error(`ERROR: relation "${table}" does not exist`);
+        const err = new Error(`ERROR: relation "${table}" does not exist`);
+        err.code = '42P01'; // undefined_table — matches real Postgres
+        throw err;
       }
       return { rows: [] };
     }
     
     // Simulate SELECT from information_schema
     if (sql.includes('information_schema.tables')) {
-      const tableName = params[0].toLowerCase();
+      const tableName = (params && params[0] ? params[0] : (sql.match(/table_name\s*=\s*'(\w+)'/i) || [])[1] || '').toLowerCase();
       return { rows: existingTables.has(tableName) ? [{1: 1}] : [] };
     }
     if (sql.includes('information_schema.columns')) {
-      const tableName = params[0].toLowerCase();
-      const colName = params[1].toLowerCase();
+      const tableName = (params && params[0] ? params[0] : (sql.match(/table_name\s*=\s*'(\w+)'/i) || [])[1] || '').toLowerCase();
+      const colName = (params && params[1] ? params[1] : (sql.match(/column_name\s*=\s*'(\w+)'/i) || [])[1] || '').toLowerCase();
       const cols = existingColumns[tableName] || new Set();
       return { rows: cols.has(colName) ? [{1: 1}] : [] };
     }
     if (sql.includes('information_schema.table_constraints')) {
-      const tableName = params[0].toLowerCase();
-      const constraintName = params[1];
+      const tableName = (params && params[0] ? params[0] : '').toLowerCase();
+      const constraintName = params && params[1];
       return { rows: existingConstraints.has(`${tableName}.${constraintName}`) ? [{1: 1}] : [] };
     }
     
@@ -67,8 +71,11 @@ const client = {
       return { rows: [] };
     }
     
-    // Simulate INSERT
+    // Simulate INSERT (RETURNING id when requested, like real Postgres)
     if (sql.includes('INSERT INTO')) {
+      if (/RETURNING/i.test(sql)) {
+        return { rows: [{ id: 1 }] };
+      }
       return { rows: [] };
     }
     
