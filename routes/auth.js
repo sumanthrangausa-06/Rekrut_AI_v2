@@ -619,43 +619,36 @@ async function buildOAuthRedirectUrl(user) {
 	} else {
 		dest = '/candidate';
 	}
-	// Wrap in same-site session-establishment hop (see oauth-success route below).
-	// iOS WebKit blocks Set-Cookie on the cross-site OAuth callback response,
-	// so the session is established here instead, in a first-party context.
-	const secret = process.env.SESSION_SECRET;
-	const handoffToken = jwt.sign(
-		{ uid: user.id, dest, iat: Math.floor(Date.now() / 1000) },
-		secret,
-		{ expiresIn: '5m' },
-	);
-	return `/api/auth/oauth-success?handoff=${encodeURIComponent(handoffToken)}`;
+	// Plain destination — the caller mints a one-time exchange code and appends
+	// ?oauth_code= so the SPA can trade it for tokens (see mintOAuthExchangeCode).
+	return dest;
 }
 
-// Intermediate same-site redirect after OAuth callback.
-// Verifies the handoff token, establishes the session (Set-Cookie on a
-// first-party response — sticks on iOS), then redirects to the destination.
-router.get('/oauth-success', async (req, res) => {
-	const secret = process.env.SESSION_SECRET;
-	const { handoff } = req.query;
-	if (!secret || !handoff) {
-		return res.redirect('/login?error=Authentication failed');
-	}
-	try {
-		const payload = jwt.verify(handoff, secret);
-		const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [payload.uid]);
-		if (userResult.rows.length === 0) {
-			return res.redirect('/login?error=Authentication failed');
-		}
-		const user = userResult.rows[0];
-		const accessToken = generateToken(user);
-		const { token: refreshToken } = await generateRefreshToken(user.id);
-		req.session.token = accessToken;
-		req.session.refreshToken = refreshToken;
-		return res.redirect(payload.dest || '/candidate');
-	} catch {
-		return res.redirect('/login?error=Authentication failed');
-	}
-});
+// ─── OAuth one-time exchange codes ───
+// Bridges backend OAuth to the SPA's localStorage auth. The callback mints the
+// app's access/refresh tokens (same helpers as email login), stores them
+// server-side against a random single-use code (5-minute expiry), and redirects
+// to {dest}?oauth_code=<code>. The frontend trades the code for tokens via
+// POST /api/auth/oauth/exchange and stores them with setTokens().
+// The raw code is never persisted (sha256 only); the row is DELETEd on
+// successful exchange so token material lives in the DB for minutes at most.
+// (The SPA never reads the session cookie — session-only delivery is what left
+// OAuth users bounced to /login.)
+const OAUTH_EXCHANGE_TTL_MS = 5 * 60 * 1000;
+
+async function mintOAuthExchangeCode(user, dest) {
+	const accessToken = generateToken(user);
+	const { token: refreshToken } = await generateRefreshToken(user.id);
+	const code = crypto.randomBytes(32).toString('hex');
+	const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+	const expiresAt = new Date(Date.now() + OAUTH_EXCHANGE_TTL_MS);
+	await pool.query(
+		`INSERT INTO oauth_exchange_codes (code_hash, user_id, access_token, refresh_token, dest, expires_at)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		[codeHash, user.id, accessToken, refreshToken, dest, expiresAt],
+	);
+	return code;
+}
 
 // ============= OAUTH: GOOGLE =============
 
@@ -915,10 +908,15 @@ router.get('/google/callback', async (req, res) => {
 			[user.id, googleUser.id, encAccessToken, encRefreshToken, JSON.stringify(profileData)],
 		);
 
-		// Session is established in /oauth-success (same-site hop).
-		// Redirect via the handoff URL built by the shared helper.
+		// Determine redirect based on role and approval status (shared helper;
+		// frontend routes are /candidate and /recruiter, dashboard is the index)
 		const redirectUrl = await buildOAuthRedirectUrl(user);
-		res.redirect(redirectUrl);
+
+		// One-time exchange code: the SPA trades it for tokens via
+		// POST /api/auth/oauth/exchange and stores them in localStorage.
+		const exchangeCode = await mintOAuthExchangeCode(user, redirectUrl);
+		const separator = redirectUrl.includes('?') ? '&' : '?';
+		res.redirect(`${redirectUrl}${separator}oauth_code=${exchangeCode}`);
 	} catch (err) {
 		console.error('Google OAuth error:', err.message, err.code, err.stack);
 		if (req.session?.oauth_link_user_id) {
@@ -1154,10 +1152,15 @@ router.get('/linkedin/callback', async (req, res) => {
 			[user.id, linkedinUser.sub, encAccessToken, JSON.stringify(linkedinUser)],
 		);
 
-		// Generate tokens
-		// Session is established in /oauth-success (same-site hop).
+		// Redirect based on role (shared helper; frontend routes are
+		// /candidate and /recruiter, dashboard is the index)
 		const redirectUrl = await buildOAuthRedirectUrl(user);
-		res.redirect(redirectUrl);
+
+		// One-time exchange code: the SPA trades it for tokens via
+		// POST /api/auth/oauth/exchange and stores them in localStorage.
+		const exchangeCode = await mintOAuthExchangeCode(user, redirectUrl);
+		const separator = redirectUrl.includes('?') ? '&' : '?';
+		res.redirect(`${redirectUrl}${separator}oauth_code=${exchangeCode}`);
 	} catch (err) {
 		console.error('LinkedIn OAuth error:', err.message, err.code, err.stack);
 		if (req.session?.oauth_link_user_id) {
@@ -1165,6 +1168,44 @@ router.get('/linkedin/callback', async (req, res) => {
 			return res.redirect('/settings?oauth_error=Authentication failed');
 		}
 		res.redirect('/login?error=Authentication failed');
+	}
+});
+
+// Exchange a one-time OAuth code for tokens (minted by mintOAuthExchangeCode).
+// The code is single-use: the row is deleted atomically on success, so a
+// double-submit or replay can never yield tokens twice. Unknown, expired, and
+// already-used codes all get the same 410 (no validity oracle).
+router.post('/oauth/exchange', rateLimits.strict, async (req, res) => {
+	try {
+		const { code } = req.body || {};
+		if (typeof code !== 'string' || code.length < 32 || code.length > 256) {
+			return res.status(401).json({ error: 'Invalid or expired code' });
+		}
+		const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+
+		// Opportunistic cleanup of stale rows (cheap, indexed on expires_at)
+		pool.query('DELETE FROM oauth_exchange_codes WHERE expires_at <= NOW()').catch(() => {});
+
+		const result = await pool.query(
+			`DELETE FROM oauth_exchange_codes
+			 WHERE code_hash = $1 AND expires_at > NOW()
+			 RETURNING user_id, access_token, refresh_token, dest`,
+			[codeHash],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(410).json({ error: 'Invalid or expired code' });
+		}
+
+		const row = result.rows[0];
+		res.json({
+			accessToken: row.access_token,
+			refreshToken: row.refresh_token,
+			dest: row.dest,
+		});
+	} catch (err) {
+		console.error('OAuth exchange error:', err.message);
+		res.status(500).json({ error: 'Exchange failed' });
 	}
 });
 
@@ -1568,3 +1609,5 @@ router.post('/reset-password', rateLimits.strict, async (req, res) => {
 });
 
 module.exports = router;
+// Exported for integration tests (server/__tests__/routes/oauth-exchange.test.js)
+module.exports.mintOAuthExchangeCode = mintOAuthExchangeCode;
