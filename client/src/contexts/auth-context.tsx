@@ -35,10 +35,37 @@ interface RegisterData {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// One-time OAuth exchange codes already attempted this page load.
-// (StrictMode guard: the bootstrap effect can run twice in dev before the
-// first exchange finishes — the code is single-use server-side.)
-const oauthExchangeAttempted = new Set<string>();
+// One-time OAuth exchange codes: in-flight exchanges shared across AuthProvider
+// instances. The provider can mount more than once per page load (observed with
+// React StrictMode), and the code is single-use server-side — concurrent
+// instances must await the SAME exchange rather than bootstrapping
+// independently (a second instance bootstrapping early would find no token yet
+// and bounce to /login).
+const oauthExchangePromises = new Map<string, Promise<void>>();
+
+function exchangeOAuthCode(oauthCode: string): Promise<void> {
+	let pending = oauthExchangePromises.get(oauthCode);
+	if (!pending) {
+		pending = apiCall<{ accessToken: string; refreshToken: string }>(
+			'/auth/oauth/exchange',
+			{ method: 'POST', body: { code: oauthCode }, skipAuthCheck: true },
+		)
+			.then((data) => {
+				setTokens(data.accessToken, data.refreshToken);
+			})
+			.catch(() => {
+				// Invalid/expired/used code — fall through unauthenticated;
+				// the route guard bounces to /login as usual.
+			})
+			.finally(() => {
+				// Strip the code on both success and failure so it never lingers
+				// in the URL (or a reload would try to reuse a spent code).
+				stripOAuthCodeParam();
+			});
+		oauthExchangePromises.set(oauthCode, pending);
+	}
+	return pending;
+}
 
 function stripOAuthCodeParam() {
 	const url = new URL(window.location.href);
@@ -65,23 +92,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	// for tokens first, then bootstrap normally.
 	useEffect(() => {
 		const oauthCode = new URLSearchParams(window.location.search).get('oauth_code');
-		if (oauthCode && !oauthExchangeAttempted.has(oauthCode)) {
-			oauthExchangeAttempted.add(oauthCode);
-			apiCall<{ accessToken: string; refreshToken: string }>(
-				'/auth/oauth/exchange',
-				{ method: 'POST', body: { code: oauthCode }, skipAuthCheck: true },
-			)
-				.then((data) => {
-					setTokens(data.accessToken, data.refreshToken);
-				})
-				.catch(() => {
-					// Invalid/expired/used code — fall through unauthenticated;
-					// the route guard bounces to /login as usual.
-				})
-				.finally(() => {
-					stripOAuthCodeParam();
-					bootstrapFromToken();
-				});
+		if (oauthCode) {
+			// Await the shared exchange (a no-op if another provider instance
+			// already started it), then bootstrap from the stored tokens.
+			exchangeOAuthCode(oauthCode).finally(() => {
+				bootstrapFromToken();
+			});
 			return;
 		}
 
