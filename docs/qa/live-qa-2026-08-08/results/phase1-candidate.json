@@ -1,0 +1,3261 @@
+{
+  "env": "https://rekrutai-staging.onrender.com",
+  "account": {
+    "email": "qa.cand.1786175062@rekrutqa.test",
+    "password": "RekrutQA!2026x"
+  },
+  "signup": {
+    "email": "qa.cand.1786175062@rekrutqa.test",
+    "role": "candidate",
+    "redirect_seconds": 6.22,
+    "landed_on": "https://rekrutai-staging.onrender.com/login",
+    "still_on_register": false,
+    "console_errors": [
+      {
+        "type": "warning",
+        "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+      },
+      {
+        "type": "warning",
+        "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 403 ()"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 403 ()"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 403 ()"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 403 ()"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 401 ()"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 403 ()"
+      },
+      {
+        "type": "warning",
+        "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+      },
+      {
+        "type": "warning",
+        "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 403 ()"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 403 ()"
+      }
+    ],
+    "page_errors": [],
+    "failed_requests": [
+      {
+        "url": "https://rekrutai-staging.onrender.com/api/billing/tier",
+        "status": 401,
+        "method": "GET",
+        "body": "<unreadable>"
+      }
+    ],
+    "analytics_csrf_failures": 6,
+    "api_calls": [
+      "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403",
+      "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403",
+      "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403",
+      "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403",
+      "POST https://rekrutai-staging.onrender.com/api/auth/register -> 201",
+      "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 401",
+      "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/auth/oauth/status -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/auth/oauth/status -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+      "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403",
+      "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403",
+      "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/jobs?limit=5 -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/jobs?limit=5 -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/candidate/dashboard/stats -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/candidate/dashboard/stats -> 200"
+    ]
+  },
+  "routes": [
+    {
+      "name": "cand-01-dashboard",
+      "path": "/candidate",
+      "url": "https://rekrutai-staging.onrender.com/candidate",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 4.04,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate",
+      "redirected": false,
+      "text_len": 1175,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nWelcome back, QA \ud83d\udc4b\n\nHere's your job search overview\n\nFind AI-Matched Jobs\n\nComplete your profile to get better AI matches\n\n0% complete \u2014 add skills, experience, education\n\nComplete Profile\n\n0\n\nApplications\n\nBrowse jobs \u2192\n\n0\n\nInterviews\n\nPractice now \u2192\n\n0\n\nSkills\n\nAdd skills \u2192\n\n300\n\nOmniScore\n\nnew \u2014 AI-powered rating\n\nBrowse",
+      "headings": [
+        "Welcome back, QA \ud83d\udc4b"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Find AI-Matched Jobs",
+        "Complete Profile",
+        "View all",
+        "View",
+        "View",
+        "View",
+        "View",
+        "View"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/jobs?limit=5 -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/jobs?limit=5 -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/dashboard/stats -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/dashboard/stats -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-01-dashboard.png"
+    },
+    {
+      "name": "cand-02-jobs",
+      "path": "/candidate/jobs",
+      "url": "https://rekrutai-staging.onrender.com/candidate/jobs",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 16.91,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/jobs",
+      "redirected": false,
+      "text_len": 1610,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nFind Your Next Opportunity\n\n50 active jobs\n\nAI Search\nFilters\nAll\n50\nLiked\nTrash\nBest Match\nNewest\nSalary: High-Low\nSalary: Low-High\nAll Types\nfull-time\nAll Work Modes\nRemote\nHybrid\nOn-site\nFlexible\nAll Levels\nEntry Level\nMid Level\nSenior\nLead / Staff\nExecutive\nAll Sizes\nStartup (1-50)\nSmall (51-200)\nMedium (201-1000)\nLarge ",
+      "headings": [
+        "Find Your Next Opportunity"
+      ],
+      "error_banners": [],
+      "input_count": 8,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "AI Search",
+        "Filters",
+        "All\n50",
+        "Liked",
+        "Trash",
+        "Load More (40 remaining)"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/jobs/dismissed -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/saved-jobs -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/jobs?limit=200 -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/saved-jobs -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/jobs/dismissed -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/jobs/liked -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/jobs?limit=200 -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/jobs/liked -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/jobs/recommended -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/jobs/recommended -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-02-jobs.png"
+    },
+    {
+      "name": "cand-03-applications",
+      "path": "/candidate/applications",
+      "url": "https://rekrutai-staging.onrender.com/candidate/applications",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 3.02,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/applications",
+      "redirected": false,
+      "text_len": 605,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nMy Applications\n\nTrack your job pipeline from saved jobs to offers\n\n0\n\nTotal Applied\n\n0\n\nActive\n\n0\n\nIn Progress\n\n0\n\nOffers / Hired\n\nYou haven't applied to any jobs yet\n\nBrowse Jobs\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "My Applications"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Browse Jobs"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/applications -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/jobs/saved -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/applications -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/jobs/saved -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-03-applications.png"
+    },
+    {
+      "name": "cand-04-profile",
+      "path": "/candidate/profile",
+      "url": "https://rekrutai-staging.onrender.com/candidate/profile",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 32.01,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/profile",
+      "redirected": false,
+      "text_len": 1193,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nQA Candidate Alpha\n\nAdd a professional headline\n\n\u2709 qa.cand.1786175062@rekrutqa.test\n75\nOMNISCORE\n\n0\n\nProfile Views\n\n0\n\nApplications\n\n0%\n\nInterview Rate\n\n8%\n\nCompleteness\n\nProfile Completeness\n8%\nAI Tips\nMissing:\nHeadline\nBio\nLocation\nSocial Links\nResume\n+6 more\n\nOne-Click Apply\n\nDisabled \u2014 You will need to review each applic",
+      "headings": [
+        "QA Candidate Alpha"
+      ],
+      "error_banners": [],
+      "input_count": 2,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "AI Tips",
+        "Overview",
+        "Experience",
+        "Education",
+        "Skills",
+        "Portfolio",
+        "Activity",
+        "Job Alerts",
+        "Settings",
+        "Add Bio",
+        "View All",
+        "View All",
+        "Manage",
+        "Manage",
+        "Manage"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-04-profile.png"
+    },
+    {
+      "name": "cand-05-assessments",
+      "path": "/candidate/assessments",
+      "url": "https://rekrutai-staging.onrender.com/candidate/assessments",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.95,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/assessments",
+      "redirected": false,
+      "text_len": 1922,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nSkill Assessments\n\nVerify your skills with AI-powered assessments\n\n0\n\nTests Taken\n\n0\n\nPassed\n\n0\n\nVerified Skills\n\nAvailable Tests\nMy Results\nTechnical Skills\nJS\nJavaScript\n\nAdaptive\n\nCore JS, ES6+, async/await, closures, prototypes\n\nStart Test\nPY\nPython\n\nAdaptive\n\nCore Python, data structures, OOP, standard library\n\nStart Te",
+      "headings": [
+        "Skill Assessments"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Available Tests",
+        "My Results",
+        "Start Test",
+        "Start Test",
+        "Start Test",
+        "Start Test",
+        "Start Test",
+        "Start Test",
+        "Start Test",
+        "Start Test",
+        "Start Test",
+        "Start Test",
+        "Start Test",
+        "Start Test",
+        "Start Test",
+        "Start Test",
+        "Start Test",
+        "Start Test"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/assessments/results -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/assessments/available -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/assessments/available -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/assessments/results -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-05-assessments.png"
+    },
+    {
+      "name": "cand-06-assessment-results",
+      "path": "/candidate/assessment-results",
+      "url": "https://rekrutai-staging.onrender.com/candidate/assessment-results",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.85,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/assessment-results",
+      "redirected": false,
+      "text_len": 483,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nBack to Assessments\nNo Results Available\n\nNo results found\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "No Results Available"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Back to Assessments"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-06-assessment-results.png"
+    },
+    {
+      "name": "cand-07-interviews",
+      "path": "/candidate/interviews",
+      "url": "https://rekrutai-staging.onrender.com/candidate/interviews",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.99,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/interviews",
+      "redirected": false,
+      "text_len": 620,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nMy Interviews\n\nView and manage your scheduled interviews\n\nPractice Interview\nUpcoming (0)\nPast (0)\nInterview Tips\nNo upcoming interviews\n\nWhen recruiters schedule interviews, they'll appear here.\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "My Interviews"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Practice Interview",
+        "Upcoming (0)",
+        "Past (0)",
+        "Interview Tips"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/interviews/scheduled -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/interviews/scheduled -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-07-interviews.png"
+    },
+    {
+      "name": "cand-08-ai-coaching",
+      "path": "/candidate/ai-coaching",
+      "url": "https://rekrutai-staging.onrender.com/candidate/ai-coaching",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 3.44,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/ai-coaching",
+      "redirected": false,
+      "text_len": 13611,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nAI Interview Coach\n\nRecord video responses \u2014 get AI feedback on content, delivery, and body language\n\nVideo Recording\n\nRecord yourself answering like a real interview\n\nBody Language AI\n\nEye contact, expressions, posture analysis\n\nSpeech Analysis\n\nPace, filler words, clarity scoring\n\n0\nSessions\n\u2014\nAvg Score\n\u2014\nImprovement\n0\nDay",
+      "headings": [
+        "AI Interview Coach"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Mock Interview",
+        "Quick Practice",
+        "Progress",
+        "History",
+        "All (54)",
+        "Behavioral (15)",
+        "Technical (25)",
+        "Situational (14)"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/practice/sessions?limit=50&category=all -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/practice/stats -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/practice/library -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/practice/sessions?limit=50&category=all -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/practice/library -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/practice/stats -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/practice/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/mock/sessions?limit=10 -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/practice/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/mock/sessions?limit=10 -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-08-ai-coaching.png"
+    },
+    {
+      "name": "cand-09-omniscore",
+      "path": "/candidate/omniscore",
+      "url": "https://rekrutai-staging.onrender.com/candidate/omniscore",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 32.0,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/omniscore",
+      "redirected": false,
+      "text_len": 1278,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nOmniScore\n\nYour candidate credit score \u2014 like FICO for hiring\n\nTwo-Sided Scoring\nMy Score\nMutual Matches\nRate Companies\n425\nOMNISCORE\nNeeds Work\nYour Candidate Credit Score\n\nRanges from 300 (minimum) to 850 (exceptional). This score is visible to recruiters and affects your ranking in job matches.\n\n300\n850\nScore Breakdown\nIn",
+      "headings": [
+        "OmniScore",
+        "Your Candidate Credit Score"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "My Score",
+        "Mutual Matches",
+        "Rate Companies"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        }
+      ],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/memory/omniscore-trend?days=30 -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/omniscore/checkin -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/breakdown -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/omniscore/explainer -> 404"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-09-omniscore.png"
+    },
+    {
+      "name": "cand-10-documents",
+      "path": "/candidate/documents",
+      "url": "https://rekrutai-staging.onrender.com/candidate/documents",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.8,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/documents",
+      "redirected": false,
+      "text_len": 757,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nDocuments\n\nUpload and verify your documents for better job matching\n\nUpload\n\n0\n\nTotal Documents\n\n0\n\nVerified\n\n0\n\nDocument Score\n\n0\n\nFraud Risk\n\nAll\n0\nVerified\n0\nPending\n0\nProcessing\n0\nRejected\n0\nNo documents yet\n\nUpload your resume, certificates, and ID documents to improve your profile and job matching\n\nUpload your first do",
+      "headings": [
+        "Documents"
+      ],
+      "error_banners": [],
+      "input_count": 2,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "All\n0",
+        "Verified\n0",
+        "Pending\n0",
+        "Processing\n0",
+        "Rejected\n0",
+        "Upload your first document"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load documents: Error: API endpoint not found\n    at g (https://rekrutai-staging.onrender.com/assets/index-D2Iovy2A.js:2:14098)\n    at async t (https://rekrutai-staging.onrender.com/assets/documents-BWv78yL4.js:1:3806)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load documents: Error: API endpoint not found\n    at g (https://rekrutai-staging.onrender.com/assets/index-D2Iovy2A.js:2:14098)\n    at async t (https://rekrutai-staging.onrender.com/assets/documents-BWv78yL4.js:1:3806)"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/candidate/documents",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/candidate/documents",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        }
+      ],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/documents -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/documents -> 404"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-10-documents.png"
+    },
+    {
+      "name": "cand-11-interview-practice",
+      "path": "/candidate/interview-practice",
+      "url": "https://rekrutai-staging.onrender.com/candidate/interview-practice",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 3.14,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/interview-practice",
+      "redirected": false,
+      "text_len": 10040,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nBack to Dashboard\nInterview Practice\n\nPractice with AI-powered feedback and track your progress\n\nQuestions Practiced\n\u2014\nAverage Score\n\u2014\nImprovement\nDay Streak\nQuestion Library\nProgress\nAll Questions\nBehavioral\nTechnical\nSituational\nsituational\nMedium\n\nImagine you are working on a project and realize that the data you have bee",
+      "headings": [
+        "Interview Practice"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Back to Dashboard",
+        "Question Library",
+        "Progress",
+        "All Questions",
+        "Behavioral",
+        "Technical",
+        "Situational"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/practice/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/practice/stats -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/practice/library -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/practice/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/practice/library -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/practice/stats -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-11-interview-practice.png"
+    },
+    {
+      "name": "cand-12-interview-analysis",
+      "path": "/candidate/interview-analysis",
+      "url": "https://rekrutai-staging.onrender.com/candidate/interview-analysis",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.57,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/interview-analysis",
+      "redirected": false,
+      "text_len": 511,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nBack to Dashboard\nNo Analysis Available\n\nNo interview ID provided\n\nReturn to Dashboard\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "No Analysis Available"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Back to Dashboard",
+        "Return to Dashboard"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-12-interview-analysis.png"
+    },
+    {
+      "name": "cand-13-history",
+      "path": "/candidate/history",
+      "url": "https://rekrutai-staging.onrender.com/candidate/history",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.95,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/history",
+      "redirected": false,
+      "text_len": 644,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nBack to Dashboard\nNew Interview\nInterview History\n\nReview your past mock interviews and track progress\n\nAll\nCompleted\nIn Progress\nNo interviews yet\n\nStart practicing to build your interview history\n\nStart Mock Interview\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "Interview History"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Back to Dashboard",
+        "New Interview",
+        "All",
+        "Completed",
+        "In Progress",
+        "Start Mock Interview"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/history?limit=50 -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/interviews/history?limit=50 -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-13-history.png"
+    },
+    {
+      "name": "cand-14-feedback",
+      "path": "/candidate/feedback",
+      "url": "https://rekrutai-staging.onrender.com/candidate/feedback",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.93,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/feedback",
+      "redirected": false,
+      "text_len": 583,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nBack to Dashboard\nPost-Hire Check-ins\n\nShare your experience and help us improve\n\nPending Feedback\nAll Caught Up!\n\nNo pending feedback requests at the moment.\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "Post-Hire Check-ins",
+        "Pending Feedback"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Back to Dashboard"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load feedback: Error: API endpoint not found\n    at g (https://rekrutai-staging.onrender.com/assets/index-D2Iovy2A.js:2:14098)\n    at async Promise.all (index 1)\n    at async t (https://rekrutai-staging.onrender.com/assets/post-hire-feedback-CaLGThzC.js:1:635)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load feedback: Error: API endpoint not found\n    at g (https://rekrutai-staging.onrender.com/assets/index-D2Iovy2A.js:2:14098)\n    at async Promise.all (index 1)\n    at async t (https://rekrutai-staging.onrender.com/assets/post-hire-feedback-CaLGThzC.js:1:635)"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/onboarding/feedback/completed",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/onboarding/feedback/completed",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        }
+      ],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/feedback/completed -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/feedback/completed -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/feedback/pending -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/feedback/pending -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-14-feedback.png"
+    },
+    {
+      "name": "cand-15-offers",
+      "path": "/candidate/offers",
+      "url": "https://rekrutai-staging.onrender.com/candidate/offers",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 31.98,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/offers",
+      "redirected": false,
+      "text_len": 542,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nMy Offers\n\nReview and respond to job offers\n\nNo offers yet\n\nWhen a recruiter makes you an offer, it will appear here.\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "My Offers"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-15-offers.png"
+    },
+    {
+      "name": "cand-16-offers-manage",
+      "path": "/candidate/offers/manage",
+      "url": "https://rekrutai-staging.onrender.com/candidate/offers/manage",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 3.35,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/offers/manage",
+      "redirected": false,
+      "text_len": 656,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nBack to Dashboard\nCreate New Offer\nOffer Management\n\nCreate, send, and track job offers\n\n0\nTotal Offers\n0\nPending Response\n0\nAccepted\n0\nDeclined\nAll Offers\nCandidate\tPosition\tSalary\tStart Date\tStatus\tActions\n\n\nNo offers created yet\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "Offer Management"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Back to Dashboard",
+        "Create New Offer"
+      ],
+      "table_count": 1,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load data: Error: Recruiter access required\n    at g (https://rekrutai-staging.onrender.com/assets/index-D2Iovy2A.js:2:14098)\n    at async Promise.all (index 1)\n    at async t (https://rekrutai-staging.onrender.com/assets/offer-management-DgykGnuA.js:1:837)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load data: Error: Recruiter access required\n    at g (https://rekrutai-staging.onrender.com/assets/index-D2Iovy2A.js:2:14098)\n    at async Promise.all (index 1)\n    at async t (https://rekrutai-staging.onrender.com/assets/offer-management-DgykGnuA.js:1:837)"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/recruiter/candidates",
+          "status": 403,
+          "method": "GET",
+          "body": "{\"error\":\"Recruiter access required\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/recruiter/candidates",
+          "status": 403,
+          "method": "GET",
+          "body": "{\"error\":\"Recruiter access required\"}"
+        }
+      ],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/jobs -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/recruiter/candidates -> 403",
+        "GET https://rekrutai-staging.onrender.com/api/jobs -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/recruiter/candidates -> 403",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/offers -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-16-offers-manage.png"
+    },
+    {
+      "name": "cand-17-company-profile",
+      "path": "/candidate/company-profile",
+      "url": "https://rekrutai-staging.onrender.com/candidate/company-profile",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.84,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/company-profile",
+      "redirected": false,
+      "text_len": 1265,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nBack to Dashboard\nCompany Profile\n\nManage your company information - visible to candidates\n\nProfile Completeness\n\nComplete profiles get more applications and higher TrustScores\n\n0%\nNot Verified\n\nUse a company email address to verify your company automatically.\n\nRequest Verification\nCompany Information\nCompany Name *\nCompany ",
+      "headings": [
+        "Company Profile"
+      ],
+      "error_banners": [],
+      "input_count": 10,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Back to Dashboard",
+        "Request Verification",
+        "Save Changes",
+        "Sign Out"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 400 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load company profile: Error: No company associated with this account\n    at g (https://rekrutai-staging.onrender.com/assets/index-D2Iovy2A.js:2:14098)\n    at async r (https://rekrutai-staging.onrender.com/assets/company-profile-BsEe0zfv.js:1:697)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 400 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load company profile: Error: No company associated with this account\n    at g (https://rekrutai-staging.onrender.com/assets/index-D2Iovy2A.js:2:14098)\n    at async r (https://rekrutai-staging.onrender.com/assets/company-profile-BsEe0zfv.js:1:697)"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+          "status": 400,
+          "method": "GET",
+          "body": "{\"error\":\"No company associated with this account\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+          "status": 400,
+          "method": "GET",
+          "body": "{\"error\":\"No company associated with this account\"}"
+        }
+      ],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/company/profile -> 400",
+        "GET https://rekrutai-staging.onrender.com/api/company/profile -> 400"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-17-company-profile.png"
+    },
+    {
+      "name": "cand-18-chat",
+      "path": "/candidate/chat",
+      "url": "https://rekrutai-staging.onrender.com/candidate/chat",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.73,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/chat",
+      "redirected": false,
+      "text_len": 2506,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nMessages\n2 unread\nNew\nS\nSarah Chen\nYesterday\n\nSenior React Developer \u00b7 Thanks for applying! We would love to schedule an interview with you. Are you available next Tuesday at 2 PM?\n\n2\nJ\nJames Wilson\nYesterday\n\nProduct Manager \u00b7 I am very interested in this role. My experience with user research and agile teams aligns well wi",
+      "headings": [
+        "Messages"
+      ],
+      "error_banners": [],
+      "input_count": 4,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "New",
+        "S\nSarah Chen\nYesterday\n\nSenior React Developer \u00b7 Thanks for applying! We would love to schedule an interview with you. Are you available next Tuesday at 2 PM?\n\n2",
+        "J\nJames Wilson\nYesterday\n\nProduct Manager \u00b7 I am very interested in this role. My experience with user research and agile teams aligns well with your requirements.",
+        "E\nEmily Park\nYesterday\n\nUX Designer \u00b7 Your portfolio looks amazing! Can you walk us through your design process for the mobile app redesign?\n\n1",
+        "M\nMichael Torres\nAug 6\n\nData Engineer \u00b7 We have received your application. The hiring team will review it and get back to you within 5 business days.",
+        "L\nLisa Anderson\nAug 5\n\nDevOps Engineer \u00b7 Thank you for the opportunity. I have a few questions about the team structure and tech stack."
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/candidate/conversations",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/candidate/conversations",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/candidate/conversations",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/conversations/1/messages",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"API endpoint not found\"}"
+        }
+      ],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/conversations -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/conversations -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/candidate/conversations -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/conversations/1/messages -> 404"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-18-chat.png"
+    },
+    {
+      "name": "cand-19-onboarding",
+      "path": "/candidate/onboarding",
+      "url": "https://rekrutai-staging.onrender.com/candidate/onboarding",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 31.98,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/onboarding",
+      "redirected": false,
+      "text_len": 664,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nPaperwork\nAI Plan & Assistant\nNo Onboarding Available\n\nOnboarding begins after you accept an offer. Check your Offers page for pending offers.\n\nSwitch to the AI Plan & Assistant tab to see if your employer has set up an AI onboarding plan.\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "No Onboarding Available"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Paperwork",
+        "AI Plan & Assistant",
+        "AI Plan & Assistant"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/onboarding/wizard/progress -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-19-onboarding.png"
+    },
+    {
+      "name": "cand-20-payroll",
+      "path": "/candidate/payroll",
+      "url": "https://rekrutai-staging.onrender.com/candidate/payroll",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.94,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/payroll",
+      "redirected": false,
+      "text_len": 582,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nPayroll Not Set Up\n\nYour payroll profile hasn't been created yet. This happens automatically once your employer accepts you and configures your compensation.\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "Payroll Not Set Up"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/payroll/employee/profile",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"Employee profile not found\"}"
+        },
+        {
+          "url": "https://rekrutai-staging.onrender.com/api/payroll/employee/profile",
+          "status": 404,
+          "method": "GET",
+          "body": "{\"error\":\"Employee profile not found\"}"
+        }
+      ],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/payroll/employee/profile -> 404",
+        "GET https://rekrutai-staging.onrender.com/api/payroll/employee/paychecks -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/payroll/employee/paychecks -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/payroll/employee/profile -> 404"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-20-payroll.png"
+    },
+    {
+      "name": "cand-21-settings-redirect",
+      "path": "/candidate/settings",
+      "url": "https://rekrutai-staging.onrender.com/candidate/settings",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 3.27,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/settings",
+      "redirected": false,
+      "text_len": 712,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nSettings\n\nManage your profile, account, and preferences\n\nProfile\nAccount\nNotifications\nPrivacy\nAppearance\nBilling\nProfile Information\n\nUpdate your public profile and personal details\n\n?\nChange Avatar\n\nJPG, PNG or GIF. Max 2MB.\n\nFull Name\nEmail\nLocation\nBio\nCandidate\nID: 117\nSave Profile\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms",
+      "headings": [
+        "Settings"
+      ],
+      "error_banners": [],
+      "input_count": 6,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Profile",
+        "Account",
+        "Notifications",
+        "Privacy",
+        "Appearance",
+        "Billing",
+        "Save Profile"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 2,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403",
+        "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403",
+        "GET https://rekrutai-staging.onrender.com/api/billing/subscription-status -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/subscription-status -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/settings -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/settings -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-21-settings-redirect.png"
+    },
+    {
+      "name": "cand-22-settings",
+      "path": "/settings",
+      "url": "https://rekrutai-staging.onrender.com/settings",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 3.15,
+      "final_url": "https://rekrutai-staging.onrender.com/settings",
+      "redirected": false,
+      "text_len": 712,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nSettings\n\nManage your profile, account, and preferences\n\nProfile\nAccount\nNotifications\nPrivacy\nAppearance\nBilling\nProfile Information\n\nUpdate your public profile and personal details\n\n?\nChange Avatar\n\nJPG, PNG or GIF. Max 2MB.\n\nFull Name\nEmail\nLocation\nBio\nCandidate\nID: 117\nSave Profile\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms",
+      "headings": [
+        "Settings"
+      ],
+      "error_banners": [],
+      "input_count": 6,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Profile",
+        "Account",
+        "Notifications",
+        "Privacy",
+        "Appearance",
+        "Billing",
+        "Save Profile"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 2,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403",
+        "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403",
+        "GET https://rekrutai-staging.onrender.com/api/billing/subscription-status -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/settings -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/subscription-status -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/settings -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-22-settings.png"
+    },
+    {
+      "name": "cand-23-saved-jobs-PLACEHOLDER",
+      "path": "/candidate/saved-jobs",
+      "url": "https://rekrutai-staging.onrender.com/candidate/saved-jobs",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.55,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/saved-jobs",
+      "redirected": false,
+      "text_len": 511,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nSaved Jobs\n\nThis module is being rebuilt with the new architecture. Coming in Phase 2.\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "Saved Jobs"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-23-saved-jobs-PLACEHOLDER.png"
+    },
+    {
+      "name": "cand-24-top-matches-PLACEHOLDER",
+      "path": "/candidate/top-matches",
+      "url": "https://rekrutai-staging.onrender.com/candidate/top-matches",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.55,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/top-matches",
+      "redirected": false,
+      "text_len": 512,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nTop Matches\n\nThis module is being rebuilt with the new architecture. Coming in Phase 2.\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "Top Matches"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-24-top-matches-PLACEHOLDER.png"
+    },
+    {
+      "name": "cand-25-company-matches-PLACEHOLDER",
+      "path": "/candidate/company-matches",
+      "url": "https://rekrutai-staging.onrender.com/candidate/company-matches",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.55,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/company-matches",
+      "redirected": false,
+      "text_len": 516,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nCompany Matches\n\nThis module is being rebuilt with the new architecture. Coming in Phase 2.\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "Company Matches"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-25-company-matches-PLACEHOLDER.png"
+    },
+    {
+      "name": "cand-26-ai-search-PLACEHOLDER",
+      "path": "/candidate/ai-search",
+      "url": "https://rekrutai-staging.onrender.com/candidate/ai-search",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 3.06,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/ai-search",
+      "redirected": false,
+      "text_len": 510,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nAi Search\n\nThis module is being rebuilt with the new architecture. Coming in Phase 2.\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "Ai Search"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-26-ai-search-PLACEHOLDER.png"
+    },
+    {
+      "name": "cand-27-cv-review-PLACEHOLDER",
+      "path": "/candidate/cv-review",
+      "url": "https://rekrutai-staging.onrender.com/candidate/cv-review",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.56,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/cv-review",
+      "redirected": false,
+      "text_len": 510,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nCv Review\n\nThis module is being rebuilt with the new architecture. Coming in Phase 2.\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "Cv Review"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-27-cv-review-PLACEHOLDER.png"
+    },
+    {
+      "name": "cand-28-linkedin-optimizer-PLACEHOLDER",
+      "path": "/candidate/linkedin-optimizer",
+      "url": "https://rekrutai-staging.onrender.com/candidate/linkedin-optimizer",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.54,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/linkedin-optimizer",
+      "redirected": false,
+      "text_len": 519,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nLinkedin Optimizer\n\nThis module is being rebuilt with the new architecture. Coming in Phase 2.\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "Linkedin Optimizer"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-28-linkedin-optimizer-PLACEHOLDER.png"
+    },
+    {
+      "name": "cand-29-career-diagnosis-PLACEHOLDER",
+      "path": "/candidate/career-diagnosis",
+      "url": "https://rekrutai-staging.onrender.com/candidate/career-diagnosis",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.49,
+      "final_url": "https://rekrutai-staging.onrender.com/candidate/career-diagnosis",
+      "redirected": false,
+      "text_len": 517,
+      "text_preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nCareer Diagnosis\n\nThis module is being rebuilt with the new architecture. Coming in Phase 2.\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+      "headings": [
+        "Career Diagnosis"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/auth/me -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200",
+        "GET https://rekrutai-staging.onrender.com/api/billing/tier -> 200"
+      ],
+      "looks_broken": false,
+      "screenshot": "cand-29-career-diagnosis-PLACEHOLDER.png"
+    }
+  ],
+  "broken_summary": []
+}

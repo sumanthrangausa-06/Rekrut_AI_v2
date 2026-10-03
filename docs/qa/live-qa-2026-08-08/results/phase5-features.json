@@ -1,0 +1,110 @@
+{
+  "steps": [
+    {
+      "step": "pipeline_advance",
+      "ok": true,
+      "api": [
+        "PUT https://rekrutai-staging.onrender.com/api/recruiter/applications/43 -> 200"
+      ],
+      "failed": [],
+      "changed": true
+    },
+    {
+      "step": "offers_page_has_create",
+      "ok": true,
+      "buttons": [
+        "Sign out",
+        "QA Recruiter Alpha",
+        "Create Offer",
+        "All (0)",
+        "Create Your First Offer"
+      ]
+    },
+    {
+      "step": "ai_cover_letter_generation",
+      "ok": false,
+      "reason": "button not found"
+    },
+    {
+      "step": "ai_coaching_loads",
+      "ok": true,
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Mock Interview",
+        "Quick Practice",
+        "Progress",
+        "History",
+        "All (54)",
+        "Behavioral (15)",
+        "Technical (25)",
+        "Situational (14)"
+      ]
+    },
+    {
+      "step": "video_interview_page",
+      "ok": true,
+      "video_elements": 0,
+      "failed": [],
+      "preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOT"
+    },
+    {
+      "step": "stripe_checkout_opens",
+      "ok": false,
+      "clicked": "Get started",
+      "url": "https://rekrutai-staging.onrender.com/candidate",
+      "api": [
+        "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403",
+        "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403"
+      ],
+      "failed": []
+    },
+    {
+      "step": "password_reset_request",
+      "ok": false,
+      "api": [],
+      "failed": [],
+      "body": "Rekrut AI\nReset your password\n\nEnter your email address and we'll send you a link to reset your password\n\nEmail\nSending...\nBack to sign in"
+    }
+  ],
+  "offer_buttons": [
+    "Sign out",
+    "QA Recruiter Alpha",
+    "Create Offer",
+    "All (0)",
+    "Create Your First Offer"
+  ],
+  "coaching_buttons": [
+    "Sign out",
+    "QA Candidate Alpha",
+    "Mock Interview",
+    "Quick Practice",
+    "Progress",
+    "History",
+    "All (54)",
+    "Behavioral (15)",
+    "Technical (25)",
+    "Situational (14)"
+  ],
+  "video_text": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nBack to Dashboard\nError\n\nNo interview ID provided\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+  "video_buttons": [
+    "Sign out",
+    "QA Candidate Alpha",
+    "Back to Dashboard"
+  ],
+  "pricing_buttons": [
+    "Dashboard",
+    "Get started",
+    "Monthly\nPay month to month",
+    "Yearly\nSave with annual billing",
+    "Start checkout",
+    "Start checkout",
+    "Contact sales"
+  ],
+  "stripe_url": "https://rekrutai-staging.onrender.com/candidate",
+  "stripe_api": [
+    "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403",
+    "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403"
+  ],
+  "reset_api": []
+}

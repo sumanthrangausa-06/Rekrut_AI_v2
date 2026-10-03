@@ -1,0 +1,244 @@
+{
+  "env": "https://rekrutai-staging.onrender.com",
+  "job_title": "QA Loop Engineer 1786179662",
+  "steps": [
+    {
+      "step": "recruiter_login",
+      "ok": true,
+      "seconds": 6.1
+    },
+    {
+      "step": "job_created",
+      "ok": true,
+      "api": [
+        "POST https://rekrutai-staging.onrender.com/api/recruiter/jobs -> 200"
+      ],
+      "url": "https://rekrutai-staging.onrender.com/recruiter/jobs"
+    },
+    {
+      "step": "job_visible_to_recruiter",
+      "ok": true,
+      "preview": "Skip to content\nRekrut AI\nDashboard\nJobs\nApplications\nAssessments\nCandidates\nInterviews\nOffers\nOnboarding\nOmniScore\nAnalytics\nCompliance (EU AI Act)\nCompany\nPayroll\nSettings\nSign out\nRecruiter\nQA Recruiter Alpha\nJob Postings\n\nManage your active and past job listings\n\nPost New Job\n\n1\n\nActive Jobs\n\n0\n"
+    },
+    {
+      "step": "candidate_login",
+      "ok": true,
+      "seconds": 6.15
+    },
+    {
+      "step": "job_discoverable_by_candidate",
+      "ok": true,
+      "board_len": 1624
+    },
+    {
+      "step": "job_detail_opens",
+      "ok": true,
+      "url": "https://rekrutai-staging.onrender.com/candidate/jobs"
+    },
+    {
+      "step": "candidate_applied",
+      "ok": false,
+      "clicked": true,
+      "api": [],
+      "failed": []
+    },
+    {
+      "step": "application_shows_for_candidate",
+      "ok": false,
+      "preview": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation"
+    },
+    {
+      "step": "recruiter_sees_application",
+      "ok": true,
+      "preview": "Skip to content\nRekrut AI\nDashboard\nJobs\nApplications\nAssessments\nCandidates\nInterviews\nOffers\nOnboarding\nOmniScore\nAnalytics\nCompliance (EU AI Act)\nCompany\nPayroll\nSettings\nSign out\nRecruiter\nQA Recruiter Alpha\nApplications\n\nReview and manage candidate applications\n\nAll Jobs\nQA Loop Engineer 1786179662\n\n0\n\nTotal\n\n0\n\nNew\n\n0\n\nIn Pipeline\n\n0\n\nOffered / Hired\n\nSearch\nFrom Date\nTo Date\nAll (0)\nSort:\nD"
+    }
+  ],
+  "job_form_steps": [
+    {
+      "fields": [
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "ph": "e.g. Senior Software Engineer",
+          "val": "",
+          "opts": null
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "ph": "Leave blank to use your company name",
+          "val": "",
+          "opts": null
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "ph": "e.g. Engineering, Sales, Marketing",
+          "val": "",
+          "opts": null
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "ph": "",
+          "val": "full-time",
+          "opts": [
+            "full-time",
+            "part-time",
+            "contract",
+            "internship",
+            "remote",
+            "freelance"
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "ph": "",
+          "val": "US",
+          "opts": [
+            "AU",
+            "CA",
+            "FR",
+            "DE",
+            "IN",
+            "SG",
+            "GB",
+            "US"
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "ph": "e.g. New York, NY or Remote",
+          "val": "",
+          "opts": null
+        },
+        {
+          "tag": "INPUT",
+          "type": "number",
+          "id": "",
+          "ph": "e.g. 80000",
+          "val": "",
+          "opts": null
+        },
+        {
+          "tag": "INPUT",
+          "type": "number",
+          "id": "",
+          "ph": "e.g. 120000",
+          "val": "",
+          "opts": null
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "ph": "e.g. $80,000 - $120,000",
+          "val": "",
+          "opts": null
+        },
+        {
+          "tag": "TEXTAREA",
+          "type": "textarea",
+          "id": "",
+          "ph": "Describe the role, responsibilities, and what a typical day looks like... or click 'Generate with AI' to auto-fill",
+          "val": "",
+          "opts": null
+        }
+      ],
+      "buttons": [
+        "Sign out",
+        "QA Recruiter Alpha",
+        "Job Details",
+        "Requirements",
+        "Preview & Post",
+        "Use Previous Posting as Template",
+        "Suggest Titles",
+        "\u2728 Generate with AI",
+        "Next"
+      ],
+      "heading": "Post New Job"
+    },
+    {
+      "fields": [
+        {
+          "tag": "TEXTAREA",
+          "type": "textarea",
+          "id": "",
+          "ph": "List the required skills, experience, and qualifications...",
+          "val": "",
+          "opts": null
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "ph": "",
+          "val": "",
+          "opts": [
+            "",
+            "entry",
+            "mid",
+            "senior",
+            "lead"
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "ph": "",
+          "val": "",
+          "opts": [
+            "",
+            "high-school",
+            "associate",
+            "bachelor",
+            "master",
+            "phd"
+          ]
+        }
+      ],
+      "buttons": [
+        "Sign out",
+        "QA Recruiter Alpha",
+        "Job Details",
+        "Requirements",
+        "Preview & Post",
+        "Suggest Skills",
+        "AI Suggest",
+        "My Bank",
+        "Templates",
+        "Custom",
+        "Back",
+        "Next"
+      ],
+      "heading": "Post New Job"
+    },
+    {
+      "fields": [],
+      "buttons": [
+        "Sign out",
+        "QA Recruiter Alpha",
+        "Job Details",
+        "Requirements",
+        "Preview & Post",
+        "Apply Now",
+        "Back",
+        "Publish Job"
+      ],
+      "heading": "Post New Job"
+    }
+  ],
+  "job_post_api": [
+    "POST https://rekrutai-staging.onrender.com/api/recruiter/jobs -> 200"
+  ],
+  "apply_api": []
+}

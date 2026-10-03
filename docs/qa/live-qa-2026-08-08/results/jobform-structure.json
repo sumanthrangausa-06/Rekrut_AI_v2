@@ -1,0 +1,45 @@
+{
+  "fields": [
+    {
+      "i": 0,
+      "tag": "INPUT",
+      "type": "email",
+      "id": "email",
+      "name": "",
+      "placeholder": "example.email@gmail.com",
+      "label": "Email",
+      "options": null,
+      "visible": true
+    },
+    {
+      "i": 1,
+      "tag": "INPUT",
+      "type": "password",
+      "id": "password",
+      "name": "",
+      "placeholder": "Enter at least 8+ characters",
+      "label": "Password",
+      "options": null,
+      "visible": true
+    },
+    {
+      "i": 2,
+      "tag": "INPUT",
+      "type": "checkbox",
+      "id": "remember",
+      "name": "",
+      "placeholder": "",
+      "label": "",
+      "options": null,
+      "visible": true
+    }
+  ],
+  "buttons": [
+    {
+      "text": "Sign in",
+      "type": "submit",
+      "visible": true
+    }
+  ],
+  "text": "Rekrut AI\n\nDon't have an account? Sign up\n\nSign in\nEmail\nPassword\nRemember me\nForgot password?\nSign in\nWelcome back!\n\nSign in to access your dashboard, track applications, and continue your interview practice."
+}

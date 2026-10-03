@@ -1,0 +1,57 @@
+{
+  "steps": [
+    {
+      "step": "stripe_checkout_opens",
+      "ok": true,
+      "url": "https://checkout.stripe.com/c/pay/cs_live_b1ikxByCEsCMPaq4NyZKoElmJ6pXJwjDrhRGvh8G5qG0IPfijTUM9xqxwz#fidnandhYHdWcXxpYCc%2FJ2FgY2RwaXEnKSdicGRmZGhqaWBTZHdsZGtxJz8nZmprcXdqaScpJ2R1bE5gfCc%2FJ3VuWmlsc2BaMDRRY2lQR1QyQ2R3alxWbkk8V2FwRmhzf2xdU11rNVFLUkBrVVx9SnJJd3JwbUJqbjZDQGBGbjNWTjFyNmZnVlFLf1ZBd3Q3MDJTYTJNc0J3U3dCUHBkQzM1NUhEaDNQYDBKJyknY3dqaFZgd3Ngdyc%2FcXdwYCknZ2RmbmJ3anBrYUZqaWp3Jz8nJmNjY2NjYycpJ2lkfGpwcVF8dWAnPydocGlxbFpscWBoJyknYGtkZ2lgVWlkZmBtamlhYHd2Jz9xd3BgeCUl",
+      "api": [
+        "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403",
+        "POST https://rekrutai-staging.onrender.com/api/billing/checkout-session -> 200",
+        "POST https://collector-pxvl48pwoc.px-cloud.net/api/v2/collector -> 200",
+        "POST https://collector-pxvl48pwoc.px-cloud.net/api/v2/collector -> 200"
+      ],
+      "failed": []
+    },
+    {
+      "step": "password_reset_request",
+      "ok": true,
+      "api": [
+        "POST https://rekrutai-staging.onrender.com/api/auth/forgot-password -> 200"
+      ],
+      "failed": []
+    },
+    {
+      "step": "ai_cover_letter_generation",
+      "ok": false,
+      "reason": "Generate with AI not available",
+      "buttons": [
+        "Sign out",
+        "QA Candidate Alpha",
+        "Back to jobs",
+        "Listen"
+      ]
+    }
+  ],
+  "stripe_url": "https://checkout.stripe.com/c/pay/cs_live_b1ikxByCEsCMPaq4NyZKoElmJ6pXJwjDrhRGvh8G5qG0IPfijTUM9xqxwz#fidnandhYHdWcXxpYCc%2FJ2FgY2RwaXEnKSdicGRmZGhqaWBTZHdsZGtxJz8nZmprcXdqaScpJ2R1bE5gfCc%2FJ3VuWmlsc2BaMDRRY2lQR1QyQ2R3alxWbkk8V2FwRmhzf2xdU11rNVFLUkBrVVx9SnJJd3JwbUJqbjZDQGBGbjNWTjFyNmZnVlFLf1ZBd3Q3MDJTYTJNc0J3U3dCUHBkQzM1NUhEaDNQYDBKJyknY3dqaFZgd3Ngdyc%2FcXdwYCknZ2RmbmJ3anBrYUZqaWp3Jz8nJmNjY2NjYycpJ2lkfGpwcVF8dWAnPydocGlxbFpscWBoJyknYGtkZ2lgVWlkZmBtamlhYHd2Jz9xd3BgeCUl",
+  "stripe_api": [
+    "POST https://rekrutai-staging.onrender.com/api/analytics/events -> 403",
+    "POST https://rekrutai-staging.onrender.com/api/billing/checkout-session -> 200",
+    "GET https://checkout-cookies.stripe.com/api/get-cookie -> 200",
+    "POST https://collector-pxvl48pwoc.px-cloud.net/api/v2/collector -> 200",
+    "POST https://collector-pxvl48pwoc.px-cloud.net/api/v2/collector -> 200"
+  ],
+  "stripe_failed": [],
+  "stripe_body": "Back\nRekrut AI\nSubscribe to Starter - Rekrut AI\n$29.00\nper\nmonth\nStarter - Rekrut AI\nFor small teams that want a polished hiring workflow.\nBilled monthly\n$29.00\nSubtotal\n$29.00\nApply\nTotal due today\n$29.00\n\nOR\n\nContact information\nEmail\nqa.cand.1786175062@rekrutqa.test\nPayment method\nCard\nCash App Pay\nKlarna\nBank\n$5 back\nSubscribe\nProcessing\nBy subscribing, you authorize Rekrut AI to charge you according to the terms until you cancel.\nI am an AI agent acting on behalf of someone else\nPowered by \nTerms\nPrivacy",
+  "reset_api": [
+    "POST https://rekrutai-staging.onrender.com/api/auth/forgot-password -> 200"
+  ],
+  "reset_failed": [],
+  "reset_body": "Rekrut AI\nCheck your console\n\nFor testing purposes (no email API key configured), the password reset link has been logged to the server console.\n\nThe link will expire in 15 minutes. Check your server console for the reset URL.\n\nBack to sign in\n\nDidn't receive the email? Try again",
+  "job_page_state": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nBack to jobs\nQ\nQA Loop Eng",
+  "job_buttons": [
+    "Sign out",
+    "QA Candidate Alpha",
+    "Back to jobs",
+    "Listen"
+  ]
+}
