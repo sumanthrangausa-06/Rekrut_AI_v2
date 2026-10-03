@@ -67,6 +67,11 @@ export function RegisterPage() {
 		if (urlRole === 'recruiter') {
 			setRole('employer');
 		}
+		// Show notice when redirected from OAuth (employers must use email signup)
+		if (searchParams.get('oauth_employer_blocked') === 'true') {
+			const email = searchParams.get('email');
+			if (email) setEmail(email);
+		}
 	}, [searchParams]);
 
 	function validateField(field: string, value: string): string {
@@ -232,6 +237,15 @@ export function RegisterPage() {
 							)}
 
 							{/* Role selector — card-based toggle */}
+							{searchParams.get('oauth_employer_blocked') === 'true' && (
+								<div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 mb-3">
+									<AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+									<span>
+										Employer accounts can't use Google/LinkedIn signup. Please complete
+										registration with your company email below.
+									</span>
+								</div>
+							)}
 							<div className="space-y-2">
 								<Label>I am a</Label>
 								<div className="grid grid-cols-2 gap-3">
@@ -384,7 +398,8 @@ export function RegisterPage() {
 							</Button>
 
 							{/* Divider */}
-							{hasOAuth && (
+							{/* OAuth hidden for employers — they must use company email signup */}
+							{hasOAuth && role !== 'employer' && (
 								<>
 									<div className="relative">
 										<div className="absolute inset-0 flex items-center">
