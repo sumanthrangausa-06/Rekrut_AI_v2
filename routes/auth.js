@@ -534,7 +534,43 @@ router.post('/logout-all', authMiddleware, async (req, res) => {
 
 // ============= OAUTH HELPERS =============
 
+const jwt = require('jsonwebtoken');
+
+/**
+ * Generate a self-contained OAuth state token (JWT).
+ * Does not rely on server sessions — the state travels via the OAuth URL
+ * through the provider and back, surviving cross-site cookie blocking
+ * (e.g. iOS WebKit Intelligent Tracking Prevention).
+ */
+function generateOauthState() {
+	const secret = process.env.SESSION_SECRET;
+	if (!secret) {
+		throw new Error('SESSION_SECRET is required for OAuth state signing');
+	}
+	const nonce = crypto.randomBytes(16).toString('hex');
+	return jwt.sign({ nonce, iat: Math.floor(Date.now() / 1000) }, secret, {
+		expiresIn: '10m', // OAuth flow should complete within 10 minutes
+	});
+}
+
+/**
+ * Verify a self-contained OAuth state token.
+ * Returns true if the token is validly signed and not expired.
+ */
+function verifyOauthStateToken(state) {
+	const secret = process.env.SESSION_SECRET;
+	if (!secret || !state) return false;
+	try {
+		jwt.verify(state, secret);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 function verifyOauthState(req, state) {
+	// Legacy session-based verification (kept for backwards compatibility
+	// during rollout). New flows use verifyOauthStateToken instead.
 	if (!req.session || !state || !req.session.oauth_state) return false;
 	const valid = req.session.oauth_state === state;
 	delete req.session.oauth_state;
@@ -558,10 +594,8 @@ router.get('/google/url', (req, res) => {
 	}
 
 	const scope = encodeURIComponent('openid email profile');
-	const state = crypto.randomBytes(16).toString('hex');
-
-	// Store state in session for validation
-	req.session.oauth_state = state;
+	// Self-contained JWT state — no server session dependency (iOS-safe)
+	const state = generateOauthState();
 
 	const url =
 		`https://accounts.google.com/o/oauth2/v2/auth?` +
@@ -597,7 +631,7 @@ router.get('/google/callback', async (req, res) => {
 			return res.redirect('/login?error=No authorization code received');
 		}
 
-		if (!verifyOauthState(req, state)) {
+		if (!verifyOauthStateToken(state)) {
 			if (req.session?.oauth_link_user_id) {
 				delete req.session.oauth_link_user_id;
 				return res.redirect('/settings?oauth_error=Invalid OAuth state');
@@ -903,9 +937,8 @@ router.get('/linkedin/url', (req, res) => {
 	}
 
 	const scope = encodeURIComponent('openid profile email');
-	const state = crypto.randomBytes(16).toString('hex');
-
-	req.session.oauth_state = state;
+	// Self-contained JWT state — no server session dependency (iOS-safe)
+	const state = generateOauthState();
 
 	const url =
 		`https://www.linkedin.com/oauth/v2/authorization?` +
@@ -941,7 +974,7 @@ router.get('/linkedin/callback', async (req, res) => {
 			return res.redirect('/login?error=No authorization code received');
 		}
 
-		if (!verifyOauthState(req, state)) {
+		if (!verifyOauthStateToken(state)) {
 			if (req.session?.oauth_link_user_id) {
 				delete req.session.oauth_link_user_id;
 				return res.redirect('/settings?oauth_error=Invalid OAuth state');
