@@ -607,16 +607,55 @@ async function determineRoleFromEmail(email) {
  * email signup before reaching here, so this only handles candidate + edge cases.
  */
 async function buildOAuthRedirectUrl(user) {
+	let dest;
 	if (user.role === 'recruiter') {
 		const { findPendingJoinRequest } = require('../services/domain-validator');
 		const pendingRequest = await findPendingJoinRequest(user.id);
 		if (pendingRequest) {
-			return `/recruiter?pending_approval=true&message=${encodeURIComponent(`A company with domain "${pendingRequest.domain}" already exists. Your registration is pending approval from the company administrator.`)}`;
+			dest = `/recruiter?pending_approval=true&message=${encodeURIComponent(`A company with domain "${pendingRequest.domain}" already exists. Your registration is pending approval from the company administrator.`)}`;
+		} else {
+			dest = '/recruiter';
 		}
-		return '/recruiter';
+	} else {
+		dest = '/candidate';
 	}
-	return '/candidate';
+	// Wrap in same-site session-establishment hop (see oauth-success route below).
+	// iOS WebKit blocks Set-Cookie on the cross-site OAuth callback response,
+	// so the session is established here instead, in a first-party context.
+	const secret = process.env.SESSION_SECRET;
+	const handoffToken = jwt.sign(
+		{ uid: user.id, dest, iat: Math.floor(Date.now() / 1000) },
+		secret,
+		{ expiresIn: '5m' },
+	);
+	return `/api/auth/oauth-success?handoff=${encodeURIComponent(handoffToken)}`;
 }
+
+// Intermediate same-site redirect after OAuth callback.
+// Verifies the handoff token, establishes the session (Set-Cookie on a
+// first-party response — sticks on iOS), then redirects to the destination.
+router.get('/oauth-success', async (req, res) => {
+	const secret = process.env.SESSION_SECRET;
+	const { handoff } = req.query;
+	if (!secret || !handoff) {
+		return res.redirect('/login?error=Authentication failed');
+	}
+	try {
+		const payload = jwt.verify(handoff, secret);
+		const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [payload.uid]);
+		if (userResult.rows.length === 0) {
+			return res.redirect('/login?error=Authentication failed');
+		}
+		const user = userResult.rows[0];
+		const accessToken = generateToken(user);
+		const { token: refreshToken } = await generateRefreshToken(user.id);
+		req.session.token = accessToken;
+		req.session.refreshToken = refreshToken;
+		return res.redirect(payload.dest || '/candidate');
+	} catch {
+		return res.redirect('/login?error=Authentication failed');
+	}
+});
 
 // ============= OAUTH: GOOGLE =============
 
@@ -876,16 +915,8 @@ router.get('/google/callback', async (req, res) => {
 			[user.id, googleUser.id, encAccessToken, encRefreshToken, JSON.stringify(profileData)],
 		);
 
-		// Generate tokens
-		const accessToken = generateToken(user);
-		const { token: refreshToken } = await generateRefreshToken(user.id);
-
-		// Store tokens in httpOnly session cookie, redirect cleanly
-		req.session.token = accessToken;
-		req.session.refreshToken = refreshToken;
-
-		// Determine redirect based on role and approval status (shared helper;
-		// frontend routes are /candidate and /recruiter, dashboard is the index)
+		// Session is established in /oauth-success (same-site hop).
+		// Redirect via the handoff URL built by the shared helper.
 		const redirectUrl = await buildOAuthRedirectUrl(user);
 		res.redirect(redirectUrl);
 	} catch (err) {
@@ -1124,15 +1155,7 @@ router.get('/linkedin/callback', async (req, res) => {
 		);
 
 		// Generate tokens
-		const accessToken = generateToken(user);
-		const { token: refreshToken } = await generateRefreshToken(user.id);
-
-		// Store tokens in httpOnly session cookie, redirect cleanly
-		req.session.token = accessToken;
-		req.session.refreshToken = refreshToken;
-
-		// Redirect based on role (shared helper; frontend routes are
-		// /candidate and /recruiter, dashboard is the index)
+		// Session is established in /oauth-success (same-site hop).
 		const redirectUrl = await buildOAuthRedirectUrl(user);
 		res.redirect(redirectUrl);
 	} catch (err) {
