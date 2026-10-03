@@ -649,9 +649,17 @@ router.get('/oauth-success', async (req, res) => {
 		const user = userResult.rows[0];
 		const accessToken = generateToken(user);
 		const { token: refreshToken } = await generateRefreshToken(user.id);
+		// Set session cookie too (for API auth via cookie)
 		req.session.token = accessToken;
 		req.session.refreshToken = refreshToken;
-		return res.redirect(payload.dest || '/candidate');
+		// Pass tokens via URL fragment so the frontend can store them in
+		// localStorage (the auth context reads from localStorage, not cookies).
+		// Fragment is used (not query) so tokens don't hit server logs.
+		const dest = payload.dest || '/candidate';
+		const separator = dest.includes('#') ? '&' : '#';
+		return res.redirect(
+			`${dest}${separator}oauth_token=${encodeURIComponent(accessToken)}&oauth_refresh=${encodeURIComponent(refreshToken)}`,
+		);
 	} catch {
 		return res.redirect('/login?error=Authentication failed');
 	}

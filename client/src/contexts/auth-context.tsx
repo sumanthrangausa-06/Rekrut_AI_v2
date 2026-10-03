@@ -46,6 +46,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 	// Check auth on initial load — verify token if it exists in localStorage
 	useEffect(() => {
+		// Pick up OAuth tokens from URL fragment (set by /api/auth/oauth-success
+		// redirect). Stored to localStorage, fragment cleaned from URL.
+		if (typeof window !== 'undefined' && window.location.hash.includes('oauth_token=')) {
+			const params = new URLSearchParams(window.location.hash.slice(1));
+			const oauthToken = params.get('oauth_token');
+			const oauthRefresh = params.get('oauth_refresh');
+			if (oauthToken) {
+				setTokens(oauthToken, oauthRefresh || '');
+				// Clean the fragment so tokens don't linger in the URL/history
+				window.history.replaceState(null, '', window.location.pathname + window.location.search);
+			}
+		}
 		const token = getToken();
 		if (!token) {
 			setLoading(false);
