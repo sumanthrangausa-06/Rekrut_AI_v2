@@ -55,18 +55,12 @@ function prometheusMiddleware(req, res, next) {
 		const statusCode = res.statusCode.toString();
 		const route = req.route?.path || req.path.replace(/\/\d+/g, '/:id');
 
-		httpRequestDurationSeconds
-			.labels(req.method, route, statusCode)
-			.observe(duration);
+		httpRequestDurationSeconds.labels(req.method, route, statusCode).observe(duration);
 
-		httpRequestsTotal
-			.labels(req.method, route, statusCode)
-			.inc();
+		httpRequestsTotal.labels(req.method, route, statusCode).inc();
 
 		if (res.statusCode >= 400) {
-			httpErrorsTotal
-				.labels(req.method, route, statusCode)
-				.inc();
+			httpErrorsTotal.labels(req.method, route, statusCode).inc();
 		}
 	});
 

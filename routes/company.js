@@ -15,23 +15,22 @@ const {
 	validateRecruiterEmail,
 	getBlockedDomainExamples,
 	isCompanyEmail,
-} = require('../services/email-domain-validator');
-const {
 	findCompanyByDomain,
-	storeVerifiedDomain,
 	createJoinRequest,
 	approveJoinRequest,
 	rejectJoinRequest,
 	listPendingJoinRequests,
 	getJoinRequestById,
-} = require('../services/company-domain-service');
+	findLatestJoinRequestForUser,
+} = require('../services/domain-validator');
 const { insertAuditLog } = require('../routes/audit');
 const emailService = require('../lib/email-service');
+const { requirePermission, invalidateUserCache } = require('../middleware/rbac');
 
 const router = express.Router();
 
 // Re-export for backward compatibility
-function isCompanyEmailCompat(email) {
+function _isCompanyEmailCompat(email) {
 	return isCompanyEmail(email);
 }
 
@@ -137,6 +136,36 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 			} catch (notifyErr) {
 				// Notification failure must NOT break the join request flow
 				console.error('[company/register] In-app notification error:', notifyErr.message);
+			}
+
+			// ─── Issue #104: Email notification to company owner ───
+			try {
+				const ownerEmailResult = await pool.query(
+					`SELECT email, name FROM users WHERE company_id = $1 AND role = 'employer' ORDER BY created_at ASC LIMIT 1`,
+					[existingCompany.id],
+				);
+				if (ownerEmailResult.rows.length > 0) {
+					await emailService.sendEmailAsync({
+						to: ownerEmailResult.rows[0].email,
+						templateName: 'recruiter_join_request',
+						templateData: {
+							owner_name: ownerEmailResult.rows[0].name || 'there',
+							company_name: existingCompany.name,
+							recruiter_name: name || 'A recruiter',
+							recruiter_email: email,
+							request_time: new Date().toISOString(),
+							dashboard_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/dashboard/recruiters`,
+						},
+						userId: ownerEmailResult.rows[0].id,
+						metadata: {
+							company_id: existingCompany.id,
+							requester_id: user.id,
+							trigger: 'recruiter_join_request',
+						},
+					});
+				}
+			} catch (emailErr) {
+				console.error('[company/register] Owner email notification error:', emailErr.message);
 			}
 
 			// Generate tokens so they can log in and see pending status
@@ -288,7 +317,7 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 });
 
 // Get company profile
-router.get('/profile', authMiddleware, async (req, res) => {
+router.get('/profile', authMiddleware, requirePermission('company:read'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -306,7 +335,16 @@ router.get('/profile', authMiddleware, async (req, res) => {
 			return res.status(404).json({ error: 'Company not found' });
 		}
 
-		res.json({ company: result.rows[0] });
+		const departments = await pool.query(
+			`SELECT d.*,
+				(SELECT COUNT(*) FROM department_members dm WHERE dm.department_id = d.id) as member_count
+			 FROM departments d
+			 WHERE d.company_id = $1
+			 ORDER BY d.name`,
+			[req.user.company_id],
+		);
+
+		res.json({ company: { ...result.rows[0], departments: departments.rows } });
 	} catch (err) {
 		console.error('Get company profile error:', err);
 		res.status(500).json({ error: 'Failed to fetch company profile' });
@@ -314,7 +352,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
 });
 
 // Update company profile
-router.put('/profile', authMiddleware, async (req, res) => {
+router.put('/profile', authMiddleware, requirePermission('company:manage'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -582,7 +620,7 @@ router.get('/:slug/team', optionalAuth, async (req, res) => {
 	}
 });
 // Verify company (manual verification request)
-router.post('/verify', authMiddleware, async (req, res) => {
+router.post('/verify', authMiddleware, requirePermission('company:manage'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -618,7 +656,7 @@ router.post('/verify', authMiddleware, async (req, res) => {
 });
 
 // Get company team members (Issue #157: include suspended status)
-router.get('/team/members', authMiddleware, async (req, res) => {
+router.get('/team/members', authMiddleware, requirePermission('members:read'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -640,7 +678,7 @@ router.get('/team/members', authMiddleware, async (req, res) => {
 });
 
 // Alias for GET /members (same as /team/members)
-router.get('/members', authMiddleware, async (req, res) => {
+router.get('/members', authMiddleware, requirePermission('members:read'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -662,218 +700,239 @@ router.get('/members', authMiddleware, async (req, res) => {
 });
 
 // Invite team member
-router.post('/team/invite', authMiddleware, async (req, res) => {
-	try {
-		if (!req.user.company_id) {
-			return res.status(400).json({ error: 'No company associated with this account' });
-		}
+router.post(
+	'/team/invite',
+	authMiddleware,
+	requirePermission('members:manage'),
+	async (req, res) => {
+		try {
+			if (!req.user.company_id) {
+				return res.status(400).json({ error: 'No company associated with this account' });
+			}
 
-		const { email, name, role = 'recruiter' } = req.body;
+			const { email, name, role = 'recruiter' } = req.body;
 
-		if (!email) {
-			return res.status(400).json({ error: 'Email is required' });
-		}
+			if (!email) {
+				return res.status(400).json({ error: 'Email is required' });
+			}
 
-		// Validate invited email domain matches company domain
-		const companyResult = await pool.query(
-			'SELECT verified_domain, email_domain FROM companies WHERE id = $1',
-			[req.user.company_id],
-		);
-		const company = companyResult.rows[0];
-		const companyDomain = company?.verified_domain || company?.email_domain;
+			// Validate invited email domain matches company domain
+			const companyResult = await pool.query(
+				'SELECT verified_domain, email_domain FROM companies WHERE id = $1',
+				[req.user.company_id],
+			);
+			const company = companyResult.rows[0];
+			const companyDomain = company?.verified_domain || company?.email_domain;
 
-		if (companyDomain) {
-			const invitedDomain = email.split('@')[1]?.toLowerCase();
-			if (invitedDomain) {
-				const { normalizeDomain } = require('../services/email-domain-validator');
-				const normalizedInvited = normalizeDomain(invitedDomain);
-				const normalizedCompany = normalizeDomain(companyDomain);
-				if (normalizedInvited !== normalizedCompany) {
-					return res.status(400).json({
-						error: `Invited email domain "${invitedDomain}" does not match the company domain "${companyDomain}". All team members must use the company's verified email domain.`,
-						code: 'DOMAIN_MISMATCH',
-					});
+			if (companyDomain) {
+				const invitedDomain = email.split('@')[1]?.toLowerCase();
+				if (invitedDomain) {
+					const { normalizeDomain } = require('../services/domain-validator');
+					const normalizedInvited = normalizeDomain(invitedDomain);
+					const normalizedCompany = normalizeDomain(companyDomain);
+					if (normalizedInvited !== normalizedCompany) {
+						return res.status(400).json({
+							error: `Invited email domain "${invitedDomain}" does not match the company domain "${companyDomain}". All team members must use the company's verified email domain.`,
+							code: 'DOMAIN_MISMATCH',
+						});
+					}
 				}
 			}
-		}
 
-		// Check if user already exists
-		const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
-		if (existing.rows.length > 0) {
-			return res.status(400).json({ error: 'User with this email already exists' });
-		}
+			// Check if user already exists
+			const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+			if (existing.rows.length > 0) {
+				return res.status(400).json({ error: 'User with this email already exists' });
+			}
 
-		// Generate temporary password
-		const tempPassword = crypto.randomBytes(12).toString('base64url').slice(0, 16);
-		const password_hash = await bcrypt.hash(tempPassword, 13);
+			// Generate temporary password
+			const tempPassword = crypto.randomBytes(12).toString('base64url').slice(0, 16);
+			const password_hash = await bcrypt.hash(tempPassword, 13);
 
-		// Get company name
-		const companyNameResult = await pool.query('SELECT name FROM companies WHERE id = $1', [
-			req.user.company_id,
-		]);
+			// Get company name
+			const companyNameResult = await pool.query('SELECT name FROM companies WHERE id = $1', [
+				req.user.company_id,
+			]);
 
-		const result = await pool.query(
-			`INSERT INTO users (email, password_hash, name, role, company_name, company_id)
+			const result = await pool.query(
+				`INSERT INTO users (email, password_hash, name, role, company_name, company_id)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, email, name, role`,
-			[email, password_hash, name, role, companyNameResult.rows[0].name, req.user.company_id],
-		);
+				[email, password_hash, name, role, companyNameResult.rows[0].name, req.user.company_id],
+			);
 
-		// In production, send email with invite link
-		res.json({
-			success: true,
-			member: result.rows[0],
-			temp_password: tempPassword, // In production, this would be sent via email
-			message: 'Team member invited successfully',
-		});
-	} catch (err) {
-		console.error('Invite team member error:', err);
-		res.status(500).json({ error: 'Failed to invite team member' });
-	}
-});
+			// In production, send email with invite link
+			res.json({
+				success: true,
+				member: result.rows[0],
+				temp_password: tempPassword, // In production, this would be sent via email
+				message: 'Team member invited successfully',
+			});
+		} catch (err) {
+			console.error('Invite team member error:', err);
+			res.status(500).json({ error: 'Failed to invite team member' });
+		}
+	},
+);
 
 // ============= JOIN REQUEST MANAGEMENT (Issue #103) =============
 
 // List pending join requests for the current company
-router.get('/join-requests', authMiddleware, async (req, res) => {
-	try {
-		if (!req.user.company_id) {
-			return res.status(400).json({ error: 'No company associated with this account' });
-		}
+router.get(
+	'/join-requests',
+	authMiddleware,
+	requirePermission('members:read'),
+	async (req, res) => {
+		try {
+			if (!req.user.company_id) {
+				return res.status(400).json({ error: 'No company associated with this account' });
+			}
 
-		// Only company owner/admin or existing recruiters can approve
-		const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
-		if (!recruiterRoles.includes(req.user.role)) {
-			return res.status(403).json({ error: 'Not authorized to view join requests' });
-		}
+			// Only company owner/admin or existing recruiters can approve
+			const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+			if (!recruiterRoles.includes(req.user.role)) {
+				return res.status(403).json({ error: 'Not authorized to view join requests' });
+			}
 
-		const requests = await listPendingJoinRequests(req.user.company_id);
+			const requests = await listPendingJoinRequests(req.user.company_id);
 
-		// ─── Issue #155: Auto-mark join_request notifications as read (fire-and-forget) ───
-		pool.query(
-			`UPDATE user_notifications
+			// ─── Issue #155: Auto-mark join_request notifications as read (fire-and-forget) ───
+			pool
+				.query(
+					`UPDATE user_notifications
        SET read = true, read_at = NOW()
        WHERE user_id = $1 AND type = 'join_request' AND read = false`,
-			[req.user.id],
-		).catch((err) => {
-			console.error('[company/join-requests] Auto-mark read error:', err.message);
-		});
+					[req.user.id],
+				)
+				.catch((err) => {
+					console.error('[company/join-requests] Auto-mark read error:', err.message);
+				});
 
-		res.json({ success: true, requests });
-	} catch (err) {
-		console.error('List join requests error:', err);
-		res.status(500).json({ error: 'Failed to fetch join requests' });
-	}
-});
+			res.json({ success: true, requests });
+		} catch (err) {
+			console.error('List join requests error:', err);
+			res.status(500).json({ error: 'Failed to fetch join requests' });
+		}
+	},
+);
 
 // Approve a join request
-router.post('/join-requests/:id/approve', authMiddleware, async (req, res) => {
-	try {
-		if (!req.user.company_id) {
-			return res.status(400).json({ error: 'No company associated with this account' });
-		}
-
-		const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
-		if (!recruiterRoles.includes(req.user.role)) {
-			return res.status(403).json({ error: 'Not authorized to approve join requests' });
-		}
-
-		const request = await getJoinRequestById(req.params.id);
-		if (!request) {
-			return res.status(404).json({ error: 'Join request not found' });
-		}
-
-		// Verify the request is for the current user's company
-		if (request.company_id !== req.user.company_id) {
-			return res.status(403).json({ error: 'Not authorized to approve this request' });
-		}
-
-		const approved = await approveJoinRequest(request.id, req.user.id);
-		if (!approved) {
-			return res.status(400).json({ error: 'Failed to approve join request' });
-		}
-
-		// ─── Issue #156: Audit log — join request approved ───
+router.post(
+	'/join-requests/:id/approve',
+	authMiddleware,
+	requirePermission('members:manage'),
+	async (req, res) => {
 		try {
-			await insertAuditLog({
-				company_id: req.user.company_id,
-				actor_id: req.user.id,
-				target_id: request.user_id,
-				action: 'join_request_approved',
-				metadata: { request_id: request.id },
-			});
-		} catch (auditErr) {
-			console.error('[company/approve] Audit log error:', auditErr.message);
-		}
+			if (!req.user.company_id) {
+				return res.status(400).json({ error: 'No company associated with this account' });
+			}
 
-		res.json({
-			success: true,
-			message: 'Recruiter approved and added to company',
-			request: approved,
-		});
-	} catch (err) {
-		console.error('Approve join request error:', err);
-		res.status(500).json({ error: 'Failed to approve join request' });
-	}
-});
+			const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+			if (!recruiterRoles.includes(req.user.role)) {
+				return res.status(403).json({ error: 'Not authorized to approve join requests' });
+			}
+
+			const request = await getJoinRequestById(req.params.id);
+			if (!request) {
+				return res.status(404).json({ error: 'Join request not found' });
+			}
+
+			// Verify the request is for the current user's company
+			if (request.company_id !== req.user.company_id) {
+				return res.status(403).json({ error: 'Not authorized to approve this request' });
+			}
+
+			const approved = await approveJoinRequest(request.id, req.user.id);
+			if (!approved) {
+				return res.status(400).json({ error: 'Failed to approve join request' });
+			}
+
+			// ─── Issue #156: Audit log — join request approved ───
+			try {
+				await insertAuditLog({
+					company_id: req.user.company_id,
+					actor_id: req.user.id,
+					target_id: request.user_id,
+					action: 'join_request_approved',
+					metadata: { request_id: request.id },
+				});
+			} catch (auditErr) {
+				console.error('[company/approve] Audit log error:', auditErr.message);
+			}
+
+			res.json({
+				success: true,
+				message: 'Recruiter approved and added to company',
+				request: approved,
+			});
+		} catch (err) {
+			console.error('Approve join request error:', err);
+			res.status(500).json({ error: 'Failed to approve join request' });
+		}
+	},
+);
 
 // Reject a join request
-router.post('/join-requests/:id/reject', authMiddleware, async (req, res) => {
-	try {
-		if (!req.user.company_id) {
-			return res.status(400).json({ error: 'No company associated with this account' });
-		}
-
-		const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
-		if (!recruiterRoles.includes(req.user.role)) {
-			return res.status(403).json({ error: 'Not authorized to reject join requests' });
-		}
-
-		const request = await getJoinRequestById(req.params.id);
-		if (!request) {
-			return res.status(404).json({ error: 'Join request not found' });
-		}
-
-		if (request.company_id !== req.user.company_id) {
-			return res.status(403).json({ error: 'Not authorized to reject this request' });
-		}
-
-		const { reason } = req.body;
-		const rejected = await rejectJoinRequest(request.id, req.user.id, reason);
-		if (!rejected) {
-			return res.status(400).json({ error: 'Failed to reject join request' });
-		}
-
-		// ─── Issue #156: Audit log — join request rejected ───
+router.post(
+	'/join-requests/:id/reject',
+	authMiddleware,
+	requirePermission('members:manage'),
+	async (req, res) => {
 		try {
-			await insertAuditLog({
-				company_id: req.user.company_id,
-				actor_id: req.user.id,
-				target_id: request.user_id,
-				action: 'join_request_rejected',
-				reason: reason || null,
-				metadata: { request_id: request.id },
-			});
-		} catch (auditErr) {
-			console.error('[company/reject] Audit log error:', auditErr.message);
-		}
+			if (!req.user.company_id) {
+				return res.status(400).json({ error: 'No company associated with this account' });
+			}
 
-		res.json({
-			success: true,
-			message: 'Join request rejected',
-			request: rejected,
-		});
-	} catch (err) {
-		console.error('Reject join request error:', err);
-		res.status(500).json({ error: 'Failed to reject join request' });
-	}
-});
+			const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+			if (!recruiterRoles.includes(req.user.role)) {
+				return res.status(403).json({ error: 'Not authorized to reject join requests' });
+			}
+
+			const request = await getJoinRequestById(req.params.id);
+			if (!request) {
+				return res.status(404).json({ error: 'Join request not found' });
+			}
+
+			if (request.company_id !== req.user.company_id) {
+				return res.status(403).json({ error: 'Not authorized to reject this request' });
+			}
+
+			const { reason } = req.body;
+			const rejected = await rejectJoinRequest(request.id, req.user.id, reason);
+			if (!rejected) {
+				return res.status(400).json({ error: 'Failed to reject join request' });
+			}
+
+			// ─── Issue #156: Audit log — join request rejected ───
+			try {
+				await insertAuditLog({
+					company_id: req.user.company_id,
+					actor_id: req.user.id,
+					target_id: request.user_id,
+					action: 'join_request_rejected',
+					reason: reason || null,
+					metadata: { request_id: request.id },
+				});
+			} catch (auditErr) {
+				console.error('[company/reject] Audit log error:', auditErr.message);
+			}
+
+			res.json({
+				success: true,
+				message: 'Join request rejected',
+				request: rejected,
+			});
+		} catch (err) {
+			console.error('Reject join request error:', err);
+			res.status(500).json({ error: 'Failed to reject join request' });
+		}
+	},
+);
 
 // Check if current user has a pending join request
 router.get('/join-requests/me', authMiddleware, async (req, res) => {
 	try {
-		const { findPendingJoinRequest } = require('../services/company-domain-service');
-		const request = await findPendingJoinRequest(req.user.id);
+		const request = await findLatestJoinRequestForUser(req.user.id);
 
 		if (!request) {
 			return res.json({ success: true, hasPendingRequest: false });
@@ -899,444 +958,475 @@ router.get('/join-requests/me', authMiddleware, async (req, res) => {
 });
 
 // Suspend a team member (owner only) — Issue #157
-router.post('/team/members/:id/suspend', authMiddleware, async (req, res) => {
-	try {
-		if (!req.user.company_id) {
-			return res.status(400).json({ error: 'No company associated with this account' });
-		}
-
-		// Verify the user is the company owner
-		const companyResult = await pool.query('SELECT owner_id, name FROM companies WHERE id = $1', [
-			req.user.company_id,
-		]);
-		if (companyResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Company not found' });
-		}
-		if (companyResult.rows[0].owner_id !== req.user.id) {
-			return res.status(403).json({ error: 'Only the company owner can suspend team members' });
-		}
-
-		// Prevent self-suspension
-		if (parseInt(req.params.id, 10) === req.user.id) {
-			return res.status(400).json({ error: 'Cannot suspend yourself' });
-		}
-
-		// Verify target user exists and belongs to this company
-		const targetResult = await pool.query(
-			'SELECT id, name, email, company_id FROM users WHERE id = $1',
-			[req.params.id],
-		);
-		if (targetResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Team member not found' });
-		}
-		const target = targetResult.rows[0];
-		if (target.company_id !== req.user.company_id) {
-			return res.status(403).json({ error: 'Team member does not belong to your company' });
-		}
-
-		// Suspend: set suspended_at to NOW() (keep company_id for team list display)
-		await pool.query(
-			'UPDATE users SET suspended_at = NOW(), updated_at = NOW() WHERE id = $1',
-			[target.id],
-		);
-
-		// ─── Issue #157: Email notification to suspended user ───
+router.post(
+	'/team/members/:id/suspend',
+	authMiddleware,
+	requirePermission('members:manage'),
+	async (req, res) => {
 		try {
-			await emailService.sendEmailAsync({
-				to: target.email,
-				templateName: 'account_suspended',
-				templateData: {
-					name: target.name || 'there',
-					suspension_reason: req.body.reason || 'Your account has been suspended by the company owner.',
-				},
-				userId: target.id,
-				metadata: {
+			if (!req.user.company_id) {
+				return res.status(400).json({ error: 'No company associated with this account' });
+			}
+
+			// Verify the user is the company owner
+			const companyResult = await pool.query('SELECT owner_id, name FROM companies WHERE id = $1', [
+				req.user.company_id,
+			]);
+			if (companyResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Company not found' });
+			}
+			if (companyResult.rows[0].owner_id !== req.user.id) {
+				return res.status(403).json({ error: 'Only the company owner can suspend team members' });
+			}
+
+			// Prevent self-suspension
+			if (parseInt(req.params.id, 10) === req.user.id) {
+				return res.status(400).json({ error: 'Cannot suspend yourself' });
+			}
+
+			// Verify target user exists and belongs to this company
+			const targetResult = await pool.query(
+				'SELECT id, name, email, company_id FROM users WHERE id = $1',
+				[req.params.id],
+			);
+			if (targetResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Team member not found' });
+			}
+			const target = targetResult.rows[0];
+			if (target.company_id !== req.user.company_id) {
+				return res.status(403).json({ error: 'Team member does not belong to your company' });
+			}
+
+			// Suspend: set suspended_at to NOW() (keep company_id for team list display)
+			await pool.query('UPDATE users SET suspended_at = NOW(), updated_at = NOW() WHERE id = $1', [
+				target.id,
+			]);
+
+			// Issue #138: Invalidate user's permission cache
+			invalidateUserCache(target.id);
+
+			// ─── Issue #157: Email notification to suspended user ───
+			try {
+				await emailService.sendEmailAsync({
+					to: target.email,
+					templateName: 'account_suspended',
+					templateData: {
+						name: target.name || 'there',
+						suspension_reason:
+							req.body.reason || 'Your account has been suspended by the company owner.',
+					},
+					userId: target.id,
+					metadata: {
+						company_id: req.user.company_id,
+						actor_id: req.user.id,
+						trigger: 'team_member_suspended',
+					},
+				});
+			} catch (emailErr) {
+				console.error('[company/suspend] Email notification error:', emailErr.message);
+			}
+
+			// ─── Issue #156: Audit log — recruiter suspended ───
+			try {
+				await insertAuditLog({
 					company_id: req.user.company_id,
 					actor_id: req.user.id,
-					trigger: 'team_member_suspended',
-				},
-			});
-		} catch (emailErr) {
-			console.error('[company/suspend] Email notification error:', emailErr.message);
-		}
+					target_id: target.id,
+					action: 'recruiter_suspended',
+					reason: req.body.reason || null,
+					metadata: { target_email: target.email, target_name: target.name },
+				});
+			} catch (auditErr) {
+				console.error('[company/suspend] Audit log error:', auditErr.message);
+			}
 
-		// ─── Issue #156: Audit log — recruiter suspended ───
-		try {
-			await insertAuditLog({
-				company_id: req.user.company_id,
-				actor_id: req.user.id,
-				target_id: target.id,
-				action: 'recruiter_suspended',
-				reason: req.body.reason || null,
-				metadata: { target_email: target.email, target_name: target.name },
+			res.json({
+				success: true,
+				message: 'Team member suspended',
 			});
-		} catch (auditErr) {
-			console.error('[company/suspend] Audit log error:', auditErr.message);
+		} catch (err) {
+			console.error('Suspend team member error:', err);
+			res.status(500).json({ error: 'Failed to suspend team member' });
 		}
-
-		res.json({
-			success: true,
-			message: 'Team member suspended',
-		});
-	} catch (err) {
-		console.error('Suspend team member error:', err);
-		res.status(500).json({ error: 'Failed to suspend team member' });
-	}
-});
+	},
+);
 
 // Reinstate a suspended team member (owner only) — Issue #157
-router.post('/team/members/:id/reinstate', authMiddleware, async (req, res) => {
-	try {
-		if (!req.user.company_id) {
-			return res.status(400).json({ error: 'No company associated with this account' });
-		}
-
-		// Verify the user is the company owner
-		const companyResult = await pool.query('SELECT owner_id FROM companies WHERE id = $1', [
-			req.user.company_id,
-		]);
-		if (companyResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Company not found' });
-		}
-		if (companyResult.rows[0].owner_id !== req.user.id) {
-			return res.status(403).json({ error: 'Only the company owner can reinstate team members' });
-		}
-
-		// Verify target user exists and is suspended
-		const targetResult = await pool.query(
-			'SELECT id, name, email, company_id, suspended_at FROM users WHERE id = $1',
-			[req.params.id],
-		);
-		if (targetResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Team member not found' });
-		}
-		const target = targetResult.rows[0];
-
-		if (!target.suspended_at) {
-			return res.status(400).json({ error: 'Team member is not suspended' });
-		}
-
-		// Reinstate: clear suspended_at
-		await pool.query(
-			'UPDATE users SET suspended_at = NULL, updated_at = NOW() WHERE id = $1',
-			[target.id],
-		);
-
-		// ─── Issue #156: Audit log — recruiter reinstated ───
+router.post(
+	'/team/members/:id/reinstate',
+	authMiddleware,
+	requirePermission('members:manage'),
+	async (req, res) => {
 		try {
-			await insertAuditLog({
-				company_id: req.user.company_id,
-				actor_id: req.user.id,
-				target_id: target.id,
-				action: 'recruiter_reinstated',
-				metadata: { target_email: target.email, target_name: target.name },
-			});
-		} catch (auditErr) {
-			console.error('[company/reinstate] Audit log error:', auditErr.message);
-		}
+			if (!req.user.company_id) {
+				return res.status(400).json({ error: 'No company associated with this account' });
+			}
 
-		res.json({
-			success: true,
-			message: 'Team member reinstated',
-		});
-	} catch (err) {
-		console.error('Reinstate team member error:', err);
-		res.status(500).json({ error: 'Failed to reinstate team member' });
-	}
-});
+			// Verify the user is the company owner
+			const companyResult = await pool.query('SELECT owner_id FROM companies WHERE id = $1', [
+				req.user.company_id,
+			]);
+			if (companyResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Company not found' });
+			}
+			if (companyResult.rows[0].owner_id !== req.user.id) {
+				return res.status(403).json({ error: 'Only the company owner can reinstate team members' });
+			}
+
+			// Verify target user exists and is suspended
+			const targetResult = await pool.query(
+				'SELECT id, name, email, company_id, suspended_at FROM users WHERE id = $1',
+				[req.params.id],
+			);
+			if (targetResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Team member not found' });
+			}
+			const target = targetResult.rows[0];
+
+			if (!target.suspended_at) {
+				return res.status(400).json({ error: 'Team member is not suspended' });
+			}
+
+			// Reinstate: clear suspended_at
+			await pool.query('UPDATE users SET suspended_at = NULL, updated_at = NOW() WHERE id = $1', [
+				target.id,
+			]);
+
+			// Issue #138: Invalidate user's permission cache
+			invalidateUserCache(target.id);
+
+			// ─── Issue #156: Audit log — recruiter reinstated ───
+			try {
+				await insertAuditLog({
+					company_id: req.user.company_id,
+					actor_id: req.user.id,
+					target_id: target.id,
+					action: 'recruiter_reinstated',
+					metadata: { target_email: target.email, target_name: target.name },
+				});
+			} catch (auditErr) {
+				console.error('[company/reinstate] Audit log error:', auditErr.message);
+			}
+
+			res.json({
+				success: true,
+				message: 'Team member reinstated',
+			});
+		} catch (err) {
+			console.error('Reinstate team member error:', err);
+			res.status(500).json({ error: 'Failed to reinstate team member' });
+		}
+	},
+);
 
 // Alias routes for /members/:id/suspend and /members/:id/reinstate (Issue #157)
 // These delegate to the same handlers as /team/members/:id/*
-router.post('/members/:id/suspend', authMiddleware, async (req, res) => {
-	try {
-		if (!req.user.company_id) {
-			return res.status(400).json({ error: 'No company associated with this account' });
-		}
-
-		const companyResult = await pool.query('SELECT owner_id, name FROM companies WHERE id = $1', [
-			req.user.company_id,
-		]);
-		if (companyResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Company not found' });
-		}
-		if (companyResult.rows[0].owner_id !== req.user.id) {
-			return res.status(403).json({ error: 'Only the company owner can suspend team members' });
-		}
-
-		if (parseInt(req.params.id, 10) === req.user.id) {
-			return res.status(400).json({ error: 'Cannot suspend yourself' });
-		}
-
-		const targetResult = await pool.query(
-			'SELECT id, name, email, company_id FROM users WHERE id = $1',
-			[req.params.id],
-		);
-		if (targetResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Team member not found' });
-		}
-		const target = targetResult.rows[0];
-		if (target.company_id !== req.user.company_id) {
-			return res.status(403).json({ error: 'Team member does not belong to your company' });
-		}
-
-		await pool.query(
-			'UPDATE users SET suspended_at = NOW(), updated_at = NOW() WHERE id = $1',
-			[target.id],
-		);
-
+router.post(
+	'/members/:id/suspend',
+	authMiddleware,
+	requirePermission('members:manage'),
+	async (req, res) => {
 		try {
-			await emailService.sendEmailAsync({
-				to: target.email,
-				templateName: 'account_suspended',
-				templateData: {
-					name: target.name || 'there',
-					suspension_reason: req.body.reason || 'Your account has been suspended by the company owner.',
-				},
-				userId: target.id,
-				metadata: {
+			if (!req.user.company_id) {
+				return res.status(400).json({ error: 'No company associated with this account' });
+			}
+
+			const companyResult = await pool.query('SELECT owner_id, name FROM companies WHERE id = $1', [
+				req.user.company_id,
+			]);
+			if (companyResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Company not found' });
+			}
+			if (companyResult.rows[0].owner_id !== req.user.id) {
+				return res.status(403).json({ error: 'Only the company owner can suspend team members' });
+			}
+
+			if (parseInt(req.params.id, 10) === req.user.id) {
+				return res.status(400).json({ error: 'Cannot suspend yourself' });
+			}
+
+			const targetResult = await pool.query(
+				'SELECT id, name, email, company_id FROM users WHERE id = $1',
+				[req.params.id],
+			);
+			if (targetResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Team member not found' });
+			}
+			const target = targetResult.rows[0];
+			if (target.company_id !== req.user.company_id) {
+				return res.status(403).json({ error: 'Team member does not belong to your company' });
+			}
+
+			await pool.query('UPDATE users SET suspended_at = NOW(), updated_at = NOW() WHERE id = $1', [
+				target.id,
+			]);
+
+			try {
+				await emailService.sendEmailAsync({
+					to: target.email,
+					templateName: 'account_suspended',
+					templateData: {
+						name: target.name || 'there',
+						suspension_reason:
+							req.body.reason || 'Your account has been suspended by the company owner.',
+					},
+					userId: target.id,
+					metadata: {
+						company_id: req.user.company_id,
+						actor_id: req.user.id,
+						trigger: 'team_member_suspended',
+					},
+				});
+			} catch (emailErr) {
+				console.error('[company/suspend] Email notification error:', emailErr.message);
+			}
+
+			try {
+				await insertAuditLog({
 					company_id: req.user.company_id,
 					actor_id: req.user.id,
-					trigger: 'team_member_suspended',
-				},
-			});
-		} catch (emailErr) {
-			console.error('[company/suspend] Email notification error:', emailErr.message);
-		}
+					target_id: target.id,
+					action: 'recruiter_suspended',
+					reason: req.body.reason || null,
+					metadata: { target_email: target.email, target_name: target.name },
+				});
+			} catch (auditErr) {
+				console.error('[company/suspend] Audit log error:', auditErr.message);
+			}
 
-		try {
-			await insertAuditLog({
-				company_id: req.user.company_id,
-				actor_id: req.user.id,
-				target_id: target.id,
-				action: 'recruiter_suspended',
-				reason: req.body.reason || null,
-				metadata: { target_email: target.email, target_name: target.name },
-			});
-		} catch (auditErr) {
-			console.error('[company/suspend] Audit log error:', auditErr.message);
+			res.json({ success: true, message: 'Team member suspended' });
+		} catch (err) {
+			console.error('Suspend team member error:', err);
+			res.status(500).json({ error: 'Failed to suspend team member' });
 		}
-
-		res.json({ success: true, message: 'Team member suspended' });
-	} catch (err) {
-		console.error('Suspend team member error:', err);
-		res.status(500).json({ error: 'Failed to suspend team member' });
-	}
-});
+	},
+);
 
 // ============= COMPANY OWNERSHIP TRANSFER (Issue #104) =============
 
 // Transfer company ownership (owner only)
-router.post('/transfer-ownership', authMiddleware, rateLimits.strict, async (req, res) => {
-	try {
-		if (!req.user.company_id) {
-			return res.status(400).json({ error: 'No company associated with this account' });
-		}
-
-		// Verify the user is the company owner
-		const companyResult = await pool.query(
-			'SELECT id, owner_id, name FROM companies WHERE id = $1',
-			[req.user.company_id],
-		);
-		if (companyResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Company not found' });
-		}
-		const company = companyResult.rows[0];
-		if (company.owner_id !== req.user.id) {
-			return res.status(403).json({ error: 'Only the company owner can transfer ownership' });
-		}
-
-		const { newOwnerId } = req.body;
-
-		// Validate newOwnerId is a positive integer
-		if (!newOwnerId || !Number.isInteger(newOwnerId) || newOwnerId <= 0) {
-			return res.status(400).json({ error: 'newOwnerId must be a positive integer' });
-		}
-
-		// Cannot transfer to yourself
-		if (newOwnerId === req.user.id) {
-			return res.status(400).json({ error: 'Cannot transfer ownership to yourself' });
-		}
-
-		// Verify target user exists and belongs to the same company
-		const targetResult = await pool.query(
-			'SELECT id, name, email, company_id, role, suspended_at FROM users WHERE id = $1',
-			[newOwnerId],
-		);
-		if (targetResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Target user not found' });
-		}
-		const target = targetResult.rows[0];
-
-		// Must belong to the same company
-		if (target.company_id !== req.user.company_id) {
-			return res.status(403).json({
-				error: 'Target user does not belong to your company',
-				code: 'USER_NOT_IN_COMPANY',
-			});
-		}
-
-		// Cannot transfer to suspended users
-		if (target.suspended_at) {
-			return res.status(400).json({
-				error: 'Cannot transfer ownership to a suspended user',
-				code: 'TARGET_USER_SUSPENDED',
-			});
-		}
-
-		// Cannot transfer to pending users (users without a company_id are pending)
-		// This is redundant with the company_id check above, but kept for explicitness
-		if (!target.company_id) {
-			return res.status(400).json({
-				error: 'Cannot transfer ownership to a pending user',
-				code: 'TARGET_USER_PENDING',
-			});
-		}
-
-		// Execute transfer in a transaction
-		const client = await pool.connect();
+router.post(
+	'/transfer-ownership',
+	authMiddleware,
+	rateLimits.strict,
+	requirePermission('company:manage'),
+	async (req, res) => {
 		try {
-			await client.query('BEGIN');
+			if (!req.user.company_id) {
+				return res.status(400).json({ error: 'No company associated with this account' });
+			}
 
-			// Update company owner
-			await client.query('UPDATE companies SET owner_id = $1, updated_at = NOW() WHERE id = $2', [
-				newOwnerId,
-				company.id,
-			]);
-
-			// Update old owner's role to admin
-			await client.query(
-				"UPDATE users SET role = 'admin', updated_at = NOW() WHERE id = $1",
-				[req.user.id],
+			// Verify the user is the company owner
+			const companyResult = await pool.query(
+				'SELECT id, owner_id, name FROM companies WHERE id = $1',
+				[req.user.company_id],
 			);
+			if (companyResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Company not found' });
+			}
+			const company = companyResult.rows[0];
+			if (company.owner_id !== req.user.id) {
+				return res.status(403).json({ error: 'Only the company owner can transfer ownership' });
+			}
 
-			// Update new owner's role to owner
-			await client.query(
-				"UPDATE users SET role = 'owner', updated_at = NOW() WHERE id = $1",
+			const { newOwnerId } = req.body;
+
+			// Validate newOwnerId is a positive integer
+			if (!newOwnerId || !Number.isInteger(newOwnerId) || newOwnerId <= 0) {
+				return res.status(400).json({ error: 'newOwnerId must be a positive integer' });
+			}
+
+			// Cannot transfer to yourself
+			if (newOwnerId === req.user.id) {
+				return res.status(400).json({ error: 'Cannot transfer ownership to yourself' });
+			}
+
+			// Verify target user exists and belongs to the same company
+			const targetResult = await pool.query(
+				'SELECT id, name, email, company_id, role, suspended_at FROM users WHERE id = $1',
 				[newOwnerId],
 			);
+			if (targetResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Target user not found' });
+			}
+			const target = targetResult.rows[0];
 
-			await client.query('COMMIT');
-		} catch (err) {
-			await client.query('ROLLBACK');
-			throw err;
-		} finally {
-			client.release();
-		}
+			// Must belong to the same company
+			if (target.company_id !== req.user.company_id) {
+				return res.status(403).json({
+					error: 'Target user does not belong to your company',
+					code: 'USER_NOT_IN_COMPANY',
+				});
+			}
 
-		// ─── Audit log — ownership transferred ───
-		try {
-			await insertAuditLog({
-				company_id: company.id,
-				actor_id: req.user.id,
-				target_id: newOwnerId,
-				action: 'ownership_transferred',
-				metadata: {
-					previous_owner_id: req.user.id,
-					new_owner_id: newOwnerId,
-					new_owner_email: target.email,
-					new_owner_name: target.name,
-				},
-			});
-		} catch (auditErr) {
-			console.error('[company/transfer-ownership] Audit log error:', auditErr.message);
-		}
+			// Cannot transfer to suspended users
+			if (target.suspended_at) {
+				return res.status(400).json({
+					error: 'Cannot transfer ownership to a suspended user',
+					code: 'TARGET_USER_SUSPENDED',
+				});
+			}
 
-		// ─── Email notification to new owner ───
-		try {
-			await emailService.sendOwnershipTransferEmail({
-				to: target.email,
-				name: target.name,
-				companyName: company.name,
-				userId: target.id,
-				metadata: {
+			// Cannot transfer to pending users (users without a company_id are pending)
+			// This is redundant with the company_id check above, but kept for explicitness
+			if (!target.company_id) {
+				return res.status(400).json({
+					error: 'Cannot transfer ownership to a pending user',
+					code: 'TARGET_USER_PENDING',
+				});
+			}
+
+			// Execute transfer in a transaction
+			const client = await pool.connect();
+			try {
+				await client.query('BEGIN');
+
+				// Update company owner
+				await client.query('UPDATE companies SET owner_id = $1, updated_at = NOW() WHERE id = $2', [
+					newOwnerId,
+					company.id,
+				]);
+
+				// Update old owner's role to admin
+				await client.query("UPDATE users SET role = 'admin', updated_at = NOW() WHERE id = $1", [
+					req.user.id,
+				]);
+
+				// Update new owner's role to owner
+				await client.query("UPDATE users SET role = 'owner', updated_at = NOW() WHERE id = $1", [
+					newOwnerId,
+				]);
+
+				await client.query('COMMIT');
+			} catch (err) {
+				await client.query('ROLLBACK');
+				throw err;
+			} finally {
+				client.release();
+			}
+
+			// Issue #138: Invalidate permission caches for both old and new owner
+			invalidateUserCache(req.user.id);
+			invalidateUserCache(newOwnerId);
+
+			// ─── Audit log — ownership transferred ───
+			try {
+				await insertAuditLog({
 					company_id: company.id,
 					actor_id: req.user.id,
-					trigger: 'ownership_transferred',
-				},
-			});
-		} catch (emailErr) {
-			console.error('[company/transfer-ownership] Email notification error:', emailErr.message);
-		}
+					target_id: newOwnerId,
+					action: 'ownership_transferred',
+					metadata: {
+						previous_owner_id: req.user.id,
+						new_owner_id: newOwnerId,
+						new_owner_email: target.email,
+						new_owner_name: target.name,
+					},
+				});
+			} catch (auditErr) {
+				console.error('[company/transfer-ownership] Audit log error:', auditErr.message);
+			}
 
-		// Fetch updated company info
-		const updatedCompany = await pool.query(
-			`SELECT c.*, ts.total_score as trust_score, ts.score_tier
+			// ─── Email notification to new owner ───
+			try {
+				await emailService.sendOwnershipTransferEmail({
+					to: target.email,
+					name: target.name,
+					companyName: company.name,
+					userId: target.id,
+					metadata: {
+						company_id: company.id,
+						actor_id: req.user.id,
+						trigger: 'ownership_transferred',
+					},
+				});
+			} catch (emailErr) {
+				console.error('[company/transfer-ownership] Email notification error:', emailErr.message);
+			}
+
+			// Fetch updated company info
+			const updatedCompany = await pool.query(
+				`SELECT c.*, ts.total_score as trust_score, ts.score_tier
 			 FROM companies c
 			 LEFT JOIN trust_scores ts ON c.id = ts.company_id
 			 WHERE c.id = $1`,
-			[company.id],
-		);
+				[company.id],
+			);
 
-		res.json({
-			success: true,
-			message: 'Company ownership transferred successfully',
-			company: updatedCompany.rows[0],
-			new_owner: {
-				id: target.id,
-				name: target.name,
-				email: target.email,
-				role: 'owner',
-			},
-		});
-	} catch (err) {
-		console.error('Transfer ownership error:', err);
-		res.status(500).json({ error: 'Failed to transfer company ownership' });
-	}
-});
-
-router.post('/members/:id/reinstate', authMiddleware, async (req, res) => {
-	try {
-		if (!req.user.company_id) {
-			return res.status(400).json({ error: 'No company associated with this account' });
-		}
-
-		const companyResult = await pool.query('SELECT owner_id FROM companies WHERE id = $1', [
-			req.user.company_id,
-		]);
-		if (companyResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Company not found' });
-		}
-		if (companyResult.rows[0].owner_id !== req.user.id) {
-			return res.status(403).json({ error: 'Only the company owner can reinstate team members' });
-		}
-
-		const targetResult = await pool.query(
-			'SELECT id, name, email, company_id, suspended_at FROM users WHERE id = $1',
-			[req.params.id],
-		);
-		if (targetResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Team member not found' });
-		}
-		const target = targetResult.rows[0];
-
-		if (!target.suspended_at) {
-			return res.status(400).json({ error: 'Team member is not suspended' });
-		}
-
-		await pool.query(
-			'UPDATE users SET suspended_at = NULL, updated_at = NOW() WHERE id = $1',
-			[target.id],
-		);
-
-		try {
-			await insertAuditLog({
-				company_id: req.user.company_id,
-				actor_id: req.user.id,
-				target_id: target.id,
-				action: 'recruiter_reinstated',
-				metadata: { target_email: target.email, target_name: target.name },
+			res.json({
+				success: true,
+				message: 'Company ownership transferred successfully',
+				company: updatedCompany.rows[0],
+				new_owner: {
+					id: target.id,
+					name: target.name,
+					email: target.email,
+					role: 'owner',
+				},
 			});
-		} catch (auditErr) {
-			console.error('[company/reinstate] Audit log error:', auditErr.message);
+		} catch (err) {
+			console.error('Transfer ownership error:', err);
+			res.status(500).json({ error: 'Failed to transfer company ownership' });
 		}
+	},
+);
 
-		res.json({ success: true, message: 'Team member reinstated' });
-	} catch (err) {
-		console.error('Reinstate team member error:', err);
-		res.status(500).json({ error: 'Failed to reinstate team member' });
-	}
-});
+router.post(
+	'/members/:id/reinstate',
+	authMiddleware,
+	requirePermission('members:manage'),
+	async (req, res) => {
+		try {
+			if (!req.user.company_id) {
+				return res.status(400).json({ error: 'No company associated with this account' });
+			}
 
+			const companyResult = await pool.query('SELECT owner_id FROM companies WHERE id = $1', [
+				req.user.company_id,
+			]);
+			if (companyResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Company not found' });
+			}
+			if (companyResult.rows[0].owner_id !== req.user.id) {
+				return res.status(403).json({ error: 'Only the company owner can reinstate team members' });
+			}
+
+			const targetResult = await pool.query(
+				'SELECT id, name, email, company_id, suspended_at FROM users WHERE id = $1',
+				[req.params.id],
+			);
+			if (targetResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Team member not found' });
+			}
+			const target = targetResult.rows[0];
+
+			if (!target.suspended_at) {
+				return res.status(400).json({ error: 'Team member is not suspended' });
+			}
+
+			await pool.query('UPDATE users SET suspended_at = NULL, updated_at = NOW() WHERE id = $1', [
+				target.id,
+			]);
+
+			try {
+				await insertAuditLog({
+					company_id: req.user.company_id,
+					actor_id: req.user.id,
+					target_id: target.id,
+					action: 'recruiter_reinstated',
+					metadata: { target_email: target.email, target_name: target.name },
+				});
+			} catch (auditErr) {
+				console.error('[company/reinstate] Audit log error:', auditErr.message);
+			}
+
+			res.json({ success: true, message: 'Team member reinstated' });
+		} catch (err) {
+			console.error('Reinstate team member error:', err);
+			res.status(500).json({ error: 'Failed to reinstate team member' });
+		}
+	},
+);
 
 // Get public company profile (legacy — keep for backward compat)
 router.get('/:slug', optionalAuth, async (req, res) => {

@@ -15,7 +15,6 @@
  */
 
 const nodemailer = require('nodemailer');
-const fetch = require('node-fetch');
 
 // ─── Configuration ─────────────────────────────────────────────────────────
 

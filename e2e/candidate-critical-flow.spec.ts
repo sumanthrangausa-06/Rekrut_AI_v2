@@ -22,7 +22,7 @@ test.describe('Candidate Critical Flow — Desktop', () => {
     await page.goto('/register');
     await expect(page.getByRole('heading', { name: /Create an account/i })).toBeVisible();
 
-    await page.getByRole('combobox').selectOption('candidate');
+    // Role defaults to 'candidate' (Job Seeker) — no selection needed
     await page.fill('input#name', 'E2E Test Candidate');
     await page.fill('input#email', email);
     await page.fill('input#password', PASSWORD);
@@ -31,7 +31,7 @@ test.describe('Candidate Critical Flow — Desktop', () => {
     await page.getByRole('button', { name: /Sign up/i }).click();
 
     // Should redirect to candidate dashboard
-    await expect(page).toHaveURL(/.*\/candidate/);
+    await expect(page).toHaveURL(/.*\/candidate/, { timeout: 15000 });
     await expect(page.locator('text=Welcome back').or(page.locator('text=Dashboard')).first()).toBeVisible({ timeout: 15000 });
 
     // ─── 2. Complete Profile ───
@@ -42,15 +42,28 @@ test.describe('Candidate Critical Flow — Desktop', () => {
     await page.locator('button').filter({ hasText: /Settings/i }).click();
     await expect(page.locator('text=Personal Information').first()).toBeVisible({ timeout: 10000 });
 
-    // Fill key profile fields
+    // Fill key profile fields (auto-save with 500ms debounce)
     await page.getByPlaceholder('Senior Software Engineer').fill('Senior QA Engineer');
     await page.getByPlaceholder('Brief professional summary...').fill('Experienced QA automation engineer with 5+ years in end-to-end testing.');
     await page.getByPlaceholder('San Francisco, CA').fill('Remote');
     await page.getByPlaceholder('+1 (555) 000-0000').fill('+1 555 123 4567');
 
-    // Save profile
-    await page.getByRole('button', { name: /Save Changes/i }).click();
-    await expect(page.locator('text=Profile saved').first()).toBeVisible({ timeout: 10000 });
+    // Wait for auto-save debounce (500ms) + network + "Saved" indicator
+    await page.waitForTimeout(1000);
+    // Verify auto-save completed by checking for "Saved" status or reloading
+    const savedIndicator = page.locator('text=Saved').first();
+    const hasSaved = await savedIndicator.isVisible().catch(() => false);
+    if (hasSaved) {
+      await expect(savedIndicator).toBeVisible({ timeout: 5000 });
+    }
+
+    // Verify persistence by reloading
+    await page.reload();
+    await expect(page.locator('text=Profile Completeness').or(page.locator('text=Personal Information')).first()).toBeVisible({ timeout: 10000 });
+    await page.locator('button').filter({ hasText: /Settings/i }).click();
+    await expect(page.locator('text=Personal Information').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByPlaceholder('Senior Software Engineer')).toHaveValue('Senior QA Engineer');
+    await expect(page.getByPlaceholder('San Francisco, CA')).toHaveValue('Remote');
 
     // ─── 3. Search Jobs ───
     await page.goto('/candidate/jobs');
@@ -96,13 +109,13 @@ test.describe('Candidate Critical Flow — Mobile', () => {
     await page.waitForTimeout(1000);
     await expect(page.getByText(/Create an account|Sign up|Register/i).first()).toBeVisible({ timeout: 10000 });
 
-    await page.getByRole('combobox').selectOption('candidate');
+    // Role defaults to candidate — no selection needed
     await page.fill('input#name', 'E2E Mobile Candidate');
     await page.fill('input#email', email);
     await page.fill('input#password', PASSWORD);
     await page.getByRole('button', { name: /Sign up/i }).click();
 
-    await expect(page).toHaveURL(/.*\/candidate/);
+    await expect(page).toHaveURL(/.*\/candidate/, { timeout: 15000 });
     await expect(page.locator('text=Welcome back').or(page.locator('text=Dashboard')).first()).toBeVisible({ timeout: 15000 });
 
     // ─── 2. Complete Profile ───
@@ -113,11 +126,25 @@ test.describe('Candidate Critical Flow — Mobile', () => {
     await page.locator('button').filter({ hasText: /Settings/i }).click();
     await expect(page.locator('text=Personal Information').first()).toBeVisible({ timeout: 10000 });
 
+    // Fill profile fields (auto-save with 500ms debounce)
     await page.getByPlaceholder('Senior Software Engineer').fill('Mobile QA Engineer');
     await page.getByPlaceholder('Brief professional summary...').fill('Mobile testing specialist.');
     await page.getByPlaceholder('San Francisco, CA').fill('Remote');
-    await page.getByRole('button', { name: /Save Changes/i }).click();
-    await expect(page.locator('text=Profile saved').first()).toBeVisible({ timeout: 10000 });
+
+    // Wait for auto-save debounce (500ms) + network
+    await page.waitForTimeout(1000);
+    const savedIndicator = page.locator('text=Saved').first();
+    const hasSaved = await savedIndicator.isVisible().catch(() => false);
+    if (hasSaved) {
+      await expect(savedIndicator).toBeVisible({ timeout: 5000 });
+    }
+
+    // Verify persistence by reloading
+    await page.reload();
+    await expect(page.locator('text=Profile Completeness').or(page.locator('text=Personal Information')).first()).toBeVisible({ timeout: 10000 });
+    await page.locator('button').filter({ hasText: /Settings/i }).click();
+    await expect(page.locator('text=Personal Information').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByPlaceholder('Senior Software Engineer')).toHaveValue('Mobile QA Engineer');
 
     // ─── 3. Search Jobs ───
     await page.goto('/candidate/jobs');

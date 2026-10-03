@@ -4,25 +4,25 @@
  */
 
 module.exports = {
-  name: 'company_domain_enforcement',
-  up: async (client) => {
-    // Add verified_domain column to companies table
-    // This is the canonical domain that all recruiters must match
-    await client.query(`
+	name: 'company_domain_enforcement',
+	up: async (client) => {
+		// Add verified_domain column to companies table
+		// This is the canonical domain that all recruiters must match
+		await client.query(`
       ALTER TABLE companies
       ADD COLUMN IF NOT EXISTS verified_domain TEXT,
       ADD COLUMN IF NOT EXISTS domain_enforced_at TIMESTAMP
     `);
 
-    // Create index on verified_domain for fast lookups
-    await client.query(`
+		// Create index on verified_domain for fast lookups
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_companies_verified_domain
       ON companies(verified_domain)
     `);
 
-    // Backfill: set verified_domain from email_domain for existing companies
-    // that have email_domain set and are verified
-    await client.query(`
+		// Backfill: set verified_domain from email_domain for existing companies
+		// that have email_domain set and are verified
+		await client.query(`
       UPDATE companies
       SET verified_domain = email_domain,
           domain_enforced_at = NOW()
@@ -31,8 +31,8 @@ module.exports = {
         AND is_verified = true
     `);
 
-    // Create recruiter_join_requests table for approval workflow
-    await client.query(`
+		// Create recruiter_join_requests table for approval workflow
+		await client.query(`
       CREATE TABLE IF NOT EXISTS recruiter_join_requests (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -52,22 +52,22 @@ module.exports = {
       )
     `);
 
-    // Create indexes for join requests
-    await client.query(`
+		// Create indexes for join requests
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_join_requests_company_status
       ON recruiter_join_requests(company_id, status)
     `);
 
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_join_requests_user
       ON recruiter_join_requests(user_id)
     `);
 
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_join_requests_domain
       ON recruiter_join_requests(domain)
     `);
 
-    console.log('Company domain enforcement migration completed');
-  },
+		console.log('Company domain enforcement migration completed');
+	},
 };

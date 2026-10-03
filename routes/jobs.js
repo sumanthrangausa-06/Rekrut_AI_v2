@@ -3,9 +3,22 @@ const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
 const pool = require('../lib/db');
-const { authMiddleware, optionalAuth, requireRole, requireApprovedRecruiter, requireNotSuspended } = require('../lib/auth');
+const {
+	authMiddleware,
+	optionalAuth,
+	requireApprovedRecruiter,
+	requireNotSuspended,
+} = require('../lib/auth');
+const { requirePermission } = require('../middleware/rbac');
 
 const router = express.Router();
+
+// ponytail: Exclude E2E test data from public listings (#71)
+// Disable in development/E2E testing so test jobs are visible
+const EXCLUDE_TEST_JOBS =
+	process.env.NODE_ENV === 'production'
+		? " AND j.company NOT ILIKE '%E2E%' AND j.title NOT ILIKE '%E2E%'"
+		: '';
 
 // Validation rules for job search/list queries
 const validateJobSearch = [
@@ -58,6 +71,7 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 			job_type,
 			salary_min,
 			salary_max,
+			department_id,
 		} = req.query;
 
 		const allowedStatuses = ['active'];
@@ -77,7 +91,7 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
              u.company_name as poster_company
       FROM jobs j
       LEFT JOIN users u ON j.user_id = u.id
-      WHERE j.status = $1
+      WHERE j.status = $1${EXCLUDE_TEST_JOBS}
     `;
 		const params = [requestedStatus];
 		let idx = 2;
@@ -118,13 +132,20 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 			idx++;
 		}
 
+		// Department filter
+		if (department_id?.trim()) {
+			sqlQuery += ` AND j.department_id = $${idx}`;
+			params.push(parseInt(department_id.trim(), 10));
+			idx++;
+		}
+
 		sqlQuery += ` ORDER BY j.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
 		params.push(parsedLimit, parsedOffset);
 
 		const result = await pool.query(sqlQuery, params);
 
 		// Get total count for pagination
-		let countQuery = `SELECT COUNT(*) as total FROM jobs j WHERE j.status = $1`;
+		let countQuery = `SELECT COUNT(*) as total FROM jobs j WHERE j.status = $1${EXCLUDE_TEST_JOBS}`;
 		const countParams = [requestedStatus];
 		let cIdx = 2;
 		if (search?.trim()) {
@@ -140,6 +161,11 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 		if (job_type?.trim()) {
 			countQuery += ` AND j.job_type = $${cIdx}`;
 			countParams.push(job_type.trim());
+			cIdx++;
+		}
+		if (department_id?.trim()) {
+			countQuery += ` AND j.department_id = $${cIdx}`;
+			countParams.push(parseInt(department_id.trim(), 10));
 			cIdx++;
 		}
 
@@ -198,7 +224,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
               u.company_name as poster_company, u.name as poster_name
        FROM jobs j
        LEFT JOIN users u ON j.user_id = u.id
-       WHERE j.id = $1 AND j.status = 'active'`,
+       WHERE j.id = $1 AND j.status = 'active'${EXCLUDE_TEST_JOBS}`,
 			[id],
 		);
 
@@ -219,7 +245,7 @@ router.post(
 	authMiddleware,
 	requireNotSuspended,
 	requireApprovedRecruiter,
-	requireRole('hiring_manager', 'admin', 'recruiter', 'employer'),
+	requirePermission('jobs:create'),
 	async (req, res) => {
 		try {
 			const {
@@ -235,6 +261,7 @@ router.post(
 				currency_code,
 				salary_min,
 				salary_max,
+				department_id,
 			} = req.body;
 
 			if (!title) {
@@ -271,9 +298,23 @@ router.post(
 				}
 			}
 
+			// Validate department_id if provided
+			if (department_id) {
+				const deptCheck = await pool.query(
+					'SELECT id FROM departments WHERE id = $1 AND company_id = $2',
+					[department_id, req.user.company_id],
+				);
+				if (deptCheck.rows.length === 0) {
+					return res.status(403).json({
+						error: 'Department does not belong to your company',
+						code: 'INVALID_DEPARTMENT',
+					});
+				}
+			}
+
 			const result = await pool.query(
-				`INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions, country_code, currency_code, salary_min, salary_max)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+				`INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions, country_code, currency_code, salary_min, salary_max, department_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,
 				[
 					req.user.id,
@@ -290,6 +331,7 @@ router.post(
 					jobCurrency,
 					salary_min || null,
 					salary_max || null,
+					department_id || null,
 				],
 			);
 
@@ -322,41 +364,62 @@ router.post(
 );
 
 // Update job
-router.put('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, async (req, res) => {
-	try {
-		const {
-			title,
-			description,
-			requirements,
-			location,
-			salary_range,
-			job_type,
-			status,
-			screening_questions,
-		} = req.body;
+router.put(
+	'/:id',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	requirePermission('jobs:update'),
+	async (req, res) => {
+		try {
+			const {
+				title,
+				description,
+				requirements,
+				location,
+				salary_range,
+				job_type,
+				status,
+				screening_questions,
+				department_id,
+			} = req.body;
 
-		// Normalize job_type to lowercase if provided
-		const normalizedUpdateJobType = job_type ? job_type.toLowerCase().trim() : null;
-		if (normalizedUpdateJobType) {
-			const validJobTypes = ['full-time', 'part-time', 'contract', 'internship', 'freelance'];
-			if (!validJobTypes.includes(normalizedUpdateJobType)) {
-				return res
-					.status(400)
-					.json({ error: `Invalid job type. Must be one of: ${validJobTypes.join(', ')}` });
+			// Normalize job_type to lowercase if provided
+			const normalizedUpdateJobType = job_type ? job_type.toLowerCase().trim() : null;
+			if (normalizedUpdateJobType) {
+				const validJobTypes = ['full-time', 'part-time', 'contract', 'internship', 'freelance'];
+				if (!validJobTypes.includes(normalizedUpdateJobType)) {
+					return res
+						.status(400)
+						.json({ error: `Invalid job type. Must be one of: ${validJobTypes.join(', ')}` });
+				}
 			}
-		}
 
-		// Check ownership
-		const existing = await pool.query('SELECT user_id FROM jobs WHERE id = $1', [req.params.id]);
-		if (existing.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
-		}
-		if (existing.rows[0].user_id !== req.user.id && req.user.role !== 'admin') {
-			return res.status(403).json({ error: 'Not authorized' });
-		}
+			// Check ownership
+			const existing = await pool.query('SELECT user_id FROM jobs WHERE id = $1', [req.params.id]);
+			if (existing.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
+			if (existing.rows[0].user_id !== req.user.id && req.user.role !== 'admin') {
+				return res.status(403).json({ error: 'Not authorized' });
+			}
 
-		const result = await pool.query(
-			`UPDATE jobs SET
+			// Validate department_id if provided
+			if (department_id) {
+				const deptCheck = await pool.query(
+					'SELECT id FROM departments WHERE id = $1 AND company_id = $2',
+					[department_id, req.user.company_id],
+				);
+				if (deptCheck.rows.length === 0) {
+					return res.status(403).json({
+						error: 'Department does not belong to your company',
+						code: 'INVALID_DEPARTMENT',
+					});
+				}
+			}
+
+			const result = await pool.query(
+				`UPDATE jobs SET
         title = COALESCE($1, title),
         description = COALESCE($2, description),
         requirements = COALESCE($3, requirements),
@@ -365,47 +428,57 @@ router.put('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter
         job_type = COALESCE($6, job_type),
         status = COALESCE($7, status),
         screening_questions = COALESCE($8, screening_questions),
+        department_id = COALESCE($9, department_id),
         updated_at = NOW()
-       WHERE id = $9
+       WHERE id = $10
        RETURNING *`,
-			[
-				title,
-				description,
-				requirements,
-				location,
-				salary_range,
-				normalizedUpdateJobType,
-				status,
-				screening_questions ? JSON.stringify(screening_questions) : null,
-				req.params.id,
-			],
-		);
+				[
+					title,
+					description,
+					requirements,
+					location,
+					salary_range,
+					normalizedUpdateJobType,
+					status,
+					screening_questions ? JSON.stringify(screening_questions) : null,
+					department_id !== undefined ? department_id || null : null,
+					req.params.id,
+				],
+			);
 
-		res.json({ success: true, job: result.rows[0] });
-	} catch (err) {
-		console.error('Update job error:', err);
-		res.status(500).json({ error: 'Failed to update job' });
-	}
-});
+			res.json({ success: true, job: result.rows[0] });
+		} catch (err) {
+			console.error('Update job error:', err);
+			res.status(500).json({ error: 'Failed to update job' });
+		}
+	},
+);
 
 // Delete job
-router.delete('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, async (req, res) => {
-	try {
-		const existing = await pool.query('SELECT user_id FROM jobs WHERE id = $1', [req.params.id]);
-		if (existing.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
-		}
-		if (existing.rows[0].user_id !== req.user.id && req.user.role !== 'admin') {
-			return res.status(403).json({ error: 'Not authorized' });
-		}
+router.delete(
+	'/:id',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	requirePermission('jobs:delete'),
+	async (req, res) => {
+		try {
+			const existing = await pool.query('SELECT user_id FROM jobs WHERE id = $1', [req.params.id]);
+			if (existing.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
+			if (existing.rows[0].user_id !== req.user.id && req.user.role !== 'admin') {
+				return res.status(403).json({ error: 'Not authorized' });
+			}
 
-		await pool.query('DELETE FROM jobs WHERE id = $1', [req.params.id]);
-		res.json({ success: true });
-	} catch (err) {
-		console.error('Delete job error:', err);
-		res.status(500).json({ error: 'Failed to delete job' });
-	}
-});
+			await pool.query('DELETE FROM jobs WHERE id = $1', [req.params.id]);
+			res.json({ success: true });
+		} catch (err) {
+			console.error('Delete job error:', err);
+			res.status(500).json({ error: 'Failed to delete job' });
+		}
+	},
+);
 
 // Cartesia TTS cache directory
 const CARTESIA_CACHE_DIR = path.join('/tmp', 'cartesia-cache');
@@ -424,7 +497,7 @@ router.post('/:id/audio', optionalAuth, async (req, res) => {
 		// Fetch job from DB
 		const result = await pool.query(
 			`SELECT id, title, company, description, requirements, location, job_type
-       FROM jobs WHERE id = $1 AND status = 'active'`,
+       FROM jobs j WHERE j.id = $1 AND j.status = 'active'${EXCLUDE_TEST_JOBS}`,
 			[id],
 		);
 		if (result.rows.length === 0) {

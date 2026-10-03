@@ -1,5 +1,5 @@
-import DOMPurify from 'dompurify'
-import { useEffect, useRef } from 'react'
+import DOMPurify from 'dompurify';
+import { useEffect, useRef } from 'react';
 
 /**
  * SafeHtml - Renders sanitized HTML without using dangerouslySetInnerHTML.
@@ -9,18 +9,18 @@ import { useEffect, useRef } from 'react'
  * the same security posture (DOMPurify strips scripts, event handlers, etc.).
  */
 interface SafeHtmlProps {
-	html: string
-	className?: string
+	html: string;
+	className?: string;
 }
 
 export function SafeHtml({ html, className }: SafeHtmlProps) {
-	const ref = useRef<HTMLDivElement>(null)
+	const ref = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		if (ref.current) {
-			ref.current.innerHTML = DOMPurify.sanitize(html)
+			ref.current.innerHTML = DOMPurify.sanitize(html);
 		}
-	}, [html])
+	}, [html]);
 
-	return <div ref={ref} className={className} />
+	return <div ref={ref} className={className} />;
 }

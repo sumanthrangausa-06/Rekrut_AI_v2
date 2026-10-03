@@ -1,14 +1,14 @@
-import { useParams } from 'react-router-dom'
-import { AlertCircle } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { SigningCeremony } from '@/components/signature/SigningCeremony'
+import { AlertCircle } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { SigningCeremony } from '@/components/signature/SigningCeremony';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export function SignDocumentPage() {
-	const { documentId, requestId } = useParams<{ documentId: string; requestId: string }>()
+	const { documentId, requestId } = useParams<{ documentId: string; requestId: string }>();
 
-	const docId = documentId ? Number.parseInt(documentId, 10) : NaN
-	const reqId = requestId ? Number.parseInt(requestId, 10) : NaN
+	const docId = documentId ? Number.parseInt(documentId, 10) : NaN;
+	const reqId = requestId ? Number.parseInt(requestId, 10) : NaN;
 
 	if (Number.isNaN(docId) || Number.isNaN(reqId)) {
 		return (
@@ -24,16 +24,19 @@ export function SignDocumentPage() {
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
-						<Button className="w-full" onClick={() => (window.location.href = '/candidate/documents')}>
+						<Button
+							className="w-full"
+							onClick={() => (window.location.href = '/candidate/documents')}
+						>
 							Go to Documents
 						</Button>
 					</CardContent>
 				</Card>
 			</div>
-		)
+		);
 	}
 
-	return <SigningCeremony documentId={docId} requestId={reqId} />
+	return <SigningCeremony documentId={docId} requestId={reqId} />;
 }
 
-export default SignDocumentPage
+export default SignDocumentPage;

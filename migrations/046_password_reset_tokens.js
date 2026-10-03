@@ -7,7 +7,7 @@ module.exports = {
 	name: 'password_reset_tokens',
 	up: async (client) => {
 		await client.query(`
-      CREATE TABLE password_reset_tokens (
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         token VARCHAR(255) NOT NULL UNIQUE,

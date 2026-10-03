@@ -37,7 +37,7 @@ async function up(client) {
 	console.log('[migration 071] audit_logs columns verified');
 }
 
-async function down(client) {
+async function down(_client) {
 	// Intentionally no-op — do not drop columns that may hold production data
 	console.log('[migration 071] down is no-op');
 }

@@ -1,5 +1,5 @@
+import path from 'node:path';
 import { createContext } from 'tailwindcss/src/lib/setupContextUtils.js';
-import path from 'path';
 
 const configPath = path.resolve(process.cwd(), 'tailwind.config.ts');
 const context = createContext({ configPath });

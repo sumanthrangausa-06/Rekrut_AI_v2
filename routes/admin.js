@@ -71,19 +71,20 @@ async function initAdminCredentials() {
 		} else {
 			throw new Error(
 				'ADMIN_PASSWORD environment variable is required. ' +
-				'Set a strong password (min 8 chars, mixed case, number, and symbol).'
+					'Set a strong password (min 8 chars, mixed case, number, and symbol).',
 			);
 		}
 	}
 
 	const env = process.env.NODE_ENV || 'development';
 	// In staging/dev/test, allow any password (not just strong ones)
-	const enforceStrength = env !== 'development' && env !== 'test' && env !== 'e2e' && env !== 'staging';
+	const enforceStrength =
+		env !== 'development' && env !== 'test' && env !== 'e2e' && env !== 'staging';
 
 	if (!isStrongPassword(password) && enforceStrength) {
 		throw new Error(
 			'ADMIN_PASSWORD does not meet strength requirements. ' +
-			'Must be at least 8 characters and include uppercase, lowercase, number, and symbol.'
+				'Must be at least 8 characters and include uppercase, lowercase, number, and symbol.',
 		);
 	}
 
@@ -1617,7 +1618,7 @@ router.post('/compliance/appeals/:id/review', requireAdmin, async (req, res) => 
 		}
 
 		// Log the review action
-		const { AuditLogger } = require('../services/auditLogger');
+		const { AuditLogger } = require('../services/auditLogService');
 		await AuditLogger.log({
 			actionType: 'appeal_reviewed',
 			userId: req.user?.id,
@@ -1909,7 +1910,7 @@ router.put('/compliance/retention-policies/:id', requireAdmin, async (req, res) 
 			return res.status(404).json({ error: 'Policy not found' });
 		}
 
-		const { AuditLogger } = require('../services/auditLogger');
+		const { AuditLogger } = require('../services/auditLogService');
 		await AuditLogger.log({
 			actionType: 'retention_policy_updated',
 			userId: req.user?.id,
@@ -1949,11 +1950,9 @@ async function safeQuery(queryText, params, fallback) {
 router.get('/analytics', requireAdmin, async (_req, res) => {
 	try {
 		// User counts with safe fallbacks for missing tables
-		const totalUsersResult = await safeQuery(
-			'SELECT COUNT(*) as count FROM users',
-			[],
-			{ rows: [{ count: 0 }] },
-		);
+		const totalUsersResult = await safeQuery('SELECT COUNT(*) as count FROM users', [], {
+			rows: [{ count: 0 }],
+		});
 		const candidateSignupsResult = await safeQuery(
 			"SELECT COUNT(*) as count FROM users WHERE role = 'candidate'",
 			[],
@@ -1977,7 +1976,10 @@ router.get('/analytics', requireAdmin, async (_req, res) => {
 			[],
 			{ rows: [{ total: null }] },
 		);
-		if (subscriptionsRevenueResult.rows[0]?.total !== null && subscriptionsRevenueResult.rows[0]?.total !== undefined) {
+		if (
+			subscriptionsRevenueResult.rows[0]?.total !== null &&
+			subscriptionsRevenueResult.rows[0]?.total !== undefined
+		) {
 			totalRevenue = parseFloat(subscriptionsRevenueResult.rows[0].total) || 0;
 		} else {
 			const paymentsRevenueResult = await safeQuery(
@@ -1985,7 +1987,10 @@ router.get('/analytics', requireAdmin, async (_req, res) => {
 				[],
 				{ rows: [{ total: null }] },
 			);
-			if (paymentsRevenueResult.rows[0]?.total !== null && paymentsRevenueResult.rows[0]?.total !== undefined) {
+			if (
+				paymentsRevenueResult.rows[0]?.total !== null &&
+				paymentsRevenueResult.rows[0]?.total !== undefined
+			) {
 				totalRevenue = parseFloat(paymentsRevenueResult.rows[0].total) || 0;
 			}
 		}
@@ -1999,7 +2004,10 @@ router.get('/analytics', requireAdmin, async (_req, res) => {
 			[monthStart],
 			{ rows: [{ total: null }] },
 		);
-		if (mrrSubscriptionsResult.rows[0]?.total !== null && mrrSubscriptionsResult.rows[0]?.total !== undefined) {
+		if (
+			mrrSubscriptionsResult.rows[0]?.total !== null &&
+			mrrSubscriptionsResult.rows[0]?.total !== undefined
+		) {
 			mrr = parseFloat(mrrSubscriptionsResult.rows[0].total) || 0;
 		} else {
 			const mrrPaymentsResult = await safeQuery(
@@ -2007,7 +2015,10 @@ router.get('/analytics', requireAdmin, async (_req, res) => {
 				[monthStart],
 				{ rows: [{ total: null }] },
 			);
-			if (mrrPaymentsResult.rows[0]?.total !== null && mrrPaymentsResult.rows[0]?.total !== undefined) {
+			if (
+				mrrPaymentsResult.rows[0]?.total !== null &&
+				mrrPaymentsResult.rows[0]?.total !== undefined
+			) {
 				mrr = parseFloat(mrrPaymentsResult.rows[0].total) || 0;
 			}
 		}

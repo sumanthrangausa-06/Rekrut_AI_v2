@@ -1,0 +1,142 @@
+# =============================================================================
+# Judge0 CE — Self-Hosted Code Execution Sandbox for Rekrut AI
+# =============================================================================
+# This compose file sets up a complete Judge0 instance for running candidate
+# code in isolated Docker containers.
+#
+# Usage:
+#   docker-compose -f docker-compose.sandbox.yml up -d
+#
+# Services:
+#   - judge0-server:   REST API for submitting code and fetching results
+#   - judge0-workers:  Background workers that compile & run code in isolate
+#   - redis:           Queue + cache for Judge0
+#   - postgres:        Metadata storage for submissions
+#
+# Supported Languages (out of the box):
+#   Python 3, JavaScript (Node), Java, C++, C, Go, Ruby, PHP, Rust, TypeScript,
+#   Kotlin, Swift, R, Perl, Haskell, Lua, Pascal, Scala, and more.
+#
+# Security:
+#   - Containers run as non-root
+#   - Network access is DISABLED in sandbox containers (--net=none)
+#   - Resource limits enforced (CPU, memory, wall-clock time)
+#   - Input/output size limits enforced
+#
+# =============================================================================
+
+version: "3.8"
+
+x-logging:
+  &default-logging
+  options:
+    max-size: "100m"
+  driver: json-file
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — Judge0's internal metadata store
+  # ---------------------------------------------------------------------------
+  postgres-sandbox:
+    image: postgres:16-alpine
+    container_name: rekrut-judge0-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: judge0_password_change_me
+      POSTGRES_DB: judge0
+    volumes:
+      - judge0-postgres-data:/var/lib/postgresql/data
+    networks:
+      - judge0-network
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U judge0 -d judge0"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Redis — Queue and cache for Judge0
+  # ---------------------------------------------------------------------------
+  redis-sandbox:
+    image: redis:7-alpine
+    container_name: rekrut-judge0-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - judge0-redis-data:/data
+    networks:
+      - judge0-network
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ---------------------------------------------------------------------------
+  # Judge0 Server — REST API
+  # ---------------------------------------------------------------------------
+  judge0-server:
+    image: judge0/judge0:1.13.1
+    container_name: rekrut-judge0-server
+    restart: unless-stopped
+    volumes:
+      - ./judge0-config/server.conf:/api/config/server.conf:ro
+    ports:
+      - "2358:2358"
+    depends_on:
+      redis-sandbox:
+        condition: service_healthy
+      postgres-sandbox:
+        condition: service_healthy
+    networks:
+      - judge0-network
+    logging: *default-logging
+    environment:
+      # Override defaults via config file (server.conf)
+      - RAILS_ENV=production
+
+  # ---------------------------------------------------------------------------
+  # Judge0 Workers — Background code execution
+  # ---------------------------------------------------------------------------
+  judge0-workers:
+    image: judge0/judge0:1.13.1
+    container_name: rekrut-judge0-workers
+    restart: unless-stopped
+    command: ["./scripts/workers"]
+    volumes:
+      - ./judge0-config/workers.conf:/api/config/workers.conf:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      redis-sandbox:
+        condition: service_healthy
+      postgres-sandbox:
+        condition: service_healthy
+    networks:
+      - judge0-network
+    logging: *default-logging
+    environment:
+      - RAILS_ENV=production
+    # Workers need access to the Docker socket to spawn isolate containers
+    privileged: true
+
+volumes:
+  judge0-postgres-data:
+    driver: local
+  judge0-redis-data:
+    driver: local
+
+networks:
+  judge0-network:
+    driver: bridge
+    internal: false
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16

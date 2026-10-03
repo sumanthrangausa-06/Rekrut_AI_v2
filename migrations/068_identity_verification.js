@@ -1,10 +1,10 @@
 /**
  * Migration 068: Identity Verification System
- * 
+ *
  * Creates tables for government ID verification with encryption at rest:
  * - verification_requests: Tracks ID upload, OCR, face match, review workflow
  * - verification_audit_log: Immutable audit trail for compliance (GDPR/AI Act)
- * 
+ *
  * Security design:
  * - Images are encrypted before storage (AES-256-GCM)
  * - Only encrypted paths are stored in DB, never raw image URLs
@@ -12,12 +12,12 @@
  * - Expires_at enables automatic data retention cleanup
  */
 module.exports = {
-  name: '068_identity_verification',
-  up: async (client) => {
-    // ─── verification_requests ──────────────────────────────────────
-    // Tracks the full identity verification lifecycle for a candidate.
-    // Status machine: pending → ocr_processing → face_match → review → approved|rejected
-    await client.query(`
+	name: '068_identity_verification',
+	up: async (client) => {
+		// ─── verification_requests ──────────────────────────────────────
+		// Tracks the full identity verification lifecycle for a candidate.
+		// Status machine: pending → ocr_processing → face_match → review → approved|rejected
+		await client.query(`
       CREATE TABLE IF NOT EXISTS verification_requests (
         id              SERIAL PRIMARY KEY,
         candidate_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -37,29 +37,29 @@ module.exports = {
       )
     `);
 
-    // Indexes for fast lookups
-    await client.query(`
+		// Indexes for fast lookups
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_verification_requests_candidate_id
       ON verification_requests(candidate_id)
     `);
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_verification_requests_status
       ON verification_requests(status)
     `);
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_verification_requests_created_at
       ON verification_requests(created_at DESC)
     `);
-    // Composite index for common recruiter queries: "show me pending reviews"
-    await client.query(`
+		// Composite index for common recruiter queries: "show me pending reviews"
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_verification_requests_status_created
       ON verification_requests(status, created_at DESC)
     `);
 
-    // ─── verification_audit_log ─────────────────────────────────────
-    // Immutable compliance audit trail. Every view, upload, approval, rejection is logged.
-    // Designed for GDPR Article 30 (records of processing) and EU AI Act audit requirements.
-    await client.query(`
+		// ─── verification_audit_log ─────────────────────────────────────
+		// Immutable compliance audit trail. Every view, upload, approval, rejection is logged.
+		// Designed for GDPR Article 30 (records of processing) and EU AI Act audit requirements.
+		await client.query(`
       CREATE TABLE IF NOT EXISTS verification_audit_log (
         id              SERIAL PRIMARY KEY,
         verification_id INTEGER NOT NULL REFERENCES verification_requests(id) ON DELETE CASCADE,
@@ -74,36 +74,36 @@ module.exports = {
       )
     `);
 
-    // Indexes for audit log
-    await client.query(`
+		// Indexes for audit log
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_verification_audit_verification_id
       ON verification_audit_log(verification_id)
     `);
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_verification_audit_actor_id
       ON verification_audit_log(actor_id)
     `);
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_verification_audit_created_at
       ON verification_audit_log(created_at DESC)
     `);
 
-    // Add comment for schema documentation
-    await client.query(`
+		// Add comment for schema documentation
+		await client.query(`
       COMMENT ON TABLE verification_requests IS 
       'Government ID verification workflow. Images encrypted at rest. Never expose raw URLs to recruiters.'
     `);
-    await client.query(`
+		await client.query(`
       COMMENT ON TABLE verification_audit_log IS 
       'Immutable audit trail for identity verification. Required for GDPR Article 30 and EU AI Act compliance.'
     `);
 
-    console.log('[migration-068] Identity verification tables created');
-  },
+		console.log('[migration-068] Identity verification tables created');
+	},
 
-  down: async (client) => {
-    await client.query('DROP TABLE IF EXISTS verification_audit_log');
-    await client.query('DROP TABLE IF EXISTS verification_requests');
-    console.log('[migration-068] Identity verification tables dropped');
-  },
+	down: async (client) => {
+		await client.query('DROP TABLE IF EXISTS verification_audit_log');
+		await client.query('DROP TABLE IF EXISTS verification_requests');
+		console.log('[migration-068] Identity verification tables dropped');
+	},
 };
