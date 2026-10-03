@@ -37,6 +37,11 @@ module.exports = {
 		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_conversations_recruiter ON conversations(recruiter_id)
     `);
+		// Production may have a conversations table from an older migration revision
+		// without company_id — add it idempotently before indexing.
+		await client.query(`
+      ALTER TABLE conversations ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE
+    `);
 		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_conversations_company ON conversations(company_id)
     `);
@@ -84,6 +89,11 @@ module.exports = {
 
 		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_saved_searches_recruiter ON saved_searches(recruiter_id)
+    `);
+		// Production may have a saved_searches table from an older migration revision
+		// without company_id — add it idempotently before indexing.
+		await client.query(`
+      ALTER TABLE saved_searches ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE
     `);
 		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_saved_searches_company ON saved_searches(company_id)
