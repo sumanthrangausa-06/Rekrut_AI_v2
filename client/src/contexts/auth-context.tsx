@@ -35,26 +35,67 @@ interface RegisterData {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// One-time OAuth exchange codes already attempted this page load.
+// (StrictMode guard: the bootstrap effect can run twice in dev before the
+// first exchange finishes — the code is single-use server-side.)
+const oauthExchangeAttempted = new Set<string>();
+
+function stripOAuthCodeParam() {
+	const url = new URL(window.location.href);
+	if (url.searchParams.has('oauth_code')) {
+		url.searchParams.delete('oauth_code');
+		window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+	}
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
 	const [user, setUser] = useState<User | null>(null);
 	// Sync check: only show loading spinner if there's a token to verify.
 	// This fixes E2E tests that expect immediate redirect on unauth routes.
+	// An oauth_code also needs the spinner: the code→token exchange is async,
+	// and the route guard would otherwise bounce to /login before it finishes.
 	const [loading, setLoading] = useState(() => {
 		if (typeof window === 'undefined') return false;
+		if (new URLSearchParams(window.location.search).has('oauth_code')) return true;
 		return !!getToken();
 	});
 
-	// Check auth on initial load — verify token if it exists in localStorage
+	// Check auth on initial load — verify token if it exists in localStorage.
+	// If the URL carries a one-time oauth_code (post-OAuth landing), trade it
+	// for tokens first, then bootstrap normally.
 	useEffect(() => {
-		const token = getToken();
-		if (!token) {
-			setLoading(false);
+		const oauthCode = new URLSearchParams(window.location.search).get('oauth_code');
+		if (oauthCode && !oauthExchangeAttempted.has(oauthCode)) {
+			oauthExchangeAttempted.add(oauthCode);
+			apiCall<{ accessToken: string; refreshToken: string }>(
+				'/auth/oauth/exchange',
+				{ method: 'POST', body: { code: oauthCode }, skipAuthCheck: true },
+			)
+				.then((data) => {
+					setTokens(data.accessToken, data.refreshToken);
+				})
+				.catch(() => {
+					// Invalid/expired/used code — fall through unauthenticated;
+					// the route guard bounces to /login as usual.
+				})
+				.finally(() => {
+					stripOAuthCodeParam();
+					bootstrapFromToken();
+				});
 			return;
 		}
 
-		// Verify token by fetching current user
-		apiCall<{ user: User }>('/auth/me', { skipAuthCheck: false })
-			.then((data) => {
+		bootstrapFromToken();
+
+		function bootstrapFromToken() {
+			const token = getToken();
+			if (!token) {
+				setLoading(false);
+				return;
+			}
+
+			// Verify token by fetching current user
+			apiCall<{ user: User }>('/auth/me', { skipAuthCheck: false }).then((data) => {
 				const user = data.user;
 				// Set user immediately with default tier so auth state resolves fast.
 				// Billing tier is fetched in the background and patched in when ready.
@@ -98,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			.finally(() => {
 				setLoading(false);
 			});
+		}
 	}, []);
 
 	const isPendingApproval = (u: User | null): boolean => {
