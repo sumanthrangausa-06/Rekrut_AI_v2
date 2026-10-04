@@ -1,12 +1,46 @@
-# HireLoop — Current Architecture
+# Rekrut_AI_v2 — Current Architecture
 
-**Last Audited:** Feb 15, 2026
+**Last Audited:** Oct 4, 2026
 
 ## Overview
 
-HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy HTML), Express.js backend, and Neon PostgreSQL. 351 API endpoints, 105 tables, 50 migrations. Deployed on Render.
+Rekrut_AI_v2 is an AI-native hiring platform with dual frontend (React SPA + legacy HTML), Express.js backend, and Neon PostgreSQL. 734 API endpoints across 57 route files, 105+ tables. Deployed on Render.
 
-**Live URL:** https://hireloop-vzvw.polsia.app
+**Live URLs:**
+- Production: https://rekrutai.co (branch `main`, auto-deploy OFF)
+- Staging: https://rekrutai-staging.onrender.com (branch `staging`)
+- Dev: branch `dev` (feature branches merge here)
+
+**Branching:** `dev` → `staging` → `main`. Feature branches target `dev`. Never push directly to `staging` or `main`.
+
+---
+
+## October 2026 State Assessment
+
+### What's Working
+- **Auth:** Google/LinkedIn OAuth via one-time exchange codes; email/password; session management
+- **Profile:** Full CRUD for candidate profiles (fixed Oct 4 — was broken by SQL parameter mismatch)
+- **Storage:** Cloudflare R2 primary + Backblaze B2 fallback for resumes/documents
+- **AI:** Multi-provider (OpenAI, Anthropic, OpenRouter, Ollama) with circuit breakers
+- **Core hiring flows:** Job posting, applications, candidate search, matching
+
+### What's Broken (Systemic "Built But Never Wired" Disease)
+An API audit (`scripts/audit-app.js`) found **46 broken API calls** across 133 frontend routes:
+- **20 candidate:** Aptitude tests, certifications, job alerts, skill endorsements, background check, interview recordings, video submit, one-click apply, career diagnosis, LinkedIn tips
+- **19 recruiter:** Calendar, background check, interview recordings, aptitude tests, company audit log, team management, screenings
+- **5 admin:** AI health, agents, compliance endpoints
+- **Pattern:** Frontend was built calling endpoints that were never implemented, or paths don't match. The backend often exists but at a different path, or doesn't exist at all.
+
+**17 issues** track broken wiring (#109, #164, #239, #240, #243–#254, #256). **17 more** track broken behavior (dead-end flows, stuck loaders, cron failures).
+
+### Dead Code
+- **Backend:** `routes/documents.js` (13 endpoints, never mounted); `routes/candidate-preferences.js` (2 endpoints, never imported)
+- **Frontend:** 7 orphaned pages (quick-practice, mock-interview, offer-management, interview-results-page, interview-active-layout, ai-coaching-progress, coaching-utils) — on #203 triage allowlist
+
+### Test State
+- **Unit:** 183/183 passing
+- **E2E:** 38 spec files, broken since ~June 2026 (stale selectors, broken test setup). Not gating.
+- **Orphan check:** `npm run check-orphans` + CI gate prevents new dead code
 
 ---
 
@@ -496,33 +530,38 @@ lib/qp-provider.js                 lib/ai-provider.js
 
 ---
 
-## Problem Areas
+## Problem Areas (Updated Oct 4, 2026)
 
-### 1. Monolith Files
-- **~~`ai-coaching.tsx` (4044 lines)~~** **SPLIT Feb 15** — now a thin router/shell (291 lines) managing shared state and tab structure. Split into: `quick-practice.tsx` (~1442 lines), `mock-interview.tsx` (~1665 lines), `ai-coaching-progress.tsx` (~370 lines), plus pre-existing `coaching-types.ts` (185 lines) and `coaching-utils.tsx` (68 lines).
-- **`ai-provider.js` (2287 lines):** Provider abstraction + 15+ provider implementations + circuit breaker logic. Largest backend file.
-- **~~`interviews.js` (3190 lines)~~** **SPLIT Feb 15 (#32717)** — now 2691 lines (Mock Interview + video analysis only, 37 endpoints). Quick Practice routes (7 endpoints) moved to `routes/quick-practice.js` (465 lines) with isolated AI pipeline.
-- **`onboarding.js` (3119 lines):** Document generation, I-9, W-4, policies, benefits — 43 endpoints.
-- **`polsia-ai.js` (1304 lines):** AI function wrappers growing with each new feature.
-- **`server.js` (988 lines):** Express setup + 26 AI health endpoints + admin metrics all in one file.
+### 1. Broken Frontend/Backend Wiring (P0 for launch)
+**The systemic disease:** 46 frontend API calls hit endpoints that don't exist or use wrong paths. This is the #1 launch blocker — users see broken features, not missing features.
+- **Candidate (20 broken):** Aptitude tests (#243), interview recordings (#244), background check (#245), profile features — certs/job alerts/endorsements (#246), one-click apply (#247), video interview submit (#248), career diagnosis (#249), LinkedIn tips (#240), LinkedIn refresh (#239), AI chat/LiveKit (#256)
+- **Recruiter (19 broken):** Calendar (#250), background check, interview recordings, aptitude tests, company audit log/team (#251), screening runner (#252), career page URL bug (#253)
+- **Admin (5 broken):** Analytics (#164), AI health, agents, compliance (#254)
+- **Fix pattern:** For each, either implement the missing backend endpoint OR fix the frontend path to match existing backend. Verify end-to-end.
 
-### 2. Tight Coupling
-- ~~Quick Practice and Mock Interview share state variables in the same component~~ **SPLIT Feb 15** — separated into `quick-practice.tsx`, `mock-interview.tsx`, and `ai-coaching-progress.tsx`; shared state managed by parent shell `ai-coaching.tsx`
-- ~~Quick Practice and Mock Interview share backend analysis pipeline~~ **DECOUPLED Feb 15 (#32717)** — Quick Practice now has its own isolated code path: `routes/quick-practice.js` → `lib/qp-ai.js` → `lib/qp-provider.js`. Changes to Mock Interview code (polsia-ai.js, ai-provider.js, interviews.js) have ZERO effect on Quick Practice.
-- ~~AI provider errors cascade into null-safety crashes~~ **FIXED Feb 14** — allSettled checks now validate `value != null`
-- Legacy HTML pages and React SPA co-exist, causing route conflicts
+### 2. Broken User Flows (P0/P1)
+- **#97:** Candidates cannot apply from job board drawer — dead end (P0)
+- **#99:** No email provider on staging — password resets go nowhere (P0)
+- **#163:** Interview reminder cron queries wrong table every 5 min (P1)
+- **#241:** Identity Verification stuck on skeletons (P1)
+- **#242:** Onboarding stuck on loading (P1)
+- **#18:** Settings/Notifications shows 'Request failed' (P1)
 
-### 3. Known Tech Debt
-- 42 legacy HTML pages still served alongside React SPA
-- ~~`JSON.parse()` of AI responses can return null~~ **FIXED Feb 14** — `generateInterviewCoaching` and `analyzeInterviewResponse` now validate parsed results are objects
+### 3. Monolith Files (Tech Debt)
+- **`ai-provider.js` (2287 lines):** Provider abstraction + 15+ implementations + circuit breakers
+- **`onboarding.js` (3119 lines):** Document generation, I-9, W-4, policies — 44 endpoints
+- **`polsia-ai.js` (1304 lines):** AI wrappers growing per-feature
+- **`server.js` (988 lines):** Express setup + health endpoints + admin metrics
+
+### 4. Infrastructure Risks
+- **#151:** Staging and production share the same database — test data pollutes prod (P0, pre-launch must-fix)
+- **#206:** Cron `rekrut-ai-issue-lifecycle` times out at 45 min, never executes (P0)
+- **#202:** E2E suite broken since June 2026 — JS bundle 404, blank pages (P0 testing)
+
+### 5. Known Tech Debt (from Feb, still open)
+- 42 legacy HTML pages served alongside React SPA (route conflicts)
 - 43% of mock_interview_sessions stuck in_progress (zombie records)
-- ~~5 tables have company_id FK pointing to users instead of companies~~ **FIXED Feb 14 (P0)** — corrected to companies.id
-- ~~Missing FK indexes for common queries~~ **FIXED Feb 14 (P1+P3)** — 78 FK indexes added
-- ~~274 arbitrary VARCHAR limits~~ **FIXED Feb 14 (P2)** — converted to TEXT, only 25 genuinely bounded VARCHARs remain
-- ~~Mixed timestamp/timestamptz~~ **FIXED Feb 14 (P1+P2+P3)** — 227 timestamptz columns, only 2 system-table timestamps remain
-- ~~Missing CHECK constraints on enums~~ **FIXED Feb 14 (P2)** — 42 custom CHECK constraints enforcing valid enum values
-- 3 placeholder routes (candidate/documents, recruiter/candidates, recruiter/analytics) with no real implementation
-- No E2E test suite
+- 3 placeholder routes with no real implementation
 - No TypeScript on backend (pure JS)
 
 ---
@@ -531,6 +570,7 @@ lib/qp-provider.js                 lib/ai-provider.js
 
 | Date | Change |
 |------|--------|
+| Oct 4, 2026 | **Full architecture re-audit:** Rebranded HireLoop→Rekrut_AI_v2, updated live URLs, endpoint count (351→734), added October State Assessment documenting the 46 broken API calls, dead code inventory, and test state. Rewrote Problem Areas with current P0/P1 issues. |
 | Feb 15, 2026 | **Mobile responsive fix for React SPA (#32856):** Fixed mobile layout across entire React app in `client/`. Root cause: previous fix (#32829) patched legacy `public/` files instead of the React SPA. Fixes: (1) DashboardLayout sidebar/header — 44px touch targets, accessible hamburger menu; (2) Admin dashboard — scrollable tab navigation, responsive stat cards, compact header/banner for mobile; (3) UI components — Input/Textarea/Select use 16px font on mobile (prevents iOS zoom), Button sizes bumped to 44px+ touch targets, Dialog renders as bottom sheet on mobile, TabsList scrolls horizontally; (4) Landing page — responsive hero text/stats; (5) Global CSS — scrollbar-hide utility, safe area support, overscroll containment. Updated architecture docs with responsive framework decision. |
 | Feb 15, 2026 | **Admin dashboard full coverage (#32837):** Added 6 missing domain group module cards (Users & Auth, Scoring & Trust, Communications, Matching, Screening, Memory & System) — dashboard now covers all 16 architecture domain groups. Added new "Routes" tab with full 351-endpoint monitoring including route files breakdown, per-endpoint performance metrics (requests, errors, p50/p95/p99 latency), and API latency percentiles. Backend `/api/admin/modules` now queries all domain group tables; new `/api/admin/routes` endpoint for route metrics. Updated admin section documentation with all 6 tabs. |
 | Feb 14, 2026 | **Audit & corrections:** Fixed page count (23→36 files/42 routes), added 8 missing candidate routes, 5 missing recruiter routes, 6 missing utility/debug routes. Fixed endpoint count (322→351). Verified migration count (47 correct — 44 numbered sequences with 3 duplicates at 003, 005, 040). Fixed HTML page count (39→42). Corrected all service/lib line counts (many were dramatically wrong — e.g. ai-provider.js was listed as 930 lines but is actually 2287). Added missing services (auditLogger.js, memory-service.js). Moved memory-service.js from lib/ to services/ where it actually lives. Added missing lib (self-hosted-audio.js). Added missing feature component (ai-onboarding-recruiter.tsx). Added route line counts. Identified additional monolith files (interviews.js, onboarding.js, polsia-ai.js). |
