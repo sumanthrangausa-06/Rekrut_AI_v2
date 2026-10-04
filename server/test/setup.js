@@ -53,6 +53,8 @@ jest.mock('../../lib/db', () => {
 								name: user.name,
 								role: user.role,
 								company_id: user.company_id || null,
+								password_hash: user.password_hash,
+								deleted_at: user.deleted_at || null,
 							},
 						],
 						rowCount: 1,
@@ -60,6 +62,36 @@ jest.mock('../../lib/db', () => {
 				}
 			}
 			return { rows: [], rowCount: 0 };
+		}
+
+		// Auth routes: soft-delete user (#255) — must precede the password_hash
+		// handler because the anonymization UPDATE also mentions password_hash.
+		if (normalized.includes('update users set') && normalized.includes('deleted_at = now()')) {
+			const userId = params[0];
+			for (const [email, user] of mockUsers.entries()) {
+				if (user.id === userId) {
+					user.deleted_at = new Date().toISOString();
+					user.password_hash = null;
+					mockUsers.delete(email);
+					user.email = `deleted_${user.id}_mock@deleted.local`;
+					mockUsers.set(user.email, user);
+					break;
+				}
+			}
+			return { rows: [], rowCount: 1 };
+		}
+
+		// Auth routes: UPDATE user password (#255)
+		if (normalized.includes('update users set password_hash')) {
+			const newHash = params[0];
+			const userId = params[1];
+			for (const user of mockUsers.values()) {
+				if (user.id === userId) {
+					user.password_hash = newHash;
+					break;
+				}
+			}
+			return { rows: [], rowCount: 1 };
 		}
 
 		// Auth routes: INSERT user
@@ -182,6 +214,7 @@ jest.mock('../../lib/db', () => {
 
 	return {
 		query: mockQuery,
+		connect: jest.fn(async () => ({ query: mockQuery, release: jest.fn() })),
 		getQueryStats: () => ({ totalQueries: 0, slowQueries: 0, queriesPerMinute: 0 }),
 		end: jest.fn().mockResolvedValue(undefined),
 		on: jest.fn(),
