@@ -13,10 +13,12 @@
     "test": "npx playwright test",
     "migrate": "node migrate.js",
     "lint": "npx @biomejs/biome check",
-    "postinstall": "if [ \"$CI\" = \"true\" ] || [ \"$RENDER\" = \"true\" ]; then echo '[postinstall] Skipping audio setup in CI/Render environment'; else bash scripts/setup-audio.sh 2>&1 || echo '[postinstall] Audio setup skipped (non-fatal)'; fi"
+    "postinstall": "if [ \"$CI\" = \"true\" ] || [ \"$RENDER\" = \"true\" ]; then echo '[postinstall] Skipping audio setup in CI/Render environment'; else bash scripts/setup-audio.sh 2>&1 || echo '[postinstall] Audio setup skipped (non-fatal)'; fi",
+    "check-orphans": "node scripts/check-orphans.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
+    "@aws-sdk/client-s3": "^3.1146.0",
     "@sentry/node": "^10.70.0",
     "bcryptjs": "^2.4.3",
     "connect-pg-simple": "^10.0.0",

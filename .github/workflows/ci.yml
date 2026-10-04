@@ -59,6 +59,24 @@ jobs:
         run: npm audit --audit-level high
         # This will fail the job if critical/high vulnerabilities are found
 
+  orphan-check:
+    name: Orphaned File Check (#203)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check for orphaned files
+        run: node scripts/check-orphans.js
+        # Fails if any source file is unreachable from the app entry points
+        # (transitive import/require analysis). Known orphans pending triage
+        # are on the allowlist in the script; new ones fail the build.
+
   e2e-tests:
     name: E2E Tests (${{ matrix.group }})
     runs-on: ubuntu-latest

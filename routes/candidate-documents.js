@@ -16,6 +16,7 @@ const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { encryptBuffer, decryptBuffer } = require('../lib/document-crypto');
 const { scanFile, logScanEvent } = require('../lib/virus-scanner');
+const { uploadToB2 } = require('../lib/file-storage');
 const {
 	verifyDocument,
 	applyDocumentScoresToOmniScore,
@@ -145,28 +146,19 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 		// ── 2. AES-256 encryption ──
 		const { encryptedBuffer, iv, tag, algorithm } = encryptBuffer(req.file.buffer, userId);
 
-		// ── 3. Upload encrypted file to R2 ──
-		const formData = new FormData();
-		formData.append(
-			'file',
-			new Blob([encryptedBuffer], { type: 'application/octet-stream' }),
-			req.file.originalname,
-		);
-
-		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-			},
-			body: formData,
-		});
-
-		const uploadResult = await uploadRes.json();
-		if (!uploadResult.success) {
-			throw new Error(uploadResult.error?.message || 'File upload failed');
+		// ── 3. Upload encrypted file to B2 ──
+		let fileUrl;
+		try {
+			const result = await uploadToB2({
+				buffer: encryptedBuffer,
+				mimetype: 'application/octet-stream',
+				filename: req.file.originalname,
+				prefix: 'documents',
+			});
+			fileUrl = result.url;
+		} catch (uploadErr) {
+			throw new Error(uploadErr.message);
 		}
-
-		const fileUrl = uploadResult.file.url;
 
 		// ── 4. Create document record with encryption metadata ──
 		const result = await pool.query(

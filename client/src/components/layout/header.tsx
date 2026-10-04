@@ -1,6 +1,5 @@
 import {
 	ArrowUpDown,
-	Bell,
 	Briefcase,
 	Building2,
 	ChevronDown,
@@ -21,6 +20,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { NotificationCenter } from '@/components/domain/notification-center';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -198,14 +198,8 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 
 				<ThemeToggle />
 
-				<button
-					type="button"
-					className="relative flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-2 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-					aria-label="Notifications"
-					title="Notifications"
-				>
-					<Bell className="h-5 w-5 text-muted-foreground" />
-				</button>
+				{/* Notification center (Issue #128) */}
+				<NotificationCenter />
 
 				{/* User dropdown */}
 				<div className="relative" ref={userDropdown.ref}>

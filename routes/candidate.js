@@ -17,6 +17,7 @@ const omniscoreService = require('../services/omniscore');
 const { decrypt } = require('../lib/crypto-utils');
 const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-limiter');
 const marketBenchmarks = require('../lib/market-benchmarks');
+const { uploadToB2, checkB2Health } = require('../lib/file-storage');
 const emailService = require('../lib/email-service');
 const { checkFeatureAccess, incrementUsage } = require('../lib/subscription');
 const calendarService = require('../server/services/calendar-service');
@@ -353,25 +354,18 @@ router.post('/profile/photo', authMiddleware, upload.single('photo'), async (req
 			return res.status(400).json({ error: 'No file uploaded' });
 		}
 
-		// Upload to R2 via Polsia proxy using native FormData
-		const formData = new FormData();
-		formData.append(
-			'file',
-			new Blob([req.file.buffer], { type: req.file.mimetype }),
-			req.file.originalname,
-		);
-
-		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-			},
-			body: formData,
-		});
-
-		const uploadResult = await uploadRes.json();
-		if (!uploadResult.success) {
-			throw new Error(uploadResult.error?.message || 'Upload failed');
+		// Upload to Backblaze B2
+		let photoUrl;
+		try {
+			const result = await uploadToB2({
+				buffer: req.file.buffer,
+				mimetype: req.file.mimetype,
+				filename: req.file.originalname,
+				prefix: 'photos',
+			});
+			photoUrl = result.url;
+		} catch (uploadErr) {
+			return res.status(502).json({ error: uploadErr.message, code: uploadErr.code || 'UNKNOWN' });
 		}
 
 		// Update profile with photo URL
@@ -381,16 +375,16 @@ router.post('/profile/photo', authMiddleware, upload.single('photo'), async (req
       VALUES ($1, $2)
       ON CONFLICT (user_id) DO UPDATE SET photo_url = $2, updated_at = NOW()
     `,
-			[req.user.id, uploadResult.file.url],
+			[req.user.id, photoUrl],
 		);
 
 		// Also update user avatar
 		await pool.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [
-			uploadResult.file.url,
+			photoUrl,
 			req.user.id,
 		]);
 
-		res.json({ success: true, photo_url: uploadResult.file.url });
+		res.json({ success: true, photo_url: photoUrl });
 	} catch (err) {
 		console.error('Photo upload error:', err);
 		res.status(500).json({ error: 'Failed to upload photo' });
@@ -401,7 +395,7 @@ router.post('/profile/photo', authMiddleware, upload.single('photo'), async (req
 router.post('/profile/resume', authMiddleware, upload.single('resume'), async (req, res) => {
 	try {
 		if (!req.file) {
-			return res.status(400).json({ error: 'No file uploaded' });
+			return res.status(400).json({ error: 'No file uploaded', code: 'NO_FILE' });
 		}
 
 		// Validate file type: PDF, DOC, DOCX only
@@ -413,54 +407,66 @@ router.post('/profile/resume', authMiddleware, upload.single('resume'), async (r
 		if (!allowedTypes.includes(req.file.mimetype)) {
 			return res
 				.status(400)
-				.json({ error: 'Invalid file type. Only PDF, DOC, and DOCX are allowed.' });
+				.json({ error: 'Invalid file type. Only PDF, DOC, and DOCX are allowed.', code: 'INVALID_TYPE' });
 		}
 
-		// Upload to R2 via Polsia proxy using native FormData
-		const formData = new FormData();
-		formData.append(
-			'file',
-			new Blob([req.file.buffer], { type: req.file.mimetype }),
-			req.file.originalname,
-		);
-
-		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-			},
-			body: formData,
-		});
-
-		const uploadResult = await uploadRes.json();
-		if (!uploadResult.success) {
-			throw new Error(uploadResult.error?.message || 'Upload failed');
+		// Upload to Backblaze B2
+		let resumeUrl;
+		try {
+			const result = await uploadToB2({
+				buffer: req.file.buffer,
+				mimetype: req.file.mimetype,
+				filename: req.file.originalname,
+				prefix: 'resumes',
+			});
+			resumeUrl = result.url;
+		} catch (uploadErr) {
+			console.error('[resume-upload] B2 upload failed:', uploadErr.code, uploadErr.message);
+			return res.status(502).json({
+				error: uploadErr.message,
+				code: uploadErr.code || 'UNKNOWN',
+			});
 		}
 
-		await pool.query(
-			`
-			INSERT INTO parsed_resumes (user_id, original_filename, file_url, parsing_status)
-			VALUES ($1, $2, $3, 'processing')
-			RETURNING id
-			`,
-			[req.user.id, req.file.originalname, uploadResult.file.url],
-		);
+		try {
+			await pool.query(
+				`
+				INSERT INTO parsed_resumes (user_id, original_filename, file_url, parsing_status)
+				VALUES ($1, $2, $3, 'processing')
+				RETURNING id
+				`,
+				[req.user.id, req.file.originalname, resumeUrl],
+			);
 
-		// Update profile with resume URL
-		await pool.query(
-			`
-			INSERT INTO candidate_profiles (user_id, resume_url)
-			VALUES ($1, $2)
-			ON CONFLICT (user_id) DO UPDATE SET resume_url = $2, updated_at = NOW()
-			`,
-			[req.user.id, uploadResult.file.url],
-		);
+			// Update profile with resume URL
+			await pool.query(
+				`
+				INSERT INTO candidate_profiles (user_id, resume_url)
+				VALUES ($1, $2)
+				ON CONFLICT (user_id) DO UPDATE SET resume_url = $2, updated_at = NOW()
+				`,
+				[req.user.id, resumeUrl],
+			);
+		} catch (dbErr) {
+			console.error('[resume-upload] Database error:', dbErr.message);
+			return res.status(500).json({
+				error: 'Failed to save resume record. Please try again later.',
+				code: 'DB_FAILED',
+			});
+		}
 
-		res.json({ success: true, resume_url: uploadResult.file.url });
+		res.json({ success: true, resume_url: resumeUrl });
 	} catch (err) {
 		console.error('Profile resume upload error:', err);
-		res.status(500).json({ error: 'Failed to upload resume' });
+		res.status(500).json({ error: 'Failed to upload resume', code: 'UNKNOWN' });
 	}
+});
+
+// Diagnostic: test B2 storage health (Issue #234)
+// Verifies B2 credentials without uploading a file.
+router.get('/profile/storage/health', authMiddleware, async (req, res) => {
+	const result = await checkB2Health();
+	return res.json(result);
 });
 
 // Remove profile resume
@@ -490,25 +496,18 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
 			return res.status(400).json({ error: 'No file uploaded' });
 		}
 
-		// Upload to R2 via Polsia proxy using native FormData
-		const formData = new FormData();
-		formData.append(
-			'file',
-			new Blob([req.file.buffer], { type: req.file.mimetype }),
-			req.file.originalname,
-		);
-
-		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-			},
-			body: formData,
-		});
-
-		const uploadResult = await uploadRes.json();
-		if (!uploadResult.success) {
-			throw new Error(uploadResult.error?.message || 'Upload failed');
+		// Upload to Backblaze B2
+		let fileUrl;
+		try {
+			const result = await uploadToB2({
+				buffer: req.file.buffer,
+				mimetype: req.file.mimetype,
+				filename: req.file.originalname,
+				prefix: 'resumes',
+			});
+			fileUrl = result.url;
+		} catch (uploadErr) {
+			return res.status(502).json({ error: uploadErr.message, code: uploadErr.code || 'UNKNOWN' });
 		}
 
 		const resumeRecord = await pool.query(
@@ -517,7 +516,7 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
       VALUES ($1, $2, $3, 'processing')
       RETURNING id
     `,
-			[req.user.id, req.file.originalname, uploadResult.file.url],
+			[req.user.id, req.file.originalname, fileUrl],
 		);
 
 		// Update profile with resume URL
@@ -527,7 +526,7 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
       VALUES ($1, $2)
       ON CONFLICT (user_id) DO UPDATE SET resume_url = $2, updated_at = NOW()
     `,
-			[req.user.id, uploadResult.file.url],
+			[req.user.id, fileUrl],
 		);
 
 		// Extract text from the resume (supports PDF, DOCX, and plain text)
@@ -766,7 +765,7 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
 
 		res.json({
 			success: true,
-			resume_url: uploadResult.file.url,
+			resume_url: fileUrl,
 			parsed_data: parsedData,
 			resume_id: resumeRecord.rows[0].id,
 		});

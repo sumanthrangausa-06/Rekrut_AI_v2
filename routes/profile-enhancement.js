@@ -18,6 +18,7 @@ const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
+const { uploadToB2 } = require('../lib/file-storage');
 
 const router = express.Router();
 
@@ -69,22 +70,8 @@ async function extractTextFromFile(buffer, mimetype) {
 }
 
 async function uploadToR2(buffer, originalname, mimetype) {
-	const formData = new FormData();
-	formData.append('file', new Blob([buffer], { type: mimetype }), originalname);
-
-	const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
-		method: 'POST',
-		headers: {
-			Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-		},
-		body: formData,
-	});
-
-	const uploadResult = await uploadRes.json();
-	if (!uploadResult.success) {
-		throw new Error(uploadResult.error?.message || 'File upload failed');
-	}
-	return uploadResult.file.url;
+	const result = await uploadToB2({ buffer, mimetype, filename: originalname, prefix: 'cv' });
+	return result.url;
 }
 
 // ponytail: mock AI analysis — replace with real AI provider when ready

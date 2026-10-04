@@ -24,6 +24,7 @@ const multer = require('multer');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const emailService = require('../lib/email-service');
 const calendarService = require('../server/services/calendar-service');
+const { uploadToB2 } = require('../lib/file-storage');
 
 const router = express.Router();
 const upload = multer({
@@ -395,32 +396,24 @@ router.post(
 				return res.status(404).json({ error: 'Interview not found' });
 			}
 
-			// Upload to R2
-			const formData = new FormData();
-			formData.append(
-				'file',
-				new Blob([req.file.buffer], { type: req.file.mimetype }),
-				`interview-${interview_id}-q${question_index}.webm`,
-			);
-
-			const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-				},
-				body: formData,
-			});
-
-			const result = await uploadRes.json();
-
-			if (!result.success) {
-				console.error('R2 upload error:', result.error);
+			// Upload to Backblaze B2
+			let videoUrl;
+			try {
+				const uploadResult = await uploadToB2({
+					buffer: req.file.buffer,
+					mimetype: req.file.mimetype,
+					filename: `interview-${interview_id}-q${question_index}.webm`,
+					prefix: 'interviews',
+				});
+				videoUrl = uploadResult.url;
+			} catch (uploadErr) {
+				console.error('B2 upload error:', uploadErr.code, uploadErr.message);
 				return res.status(500).json({ error: 'Failed to upload video' });
 			}
 
 			res.json({
 				success: true,
-				video_url: result.file.url,
+				video_url: videoUrl,
 			});
 		} catch (err) {
 			console.error('Upload video error:', err);
