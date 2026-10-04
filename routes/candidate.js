@@ -164,13 +164,22 @@ router.get('/profile', authMiddleware, async (req, res) => {
 			[req.user.id],
 		);
 
+		const profileRow = profile.rows[0] || {};
 		res.json({
 			success: true,
-			profile: profile.rows[0] || {},
+			profile: profileRow,
 			experience: experience.rows,
 			education: education.rows,
 			skills: skills.rows,
-			projects: projects.rows,
+			projects: projects.rows.map((p) => ({
+				...p,
+				// Frontend Project interface uses `name`/`url`; table uses `title`/`project_url`
+				name: p.name || p.title,
+				url: p.url || p.project_url,
+			})),
+			// Certifications live in candidate_profiles.certifications JSONB;
+			// frontend reads data.certifications (top-level)
+			certifications: profileRow.certifications || [],
 		});
 	} catch (err) {
 		console.error('Get profile error:', err);
@@ -1887,7 +1896,15 @@ router.post('/projects', authMiddleware, async (req, res) => {
 			],
 		);
 
-		res.json({ success: true, project: result.rows[0] });
+		const row = result.rows[0];
+		res.json({
+			success: true,
+			project: {
+				...row,
+				name: row.title,
+				url: row.project_url,
+			},
+		});
 	} catch (err) {
 		console.error('Add project error:', err);
 		res.status(500).json({ error: 'Failed to add project' });
