@@ -2064,9 +2064,37 @@ function PersonalInfoTab({
 						</button>
 					)}
 				</div>
+				{/* TEMPORARY DEBUG PANEL — remove before merging fix (debug/save-button-instrumentation) */}
+				<div
+					id="save-debug-panel"
+					className="rounded-lg border-2 border-red-500 bg-yellow-50 p-3 text-xs font-mono"
+				>
+					<div className="font-bold text-red-600">DEBUG PANEL (temporary)</div>
+					<div>saveNow type: {typeof saveNow}</div>
+					<div>saveStatus: {saveStatus}</div>
+					<div id="save-debug-log">log: (click Save to test)</div>
+				</div>
 				<Button
 					size="sm"
-					onClick={saveNow}
+					onClick={() => {
+						const logEl = document.getElementById('save-debug-log');
+						const log = (msg: string) => {
+							if (logEl) logEl.textContent = 'log: ' + msg;
+						};
+						log('clicked! typeof saveNow=' + typeof saveNow);
+						try {
+							const result = saveNow();
+							log('saveNow() called, result type=' + typeof result);
+							if (result && typeof (result as any).then === 'function') {
+								(result as Promise<void>).then(
+									() => log('saveNow resolved OK'),
+									(e) => log('saveNow REJECTED: ' + (e?.message || e)),
+								);
+							}
+						} catch (e: any) {
+							log('saveNow THREW synchronously: ' + (e?.message || e));
+						}
+					}}
 					disabled={saveStatus === 'saving'}
 					className="gap-1"
 				>
