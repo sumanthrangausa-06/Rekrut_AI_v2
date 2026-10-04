@@ -510,8 +510,15 @@ const PREDEFINED_SKILLS = [
 	'Algorithms',
 ];
 
-function SaveStatus({ status }: { status: 'idle' | 'saving' | 'saved' | 'error' }) {
+function SaveStatus({ status }: { status: 'idle' | 'saving' | 'saved' | 'error' | 'dirty' }) {
 	if (status === 'idle') return null;
+	if (status === 'dirty')
+		return (
+			<span className="text-xs text-amber-600 flex items-center gap-1">
+				<AlertCircle className="h-3 w-3" />
+				Unsaved changes
+			</span>
+		);
 	if (status === 'saving')
 		return (
 			<span className="text-xs text-muted-foreground flex items-center gap-1 animate-pulse">
@@ -539,26 +546,31 @@ function useAutoSave<T>(
 	data: T,
 	saveFn: (data: T) => Promise<void>,
 	delay = 500,
-): { status: 'idle' | 'saving' | 'saved' | 'error'; saveNow: () => Promise<void> } {
-	const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+): { status: 'idle' | 'saving' | 'saved' | 'error' | 'dirty'; saveNow: () => Promise<void> } {
+	const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'dirty'>('idle');
 	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const lastSavedRef = useRef<string>('');
+	// Refs for latest data/fn to avoid stale closures and effect re-runs
+	const dataRef = useRef(data);
+	const fnRef = useRef(saveFn);
+	dataRef.current = data;
+	fnRef.current = saveFn;
 
 	useEffect(() => {
-		const serialized = JSON.stringify(data);
+		const serialized = JSON.stringify(dataRef.current);
 		if (serialized === lastSavedRef.current) return;
 
 		if (timerRef.current) clearTimeout(timerRef.current);
-		setStatus('idle');
+		// Show dirty state instead of hiding the indicator
+		setStatus((prev) => (prev === 'saving' ? prev : 'dirty'));
 
 		timerRef.current = setTimeout(async () => {
 			setStatus('saving');
 			try {
-				await saveFn(data);
-				lastSavedRef.current = serialized;
+				await fnRef.current(dataRef.current);
+				lastSavedRef.current = JSON.stringify(dataRef.current);
 				setStatus('saved');
-				const t = setTimeout(() => setStatus('idle'), 2000);
-				return () => clearTimeout(t);
+				setTimeout(() => setStatus('idle'), 2000);
 			} catch {
 				setStatus('error');
 			}
@@ -567,15 +579,17 @@ function useAutoSave<T>(
 		return () => {
 			if (timerRef.current) clearTimeout(timerRef.current);
 		};
-	}, [data, saveFn, delay]);
+		// Only re-run when the serialized data changes, not on every render
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [JSON.stringify(data), delay]);
 
-	// Manual save: cancel pending debounce and save immediately
+	// Manual save: cancel pending debounce and save immediately with latest data
 	const saveNow = async () => {
 		if (timerRef.current) clearTimeout(timerRef.current);
 		setStatus('saving');
 		try {
-			await saveFn(data);
-			lastSavedRef.current = JSON.stringify(data);
+			await fnRef.current(dataRef.current);
+			lastSavedRef.current = JSON.stringify(dataRef.current);
 			setStatus('saved');
 			setTimeout(() => setStatus('idle'), 2000);
 		} catch {
