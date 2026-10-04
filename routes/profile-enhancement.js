@@ -18,7 +18,7 @@ const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
-const { uploadToB2 } = require('../lib/b2-storage');
+const { uploadToB2 } = require('../lib/file-storage');
 
 const router = express.Router();
 
