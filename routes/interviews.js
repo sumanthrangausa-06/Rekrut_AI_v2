@@ -24,7 +24,7 @@ const multer = require('multer');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const emailService = require('../lib/email-service');
 const calendarService = require('../server/services/calendar-service');
-const { uploadToB2 } = require('../lib/b2-storage');
+const { uploadToB2 } = require('../lib/file-storage');
 
 const router = express.Router();
 const upload = multer({

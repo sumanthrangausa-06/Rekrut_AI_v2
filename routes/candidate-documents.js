@@ -16,7 +16,7 @@ const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { encryptBuffer, decryptBuffer } = require('../lib/document-crypto');
 const { scanFile, logScanEvent } = require('../lib/virus-scanner');
-const { uploadToB2 } = require('../lib/b2-storage');
+const { uploadToB2 } = require('../lib/file-storage');
 const {
 	verifyDocument,
 	applyDocumentScoresToOmniScore,

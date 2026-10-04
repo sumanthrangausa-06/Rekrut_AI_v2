@@ -17,7 +17,7 @@ const express = require('express');
 const multer = require('multer');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
-const { uploadToB2 } = require('../lib/b2-storage');
+const { uploadToB2 } = require('../lib/file-storage');
 
 const router = express.Router();
 
