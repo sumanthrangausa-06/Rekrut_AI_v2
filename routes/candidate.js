@@ -290,6 +290,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
 					sanitizedAvailability,
 					sanitizedSalaryMin,
 					sanitizedSalaryMax,
+					sanitizedSalaryCurrency,
 					JSON.stringify(preferred_job_types),
 					JSON.stringify(preferred_locations),
 					remote_preference,
@@ -352,11 +353,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
 				.json({ error: 'Invalid job data. Please check your input and try again.' });
 		}
 		console.error('Update profile error:', err);
-		// TEMPORARY DEBUG: expose actual error (staging only, remove before merge)
-		res.status(500).json({
-			error: 'Failed to update profile',
-			_debug: String(err?.message || err).substring(0, 500),
-		});
+		res.status(500).json({ error: 'Failed to update profile' });
 	}
 });
 
