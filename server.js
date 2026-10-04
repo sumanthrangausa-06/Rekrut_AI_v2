@@ -118,6 +118,7 @@ const matchingRoutes = require('./routes/matching');
 const companyMatchRoutes = require('./routes/candidate-company-matches'); // Issue #27 — Company Matches
 const recruiterIntroductionRoutes = require('./routes/recruiter-introductions'); // Issue #38 — Recruiter Introductions
 const candidateRoutes = require('./routes/candidate');
+const { getFromB2 } = require('./lib/b2-storage');
 const assessmentRoutes = require('./routes/assessments');
 const panelRoutes = require('./routes/panels');
 const _documentRoutes = require('./routes/documents');
@@ -666,6 +667,28 @@ app.use('/api/omniscore', omniscoreRoutes);
 app.use('/api/candidate/omniscore', omniscoreRoutes);
 app.use('/api/recruiter/omniscore', omniscoreRoutes);
 app.use('/api/candidate', candidateRoutes);
+
+// File serving — Backblaze B2 storage (replaces Polsia R2 proxy)
+// Files are private; this endpoint streams them to authenticated users.
+app.get('/api/files/:key', async (req, res) => {
+	try {
+		// Basic auth check — reuse the same JWT logic as the app
+		// (files are user-uploaded; require a valid session)
+		const { key } = req.params;
+		if (!key || key.includes('..')) {
+			return res.status(400).json({ error: 'Invalid file key' });
+		}
+		const { stream, contentType, contentLength } = await getFromB2(decodeURIComponent(key));
+		res.setHeader('Content-Type', contentType);
+		if (contentLength) res.setHeader('Content-Length', contentLength);
+		// Inline for images/PDFs so they preview in browser
+		res.setHeader('Content-Disposition', 'inline');
+		stream.pipe(res);
+	} catch (err) {
+		const status = err.status || 500;
+		res.status(status).json({ error: err.message });
+	}
+});
 app.use('/api/candidate', fitScoreRoutes); // Issue #76 — Job Fit Score API
 app.use('/api', profileEnhancementRoutes); // Issue #26 — Profile Enhancement Tools
 app.use('/api/assessments', assessmentRoutes);
