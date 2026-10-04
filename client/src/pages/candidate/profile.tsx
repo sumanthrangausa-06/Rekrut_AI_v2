@@ -1982,22 +1982,14 @@ function PersonalInfoTab({
 	}
 
 	async function saveProfile(data: Profile) {
-		try {
-			if (data.linkedin_url && !isValidLinkedInUrl(data.linkedin_url)) {
-				setLinkedinUrlError(
-					'URL must be https://linkedin.com/in/{name} or https://www.linkedin.com/in/{name}',
-				);
-				throw new Error('Invalid LinkedIn URL');
-			}
-			await apiCall('/candidate/profile', { method: 'PUT', body: data });
-			trackEvent('profile_edit');
-			(window as any).__lastSaveError = null;
-		} catch (e: any) {
-			// TEMPORARY DEBUG: capture the real error
-			(window as any).__lastSaveError =
-				'message=' + (e?.message || e) + ' | status=' + (e?.status || '?');
-			throw e;
+		if (data.linkedin_url && !isValidLinkedInUrl(data.linkedin_url)) {
+			setLinkedinUrlError(
+				'URL must be https://linkedin.com/in/{name} or https://www.linkedin.com/in/{name}',
+			);
+			throw new Error('Invalid LinkedIn URL');
 		}
+		await apiCall('/candidate/profile', { method: 'PUT', body: data });
+		trackEvent('profile_edit');
 	}
 
 	const { status: saveStatus, saveNow } = useAutoSave(profile, saveProfile, 500);
@@ -2072,47 +2064,9 @@ function PersonalInfoTab({
 						</button>
 					)}
 				</div>
-				{/* TEMPORARY DEBUG PANEL — remove before merging fix (debug/save-button-instrumentation) */}
-				<div
-					id="save-debug-panel"
-					className="rounded-lg border-2 border-red-500 bg-yellow-50 p-3 text-xs font-mono"
-				>
-					<div className="font-bold text-red-600">DEBUG PANEL (temporary)</div>
-					<div>saveNow type: {typeof saveNow}</div>
-					<div>saveStatus: {saveStatus}</div>
-					<div id="save-debug-log">log: (click Save to test)</div>
-					<div id="save-debug-error" className="text-red-700 whitespace-pre-wrap">
-						error: (none yet)
-					</div>
-				</div>
 				<Button
 					size="sm"
-					onClick={() => {
-						const logEl = document.getElementById('save-debug-log');
-						const errEl = document.getElementById('save-debug-error');
-						const log = (msg: string) => {
-							if (logEl) logEl.textContent = 'log: ' + msg;
-						};
-						// Wrap the underlying save to capture the real error
-						const origSave = (window as any).__origSaveFn;
-						log('clicked! typeof saveNow=' + typeof saveNow);
-						try {
-							const result = saveNow();
-							log('saveNow() called, result type=' + typeof result);
-							if (result && typeof (result as any).then === 'function') {
-								(result as Promise<void>).then(
-									() => {
-										const lastErr = (window as any).__lastSaveError;
-										log('saveNow resolved. lastSaveError=' + (lastErr || 'none'));
-										if (errEl && lastErr) errEl.textContent = 'error: ' + lastErr;
-									},
-									(e) => log('saveNow REJECTED: ' + (e?.message || e)),
-								);
-							}
-						} catch (e: any) {
-							log('saveNow THREW synchronously: ' + (e?.message || e));
-						}
-					}}
+					onClick={saveNow}
 					disabled={saveStatus === 'saving'}
 					className="gap-1"
 				>
