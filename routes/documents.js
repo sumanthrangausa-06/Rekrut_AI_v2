@@ -4,6 +4,7 @@ const multer = require('multer');
 const pool = require('../lib/db');
 const { authMiddleware, requireRole } = require('../lib/auth');
 const emailService = require('../lib/email-service');
+const { uploadToR2 } = require('../lib/polsia-upload');
 const {
 	verifyDocument,
 	applyDocumentScoresToOmniScore,
@@ -72,28 +73,18 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 			return res.status(400).json({ error: 'Invalid document type' });
 		}
 
-		// Upload to R2
-		const formData = new FormData();
-		formData.append(
-			'file',
-			new Blob([req.file.buffer], { type: req.file.mimetype }),
-			req.file.originalname,
-		);
-
-		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-			},
-			body: formData,
-		});
-
-		const uploadResult = await uploadRes.json();
-		if (!uploadResult.success) {
-			throw new Error(uploadResult.error?.message || 'File upload failed');
+		// Upload to R2 (with API key rotation)
+		let fileUrl;
+		try {
+			const result = await uploadToR2({
+				buffer: req.file.buffer,
+				mimetype: req.file.mimetype,
+				filename: req.file.originalname,
+			});
+			fileUrl = result.url;
+		} catch (uploadErr) {
+			throw new Error(uploadErr.message);
 		}
-
-		const fileUrl = uploadResult.file.url;
 
 		// Check for existing rejected/pending_review document of same type for resubmit
 		const existingResult = await pool.query(

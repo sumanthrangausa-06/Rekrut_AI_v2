@@ -17,6 +17,7 @@ const express = require('express');
 const multer = require('multer');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
+const { uploadToR2 } = require('../lib/polsia-upload');
 
 const router = express.Router();
 
@@ -482,28 +483,18 @@ router.post(
 				return res.status(400).json({ error: 'No file uploaded' });
 			}
 
-			// Upload to R2 via Polsia proxy
-			const formData = new FormData();
-			formData.append(
-				'file',
-				new Blob([req.file.buffer], { type: req.file.mimetype }),
-				req.file.originalname,
-			);
-
-			const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-				},
-				body: formData,
-			});
-
-			const uploadResult = await uploadRes.json();
-			if (!uploadResult.success) {
-				throw new Error(uploadResult.error?.message || 'File upload failed');
+			// Upload to R2 via Polsia proxy (with API key rotation)
+			let fileUrl;
+			try {
+				const result = await uploadToR2({
+					buffer: req.file.buffer,
+					mimetype: req.file.mimetype,
+					filename: req.file.originalname,
+				});
+				fileUrl = result.url;
+			} catch (uploadErr) {
+				throw new Error(uploadErr.message);
 			}
-
-			const fileUrl = uploadResult.file.url;
 			const fileType = req.file.mimetype.startsWith('image/') ? 'image' : 'file';
 
 			// Insert message with file attachment
