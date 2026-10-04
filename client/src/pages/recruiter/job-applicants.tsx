@@ -32,7 +32,10 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { ActivityFeed } from '@/components/domain/ActivityFeed';
+import { CommentThread } from '@/components/domain/CommentThread';
 import { EmptyState } from '@/components/domain/empty-state';
+import { SharedNotes } from '@/components/domain/SharedNotes';
 import { Skeleton } from '@/components/domain/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,6 +44,7 @@ import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/contexts/auth-context';
 import { apiCall } from '@/lib/api';
 
 interface JobInfo {
@@ -169,6 +173,7 @@ function matchScoreBg(score: number): string {
 export function RecruiterJobApplicantsPage() {
 	const { id } = useParams();
 	const navigate = useNavigate();
+	const { user } = useAuth();
 	const [job, setJob] = useState<JobInfo | null>(null);
 	const [applicants, setApplicants] = useState<Applicant[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -177,7 +182,7 @@ export function RecruiterJobApplicantsPage() {
 	const [selected, setSelected] = useState<Applicant | null>(null);
 	const [notes, setNotes] = useState('');
 	const [updating, setUpdating] = useState(false);
-	const [viewMode, setViewMode] = useState<'list' | 'kanban'>('kanban');
+	const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'activity'>('kanban');
 	const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 	const [batchUpdating, setBatchUpdating] = useState(false);
 	const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -568,6 +573,14 @@ export function RecruiterJobApplicantsPage() {
 					>
 						<List className="h-3.5 w-3.5" /> List
 					</Button>
+					<Button
+						variant={viewMode === 'activity' ? 'default' : 'ghost'}
+						size="sm"
+						onClick={() => setViewMode('activity')}
+						className="gap-1 h-7 px-2"
+					>
+						<Clock className="h-3.5 w-3.5" /> Activity
+					</Button>
 				</div>
 			</div>
 
@@ -652,6 +665,18 @@ export function RecruiterJobApplicantsPage() {
 				)}
 			</div>
 
+			{/* ACTIVITY VIEW (Issue #128) */}
+			{viewMode === 'activity' ? (
+				<Card>
+					<CardContent className="p-4">
+						<h3 className="font-medium text-sm mb-3 flex items-center gap-2">
+							<Clock className="h-4 w-4" /> Team Activity
+						</h3>
+						{id && <ActivityFeed jobId={Number(id)} />}
+					</CardContent>
+				</Card>
+			) : (
+				<>
 			{/* KANBAN VIEW */}
 			{viewMode === 'kanban' ? (
 				<div className="overflow-x-auto pb-4">
@@ -901,6 +926,8 @@ export function RecruiterJobApplicantsPage() {
 							})}
 						</div>
 					)}
+				</>
+			)}
 				</>
 			)}
 
@@ -1153,6 +1180,30 @@ export function RecruiterJobApplicantsPage() {
 								rows={3}
 							/>
 						</div>
+
+						{/* Team collaboration (Issue #128) */}
+						{user && (
+							<div>
+								<h4 className="font-medium text-sm mb-2 flex items-center gap-1">
+									<Users className="h-4 w-4" /> Shared Notes
+								</h4>
+								<SharedNotes candidateId={selected.candidate_id} currentUserId={user.id} />
+							</div>
+						)}
+
+						{/* Team comments */}
+						{user && (
+							<div>
+								<h4 className="font-medium text-sm mb-2 flex items-center gap-1">
+									<MessageSquare className="h-4 w-4" /> Team Comments
+								</h4>
+								<CommentThread
+									entityType="application"
+									entityId={selected.id}
+									currentUserId={user.id}
+								/>
+							</div>
+						)}
 
 						{/* Status controls */}
 						<div className="flex items-center gap-3 pt-2 border-t">

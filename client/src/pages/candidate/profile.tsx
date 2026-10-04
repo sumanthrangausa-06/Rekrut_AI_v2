@@ -1829,8 +1829,10 @@ function ResumeUpload({
 				setUploading(false);
 				setProgress(0);
 			}, 800);
-		} catch {
-			showMessage('error', 'Failed to upload resume');
+		} catch (err: any) {
+			// Surface the backend's structured error when available (Issue #234)
+			const msg = err?.message || 'Failed to upload resume';
+			showMessage('error', msg);
 			setUploading(false);
 			setProgress(0);
 		}

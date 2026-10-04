@@ -401,7 +401,7 @@ router.post('/profile/photo', authMiddleware, upload.single('photo'), async (req
 router.post('/profile/resume', authMiddleware, upload.single('resume'), async (req, res) => {
 	try {
 		if (!req.file) {
-			return res.status(400).json({ error: 'No file uploaded' });
+			return res.status(400).json({ error: 'No file uploaded', code: 'NO_FILE' });
 		}
 
 		// Validate file type: PDF, DOC, DOCX only
@@ -413,7 +413,7 @@ router.post('/profile/resume', authMiddleware, upload.single('resume'), async (r
 		if (!allowedTypes.includes(req.file.mimetype)) {
 			return res
 				.status(400)
-				.json({ error: 'Invalid file type. Only PDF, DOC, and DOCX are allowed.' });
+				.json({ error: 'Invalid file type. Only PDF, DOC, and DOCX are allowed.', code: 'INVALID_TYPE' });
 		}
 
 		// Upload to R2 via Polsia proxy using native FormData
@@ -424,42 +424,106 @@ router.post('/profile/resume', authMiddleware, upload.single('resume'), async (r
 			req.file.originalname,
 		);
 
-		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-			},
-			body: formData,
-		});
+		let uploadResult;
+		try {
+			const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
+				},
+				body: formData,
+			});
 
-		const uploadResult = await uploadRes.json();
-		if (!uploadResult.success) {
-			throw new Error(uploadResult.error?.message || 'Upload failed');
+			if (uploadRes.status === 401 || uploadRes.status === 403) {
+				console.error('[resume-upload] R2 proxy auth failed:', uploadRes.status);
+				return res.status(502).json({
+					error: 'File storage authentication failed. Please try again later.',
+					code: 'STORAGE_AUTH_FAILED',
+				});
+			}
+
+			if (!uploadRes.ok) {
+				const text = await uploadRes.text().catch(() => '');
+				console.error('[resume-upload] R2 proxy error:', uploadRes.status, text.slice(0, 200));
+				return res.status(502).json({
+					error: 'File storage service unavailable. Please try again later.',
+					code: 'STORAGE_UNAVAILABLE',
+				});
+			}
+
+			uploadResult = await uploadRes.json();
+		} catch (fetchErr) {
+			// Network-level failure (DNS, timeout, connection refused)
+			console.error('[resume-upload] R2 proxy unreachable:', fetchErr.message);
+			return res.status(502).json({
+				error: 'File storage service unreachable. Please try again later.',
+				code: 'STORAGE_UNREACHABLE',
+			});
 		}
 
-		await pool.query(
-			`
-			INSERT INTO parsed_resumes (user_id, original_filename, file_url, parsing_status)
-			VALUES ($1, $2, $3, 'processing')
-			RETURNING id
-			`,
-			[req.user.id, req.file.originalname, uploadResult.file.url],
-		);
+		if (!uploadResult?.success || !uploadResult?.file?.url) {
+			console.error('[resume-upload] R2 proxy bad response:', JSON.stringify(uploadResult)?.slice(0, 200));
+			return res.status(502).json({
+				error: 'File storage returned an unexpected response. Please try again later.',
+				code: 'STORAGE_BAD_RESPONSE',
+			});
+		}
 
-		// Update profile with resume URL
-		await pool.query(
-			`
-			INSERT INTO candidate_profiles (user_id, resume_url)
-			VALUES ($1, $2)
-			ON CONFLICT (user_id) DO UPDATE SET resume_url = $2, updated_at = NOW()
-			`,
-			[req.user.id, uploadResult.file.url],
-		);
+		try {
+			await pool.query(
+				`
+				INSERT INTO parsed_resumes (user_id, original_filename, file_url, parsing_status)
+				VALUES ($1, $2, $3, 'processing')
+				RETURNING id
+				`,
+				[req.user.id, req.file.originalname, uploadResult.file.url],
+			);
+
+			// Update profile with resume URL
+			await pool.query(
+				`
+				INSERT INTO candidate_profiles (user_id, resume_url)
+				VALUES ($1, $2)
+				ON CONFLICT (user_id) DO UPDATE SET resume_url = $2, updated_at = NOW()
+				`,
+				[req.user.id, uploadResult.file.url],
+			);
+		} catch (dbErr) {
+			console.error('[resume-upload] Database error:', dbErr.message);
+			return res.status(500).json({
+				error: 'Failed to save resume record. Please try again later.',
+				code: 'DB_FAILED',
+			});
+		}
 
 		res.json({ success: true, resume_url: uploadResult.file.url });
 	} catch (err) {
 		console.error('Profile resume upload error:', err);
-		res.status(500).json({ error: 'Failed to upload resume' });
+		res.status(500).json({ error: 'Failed to upload resume', code: 'UNKNOWN' });
+	}
+});
+
+// Diagnostic: test R2 storage proxy health (Issue #234)
+// Lets us verify the POLSIA_API_KEY without uploading a file.
+router.get('/profile/storage/health', authMiddleware, async (req, res) => {
+	const hasKey = Boolean(process.env.POLSIA_API_KEY);
+	if (!hasKey) {
+		return res.json({ ok: false, code: 'NO_API_KEY', message: 'POLSIA_API_KEY is not configured' });
+	}
+	try {
+		// Lightweight check: the proxy returns 401 without a key, so a request
+		// WITH the key that doesn't return 401 proves the key is accepted.
+		// We use a HEAD-like minimal POST with no file to avoid side effects.
+		const checkRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
+			method: 'POST',
+			headers: { Authorization: `Bearer ${process.env.POLSIA_API_KEY}` },
+		});
+		if (checkRes.status === 401 || checkRes.status === 403) {
+			return res.json({ ok: false, code: 'AUTH_FAILED', message: 'API key rejected by storage proxy' });
+		}
+		return res.json({ ok: true, code: 'OK', message: 'Storage proxy reachable and key accepted', status: checkRes.status });
+	} catch (err) {
+		return res.json({ ok: false, code: 'UNREACHABLE', message: `Storage proxy unreachable: ${err.message}` });
 	}
 });
 
