@@ -4,7 +4,7 @@ const multer = require('multer');
 const pool = require('../lib/db');
 const { authMiddleware, requireRole } = require('../lib/auth');
 const emailService = require('../lib/email-service');
-const { uploadToB2 } = require('../lib/b2-storage');
+const { uploadToB2 } = require('../lib/file-storage');
 const {
 	verifyDocument,
 	applyDocumentScoresToOmniScore,
