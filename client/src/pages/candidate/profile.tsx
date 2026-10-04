@@ -539,7 +539,7 @@ function useAutoSave<T>(
 	data: T,
 	saveFn: (data: T) => Promise<void>,
 	delay = 500,
-): { status: 'idle' | 'saving' | 'saved' | 'error' } {
+): { status: 'idle' | 'saving' | 'saved' | 'error'; saveNow: () => Promise<void> } {
 	const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const lastSavedRef = useRef<string>('');
@@ -569,7 +569,21 @@ function useAutoSave<T>(
 		};
 	}, [data, saveFn, delay]);
 
-	return { status };
+	// Manual save: cancel pending debounce and save immediately
+	const saveNow = async () => {
+		if (timerRef.current) clearTimeout(timerRef.current);
+		setStatus('saving');
+		try {
+			await saveFn(data);
+			lastSavedRef.current = JSON.stringify(data);
+			setStatus('saved');
+			setTimeout(() => setStatus('idle'), 2000);
+		} catch {
+			setStatus('error');
+		}
+	};
+
+	return { status, saveNow };
 }
 
 // Responsive collapsible: closed by default on mobile, open on desktop
@@ -1964,7 +1978,7 @@ function PersonalInfoTab({
 		trackEvent('profile_edit');
 	}
 
-	const { status: saveStatus } = useAutoSave(profile, saveProfile, 500);
+	const { status: saveStatus, saveNow } = useAutoSave(profile, saveProfile, 500);
 
 	async function handleLinkedInSync() {
 		setLinkedinSyncing(true);
@@ -2022,7 +2036,31 @@ function PersonalInfoTab({
 	}
 
 	return (
-		<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+		<div className="space-y-6">
+			{/* Sticky save bar — global save status visible across all tabs (#237) */}
+			<div className="sticky top-0 z-10 flex items-center justify-between rounded-lg border bg-background/95 backdrop-blur px-4 py-2 shadow-sm">
+				<div className="flex items-center gap-2">
+					<SaveStatus status={saveStatus} />
+					{saveStatus === 'error' && (
+						<button
+							onClick={saveNow}
+							className="text-xs text-primary underline hover:no-underline"
+						>
+							Retry
+						</button>
+					)}
+				</div>
+				<Button
+					size="sm"
+					onClick={saveNow}
+					disabled={saveStatus === 'saving'}
+					className="gap-1"
+				>
+					<Save className="h-4 w-4" />
+					{saveStatus === 'saving' ? 'Saving...' : 'Save'}
+				</Button>
+			</div>
+			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 			<div className="lg:col-span-2 space-y-6">
 				<Card>
 					<CardContent className="p-6 space-y-6">
@@ -2253,13 +2291,34 @@ function PersonalInfoTab({
 									<option value="America/Chicago">America/Chicago (CST)</option>
 									<option value="America/Denver">America/Denver (MST)</option>
 									<option value="America/Los_Angeles">America/Los Angeles (PST)</option>
+									<option value="America/Anchorage">America/Anchorage (AKST)</option>
+									<option value="Pacific/Honolulu">Pacific/Honolulu (HST)</option>
+									<option value="America/Toronto">America/Toronto (EST)</option>
+									<option value="America/Vancouver">America/Vancouver (PST)</option>
+									<option value="America/Mexico_City">America/Mexico City (CST)</option>
+									<option value="America/Sao_Paulo">America/Sao Paulo (BRT)</option>
+									<option value="America/Buenos_Aires">America/Buenos Aires (ART)</option>
 									<option value="Europe/London">Europe/London (GMT)</option>
 									<option value="Europe/Paris">Europe/Paris (CET)</option>
 									<option value="Europe/Berlin">Europe/Berlin (CET)</option>
-									<option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
-									<option value="Asia/Shanghai">Asia/Shanghai (CST)</option>
-									<option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+									<option value="Europe/Moscow">Europe/Moscow (MSK)</option>
+									<option value="Europe/Istanbul">Europe/Istanbul (TRT)</option>
+									<option value="Africa/Cairo">Africa/Cairo (EET)</option>
+									<option value="Africa/Lagos">Africa/Lagos (WAT)</option>
+									<option value="Africa/Johannesburg">Africa/Johannesburg (SAST)</option>
 									<option value="Asia/Dubai">Asia/Dubai (GST)</option>
+									<option value="Asia/Riyadh">Asia/Riyadh (AST)</option>
+									<option value="Asia/Karachi">Asia/Karachi (PKT)</option>
+									<option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+									<option value="Asia/Dhaka">Asia/Dhaka (BST)</option>
+									<option value="Asia/Bangkok">Asia/Bangkok (ICT)</option>
+									<option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+									<option value="Asia/Hong_Kong">Asia/Hong Kong (HKT)</option>
+									<option value="Asia/Shanghai">Asia/Shanghai (CST)</option>
+									<option value="Asia/Seoul">Asia/Seoul (KST)</option>
+									<option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+									<option value="Asia/Jakarta">Asia/Jakarta (WIB)</option>
+									<option value="Asia/Manila">Asia/Manila (PHT)</option>
 									<option value="Australia/Sydney">Australia/Sydney (AEST)</option>
 									<option value="Pacific/Auckland">Pacific/Auckland (NZST)</option>
 								</select>
@@ -2314,6 +2373,7 @@ function PersonalInfoTab({
 				</Card>
 			</div>
 		</div>
+	</div>
 	);
 }
 
@@ -3189,9 +3249,14 @@ function PortfolioTab({
 	async function addProject() {
 		if (!newProj.name) return;
 		try {
+			// Filter empty skill strings on submit (not while typing)
+			const payload = {
+				...newProj,
+				skills: (newProj.skills || []).filter(Boolean),
+			};
 			const data = await apiCall<{ success: boolean; project: Project }>('/candidate/projects', {
 				method: 'POST',
-				body: newProj,
+				body: payload,
 			});
 			setProjects((prev) => [data.project, ...prev]);
 			setNewProj({});
@@ -3358,10 +3423,10 @@ function PortfolioTab({
 										onChange={(e) =>
 											setNewProj({
 												...newProj,
+												// Don't filter while typing — strips comma as user types. Filter on submit.
 												skills: e.target.value
 													.split(',')
 													.map((s) => s.trim())
-													.filter(Boolean),
 											})
 										}
 										placeholder="React, Python, TensorFlow"

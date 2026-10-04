@@ -1798,22 +1798,71 @@ router.post('/assessments/:id/submit', authMiddleware, async (req, res) => {
 
 // ============= PORTFOLIO PROJECTS =============
 
+router.post('/certifications', authMiddleware, async (req, res) => {
+	try {
+		const { name, issuer, issue_date, expiry_date, credential_url } = req.body;
+
+		if (!name || !String(name).trim()) {
+			return res.status(400).json({ error: 'Certification name is required' });
+		}
+		if (!issuer || !String(issuer).trim()) {
+			return res.status(400).json({ error: 'Issuer is required' });
+		}
+
+		// Get current certifications JSONB array
+		const profile = await pool.query(
+			'SELECT certifications FROM candidate_profiles WHERE user_id = $1',
+			[req.user.id]
+		);
+
+		const current = profile.rows[0]?.certifications || [];
+		const newCert = {
+			id: Date.now(),
+			name: String(name).trim(),
+			issuer: String(issuer).trim(),
+			issue_date: issue_date || null,
+			expiry_date: expiry_date || null,
+			credential_url: credential_url || null,
+		};
+
+		const updated = [...current, newCert];
+
+		await pool.query(
+			'UPDATE candidate_profiles SET certifications = $1::jsonb, updated_at = NOW() WHERE user_id = $2',
+			[JSON.stringify(updated), req.user.id]
+		);
+
+		res.json({ success: true, certification: newCert });
+	} catch (err) {
+		console.error('Add certification error:', err);
+		res.status(500).json({ error: 'Failed to add certification' });
+	}
+});
+
 router.post('/projects', authMiddleware, async (req, res) => {
 	try {
 		const {
 			title,
+			name,
 			description,
 			project_url,
+			url,
 			github_url,
 			image_url,
 			technologies,
+			skills,
 			role,
 			start_date,
 			end_date,
 			highlights,
 		} = req.body;
 
-		if (!title || !String(title).trim()) {
+		// Frontend sends `name`/`url`/`skills`; backend uses `title`/`project_url`/`technologies` — accept both
+		const projectTitle = title || name;
+		const projectUrl = project_url || url;
+		const techList = technologies || skills || [];
+
+		if (!projectTitle || !String(projectTitle).trim()) {
 			return res.status(400).json({ error: 'Project title is required' });
 		}
 
@@ -1825,12 +1874,12 @@ router.post('/projects', authMiddleware, async (req, res) => {
     `,
 			[
 				req.user.id,
-				String(title).trim(),
+				String(projectTitle).trim(),
 				description,
-				project_url,
+				projectUrl,
 				github_url,
 				image_url,
-				JSON.stringify(technologies || []),
+				JSON.stringify(techList),
 				role,
 				start_date,
 				end_date,
