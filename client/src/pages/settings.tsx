@@ -43,7 +43,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/contexts/theme-context';
 import { trackEvent } from '@/lib/analytics';
-import { apiCall } from '@/lib/api';
+import { apiCall, setTokens } from '@/lib/api';
 
 interface NotificationSettings {
 	email_jobs: boolean;
@@ -108,6 +108,7 @@ export function SettingsPage() {
 
 	// Delete account state
 	const [deleteConfirm, setDeleteConfirm] = useState('');
+	const [deletePassword, setDeletePassword] = useState('');
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
 	// ── Account Connections (Issue #161) ──
@@ -397,10 +398,16 @@ export function SettingsPage() {
 		}
 		setSaving(true);
 		try {
-			await apiCall('/auth/password', {
-				method: 'POST',
-				body: { currentPassword, newPassword },
-			});
+			const data = await apiCall<{ success: boolean; accessToken: string; refreshToken: string }>(
+				'/auth/password',
+				{
+					method: 'POST',
+					body: { currentPassword, newPassword },
+				},
+			);
+			// Backend revoked all sessions and minted a fresh pair for this one —
+			// other devices are logged out, this session stays alive.
+			setTokens(data.accessToken, data.refreshToken);
 			setCurrentPassword('');
 			setNewPassword('');
 			setConfirmPassword('');
@@ -471,8 +478,15 @@ export function SettingsPage() {
 			setError('Type DELETE to confirm');
 			return;
 		}
+		if (hasPassword && !deletePassword) {
+			setError('Enter your current password to confirm deletion');
+			return;
+		}
 		try {
-			await apiCall('/auth/delete-account', { method: 'DELETE' });
+			await apiCall('/auth/delete-account', {
+				method: 'DELETE',
+				body: hasPassword ? { password: deletePassword } : {},
+			});
 			logout();
 		} catch (_err) {
 			setError('Account deletion failed. Contact support.');
@@ -1023,6 +1037,20 @@ export function SettingsPage() {
 										onChange={(e) => setDeleteConfirm(e.target.value)}
 										placeholder="Type DELETE"
 									/>
+									{hasPassword && (
+										<div className="space-y-1">
+											<p className="text-sm text-muted-foreground">
+												Confirm with your current password.
+											</p>
+											<Input
+												type="password"
+												value={deletePassword}
+												onChange={(e) => setDeletePassword(e.target.value)}
+												placeholder="Current password"
+												autoComplete="current-password"
+											/>
+										</div>
+									)}
 									<div className="flex gap-2">
 										<Button variant="outline" size="sm" onClick={() => setShowDeleteDialog(false)}>
 											Cancel
