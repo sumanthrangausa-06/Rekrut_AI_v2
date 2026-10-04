@@ -1608,6 +1608,132 @@ router.post('/reset-password', rateLimits.strict, async (req, res) => {
 	}
 });
 
+// ============= ISSUE #255: AUTH SETTINGS =============
+
+// Change password (authenticated). Verifies the current password when one is
+// set, applies the role-based password policy, then revokes ALL refresh
+// tokens (other devices are logged out) and mints a fresh pair so the current
+// session stays alive. OAuth-only users (no password_hash) can set their first
+// password without a current password.
+router.post('/password', authMiddleware, rateLimits.strict, async (req, res) => {
+	try {
+		const { currentPassword, newPassword } = req.body;
+		const user = req.user;
+
+		if (!newPassword) {
+			return res.status(400).json({ error: 'New password is required' });
+		}
+
+		if (user.password_hash) {
+			if (!currentPassword) {
+				return res.status(400).json({ error: 'Current password is required' });
+			}
+			const ok = await bcrypt.compare(currentPassword, user.password_hash);
+			if (!ok) {
+				return res.status(401).json({ error: 'Current password is incorrect' });
+			}
+		}
+
+		if (!validatePasswordForRole(newPassword, user.role)) {
+			return res.status(400).json({ error: getPasswordPolicyMessage(user.role) });
+		}
+
+		const passwordHash = await bcrypt.hash(newPassword, 13);
+		await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, user.id]);
+
+		// Invalidate every session, then re-issue for this one
+		await revokeAllTokens(user.id);
+		const accessToken = generateToken({ id: user.id, email: user.email, role: user.role });
+		const { token: refreshToken } = await generateRefreshToken(user.id);
+
+		try {
+			await AuditLogger.log({
+				actionType: 'password_changed',
+				userId: user.id,
+				targetType: 'user',
+				targetId: user.id,
+				metadata: {},
+				req,
+			});
+		} catch (auditErr) {
+			console.error('Audit log failed (non-blocking):', auditErr.message);
+		}
+
+		res.json({ success: true, accessToken, refreshToken });
+	} catch (err) {
+		console.error('Password change error:', err.message, err.code, err.stack);
+		res.status(500).json({ error: 'Failed to change password' });
+	}
+});
+
+// Delete account (authenticated). Soft delete + PII scrub: hard DELETE FROM
+// users is blocked by FK references without ON DELETE behavior, so the row is
+// kept as a tombstone with deleted_at set and PII anonymized (email is
+// rewritten, freeing it for re-registration). All sessions and OAuth
+// connections are revoked/removed. Users with a password must confirm it;
+// OAuth-only users rely on the authenticated session + typed DELETE.
+router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, res) => {
+	try {
+		const { password } = req.body || {};
+		const user = req.user;
+
+		if (user.password_hash) {
+			if (!password) {
+				return res.status(400).json({ error: 'Password confirmation is required' });
+			}
+			const ok = await bcrypt.compare(password, user.password_hash);
+			if (!ok) {
+				return res.status(401).json({ error: 'Password is incorrect' });
+			}
+		}
+
+		const client = await pool.connect();
+		try {
+			await client.query('BEGIN');
+			await client.query('UPDATE refresh_tokens SET is_revoked = true WHERE user_id = $1', [user.id]);
+			await client.query('DELETE FROM oauth_connections WHERE user_id = $1', [user.id]);
+			await client.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id]);
+			await client.query(
+				`UPDATE users SET
+					deleted_at = NOW(),
+					email = 'deleted_' || id || '_' || substr(md5(random()::text), 1, 8) || '@deleted.local',
+					name = 'Deleted User',
+					password_hash = NULL,
+					google_id = NULL,
+					linkedin_id = NULL,
+					oauth_provider = NULL,
+					avatar_url = NULL
+				WHERE id = $1`,
+				[user.id],
+			);
+			await client.query('COMMIT');
+		} catch (txErr) {
+			await client.query('ROLLBACK');
+			throw txErr;
+		} finally {
+			client.release();
+		}
+
+		try {
+			await AuditLogger.log({
+				actionType: 'account_deleted',
+				userId: user.id,
+				targetType: 'user',
+				targetId: user.id,
+				metadata: {},
+				req,
+			});
+		} catch (auditErr) {
+			console.error('Audit log failed (non-blocking):', auditErr.message);
+		}
+
+		res.json({ success: true, message: 'Account deleted successfully.' });
+	} catch (err) {
+		console.error('Delete account error:', err.message, err.code, err.stack);
+		res.status(500).json({ error: 'Failed to delete account' });
+	}
+});
+
 module.exports = router;
 // Exported for integration tests (server/__tests__/routes/oauth-exchange.test.js)
 module.exports.mintOAuthExchangeCode = mintOAuthExchangeCode;
