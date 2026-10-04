@@ -282,9 +282,7 @@ export async function apiCall<T = unknown>(url: string, options: ApiCallOptions 
 
 	if (!res.ok) {
 		const errorData = await res.json().catch(() => ({ error: 'Request failed' }));
-		// TEMPORARY DEBUG: include _debug field in error message
-		const debugSuffix = errorData._debug ? ` [DEBUG: ${errorData._debug}]` : '';
-		const error = new Error((errorData.error || `Request failed: ${res.status}`) + debugSuffix);
+		const error = new Error(errorData.error || `Request failed: ${res.status}`);
 		// Attach error code for programmatic handling (e.g., BLOCKED_EMAIL_DOMAIN)
 		(error as Error & { code?: string }).code = errorData.code;
 		throw error;
