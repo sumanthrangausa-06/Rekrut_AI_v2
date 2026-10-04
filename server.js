@@ -494,8 +494,17 @@ function csrfProtection(req, res, next) {
 		return next();
 	}
 	// Exempt auth endpoints from CSRF — these don't have a session yet
-	// and the login/register forms are protected by other means (rate limits, CORS)
-	if (req.path.startsWith('/api/auth/login') || req.path.startsWith('/api/auth/register')) {
+	// and the login/register forms are protected by other means (rate limits, CORS).
+	// The OAuth code exchange is in the same category: it trades a single-use
+	// 256-bit code for tokens (rate-limited), carries no ambient credentials,
+	// and a cross-origin attacker can't read the token response anyway (SOP).
+	// Requiring the _csrf cookie here would reintroduce the exact iOS
+	// cookie-blocking failure mode the exchange flow was built to avoid.
+	if (
+		req.path.startsWith('/api/auth/login') ||
+		req.path.startsWith('/api/auth/register') ||
+		req.path === '/api/auth/oauth/exchange'
+	) {
 		return next();
 	}
 	// Exempt analytics events from CSRF — write-only logging with no state-changing
