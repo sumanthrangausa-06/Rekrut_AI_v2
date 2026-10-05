@@ -305,6 +305,57 @@ Return ONLY valid JSON array, no markdown.`;
 }
 
 /**
+ * Generate screening topics for conversational AI screening.
+ * Topics are coverage areas (not fixed questions) that the AI uses as a checklist
+ * during the conversational interview.
+ */
+async function generateScreeningTopics(jobTitle, jobDescription, _options = {}) {
+	const aiProvider = require('../lib/ai-provider');
+
+	const prompt = `Generate 5-7 screening topics for a conversational AI screening interview for a "${jobTitle}" position.
+Job Description: ${(jobDescription || '').substring(0, 2000)}
+
+These topics will guide a conversational AI recruiter (not a fixed questionnaire). The AI will naturally cover these areas through follow-up questions and discussion.
+
+Return a JSON array of topic strings. Each topic should be:
+- A coverage area, not a specific question (e.g., "React and frontend architecture experience" not "What is React?")
+- Relevant to the role's key requirements
+- Mix of: technical depth, experience verification, motivation, and logistics
+
+Example: ["Recent React project experience and personal contribution", "State management and performance optimization approach", "Team collaboration and code review practices", "Motivation for this role and company", "Salary expectations and notice period"]
+
+Return ONLY valid JSON array of strings, no markdown.`;
+
+	try {
+		const text = await aiProvider.chat(prompt, {
+			maxTokens: 800,
+			task: 'screening-topic-generation',
+			module: 'interview_screening',
+			feature: 'topic_generation',
+		});
+
+		const match = text.match(/\[[\s\S]*\]/);
+		if (match) {
+			const topics = JSON.parse(match[0]);
+			if (Array.isArray(topics) && topics.length > 0) {
+				return topics.filter((t) => typeof t === 'string');
+			}
+		}
+	} catch (err) {
+		console.error('[screening] AI topic generation failed:', err.message);
+	}
+
+	// Fallback topics
+	return [
+		`Relevant experience for ${jobTitle} role`,
+		'Technical skills and recent project contributions',
+		'Problem-solving approach and challenges overcome',
+		'Motivation for this role and career goals',
+		'Logistics: availability, location, and compensation expectations',
+	];
+}
+
+/**
  * Generate structured evaluation report from screening responses
  */
 async function generateScreeningReport(session) {
@@ -719,9 +770,12 @@ async function conductScreeningTurn(conversation, job, template, currentPhase) {
 	}
 
 	// Build coverage checklist from template
-	const templateTopics = template?.questions
-		? template.questions.map((q) => q.question_text || q.text || q).slice(0, 5)
-		: [];
+	const templateTopics =
+		template?.topics && template.topics.length > 0
+			? template.topics
+			: template?.questions
+				? template.questions.map((q) => q.question_text || q.text || q).slice(0, 5)
+				: [];
 	const topicsText =
 		templateTopics.length > 0
 			? `Key topics to cover: ${templateTopics.join('; ')}`
@@ -826,6 +880,7 @@ module.exports = {
 	createReminders,
 	suggestRescheduleSlots,
 	generateScreeningQuestions,
+	generateScreeningTopics,
 	generateScreeningReport,
 	conductScreeningTurn,
 	SCREENING_PHASES,

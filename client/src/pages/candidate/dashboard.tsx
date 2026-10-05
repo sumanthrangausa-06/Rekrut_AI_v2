@@ -4,6 +4,7 @@ import {
 	FileText,
 	GraduationCap,
 	MessageSquare,
+	Mic,
 	Sparkles,
 	Star,
 	Target,
@@ -44,6 +45,16 @@ export function CandidateDashboard() {
 			created_at: string;
 		}>
 	>([]);
+	const [screeningInvites, setScreeningInvites] = useState<
+		Array<{
+			id: number;
+			job_title: string;
+			company_name: string;
+			status: string;
+			invite_token: string;
+			invite_url: string | null;
+		}>
+	>([]);
 	const [loading, setLoading] = useState(true);
 	const [showLinkedInModal, setShowLinkedInModal] = useState(false);
 
@@ -68,6 +79,31 @@ export function CandidateDashboard() {
 				}
 				if (jobsRes.status === 'fulfilled') {
 					setRecentJobs(jobsRes.value.jobs?.slice(0, 5) || []);
+				}
+
+				// Load screening invites
+				try {
+					const screeningRes = await apiCall<{
+						success: boolean;
+						sessions: Array<{
+							id: number;
+							job_title: string;
+							company_name: string;
+							status: string;
+							invite_token: string;
+							invite_url: string | null;
+						}>;
+					}>('/interviews/screening/my-sessions');
+					if (screeningRes.sessions) {
+						// Only show pending/in-progress (actionable) invites
+						setScreeningInvites(
+							screeningRes.sessions.filter((s) =>
+								['invited', 'in_progress'].includes(s.status),
+							),
+						);
+					}
+				} catch {
+					// Screening invites are best-effort
 				}
 			} catch {
 				// Dashboard data is best-effort
@@ -299,6 +335,42 @@ export function CandidateDashboard() {
 					</Link>
 				))}
 			</div>
+
+			{/* Screening invites — prominent, actionable */}
+			{screeningInvites.length > 0 && (
+				<Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/20">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<Mic className="h-5 w-5 text-blue-600" />
+							AI Screening Invitations
+							<Badge variant="default" className="ml-2">
+								{screeningInvites.length} pending
+							</Badge>
+						</CardTitle>
+					</CardHeader>
+					<CardContent className="space-y-3">
+						{screeningInvites.map((invite) => (
+							<div
+								key={invite.id}
+								className="flex items-center justify-between p-3 bg-background rounded-lg border"
+							>
+								<div>
+									<p className="text-sm font-medium">{invite.job_title}</p>
+									<p className="text-xs text-muted-foreground">
+										{invite.company_name} ·{' '}
+										{invite.status === 'in_progress' ? 'In progress' : 'Invited'}
+									</p>
+								</div>
+								<Link to={`/screening/${invite.invite_token}`}>
+									<Button size="sm">
+										{invite.status === 'in_progress' ? 'Resume' : 'Start Screening'}
+									</Button>
+								</Link>
+							</div>
+						))}
+					</CardContent>
+				</Card>
+			)}
 
 			{/* Recent jobs */}
 			<Card>

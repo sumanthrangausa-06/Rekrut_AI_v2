@@ -2775,31 +2775,57 @@ router.get('/scheduling-preferences', authMiddleware, async (req, res) => {
 // POST /api/interviews/screening/create-template — Recruiter creates a screening template
 router.post('/screening/create-template', authMiddleware, async (req, res) => {
 	try {
-		const { job_id, title, description, questions, time_limit_minutes, auto_send_on_apply } =
-			req.body;
+		const {
+			job_id,
+			title,
+			description,
+			questions,
+			topics,
+			screening_mode,
+			time_limit_minutes,
+			auto_send_on_apply,
+		} = req.body;
 
 		if (!job_id) {
 			return res.status(400).json({ error: 'Job ID is required' });
 		}
 
-		// Get job details for AI question generation
+		// Get job details for AI generation
 		const job = await pool.query('SELECT title, description FROM jobs WHERE id = $1', [job_id]);
 		if (job.rows.length === 0) {
 			return res.status(404).json({ error: 'Job not found' });
 		}
 
-		// Use provided questions or generate with AI
-		let finalQuestions = questions;
-		if (!finalQuestions || finalQuestions.length === 0) {
-			finalQuestions = await interviewAI.generateScreeningQuestions(
-				job.rows[0].title,
-				job.rows[0].description,
-			);
+		// Determine mode: conversational (topics) vs legacy (questions)
+		const mode = screening_mode || (topics ? 'conversational' : 'legacy');
+
+		let finalQuestions = questions || [];
+		let finalTopics = topics || [];
+
+		if (mode === 'conversational') {
+			// Conversational mode: use topics as coverage checklist
+			// If no topics provided, generate them with AI based on job
+			if (finalTopics.length === 0) {
+				finalTopics = await interviewAI.generateScreeningTopics(
+					job.rows[0].title,
+					job.rows[0].description,
+				);
+			}
+			// Keep questions empty for conversational mode
+			finalQuestions = [];
+		} else {
+			// Legacy mode: use provided questions or generate with AI
+			if (finalQuestions.length === 0) {
+				finalQuestions = await interviewAI.generateScreeningQuestions(
+					job.rows[0].title,
+					job.rows[0].description,
+				);
+			}
 		}
 
 		const result = await pool.query(
-			`INSERT INTO screening_templates (company_id, job_id, created_by, title, description, questions, time_limit_minutes, auto_send_on_apply)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			`INSERT INTO screening_templates (company_id, job_id, created_by, title, description, questions, topics, screening_mode, time_limit_minutes, auto_send_on_apply)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
 			[
 				req.user.company_id,
@@ -2808,6 +2834,8 @@ router.post('/screening/create-template', authMiddleware, async (req, res) => {
 				title || `Screening: ${job.rows[0].title}`,
 				description || `AI screening interview for ${job.rows[0].title} candidates`,
 				JSON.stringify(finalQuestions),
+				JSON.stringify(finalTopics),
+				mode,
 				time_limit_minutes || 45,
 				auto_send_on_apply || false,
 			],
@@ -3088,7 +3116,7 @@ router.post('/screening/session/:token/start', async (req, res) => {
 		// Get session with job details for AI intro (conversational screening)
 		const sessionResult = await pool.query(
 			`SELECT ss.*, j.title as job_title, j.description as job_description, c.name as company_name,
-              st.questions as template_questions, st.title as template_title
+              st.questions as template_questions, st.topics as template_topics, st.title as template_title, st.screening_mode
        FROM screening_sessions ss
        JOIN jobs j ON ss.job_id = j.id
        JOIN companies c ON ss.company_id = c.id
@@ -3114,7 +3142,9 @@ router.post('/screening/session/:token/start', async (req, res) => {
 			},
 			{
 				questions: s.template_questions || [],
+				topics: s.template_topics || [],
 				title: s.template_title,
+				screening_mode: s.screening_mode || 'conversational',
 			},
 			'intro',
 		);
@@ -3169,7 +3199,7 @@ router.post('/screening/session/:token/respond', async (req, res) => {
 
 		const session = await pool.query(
 			`SELECT ss.*, j.title as job_title, j.description as job_description, c.name as company_name,
-              st.questions as template_questions, st.title as template_title
+              st.questions as template_questions, st.topics as template_topics, st.title as template_title, st.screening_mode
        FROM screening_sessions ss
        JOIN jobs j ON ss.job_id = j.id
        JOIN companies c ON ss.company_id = c.id
@@ -3206,7 +3236,9 @@ router.post('/screening/session/:token/respond', async (req, res) => {
 				},
 				{
 					questions: s.template_questions || [],
+					topics: s.template_topics || [],
 					title: s.template_title,
+					screening_mode: s.screening_mode || 'conversational',
 				},
 				currentPhase,
 			);
@@ -3254,6 +3286,141 @@ router.post('/screening/session/:token/respond', async (req, res) => {
 		res.status(500).json({ error: 'Failed to process response' });
 	}
 });
+
+// POST /api/interviews/screening/session/:token/respond-voice — Candidate submits voice response
+// Accepts audio file, transcribes with Whisper, then runs conversational AI turn
+router.post(
+	'/screening/session/:token/respond-voice',
+	upload.single('audio'),
+	async (req, res) => {
+		try {
+			const aiProvider = require('../lib/ai-provider');
+			const interviewAI = require('../services/interview-ai');
+
+			// Step 1: Transcribe audio
+			let transcribedText = '';
+			if (req.file) {
+				const baseMime = (req.file.mimetype || 'audio/webm').split(';')[0];
+				const ext = baseMime.includes('mp4')
+					? 'mp4'
+					: baseMime.includes('ogg')
+						? 'ogg'
+						: 'webm';
+				const filename = `screening-recording.${ext}`;
+
+				try {
+					const asrResult = await aiProvider.transcribeAudio(
+						req.file.buffer,
+						filename,
+						baseMime,
+						{
+							module: 'interview_screening',
+							feature: 'voice_transcription',
+						},
+					);
+					if (asrResult?.text) {
+						transcribedText = asrResult.text.trim();
+					}
+				} catch (asrErr) {
+					console.error('[screening-voice] Transcription failed:', asrErr.message);
+					return res.status(400).json({
+						error: "Couldn't transcribe your audio. Please try speaking again.",
+					});
+				}
+			}
+
+			if (!transcribedText || transcribedText.length < 3) {
+				return res.status(400).json({
+					error: "Didn't catch that. Could you please repeat your answer?",
+				});
+			}
+
+			// Step 2: Load session (same as text respond endpoint)
+			const session = await pool.query(
+				`SELECT ss.*, j.title as job_title, j.description as job_description, c.name as company_name,
+              st.questions as template_questions, st.topics as template_topics, st.title as template_title, st.screening_mode
+       FROM screening_sessions ss
+       JOIN jobs j ON ss.job_id = j.id
+       JOIN companies c ON ss.company_id = c.id
+       LEFT JOIN screening_templates st ON ss.template_id = st.id
+       WHERE ss.invite_token = $1 AND ss.status = 'in_progress'`,
+				[req.params.token],
+			);
+
+			if (session.rows.length === 0) {
+				return res.status(404).json({ error: 'Screening not found or not in progress' });
+			}
+
+			const s = session.rows[0];
+			const conversation = s.conversation || [];
+			const currentPhase = s.current_phase || 'background';
+
+			// Add candidate response to conversation
+			conversation.push({
+				role: 'candidate',
+				text: transcribedText,
+				timestamp: new Date().toISOString(),
+				input_mode: 'voice',
+			});
+
+			// Step 3: Generate AI turn (same logic as text endpoint)
+			let aiTurn;
+			try {
+				aiTurn = await interviewAI.conductScreeningTurn(
+					conversation,
+					{
+						title: s.job_title,
+						description: s.job_description,
+						company_name: s.company_name,
+					},
+					{
+						questions: s.template_questions || [],
+						topics: s.template_topics || [],
+						title: s.template_title,
+						screening_mode: s.screening_mode || 'conversational',
+					},
+					currentPhase,
+				);
+			} catch (aiErr) {
+				console.error('[screening-voice] AI turn failed:', aiErr.message);
+				aiTurn = {
+					ai_message:
+						'Thanks for sharing that. Could you tell me a bit more about your experience?',
+					phase: currentPhase,
+					should_wrap_up: false,
+				};
+			}
+
+			// Add AI response to conversation
+			conversation.push({
+				role: 'ai',
+				text: aiTurn.ai_message,
+				timestamp: new Date().toISOString(),
+				phase: aiTurn.phase,
+			});
+
+			// Update session
+			await pool.query(
+				`UPDATE screening_sessions
+         SET conversation = $1, current_phase = $2, updated_at = NOW()
+         WHERE id = $3`,
+				[JSON.stringify(conversation), aiTurn.phase || currentPhase, s.id],
+			);
+
+			res.json({
+				success: true,
+				transcribed_text: transcribedText,
+				ai_message: aiTurn.ai_message,
+				phase: aiTurn.phase || currentPhase,
+				should_wrap_up: aiTurn.should_wrap_up || false,
+				exchange_count: Math.floor(conversation.length / 2),
+			});
+		} catch (err) {
+			console.error('Screening voice respond error:', err);
+			res.status(500).json({ error: 'Failed to process voice response' });
+		}
+	},
+);
 
 // POST /api/interviews/screening/session/:token/complete — Candidate completes screening
 router.post('/screening/session/:token/complete', async (req, res) => {
@@ -3330,6 +3497,79 @@ router.post('/screening/session/:token/complete', async (req, res) => {
 	} catch (err) {
 		console.error('Complete screening error:', err);
 		res.status(500).json({ error: 'Failed to complete screening' });
+	}
+});
+
+// GET /api/interviews/screening/sessions — Recruiter lists screening sessions for their company
+// Query params: job_id (optional), status (optional)
+router.get('/screening/sessions', authMiddleware, async (req, res) => {
+	try {
+		const { job_id, status } = req.query;
+
+		let query = `
+      SELECT ss.id, ss.status, ss.current_phase, ss.overall_score, ss.recommendation,
+             ss.invited_at, ss.started_at, ss.completed_at,
+             ss.conversation,
+             j.id as job_id, j.title as job_title,
+             u.id as candidate_id, u.name as candidate_name, u.email as candidate_email,
+             st.title as template_title, st.screening_mode
+      FROM screening_sessions ss
+      JOIN jobs j ON ss.job_id = j.id
+      JOIN users u ON ss.candidate_id = u.id
+      LEFT JOIN screening_templates st ON ss.template_id = st.id
+      WHERE ss.company_id = $1
+    `;
+		const params = [req.user.company_id];
+		let paramIdx = 2;
+
+		if (job_id) {
+			query += ` AND ss.job_id = $${paramIdx}`;
+			params.push(job_id);
+			paramIdx++;
+		}
+		if (status) {
+			query += ` AND ss.status = $${paramIdx}`;
+			params.push(status);
+			paramIdx++;
+		}
+
+		query += ` ORDER BY ss.invited_at DESC LIMIT 100`;
+
+		const result = await pool.query(query, params);
+
+		const sessions = result.rows.map((s) => {
+			const conversation = s.conversation || [];
+			return {
+				id: s.id,
+				status: s.status,
+				current_phase: s.current_phase,
+				overall_score: s.overall_score,
+				recommendation: s.recommendation,
+				job_id: s.job_id,
+				job_title: s.job_title,
+				candidate_id: s.candidate_id,
+				candidate_name: s.candidate_name,
+				candidate_email: s.candidate_email,
+				template_title: s.template_title,
+				screening_mode: s.screening_mode,
+				invited_at: s.invited_at,
+				started_at: s.started_at,
+				completed_at: s.completed_at,
+				exchange_count: Math.floor(conversation.length / 2),
+				// Include full transcript for monitoring
+				transcript: conversation.map((msg) => ({
+					role: msg.role,
+					text: msg.text,
+					timestamp: msg.timestamp,
+					phase: msg.phase,
+				})),
+			};
+		});
+
+		res.json({ success: true, sessions });
+	} catch (err) {
+		console.error('List screening sessions error:', err);
+		res.status(500).json({ error: 'Failed to fetch screening sessions' });
 	}
 });
 
