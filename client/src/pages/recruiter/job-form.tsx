@@ -220,6 +220,20 @@ export function RecruiterJobFormPage() {
 			setDepartment(job.department || '');
 			setAutoSendEnabled(job.auto_send_on_apply === true);
 			setAutoSendMinScore(job.auto_send_min_score ?? 70);
+			// Load existing screening topics from the job's template (#307)
+			try {
+				const tplData = await apiCall<{ templates: { topics?: string[] | string }[] }>(
+					`/interviews/screening/templates?job_id=${id}`,
+				);
+				const tpl = tplData.templates?.[0];
+				if (tpl?.topics) {
+					const topics =
+						typeof tpl.topics === 'string' ? JSON.parse(tpl.topics) : tpl.topics;
+					if (Array.isArray(topics)) setScreeningTopics(topics.filter((t) => typeof t === 'string'));
+				}
+			} catch {
+				// Non-blocking: topics stay empty if template fetch fails
+			}
 			setDescription(job.description || '');
 			setRequirements(job.requirements || '');
 			setLocation(job.location || '');
