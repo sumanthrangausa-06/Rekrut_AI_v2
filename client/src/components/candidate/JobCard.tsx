@@ -238,6 +238,12 @@ function fitScoreBorderColor(score: number): string {
 	return 'border-red-200 dark:border-red-800';
 }
 
+function matchLabel(score: number): string {
+	if (score >= 80) return 'Strong match';
+	if (score >= 50) return 'Good match';
+	return 'Low match';
+}
+
 export function JobCard({
 	job,
 	isSelected,
@@ -256,13 +262,11 @@ export function JobCard({
 	autoApplyState = 'hidden',
 }: JobCardProps) {
 	const score = job.match?.match_score ?? (job.weighted_score ? Math.round(job.weighted_score) : null);
-	const matchBreakdown = job.match?.breakdown;
 	const matchingSkills = job.match?.matching_skills ?? job.matching_skills;
 	const missingSkills = job.match?.missing_skills ?? job.missing_skills;
 	const fitScore = job.match?.match_score ?? (job.fit_score != null ? Math.round(job.fit_score) : null);
 	const companyName = job.company || job.poster_company || 'Company';
 	const isTrashMode = activeTab === 'dismissed';
-	const [showCompactMatch, setShowCompactMatch] = useState(false);
 	const [showFitBreakdown, setShowFitBreakdown] = useState(false);
 
 	const allSkills = [...(matchingSkills || []), ...(job.skills_required || [])];
@@ -457,51 +461,35 @@ export function JobCard({
 
 					{/* Right: Score Ring + Action Rail */}
 					<div className="shrink-0 flex flex-row sm:flex-col items-center gap-3 sm:gap-2 w-full sm:w-auto justify-between sm:justify-start sm:pt-1">
-						{/* Fit Score — prominently displayed, fallback to weighted_score */}
+						{/* Match Score — Jobright-style badge, fallback to weighted_score */}
 						{fitScore != null ? (
-							<Tooltip
-								content={
-									<div className="space-y-1.5 min-w-[140px]">
-										<p className="font-semibold text-xs">Fit Breakdown</p>
-										{breakdownEntries.map((entry) => (
-											<div key={entry.label} className="flex items-center justify-between gap-3">
-												<span className="text-[10px] opacity-80">{entry.label}</span>
-												<span className="text-[10px] font-semibold">{entry.value}%</span>
-											</div>
-										))}
-									</div>
-								}
-								side="left"
-							>
-								<div className="flex flex-col items-center cursor-help">
-									<div
-										className={cn(
-											'flex items-center justify-center rounded-full border-2 font-bold text-sm',
-											'w-14 h-14',
-											fitScoreBgColor(fitScore),
-											fitScoreBorderColor(fitScore),
-											fitScoreTextColor(fitScore),
-										)}
-									>
-										{fitScore}%
-									</div>
-									<span
-										className={cn('text-[10px] font-medium mt-0.5', fitScoreTextColor(fitScore))}
-									>
-										<Target className="h-2.5 w-2.5 inline mr-0.5" />
-										Fit
-									</span>
-									{fitScore >= 70 && (
-										<Badge
-											variant="outline"
-											className="text-[10px] mt-0.5 border-amber-300 text-amber-700 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700 px-1 py-0 gap-0.5"
-										>
-											<Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
-											Top 5
-										</Badge>
+							<div className="flex flex-col items-center gap-1">
+								<div
+									className={cn(
+										'flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-bold text-sm',
+										fitScoreBgColor(fitScore),
+										fitScoreBorderColor(fitScore),
+										fitScoreTextColor(fitScore),
 									)}
+								>
+									<Target className="h-3.5 w-3.5" />
+									{fitScore}%
 								</div>
-							</Tooltip>
+								<span
+									className={cn('text-[10px] font-semibold uppercase tracking-wide', fitScoreTextColor(fitScore))}
+								>
+									{matchLabel(fitScore)}
+								</span>
+								{fitScore >= 70 && (
+									<Badge
+										variant="outline"
+										className="text-[10px] mt-0.5 border-amber-300 text-amber-700 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700 px-1 py-0 gap-0.5"
+									>
+										<Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
+										Top 5
+									</Badge>
+								)}
+							</div>
 						) : score != null ? (
 							<div className="flex flex-col items-center">
 								<ScoreRing score={score} size="md" />
@@ -618,7 +606,7 @@ export function JobCard({
 					</div>
 				</div>
 
-				{/* Fit Score Breakdown inline */}
+				{/* Why this job is a match — Jobright-style expander */}
 				{fitScore != null && breakdownEntries.length > 0 && (
 					<div className="mt-3 pt-3 border-t border-border/40">
 						<button type="button"
@@ -633,14 +621,9 @@ export function JobCard({
 							)}
 						>
 							<div className="flex items-center gap-2 min-w-0">
-								<Target className={cn('h-3.5 w-3.5 shrink-0', fitScoreTextColor(fitScore))} />
+								<Sparkles className={cn('h-3.5 w-3.5 shrink-0', fitScoreTextColor(fitScore))} />
 								<span className={cn('text-xs font-semibold truncate', fitScoreTextColor(fitScore))}>
-									{fitScore}% fit —{' '}
-									{fitScore >= 80
-										? 'Strong match'
-										: fitScore >= 50
-											? 'Potential match'
-											: 'Low match'}
+									Why this job is a match — {fitScore}% {matchLabel(fitScore).toLowerCase()}
 								</span>
 							</div>
 							{showFitBreakdown ? (
@@ -650,7 +633,7 @@ export function JobCard({
 							)}
 						</button>
 						{showFitBreakdown && (
-							<div className="mt-2 space-y-2 px-1">
+							<div className="mt-2 space-y-3 px-1">
 								{breakdownEntries.map((entry) => (
 									<div key={entry.label} className="space-y-1">
 										<div className="flex items-center justify-between">
@@ -672,130 +655,55 @@ export function JobCard({
 										</div>
 									</div>
 								))}
+								{matchingSkills && matchingSkills.length > 0 && (
+									<div className="flex flex-wrap gap-1">
+										{matchingSkills.slice(0, 4).map((s) => (
+											<Badge
+												key={s}
+												variant="secondary"
+												className="text-[10px] font-medium px-2 py-0 rounded-full bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700"
+											>
+												{s}
+											</Badge>
+										))}
+										{matchingSkills.length > 4 && (
+											<span className="text-[10px] text-emerald-600 dark:text-emerald-400">
+												+{matchingSkills.length - 4} more
+											</span>
+										)}
+									</div>
+								)}
+								{job.explanation?.why_matched && (
+									<p className="text-xs text-muted-foreground leading-relaxed">
+										{job.explanation.why_matched}
+									</p>
+								)}
+								{missingSkills && missingSkills.length > 0 && (
+									<div className="flex flex-wrap items-center gap-1">
+										<span className="text-[10px] text-amber-600 dark:text-amber-400 shrink-0">
+											To improve your match:
+										</span>
+										{missingSkills.slice(0, 3).map((s) => (
+											<Badge
+												key={s}
+												variant="outline"
+												className="text-[10px] font-medium px-1.5 py-0 rounded-full border-amber-300 text-amber-700 bg-amber-50/50 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700"
+											>
+												{s}
+											</Badge>
+										))}
+										{missingSkills.length > 3 && (
+											<span className="text-[10px] text-amber-600 dark:text-amber-400">
+												+{missingSkills.length - 3} more
+											</span>
+										)}
+									</div>
+								)}
 							</div>
 						)}
 					</div>
 				)}
 
-				{/* Compact AI Match Explanation inline */}
-				{score != null &&
-					!fitScore &&
-					(matchingSkills?.length || missingSkills?.length || job.explanation) && (
-						<div className="mt-3 pt-3 border-t border-border/40">
-							<button type="button"
-								onClick={(e) => {
-									e.stopPropagation();
-									setShowCompactMatch((prev) => !prev);
-								}}
-								className={cn(
-									'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left',
-									'bg-emerald-50/50 hover:bg-emerald-50 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20',
-									'transition-colors',
-								)}
-							>
-								<div className="flex items-center gap-2 min-w-0">
-									<Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-									<span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 truncate">
-										{score}% match — Why you&apos;re a {score >= 70 ? 'strong' : 'potential'} match
-									</span>
-								</div>
-								{showCompactMatch ? (
-									<ChevronUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-								) : (
-									<ChevronDown className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-								)}
-							</button>
-							{showCompactMatch && (
-								<div className="mt-2 space-y-2 px-1">
-									{/* Jobright-style breakdown bars */}
-									{matchBreakdown && (
-										<div className="space-y-1.5 pb-1">
-											{[
-												{ label: 'Skills', value: matchBreakdown.skills },
-												{ label: 'Experience', value: matchBreakdown.experience },
-												{ label: 'Location', value: matchBreakdown.location },
-												{ label: 'Title Match', value: matchBreakdown.title },
-											].map((item) => (
-												<div key={item.label} className="flex items-center gap-2">
-													<span className="text-[10px] text-muted-foreground w-20 shrink-0">
-														{item.label}
-													</span>
-													<div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-														<div
-															className={cn(
-																'h-full rounded-full',
-																item.value >= 70
-																	? 'bg-emerald-500'
-																	: item.value >= 50
-																		? 'bg-amber-500'
-																		: 'bg-red-400',
-															)}
-															style={{ width: `${item.value}%` }}
-														/>
-													</div>
-													<span className="text-[10px] font-semibold w-8 text-right">
-														{item.value}%
-													</span>
-												</div>
-											))}
-										</div>
-									)}
-									{/* Matching skills pills */}
-									{matchingSkills && matchingSkills.length > 0 && (
-										<div className="flex flex-wrap gap-1">
-											{matchingSkills.slice(0, 4).map((s) => (
-												<Badge
-													key={s}
-													variant="secondary"
-													className="text-[10px] font-medium px-2 py-0 rounded-full bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700"
-												>
-													{s}
-												</Badge>
-											))}
-											{matchingSkills.length > 4 && (
-												<span className="text-[10px] text-emerald-600 dark:text-emerald-400">
-													+{matchingSkills.length - 4} more
-												</span>
-											)}
-										</div>
-									)}
-									{/* Specific reason */}
-									{job.explanation?.why_matched && (
-										<p className="text-xs text-emerald-700 dark:text-emerald-300/80 leading-relaxed">
-											{job.explanation.why_matched}
-										</p>
-									)}
-									{job.explanation?.your_strength && (
-										<p className="text-xs text-emerald-700 dark:text-emerald-300/80 leading-relaxed">
-											{job.explanation.your_strength}
-										</p>
-									)}
-									{/* Missing skills */}
-									{missingSkills && missingSkills.length > 0 && (
-										<div className="flex flex-wrap items-center gap-1">
-											<span className="text-[10px] text-amber-600 dark:text-amber-400 shrink-0">
-												Gaps:
-											</span>
-											{missingSkills.slice(0, 3).map((s) => (
-												<Badge
-													key={s}
-													variant="outline"
-													className="text-[10px] font-medium px-1.5 py-0 rounded-full border-amber-300 text-amber-700 bg-amber-50/50 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700"
-												>
-													{s}
-												</Badge>
-											))}
-											{missingSkills.length > 3 && (
-												<span className="text-[10px] text-amber-600 dark:text-amber-400">
-													+{missingSkills.length - 3}
-												</span>
-											)}
-										</div>
-									)}
-								</div>
-							)}
-						</div>
-					)}
 			</CardContent>
 		</Card>
 	);
