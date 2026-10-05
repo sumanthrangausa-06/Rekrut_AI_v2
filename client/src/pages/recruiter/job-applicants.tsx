@@ -249,7 +249,7 @@ export function RecruiterJobApplicantsPage() {
 	async function submitOverride(responseId: number) {
 		setOverrideSubmitting(true);
 		try {
-			await apiCall(`/api/questionnaire/${responseId}/override`, {
+			await apiCall(`/questionnaire/${responseId}/override`, {
 				method: 'POST',
 				body: { override_decision: overrideDecision, reason: overrideReason },
 			});
