@@ -48,17 +48,58 @@ const statusConfig: Record<
 		label: string;
 		variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive';
 		icon: typeof Clock;
+		hint: string;
 	}
 > = {
-	applied: { label: 'Applied', variant: 'secondary', icon: FileText },
-	screening: { label: 'Screening', variant: 'default', icon: Eye },
-	shortlisted: { label: 'Shortlisted', variant: 'default', icon: CheckCircle },
-	reviewing: { label: 'Under Review', variant: 'warning', icon: Eye },
-	interviewed: { label: 'Interviewed', variant: 'default', icon: Briefcase },
-	offered: { label: 'Offer Received', variant: 'success', icon: DollarSign },
-	hired: { label: 'Hired', variant: 'success', icon: CheckCircle },
-	rejected: { label: 'Not Selected', variant: 'destructive', icon: XCircle },
-	withdrawn: { label: 'Withdrawn', variant: 'secondary', icon: XCircle },
+	applied: {
+		label: 'Applied',
+		variant: 'secondary',
+		icon: FileText,
+		hint: 'Your application was received. The hiring team is reviewing it.',
+	},
+	screening: {
+		label: 'Screening',
+		variant: 'default',
+		icon: Eye,
+		hint: 'You may be invited to an AI screening interview — check your notifications.',
+	},
+	shortlisted: {
+		label: 'Shortlisted',
+		variant: 'default',
+		icon: CheckCircle,
+		hint: 'You made the shortlist. The recruiter will reach out with next steps.',
+	},
+	reviewing: {
+		label: 'Under Review',
+		variant: 'warning',
+		icon: Eye,
+		hint: 'A recruiter is actively reviewing your application.',
+	},
+	interviewed: {
+		label: 'Interviewed',
+		variant: 'default',
+		icon: Briefcase,
+		hint: 'Interview stage — check your interviews page for scheduled sessions.',
+	},
+	offered: {
+		label: 'Offer Received',
+		variant: 'success',
+		icon: DollarSign,
+		hint: 'You have an offer! Review it on your offers page.',
+	},
+	hired: { label: 'Hired', variant: 'success', icon: CheckCircle, hint: 'Welcome aboard!' },
+	rejected: {
+		label: 'Not Selected',
+		variant: 'destructive',
+		icon: XCircle,
+		hint: 'This application was not moved forward. Keep applying — your profile stays active.',
+	},
+	withdrawn: {
+		label: 'Withdrawn',
+		variant: 'secondary',
+		icon: XCircle,
+		hint: 'You withdrew this application.',
+	},
 };
 
 const COLUMN_STATUS_MAP: Record<string, string> = {
@@ -361,11 +402,17 @@ export function CandidateApplicationsPage() {
 								label: selectedApp.status,
 								variant: 'secondary' as const,
 								icon: Clock,
+								hint: '',
 							};
 							return (
-								<Badge variant={config.variant} className="w-fit">
-									{config.label}
-								</Badge>
+								<div className="space-y-1">
+									<Badge variant={config.variant} className="w-fit">
+										{config.label}
+									</Badge>
+									{config.hint && (
+										<p className="text-xs text-muted-foreground">{config.hint}</p>
+									)}
+								</div>
 							);
 						})()}
 						{selectedApp.intro_status && (

@@ -281,9 +281,11 @@ export function CandidateScreeningPage() {
 							<ChevronRight className="w-4 h-4 ml-2" />
 						</Button>
 
-						<p className="text-xs text-center text-slate-400">
-							By starting, you agree to our screening process. Your responses will be evaluated by
-							AI.
+						<p className="text-xs text-center text-slate-500">
+							This screening is conducted by AI. Your responses are scored by AI and
+							reviewed by a human recruiter before any decision — no one is
+							automatically rejected. By starting, you consent to AI evaluation of
+							your responses.
 						</p>
 					</CardContent>
 				</Card>

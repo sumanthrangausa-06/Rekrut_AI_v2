@@ -6,6 +6,7 @@ const { chat, handleAIError } = require('../lib/polsia-ai');
 const omniscoreService = require('../services/omniscore');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const { AuditLogger } = require('../services/auditLogService');
+const { notifyUser } = require('../lib/notify');
 
 // Skill catalog - available to all candidates without pre-existing skills
 const SKILL_CATALOG = [
@@ -1202,6 +1203,75 @@ router.get('/recruiter/detail/:assessmentId', authMiddleware, async (req, res) =
 });
 
 // Recruiter: Get the available skill catalog (for assigning)
+// POST /api/assessments/assign — Recruiter assigns an assessment to a candidate application
+router.post('/assign', authMiddleware, async (req, res) => {
+	try {
+		const { assessment_id, application_id } = req.body;
+		if (!assessment_id || !application_id) {
+			return res.status(400).json({ error: 'assessment_id and application_id are required' });
+		}
+
+		// Verify the application belongs to the recruiter's company and get candidate/job
+		const app = await pool.query(
+			`SELECT ja.id, ja.candidate_id, ja.job_id, ja.company_id, j.title as job_title, u.name as candidate_name
+       FROM job_applications ja
+       JOIN jobs j ON j.id = ja.job_id
+       JOIN users u ON u.id = ja.candidate_id
+       WHERE ja.id = $1 AND ja.company_id = $2`,
+			[application_id, req.user.company_id],
+		);
+		if (app.rows.length === 0) {
+			return res.status(404).json({ error: 'Application not found' });
+		}
+		const a = app.rows[0];
+
+		// Verify the assessment exists and belongs to the company (via its job)
+		const asm = await pool.query(
+			`SELECT ja.id, ja.title FROM job_assessments ja
+       JOIN jobs j ON j.id = ja.job_id
+       WHERE ja.id = $1 AND j.company_id = $2`,
+			[assessment_id, req.user.company_id],
+		);
+		if (asm.rows.length === 0) {
+			return res.status(404).json({ error: 'Assessment not found' });
+		}
+
+		// Dedup: don't assign twice while one is still open
+		const existing = await pool.query(
+			`SELECT id FROM job_assessment_attempts
+       WHERE assessment_id = $1 AND application_id = $2 AND status IN ('assigned','in_progress')`,
+			[assessment_id, application_id],
+		);
+		if (existing.rows.length > 0) {
+			return res.status(409).json({ error: 'Assessment already assigned', attempt_id: existing.rows[0].id });
+		}
+
+		const attempt = await pool.query(
+			`INSERT INTO job_assessment_attempts (assessment_id, candidate_id, application_id, status)
+       VALUES ($1, $2, $3, 'assigned') RETURNING *`,
+			[assessment_id, a.candidate_id, application_id],
+		);
+
+		// In-app notification for the candidate (non-blocking)
+		notifyUser(
+			a.candidate_id,
+			'assessment_assigned',
+			'Skill assessment assigned',
+			`You've been assigned the "${asm.rows[0].title}" assessment for ${a.job_title}. Complete it to continue in the hiring process.`,
+			{
+				attempt_id: attempt.rows[0].id,
+				assessment_id,
+				application_id,
+				job_id: a.job_id,
+			},
+		);
+
+		res.json({ success: true, attempt: attempt.rows[0] });
+	} catch (err) {
+		console.error('Assign assessment error:', err);
+		res.status(500).json({ error: 'Failed to assign assessment' });
+	}
+});
 router.get('/recruiter/catalog', authMiddleware, async (req, res) => {
 	try {
 		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
@@ -1554,10 +1624,27 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 		}
 
 		// Check for existing active attempt
-		const existing = await pool.query(
+		let existing = await pool.query(
 			"SELECT * FROM job_assessment_attempts WHERE assessment_id = $1 AND candidate_id = $2 AND status = 'in_progress'",
 			[assessmentId, candidateId],
 		);
+		if (existing.rows.length === 0) {
+			// Check for a recruiter-assigned attempt waiting to be started — adopt it
+			// instead of creating a duplicate.
+			const assigned = await pool.query(
+				"SELECT * FROM job_assessment_attempts WHERE assessment_id = $1 AND candidate_id = $2 AND status = 'assigned' ORDER BY created_at DESC LIMIT 1",
+				[assessmentId, candidateId],
+			);
+			if (assigned.rows.length > 0) {
+				await pool.query(
+					`UPDATE job_assessment_attempts SET status = 'in_progress', started_at = NOW() WHERE id = $1`,
+					[assigned.rows[0].id],
+				);
+				existing = await pool.query(`SELECT * FROM job_assessment_attempts WHERE id = $1`, [
+					assigned.rows[0].id,
+				]);
+			}
+		}
 		if (existing.rows.length > 0) {
 			// Resume existing attempt
 			const attempt = existing.rows[0];
@@ -2019,6 +2106,34 @@ router.post('/job-assessment/:id/score', authMiddleware, async (req, res) => {
 		const result = await pool.query('SELECT * FROM job_assessment_attempts WHERE id = $1', [
 			attemptId,
 		]);
+
+		// In-app notification for the recruiter when a candidate completes an assigned assessment
+		const att = result.rows[0];
+		if (att?.application_id && att?.status === 'completed') {
+			const appInfo = await pool.query(
+				`SELECT ja.job_id, j.user_id as recruiter_id, j.title as job_title, u.name as candidate_name
+         FROM job_applications ja JOIN jobs j ON j.id = ja.job_id JOIN users u ON u.id = ja.candidate_id
+         WHERE ja.id = $1`,
+				[att.application_id],
+			);
+			const info = appInfo.rows[0];
+			if (info?.recruiter_id) {
+				notifyUser(
+					info.recruiter_id,
+					'assessment_completed',
+					'Assessment completed',
+					`${info.candidate_name} completed the assessment for ${info.job_title} — score ${att.composite_score ?? 'N/A'}.`,
+					{
+						attempt_id: attemptId,
+						assessment_id: assessmentId,
+						application_id: att.application_id,
+						job_id: info.job_id,
+						composite_score: att.composite_score,
+					},
+				);
+			}
+		}
+
 		res.json({ attempt: result.rows[0] || null });
 	} catch (error) {
 		console.error('Error scoring assessment:', error);

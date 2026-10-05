@@ -19,6 +19,7 @@ const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-
 const marketBenchmarks = require('../lib/market-benchmarks');
 const { uploadToB2, checkB2Health } = require('../lib/file-storage');
 const emailService = require('../lib/email-service');
+const { notifyUser } = require('../lib/notify');
 const { checkFeatureAccess, incrementUsage } = require('../lib/subscription');
 const calendarService = require('../server/services/calendar-service');
 
@@ -2609,6 +2610,28 @@ async function submitApplication({
 		await getOrCreateConversation(jobId, candidateId, job.rows[0].user_id, job.rows[0].company_id);
 	} catch (convErr) {
 		console.error('[apply] Auto-create conversation failed (non-blocking):', convErr.message);
+	}
+
+	// In-app notifications for apply (non-blocking) — candidate + recruiter
+	notifyUser(
+		candidateId,
+		'application_submitted',
+		'Application submitted',
+		`Your application for ${job.rows[0].title} was submitted.`,
+		{ application_id: result.rows[0].id, job_id: jobId, company_id: job.rows[0].company_id },
+	);
+	const recruiterIdForNotif = await pool
+		.query('SELECT user_id FROM jobs WHERE id = $1', [jobId])
+		.then((r) => r.rows[0]?.user_id)
+		.catch(() => null);
+	if (recruiterIdForNotif) {
+		notifyUser(
+			recruiterIdForNotif,
+			'application_received',
+			'New application received',
+			`New application for ${job.rows[0].title}.`,
+			{ application_id: result.rows[0].id, job_id: jobId, candidate_id: candidateId },
+		);
 	}
 
 	// Send candidate notification (non-blocking)
