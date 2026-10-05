@@ -239,10 +239,10 @@ function fitScoreBorderColor(score: number): string {
 }
 
 function matchLabel(score: number): string {
-	if (score >= 85) return 'Excellent match';
-	if (score >= 70) return 'Good match';
-	if (score >= 55) return 'Fair match';
-	return 'Low match';
+	if (score >= 85) return 'Excellent Match';
+	if (score >= 70) return 'Good Match';
+	if (score >= 55) return 'Fair Match';
+	return 'Low Match';
 }
 
 export function JobCard({

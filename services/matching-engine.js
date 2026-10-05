@@ -271,7 +271,7 @@ function extractSkillsFromText(text) {
 		.filter((s) => {
 			if (s.length <= 1 || s.length >= 60) return false;
 			if (s.endsWith(':')) return false; // skip labels like "required qualifications:"
-			if (/^(required|preferred|qualifications|requirements|responsibilities|about|we|you|the|a|an)\b/i.test(s)) return false; // skip sentence starts
+			if (/^(required|preferred|qualifications|requirements|responsibilities|about|we|you|the|a|an|or|and)\b/i.test(s)) return false; // skip sentence starts/fragments
 			const words = s.split(/\s+/).length;
 			if (words > 4) return false; // skills are short, not sentences
 			return true;
