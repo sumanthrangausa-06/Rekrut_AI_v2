@@ -23,6 +23,7 @@ import {
 	User,
 	Video,
 	XCircle,
+	Mic,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { EmptyState } from '@/components/domain/empty-state';
@@ -174,6 +175,7 @@ export function RecruiterInterviewsPage() {
 	const [showCreateTemplate, setShowCreateTemplate] = useState(false);
 	const [templateJobId, setTemplateJobId] = useState('');
 	const [templateTitle, setTemplateTitle] = useState('');
+	const [templateTopics, setTemplateTopics] = useState('');
 	const [creatingTemplate, setCreatingTemplate] = useState(false);
 	const [showScreeningReport, setShowScreeningReport] = useState<any>(null);
 	const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
@@ -297,16 +299,25 @@ export function RecruiterInterviewsPage() {
 		if (!templateJobId) return;
 		setCreatingTemplate(true);
 		try {
+			// Parse topics from textarea (one per line)
+			const topics = templateTopics
+				.split('\n')
+				.map((t) => t.trim())
+				.filter((t) => t.length > 0);
+
 			await apiCall('/interviews/screening/create-template', {
 				method: 'POST',
 				body: {
 					job_id: parseInt(templateJobId, 10),
 					title: templateTitle || undefined,
+					topics: topics.length > 0 ? topics : undefined,
+					screening_mode: 'conversational',
 				},
 			});
 			setShowCreateTemplate(false);
 			setTemplateJobId('');
 			setTemplateTitle('');
+			setTemplateTopics('');
 			await loadData();
 		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to create template' });
@@ -517,6 +528,13 @@ export function RecruiterInterviewsPage() {
 						className="min-h-[44px]"
 					>
 						<ClipboardList className="h-4 w-4 mr-2" /> Screening Templates
+					</Button>
+					<Button
+						variant="outline"
+						onClick={() => (window.location.href = '/recruiter/screening-monitor')}
+						className="min-h-[44px]"
+					>
+						<Mic className="h-4 w-4 mr-2" /> Monitor Screenings
 					</Button>
 					<Button onClick={() => setShowSchedule(true)} className="min-h-[44px]">
 						<Plus className="h-4 w-4 mr-2" /> Schedule Interview
@@ -1091,7 +1109,7 @@ export function RecruiterInterviewsPage() {
 				<DialogHeader>
 					<DialogTitle>Create Screening Template</DialogTitle>
 					<DialogDescription>
-						AI will auto-generate screening questions from the job description
+						AI will conduct a conversational screening covering your topics
 					</DialogDescription>
 				</DialogHeader>
 				<div className="space-y-4 mt-4">
@@ -1119,11 +1137,23 @@ export function RecruiterInterviewsPage() {
 							className="min-h-[44px]"
 						/>
 					</div>
+					<div>
+						<Label>Topics to Cover (one per line, optional)</Label>
+						<Textarea
+							value={templateTopics}
+							onChange={(e) => setTemplateTopics(e.target.value)}
+							placeholder={"e.g.\nReact experience and recent projects\nTeam leadership and mentoring\nSalary expectations and availability"}
+							className="min-h-[100px]"
+						/>
+						<p className="text-xs text-muted-foreground mt-1">
+							Leave blank to let AI generate topics from the job description.
+						</p>
+					</div>
 					<div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
 						<p className="text-xs text-purple-700 flex items-center gap-1.5">
 							<Sparkles className="h-3.5 w-3.5" />
-							AI will analyze the job description and generate 6-8 tailored screening questions with
-							evaluation criteria.
+							AI will have a natural conversation covering these topics, with
+							follow-up questions based on the candidate's answers.
 						</p>
 					</div>
 					<div className="flex gap-2 justify-end">
