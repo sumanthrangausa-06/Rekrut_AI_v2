@@ -23,6 +23,7 @@ import {
 	User,
 	Video,
 	XCircle,
+	Mic,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { EmptyState } from '@/components/domain/empty-state';
@@ -526,6 +527,13 @@ export function RecruiterInterviewsPage() {
 						className="min-h-[44px]"
 					>
 						<ClipboardList className="h-4 w-4 mr-2" /> Screening Templates
+					</Button>
+					<Button
+						variant="outline"
+						onClick={() => (window.location.href = '/recruiter/screening-monitor')}
+						className="min-h-[44px]"
+					>
+						<Mic className="h-4 w-4 mr-2" /> Monitor Screenings
 					</Button>
 					<Button onClick={() => setShowSchedule(true)} className="min-h-[44px]">
 						<Plus className="h-4 w-4 mr-2" /> Schedule Interview
