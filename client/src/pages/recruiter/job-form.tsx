@@ -1263,6 +1263,7 @@ export function RecruiterJobFormPage() {
 							)}
 						</div>
 
+					</CardContent>
 				</Card>
 			)}
 
