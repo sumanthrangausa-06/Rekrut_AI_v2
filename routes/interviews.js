@@ -3287,6 +3287,141 @@ router.post('/screening/session/:token/respond', async (req, res) => {
 	}
 });
 
+// POST /api/interviews/screening/session/:token/respond-voice — Candidate submits voice response
+// Accepts audio file, transcribes with Whisper, then runs conversational AI turn
+router.post(
+	'/screening/session/:token/respond-voice',
+	upload.single('audio'),
+	async (req, res) => {
+		try {
+			const aiProvider = require('../lib/ai-provider');
+			const interviewAI = require('../services/interview-ai');
+
+			// Step 1: Transcribe audio
+			let transcribedText = '';
+			if (req.file) {
+				const baseMime = (req.file.mimetype || 'audio/webm').split(';')[0];
+				const ext = baseMime.includes('mp4')
+					? 'mp4'
+					: baseMime.includes('ogg')
+						? 'ogg'
+						: 'webm';
+				const filename = `screening-recording.${ext}`;
+
+				try {
+					const asrResult = await aiProvider.transcribeAudio(
+						req.file.buffer,
+						filename,
+						baseMime,
+						{
+							module: 'interview_screening',
+							feature: 'voice_transcription',
+						},
+					);
+					if (asrResult?.text) {
+						transcribedText = asrResult.text.trim();
+					}
+				} catch (asrErr) {
+					console.error('[screening-voice] Transcription failed:', asrErr.message);
+					return res.status(400).json({
+						error: "Couldn't transcribe your audio. Please try speaking again.",
+					});
+				}
+			}
+
+			if (!transcribedText || transcribedText.length < 3) {
+				return res.status(400).json({
+					error: "Didn't catch that. Could you please repeat your answer?",
+				});
+			}
+
+			// Step 2: Load session (same as text respond endpoint)
+			const session = await pool.query(
+				`SELECT ss.*, j.title as job_title, j.description as job_description, c.name as company_name,
+              st.questions as template_questions, st.topics as template_topics, st.title as template_title, st.screening_mode
+       FROM screening_sessions ss
+       JOIN jobs j ON ss.job_id = j.id
+       JOIN companies c ON ss.company_id = c.id
+       LEFT JOIN screening_templates st ON ss.template_id = st.id
+       WHERE ss.invite_token = $1 AND ss.status = 'in_progress'`,
+				[req.params.token],
+			);
+
+			if (session.rows.length === 0) {
+				return res.status(404).json({ error: 'Screening not found or not in progress' });
+			}
+
+			const s = session.rows[0];
+			const conversation = s.conversation || [];
+			const currentPhase = s.current_phase || 'background';
+
+			// Add candidate response to conversation
+			conversation.push({
+				role: 'candidate',
+				text: transcribedText,
+				timestamp: new Date().toISOString(),
+				input_mode: 'voice',
+			});
+
+			// Step 3: Generate AI turn (same logic as text endpoint)
+			let aiTurn;
+			try {
+				aiTurn = await interviewAI.conductScreeningTurn(
+					conversation,
+					{
+						title: s.job_title,
+						description: s.job_description,
+						company_name: s.company_name,
+					},
+					{
+						questions: s.template_questions || [],
+						topics: s.template_topics || [],
+						title: s.template_title,
+						screening_mode: s.screening_mode || 'conversational',
+					},
+					currentPhase,
+				);
+			} catch (aiErr) {
+				console.error('[screening-voice] AI turn failed:', aiErr.message);
+				aiTurn = {
+					ai_message:
+						'Thanks for sharing that. Could you tell me a bit more about your experience?',
+					phase: currentPhase,
+					should_wrap_up: false,
+				};
+			}
+
+			// Add AI response to conversation
+			conversation.push({
+				role: 'ai',
+				text: aiTurn.ai_message,
+				timestamp: new Date().toISOString(),
+				phase: aiTurn.phase,
+			});
+
+			// Update session
+			await pool.query(
+				`UPDATE screening_sessions
+         SET conversation = $1, current_phase = $2, updated_at = NOW()
+         WHERE id = $3`,
+				[JSON.stringify(conversation), aiTurn.phase || currentPhase, s.id],
+			);
+
+			res.json({
+				success: true,
+				transcribed_text: transcribedText,
+				ai_message: aiTurn.ai_message,
+				phase: aiTurn.phase || currentPhase,
+				should_wrap_up: aiTurn.should_wrap_up || false,
+				exchange_count: Math.floor(conversation.length / 2),
+			});
+		} catch (err) {
+			console.error('Screening voice respond error:', err);
+			res.status(500).json({ error: 'Failed to process voice response' });
+		}
+	},
+);
+
 // POST /api/interviews/screening/session/:token/complete — Candidate completes screening
 router.post('/screening/session/:token/complete', async (req, res) => {
 	try {

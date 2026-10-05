@@ -157,7 +157,7 @@ const CandidateBackgroundCheckPage = lazy(() =>
 	})),
 );
 const CandidateScreeningPage = lazy(() =>
-	import('@/pages/candidate/screening').then((m) => ({ default: m.CandidateScreeningPage })),
+	import('@/pages/candidate/voice-screening').then((m) => ({ default: m.VoiceScreeningPage })),
 );
 const CandidateScreeningQuestionnairePage = lazy(() =>
 	import('@/pages/candidate/screening-questionnaire').then((m) => ({
