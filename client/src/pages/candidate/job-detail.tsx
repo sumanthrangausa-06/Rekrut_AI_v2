@@ -415,23 +415,40 @@ export function CandidateJobDetailPage() {
 			);
 			if (data.auto_fill) {
 				setAutoFill(data.auto_fill);
-				if (data.auto_fill.cover_letter && !coverLetter)
-					setCoverLetter(data.auto_fill.cover_letter);
-				const newAnswers: Record<string, string> = { ...screeningAnswers };
-				const sources: Record<string, string> = {};
-				for (const [qId, info] of Object.entries(data.auto_fill.screening_answers || {})) {
-					if (!newAnswers[qId] && info.value) {
-						newAnswers[qId] = info.value;
-						sources[qId] = info.source;
-					}
+				if (data.auto_fill.cover_letter)
+					setCoverLetter((prev) => prev || data.auto_fill.cover_letter);
+				// Merge auto-filled answers without clobbering what the user already typed.
+				// Functional updates keep this callback stable so the auto-fill effect
+				// runs once when the form opens instead of on every keystroke.
+				const autoAnswers = Object.entries(data.auto_fill.screening_answers || {}).filter(
+					([, info]) => info.value,
+				);
+				if (autoAnswers.length > 0) {
+					const filledKeys: string[] = [];
+					setScreeningAnswers((prev) => {
+						const next = { ...prev };
+						for (const [qId, info] of autoAnswers) {
+							if (!next[qId]) {
+								next[qId] = info.value;
+								filledKeys.push(qId);
+							}
+						}
+						return next;
+					});
+					setAutoFillSources((prev) => {
+						const next = { ...prev };
+						for (const qId of filledKeys) {
+							const info = autoAnswers.find(([id]) => id === qId)?.[1];
+							if (info) next[qId] = info.source;
+						}
+						return next;
+					});
 				}
-				setScreeningAnswers(newAnswers);
-				setAutoFillSources(sources);
 			}
 		} catch (err) {
 			console.error('[job-detail] Operation failed:', err);
 		}
-	}, [user, id, coverLetter, screeningAnswers]);
+	}, [user, id]);
 
 	useEffect(() => {
 		if (showApplyForm && user) loadAutoFill();
@@ -540,17 +557,25 @@ export function CandidateJobDetailPage() {
 				body: { job_id: job.id, questions: screeningQuestions },
 			});
 			if (data.suggestions?.length) {
-				const newAnswers = { ...screeningAnswers };
-				const sources = { ...autoFillSources };
-				for (const s of data.suggestions) {
-					const key = s.question_id || screeningQuestions.find((q) => q.id === s.question_id)?.id;
-					if (key && !newAnswers[key]) {
-						newAnswers[key] = s.suggested_answer;
-						sources[key] = `ai_${s.confidence}`;
+				// Merge AI suggestions without clobbering answers typed while the request was in flight.
+				const filled: Array<{ key: string; answer: string; source: string }> = [];
+				setScreeningAnswers((prev) => {
+					const next = { ...prev };
+					for (const s of data.suggestions) {
+						const key =
+							s.question_id || screeningQuestions.find((q) => q.id === s.question_id)?.id;
+						if (key && !next[key]) {
+							next[key] = s.suggested_answer;
+							filled.push({ key, answer: s.suggested_answer, source: `ai_${s.confidence}` });
+						}
 					}
-				}
-				setScreeningAnswers(newAnswers);
-				setAutoFillSources(sources);
+					return next;
+				});
+				setAutoFillSources((prev) => {
+					const next = { ...prev };
+					for (const f of filled) next[f.key] = f.source;
+					return next;
+				});
 			}
 		} catch {
 		} finally {
