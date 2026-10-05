@@ -67,7 +67,7 @@ export function CandidateScreeningPage() {
 	const loadScreening = useCallback(async () => {
 		try {
 			const data = await apiCall<{ screening: ScreeningData }>(
-				`/api/interviews/screening/session/${token}`,
+				`/interviews/screening/session/${token}`,
 			);
 			const s = data.screening;
 			setScreening({
@@ -104,7 +104,7 @@ export function CandidateScreeningPage() {
 				success: boolean;
 				ai_message: string;
 				phase: string;
-			}>(`/api/interviews/screening/session/${token}/start`, {
+			}>(`/interviews/screening/session/${token}/start`, {
 				method: 'POST',
 			});
 			setStarted(true);
@@ -153,7 +153,7 @@ export function CandidateScreeningPage() {
 				action: string;
 				phase: string;
 				should_wrap_up: boolean;
-			}>(`/api/interviews/screening/session/${token}/respond`, {
+			}>(`/interviews/screening/session/${token}/respond`, {
 				method: 'POST',
 				body: JSON.stringify({ response_text: text }),
 			});
@@ -185,7 +185,7 @@ export function CandidateScreeningPage() {
 	const handleComplete = async () => {
 		setCompleting(true);
 		try {
-			await apiCall(`/api/interviews/screening/session/${token}/complete`, {
+			await apiCall(`/interviews/screening/session/${token}/complete`, {
 				method: 'POST',
 			});
 			setCompleted(true);

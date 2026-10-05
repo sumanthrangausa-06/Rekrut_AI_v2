@@ -62,7 +62,7 @@ export function VoiceScreeningPage() {
 	const loadScreening = useCallback(async () => {
 		try {
 			const data = await apiCall<{ screening: ScreeningData }>(
-				`/api/interviews/screening/session/${token}`,
+				`/interviews/screening/session/${token}`,
 			);
 			setScreening({
 				job_title: data.screening.job_title,
@@ -122,7 +122,7 @@ export function VoiceScreeningPage() {
 				ai_message: string;
 				phase: string;
 				audio_url?: string;
-			}>(`/api/interviews/screening/session/${token}/start`, {
+			}>(`/interviews/screening/session/${token}/start`, {
 				method: 'POST',
 			});
 
@@ -212,7 +212,7 @@ export function VoiceScreeningPage() {
 			formData.append('audio', audioBlob, 'recording.webm');
 
 			const res = await fetch(
-				`/api/interviews/screening/session/${token}/respond-voice`,
+				`/interviews/screening/session/${token}/respond-voice`,
 				{
 					method: 'POST',
 					headers: {
@@ -252,7 +252,7 @@ export function VoiceScreeningPage() {
 
 	const handleComplete = async () => {
 		try {
-			await apiCall(`/api/interviews/screening/session/${token}/complete`, {
+			await apiCall(`/interviews/screening/session/${token}/complete`, {
 				method: 'POST',
 			});
 			setCompleted(true);

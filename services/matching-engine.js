@@ -267,8 +267,15 @@ function extractSkillsFromText(text) {
 		.replace(/\band\b/g, ',')
 		.replace(/[()]/g, '')
 		.split(',')
-		.map((s) => s.trim())
-		.filter((s) => s.length > 1 && s.length < 60);
+		.map((s) => s.trim().replace(/\.$/, '')) // strip trailing periods
+		.filter((s) => {
+			if (s.length <= 1 || s.length >= 60) return false;
+			if (s.endsWith(':')) return false; // skip labels like "required qualifications:"
+			if (/^(required|preferred|qualifications|requirements|responsibilities|about|we|you|the|a|an)\b/i.test(s)) return false; // skip sentence starts
+			const words = s.split(/\s+/).length;
+			if (words > 4) return false; // skills are short, not sentences
+			return true;
+		});
 	// Deduplicate
 	return [...new Set(normalized)];
 }

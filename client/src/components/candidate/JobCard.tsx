@@ -239,8 +239,9 @@ function fitScoreBorderColor(score: number): string {
 }
 
 function matchLabel(score: number): string {
-	if (score >= 80) return 'Strong match';
-	if (score >= 50) return 'Good match';
+	if (score >= 85) return 'Excellent match';
+	if (score >= 70) return 'Good match';
+	if (score >= 55) return 'Fair match';
 	return 'Low match';
 }
 
