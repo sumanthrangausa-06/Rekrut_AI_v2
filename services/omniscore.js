@@ -226,9 +226,17 @@ function calcVerifiedSkills(data) {
 	score += docPts;
 	details.push(`${data.docs.length} verified documents (+${docPts})`);
 
+	// hasData=false when the factor consumed no input records (UI renders "Insufficient data").
+	const hasData =
+		verifiedSkills.length > 0 ||
+		data.assessments.length > 0 ||
+		data.projects.length > 0 ||
+		data.docs.length > 0;
+
 	return {
 		raw: clamp(score, 0, 100),
 		details,
+		hasData,
 	};
 }
 
@@ -281,9 +289,12 @@ function calcInterviewPerformance(data) {
 		details.push('No completed interviews yet');
 	}
 
+	const hasData = practiceScores.length > 0 || completedInterviews.length > 0;
+
 	return {
 		raw: clamp(score, 0, 100),
 		details,
+		hasData,
 	};
 }
 
@@ -345,9 +356,12 @@ function calcExperienceQuality(data) {
 	score += achPts;
 	details.push(`${achievementCount} documented achievements (+${achPts})`);
 
+	const hasData = data.experience.length > 0;
+
 	return {
 		raw: clamp(score, 0, 100),
 		details,
+		hasData,
 	};
 }
 
@@ -411,9 +425,12 @@ function calcEducationCredentials(data) {
 	score += fieldPts;
 	details.push(`${fields.size} fields of study (+${fieldPts})`);
 
+	const hasData = data.education.length > 0 || eduDocs.length > 0;
+
 	return {
 		raw: clamp(score, 0, 100),
 		details,
+		hasData,
 	};
 }
 
@@ -451,9 +468,14 @@ function calcReliabilitySignals(data) {
 	score -= noShowPenalty;
 	if (noShowPenalty > 0) details.push(`${noShows} no-shows/cancellations (-${noShowPenalty})`);
 
+	// Neutral defaults (50 base, 50% attendance, 100% follow-through) apply with
+	// zero input records, so flag that explicitly instead of showing a real score.
+	const hasData = data.interviews.length > 0 || data.applications.length > 0;
+
 	return {
 		raw: clamp(score, 0, 100),
 		details,
+		hasData,
 	};
 }
 
@@ -512,9 +534,12 @@ function calcSoftSkills(data) {
 		details.push('No soft-skill interview feedback yet');
 	}
 
+	const hasData = softSessions.length > 0 || feedbackCount > 0;
+
 	return {
 		raw: clamp(score, 0, 100),
 		details,
+		hasData,
 	};
 }
 
@@ -550,9 +575,12 @@ function calcMarketDemand(data) {
 		details.push(`${matchCount} in-demand skill categories (+${pts})`);
 	}
 
+	const hasData = data.matches.length > 0 || data.skills.length > 0;
+
 	return {
 		raw: clamp(score, 0, 100),
 		details,
+		hasData,
 	};
 }
 
@@ -592,9 +620,13 @@ function calcGrowthTrajectory(data) {
 	score += streakPts;
 	details.push(`${activeWeeks} active weeks in last 30d (+${streakPts})`);
 
+	const hasData =
+		data.skills.length > 0 || data.assessments.length > 0 || data.activity.length > 0;
+
 	return {
 		raw: clamp(score, 0, 100),
 		details,
+		hasData,
 	};
 }
 
@@ -680,6 +712,11 @@ async function computeFactors(userId) {
 		growth_trajectory: calcGrowthTrajectory(data),
 	};
 
+	// ponytail: factors with no evidence keep their computed raw score and are
+	// flagged via hasData for the UI ("Insufficient data"). Weights are NOT
+	// re-normalized across data-bearing factors: that changes scoring semantics
+	// and needs validation against real hiring outcomes first. Upgrade path:
+	// confidence-weighted totals once outcome data exists (#113).
 	// Compute weighted total
 	let weightedSum = 0;
 	for (const [key, factor] of Object.entries(factors)) {
@@ -804,7 +841,7 @@ async function calculateScore(userId) {
 		factors: Object.fromEntries(
 			Object.entries(factors).map(([k, v]) => [
 				k,
-				{ raw: Math.round(v.raw), weight: FACTOR_WEIGHTS[k], details: v.details },
+				{ raw: Math.round(v.raw), weight: FACTOR_WEIGHTS[k], details: v.details, hasData: v.hasData },
 			]),
 		),
 	};
@@ -932,6 +969,7 @@ async function getScoreBreakdown(userId) {
 		factorBreakdown[key] = {
 			score: factorData?.raw || 0,
 			max: 100,
+			has_data: factorData?.hasData ?? true,
 			weight: FACTOR_WEIGHTS[key],
 			weighted_contribution: Math.round(((factorData?.raw || 0) / 100) * FACTOR_WEIGHTS[key] * 550),
 			label: meta.label,
@@ -1152,6 +1190,14 @@ async function updateRoleScore(userId, roleName, interviewScore) {
 }
 
 module.exports = {
+	calcVerifiedSkills,
+	calcInterviewPerformance,
+	calcExperienceQuality,
+	calcEducationCredentials,
+	calcReliabilitySignals,
+	calcSoftSkills,
+	calcMarketDemand,
+	calcGrowthTrajectory,
 	SCORE_RANGES,
 	FACTOR_WEIGHTS,
 	FACTOR_META,
