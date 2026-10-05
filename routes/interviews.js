@@ -3500,6 +3500,79 @@ router.post('/screening/session/:token/complete', async (req, res) => {
 	}
 });
 
+// GET /api/interviews/screening/sessions — Recruiter lists screening sessions for their company
+// Query params: job_id (optional), status (optional)
+router.get('/screening/sessions', authMiddleware, async (req, res) => {
+	try {
+		const { job_id, status } = req.query;
+
+		let query = `
+      SELECT ss.id, ss.status, ss.current_phase, ss.overall_score, ss.recommendation,
+             ss.invited_at, ss.started_at, ss.completed_at,
+             ss.conversation,
+             j.id as job_id, j.title as job_title,
+             u.id as candidate_id, u.name as candidate_name, u.email as candidate_email,
+             st.title as template_title, st.screening_mode
+      FROM screening_sessions ss
+      JOIN jobs j ON ss.job_id = j.id
+      JOIN users u ON ss.candidate_id = u.id
+      LEFT JOIN screening_templates st ON ss.template_id = st.id
+      WHERE ss.company_id = $1
+    `;
+		const params = [req.user.company_id];
+		let paramIdx = 2;
+
+		if (job_id) {
+			query += ` AND ss.job_id = $${paramIdx}`;
+			params.push(job_id);
+			paramIdx++;
+		}
+		if (status) {
+			query += ` AND ss.status = $${paramIdx}`;
+			params.push(status);
+			paramIdx++;
+		}
+
+		query += ` ORDER BY ss.invited_at DESC LIMIT 100`;
+
+		const result = await pool.query(query, params);
+
+		const sessions = result.rows.map((s) => {
+			const conversation = s.conversation || [];
+			return {
+				id: s.id,
+				status: s.status,
+				current_phase: s.current_phase,
+				overall_score: s.overall_score,
+				recommendation: s.recommendation,
+				job_id: s.job_id,
+				job_title: s.job_title,
+				candidate_id: s.candidate_id,
+				candidate_name: s.candidate_name,
+				candidate_email: s.candidate_email,
+				template_title: s.template_title,
+				screening_mode: s.screening_mode,
+				invited_at: s.invited_at,
+				started_at: s.started_at,
+				completed_at: s.completed_at,
+				exchange_count: Math.floor(conversation.length / 2),
+				// Include full transcript for monitoring
+				transcript: conversation.map((msg) => ({
+					role: msg.role,
+					text: msg.text,
+					timestamp: msg.timestamp,
+					phase: msg.phase,
+				})),
+			};
+		});
+
+		res.json({ success: true, sessions });
+	} catch (err) {
+		console.error('List screening sessions error:', err);
+		res.status(500).json({ error: 'Failed to fetch screening sessions' });
+	}
+});
+
 // GET /api/interviews/screening/:id/report — Recruiter gets screening report
 router.get('/screening/:id/report', authMiddleware, async (req, res) => {
 	try {

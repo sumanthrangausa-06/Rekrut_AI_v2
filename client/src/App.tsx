@@ -338,6 +338,11 @@ const RecruiterCandidatesPage = lazy(() =>
 const RecruiterInterviewsPage = lazy(() =>
 	import('@/pages/recruiter/interviews').then((m) => ({ default: m.RecruiterInterviewsPage })),
 );
+const ScreeningMonitorPage = lazy(() =>
+	import('@/pages/recruiter/screening-monitor').then((m) => ({
+		default: m.ScreeningMonitorPage,
+	})),
+);
 const RecruiterOmniScorePage = lazy(() =>
 	import('@/pages/recruiter/omniscore').then((m) => ({ default: m.RecruiterOmniScorePage })),
 );
@@ -1143,6 +1148,16 @@ function AppRoutes() {
 						<Protected>
 							<RecruiterGuard>
 								<RecruiterInterviewsPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path="screening-monitor"
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<ScreeningMonitorPage />
 							</RecruiterGuard>
 						</Protected>
 					}
