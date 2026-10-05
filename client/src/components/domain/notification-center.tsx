@@ -1,10 +1,13 @@
 import {
 	AlertTriangle,
 	Bell,
+	CalendarClock,
 	CheckCircle,
 	ChevronRight,
+	ClipboardList,
 	Clock,
 	Info,
+	Sparkles,
 	Trash2,
 	Volume2,
 	X,
@@ -20,7 +23,23 @@ export type Notification = {
 	id: string;
 	title: string;
 	message: string;
-	type: 'info' | 'success' | 'warning' | 'error' | 'interview' | 'offer' | 'message';
+	type:
+		| 'info'
+		| 'success'
+		| 'warning'
+		| 'error'
+		| 'interview'
+		| 'offer'
+		| 'message'
+		| 'application_submitted'
+		| 'application_received'
+		| 'application_status_changed'
+		| 'screening_invited'
+		| 'screening_completed'
+		| 'assessment_assigned'
+		| 'assessment_completed'
+		| 'interview_scheduled'
+		| 'interview_confirmed';
 	read: boolean;
 	timestamp: string;
 	action?: {
@@ -64,6 +83,52 @@ const typeConfig: Record<string, { icon: React.ReactNode; color: string; badge: 
 		icon: <Info className="h-4 w-4" />,
 		color: 'text-indigo-600',
 		badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+	},
+	// Pipeline notification types (hiring-pipeline-v1)
+	application_submitted: {
+		icon: <CheckCircle className="h-4 w-4" />,
+		color: 'text-green-600',
+		badge: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+	},
+	application_received: {
+		icon: <Bell className="h-4 w-4" />,
+		color: 'text-blue-600',
+		badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+	},
+	application_status_changed: {
+		icon: <ChevronRight className="h-4 w-4" />,
+		color: 'text-purple-600',
+		badge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+	},
+	screening_invited: {
+		icon: <Sparkles className="h-4 w-4" />,
+		color: 'text-violet-600',
+		badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
+	},
+	screening_completed: {
+		icon: <CheckCircle className="h-4 w-4" />,
+		color: 'text-emerald-600',
+		badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+	},
+	assessment_assigned: {
+		icon: <ClipboardList className="h-4 w-4" />,
+		color: 'text-orange-600',
+		badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+	},
+	assessment_completed: {
+		icon: <CheckCircle className="h-4 w-4" />,
+		color: 'text-emerald-600',
+		badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+	},
+	interview_scheduled: {
+		icon: <CalendarClock className="h-4 w-4" />,
+		color: 'text-sky-600',
+		badge: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
+	},
+	interview_confirmed: {
+		icon: <CheckCircle className="h-4 w-4" />,
+		color: 'text-green-600',
+		badge: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
 	},
 };
 
@@ -288,7 +353,7 @@ export function NotificationCenter({ className }: { className?: string }) {
 							</div>
 						) : (
 							notifications.map((n) => {
-								const config = typeConfig[n.type];
+								const config = typeConfig[n.type] || typeConfig.info;
 								return (
 									<div
 										key={n.id}
