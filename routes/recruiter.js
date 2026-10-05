@@ -739,7 +739,7 @@ router.post(
 					normalizedJobType,
 					screening_questions ? JSON.stringify(screening_questions) : null,
 					auto_send_on_apply === true,
-					Math.min(100, Math.max(0, parseInt(auto_send_min_score, 10) || 70)),
+					clampAutoSendMinScore(auto_send_min_score) ?? 70,
 				],
 			);
 
@@ -889,6 +889,14 @@ router.get(
 		}
 	},
 );
+
+// Clamp auto-send threshold 0-100; null/undefined/NaN -> null (keep existing / default)
+function clampAutoSendMinScore(v) {
+	if (v === undefined || v === null) return null;
+	const n = parseInt(v, 10);
+	if (Number.isNaN(n)) return null;
+	return Math.min(100, Math.max(0, n));
+}
 
 // Generate complete job description from title + optional notes
 router.post(
@@ -1111,7 +1119,7 @@ router.put(
 					auto_send_on_apply === undefined ? null : auto_send_on_apply === true,
 					auto_send_min_score === undefined
 						? null
-						: Math.min(100, Math.max(0, parseInt(auto_send_min_score, 10) || 70)),
+						: clampAutoSendMinScore(auto_send_min_score),
 					req.params.id,
 				],
 			);
