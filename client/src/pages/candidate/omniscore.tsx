@@ -64,6 +64,8 @@ interface ScoreBreakdown {
 	weight?: number;
 	weighted_contribution?: number;
 	details?: string[];
+	/** false when the factor was computed from no input records — UI shows "Insufficient data" */
+	has_data?: boolean;
 }
 
 interface OmniScoreData {
@@ -471,14 +473,23 @@ export function CandidateOmniScorePage() {
 															{icons[key] || <Star className="h-4 w-4" />}
 															<span className="font-medium text-sm">{data.label}</span>
 														</div>
-														<span className="text-sm font-bold text-primary">
-															{data.score}/{data.max}
-															{data.weight ? (
-																<span className="text-[10px] font-normal text-muted-foreground ml-1">
-																	({Math.round(data.weight * 100)}%)
-																</span>
-															) : null}
-														</span>
+														{data.has_data === false ? (
+															<Badge
+																variant="outline"
+																className="text-[11px] text-muted-foreground border-dashed"
+															>
+																Insufficient data
+															</Badge>
+														) : (
+															<span className="text-sm font-bold text-primary">
+																{data.score}/{data.max}
+																{data.weight ? (
+																	<span className="text-[10px] font-normal text-muted-foreground ml-1">
+																		({Math.round(data.weight * 100)}%)
+																	</span>
+																) : null}
+															</span>
+														)}
 													</div>
 													<div className="h-2 bg-muted rounded-full overflow-hidden">
 														<div
@@ -486,7 +497,12 @@ export function CandidateOmniScorePage() {
 															style={{ width: `${Math.min(100, pct)}%` }}
 														/>
 													</div>
-													{data.details && data.details.length > 0 ? (
+													{data.has_data === false ? (
+														<p className="text-xs text-muted-foreground mt-2">
+															{data.description} Complete the related activities to
+															unlock this factor.
+														</p>
+													) : data.details && data.details.length > 0 ? (
 														<ul className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
 															{data.details.map((d, i) => (
 																<li key={i}>• {d}</li>
