@@ -176,9 +176,6 @@ const InterviewPracticePage = lazy(() =>
 const LiveKitRoomPage = lazy(() =>
 	import('@/pages/candidate/livekit-room').then((m) => ({ default: m.LiveKitRoomPage })),
 );
-const VideoInterviewPage = lazy(() =>
-	import('@/pages/candidate/video-interview').then((m) => ({ default: m.VideoInterviewPage })),
-);
 const InterviewAnalysisPage = lazy(() =>
 	import('@/pages/candidate/interview-analysis').then((m) => ({
 		default: m.InterviewAnalysisPage,
@@ -730,14 +727,6 @@ function AppRoutes() {
 					element={
 						<Protected>
 							<LiveKitRoomPage />
-						</Protected>
-					}
-				/>
-				<Route
-					path="video-interview"
-					element={
-						<Protected>
-							<VideoInterviewPage />
 						</Protected>
 					}
 				/>
