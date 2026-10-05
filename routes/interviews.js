@@ -24,6 +24,7 @@ const multer = require('multer');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const emailService = require('../lib/email-service');
 const calendarService = require('../server/services/calendar-service');
+const { notifyUser } = require('../lib/notify');
 const { uploadToB2 } = require('../lib/file-storage');
 
 const router = express.Router();
@@ -2472,7 +2473,8 @@ const interviewAI = require('../services/interview-ai');
 // POST /api/interviews/suggest-slots — AI suggests optimal interview time slots
 router.post('/suggest-slots', authMiddleware, async (req, res) => {
 	try {
-		const { candidate_timezone, days_ahead, slots_count, duration_minutes } = req.body;
+		const { candidate_timezone, days_ahead, slots_count, duration_minutes, candidate_id } =
+			req.body;
 
 		const slots = await interviewAI.suggestSlots(
 			req.user.id,
@@ -2481,6 +2483,7 @@ router.post('/suggest-slots', authMiddleware, async (req, res) => {
 				daysAhead: Math.min(days_ahead || 7, 30),
 				slotsCount: Math.min(slots_count || 6, 12),
 				durationMinutes: duration_minutes || 60,
+				candidateId: candidate_id || null,
 			},
 		);
 
@@ -2570,6 +2573,21 @@ router.post('/schedule', authMiddleware, async (req, res) => {
 			const jobInfo = job.rows[0];
 			const recruiterInfo = recruiter.rows[0];
 
+			// In-app notification for the candidate (non-blocking)
+			if (candInfo?.id) {
+				notifyUser(
+					candInfo.id,
+					'interview_scheduled',
+					'Interview scheduled',
+					`Interview for ${jobInfo?.title || 'the position'} scheduled on ${new Date(scheduled_at).toLocaleString()}. Please confirm.`,
+					{
+						interview_id: interview.id,
+						application_id: interview.application_id || null,
+						job_id,
+						scheduled_at,
+					},
+				);
+			}
 			if (candInfo?.email) {
 				const scheduledDate = new Date(scheduled_at);
 				await emailService.sendTemplatedEmail({
@@ -2831,6 +2849,65 @@ router.get('/screening/templates', authMiddleware, async (req, res) => {
 	}
 });
 
+// PUT /api/interviews/screening/templates/:id — Update a screening template
+router.put('/screening/templates/:id', authMiddleware, async (req, res) => {
+	try {
+		const { title, description, questions, time_limit_minutes } = req.body;
+		const sets = [];
+		const params = [];
+		if (title !== undefined) {
+			params.push(title);
+			sets.push(`title = $${params.length}`);
+		}
+		if (description !== undefined) {
+			params.push(description);
+			sets.push(`description = $${params.length}`);
+		}
+		if (questions !== undefined) {
+			params.push(JSON.stringify(questions));
+			sets.push(`questions = $${params.length}`);
+		}
+		if (time_limit_minutes !== undefined) {
+			params.push(time_limit_minutes);
+			sets.push(`time_limit_minutes = $${params.length}`);
+		}
+		if (sets.length === 0) {
+			return res.status(400).json({ error: 'Nothing to update' });
+		}
+		params.push(req.params.id, req.user.company_id);
+		const result = await pool.query(
+			`UPDATE screening_templates SET ${sets.join(', ')}, updated_at = NOW()
+       WHERE id = $${params.length - 1} AND company_id = $${params.length} RETURNING *`,
+			params,
+		);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Template not found' });
+		}
+		res.json({ success: true, template: result.rows[0] });
+	} catch (err) {
+		console.error('Update screening template error:', err);
+		res.status(500).json({ error: 'Failed to update template' });
+	}
+});
+
+// DELETE /api/interviews/screening/templates/:id — Deactivate a screening template
+router.delete('/screening/templates/:id', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`UPDATE screening_templates SET status = 'archived', updated_at = NOW()
+       WHERE id = $1 AND company_id = $2 RETURNING id`,
+			[req.params.id, req.user.company_id],
+		);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Template not found' });
+		}
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Delete screening template error:', err);
+		res.status(500).json({ error: 'Failed to delete template' });
+	}
+});
+
 // POST /api/interviews/screening/send — Send screening invite to candidate
 router.post('/screening/send', authMiddleware, async (req, res) => {
 	try {
@@ -2895,14 +2972,70 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 			);
 		}
 
+		// In-app notification for the candidate (non-blocking)
+		const inviteUrl = `/screening/${inviteToken}`;
+		notifyUser(
+			candidate_id,
+			'screening_invited',
+			'AI screening interview invited',
+			`You've been invited to complete an AI screening interview (${tmpl.title}). Complete it within 7 days.`,
+			{
+				session_id: result.rows[0].id,
+				template_id,
+				application_id: application_id || null,
+				job_id: tmpl.job_id || job_id || null,
+				invite_url: inviteUrl,
+			},
+		);
+
 		res.json({
 			success: true,
 			session: result.rows[0],
-			invite_url: `/screening/${inviteToken}`,
+			invite_url: inviteUrl,
 		});
 	} catch (err) {
 		console.error('Send screening error:', err);
 		res.status(500).json({ error: 'Failed to send screening invite' });
+	}
+});
+
+// GET /api/interviews/screening/my-sessions — Candidate's AI screening sessions
+router.get('/screening/my-sessions', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`SELECT ss.id, ss.status, ss.overall_score, ss.invited_at, ss.started_at, ss.completed_at, ss.expires_at,
+              ss.invite_token, ss.application_id,
+              j.title as job_title, c.name as company_name, st.title as template_title
+       FROM screening_sessions ss
+       JOIN jobs j ON ss.job_id = j.id
+       JOIN companies c ON ss.company_id = c.id
+       LEFT JOIN screening_templates st ON st.id = ss.template_id
+       WHERE ss.candidate_id = $1
+       ORDER BY ss.invited_at DESC`,
+			[req.user.id],
+		);
+		const sessions = result.rows.map((s) => ({
+			id: s.id,
+			status: s.status,
+			overall_score: s.overall_score,
+			job_title: s.job_title,
+			company_name: s.company_name,
+			template_title: s.template_title,
+			application_id: s.application_id,
+			invited_at: s.invited_at,
+			started_at: s.started_at,
+			completed_at: s.completed_at,
+			expires_at: s.expires_at,
+			// Only expose the invite link for sessions the candidate can still act on
+			invite_url:
+				s.status === 'invited' || s.status === 'in_progress'
+					? `/screening/${s.invite_token}`
+					: null,
+		}));
+		res.json({ success: true, sessions });
+	} catch (err) {
+		console.error('Get my screening sessions error:', err);
+		res.status(500).json({ error: 'Failed to fetch screening sessions' });
 	}
 });
 
@@ -2997,6 +3130,9 @@ router.post('/screening/session/:token/respond', async (req, res) => {
 		}
 
 		const s = session.rows[0];
+		if (s.status !== 'in_progress') {
+			return res.status(409).json({ error: 'Screening is not in progress' });
+		}
 		const responses = s.responses || [];
 		const conversation = s.conversation || [];
 
@@ -3066,6 +3202,21 @@ router.post('/screening/session/:token/complete', async (req, res) => {
 				[report.overall_score, s.application_id],
 			);
 		}
+
+		// In-app notification for the recruiter (non-blocking)
+		notifyUser(
+			s.invited_by,
+			'screening_completed',
+			'Screening completed',
+			`Candidate completed the AI screening — score ${report.overall_score ?? 'N/A'}/100 (${report.recommendation || 'no recommendation'}).`,
+			{
+				session_id: s.id,
+				application_id: s.application_id,
+				job_id: s.job_id,
+				candidate_id: s.candidate_id,
+				overall_score: report.overall_score,
+			},
+		);
 
 		// Run multi-evaluator scoring in background
 		const jobResult = await pool.query('SELECT title, description FROM jobs WHERE id = $1', [
