@@ -1,4 +1,5 @@
 import {
+	AlertTriangle,
 	ArrowUpRight,
 	Briefcase,
 	CheckCircle2,
@@ -11,6 +12,7 @@ import {
 	PauseCircle,
 	PlayCircle,
 	Plus,
+	RotateCcw,
 	Search,
 	Trash2,
 	Users,
@@ -81,6 +83,7 @@ export function RecruiterJobsPage() {
 	const navigate = useNavigate();
 	const [jobs, setJobs] = useState<Job[]>([]);
 	const [loading, setLoading] = useState(true);
+	const [loadError, setLoadError] = useState<string | null>(null);
 	const [deleting, setDeleting] = useState<number | null>(null);
 	const [search, setSearch] = useState('');
 	const [statusFilter, setStatusFilter] = useState('');
@@ -92,10 +95,11 @@ export function RecruiterJobsPage() {
 
 	const loadJobs = useCallback(async () => {
 		try {
+			setLoadError(null);
 			const data = await apiCall<{ jobs: Job[] }>('/recruiter/jobs');
 			setJobs(data.jobs || []);
-		} catch {
-			// silent
+		} catch (err) {
+			setLoadError(err instanceof Error ? err.message : 'Failed to load jobs');
 		} finally {
 			setLoading(false);
 		}
@@ -278,6 +282,17 @@ export function RecruiterJobsPage() {
 				<div className="flex items-center justify-center py-16">
 					<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
 				</div>
+			) : loadError ? (
+				<Card className="border-red-200 bg-red-50">
+					<CardContent className="py-16 text-center">
+						<AlertTriangle className="mx-auto mb-3 h-10 w-10 text-red-500" />
+						<p className="font-medium text-red-800 mb-2">Failed to load jobs</p>
+						<p className="text-sm text-red-600 mb-4">{loadError}</p>
+						<Button onClick={loadJobs} variant="outline" className="gap-2">
+							<RotateCcw className="h-4 w-4" /> Try Again
+						</Button>
+					</CardContent>
+				</Card>
 			) : jobs.length === 0 ? (
 				<Card className="border-dashed">
 					<CardContent className="py-16 text-center">
