@@ -1,15 +1,16 @@
+// Conversational AI Screening — chat-thread UI like a real recruiter phone screen
+// The AI conducts the interview conversationally: intro → background → experience
+// deep-dive → motivation → logistics → candidate questions → close.
+
 import {
 	AlertCircle,
 	Brain,
 	Briefcase,
 	Building2,
 	CheckCircle,
-	ChevronRight,
-	Clock,
 	Loader2,
 	Send,
 	Shield,
-	Star,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -17,69 +18,71 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { apiCall } from '@/lib/api';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
-
-interface ScreeningQuestion {
-	id: number;
+interface ChatMessage {
+	role: 'ai' | 'candidate';
 	text: string;
-	type: string;
-	follow_up?: string;
-	time_limit_minutes?: number;
+	phase?: string;
+	timestamp: string;
 }
 
 interface ScreeningData {
-	session_id: number;
 	job_title: string;
 	company_name: string;
-	questions: ScreeningQuestion[];
-	time_limit_minutes: number;
 	status: string;
-	started_at?: string;
 	expires_at?: string;
-	responses?: { question_id: number; answer: string }[];
 }
 
-function formatTimeRemaining(expiresAt: string) {
-	const ms = new Date(expiresAt).getTime() - Date.now();
-	if (ms <= 0) return 'Expired';
-	const hours = Math.floor(ms / (1000 * 60 * 60));
-	const mins = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-	if (hours > 0) return `${hours}h ${mins}m remaining`;
-	return `${mins}m remaining`;
-}
+const PHASE_LABELS: Record<string, string> = {
+	intro: 'Introduction',
+	background: 'Background',
+	experience: 'Experience',
+	motivation: 'Motivation',
+	logistics: 'Logistics',
+	candidate_questions: 'Your Questions',
+	close: 'Wrap-up',
+};
 
 export function CandidateScreeningPage() {
 	const { token } = useParams<{ token: string }>();
 	const [screening, setScreening] = useState<ScreeningData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
-	const [currentQuestion, setCurrentQuestion] = useState(0);
-	const [answers, setAnswers] = useState<Record<number, string>>({});
-	const [submitting, setSubmitting] = useState(false);
-	const [completing, setCompleting] = useState(false);
+	const [started, setStarted] = useState(false);
+	const [starting, setStarting] = useState(false);
+	const [messages, setMessages] = useState<ChatMessage[]>([]);
+	const [input, setInput] = useState('');
+	const [sending, setSending] = useState(false);
+	const [aiTyping, setAiTyping] = useState(false);
+	const [currentPhase, setCurrentPhase] = useState('intro');
 	const [completed, setCompleted] = useState(false);
-	const [timeRemaining, setTimeRemaining] = useState('');
-	const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const [completing, setCompleting] = useState(false);
+	const chatEndRef = useRef<HTMLDivElement>(null);
+
+	const scrollToBottom = useCallback(() => {
+		setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+	}, []);
 
 	const loadScreening = useCallback(async () => {
 		try {
-			const res = await fetch(`${API_URL}/api/interviews/screening/session/${token}`);
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.error || 'Failed to load screening');
-			setScreening(data);
-			if (data.status === 'completed') setCompleted(true);
-			// Restore any existing answers
-			if (data.responses?.length) {
-				const restored: Record<number, string> = {};
-				data.responses.forEach((r: any) => {
-					restored[r.question_id] = r.answer;
-				});
-				setAnswers(restored);
-				setCurrentQuestion(Math.min(data.responses.length, (data.questions?.length || 1) - 1));
+			const data = await apiCall<{ screening: ScreeningData }>(
+				`/api/interviews/screening/session/${token}`,
+			);
+			const s = data.screening;
+			setScreening({
+				job_title: s.job_title,
+				company_name: s.company_name,
+				status: s.status,
+				expires_at: s.expires_at,
+			});
+			if (s.status === 'completed') {
+				setCompleted(true);
+			} else if (s.status === 'in_progress') {
+				setStarted(true);
 			}
 		} catch (err: any) {
-			setError(err.message || 'Failed to load screening session');
+			setError(err.message || 'Failed to load screening');
 		} finally {
 			setLoading(false);
 		}
@@ -87,205 +90,151 @@ export function CandidateScreeningPage() {
 
 	useEffect(() => {
 		loadScreening();
-		return () => {
-			if (timerRef.current) clearInterval(timerRef.current);
-		};
 	}, [loadScreening]);
 
 	useEffect(() => {
-		if (screening?.expires_at && screening.status === 'in_progress') {
-			const expiresAt = screening.expires_at;
-			timerRef.current = setInterval(() => {
-				setTimeRemaining(formatTimeRemaining(expiresAt));
-				if (new Date(expiresAt).getTime() <= Date.now()) {
-					if (timerRef.current) clearInterval(timerRef.current);
-					setError('This screening session has expired.');
-				}
-			}, 1000);
-		}
-	}, [screening?.expires_at, screening?.status]);
+		scrollToBottom();
+	}, [messages, scrollToBottom]);
 
-	async function startScreening() {
-		if (!screening) return;
-		setLoading(true);
+	const handleStart = async () => {
+		setStarting(true);
+		setError('');
 		try {
-			const res = await fetch(`${API_URL}/api/interviews/screening/session/${token}/start`, {
+			const data = await apiCall<{
+				success: boolean;
+				ai_message: string;
+				phase: string;
+			}>(`/api/interviews/screening/session/${token}/start`, {
 				method: 'POST',
 			});
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.error || 'Failed to start');
-			setScreening({
-				...screening,
-				status: 'in_progress',
-				started_at: new Date().toISOString(),
-				expires_at: data.expires_at,
-			});
+			setStarted(true);
+			setCurrentPhase(data.phase || 'background');
+			if (data.ai_message) {
+				setMessages([
+					{
+						role: 'ai',
+						text: data.ai_message,
+						phase: 'intro',
+						timestamp: new Date().toISOString(),
+					},
+				]);
+			}
+			scrollToBottom();
 		} catch (err: any) {
-			setError(err.message);
+			setError(err.message || 'Failed to start screening');
 		} finally {
-			setLoading(false);
+			setStarting(false);
 		}
-	}
+	};
 
-	async function submitAnswer(questionId: number) {
-		const answer = answers[questionId];
-		if (!answer?.trim()) return;
-		setSubmitting(true);
+	const handleSend = async () => {
+		const text = input.trim();
+		if (!text || sending || aiTyping) return;
+		if (text.length < 5) {
+			setError('Please give a bit more detail in your response.');
+			return;
+		}
+		setError('');
+		setSending(true);
+
+		const candidateMsg: ChatMessage = {
+			role: 'candidate',
+			text,
+			timestamp: new Date().toISOString(),
+		};
+		setMessages((prev) => [...prev, candidateMsg]);
+		setInput('');
+		scrollToBottom();
+
+		setAiTyping(true);
 		try {
-			const res = await fetch(`${API_URL}/api/interviews/screening/session/${token}/respond`, {
+			const data = await apiCall<{
+				ai_message: string;
+				action: string;
+				phase: string;
+				should_wrap_up: boolean;
+			}>(`/api/interviews/screening/session/${token}/respond`, {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ question_id: questionId, answer: answer.trim() }),
+				body: JSON.stringify({ response_text: text }),
 			});
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.error || 'Failed to submit');
-			// Move to next question
-			if (currentQuestion < (screening?.questions?.length || 0) - 1) {
-				setCurrentQuestion((prev) => prev + 1);
+
+			setCurrentPhase(data.phase || currentPhase);
+			setMessages((prev) => [
+				...prev,
+				{
+					role: 'ai',
+					text: data.ai_message,
+					phase: data.phase,
+					timestamp: new Date().toISOString(),
+				},
+			]);
+
+			if (data.should_wrap_up || data.action === 'wrap_up') {
+				setTimeout(() => handleComplete(), 1500);
 			}
 		} catch (err: any) {
-			setError(err.message);
+			setError(err.message || 'Failed to send response. Please try again.');
+			setMessages((prev) => prev.slice(0, -1));
 		} finally {
-			setSubmitting(false);
+			setSending(false);
+			setAiTyping(false);
+			scrollToBottom();
 		}
-	}
+	};
 
-	async function completeScreening() {
+	const handleComplete = async () => {
 		setCompleting(true);
 		try {
-			const res = await fetch(`${API_URL}/api/interviews/screening/session/${token}/complete`, {
+			await apiCall(`/api/interviews/screening/session/${token}/complete`, {
 				method: 'POST',
 			});
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.error || 'Failed to complete');
 			setCompleted(true);
 		} catch (err: any) {
-			setError(err.message);
+			setError(err.message || 'Failed to complete screening');
 		} finally {
 			setCompleting(false);
 		}
-	}
+	};
+
+	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === 'Enter' && !e.shiftKey) {
+			e.preventDefault();
+			handleSend();
+		}
+	};
 
 	if (loading) {
 		return (
-			<div className="min-h-dvh-safe bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-				<div className="text-center space-y-4">
-					<Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
-					<p className="text-slate-600">Loading screening interview...</p>
-				</div>
+			<div className="min-h-screen flex items-center justify-center">
+				<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
 			</div>
 		);
 	}
 
 	if (error && !screening) {
 		return (
-			<div className="min-h-dvh-safe bg-gradient-to-br from-slate-50 to-red-50 flex items-center justify-center p-4">
+			<div className="min-h-screen flex items-center justify-center p-4">
 				<Card className="max-w-md w-full">
-					<CardContent className="p-8 text-center space-y-4">
-						<AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-						<h2 className="text-xl font-semibold text-slate-900">Unable to Load Screening</h2>
-						<p className="text-slate-600">{error}</p>
-						<p className="text-sm text-slate-500">
-							This link may have expired or is invalid. Please contact the recruiter for a new
-							invite.
-						</p>
+					<CardContent className="pt-6 text-center">
+						<AlertCircle className="h-12 w-12 mx-auto text-destructive mb-4" />
+						<p className="text-lg font-medium mb-2">Unable to load screening</p>
+						<p className="text-sm text-muted-foreground">{error}</p>
 					</CardContent>
 				</Card>
 			</div>
 		);
 	}
 
-	if (!screening) return null;
-
-	// Completed state
 	if (completed) {
 		return (
-			<div className="min-h-dvh-safe bg-gradient-to-br from-slate-50 to-green-50 flex items-center justify-center p-4">
-				<Card className="max-w-lg w-full">
-					<CardContent className="p-8 text-center space-y-6">
-						<div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-							<CheckCircle className="w-8 h-8 text-green-600" />
-						</div>
-						<div>
-							<h2 className="text-2xl font-bold text-slate-900 mb-2">Screening Complete!</h2>
-							<p className="text-slate-600">
-								Thank you for completing the screening for <strong>{screening.job_title}</strong> at{' '}
-								<strong>{screening.company_name}</strong>.
-							</p>
-						</div>
-						<div className="bg-blue-50 rounded-lg p-4 text-left space-y-2">
-							<div className="flex items-center gap-2 text-blue-700 font-medium">
-								<Brain className="w-4 h-4" />
-								What happens next?
-							</div>
-							<ul className="text-sm text-blue-600 space-y-1 ml-6 list-disc">
-								<li>Our AI is analyzing your responses right now</li>
-								<li>The recruiter will review your screening results</li>
-								<li>You'll hear back within 3-5 business days</li>
-								<li>Your OmniScore will be updated based on your performance</li>
-							</ul>
-						</div>
-						<div className="flex items-center justify-center gap-2 text-sm text-slate-500">
-							<Shield className="w-4 h-4" />
-							Powered by HireLoop AI
-						</div>
-					</CardContent>
-				</Card>
-			</div>
-		);
-	}
-
-	// Invited - not started yet
-	if (screening.status === 'invited') {
-		return (
-			<div className="min-h-dvh-safe bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-				<Card className="max-w-lg w-full">
-					<CardContent className="p-8 space-y-6">
-						<div className="text-center space-y-2">
-							<div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
-								<Brain className="w-8 h-8 text-blue-600" />
-							</div>
-							<h2 className="text-2xl font-bold text-slate-900">AI Screening Interview</h2>
-							<p className="text-slate-600">You've been invited to complete a screening for:</p>
-						</div>
-
-						<div className="bg-slate-50 rounded-lg p-4 space-y-3">
-							<div className="flex items-center gap-3">
-								<Briefcase className="w-5 h-5 text-slate-500" />
-								<div>
-									<p className="font-medium text-slate-900">{screening.job_title}</p>
-									<p className="text-sm text-slate-500">{screening.company_name}</p>
-								</div>
-							</div>
-							<div className="flex items-center gap-3">
-								<Clock className="w-5 h-5 text-slate-500" />
-								<p className="text-sm text-slate-600">
-									{screening.questions?.length || 0} questions &middot; ~
-									{screening.time_limit_minutes} min time limit
-								</p>
-							</div>
-						</div>
-
-						<div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
-							<p className="font-medium text-amber-800 text-sm">Before you start:</p>
-							<ul className="text-sm text-amber-700 space-y-1 ml-4 list-disc">
-								<li>Find a quiet place with good internet</li>
-								<li>The timer starts once you begin</li>
-								<li>Answer each question thoughtfully — quality matters</li>
-								<li>You can't pause once started</li>
-							</ul>
-						</div>
-
-						<Button onClick={startScreening} className="w-full min-h-[44px]" size="lg">
-							Start Screening Interview
-							<ChevronRight className="w-4 h-4 ml-2" />
-						</Button>
-
-						<p className="text-xs text-center text-slate-500">
-							This screening is conducted by AI. Your responses are scored by AI and
-							reviewed by a human recruiter before any decision — no one is
-							automatically rejected. By starting, you consent to AI evaluation of
-							your responses.
+			<div className="min-h-screen flex items-center justify-center p-4">
+				<Card className="max-w-md w-full">
+					<CardContent className="pt-6 text-center">
+						<CheckCircle className="h-12 w-12 mx-auto text-green-600 mb-4" />
+						<p className="text-lg font-medium mb-2">Screening Complete</p>
+						<p className="text-sm text-muted-foreground">
+							Thanks for completing the AI screening for {screening?.job_title}. The
+							hiring team will review your responses and be in touch soon.
 						</p>
 					</CardContent>
 				</Card>
@@ -293,189 +242,167 @@ export function CandidateScreeningPage() {
 		);
 	}
 
-	// In Progress - answering questions
-	const questions = screening.questions || [];
-	const question = questions[currentQuestion];
-	const answeredCount = Object.keys(answers).filter((k) => answers[Number(k)]?.trim()).length;
-	const allAnswered = answeredCount >= questions.length;
-	const isLastQuestion = currentQuestion === questions.length - 1;
+	if (!started) {
+		return (
+			<div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
+				<Card className="max-w-lg w-full">
+					<CardContent className="pt-6">
+						<div className="flex items-center gap-3 mb-4">
+							<div className="p-2 bg-primary/10 rounded-lg">
+								<Brain className="h-6 w-6 text-primary" />
+							</div>
+							<div>
+								<h1 className="text-lg font-semibold">AI Screening Interview</h1>
+								<p className="text-sm text-muted-foreground">
+									{screening?.job_title} at {screening?.company_name}
+								</p>
+							</div>
+						</div>
+
+						<div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg mb-4">
+							<Shield className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+							<p className="text-xs text-blue-900 dark:text-blue-100">
+								<strong>AI disclosure:</strong> This is a conversational screening
+								conducted by AI. Your responses will be evaluated by AI and reviewed
+								by a human recruiter. The AI will ask follow-up questions based on
+								your answers, just like a real phone screen.
+							</p>
+						</div>
+
+						<div className="space-y-2 text-sm text-muted-foreground mb-6">
+							<div className="flex items-center gap-2">
+								<Briefcase className="h-4 w-4" />
+								<span>Takes about 15-20 minutes</span>
+							</div>
+							<div className="flex items-center gap-2">
+								<Building2 className="h-4 w-4" />
+								<span>Be specific — concrete examples with your personal contribution</span>
+							</div>
+						</div>
+
+						{error && <p className="text-sm text-destructive mb-4">{error}</p>}
+
+						<Button onClick={handleStart} disabled={starting} className="w-full">
+							{starting ? (
+								<>
+									<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+									Starting...
+								</>
+							) : (
+								'Start Screening Interview'
+							)}
+						</Button>
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
 
 	return (
-		<div className="min-h-dvh-safe bg-gradient-to-br from-slate-50 to-blue-50">
-			{/* Top bar */}
-			<div className="bg-white border-b sticky top-0 z-10">
-				<div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+		<div className="min-h-screen flex flex-col bg-muted/30">
+			<div className="sticky top-0 z-10 bg-background border-b">
+				<div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
 					<div className="flex items-center gap-3">
-						<Building2 className="w-5 h-5 text-blue-600" />
+						<div className="p-1.5 bg-primary/10 rounded-lg">
+							<Brain className="h-5 w-5 text-primary" />
+						</div>
 						<div>
-							<p className="font-medium text-sm text-slate-900">{screening.job_title}</p>
-							<p className="text-xs text-slate-500">{screening.company_name}</p>
+							<p className="text-sm font-medium">{screening?.job_title}</p>
+							<p className="text-xs text-muted-foreground">{screening?.company_name}</p>
 						</div>
 					</div>
-					<div className="flex items-center gap-3">
-						{screening.expires_at && (
-							<Badge variant={timeRemaining.includes('Expired') ? 'destructive' : 'secondary'}>
-								<Clock className="w-3 h-3 mr-1" />
-								{timeRemaining || formatTimeRemaining(screening.expires_at)}
-							</Badge>
-						)}
-						<Badge variant="default">
-							{answeredCount}/{questions.length} answered
+					{currentPhase && PHASE_LABELS[currentPhase] && (
+						<Badge variant="secondary" className="text-xs">
+							{PHASE_LABELS[currentPhase]}
 						</Badge>
-					</div>
+					)}
 				</div>
 			</div>
 
-			{/* Progress bar */}
-			<div className="bg-white border-b">
-				<div className="max-w-3xl mx-auto">
-					<div className="h-1 bg-slate-100">
+			<div className="flex-1 max-w-3xl w-full mx-auto px-4 py-6 space-y-4">
+				{messages.map((msg, i) => (
+					<div
+						key={i}
+						className={`flex ${msg.role === 'candidate' ? 'justify-end' : 'justify-start'}`}
+					>
 						<div
-							className="h-full bg-blue-600 transition-all duration-500"
-							style={{
-								width: `${((currentQuestion + (answers[question?.id] ? 1 : 0)) / questions.length) * 100}%`,
-							}}
-						/>
-					</div>
-				</div>
-			</div>
-
-			{/* Error banner */}
-			{error && (
-				<div className="max-w-3xl mx-auto px-4 sm:px-6 pt-4">
-					<div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-						{error}
-					</div>
-				</div>
-			)}
-
-			<div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-				{/* Question navigation pills */}
-				<div className="flex gap-2 flex-wrap">
-					{questions.map((q: ScreeningQuestion, i: number) => (
-						<button type="button"
-							key={q.id}
-							onClick={() => setCurrentQuestion(i)}
-							className={`w-8 h-8 rounded-full text-xs font-medium transition-all min-h-[44px] ${
-								i === currentQuestion
-									? 'bg-blue-600 text-white shadow-md'
-									: answers[q.id]?.trim()
-										? 'bg-green-100 text-green-700 border border-green-300'
-										: 'bg-white text-slate-500 border border-slate-200 hover:border-blue-300'
+							className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+								msg.role === 'candidate'
+									? 'bg-primary text-primary-foreground rounded-br-md'
+									: 'bg-background border rounded-bl-md shadow-sm'
 							}`}
 						>
-							{i + 1}
-						</button>
-					))}
-				</div>
-
-				{/* Current question */}
-				{question && (
-					<Card>
-						<CardContent className="p-6 space-y-4">
-							<div className="flex items-start justify-between">
-								<Badge variant="secondary" className="text-xs">
-									Question {currentQuestion + 1} of {questions.length}
-								</Badge>
-								{question.type && (
-									<Badge variant="default" className="text-xs capitalize">
-										{question.type}
-									</Badge>
-								)}
-							</div>
-
-							<h3 className="text-lg font-medium text-slate-900 leading-relaxed">
-								{question.text}
-							</h3>
-
-							{question.follow_up && (
-								<p className="text-sm text-slate-500 italic">Follow-up: {question.follow_up}</p>
-							)}
-
-							<Textarea
-								value={answers[question.id] || ''}
-								onChange={(e) => setAnswers((prev) => ({ ...prev, [question.id]: e.target.value }))}
-								placeholder="Type your answer here... Be thorough and specific."
-								className="min-h-[180px] text-base leading-relaxed"
-								disabled={submitting}
-							/>
-
-							<div className="flex items-center justify-between">
-								<p className="text-xs text-slate-400">
-									{(answers[question.id] || '').length} characters
+							{msg.role === 'ai' && (
+								<p className="text-xs font-medium text-muted-foreground mb-1">
+									Maya · AI Recruiter
 								</p>
-								<div className="flex gap-2">
-									{currentQuestion > 0 && (
-										<Button
-											variant="outline"
-											onClick={() => setCurrentQuestion((prev) => prev - 1)}
-											className="min-h-[44px]"
-										>
-											Previous
-										</Button>
-									)}
-									<Button
-										onClick={() => submitAnswer(question.id)}
-										className="min-h-[44px]"
-										disabled={submitting || !answers[question.id]?.trim()}
-									>
-										{submitting ? (
-											<Loader2 className="w-4 h-4 animate-spin mr-2" />
-										) : (
-											<Send className="w-4 h-4 mr-2" />
-										)}
-										{isLastQuestion ? 'Submit Answer' : 'Save & Next'}
-									</Button>
-								</div>
+							)}
+							<p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+						</div>
+					</div>
+				))}
+
+				{aiTyping && (
+					<div className="flex justify-start">
+						<div className="bg-background border rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
+							<div className="flex items-center gap-1">
+								<span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" />
+								<span
+									className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce"
+									style={{ animationDelay: '0.15s' }}
+								/>
+								<span
+									className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce"
+									style={{ animationDelay: '0.3s' }}
+								/>
 							</div>
-						</CardContent>
-					</Card>
+						</div>
+					</div>
 				)}
 
-				{/* Complete button */}
-				{allAnswered && (
-					<Card className="border-green-200 bg-green-50">
-						<CardContent className="p-6 text-center space-y-4">
-							<div className="flex items-center justify-center gap-2 text-green-700">
-								<Star className="w-5 h-5" />
-								<p className="font-medium">All questions answered!</p>
-							</div>
-							<p className="text-sm text-green-600">
-								Review your answers above, then submit your screening when ready.
-							</p>
-							<Button
-								onClick={completeScreening}
-								disabled={completing}
-								className="bg-green-600 hover:bg-green-700"
-								size="lg"
-							>
-								{completing ? (
-									<>
-										<Loader2 className="w-4 h-4 animate-spin mr-2" />
-										Submitting & Generating AI Report...
-									</>
-								) : (
-									<>
-										<CheckCircle className="w-4 h-4 mr-2" />
-										Submit Screening
-									</>
-								)}
-							</Button>
-						</CardContent>
-					</Card>
-				)}
+				<div ref={chatEndRef} />
+			</div>
 
-				{/* Tips */}
-				<div className="bg-white/60 rounded-lg p-4 space-y-2">
-					<p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-						Tips for a great screening
-					</p>
-					<ul className="text-xs text-slate-500 space-y-1">
-						<li>&bull; Use specific examples from your experience</li>
-						<li>&bull; Structure your answers clearly (situation, action, result)</li>
-						<li>&bull; Be concise but thorough — aim for 3-5 sentences per answer</li>
-						<li>&bull; Show your thought process, not just the final answer</li>
-					</ul>
+			<div className="sticky bottom-0 bg-background border-t">
+				<div className="max-w-3xl mx-auto px-4 py-3">
+					{error && <p className="text-xs text-destructive mb-2">{error}</p>}
+					<div className="flex gap-2">
+						<Textarea
+							value={input}
+							onChange={(e) => setInput(e.target.value)}
+							onKeyDown={handleKeyDown}
+							placeholder="Type your response..."
+							className="min-h-[44px] max-h-[120px] resize-none"
+							disabled={sending || aiTyping || completing}
+						/>
+						<Button
+							onClick={handleSend}
+							disabled={!input.trim() || sending || aiTyping || completing}
+							size="icon"
+							className="shrink-0 h-11 w-11"
+						>
+							{sending ? (
+								<Loader2 className="h-4 w-4 animate-spin" />
+							) : (
+								<Send className="h-4 w-4" />
+							)}
+						</Button>
+					</div>
+					<div className="flex justify-between items-center mt-2">
+						<p className="text-xs text-muted-foreground">
+							Press Enter to send · Shift+Enter for new line
+						</p>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={handleComplete}
+							disabled={completing || messages.length < 2}
+							className="text-xs"
+						>
+							{completing ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+							End Interview
+						</Button>
+					</div>
 				</div>
 			</div>
 		</div>
