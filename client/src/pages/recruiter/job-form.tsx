@@ -24,6 +24,7 @@ import {
 	Sparkles,
 	Wand2,
 	X,
+	Zap,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -151,6 +152,11 @@ export function RecruiterJobFormPage() {
 	const [experienceLevel, setExperienceLevel] = useState('');
 	const [educationLevel, setEducationLevel] = useState('');
 	const [screeningQuestions, setScreeningQuestions] = useState<ScreeningQuestion[]>([]);
+	const [autoSendEnabled, setAutoSendEnabled] = useState(false);
+	const [autoSendMinScore, setAutoSendMinScore] = useState(70);
+	const [screeningTopics, setScreeningTopics] = useState<string[]>([]);
+	const [topicsLoading, setTopicsLoading] = useState(false);
+	const [newTopic, setNewTopic] = useState('');
 	const [passThreshold, setPassThreshold] = useState(70);
 	const [showTemplates, setShowTemplates] = useState(false);
 	const [titleError, setTitleError] = useState('');
@@ -459,6 +465,7 @@ export function RecruiterJobFormPage() {
 					suggested_skills: string[];
 					suggested_title: string;
 				};
+				screeningTopics?: string[];
 			}>('/recruiter/jobs/generate', {
 				method: 'POST',
 				body: { title, brief_notes: description, location, job_type: jobType },
@@ -468,10 +475,34 @@ export function RecruiterJobFormPage() {
 				setRequirements(data.generated.requirements || '');
 				flashSuccess('Description & requirements generated!');
 			}
+			if (data.screeningTopics) {
+				setScreeningTopics(data.screeningTopics);
+			}
 		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'AI generation failed');
 		} finally {
 			setAiGenerating(false);
+		}
+	}
+
+	async function handleGenerateTopics() {
+		if (!title.trim()) {
+			setTitleError('Enter a job title first');
+			return;
+		}
+		setTopicsLoading(true);
+		try {
+			const data = await apiCall<{ topics: string[] }>('/recruiter/jobs/generate-screening-topics', {
+				method: 'POST',
+				body: { title, description },
+			});
+			if (data.topics) {
+				setScreeningTopics(data.topics);
+			}
+		} catch (err: any) {
+			console.error('Topics generation failed:', err);
+		} finally {
+			setTopicsLoading(false);
 		}
 	}
 
@@ -563,6 +594,9 @@ export function RecruiterJobFormPage() {
 				currency_code: currencyCode,
 				salary_min: salaryMin ? parseFloat(salaryMin) : undefined,
 				salary_max: salaryMax ? parseFloat(salaryMax) : undefined,
+				auto_send_on_apply: autoSendEnabled,
+				auto_send_min_score: autoSendMinScore,
+				screening_topics: screeningTopics,
 			};
 			let savedJobId: number | undefined;
 			if (isEdit) {
@@ -1228,7 +1262,7 @@ export function RecruiterJobFormPage() {
 								</div>
 							)}
 						</div>
-					</CardContent>
+
 				</Card>
 			)}
 
@@ -1737,6 +1771,136 @@ export function RecruiterJobFormPage() {
 									>
 										<Save className="h-3 w-3" /> Save Questions to My Bank
 									</Button>
+								</div>
+							)}
+						</div>
+
+						{/* Auto-Send AI Screening (#307) */}
+						<div className="rounded-lg border border-indigo-200 bg-indigo-50/30 p-4 space-y-4">
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-sm font-medium flex items-center gap-2">
+										<Zap className="h-4 w-4 text-indigo-600" />
+										Auto-Send AI Screening
+									</p>
+									<p className="text-xs text-muted-foreground mt-1">
+										Automatically invite qualified candidates to a voice screening when they apply
+									</p>
+								</div>
+								<button type="button"
+									onClick={() => setAutoSendEnabled(!autoSendEnabled)}
+									className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
+										autoSendEnabled ? 'bg-indigo-600' : 'bg-gray-200'
+									}`}
+									aria-label="Toggle auto-send screening"
+								>
+									<span
+										className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform mt-1 ${
+											autoSendEnabled ? 'translate-x-6 ml-1' : 'translate-x-1'
+										}`}
+									/>
+								</button>
+							</div>
+
+							{autoSendEnabled && (
+								<div className="space-y-4 pt-2 border-t border-indigo-100">
+									<div>
+										<Label className="text-sm font-medium">
+											Minimum match score: {autoSendMinScore}%
+										</Label>
+										<p className="text-xs text-muted-foreground mb-2">
+											Only candidates scoring at or above this will receive a screening invite
+										</p>
+										<input
+											type="range"
+											min="0"
+											max="100"
+											value={autoSendMinScore}
+											onChange={(e) => setAutoSendMinScore(parseInt(e.target.value, 10))}
+											className="w-full"
+										/>
+										<div className="flex justify-between text-xs text-muted-foreground">
+											<span>0%</span>
+											<span>50%</span>
+											<span>100%</span>
+										</div>
+									</div>
+
+									<div>
+										<div className="flex items-center justify-between mb-2">
+											<Label className="text-sm font-medium">Screening Topics</Label>
+											<Button
+												variant="ghost"
+												size="sm"
+												onClick={handleGenerateTopics}
+												disabled={topicsLoading || !title.trim()}
+												className="h-7 text-xs gap-1 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+											>
+												{topicsLoading ? (
+													<Loader2 className="h-3 w-3 animate-spin" />
+												) : (
+													<Lightbulb className="h-3 w-3" />
+												)}
+												{screeningTopics.length > 0 ? 'Regenerate' : 'Generate with AI'}
+											</Button>
+										</div>
+										<p className="text-xs text-muted-foreground mb-2">
+											The AI will cover these areas conversationally during the screening
+										</p>
+										{screeningTopics.length > 0 ? (
+											<div className="space-y-1.5">
+												{screeningTopics.map((topic, i) => (
+													<div
+														key={i}
+														className="flex items-center gap-2 rounded-md border bg-white p-2 text-sm"
+													>
+														<span className="flex-1">{topic}</span>
+														<button type="button"
+															onClick={() =>
+																setScreeningTopics(screeningTopics.filter((_, idx) => idx !== i))
+															}
+															className="text-muted-foreground hover:text-red-600"
+															aria-label="Remove topic"
+														>
+															<X className="h-3.5 w-3.5" />
+														</button>
+													</div>
+												))}
+											</div>
+										) : (
+											<p className="text-xs text-muted-foreground italic">
+												No topics yet. Click "Generate with AI" or add your own below.
+											</p>
+										)}
+										<div className="flex gap-2 mt-2">
+											<Input
+												value={newTopic}
+												onChange={(e) => setNewTopic(e.target.value)}
+												placeholder="Add a custom topic..."
+												className="flex-1 text-sm"
+												onKeyDown={(e) => {
+													if (e.key === 'Enter' && newTopic.trim()) {
+														e.preventDefault();
+														setScreeningTopics([...screeningTopics, newTopic.trim()]);
+														setNewTopic('');
+													}
+												}}
+											/>
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => {
+													if (newTopic.trim()) {
+														setScreeningTopics([...screeningTopics, newTopic.trim()]);
+														setNewTopic('');
+													}
+												}}
+												className="min-h-[44px]"
+											>
+												Add
+											</Button>
+										</div>
+									</div>
 								</div>
 							)}
 						</div>

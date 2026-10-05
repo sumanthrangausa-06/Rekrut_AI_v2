@@ -12,10 +12,9 @@ import {
 	Volume2,
 	X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { apiCall } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -134,6 +133,19 @@ const typeConfig: Record<string, { icon: React.ReactNode; color: string; badge: 
 
 export function NotificationCenter({ className }: { className?: string }) {
 	const [open, setOpen] = useState(false);
+	const dropdownRef = useRef<HTMLDivElement>(null);
+
+	// Close on click outside
+	useEffect(() => {
+		if (!open) return;
+		const handleClickOutside = (e: MouseEvent) => {
+			if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+				setOpen(false);
+			}
+		};
+		document.addEventListener('mousedown', handleClickOutside);
+		return () => document.removeEventListener('mousedown', handleClickOutside);
+	}, [open ]);
 	const [notifications, setNotifications] = useState<Notification[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [playingId, setPlayingId] = useState<string | null>(null);
@@ -301,13 +313,14 @@ export function NotificationCenter({ className }: { className?: string }) {
 	};
 
 	return (
-		<>
+		<div className="relative" ref={dropdownRef}>
 			<Button
 				variant="ghost"
 				size="sm"
 				className={cn('relative h-9 w-9 p-0', className)}
-				onClick={() => setOpen(true)}
+				onClick={() => setOpen(!open)}
 				aria-label="Notifications"
+				aria-expanded={open}
 			>
 				<Bell className="h-5 w-5" />
 				{unreadCount > 0 && (
@@ -317,16 +330,16 @@ export function NotificationCenter({ className }: { className?: string }) {
 				)}
 			</Button>
 
-			<Dialog open={open} onOpenChange={setOpen}>
-				<DialogContent className="max-w-md max-h-[80vh] flex flex-col">
-					<DialogHeader className="flex flex-row items-center justify-between">
-						<DialogTitle>Notifications</DialogTitle>
+			{open && (
+				<div className="absolute right-0 top-full mt-2 w-96 max-w-[calc(100vw-2rem)] max-h-[80vh] flex flex-col rounded-lg border bg-background shadow-xl z-50 overflow-hidden">
+					<div className="flex flex-row items-center justify-between px-4 py-3 border-b">
+						<h3 className="font-semibold text-sm">Notifications</h3>
 						{unreadCount > 0 && (
-							<Button variant="ghost" size="sm" onClick={markAllRead}>
+							<Button variant="ghost" size="sm" onClick={markAllRead} className="h-7 text-xs">
 								Mark all read
 							</Button>
 						)}
-					</DialogHeader>
+					</div>
 
 					<div className="flex-1 overflow-y-auto space-y-2 -mx-2 px-2">
 						{audioError && (
@@ -429,8 +442,8 @@ export function NotificationCenter({ className }: { className?: string }) {
 							})
 						)}
 					</div>
-				</DialogContent>
-			</Dialog>
-		</>
+				</div>
+			)}
+		</div>
 	);
 }

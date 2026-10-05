@@ -2182,22 +2182,13 @@ router.get('/jobs/recommended', authMiddleware, async (req, res) => {
 			titles: experience.rows.map((e) => e.title),
 		};
 
-		// Calculate match scores for each job
-		const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
-			req.user.id,
-		]);
-		const subscriptionId = user.rows[0]?.stripe_subscription_id;
+		// Calculate deterministic match scores for each job (no LLM — fast and consistent)
+		const { calculateDeterministicMatch } = require('../services/matching-engine');
 
-		const jobsWithScores = await Promise.all(
-			jobs.rows.map(async (job) => {
-				try {
-					const match = await generateJobMatchScore(candidateProfile, job, { subscriptionId });
-					return { ...job, match };
-				} catch (_e) {
-					return { ...job, match: { match_score: 50, match_level: 'fair' } };
-				}
-			}),
-		);
+		const jobsWithScores = jobs.rows.map((job) => {
+			const match = calculateDeterministicMatch(candidateProfile, job);
+			return { ...job, match };
+		});
 
 		// Sort by match score
 		jobsWithScores.sort((a, b) => (b.match?.match_score || 0) - (a.match?.match_score || 0));
@@ -2531,13 +2522,10 @@ async function submitApplication({
 	const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
 		candidateId,
 	]);
-	const subscriptionId = user.rows[0]?.stripe_subscription_id;
+	const { calculateDeterministicMatch } = require('../services/matching-engine');
 
-	let matchScore = 50;
-	try {
-		const match = await generateJobMatchScore(candidateProfile, job.rows[0], { subscriptionId });
-		matchScore = match.match_score;
-	} catch (_e) {}
+	const match = calculateDeterministicMatch(candidateProfile, job.rows[0]);
+	const matchScore = match.match_score;
 
 	const omniscore = profile.rows[0]?.omniscore || null;
 
@@ -2559,6 +2547,67 @@ async function submitApplication({
 			appliedVia || 'manual',
 		],
 	);
+
+	// Auto-send screening if job has it enabled and candidate meets threshold (#307)
+	const application = result.rows[0];
+	try {
+		const jobSettings = job.rows[0];
+		if (jobSettings.auto_send_on_apply === true) {
+			const threshold = jobSettings.auto_send_min_score || 70;
+			if (matchScore >= threshold) {
+				// Check for existing session (idempotency)
+				const existing = await pool.query(
+					'SELECT id FROM screening_sessions WHERE application_id = $1 LIMIT 1',
+					[application.id],
+				);
+				if (existing.rows.length === 0) {
+					// Find active template for this job
+					const templateResult = await pool.query(
+						`SELECT * FROM screening_templates WHERE job_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+						[jobId],
+					);
+					if (templateResult.rows.length > 0) {
+						const template = templateResult.rows[0];
+						const crypto = require('crypto');
+						const inviteToken = crypto.randomBytes(32).toString('hex');
+
+						await pool.query(
+							`INSERT INTO screening_sessions (template_id, application_id, candidate_id, company_id, job_id, invite_token, status, created_at)
+							 VALUES ($1, $2, $3, $4, $5, $6, 'invited', NOW())`,
+							[
+								template.id,
+								application.id,
+								candidateId,
+								jobSettings.company_id,
+								jobId,
+								inviteToken,
+							],
+						);
+
+						await pool.query(
+							`UPDATE job_applications SET screening_status = 'invited' WHERE id = $1`,
+							[application.id],
+						);
+
+						// Notify candidate
+						await pool.query(
+							`INSERT INTO notifications (user_id, type, title, message, data, created_at)
+							 VALUES ($1, 'screening_invite', $2, $3, $4, NOW())`,
+							[
+								candidateId,
+								'Screening Invitation',
+								`You've been invited to complete an AI screening for ${jobSettings.title}`,
+								JSON.stringify({ application_id: application.id, invite_token: inviteToken }),
+							],
+						);
+					}
+				}
+			}
+		}
+	} catch (autoSendErr) {
+		console.error('[auto-send] Failed:', autoSendErr.message);
+		// Don't fail the application if auto-send fails
+	}
 
 	// Smart data enrichment from screening answers (manual only)
 	if (appliedVia === 'manual' && screeningAnswers && Object.keys(screeningAnswers).length > 0) {
