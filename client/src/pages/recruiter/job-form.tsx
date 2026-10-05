@@ -1,5 +1,6 @@
 import {
 	AlertCircle,
+	AlertTriangle,
 	ArrowLeft,
 	Briefcase,
 	Building2,
@@ -168,6 +169,7 @@ export function RecruiterJobFormPage() {
 	const [suggestedRequirements, setSuggestedRequirements] = useState<string[]>([]);
 	const [showSkillPanel, setShowSkillPanel] = useState(false);
 	const [aiSuccess, setAiSuccess] = useState<string | null>(null);
+	const [saveError, setSaveError] = useState<string | null>(null);
 	const [previousPostings, setPreviousPostings] = useState<any[]>([]);
 	const [showPreviousPostings, setShowPreviousPostings] = useState(false);
 	const [loadingPostings, setLoadingPostings] = useState(false);
@@ -611,8 +613,10 @@ export function RecruiterJobFormPage() {
 			clearDraft();
 			navigate('/recruiter/jobs');
 		} catch (err: any) {
-			alert(err instanceof Error ? err.message : 'Failed to save job');
-			trackEvent('job_form_save_error', { error: err instanceof Error ? err.message : 'unknown' });
+			const message = err instanceof Error ? err.message : 'Failed to save job';
+			setSaveError(message);
+			setTimeout(() => setSaveError(null), 6000);
+			trackEvent('job_form_save_error', { error: message });
 		} finally {
 			setSaving(false);
 		}
@@ -802,6 +806,20 @@ export function RecruiterJobFormPage() {
 				<div className="fixed top-4 right-4 z-50 animate-in fade-in slide-in-from-top-2 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 text-sm">
 					<CheckCircle2 className="h-4 w-4" />
 					{aiSuccess}
+				</div>
+			)}
+			{/* Save Error Toast */}
+			{saveError && (
+				<div className="fixed top-4 right-4 z-50 animate-in fade-in slide-in-from-top-2 bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm max-w-md">
+					<AlertTriangle className="h-4 w-4 flex-shrink-0" />
+					<span>{saveError}</span>
+					<button
+						onClick={() => setSaveError(null)}
+						className="ml-2 text-white/80 hover:text-white"
+						aria-label="Dismiss error"
+					>
+						<X className="h-4 w-4" />
+					</button>
 				</div>
 			)}
 
