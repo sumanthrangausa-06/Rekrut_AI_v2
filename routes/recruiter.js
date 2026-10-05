@@ -1069,7 +1069,8 @@ router.get(
              os.total_score as current_omniscore, os.score_tier,
              (SELECT COUNT(*) FROM skill_assessments sa2 JOIN candidate_skills cs2 ON sa2.skill_id = cs2.id WHERE cs2.user_id = ja.candidate_id AND sa2.passed = true) as verified_skills_count,
              (SELECT MAX(i2.overall_score) FROM interviews i2 WHERE i2.user_id = ja.candidate_id AND i2.status = 'completed') as best_interview_score,
-             (SELECT COUNT(*) FROM interviews i3 WHERE i3.user_id = ja.candidate_id AND i3.status = 'completed') as completed_interviews
+             (SELECT COUNT(*) FROM interviews i3 WHERE i3.user_id = ja.candidate_id AND i3.status = 'completed') as completed_interviews,
+             (SELECT ss.id FROM screening_sessions ss WHERE ss.application_id = ja.id ORDER BY ss.created_at DESC LIMIT 1) as screening_session_id
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       JOIN jobs j ON ja.job_id = j.id
