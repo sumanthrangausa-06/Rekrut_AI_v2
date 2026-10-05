@@ -310,37 +310,62 @@ Return ONLY valid JSON array, no markdown.`;
 async function generateScreeningReport(session) {
 	const aiProvider = require('../lib/ai-provider');
 
+	const conversation = session.conversation || [];
 	const questions = session.questions || [];
 	const responses = session.responses || [];
-	const _conversation = session.conversation || [];
+
+	// Build transcript from conversation (conversational screening)
+	// Fall back to legacy Q&A format if no conversation exists
+	let transcriptContext = '';
+	if (conversation.length > 0) {
+		transcriptContext = conversation
+			.map((turn) => {
+				const role = turn.role === 'candidate' ? 'CANDIDATE' : 'RECRUITER (AI)';
+				const phaseTag = turn.phase ? ` [${turn.phase}]` : '';
+				return `${role}${phaseTag}: ${turn.text}`;
+			})
+			.join('\n\n');
+	} else {
+		transcriptContext = questions
+			.map((q, i) => {
+				const response = responses[i];
+				return `Q${i + 1}: ${q.question_text}\nCandidate Answer: ${response?.response_text || '(no response)'}`;
+			})
+			.join('\n\n');
+	}
 
 	// Build context
-	const qaContext = questions
-		.map((q, i) => {
-			const response = responses[i];
-			return `Q${i + 1} (${q.question_type}, ${q.difficulty}): ${q.question_text}
-Evaluation Criteria: ${(q.evaluation_criteria || []).join(', ')}
-Candidate Answer: ${response?.response_text || '(no response)'}`;
-		})
-		.join('\n\n');
+	const qaContext = transcriptContext;
 
-	const prompt = `You are an expert interview evaluator. Analyze this AI screening interview and produce a structured evaluation report.
+	const prompt = `You are an expert recruiter evaluating a screening interview transcript. Analyze the conversation and produce a structured evaluation report.
 
+SCREENING TRANSCRIPT:
 ${qaContext}
+
+Evaluate across these 5 dimensions (from real recruiter practice):
+1. Can do the work — concrete relevant examples with enough detail?
+2. Wants the move — genuine motivation for THIS role?
+3. Logistics fit — any blocking issues (comp, location, notice, auth)?
+4. Communication quality — clear, concise, structured?
+5. Red flags — vagueness, bluffing, gaps, inconsistencies?
 
 Return ONLY valid JSON with this structure:
 {
-  "question_scores": [
-    {"question_index": 0, "score": 0-100, "feedback": "brief assessment"}
-  ],
-  "communication_clarity": {"score": 0-100, "feedback": "assessment"},
-  "technical_depth": {"score": 0-100, "feedback": "assessment"},
-  "confidence_enthusiasm": {"score": 0-100, "indicators": ["list of observed indicators"]},
-  "red_flags": ["list any inconsistencies, evasiveness, or concerns"],
-  "strengths": ["top 3-5 strengths observed"],
   "overall_score": 0-100,
   "recommendation": "advance|consider|decline",
-  "recommendation_reasoning": "2-3 sentence justification"
+  "recommendation_reasoning": "2-3 sentence justification referencing specific evidence",
+  "strengths": ["top 3-5 specific strengths with evidence"],
+  "red_flags": ["any concerns, or empty array"],
+  "dimension_scores": {
+    "can_do_work": {"score": 0-100, "evidence": "brief"},
+    "wants_move": {"score": 0-100, "evidence": "brief"},
+    "logistics_fit": {"score": 0-100, "evidence": "brief"},
+    "communication": {"score": 0-100, "evidence": "brief"}
+  },
+  "key_moments": ["2-3 pivotal exchanges that shaped your assessment"],
+  "question_scores": [
+    {"topic": "background|experience|motivation|logistics", "score": 0-100, "feedback": "brief"}
+  ]
 }`;
 
 	try {
@@ -637,12 +662,173 @@ async function checkStalledScreenings() {
 	return stalled.rows.length;
 }
 
+// ============ CONVERSATIONAL SCREENING ============
+
+/**
+ * Screening phases in order. The AI advances through these like a human recruiter.
+ */
+const SCREENING_PHASES = [
+	'intro', // AI intro + role pitch
+	'background', // "tell me about yourself"
+	'experience', // Deep-dive with bounded follow-ups
+	'motivation', // Why this role? Why moving?
+	'logistics', // Rapid-fire: notice, location, comp, auth
+	'candidate_questions', // "What questions do you have?"
+	'close', // Wrap up
+];
+
+/**
+ * Conduct a single conversational screening turn.
+ * Like a human recruiter: acknowledge the answer, then either probe deeper
+ * (bounded follow-ups) or advance to the next phase.
+ *
+ * @param {Array} conversation - Full conversation history [{role, text, ...}]
+ * @param {Object} job - {title, description, company_name}
+ * @param {Object} template - Screening template with topics/questions as coverage guide
+ * @param {string} currentPhase - Current screening phase
+ * @returns {Object} {reaction, action, question, phase, notes}
+ *   action: 'follow_up' | 'transition' | 'logistics' | 'candidate_questions' | 'wrap_up'
+ */
+async function conductScreeningTurn(conversation, job, template, currentPhase) {
+	const aiProvider = require('../lib/ai-provider');
+
+	// Build conversation text for context (last 12 turns)
+	const recentConvo = conversation.slice(-12);
+	const convoText = recentConvo
+		.map((turn) => {
+			if (turn.role === 'interviewer' || turn.role === 'ai') return `RECRUITER: ${turn.text}`;
+			return `CANDIDATE: ${turn.text}`;
+		})
+		.join('\n\n');
+
+	const candidateTurnCount = conversation.filter(
+		(t) => t.role === 'candidate',
+	).length;
+
+	// Count consecutive follow-ups in current phase (to bound probing)
+	let consecutiveFollowUps = 0;
+	for (let i = conversation.length - 1; i >= 0; i--) {
+		const t = conversation[i];
+		if (t.role === 'interviewer' && t.action === 'follow_up') {
+			consecutiveFollowUps++;
+		} else if (t.role === 'interviewer' && t.action === 'transition') {
+			break;
+		} else if (t.role === 'candidate') {
+			// continue counting
+		}
+	}
+
+	// Build coverage checklist from template
+	const templateTopics = template?.questions
+		? template.questions.map((q) => q.question_text || q.text || q).slice(0, 5)
+		: [];
+	const topicsText =
+		templateTopics.length > 0
+			? `Key topics to cover: ${templateTopics.join('; ')}`
+			: 'Cover: relevant experience, motivation, and logistics fit.';
+
+	const phaseIndex = SCREENING_PHASES.indexOf(currentPhase);
+	const nextPhase =
+		phaseIndex < SCREENING_PHASES.length - 1 ? SCREENING_PHASES[phaseIndex + 1] : 'close';
+
+	const prompt = `You are conducting a recruiter screening interview for a "${job.title}" position at ${job.company_name || 'the company'}.
+
+JOB: ${job.title}
+${job.description ? `Description: ${job.description.substring(0, 800)}` : ''}
+${topicsText}
+
+CONVERSATION SO FAR:
+${convoText}
+
+CURRENT PHASE: ${currentPhase}
+NEXT PHASE: ${nextPhase}
+FOLLOW-UPS ASKED on current topic: ${consecutiveFollowUps}
+CANDIDATE EXCHANGES SO FAR: ${candidateTurnCount}
+
+YOUR TASK — act like an experienced human recruiter on a 15-20 minute screening call:
+
+**PHASE BEHAVIOR:**
+- intro: Brief warm intro (1-2 sentences), quick role pitch, then transition to background
+- background: Ask "tell me about yourself" — listen, acknowledge briefly, move on (don't deep-dive here)
+- experience: This is the deep-dive. Ask about 1-2 concrete relevant examples. Probe with follow-ups when answers are vague or interesting. Max ${consecutiveFollowUps >= 2 ? '0 more' : `${2 - consecutiveFollowUps} more`} follow-ups on this topic, then you MUST transition.
+- motivation: "What made you open to a move?" "What stood out about this role?" — 1-2 questions, brief
+- logistics: RAPID-FIRE, no probing. Ask: notice period, location/remote, salary expectations, work authorization, other processes. One question at a time, acknowledge briefly, move to next.
+- candidate_questions: "What questions do you have about the role or company?" — answer briefly if they ask, or note their questions
+- close: Thank them, explain next steps
+
+**CONVERSATIONAL RULES:**
+1. FOLLOW_UP when: answer is vague ("I worked on a project" → "What was YOUR part in it?"), missing specifics (no metrics/examples), or mentions something worth exploring. Use the "echo" technique or narrow reframe.
+2. TRANSITION when: answer was thorough with concrete examples, OR you've hit ${consecutiveFollowUps >= 2 ? 'the follow-up limit' : '2-3 follow-ups'}, OR candidate has nothing more to add. Acknowledge briefly ("great, that's helpful") and move to the next phase.
+3. NEVER recursively follow one thread — you have a checklist to cover. If ${consecutiveFollowUps} >= 2, you MUST transition.
+4. If candidate rambles: redirect with a narrowing question, don't let them burn time.
+5. If candidate asks YOU a question mid-screen: answer briefly (1-2 sentences) or say "we'll come back to that at the end" and return to your agenda.
+6. React specifically to what they said (reference concrete details), NOT generic filler like "Thank you for sharing."
+
+**WRAP UP when:** All phases covered through candidate_questions, OR ${candidateTurnCount} >= 10 exchanges.
+
+Return JSON only: {"reaction": "1-2 sentences referencing SPECIFIC details from their answer", "action": "follow_up|transition|logistics|candidate_questions|wrap_up", "question": "your next question or statement", "phase": "next phase name", "notes": "brief note on answer quality and coverage"}`;
+
+	try {
+		const result = await aiProvider.chat(prompt, {
+			system: `You are Maya, an experienced tech recruiter conducting a screening call. You're warm but efficient — you have 15-20 minutes and a checklist to cover. You probe when answers are thin, acknowledge strong answers briefly and move on, and never get stuck on one topic. You speak naturally like a human on a phone call, not like a form. Always return valid JSON only.`,
+			maxTokens: 800,
+			task: 'screening-turn',
+			module: 'screening',
+			feature: 'conversational_turn',
+		});
+
+		// Parse JSON from response
+		const match = result.match(/\{[\s\S]*\}/);
+		if (match) {
+			const parsed = JSON.parse(match[0]);
+			// Validate action
+			const validActions = [
+				'follow_up',
+				'transition',
+				'logistics',
+				'candidate_questions',
+				'wrap_up',
+			];
+			if (!validActions.includes(parsed.action)) {
+				parsed.action = 'transition';
+			}
+			// Validate phase
+			if (!SCREENING_PHASES.includes(parsed.phase)) {
+				parsed.phase = nextPhase;
+			}
+			return parsed;
+		}
+		throw new Error('No JSON found in AI response');
+	} catch (err) {
+		console.error('[screening] conductScreeningTurn failed:', err.message);
+		// Fallback: transition to next phase with a generic question
+		const fallbacks = {
+			intro: "Hi! Thanks for taking the time. Let me quickly tell you about the role, then I'd love to hear about you. To start — tell me about yourself and your background.",
+			background: 'Thanks for that overview. Let me dig into your experience a bit — tell me about a recent project that\'s most relevant to this role. What was your specific contribution?',
+			experience: 'That\'s helpful context. What motivated you to look for a new opportunity right now, and what stood out to you about this role?',
+			motivation: 'Got it. Let me cover a few quick logistics — what\'s your notice period, and are you set on location or open to remote/hybrid?',
+			logistics: 'Thanks. What questions do you have for me about the role or the company?',
+			candidate_questions: 'Great questions. We\'re at time — thanks so much for chatting. Here\'s what happens next: I\'ll share my notes with the hiring team and we\'ll be in touch within a few days.',
+			close: 'Thanks for your time today!',
+		};
+		return {
+			reaction: 'Thanks for sharing that.',
+			action: currentPhase === 'close' ? 'wrap_up' : 'transition',
+			question: fallbacks[currentPhase] || fallbacks.background,
+			phase: nextPhase,
+			notes: 'Fallback turn (AI unavailable)',
+		};
+	}
+}
+
 module.exports = {
 	suggestSlots,
 	createReminders,
 	suggestRescheduleSlots,
 	generateScreeningQuestions,
 	generateScreeningReport,
+	conductScreeningTurn,
+	SCREENING_PHASES,
 	runMultiEvaluation,
 	checkStalledScreenings,
 };
