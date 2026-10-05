@@ -3085,43 +3085,96 @@ router.get('/screening/session/:token', async (req, res) => {
 // POST /api/interviews/screening/session/:token/start — Candidate starts screening
 router.post('/screening/session/:token/start', async (req, res) => {
 	try {
-		const result = await pool.query(
-			`UPDATE screening_sessions SET status = 'in_progress', started_at = NOW()
-       WHERE invite_token = $1 AND status = 'invited'
-       RETURNING id`,
+		// Get session with job details for AI intro (conversational screening)
+		const sessionResult = await pool.query(
+			`SELECT ss.*, j.title as job_title, j.description as job_description, c.name as company_name,
+              st.questions as template_questions, st.title as template_title
+       FROM screening_sessions ss
+       JOIN jobs j ON ss.job_id = j.id
+       JOIN companies c ON ss.company_id = c.id
+       LEFT JOIN screening_templates st ON ss.template_id = st.id
+       WHERE ss.invite_token = $1 AND ss.status = 'invited'`,
 			[req.params.token],
 		);
 
-		if (result.rows.length === 0) {
+		if (sessionResult.rows.length === 0) {
 			return res.status(404).json({ error: 'Screening not found or already started' });
 		}
 
-		// Update application status
-		const session = await pool.query(
-			'SELECT application_id FROM screening_sessions WHERE invite_token = $1',
-			[req.params.token],
+		const s = sessionResult.rows[0];
+
+		// Generate AI intro turn
+		const interviewAI = require('../services/interview-ai');
+		const introTurn = await interviewAI.conductScreeningTurn(
+			[],
+			{
+				title: s.job_title,
+				description: s.job_description,
+				company_name: s.company_name,
+			},
+			{
+				questions: s.template_questions || [],
+				title: s.template_title,
+			},
+			'intro',
 		);
-		if (session.rows[0]?.application_id) {
+
+		// Save intro to conversation
+		const conversation = [
+			{
+				role: 'interviewer',
+				text: introTurn.question,
+				action: 'transition',
+				phase: 'background',
+				timestamp: new Date().toISOString(),
+			},
+		];
+
+		await pool.query(
+			`UPDATE screening_sessions
+       SET status = 'in_progress', started_at = NOW(), current_phase = 'background',
+           conversation = $1
+       WHERE id = $2`,
+			[JSON.stringify(conversation), s.id],
+		);
+
+		// Update application status
+		if (s.application_id) {
 			await pool.query(
 				`UPDATE job_applications SET screening_status = 'in_progress', updated_at = NOW() WHERE id = $1`,
-				[session.rows[0].application_id],
+				[s.application_id],
 			);
 		}
 
-		res.json({ success: true, started: true });
+		res.json({
+			success: true,
+			started: true,
+			ai_message: introTurn.question,
+			phase: 'background',
+		});
 	} catch (err) {
 		console.error('Start screening error:', err);
 		res.status(500).json({ error: 'Failed to start screening' });
 	}
 });
 
-// POST /api/interviews/screening/session/:token/respond — Candidate submits a response
+// POST /api/interviews/screening/session/:token/respond — Candidate submits a response (conversational)
 router.post('/screening/session/:token/respond', async (req, res) => {
 	try {
-		const { question_index, response_text } = req.body;
+		const { response_text } = req.body;
+
+		if (!response_text || response_text.trim().length < 5) {
+			return res.status(400).json({ error: 'Response too short. Please elaborate.' });
+		}
 
 		const session = await pool.query(
-			`SELECT * FROM screening_sessions WHERE invite_token = $1 AND status = 'in_progress'`,
+			`SELECT ss.*, j.title as job_title, j.description as job_description, c.name as company_name,
+              st.questions as template_questions, st.title as template_title
+       FROM screening_sessions ss
+       JOIN jobs j ON ss.job_id = j.id
+       JOIN companies c ON ss.company_id = c.id
+       LEFT JOIN screening_templates st ON ss.template_id = st.id
+       WHERE ss.invite_token = $1 AND ss.status = 'in_progress'`,
 			[req.params.token],
 		);
 
@@ -3130,45 +3183,75 @@ router.post('/screening/session/:token/respond', async (req, res) => {
 		}
 
 		const s = session.rows[0];
-		if (s.status !== 'in_progress') {
-			return res.status(409).json({ error: 'Screening is not in progress' });
-		}
-		const responses = s.responses || [];
 		const conversation = s.conversation || [];
+		const currentPhase = s.current_phase || 'background';
 
-		// Save response
-		responses[question_index] = {
-			question_index,
-			response_text: response_text || '',
-			submitted_at: new Date().toISOString(),
-		};
+		// Add candidate response to conversation
+		conversation.push({
+			role: 'candidate',
+			text: response_text.trim(),
+			timestamp: new Date().toISOString(),
+		});
 
-		// Add to conversation
-		const q = s.questions[question_index];
-		if (q) {
-			conversation.push(
-				{ role: 'interviewer', text: q.question_text, timestamp: new Date().toISOString() },
-				{ role: 'candidate', text: response_text || '', timestamp: new Date().toISOString() },
+		// AI generates next turn (conversational screening)
+		const interviewAI = require('../services/interview-ai');
+		let aiTurn;
+		try {
+			aiTurn = await interviewAI.conductScreeningTurn(
+				conversation,
+				{
+					title: s.job_title,
+					description: s.job_description,
+					company_name: s.company_name,
+				},
+				{
+					questions: s.template_questions || [],
+					title: s.template_title,
+				},
+				currentPhase,
 			);
+		} catch (aiErr) {
+			console.error('[screening] AI turn failed, using fallback:', aiErr.message);
+			aiTurn = {
+				reaction: 'Thanks for sharing that.',
+				action: 'transition',
+				question: "Let's move on — what questions do you have about the role?",
+				phase: 'candidate_questions',
+				notes: 'AI fallback',
+			};
 		}
 
+		// Add AI turn to conversation
+		const aiMessage = aiTurn.reaction
+			? `${aiTurn.reaction} ${aiTurn.question}`
+			: aiTurn.question;
+		conversation.push({
+			role: 'interviewer',
+			text: aiMessage,
+			action: aiTurn.action,
+			phase: aiTurn.phase,
+			timestamp: new Date().toISOString(),
+		});
+
+		// Update session
 		await pool.query(
-			`UPDATE screening_sessions SET responses = $1, conversation = $2 WHERE id = $3`,
-			[JSON.stringify(responses), JSON.stringify(conversation), s.id],
+			`UPDATE screening_sessions SET conversation = $1, current_phase = $2 WHERE id = $3`,
+			[JSON.stringify(conversation), aiTurn.phase, s.id],
 		);
 
-		const answeredCount = responses.filter((r) => r?.response_text).length;
-		const totalQuestions = s.questions.length;
+		const candidateTurnCount = conversation.filter((t) => t.role === 'candidate').length;
 
 		res.json({
 			success: true,
-			answered: answeredCount,
-			total: totalQuestions,
-			is_complete: answeredCount >= totalQuestions,
+			ai_message: aiMessage,
+			action: aiTurn.action,
+			phase: aiTurn.phase,
+			exchanges: candidateTurnCount,
+			should_wrap_up: aiTurn.action === 'wrap_up',
 		});
 	} catch (err) {
 		console.error('Screening respond error:', err);
-		res.status(500).json({ error: 'Failed to save response' });
+		res.status(500).json({ error: 'Failed to process response' });
 	}
 });
 
