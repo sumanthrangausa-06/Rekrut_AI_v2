@@ -2775,31 +2775,57 @@ router.get('/scheduling-preferences', authMiddleware, async (req, res) => {
 // POST /api/interviews/screening/create-template — Recruiter creates a screening template
 router.post('/screening/create-template', authMiddleware, async (req, res) => {
 	try {
-		const { job_id, title, description, questions, time_limit_minutes, auto_send_on_apply } =
-			req.body;
+		const {
+			job_id,
+			title,
+			description,
+			questions,
+			topics,
+			screening_mode,
+			time_limit_minutes,
+			auto_send_on_apply,
+		} = req.body;
 
 		if (!job_id) {
 			return res.status(400).json({ error: 'Job ID is required' });
 		}
 
-		// Get job details for AI question generation
+		// Get job details for AI generation
 		const job = await pool.query('SELECT title, description FROM jobs WHERE id = $1', [job_id]);
 		if (job.rows.length === 0) {
 			return res.status(404).json({ error: 'Job not found' });
 		}
 
-		// Use provided questions or generate with AI
-		let finalQuestions = questions;
-		if (!finalQuestions || finalQuestions.length === 0) {
-			finalQuestions = await interviewAI.generateScreeningQuestions(
-				job.rows[0].title,
-				job.rows[0].description,
-			);
+		// Determine mode: conversational (topics) vs legacy (questions)
+		const mode = screening_mode || (topics ? 'conversational' : 'legacy');
+
+		let finalQuestions = questions || [];
+		let finalTopics = topics || [];
+
+		if (mode === 'conversational') {
+			// Conversational mode: use topics as coverage checklist
+			// If no topics provided, generate them with AI based on job
+			if (finalTopics.length === 0) {
+				finalTopics = await interviewAI.generateScreeningTopics(
+					job.rows[0].title,
+					job.rows[0].description,
+				);
+			}
+			// Keep questions empty for conversational mode
+			finalQuestions = [];
+		} else {
+			// Legacy mode: use provided questions or generate with AI
+			if (finalQuestions.length === 0) {
+				finalQuestions = await interviewAI.generateScreeningQuestions(
+					job.rows[0].title,
+					job.rows[0].description,
+				);
+			}
 		}
 
 		const result = await pool.query(
-			`INSERT INTO screening_templates (company_id, job_id, created_by, title, description, questions, time_limit_minutes, auto_send_on_apply)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			`INSERT INTO screening_templates (company_id, job_id, created_by, title, description, questions, topics, screening_mode, time_limit_minutes, auto_send_on_apply)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
 			[
 				req.user.company_id,
@@ -2808,6 +2834,8 @@ router.post('/screening/create-template', authMiddleware, async (req, res) => {
 				title || `Screening: ${job.rows[0].title}`,
 				description || `AI screening interview for ${job.rows[0].title} candidates`,
 				JSON.stringify(finalQuestions),
+				JSON.stringify(finalTopics),
+				mode,
 				time_limit_minutes || 45,
 				auto_send_on_apply || false,
 			],
@@ -3088,7 +3116,7 @@ router.post('/screening/session/:token/start', async (req, res) => {
 		// Get session with job details for AI intro (conversational screening)
 		const sessionResult = await pool.query(
 			`SELECT ss.*, j.title as job_title, j.description as job_description, c.name as company_name,
-              st.questions as template_questions, st.title as template_title
+              st.questions as template_questions, st.topics as template_topics, st.title as template_title, st.screening_mode
        FROM screening_sessions ss
        JOIN jobs j ON ss.job_id = j.id
        JOIN companies c ON ss.company_id = c.id
@@ -3114,7 +3142,9 @@ router.post('/screening/session/:token/start', async (req, res) => {
 			},
 			{
 				questions: s.template_questions || [],
+				topics: s.template_topics || [],
 				title: s.template_title,
+				screening_mode: s.screening_mode || 'conversational',
 			},
 			'intro',
 		);
@@ -3169,7 +3199,7 @@ router.post('/screening/session/:token/respond', async (req, res) => {
 
 		const session = await pool.query(
 			`SELECT ss.*, j.title as job_title, j.description as job_description, c.name as company_name,
-              st.questions as template_questions, st.title as template_title
+              st.questions as template_questions, st.topics as template_topics, st.title as template_title, st.screening_mode
        FROM screening_sessions ss
        JOIN jobs j ON ss.job_id = j.id
        JOIN companies c ON ss.company_id = c.id
@@ -3206,7 +3236,9 @@ router.post('/screening/session/:token/respond', async (req, res) => {
 				},
 				{
 					questions: s.template_questions || [],
+					topics: s.template_topics || [],
 					title: s.template_title,
+					screening_mode: s.screening_mode || 'conversational',
 				},
 				currentPhase,
 			);
