@@ -145,7 +145,14 @@ export function RecruiterInterviewsPage() {
 	const [interviews, setInterviews] = useState<Interview[]>([]);
 	const [applications, setApplications] = useState<Application[]>([]);
 	const [loading, setLoading] = useState(true);
-	const [tab, setTab] = useState('upcoming');
+	const [tab, setTab] = useState(() => {
+		// Deep-link support: ?tab=screening opens the Screening tab directly
+		const params = new URLSearchParams(window.location.search);
+		const t = params.get('tab');
+		return t === 'screening' || t === 'upcoming' || t === 'calendar' || t === 'past'
+			? t
+			: 'upcoming';
+	});
 	const [showSchedule, setShowSchedule] = useState(false);
 	const [showFeedback, setShowFeedback] = useState<Interview | null>(null);
 	const [saving, setSaving] = useState(false);
