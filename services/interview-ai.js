@@ -9,7 +9,7 @@ const omniscoreService = require('./omniscore');
  * Suggest optimal interview slots based on recruiter preferences and candidate availability
  */
 async function suggestSlots(recruiterId, candidateTimezone = 'America/New_York', options = {}) {
-	const { daysAhead = 7, slotsCount = 6, durationMinutes = 60 } = options;
+	const { daysAhead = 7, slotsCount = 6, durationMinutes = 60, candidateId = null } = options;
 
 	// Get recruiter preferences
 	let prefs;
@@ -30,12 +30,33 @@ async function suggestSlots(recruiterId, candidateTimezone = 'America/New_York',
 		};
 	}
 
-	const duration = durationMinutes || prefs.preferred_duration || 60;
-	const buffer = prefs.buffer_minutes || 15;
-	const availDays = Array.isArray(prefs.available_days)
+	// Intersect with candidate availability when a candidate is specified —
+	// slots must work for both sides.
+	let availDays = Array.isArray(prefs.available_days)
 		? prefs.available_days
 		: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-	const hours = prefs.available_hours || { start: '09:00', end: '17:00' };
+	let hours = prefs.available_hours || { start: '09:00', end: '17:00' };
+	if (candidateId) {
+		const candPrefs = await pool.query(
+			'SELECT * FROM scheduling_preferences WHERE user_id = $1',
+			[candidateId],
+		);
+		if (candPrefs.rows.length > 0) {
+			const cp = candPrefs.rows[0];
+			const candDays = Array.isArray(cp.available_days) ? cp.available_days : availDays;
+			availDays = availDays.filter((d) => candDays.includes(d));
+			const ch = cp.available_hours || {};
+			if (ch.start && ch.end) {
+				// Overlap of the two windows (compared as HH:MM strings — zero-padded)
+				const start = hours.start > ch.start ? hours.start : ch.start;
+				const end = hours.end < ch.end ? hours.end : ch.end;
+				if (start < end) hours = { start, end };
+			}
+		}
+	}
+
+	const duration = durationMinutes || prefs.preferred_duration || 60;
+	const buffer = prefs.buffer_minutes || 15;
 	const blackoutDates = Array.isArray(prefs.blackout_dates) ? prefs.blackout_dates : [];
 
 	// Get existing scheduled interviews for conflict detection
@@ -351,11 +372,26 @@ Return ONLY valid JSON with this structure:
 	);
 
 	return {
-		question_scores: questions.map((_q, i) => ({
-			question_index: i,
-			score: responses[i]?.response_text ? Math.round(baseScore * (0.8 + Math.random() * 0.4)) : 0,
-			feedback: responses[i]?.response_text ? 'Response provided' : 'No response',
-		})),
+		question_scores: questions.map((q, i) => {
+			const text = responses[i]?.response_text || '';
+			// Deterministic heuristic: length + keyword overlap with evaluation criteria.
+			// This is a degraded fallback (AI unavailable) — scores effort, not quality.
+			let s = 0;
+			if (text.length > 20) s = 40;
+			if (text.length > 100) s = 55;
+			if (text.length > 250) s = 65;
+			const criteria = (q.evaluation_criteria || []).join(' ').toLowerCase();
+			if (criteria && text.length > 50) {
+				const words = new Set(text.toLowerCase().split(/\W+/));
+				const hits = criteria.split(/\W+/).filter((w) => w.length > 4 && words.has(w)).length;
+				s = Math.min(85, s + hits * 5);
+			}
+			return {
+				question_index: i,
+				score: text ? s : 0,
+				feedback: text ? 'Response provided (AI analysis unavailable)' : 'No response',
+			};
+		}),
 		communication_clarity: {
 			score: baseScore,
 			feedback: 'AI analysis unavailable — basic scoring applied',
@@ -569,6 +605,38 @@ Return JSON only:
 	};
 }
 
+/**
+ * Stall check: find screening invites sent 3+ days ago that were never started,
+ * and nudge the recruiter once per session (in-app notification).
+ */
+async function checkStalledScreenings() {
+	const { notifyUser } = require('../lib/notify');
+	const stalled = await pool.query(
+		`SELECT ss.id, ss.invited_by, ss.candidate_id, ss.job_id, ss.invited_at,
+            u.name as candidate_name, j.title as job_title
+     FROM screening_sessions ss
+     JOIN users u ON u.id = ss.candidate_id
+     JOIN jobs j ON j.id = ss.job_id
+     WHERE ss.status = 'invited'
+       AND ss.invited_at < NOW() - INTERVAL '3 days'
+       AND NOT EXISTS (
+         SELECT 1 FROM user_notifications un
+         WHERE un.type = 'screening_stalled'
+           AND (un.metadata->>'session_id')::int = ss.id
+       )`,
+	);
+	for (const s of stalled.rows) {
+		await notifyUser(
+			s.invited_by,
+			'screening_stalled',
+			'Screening invite stalling',
+			`${s.candidate_name} hasn't started the AI screening for ${s.job_title} (invited ${new Date(s.invited_at).toLocaleDateString()}). Consider nudging them.`,
+			{ session_id: s.id, candidate_id: s.candidate_id, job_id: s.job_id },
+		);
+	}
+	return stalled.rows.length;
+}
+
 module.exports = {
 	suggestSlots,
 	createReminders,
@@ -576,4 +644,5 @@ module.exports = {
 	generateScreeningQuestions,
 	generateScreeningReport,
 	runMultiEvaluation,
+	checkStalledScreenings,
 };

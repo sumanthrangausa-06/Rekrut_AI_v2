@@ -955,6 +955,23 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 	console.log('[reminder-cron] Interview reminder processor started (5min interval)');
 })();
 
+// ─── Screening Stall Check: nudge recruiters on stalled invites, daily ───────
+(function startStallChecker() {
+	const STALL_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+
+	setInterval(async () => {
+		try {
+			const interviewAI = require('./services/interview-ai');
+			const count = await interviewAI.checkStalledScreenings();
+			if (count > 0) console.log(`[stall-check] Nudged ${count} stalled screening invite(s)`);
+		} catch (err) {
+			console.error('[stall-check] Failed:', err.message);
+		}
+	}, STALL_INTERVAL);
+
+	console.log('[stall-check] Screening stall checker started (24h interval)');
+})();
+
 // ─── AI Health Monitoring Endpoints ──────────────────────────────────────────
 // Comprehensive AI call logs, model metrics, budget predictions, prompt management
 

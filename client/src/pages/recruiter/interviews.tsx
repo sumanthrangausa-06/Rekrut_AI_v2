@@ -169,6 +169,7 @@ export function RecruiterInterviewsPage() {
 	const [templateTitle, setTemplateTitle] = useState('');
 	const [creatingTemplate, setCreatingTemplate] = useState(false);
 	const [showScreeningReport, setShowScreeningReport] = useState<any>(null);
+	const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
 	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
 	useEffect(() => {
@@ -315,7 +316,7 @@ export function RecruiterInterviewsPage() {
 		jobId: number,
 	) {
 		try {
-			await apiCall('/interviews/screening/send', {
+			const res = await apiCall<{ invite_url?: string }>('/interviews/screening/send', {
 				method: 'POST',
 				body: {
 					template_id: templateId,
@@ -324,6 +325,16 @@ export function RecruiterInterviewsPage() {
 					job_id: jobId,
 				},
 			});
+			if (res?.invite_url) {
+				const fullUrl = `${window.location.origin}${res.invite_url}`;
+				try {
+					await navigator.clipboard.writeText(fullUrl);
+					setMessage({ type: 'success', text: 'Screening sent — invite link copied to clipboard.' });
+				} catch {
+					setMessage({ type: 'success', text: `Screening sent. Invite link: ${fullUrl}` });
+				}
+				setLastInviteUrl(fullUrl);
+			}
 			await loadData();
 		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to send screening' });
@@ -588,11 +599,6 @@ export function RecruiterInterviewsPage() {
 										<span className="text-xs text-muted-foreground">
 											{t.completed_count}/{t.sessions_count} completed
 										</span>
-										{t.auto_send_on_apply && (
-											<Badge variant="default" className="text-xs bg-purple-600">
-												Auto-send
-											</Badge>
-										)}
 									</div>
 								</div>
 							))}
@@ -646,6 +652,26 @@ export function RecruiterInterviewsPage() {
 				{/* Screening tab */}
 				<TabsContent value="screening">
 					<div className="space-y-4">
+						{lastInviteUrl && (
+							<Card className="border-green-200 bg-green-50">
+								<CardContent className="p-4 flex items-center justify-between gap-3">
+									<div className="min-w-0">
+										<p className="text-sm font-medium text-green-900">Invite link ready</p>
+										<p className="text-xs text-green-700 truncate">{lastInviteUrl}</p>
+									</div>
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() => {
+											navigator.clipboard.writeText(lastInviteUrl);
+											setMessage({ type: 'success', text: 'Invite link copied.' });
+										}}
+									>
+										Copy
+									</Button>
+								</CardContent>
+							</Card>
+						)}
 						{/* Screening-eligible applications */}
 						<Card>
 							<CardContent className="p-4">
@@ -1359,6 +1385,87 @@ export function RecruiterInterviewsPage() {
 											</li>
 										))}
 									</ul>
+								</div>
+							)}
+
+						{/* Dimension scores */}
+						{(showScreeningReport.report.technical_depth ||
+							showScreeningReport.report.communication_clarity ||
+							showScreeningReport.report.confidence_enthusiasm) && (
+							<div>
+								<h4 className="font-medium text-sm mb-2">Evaluation Dimensions</h4>
+								<div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+									{[
+										{ label: 'Technical Depth', data: showScreeningReport.report.technical_depth },
+										{ label: 'Communication', data: showScreeningReport.report.communication_clarity },
+										{ label: 'Confidence', data: showScreeningReport.report.confidence_enthusiasm },
+									]
+										.filter((d) => d.data)
+										.map((d) => (
+											<div key={d.label} className="p-3 border rounded-lg">
+												<div className="flex items-center justify-between mb-1">
+													<span className="text-xs font-medium text-muted-foreground">{d.label}</span>
+													<span className="text-lg font-bold">{d.data.score ?? '—'}</span>
+												</div>
+												{d.data.feedback && (
+													<p className="text-xs text-muted-foreground">{d.data.feedback}</p>
+												)}
+												{d.data.indicators && (
+													<ul className="mt-1 space-y-0.5">
+														{d.data.indicators.slice(0, 3).map((ind: string) => (
+															<li key={ind} className="text-xs text-muted-foreground">
+																• {ind}
+															</li>
+														))}
+													</ul>
+												)}
+											</div>
+										))}
+								</div>
+							</div>
+						)}
+
+						{/* Per-question breakdown */}
+						{showScreeningReport.report.question_scores &&
+							showScreeningReport.report.question_scores.length > 0 && (
+								<div>
+									<h4 className="font-medium text-sm mb-2">Per-Question Breakdown</h4>
+									<div className="space-y-2">
+										{showScreeningReport.report.question_scores.map((qs: any) => {
+											const q =
+												showScreeningReport.session?.questions?.[qs.question_index];
+											return (
+												<div key={qs.question_index} className="p-3 border rounded-lg">
+													<div className="flex items-center justify-between mb-1">
+														<span className="text-sm font-medium">
+															Q{qs.question_index + 1}
+															{q?.question_text && (
+																<span className="font-normal text-muted-foreground">
+																	{' '}
+																	— {q.question_text.slice(0, 80)}
+																	{q.question_text.length > 80 ? '…' : ''}
+																</span>
+															)}
+														</span>
+														<span
+															className={`text-sm font-bold ${
+																(qs.score || 0) >= 70
+																	? 'text-green-600'
+																	: (qs.score || 0) >= 50
+																		? 'text-yellow-600'
+																		: 'text-red-600'
+															}`}
+														>
+															{qs.score ?? '—'}/100
+														</span>
+													</div>
+													{qs.feedback && (
+														<p className="text-xs text-muted-foreground">{qs.feedback}</p>
+													)}
+												</div>
+											);
+										})}
+									</div>
 								</div>
 							)}
 

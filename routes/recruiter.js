@@ -11,6 +11,7 @@ const auditLogService = require('../services/auditLogService');
 const { AuditLogger } = auditLogService;
 const { dataAccessAudit } = require('../middleware/dataAccessAudit');
 const emailService = require('../lib/email-service');
+const { notifyUser } = require('../lib/notify');
 const DOMPurify = require('isomorphic-dompurify');
 
 const router = express.Router();
@@ -1118,6 +1119,8 @@ router.put(
 			const VALID_APP_STATUSES = [
 				'applied',
 				'screening',
+				'shortlisted',
+				'reviewing',
 				'interviewed',
 				'offered',
 				'hired',
@@ -1159,6 +1162,21 @@ router.put(
 					[req.params.id],
 				);
 				const cand = candidateInfo.rows[0];
+				// In-app notification (non-blocking) — alongside the email
+				if (cand?.id) {
+					notifyUser(
+						cand.id,
+						'application_status_changed',
+						'Application status updated',
+						`Your application for ${cand.job_title || 'the position'} is now: ${status}.`,
+						{
+							application_id: req.params.id,
+							job_id: existing.rows[0].job_id,
+							new_status: status,
+							previous_status: previousStatus,
+						},
+					);
+				}
 				if (cand?.email) {
 					await emailService.sendTemplatedEmail({
 						to: cand.email,
