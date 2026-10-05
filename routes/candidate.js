@@ -2182,22 +2182,13 @@ router.get('/jobs/recommended', authMiddleware, async (req, res) => {
 			titles: experience.rows.map((e) => e.title),
 		};
 
-		// Calculate match scores for each job
-		const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
-			req.user.id,
-		]);
-		const subscriptionId = user.rows[0]?.stripe_subscription_id;
+		// Calculate deterministic match scores for each job (no LLM — fast and consistent)
+		const { calculateDeterministicMatch } = require('../services/matching-engine');
 
-		const jobsWithScores = await Promise.all(
-			jobs.rows.map(async (job) => {
-				try {
-					const match = await generateJobMatchScore(candidateProfile, job, { subscriptionId });
-					return { ...job, match };
-				} catch (_e) {
-					return { ...job, match: { match_score: 50, match_level: 'fair' } };
-				}
-			}),
-		);
+		const jobsWithScores = jobs.rows.map((job) => {
+			const match = calculateDeterministicMatch(candidateProfile, job);
+			return { ...job, match };
+		});
 
 		// Sort by match score
 		jobsWithScores.sort((a, b) => (b.match?.match_score || 0) - (a.match?.match_score || 0));
@@ -2531,13 +2522,10 @@ async function submitApplication({
 	const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
 		candidateId,
 	]);
-	const subscriptionId = user.rows[0]?.stripe_subscription_id;
+	const { calculateDeterministicMatch } = require('../services/matching-engine');
 
-	let matchScore = 50;
-	try {
-		const match = await generateJobMatchScore(candidateProfile, job.rows[0], { subscriptionId });
-		matchScore = match.match_score;
-	} catch (_e) {}
+	const match = calculateDeterministicMatch(candidateProfile, job.rows[0]);
+	const matchScore = match.match_score;
 
 	const omniscore = profile.rows[0]?.omniscore || null;
 

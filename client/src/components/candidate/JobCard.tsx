@@ -45,7 +45,19 @@ export interface JobCardData {
 	job_type: string;
 	status: string;
 	created_at: string;
-	// Match fields
+	// Match fields (deterministic engine — see #308)
+	match?: {
+		match_score: number;
+		match_level: string;
+		breakdown?: {
+			skills: number;
+			experience: number;
+			location: number;
+			title: number;
+		};
+		matching_skills?: string[];
+		missing_skills?: string[];
+	};
 	weighted_score?: number;
 	match_level?: string;
 	skill_match_pct?: number;
@@ -243,14 +255,17 @@ export function JobCard({
 	autoApplyLoading,
 	autoApplyState = 'hidden',
 }: JobCardProps) {
-	const score = job.weighted_score ? Math.round(job.weighted_score) : null;
+	const score = job.match?.match_score ?? (job.weighted_score ? Math.round(job.weighted_score) : null);
+	const matchBreakdown = job.match?.breakdown;
+	const matchingSkills = job.match?.matching_skills ?? matchingSkills;
+	const missingSkills = job.match?.missing_skills ?? missingSkills;
 	const fitScore = job.fit_score != null ? Math.round(job.fit_score) : null;
 	const companyName = job.company || job.poster_company || 'Company';
 	const isTrashMode = activeTab === 'dismissed';
 	const [showCompactMatch, setShowCompactMatch] = useState(false);
 	const [showFitBreakdown, setShowFitBreakdown] = useState(false);
 
-	const allSkills = [...(job.matching_skills || []), ...(job.skills_required || [])];
+	const allSkills = [...(matchingSkills || []), ...(job.skills_required || [])];
 	const uniqueSkills = [...new Set(allSkills)];
 
 	const handleCardClick = () => {
@@ -387,7 +402,7 @@ export function JobCard({
 									const isMatching =
 										userSkills.length > 0
 											? userSkills.includes(skill)
-											: (job.matching_skills?.includes(skill) ?? false);
+											: (matchingSkills?.includes(skill) ?? false);
 									return (
 										<SkillPill
 											key={skill}
@@ -413,10 +428,10 @@ export function JobCard({
 						)}
 
 						{/* Missing skills hint */}
-						{score != null && score < 80 && job.missing_skills && job.missing_skills.length > 0 && (
+						{score != null && score < 80 && missingSkills && missingSkills.length > 0 && (
 							<div className="flex flex-wrap items-center gap-1 pt-0.5">
 								<span className="text-[10px] text-amber-500 shrink-0">To improve match:</span>
-								{job.missing_skills.slice(0, 2).map((s) => (
+								{missingSkills.slice(0, 2).map((s) => (
 									<span
 										key={s}
 										className="text-[10px] bg-amber-50 text-amber-700 rounded px-1.5 py-0.5 border border-amber-100"
@@ -424,9 +439,9 @@ export function JobCard({
 										{s}
 									</span>
 								))}
-								{job.missing_skills.length > 2 && (
+								{missingSkills.length > 2 && (
 									<span className="text-[10px] text-amber-600">
-										+{job.missing_skills.length - 2}
+										+{missingSkills.length - 2}
 									</span>
 								)}
 							</div>
@@ -658,7 +673,7 @@ export function JobCard({
 				{/* Compact AI Match Explanation inline */}
 				{score != null &&
 					!fitScore &&
-					(job.matching_skills?.length || job.missing_skills?.length || job.explanation) && (
+					(matchingSkills?.length || missingSkills?.length || job.explanation) && (
 						<div className="mt-3 pt-3 border-t border-border/40">
 							<button type="button"
 								onClick={(e) => {
@@ -685,10 +700,43 @@ export function JobCard({
 							</button>
 							{showCompactMatch && (
 								<div className="mt-2 space-y-2 px-1">
+									{/* Jobright-style breakdown bars */}
+									{matchBreakdown && (
+										<div className="space-y-1.5 pb-1">
+											{[
+												{ label: 'Skills', value: matchBreakdown.skills },
+												{ label: 'Experience', value: matchBreakdown.experience },
+												{ label: 'Location', value: matchBreakdown.location },
+												{ label: 'Title Match', value: matchBreakdown.title },
+											].map((item) => (
+												<div key={item.label} className="flex items-center gap-2">
+													<span className="text-[10px] text-muted-foreground w-20 shrink-0">
+														{item.label}
+													</span>
+													<div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+														<div
+															className={cn(
+																'h-full rounded-full',
+																item.value >= 70
+																	? 'bg-emerald-500'
+																	: item.value >= 50
+																		? 'bg-amber-500'
+																		: 'bg-red-400',
+															)}
+															style={{ width: `${item.value}%` }}
+														/>
+													</div>
+													<span className="text-[10px] font-semibold w-8 text-right">
+														{item.value}%
+													</span>
+												</div>
+											))}
+										</div>
+									)}
 									{/* Matching skills pills */}
-									{job.matching_skills && job.matching_skills.length > 0 && (
+									{matchingSkills && matchingSkills.length > 0 && (
 										<div className="flex flex-wrap gap-1">
-											{job.matching_skills.slice(0, 4).map((s) => (
+											{matchingSkills.slice(0, 4).map((s) => (
 												<Badge
 													key={s}
 													variant="secondary"
@@ -697,9 +745,9 @@ export function JobCard({
 													{s}
 												</Badge>
 											))}
-											{job.matching_skills.length > 4 && (
+											{matchingSkills.length > 4 && (
 												<span className="text-[10px] text-emerald-600 dark:text-emerald-400">
-													+{job.matching_skills.length - 4} more
+													+{matchingSkills.length - 4} more
 												</span>
 											)}
 										</div>
@@ -716,12 +764,12 @@ export function JobCard({
 										</p>
 									)}
 									{/* Missing skills */}
-									{job.missing_skills && job.missing_skills.length > 0 && (
+									{missingSkills && missingSkills.length > 0 && (
 										<div className="flex flex-wrap items-center gap-1">
 											<span className="text-[10px] text-amber-600 dark:text-amber-400 shrink-0">
 												Gaps:
 											</span>
-											{job.missing_skills.slice(0, 3).map((s) => (
+											{missingSkills.slice(0, 3).map((s) => (
 												<Badge
 													key={s}
 													variant="outline"
@@ -730,9 +778,9 @@ export function JobCard({
 													{s}
 												</Badge>
 											))}
-											{job.missing_skills.length > 3 && (
+											{missingSkills.length > 3 && (
 												<span className="text-[10px] text-amber-600 dark:text-amber-400">
-													+{job.missing_skills.length - 3}
+													+{missingSkills.length - 3}
 												</span>
 											)}
 										</div>
