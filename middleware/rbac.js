@@ -83,13 +83,16 @@ async function _fetchUserPermissions(userId, companyId) {
  * grant permissions based on the legacy users.role column.
  * This handles users created before RBAC (migration 128).
  */
+const LEGACY_RECRUITER_PERMISSIONS = [
+	'jobs:create', 'jobs:read', 'jobs:update', 'jobs:delete',
+	'candidates:read', 'applications:read', 'applications:update',
+	'analytics:read', 'company:read', 'company:manage',
+	'members:read', 'interviews:read', 'interviews:manage',
+];
 const LEGACY_ROLE_PERMISSIONS = {
-	employer: [
-		'jobs:create', 'jobs:read', 'jobs:update', 'jobs:delete',
-		'candidates:read', 'applications:read', 'applications:update',
-		'analytics:read', 'company:read', 'company:manage',
-		'members:read', 'interviews:read', 'interviews:manage',
-	],
+	employer: LEGACY_RECRUITER_PERMISSIONS,
+	recruiter: LEGACY_RECRUITER_PERMISSIONS,
+	hiring_manager: LEGACY_RECRUITER_PERMISSIONS,
 	admin: ['*'], // Admins get all permissions via wildcard check
 	candidate: [],
 };

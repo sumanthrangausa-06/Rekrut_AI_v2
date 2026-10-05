@@ -73,6 +73,7 @@ interface Application {
 	status: string;
 	screening_status?: string;
 	screening_score?: number;
+	screening_session_id?: number | null;
 }
 
 interface ScreeningTemplate {
@@ -756,7 +757,10 @@ export function RecruiterInterviewsPage() {
 													<Button
 														size="sm"
 														variant="outline"
-														onClick={() => viewScreeningReport(app.id)}
+														onClick={() =>
+														app.screening_session_id && viewScreeningReport(app.screening_session_id)
+													}
+													disabled={!app.screening_session_id}
 														className="min-h-[44px]"
 													>
 														<FileText className="h-3.5 w-3.5 mr-1" /> View Report

@@ -250,7 +250,7 @@ export function RecruiterJobFormPage() {
 							required: boolean;
 						}>;
 					};
-				}>(`/api/questionnaire/${id}`);
+				}>(`/questionnaire/${id}`);
 				if (qData.questionnaire) {
 					setPassThreshold(qData.questionnaire.pass_threshold || 70);
 					// Merge with existing screening questions if any
@@ -599,7 +599,7 @@ export function RecruiterJobFormPage() {
 						order_index: i,
 						required: q.required,
 					}));
-				await apiCall('/api/questionnaire', {
+				await apiCall('/questionnaire', {
 					method: 'POST',
 					body: {
 						job_id: savedJobId,
