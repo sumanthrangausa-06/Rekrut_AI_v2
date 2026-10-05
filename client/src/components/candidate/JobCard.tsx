@@ -259,7 +259,7 @@ export function JobCard({
 	const matchBreakdown = job.match?.breakdown;
 	const matchingSkills = job.match?.matching_skills ?? job.matching_skills;
 	const missingSkills = job.match?.missing_skills ?? job.missing_skills;
-	const fitScore = job.fit_score != null ? Math.round(job.fit_score) : null;
+	const fitScore = job.match?.match_score ?? (job.fit_score != null ? Math.round(job.fit_score) : null);
 	const companyName = job.company || job.poster_company || 'Company';
 	const isTrashMode = activeTab === 'dismissed';
 	const [showCompactMatch, setShowCompactMatch] = useState(false);
@@ -303,12 +303,19 @@ export function JobCard({
 	const isAutoApplyLocked = autoApplyState === 'locked';
 	const isAutoApplyLimitReached = autoApplyState === 'limit_reached';
 
-	const breakdownEntries = job.fit_breakdown
-		? Object.entries(job.fit_breakdown).map(([key, value]) => ({
-				label: key.charAt(0).toUpperCase() + key.slice(1),
-				value: Math.round(value),
-			}))
-		: [];
+	const breakdownEntries = job.match?.breakdown
+		? [
+				{ label: 'Skills', value: Math.round(job.match.breakdown.skills) },
+				{ label: 'Experience', value: Math.round(job.match.breakdown.experience) },
+				{ label: 'Location', value: Math.round(job.match.breakdown.location) },
+				{ label: 'Title', value: Math.round(job.match.breakdown.title) },
+			]
+		: job.fit_breakdown
+			? Object.entries(job.fit_breakdown).map(([key, value]) => ({
+					label: key.charAt(0).toUpperCase() + key.slice(1),
+					value: Math.round(value),
+				}))
+			: [];
 
 	return (
 		<Card
