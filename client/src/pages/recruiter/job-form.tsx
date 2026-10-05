@@ -210,12 +210,16 @@ export function RecruiterJobFormPage() {
 					department?: string;
 					experience_level?: string;
 					education_level?: string;
+					auto_send_on_apply?: boolean;
+					auto_send_min_score?: number;
 				};
 			}>(`/jobs/${id}`);
 			const job = data.job;
 			setTitle(job.title || '');
 			setCompany(job.company || '');
 			setDepartment(job.department || '');
+			setAutoSendEnabled(job.auto_send_on_apply === true);
+			setAutoSendMinScore(job.auto_send_min_score ?? 70);
 			setDescription(job.description || '');
 			setRequirements(job.requirements || '');
 			setLocation(job.location || '');
