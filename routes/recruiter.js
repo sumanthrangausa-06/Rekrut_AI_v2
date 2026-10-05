@@ -1031,6 +1031,9 @@ router.put(
 				job_type,
 				status,
 				screening_questions,
+				auto_send_on_apply,
+				auto_send_min_score,
+				screening_topics,
 			} = req.body;
 
 			const sanitizedTitle =
@@ -1091,8 +1094,10 @@ router.put(
         job_type = COALESCE($6, job_type),
         status = COALESCE($7, status),
         screening_questions = COALESCE($8, screening_questions),
+        auto_send_on_apply = COALESCE($9, auto_send_on_apply),
+        auto_send_min_score = COALESCE($10, auto_send_min_score),
         updated_at = NOW()
-       WHERE id = $9
+       WHERE id = $11
        RETURNING *`,
 				[
 					sanitizedTitle,
@@ -1103,9 +1108,49 @@ router.put(
 					normalizedUpdateJobType,
 					status,
 					screening_questions || null,
+					auto_send_on_apply === undefined ? null : auto_send_on_apply === true,
+					auto_send_min_score === undefined
+						? null
+						: Math.min(100, Math.max(0, parseInt(auto_send_min_score, 10) || 70)),
 					req.params.id,
 				],
 			);
+
+			// Sync screening template when auto-send settings change (#307)
+			try {
+				const updatedJob = result.rows[0];
+				if (updatedJob && auto_send_on_apply === true) {
+					const topics = Array.isArray(screening_topics) ? screening_topics : [];
+					const existingTemplate = await pool.query(
+						`SELECT id FROM screening_templates WHERE job_id = $1 AND status = 'active' LIMIT 1`,
+						[req.params.id],
+					);
+					if (existingTemplate.rows.length === 0) {
+						await pool.query(
+							`INSERT INTO screening_templates (company_id, job_id, created_by, title, description, questions, topics, screening_mode, auto_send_on_apply, status)
+							 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')`,
+							[
+								req.user.company_id,
+								req.params.id,
+								req.user.id,
+								`Screening for ${updatedJob.title}`,
+								`Auto-generated screening for ${updatedJob.title}`,
+								JSON.stringify([]),
+								JSON.stringify(topics),
+								'conversational',
+								true,
+							],
+						);
+					} else if (topics.length > 0) {
+						await pool.query(
+							`UPDATE screening_templates SET topics = $1, updated_at = NOW() WHERE id = $2`,
+							[JSON.stringify(topics), existingTemplate.rows[0].id],
+						);
+					}
+				}
+			} catch (templateErr) {
+				console.error('Screening template sync failed:', templateErr.message);
+			}
 
 			res.json({ success: true, job: result.rows[0] });
 		} catch (err) {
