@@ -1334,7 +1334,7 @@ export function RecruiterJobApplicantsPage() {
 										) : screeningTemplates.length === 0 ? (
 											<p className="text-xs text-muted-foreground">
 												No screening template for this job.{' '}
-												<a href="/recruiter/interviews" className="underline">
+												<a href="/recruiter/interviews?tab=screening" className="underline">
 													Create one
 												</a>
 											</p>
