@@ -257,8 +257,8 @@ export function JobCard({
 }: JobCardProps) {
 	const score = job.match?.match_score ?? (job.weighted_score ? Math.round(job.weighted_score) : null);
 	const matchBreakdown = job.match?.breakdown;
-	const matchingSkills = job.match?.matching_skills ?? matchingSkills;
-	const missingSkills = job.match?.missing_skills ?? missingSkills;
+	const matchingSkills = job.match?.matching_skills ?? job.matching_skills;
+	const missingSkills = job.match?.missing_skills ?? job.missing_skills;
 	const fitScore = job.fit_score != null ? Math.round(job.fit_score) : null;
 	const companyName = job.company || job.poster_company || 'Company';
 	const isTrashMode = activeTab === 'dismissed';
