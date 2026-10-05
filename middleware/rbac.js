@@ -74,7 +74,51 @@ async function _fetchUserPermissions(userId, companyId) {
 	return {
 		permissions: new Set(permResult.rows.map((r) => r.name)),
 		roles: new Set(roleResult.rows.map((r) => r.name)),
+		legacyFallback: permResult.rows.length === 0 && roleResult.rows.length === 0,
 	};
+}
+
+/**
+ * Legacy role fallback: for users with no RBAC role assignments,
+ * grant permissions based on the legacy users.role column.
+ * This handles users created before RBAC (migration 128).
+ */
+const LEGACY_ROLE_PERMISSIONS = {
+	employer: [
+		'jobs:create', 'jobs:read', 'jobs:update', 'jobs:delete',
+		'candidates:read', 'applications:read', 'applications:update',
+		'analytics:read', 'company:read', 'company:manage',
+		'members:read', 'interviews:read', 'interviews:manage',
+	],
+	admin: ['*'], // Admins get all permissions via wildcard check
+	candidate: [],
+};
+
+async function _applyLegacyFallback(userId, data) {
+	if (!data.legacyFallback) return data;
+
+	try {
+		const userResult = await getPool().query(
+			'SELECT role FROM users WHERE id = $1',
+			[userId],
+		);
+		if (userResult.rows.length === 0) return data;
+
+		const legacyRole = userResult.rows[0].role;
+		const perms = LEGACY_ROLE_PERMISSIONS[legacyRole];
+		if (!perms) return data;
+
+		// Add legacy permissions to the set
+		for (const p of perms) {
+			data.permissions.add(p);
+		}
+		data.roles.add(`legacy:${legacyRole}`);
+	} catch (err) {
+		// Don't break auth on fallback failure; log and continue
+		console.error('[rbac] Legacy fallback failed:', err.message);
+	}
+
+	return data;
 }
 
 /**
@@ -106,11 +150,14 @@ async function checkPermission(userId, permissionName, companyId) {
 
 	let cached = _permissionCache.get(cacheKey);
 	if (!cached || cached.expiresAt < now) {
-		const data = await _fetchUserPermissions(userId, companyId);
+		let data = await _fetchUserPermissions(userId, companyId);
+		data = await _applyLegacyFallback(userId, data);
 		cached = { permissions: data.permissions, roles: data.roles, expiresAt: now + CACHE_TTL_MS };
 		_permissionCache.set(cacheKey, cached);
 	}
 
+	// Wildcard '*' grants all permissions (legacy admin fallback)
+	if (cached.permissions.has('*')) return true;
 	return cached.permissions.has(permissionName);
 }
 
