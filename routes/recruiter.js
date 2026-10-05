@@ -664,6 +664,9 @@ router.post(
 				job_type,
 				screening_questions,
 				optimize = false, // Flag to run AI optimization
+				auto_send_on_apply = false,
+				auto_send_min_score = 70,
+				screening_topics = [],
 			} = req.body;
 
 			const sanitizedTitle = normalizeTextField(title, 120, 'Job title');
@@ -721,8 +724,8 @@ router.post(
 
 			// Create job
 			const result = await pool.query(
-				`INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+				`INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions, auto_send_on_apply, auto_send_min_score)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
 				[
 					req.user.id,
@@ -735,10 +738,37 @@ router.post(
 					salary_range,
 					normalizedJobType,
 					screening_questions ? JSON.stringify(screening_questions) : null,
+					auto_send_on_apply === true,
+					Math.min(100, Math.max(0, parseInt(auto_send_min_score, 10) || 70)),
 				],
 			);
 
 			const job = result.rows[0];
+
+			// Auto-create screening template if auto-send enabled
+			if (auto_send_on_apply === true) {
+				try {
+					const topics = Array.isArray(screening_topics) ? screening_topics : [];
+					await pool.query(
+						`INSERT INTO screening_templates (company_id, job_id, created_by, title, description, questions, topics, screening_mode, auto_send_on_apply, status)
+						 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')`,
+						[
+							req.user.company_id,
+							job.id,
+							req.user.id,
+							`Screening for ${sanitizedTitle}`,
+							`Auto-generated screening for ${sanitizedTitle}`,
+							JSON.stringify([]),
+							JSON.stringify(topics),
+							'conversational',
+							true,
+						],
+					);
+				} catch (templateErr) {
+					console.error('Auto-create screening template failed:', templateErr.message);
+					// Don't fail job creation if template fails
+				}
+			}
 
 			// Create analytics entry
 			await pool.query('INSERT INTO job_analytics (job_id) VALUES ($1)', [job.id]);
@@ -881,10 +911,49 @@ router.post(
 				job_type,
 				company: req.user.company_name,
 			});
-			res.json({ success: true, generated });
+
+			// Also generate screening topics from the JD (for auto-send setup)
+			let screeningTopics = [];
+			try {
+				const { generateScreeningTopics } = require('../services/interview-ai');
+				screeningTopics = await generateScreeningTopics(
+					title,
+					generated.description || generated,
+				);
+			} catch (topicErr) {
+				console.error('Screening topics generation failed:', topicErr.message);
+			}
+
+			res.json({ success: true, generated, screeningTopics });
 		} catch (err) {
 			console.error('Generate job description error:', err);
 			res.status(500).json({ error: 'Failed to generate job description' });
+		}
+	},
+);
+
+// Generate screening topics from job description (for auto-send screening setup)
+router.post(
+	'/jobs/generate-screening-topics',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:create'),
+	async (req, res) => {
+		try {
+			const { title, description } = req.body;
+
+			if (!title) {
+				return res.status(400).json({ error: 'Job title is required' });
+			}
+
+			const { generateScreeningTopics } = require('../services/interview-ai');
+			const topics = await generateScreeningTopics(title, description || '');
+			res.json({ success: true, topics });
+		} catch (err) {
+			console.error('Generate screening topics error:', err);
+			res.status(500).json({ error: 'Failed to generate screening topics' });
 		}
 	},
 );
