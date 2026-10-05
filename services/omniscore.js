@@ -841,7 +841,7 @@ async function calculateScore(userId) {
 		factors: Object.fromEntries(
 			Object.entries(factors).map(([k, v]) => [
 				k,
-				{ raw: Math.round(v.raw), weight: FACTOR_WEIGHTS[k], details: v.details },
+				{ raw: Math.round(v.raw), weight: FACTOR_WEIGHTS[k], details: v.details, hasData: v.hasData },
 			]),
 		),
 	};
