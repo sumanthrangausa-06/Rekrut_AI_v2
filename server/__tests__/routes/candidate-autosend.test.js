@@ -78,6 +78,7 @@ const store = {
 	sessions: [], // interview_sessions rows
 	legacySessions: [], // screening_sessions rows (old code path)
 	notifications: [],
+	auditEvents: [], // audit_logs rows (Task 11)
 	nextId: 1,
 };
 
@@ -90,6 +91,7 @@ function resetStore() {
 	store.sessions.length = 0;
 	store.legacySessions.length = 0;
 	store.notifications.length = 0;
+	store.auditEvents.length = 0;
 	store.nextId = 1;
 	store.users.set(1, {
 		id: 1,
@@ -219,6 +221,23 @@ function installDbMock() {
 		if (normalized.startsWith('insert into notifications')) {
 			const row = parseInsert(normalized, params);
 			store.notifications.push(row);
+			return { rows: [{ ...row }], rowCount: 1 };
+		}
+		// Company audit log (Task 11 — routes/audit.js insertAuditLog).
+		// Dedicated parse: the generic parseInsert chokes on the trailing
+		// NOW() (its values regex stops at NOW's own closing paren).
+		if (normalized.startsWith('insert into audit_logs')) {
+			const row = {
+				id: store.nextId++,
+				company_id: params[0],
+				actor_id: params[1],
+				target_id: params[2],
+				action: params[3],
+				reason: params[4],
+				metadata: maybeParse(params[5]),
+				created_at: new Date().toISOString(),
+			};
+			store.auditEvents.push(row);
 			return { rows: [{ ...row }], rowCount: 1 };
 		}
 		// Recruiter id lookup for notifications
@@ -431,5 +450,34 @@ describe('POST /api/candidate/jobs/:jobId/apply — auto-send screening', () => 
 		expect(store.sessions).toHaveLength(1);
 		expect(store.sessions[0].config.template.id).toBe(5);
 		expect(store.sessions[0].config.template.topics).toEqual(['experience', 'motivation']);
+	});
+
+	it('emits session.sent to the company audit log on auto-send (Task 11)', async () => {
+		seedJob({ auto_send_min_score: 0 });
+		seedTemplate();
+		mockCalculateMatch.mockReturnValue({ match_score: 80 });
+
+		const res = await request(buildApp())
+			.post('/api/candidate/jobs/10/apply')
+			.set('x-test-user-id', '1')
+			.send({});
+
+		expect(res.status).toBe(200);
+		expect(store.sessions).toHaveLength(1);
+		const session = store.sessions[0];
+
+		const sent = store.auditEvents.filter((e) => e.action === 'session.sent');
+		expect(sent).toHaveLength(1);
+		// System-triggered: no human actor.
+		expect(sent[0].actor_id).toBeNull();
+		expect(sent[0].company_id).toBe(7);
+		expect(sent[0].target_id).toBe(session.id);
+		// pg returns JSONB parsed (object) or TEXT (string) depending on the column
+		const meta =
+			typeof sent[0].metadata === 'string' ? JSON.parse(sent[0].metadata) : sent[0].metadata;
+		expect(meta.session_id).toBe(session.id);
+		expect(meta.type).toBe('screening');
+		expect(meta.application_id).toBe(store.applications[0].id);
+		expect(Date.parse(sent[0].created_at)).toBeGreaterThan(Date.now() - 60_000);
 	});
 });

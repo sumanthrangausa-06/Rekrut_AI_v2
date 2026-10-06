@@ -20,6 +20,9 @@ const marketBenchmarks = require('../lib/market-benchmarks');
 const { uploadToB2, checkB2Health } = require('../lib/file-storage');
 const emailService = require('../lib/email-service');
 const { notifyUser } = require('../lib/notify');
+// Task 11 (#322): company audit log (#251 pattern — routes/audit.js
+// insertAuditLog → audit_logs table).
+const { insertAuditLog } = require('./audit');
 const { checkFeatureAccess, incrementUsage } = require('../lib/subscription');
 const calendarService = require('../server/services/calendar-service');
 
@@ -2609,10 +2612,11 @@ async function submitApplication({
 							},
 						};
 
-						await pool.query(
+						const autoSendResult = await pool.query(
 							`INSERT INTO interview_sessions
 							   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
-							 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)`,
+							 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+							 RETURNING id`,
 							[
 								'screening',
 								jobId,
@@ -2625,6 +2629,28 @@ async function submitApplication({
 								JSON.stringify([]),
 							],
 						);
+						const autoSendSessionId = autoSendResult.rows[0]?.id ?? null;
+
+						// Task 11 (#322): audit event — session.sent (system actor).
+						// Non-blocking: an audit failure is logged and never fails
+						// the application (the whole auto-send block is already
+						// best-effort, but this makes the audit intent explicit).
+						try {
+							await insertAuditLog({
+								company_id: jobSettings.company_id ?? null,
+								actor_id: null, // system-triggered auto-send
+								target_id: autoSendSessionId,
+								action: 'session.sent',
+								metadata: {
+									session_id: autoSendSessionId,
+									type: 'screening',
+									job_id: jobId,
+									application_id: application.id,
+								},
+							});
+						} catch (auditErr) {
+							console.error('[auto-send] audit event failed:', auditErr.message);
+						}
 
 						await pool.query(
 							`UPDATE job_applications SET screening_status = 'invited' WHERE id = $1`,

@@ -30,6 +30,9 @@ const { authMiddleware } = require('../lib/auth');
 const { conductTurn } = require('../services/conversation-engine');
 const { generateScreeningReport } = require('../services/interview-ai');
 const { notifyUser } = require('../lib/notify');
+// Task 11 (#322): company audit log (#251 pattern — routes/audit.js
+// insertAuditLog → audit_logs table). No new table, no new event schema.
+const { insertAuditLog } = require('./audit');
 const livekitService = require('../server/services/livekit');
 const aiProvider = require('../lib/ai-provider');
 const { textToSpeech } = require('../lib/polsia-ai');
@@ -55,6 +58,26 @@ function canAccess(session, user) {
 
 function newTimestamp() {
 	return new Date().toISOString();
+}
+
+// ─── Audit events (Task 11, #322) ──────────────────────────────────────────
+// Every interview lifecycle transition emits an event into the company audit
+// log carrying the actor (actor_id) and a timestamp (created_at, set by
+// insertAuditLog via NOW()). Emission is strictly non-blocking: an audit
+// write failure is logged and never fails the primary operation — the same
+// discipline as Task 4's recording bookkeeping.
+async function emitInterviewAudit({ company_id, actor_id, target_id, action, metadata = {} }) {
+	try {
+		await insertAuditLog({
+			company_id: company_id ?? null,
+			actor_id: actor_id ?? null,
+			target_id: target_id ?? null,
+			action,
+			metadata,
+		});
+	} catch (auditErr) {
+		console.error('[interview-sessions] audit event failed:', action, auditErr.message);
+	}
 }
 
 // POST /interview-sessions — create a session with the engine config frozen at creation.
@@ -260,6 +283,20 @@ router.post('/interview-sessions/trigger', authMiddleware, async (req, res) => {
 			},
 		);
 
+		// Task 11 (#322): audit event — non-blocking, never fails the trigger.
+		await emitInterviewAudit({
+			company_id: job.company_id,
+			actor_id: req.user.id,
+			target_id: session.id,
+			action: 'session.sent',
+			metadata: {
+				session_id: session.id,
+				type: 'ai_interview',
+				job_id: job.id,
+				application_id: application.id,
+			},
+		});
+
 		res.status(201).json({ success: true, session });
 	} catch (err) {
 		console.error('[interview-sessions] trigger error:', err.message);
@@ -375,6 +412,15 @@ router.post('/interview-sessions/:id/start', authMiddleware, async (req, res) =>
 		} catch (recErr) {
 			console.error('[interview-sessions] recording row creation failed:', recErr.message);
 		}
+
+		// Task 11 (#322): audit event — non-blocking, never fails the start.
+		await emitInterviewAudit({
+			company_id: session.company_id,
+			actor_id: req.user.id,
+			target_id: session.id,
+			action: 'session.started',
+			metadata: { session_id: session.id, type: session.type },
+		});
 
 		res.json({
 			success: true,
@@ -612,6 +658,27 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 			console.error('[interview-sessions] transcript/finalize failed:', transcriptErr.message);
 		}
 
+		// Task 11 (#322): audit events — non-blocking, never fail the completion.
+		// session.scored carries the generated report's score + recommendation.
+		await emitInterviewAudit({
+			company_id: session.company_id,
+			actor_id: req.user.id,
+			target_id: session.id,
+			action: 'session.completed',
+			metadata: { session_id: session.id, type: session.type, report_generated: !!report },
+		});
+		await emitInterviewAudit({
+			company_id: session.company_id,
+			actor_id: req.user.id,
+			target_id: session.id,
+			action: 'session.scored',
+			metadata: {
+				session_id: session.id,
+				overall_score: report?.overall_score ?? null,
+				recommendation: report?.recommendation ?? null,
+			},
+		});
+
 		res.json({ success: true, session: updated.rows[0], report });
 	} catch (err) {
 		console.error('[interview-sessions] complete error:', err.message);
@@ -766,6 +833,15 @@ router.get('/interview-sessions/:id/recording', authMiddleware, async (req, res)
 			return res.status(403).json({ error: 'Forbidden' });
 		}
 		const recording = await livekitService.findRecordingBySessionId(session.id);
+		// Task 11 (#322): audit event — the Task 9 report view reads through
+		// this endpoint. Non-blocking, never fails the read.
+		await emitInterviewAudit({
+			company_id: session.company_id,
+			actor_id: req.user.id,
+			target_id: session.id,
+			action: 'report.viewed',
+			metadata: { session_id: session.id, recording_id: recording?.id ?? null },
+		});
 		if (!recording) {
 			return res.json({ success: true, recording: null });
 		}
@@ -855,6 +931,19 @@ router.post('/interview-flows', authMiddleware, async (req, res) => {
 				JSON.stringify(body.triggers || { manual: true }),
 			],
 		);
+		// Task 11 (#322): audit event — non-blocking, never fails the creation.
+		await emitInterviewAudit({
+			company_id: result.rows[0].company_id,
+			actor_id: req.user.id,
+			target_id: result.rows[0].id,
+			action: 'flow.created',
+			metadata: {
+				flow_id: result.rows[0].id,
+				name: result.rows[0].name,
+				type: result.rows[0].type,
+			},
+		});
+
 		res.status(201).json({ success: true, flow: result.rows[0] });
 	} catch (err) {
 		console.error('[interview-flows] create error:', err.message);
@@ -923,6 +1012,7 @@ router.put('/interview-flows/:id', authMiddleware, async (req, res) => {
 		const body = req.body || {};
 		const sets = [];
 		const params = [];
+		const updatedFields = [];
 		for (const key of FLOW_WRITABLE) {
 			if (body[key] === undefined) continue;
 			if (key === 'type' && !FLOW_TYPES.includes(body[key])) {
@@ -930,6 +1020,7 @@ router.put('/interview-flows/:id', authMiddleware, async (req, res) => {
 			}
 			params.push(FLOW_JSONB.has(key) ? JSON.stringify(body[key]) : body[key]);
 			sets.push(`${key} = $${params.length}`);
+			updatedFields.push(key);
 		}
 		if (sets.length === 0) {
 			return res.status(400).json({ error: 'No updatable fields provided' });
@@ -939,6 +1030,16 @@ router.put('/interview-flows/:id', authMiddleware, async (req, res) => {
 			`UPDATE interview_flows SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${params.length} RETURNING *`,
 			params,
 		);
+
+		// Task 11 (#322): audit event — non-blocking, never fails the update.
+		await emitInterviewAudit({
+			company_id: flow.company_id,
+			actor_id: req.user.id,
+			target_id: flow.id,
+			action: 'flow.updated',
+			metadata: { flow_id: flow.id, updated_fields: updatedFields },
+		});
+
 		res.json({ success: true, flow: result.rows[0] });
 	} catch (err) {
 		console.error('[interview-flows] update error:', err.message);
