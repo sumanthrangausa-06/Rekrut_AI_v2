@@ -9,6 +9,11 @@
  *   POST   /interview-sessions/:id/tts         synthesize a turn's text to audio
  *   GET    /interview-sessions                 unified list (unified sessions +
  *                                              read-linked human-scheduled interviews)
+ *   POST   /interview-flows                    create an interview flow (Task 7)
+ *   GET    /interview-flows                    list active flows
+ *   GET    /interview-flows/:id                read one flow
+ *   PUT    /interview-flows/:id                update a flow
+ *   DELETE /interview-flows/:id                archive a flow
  *
  * Every turn delegates to services/conversation-engine (conductTurn) — this
  * router never duplicates turn logic. Conversation is persisted after every
@@ -695,6 +700,186 @@ router.get('/interview-sessions', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('[interview-sessions] list error:', err.message);
 		res.status(500).json({ error: 'Failed to list interview sessions' });
+	}
+});
+
+// ─── Interview flows (Task 7) ──────────────────────────────────────────────
+// Generalized per-job interview configuration: screening AND AI-interview
+// flows with phases, topics/questions, rubric weights, and triggers.
+// screening_templates stays readable during the transition; the recruiter
+// flow-config UI (Task 10) will cut over to these endpoints.
+
+const FLOW_TYPES = ['screening', 'ai_interview'];
+const FLOW_WRITABLE = [
+	'name',
+	'type',
+	'description',
+	'phases',
+	'topics',
+	'questions',
+	'rubric_weights',
+	'triggers',
+	'status',
+	'job_id',
+];
+const FLOW_JSONB = new Set(['phases', 'topics', 'questions', 'rubric_weights', 'triggers']);
+
+async function loadFlow(id) {
+	const r = await pool.query('SELECT * FROM interview_flows WHERE id = $1', [id]);
+	return r.rows[0] || null;
+}
+
+function canManageFlow(flow, user) {
+	if (user.role === 'admin') return true;
+	return TRIGGER_ROLES.includes(user.role) && Number(flow.company_id) === Number(user.company_id);
+}
+
+// POST /interview-flows — create a flow (recruiter roles only).
+router.post('/interview-flows', authMiddleware, async (req, res) => {
+	try {
+		if (!TRIGGER_ROLES.includes(req.user.role)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+		const body = req.body || {};
+		if (!body.name || !String(body.name).trim()) {
+			return res.status(400).json({ error: 'name is required' });
+		}
+		const type = body.type || 'screening';
+		if (!FLOW_TYPES.includes(type)) {
+			return res.status(400).json({ error: `type must be one of: ${FLOW_TYPES.join(', ')}` });
+		}
+		const company_id =
+			req.user.role === 'admin' && body.company_id ? body.company_id : req.user.company_id;
+
+		const result = await pool.query(
+			`INSERT INTO interview_flows
+			   (company_id, job_id, created_by, name, type, description,
+			    phases, topics, questions, rubric_weights, triggers)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			 RETURNING *`,
+			[
+				company_id,
+				body.job_id || null,
+				req.user.id,
+				String(body.name).trim(),
+				type,
+				body.description || null,
+				JSON.stringify(body.phases || []),
+				JSON.stringify(body.topics || []),
+				JSON.stringify(body.questions || []),
+				JSON.stringify(body.rubric_weights || {}),
+				JSON.stringify(body.triggers || { manual: true }),
+			],
+		);
+		res.status(201).json({ success: true, flow: result.rows[0] });
+	} catch (err) {
+		console.error('[interview-flows] create error:', err.message);
+		res.status(500).json({ error: 'Failed to create interview flow' });
+	}
+});
+
+// GET /interview-flows?job_id=|company_id= — list active flows (recruiter roles).
+router.get('/interview-flows', authMiddleware, async (req, res) => {
+	try {
+		if (!TRIGGER_ROLES.includes(req.user.role)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+		const { job_id, company_id } = req.query;
+		const conditions = ["status = 'active'"];
+		const params = [];
+		if (job_id) {
+			params.push(job_id);
+			conditions.push(`job_id = $${params.length}`);
+		}
+		if (req.user.role === 'admin' && company_id) {
+			params.push(company_id);
+			conditions.push(`company_id = $${params.length}`);
+		} else if (req.user.role !== 'admin') {
+			params.push(req.user.company_id);
+			conditions.push(`company_id = $${params.length}`);
+		}
+		const result = await pool.query(
+			`SELECT * FROM interview_flows WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC`,
+			params,
+		);
+		res.json({ success: true, flows: result.rows });
+	} catch (err) {
+		console.error('[interview-flows] list error:', err.message);
+		res.status(500).json({ error: 'Failed to list interview flows' });
+	}
+});
+
+// GET /interview-flows/:id — read one flow.
+router.get('/interview-flows/:id', authMiddleware, async (req, res) => {
+	try {
+		const flow = await loadFlow(req.params.id);
+		if (!flow) {
+			return res.status(404).json({ error: 'Flow not found' });
+		}
+		if (!canManageFlow(flow, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+		res.json({ success: true, flow });
+	} catch (err) {
+		console.error('[interview-flows] read error:', err.message);
+		res.status(500).json({ error: 'Failed to read interview flow' });
+	}
+});
+
+// PUT /interview-flows/:id — update whitelisted fields.
+router.put('/interview-flows/:id', authMiddleware, async (req, res) => {
+	try {
+		const flow = await loadFlow(req.params.id);
+		if (!flow) {
+			return res.status(404).json({ error: 'Flow not found' });
+		}
+		if (!canManageFlow(flow, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+		const body = req.body || {};
+		const sets = [];
+		const params = [];
+		for (const key of FLOW_WRITABLE) {
+			if (body[key] === undefined) continue;
+			if (key === 'type' && !FLOW_TYPES.includes(body[key])) {
+				return res.status(400).json({ error: `type must be one of: ${FLOW_TYPES.join(', ')}` });
+			}
+			params.push(FLOW_JSONB.has(key) ? JSON.stringify(body[key]) : body[key]);
+			sets.push(`${key} = $${params.length}`);
+		}
+		if (sets.length === 0) {
+			return res.status(400).json({ error: 'No updatable fields provided' });
+		}
+		params.push(flow.id);
+		const result = await pool.query(
+			`UPDATE interview_flows SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${params.length} RETURNING *`,
+			params,
+		);
+		res.json({ success: true, flow: result.rows[0] });
+	} catch (err) {
+		console.error('[interview-flows] update error:', err.message);
+		res.status(500).json({ error: 'Failed to update interview flow' });
+	}
+});
+
+// DELETE /interview-flows/:id — archive (keeps history; nothing references flows yet).
+router.delete('/interview-flows/:id', authMiddleware, async (req, res) => {
+	try {
+		const flow = await loadFlow(req.params.id);
+		if (!flow) {
+			return res.status(404).json({ error: 'Flow not found' });
+		}
+		if (!canManageFlow(flow, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+		const result = await pool.query(
+			`UPDATE interview_flows SET status = 'archived', updated_at = NOW() WHERE id = $1 RETURNING *`,
+			[flow.id],
+		);
+		res.json({ success: true, flow: result.rows[0] });
+	} catch (err) {
+		console.error('[interview-flows] delete error:', err.message);
+		res.status(500).json({ error: 'Failed to archive interview flow' });
 	}
 });
 
