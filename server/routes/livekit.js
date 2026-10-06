@@ -334,7 +334,7 @@ router.post(
 					: { canPublish: true, canSubscribe: true, canPublishData: true },
 			});
 
-			res.json({ token, roomName: room.room_name });
+			res.json({ token, roomName: room.room_name, livekitUrl: process.env.LIVEKIT_URL });
 		} catch (err) {
 			console.error('[livekit-routes] Session token error:', err.message);
 			if (err.message.includes('not configured')) {
@@ -378,6 +378,35 @@ router.post(
 				return res.status(503).json({ error: 'LiveKit not configured' });
 			}
 			res.status(502).json({ error: 'Failed to dispatch voice agent' });
+		}
+	},
+);
+
+// ─── GET /api/livekit/session-rooms/:sessionId/transcript — Live conversation ─
+// Track A: the voice agent persists each turn to interview_sessions.conversation
+// (agents/voice-interviewer/worker.mjs). The candidate's session page polls
+// this endpoint while in voice mode to render live transcript lines.
+
+router.get(
+	'/session-rooms/:sessionId/transcript',
+	authMiddleware,
+	rateLimits.standard,
+	[param('sessionId').isInt({ min: 1 }).withMessage('Valid session ID required')],
+	handleValidationErrors,
+	async (req, res) => {
+		try {
+			const sessionId = parseInt(req.params.sessionId, 10);
+			const session = await loadSessionOr404(sessionId, res);
+			if (!session) return;
+
+			if (!canAccessSession(session, req.user)) {
+				return res.status(403).json({ error: 'Not authorized for this interview session' });
+			}
+
+			res.json({ success: true, conversation: session.conversation || [] });
+		} catch (err) {
+			console.error('[livekit-routes] Session transcript error:', err.message);
+			res.status(500).json({ error: 'Failed to load session transcript' });
 		}
 	},
 );

@@ -179,6 +179,9 @@ describe('POST /api/livekit/session-rooms/:sessionId/token', () => {
 		expect(res.status).toBe(200);
 		expect(res.body.token).toBe('mock-jwt-token');
 		expect(res.body.roomName).toBe('interview-10');
+		// The client needs the WebSocket URL to connect (matches the old
+		// /rooms/:id/token contract; Task 4's voice join consumes it).
+		expect(res.body.livekitUrl).toBe('wss://test.livekit.cloud');
 		expect(mockGenerateToken).toHaveBeenCalledWith(
 			expect.objectContaining({
 				roomName: 'interview-10',
@@ -443,5 +446,58 @@ describe('POST /api/livekit/session-rooms/:sessionId/dispatch', () => {
 			.send({});
 		expect(res.status).toBe(502);
 		expect(res.body.error).toMatch(/dispatch/i);
+	});
+});
+
+describe('GET /api/livekit/session-rooms/:sessionId/transcript', () => {
+	beforeEach(() => {
+		sessions.get(10).conversation = [
+			{
+				role: 'interviewer',
+				text: 'Tell me about yourself',
+				timestamp: '2026-10-06T00:00:00.000Z',
+			},
+			{
+				role: 'candidate',
+				text: 'I am a data analyst',
+				timestamp: '2026-10-06T00:01:00.000Z',
+			},
+		];
+	});
+
+	test('candidate of the session gets 200 + the live conversation', async () => {
+		const res = await request(app).get('/api/livekit/session-rooms/10/transcript').set(as(1));
+		expect(res.status).toBe(200);
+		expect(res.body.success).toBe(true);
+		expect(res.body.conversation).toHaveLength(2);
+		expect(res.body.conversation[0]).toMatchObject({
+			role: 'interviewer',
+			text: 'Tell me about yourself',
+		});
+		expect(res.body.conversation[1]).toMatchObject({
+			role: 'candidate',
+			text: 'I am a data analyst',
+		});
+	});
+
+	test('recruiter of the hiring company can read the transcript', async () => {
+		const res = await request(app).get('/api/livekit/session-rooms/10/transcript').set(as(2));
+		expect(res.status).toBe(200);
+		expect(res.body.conversation).toHaveLength(2);
+	});
+
+	test('cross-company recruiter gets 403', async () => {
+		const res = await request(app).get('/api/livekit/session-rooms/10/transcript').set(as(3));
+		expect(res.status).toBe(403);
+	});
+
+	test('unauthenticated request gets 401', async () => {
+		const res = await request(app).get('/api/livekit/session-rooms/10/transcript');
+		expect(res.status).toBe(401);
+	});
+
+	test('unknown session gets 404', async () => {
+		const res = await request(app).get('/api/livekit/session-rooms/999/transcript').set(as(1));
+		expect(res.status).toBe(404);
 	});
 });
