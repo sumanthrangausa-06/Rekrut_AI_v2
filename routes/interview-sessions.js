@@ -3,6 +3,8 @@
  *
  * Mounted at /api/interviews (after interviewRoutes in server.js):
  *   POST   /interview-sessions                 create a session (frozen engine config)
+ *   POST   /interview-sessions/trigger          recruiter triggers a personalized AI interview (Task 6)
+ *   GET    /interview-sessions/by-token/:token  resolve an invite token (anonymous, Task 8)
  *   POST   /interview-sessions/:id/start       idempotent start + AI intro turn
  *   POST   /interview-sessions/:id/respond     text or audio turn (per-turn persistence)
  *   POST   /interview-sessions/:id/complete    finalize + evaluation report
@@ -262,6 +264,55 @@ router.post('/interview-sessions/trigger', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('[interview-sessions] trigger error:', err.message);
 		res.status(500).json({ error: 'Failed to trigger AI interview' });
+	}
+});
+
+// GET /interview-sessions/by-token/:token — resolve an invite token to a session.
+// Task 8 (#322): closes the token→session gap. The auto-send/trigger
+// notifications carry the invite token and the candidate's join link uses it.
+//
+// Auth model (deliberate, mirrors the legacy /screening/session/:token
+// endpoints): ANONYMOUS. The token is a 256-bit unguessable capability, and
+// the join link must work before the candidate logs in. The response is a
+// REDACTED shape (no conversation, no full config) — just enough to render
+// the invite landing. Every mutation (start/respond/complete/tts/consent)
+// still requires auth + candidate ownership via canAccess.
+router.get('/interview-sessions/by-token/:token', async (req, res) => {
+	try {
+		const result = await pool.query(
+			`SELECT id, type, status, job_id, company_id, candidate_id, invite_token,
+			        config, created_at
+			   FROM interview_sessions WHERE invite_token = $1`,
+			[req.params.token],
+		);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Interview not found' });
+		}
+		const s = result.rows[0];
+		const job = s.config?.job || null;
+		res.json({
+			success: true,
+			session: {
+				id: s.id,
+				type: s.type,
+				status: s.status,
+				job_id: s.job_id,
+				company_id: s.company_id,
+				candidate_id: s.candidate_id,
+				invite_token: s.invite_token,
+				job: job
+					? {
+							title: job.title || null,
+							company_name: job.company_name || null,
+							description: job.description || null,
+						}
+					: null,
+				created_at: s.created_at,
+			},
+		});
+	} catch (err) {
+		console.error('[interview-sessions] by-token error:', err.message);
+		res.status(500).json({ error: 'Failed to resolve interview' });
 	}
 });
 

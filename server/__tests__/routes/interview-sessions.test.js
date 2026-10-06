@@ -831,3 +831,32 @@ describe('POST /api/interviews/interview-sessions/trigger', () => {
 		expect(res.status).toBe(400);
 	});
 });
+
+describe('GET /api/interviews/interview-sessions/by-token/:token (Task 8)', () => {
+	it('resolves a session by invite token without auth', async () => {
+		const app = buildApp();
+		const created = await createSession(app);
+		const token = created.body.session.invite_token;
+		expect(token).toMatch(/^[a-f0-9]{64}$/);
+
+		// No x-test-user-id header — the join link must work pre-login.
+		const res = await request(app).get(`/api/interviews/interview-sessions/by-token/${token}`);
+
+		expect(res.status).toBe(200);
+		expect(res.body.success).toBe(true);
+		expect(res.body.session.id).toBe(created.body.session.id);
+		expect(res.body.session.type).toBe('screening');
+		// Redacted shape: no conversation, no full config for anonymous callers.
+		expect(res.body.session.conversation).toBeUndefined();
+		expect(res.body.session.job.title).toBeDefined();
+	});
+
+	it('404s on an unknown token', async () => {
+		const app = buildApp();
+		const res = await request(app).get(
+			'/api/interviews/interview-sessions/by-token/does-not-exist',
+		);
+
+		expect(res.status).toBe(404);
+	});
+});
