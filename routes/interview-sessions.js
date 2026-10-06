@@ -22,6 +22,7 @@ const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { conductTurn } = require('../services/conversation-engine');
 const { generateScreeningReport } = require('../services/interview-ai');
+const { notifyUser } = require('../lib/notify');
 const livekitService = require('../server/services/livekit');
 const aiProvider = require('../lib/ai-provider');
 const { textToSpeech } = require('../lib/polsia-ai');
@@ -99,6 +100,163 @@ router.post('/interview-sessions', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('[interview-sessions] create error:', err.message);
 		res.status(500).json({ error: 'Failed to create interview session' });
+	}
+});
+
+// Hiring-side roles that may trigger an AI interview (matches lib/auth recruiterRoles).
+const TRIGGER_ROLES = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+
+// Flatten a parsed_resumes.parsed_data JSONB blob into interview-usable text.
+// Kept small and defensive: the shape varies by parser version.
+function flattenResumeText(parsed) {
+	if (!parsed || typeof parsed !== 'object') return '';
+	const parts = [];
+	if (parsed.headline) parts.push(String(parsed.headline));
+	if (parsed.bio) parts.push(String(parsed.bio));
+	if (parsed.years_experience) parts.push(`${parsed.years_experience} years of experience`);
+	if (Array.isArray(parsed.skills) && parsed.skills.length) {
+		parts.push(`Skills: ${parsed.skills.join(', ')}`);
+	}
+	if (Array.isArray(parsed.experience)) {
+		for (const e of parsed.experience.slice(0, 8)) {
+			const line = [e.title || e.role || '', e.company || ''].filter(Boolean).join(' at ');
+			const desc = Array.isArray(e.bullets) ? e.bullets.join(' ') : e.description || '';
+			parts.push([line, desc].filter(Boolean).join(' — '));
+		}
+	}
+	if (Array.isArray(parsed.education)) {
+		for (const e of parsed.education.slice(0, 4)) {
+			parts.push([e.degree, e.school].filter(Boolean).join(', '));
+		}
+	}
+	return parts.filter(Boolean).join('\n').slice(0, 4000);
+}
+
+// POST /interview-sessions/trigger — recruiter triggers a personalized AI interview
+// for one application. Freezes the JD + resume snapshot + role-grounded base
+// questions into the engine config (Task 2 contract: question_source='personalized',
+// base_questions/current_question_index/target_role/options).
+router.post('/interview-sessions/trigger', authMiddleware, async (req, res) => {
+	try {
+		if (!TRIGGER_ROLES.includes(req.user.role)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+		const { application_id } = req.body || {};
+		if (!application_id) {
+			return res.status(400).json({ error: 'application_id is required' });
+		}
+
+		const appResult = await pool.query('SELECT * FROM job_applications WHERE id = $1', [
+			application_id,
+		]);
+		if (appResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Application not found' });
+		}
+		const application = appResult.rows[0];
+
+		const jobResult = await pool.query('SELECT * FROM jobs WHERE id = $1', [application.job_id]);
+		if (jobResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Job not found' });
+		}
+		const job = jobResult.rows[0];
+
+		// The recruiter must own the job's company; admins bypass.
+		if (req.user.role !== 'admin' && Number(job.company_id) !== Number(req.user.company_id)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+
+		// Idempotency: one AI interview per application.
+		const existing = await pool.query(
+			`SELECT * FROM interview_sessions WHERE application_id = $1 AND type = 'ai_interview' LIMIT 1`,
+			[application.id],
+		);
+		if (existing.rows.length > 0) {
+			return res
+				.status(200)
+				.json({ success: true, session: existing.rows[0], already_triggered: true });
+		}
+
+		// Latest parsed resume for the candidate (may not exist — JD-grounded only then).
+		const resumeResult = await pool.query(
+			`SELECT id, original_filename, parsed_data FROM parsed_resumes
+			  WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+			[application.candidate_id],
+		);
+		const resumeRow = resumeResult.rows[0] || null;
+
+		// Role-grounded base questions from the bank (cheap freeze; the engine
+		// personalizes at turn time). An empty bank is fine — the engine then
+		// converses from the frozen JD + resume.
+		const bankResult = await pool.query(
+			`SELECT id, question_text, question_type, difficulty, key_points
+			   FROM question_bank WHERE LOWER(role) = LOWER($1) ORDER BY RANDOM() LIMIT 10`,
+			[job.title],
+		);
+
+		const config = {
+			question_source: 'personalized',
+			job: {
+				id: job.id,
+				title: job.title,
+				company_name: job.company_name || job.company || null,
+				description: job.description || null,
+			},
+			resume: resumeRow
+				? {
+						filename: resumeRow.original_filename || null,
+						text: flattenResumeText(resumeRow.parsed_data),
+					}
+				: null,
+			target_role: job.title,
+			base_questions: bankResult.rows.map((q) => ({
+				id: q.id,
+				question_text: q.question_text,
+				question_type: q.question_type,
+				difficulty: q.difficulty,
+				key_points: q.key_points || [],
+			})),
+			current_question_index: 0,
+			options: {},
+		};
+
+		const token = crypto.randomBytes(32).toString('hex');
+		const result = await pool.query(
+			`INSERT INTO interview_sessions
+			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+			 RETURNING *`,
+			[
+				'ai_interview',
+				job.id,
+				application.id,
+				application.candidate_id,
+				job.company_id,
+				req.user.id,
+				token,
+				JSON.stringify(config),
+				JSON.stringify([]),
+			],
+		);
+		const session = result.rows[0];
+
+		// Non-blocking: notifyUser never throws.
+		await notifyUser(
+			application.candidate_id,
+			'ai_interview_invited',
+			`AI interview invited: ${job.title}`,
+			`${job.company_name || 'The hiring team'} invited you to a personalized AI interview for the ${job.title} role.`,
+			{
+				session_id: session.id,
+				application_id: application.id,
+				job_id: job.id,
+				invite_token: token,
+			},
+		);
+
+		res.status(201).json({ success: true, session });
+	} catch (err) {
+		console.error('[interview-sessions] trigger error:', err.message);
+		res.status(500).json({ error: 'Failed to trigger AI interview' });
 	}
 });
 

@@ -58,6 +58,11 @@ jest.mock('../../../lib/polsia-ai', () => ({
 	textToSpeech: (...args) => mockTextToSpeech(...args),
 }));
 
+const mockNotifyUser = jest.fn();
+jest.mock('../../../lib/notify', () => ({
+	notifyUser: (...args) => mockNotifyUser(...args),
+}));
+
 // ─── In-memory interview-domain store (extends the global mocked lib/db) ────
 const db = require('../../../lib/db');
 const baseQueryImpl = db.query.getMockImplementation();
@@ -66,6 +71,11 @@ const sessions = new Map();
 let nextSessionId = 1;
 const scheduledInterviews = [];
 const interviewEvents = [];
+// Trigger fixtures (Task 6): jobs, applications, resumes, question bank.
+const jobs = new Map();
+const applications = new Map();
+const resumes = new Map(); // user_id -> latest parsed_resumes row
+const questionBank = [];
 // Conversation lengths seen by the (mocked) engine at call time, per test.
 const engineSeenLengths = [];
 // Ordered DB/engine events for the crash-resume test: 'update' (each UPDATE
@@ -130,6 +140,12 @@ function handleSessionSql(normalized, params) {
 		const rows = [...sessions.values()].filter((s) => Number(s.job_id) === Number(params[0]));
 		return { rows: rows.map(toRow), rowCount: rows.length };
 	}
+	if (normalized.includes('from interview_sessions where application_id =')) {
+		const rows = [...sessions.values()].filter(
+			(s) => Number(s.application_id) === Number(params[0]),
+		);
+		return { rows: rows.map(toRow), rowCount: rows.length };
+	}
 	if (normalized.startsWith('update interview_sessions set')) {
 		const setPart = normalized.split(/\bset\b/)[1].split(/\bwhere\b/)[0];
 		const id = Number(params[params.length - 1]);
@@ -177,6 +193,23 @@ db.query.mockImplementation(async (sql, params) => {
 		const rows = interviewEvents.filter((r) => Number(r[key]) === Number((params || [])[0]));
 		return { rows, rowCount: rows.length };
 	}
+	if (normalized.includes('from jobs where id =')) {
+		const row = jobs.get(Number((params || [])[0]));
+		return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+	}
+	if (normalized.includes('from job_applications where id =')) {
+		const row = applications.get(Number((params || [])[0]));
+		return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+	}
+	if (normalized.includes('from parsed_resumes')) {
+		const row = resumes.get(Number((params || [])[0]));
+		return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+	}
+	if (normalized.includes('from question_bank')) {
+		const role = String((params || [])[0] || '').toLowerCase();
+		const rows = questionBank.filter((q) => String(q.role).toLowerCase() === role).slice(0, 10);
+		return { rows, rowCount: rows.length };
+	}
 	return baseQueryImpl(sql, params);
 });
 
@@ -191,7 +224,7 @@ function buildApp() {
 }
 
 const CANDIDATE = { id: 1, email: 'cand@test.com', role: 'candidate' };
-const RECRUiter = { id: 2, email: 'rec@test.com', role: 'recruiter' };
+const RECRUiter = { id: 2, email: 'rec@test.com', role: 'recruiter', company_id: 5 };
 
 function screeningConfig() {
 	return {
@@ -223,6 +256,11 @@ beforeEach(() => {
 	nextSessionId = 1;
 	scheduledInterviews.length = 0;
 	interviewEvents.length = 0;
+	jobs.clear();
+	applications.clear();
+	resumes.clear();
+	questionBank.length = 0;
+	mockNotifyUser.mockReset();
 	global.__testUsers = { 1: CANDIDATE, 2: RECRUiter };
 	mockConductTurn.mockReset();
 	mockGenerateReport.mockReset();
@@ -639,5 +677,157 @@ describe('POST /api/interviews/interview-sessions/:id/tts', () => {
 
 		expect(res.status).toBe(200);
 		expect(res.body.tts_unavailable).toBe(true);
+	});
+});
+
+describe('POST /api/interviews/interview-sessions/trigger', () => {
+	// ─── Trigger fixtures (Task 6) ──────────────────────────────────────────
+	function seedTriggerFixtures(overrides = {}) {
+		jobs.set(10, {
+			id: 10,
+			title: 'Backend Engineer',
+			description: 'Build Node.js APIs at scale.',
+			company_id: 5,
+			company_name: 'Acme',
+			...(overrides.job || {}),
+		});
+		applications.set(20, {
+			id: 20,
+			candidate_id: 1,
+			job_id: 10,
+			company_id: 5,
+			...(overrides.application || {}),
+		});
+		if (!overrides.skipResume) {
+			resumes.set(1, {
+				id: 7,
+				user_id: 1,
+				original_filename: 'resume.pdf',
+				parsed_data: {
+					headline: 'Senior Backend Engineer',
+					bio: '8 years building data platforms.',
+					years_experience: 8,
+					skills: ['Node.js', 'PostgreSQL'],
+					...(overrides.resumeParsed || {}),
+				},
+			});
+		}
+		questionBank.push(
+			{
+				id: 101,
+				role: 'Backend Engineer',
+				question_text: 'Explain the Node.js event loop.',
+				question_type: 'technical',
+				difficulty: 'medium',
+				key_points: ['libuv', 'non-blocking I/O'],
+			},
+			{
+				id: 102,
+				role: 'Backend Engineer',
+				question_text: 'Tell me about a production incident you handled.',
+				question_type: 'behavioral',
+				difficulty: 'medium',
+				key_points: ['ownership', 'postmortem'],
+			},
+		);
+	}
+
+	beforeEach(() => {
+		seedTriggerFixtures();
+	});
+
+	function trigger(app, userId, body) {
+		return request(app)
+			.post('/api/interviews/interview-sessions/trigger')
+			.set('x-test-user-id', String(userId))
+			.send(body || { application_id: 20 });
+	}
+
+	it('creates an invited ai_interview session with JD + resume frozen in config', async () => {
+		const app = buildApp();
+		const res = await trigger(app, 2);
+
+		expect(res.status).toBe(201);
+		const session = res.body.session;
+		expect(session.type).toBe('ai_interview');
+		expect(session.status).toBe('invited');
+		expect(session.job_id).toBe(10);
+		expect(session.application_id).toBe(20);
+		expect(session.candidate_id).toBe(1);
+		expect(session.company_id).toBe(5);
+		expect(session.triggered_by).toBe(2);
+		expect(session.invite_token).toMatch(/^[a-f0-9]{64}$/);
+
+		const config = session.config;
+		expect(config.question_source).toBe('personalized');
+		expect(config.job.title).toBe('Backend Engineer');
+		expect(config.job.description).toBe('Build Node.js APIs at scale.');
+		expect(config.resume.text).toMatch(/Senior Backend Engineer/);
+		expect(config.resume.text).toMatch(/Node\.js/);
+		expect(config.target_role).toBe('Backend Engineer');
+		expect(config.current_question_index).toBe(0);
+		expect(config.base_questions).toHaveLength(2);
+		expect(config.base_questions[0].question_text).toBe('Explain the Node.js event loop.');
+
+		expect(mockNotifyUser).toHaveBeenCalledTimes(1);
+		const [userId, type, , , metadata] = mockNotifyUser.mock.calls[0];
+		expect(userId).toBe(1);
+		expect(type).toBe('ai_interview_invited');
+		expect(metadata.invite_token).toBe(session.invite_token);
+		expect(metadata.session_id).toBe(session.id);
+	});
+
+	it('works without a resume on file (JD-grounded only)', async () => {
+		resumes.clear();
+		const app = buildApp();
+		const res = await trigger(app, 2);
+
+		expect(res.status).toBe(201);
+		expect(res.body.session.config.question_source).toBe('personalized');
+		expect(res.body.session.config.resume).toBeNull();
+		expect(res.body.session.config.job.description).toBe('Build Node.js APIs at scale.');
+	});
+
+	it('returns the existing session when triggered twice for the same application', async () => {
+		const app = buildApp();
+		const first = await trigger(app, 2);
+		const second = await trigger(app, 2);
+
+		expect(first.status).toBe(201);
+		expect(second.status).toBe(200);
+		expect(second.body.session.id).toBe(first.body.session.id);
+		expect(second.body.already_triggered).toBe(true);
+		// Notification fires once — the re-trigger is a no-op lookup.
+		expect(mockNotifyUser).toHaveBeenCalledTimes(1);
+	});
+
+	it('rejects recruiters who do not own the job company', async () => {
+		global.__testUsers[3] = { id: 3, email: 'other@test.com', role: 'recruiter', company_id: 9 };
+		const app = buildApp();
+		const res = await trigger(app, 3);
+
+		expect(res.status).toBe(403);
+		expect(mockNotifyUser).not.toHaveBeenCalled();
+	});
+
+	it('rejects candidates', async () => {
+		const app = buildApp();
+		const res = await trigger(app, 1);
+
+		expect(res.status).toBe(403);
+	});
+
+	it('404s on missing application', async () => {
+		const app = buildApp();
+		const res = await trigger(app, 2, { application_id: 999 });
+
+		expect(res.status).toBe(404);
+	});
+
+	it('400s without an application_id', async () => {
+		const app = buildApp();
+		const res = await trigger(app, 2, {});
+
+		expect(res.status).toBe(400);
 	});
 });
