@@ -283,14 +283,26 @@ export function RecruiterJobFormPage() {
 			setAutoSendMinScore(job.auto_send_min_score ?? 70);
 			// Load existing screening topics from the job's template (#307)
 			try {
-				const tplData = await apiCall<{ templates: { topics?: string[] | string }[] }>(
-					`/interviews/screening/templates?job_id=${id}`,
-				);
+				const tplData = await apiCall<{
+					templates: {
+						topics?: string[] | string;
+						questions?: string | string[] | { question_text?: string }[];
+					}[];
+				}>(`/interviews/screening/templates?job_id=${id}`);
 				const tpl = tplData.templates?.[0];
 				if (tpl?.topics) {
 					const topics =
 						typeof tpl.topics === 'string' ? JSON.parse(tpl.topics) : tpl.topics;
 					if (Array.isArray(topics)) setScreeningTopics(topics.filter((t) => typeof t === 'string'));
+				}
+				// Fallback: seed the flow editor's questions from the legacy template's
+				// AI-generated questions (#322 Task 10). Pure fallback — the flow load
+				// below overrides when a flow row exists.
+				if (tpl?.questions) {
+					const tplQuestions = parseJsonArray<string | { question_text?: string }>(tpl.questions)
+						.map((q) => (typeof q === 'string' ? q : q?.question_text || ''))
+						.filter((q) => q.length > 0);
+					if (tplQuestions.length > 0) setFlowQuestions(tplQuestions);
 				}
 			} catch {
 				// Non-blocking: topics stay empty if template fetch fails
@@ -367,7 +379,7 @@ export function RecruiterJobFormPage() {
 					};
 				}>(`/questionnaire/${id}`);
 				if (qData.questionnaire) {
-					setPassThreshold(qData.questionnaire.pass_threshold || 70);
+					setPassThreshold(qData.questionnaire.pass_threshold ?? 70);
 					// Merge with existing screening questions if any
 					if (qData.questionnaire.questions?.length > 0) {
 						const mapped = qData.questionnaire.questions.map((q) => ({

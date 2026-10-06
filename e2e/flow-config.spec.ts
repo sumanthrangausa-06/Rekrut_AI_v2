@@ -174,3 +174,68 @@ test.describe('Recruiter interview flow config', () => {
 		expect(body).not.toHaveProperty('auto_send_min_score');
 	});
 });
+
+test.describe('Legacy template question fallback', () => {
+	test.beforeEach(async ({ page }) => {
+		await page.addInitScript(() => {
+			localStorage.setItem('token', 'test-jwt');
+		});
+
+		// Catch-all for anything the layout bootstraps that we don't care about.
+		await page.route('**/api/**', (route) =>
+			route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
+		);
+		await page.route('**/api/auth/me', (route) =>
+			route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					user: { id: 2, email: 'recruiter@test.com', name: 'Test Recruiter', role: 'recruiter', company_id: 5 },
+				}),
+			}),
+		);
+		await page.route('**/api/jobs/10', (route) =>
+			route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ job }) }),
+		);
+		await page.route('**/api/countries', (route) =>
+			route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({ countries: [] }),
+			}),
+		);
+		// Legacy template with AI-generated questions and EMPTY topics; no flow row.
+		await page.route('**/api/interviews/screening/templates*', (route) =>
+			route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					templates: [
+						{
+							id: 5,
+							topics: [],
+							questions: ['What is a closure?', { question_text: 'Explain the event loop.' }],
+						},
+					],
+				}),
+			}),
+		);
+		await page.route('**/api/interviews/interview-flows*', (route) =>
+			route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({ flows: [] }),
+			}),
+		);
+	});
+
+	test('legacy template questions seed the flow editor when no flow row exists', async ({ page }) => {
+		await page.goto('/recruiter/jobs/10/edit');
+		// Step 1 → step 2 (job title is prefilled from the mocked job)
+		await page.getByRole('button', { name: 'Next' }).click();
+		await expect(page.getByText('Interview Flow')).toBeVisible();
+		// Both legacy question shapes (string + {question_text}) seed the editor
+		await expect(page.getByText('What is a closure?', { exact: true })).toBeVisible();
+		await expect(page.getByText('Explain the event loop.', { exact: true })).toBeVisible();
+	});
+});

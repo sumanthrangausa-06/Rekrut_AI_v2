@@ -1611,7 +1611,7 @@ export function RecruiterJobApplicantsPage() {
 													type="number"
 													min={0}
 													max={100}
-													value={automationRules?.advance_match_min || 70}
+													value={automationRules?.advance_match_min ?? 70}
 													onChange={(e) =>
 														setAutomationRules((r: any) => ({
 															...r,
