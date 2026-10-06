@@ -2561,13 +2561,32 @@ async function submitApplication({
 					[application.id],
 				);
 				if (existing.rows.length === 0) {
-					// Find active template for this job
-					const templateResult = await pool.query(
-						`SELECT * FROM screening_templates WHERE job_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+					// Find the active screening config for this job — prefer the job's
+					// interview flow (Task 10 cutover), fall back to screening_templates
+					// during the transition.
+					let template = null;
+					const flowResult = await pool.query(
+						`SELECT * FROM interview_flows WHERE job_id = $1 AND type = 'screening' AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
 						[jobId],
 					);
-					if (templateResult.rows.length > 0) {
-						const template = templateResult.rows[0];
+					if (flowResult.rows.length > 0) {
+						const flow = flowResult.rows[0];
+						template = {
+							id: flow.id,
+							title: flow.name,
+							topics: Array.isArray(flow.topics) ? flow.topics : [],
+							questions: Array.isArray(flow.questions) ? flow.questions : [],
+						};
+					} else {
+						const templateResult = await pool.query(
+							`SELECT * FROM screening_templates WHERE job_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+							[jobId],
+						);
+						if (templateResult.rows.length > 0) {
+							template = templateResult.rows[0];
+						}
+					}
+					if (template) {
 						const crypto = require('node:crypto');
 						const inviteToken = crypto.randomBytes(32).toString('hex');
 

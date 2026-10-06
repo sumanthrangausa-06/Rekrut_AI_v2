@@ -74,6 +74,7 @@ const store = {
 	jobs: new Map(),
 	applications: [],
 	templates: [],
+	flows: [], // interview_flows rows (Task 10 cutover)
 	sessions: [], // interview_sessions rows
 	legacySessions: [], // screening_sessions rows (old code path)
 	notifications: [],
@@ -85,6 +86,7 @@ function resetStore() {
 	store.jobs.clear();
 	store.applications.length = 0;
 	store.templates.length = 0;
+	store.flows.length = 0;
 	store.sessions.length = 0;
 	store.legacySessions.length = 0;
 	store.notifications.length = 0;
@@ -176,10 +178,22 @@ function installDbMock() {
 			);
 			return { rows: rows.map((r) => ({ id: r.id })), rowCount: rows.length };
 		}
-		// Active template lookup
+		// Active template lookup (legacy fallback)
 		if (normalized.includes('from screening_templates where job_id =')) {
 			const rows = store.templates
 				.filter((t) => Number(t.job_id) === Number(params[0]) && t.status === 'active')
+				.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+			return { rows: rows.slice(0, 1).map((r) => ({ ...r })), rowCount: Math.min(rows.length, 1) };
+		}
+		// Active interview flow lookup (Task 10 cutover — preferred over screening_templates)
+		if (normalized.includes('from interview_flows where job_id =')) {
+			const rows = store.flows
+				.filter(
+					(f) =>
+						Number(f.job_id) === Number(params[0]) &&
+						f.type === 'screening' &&
+						f.status === 'active',
+				)
 				.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 			return { rows: rows.slice(0, 1).map((r) => ({ ...r })), rowCount: Math.min(rows.length, 1) };
 		}
@@ -252,6 +266,23 @@ function seedTemplate(overrides = {}) {
 	};
 	store.templates.push(template);
 	return template;
+}
+
+function seedFlow(overrides = {}) {
+	const flow = {
+		id: 9,
+		job_id: 10,
+		company_id: 7,
+		status: 'active',
+		type: 'screening',
+		name: 'Flow screening',
+		topics: ['flow-topic-a', 'flow-topic-b'],
+		questions: [{ question_text: 'Flow question?' }],
+		created_at: new Date().toISOString(),
+		...overrides,
+	};
+	store.flows.push(flow);
+	return flow;
 }
 
 function buildApp() {
@@ -363,5 +394,42 @@ describe('POST /api/candidate/jobs/:jobId/apply — auto-send screening', () => 
 		expect(res.status).toBe(200);
 		expect(store.sessions).toHaveLength(0);
 		expect(store.legacySessions).toHaveLength(0);
+	});
+
+	it("prefers the job's interview flow over the legacy screening template (Task 10 cutover)", async () => {
+		seedJob({ auto_send_min_score: 0 });
+		seedTemplate({ topics: ['legacy-topic'] });
+		seedFlow();
+		mockCalculateMatch.mockReturnValue({ match_score: 80 });
+
+		const res = await request(buildApp())
+			.post('/api/candidate/jobs/10/apply')
+			.set('x-test-user-id', '1')
+			.send({});
+
+		expect(res.status).toBe(200);
+		expect(store.sessions).toHaveLength(1);
+		const session = store.sessions[0];
+		expect(session.config.question_source).toBe('template');
+		expect(session.config.template.id).toBe(9);
+		expect(session.config.template.title).toBe('Flow screening');
+		expect(session.config.template.topics).toEqual(['flow-topic-a', 'flow-topic-b']);
+		expect(session.config.template.questions).toEqual([{ question_text: 'Flow question?' }]);
+	});
+
+	it('falls back to the legacy screening template when no interview flow exists', async () => {
+		seedJob({ auto_send_min_score: 0 });
+		seedTemplate();
+		mockCalculateMatch.mockReturnValue({ match_score: 80 });
+
+		const res = await request(buildApp())
+			.post('/api/candidate/jobs/10/apply')
+			.set('x-test-user-id', '1')
+			.send({});
+
+		expect(res.status).toBe(200);
+		expect(store.sessions).toHaveLength(1);
+		expect(store.sessions[0].config.template.id).toBe(5);
+		expect(store.sessions[0].config.template.topics).toEqual(['experience', 'motivation']);
 	});
 });
