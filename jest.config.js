@@ -1,7 +1,7 @@
 module.exports = {
   testEnvironment: 'node',
   setupFilesAfterEnv: ['<rootDir>/server/test/setup.js'],
-  testMatch: ['<rootDir>/server/__tests__/**/*.test.js', '<rootDir>/tests/**/*.test.js'],
+  testMatch: ['<rootDir>/server/__tests__/**/*.test.js', '<rootDir>/tests/**/*.test.js', '<rootDir>/agents/**/*.test.js'],
   collectCoverageFrom: [
     'server/routes/**/*.js',
     'server/services/**/*.js',
