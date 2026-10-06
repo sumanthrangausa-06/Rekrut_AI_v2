@@ -39,26 +39,56 @@ const mockGenerateToken = jest.fn(async () => 'mock-jwt-token');
 const mockCreateRoom = jest.fn(async (roomName) => ({ name: roomName, sid: 'RM_mock' }));
 jest.mock('../../services/livekit', () => {
 	const actual = jest.requireActual('../../services/livekit');
+	const findOrCreateSessionRoom = async (sessionId) => {
+		const existing = await actual.findActiveRoomBySessionId(sessionId);
+		if (existing) return existing;
+		const roomName = `interview-${sessionId}`;
+		const livekitRoom = await mockCreateRoom(roomName, {
+			emptyTimeout: 600,
+			maxParticipants: 10,
+		});
+		return actual.createSessionRoomRecord({
+			sessionId,
+			roomName: livekitRoom.name,
+			livekitRoomId: livekitRoom.sid,
+		});
+	};
 	return {
 		...actual,
 		generateToken: (...args) => mockGenerateToken(...args),
 		createRoom: (...args) => mockCreateRoom(...args),
-		findOrCreateSessionRoom: async (sessionId) => {
-			const existing = await actual.findActiveRoomBySessionId(sessionId);
-			if (existing) return existing;
-			const roomName = `interview-${sessionId}`;
-			const livekitRoom = await mockCreateRoom(roomName, {
-				emptyTimeout: 600,
-				maxParticipants: 10,
-			});
-			return actual.createSessionRoomRecord({
-				sessionId,
-				roomName: livekitRoom.name,
-				livekitRoomId: livekitRoom.sid,
-			});
+		findOrCreateSessionRoom,
+		// Real dispatchVoiceAgent closes over the real (network) createRoom, so
+		// the route tests drive the real SDK-only dispatchAgentToRoom behind the
+		// same stubbed room lookup the Task 1 tests use.
+		dispatchVoiceAgent: async (sessionId, mode = 'interviewer') => {
+			const room = await findOrCreateSessionRoom(sessionId);
+			return actual.dispatchAgentToRoom(room, sessionId, mode);
 		},
 	};
 });
+
+// ─── LiveKit Agent Dispatch SDK boundary ────────────────────────────────────
+// dispatchVoiceAgent builds an AgentDispatchClient from livekit-server-sdk;
+// the constructor is stubbed so no network happens in jest. listDispatch /
+// createDispatch are per-test configured below.
+const mockAgentDispatchClient = {
+	listDispatch: jest.fn(),
+	createDispatch: jest.fn(),
+};
+jest.mock('livekit-server-sdk', () => {
+	const actual = jest.requireActual('livekit-server-sdk');
+	return {
+		...actual,
+		AgentDispatchClient: jest.fn(() => mockAgentDispatchClient),
+	};
+});
+
+// Hermetic LiveKit config for the dispatch tests (SDK is mocked; these values
+// never leave the process).
+process.env.LIVEKIT_API_KEY = 'test-key';
+process.env.LIVEKIT_API_SECRET = 'test-secret';
+process.env.LIVEKIT_URL = 'wss://test.livekit.cloud';
 
 // ─── In-memory stores (extends the global mocked lib/db) ────────────────────
 const db = require('../../../lib/db');
@@ -229,5 +259,150 @@ describe('POST /api/livekit/session-rooms', () => {
 			.send({ session_id: 10 });
 		expect(res.status).toBe(200);
 		expect(res.body.room.room_name).toBe('interview-10');
+	});
+});
+
+describe('POST /api/livekit/session-rooms/:sessionId/dispatch', () => {
+	beforeEach(() => {
+		mockAgentDispatchClient.listDispatch.mockReset().mockResolvedValue([]);
+		mockAgentDispatchClient.createDispatch
+			.mockReset()
+			.mockImplementation(async (roomName, agentName, options) => ({
+				id: 'D_mock1',
+				agentName,
+				room: roomName,
+				metadata: options?.metadata || '',
+			}));
+	});
+
+	const existingDispatch = (mode) => ({
+		id: 'D_existing',
+		agentName: 'rekrut-interviewer',
+		room: 'interview-10',
+		metadata: JSON.stringify({ interview_session_id: 10, mode }),
+		state: {},
+	});
+
+	test('recruiter dispatch returns 200 + dispatched:true and targets the session room', async () => {
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({});
+		expect(res.status).toBe(200);
+		expect(res.body.success).toBe(true);
+		expect(res.body.dispatched).toBe(true);
+		expect(res.body.dispatch_id).toBe('D_mock1');
+		expect(res.body.room.room_name).toBe('interview-10');
+		expect(mockAgentDispatchClient.createDispatch).toHaveBeenCalledTimes(1);
+		expect(mockAgentDispatchClient.createDispatch).toHaveBeenCalledWith(
+			'interview-10',
+			'rekrut-interviewer',
+			expect.objectContaining({
+				metadata: JSON.stringify({ interview_session_id: 10, mode: 'interviewer' }),
+			}),
+		);
+	});
+
+	test('second dispatch with the same mode returns already_dispatched:true without a new dispatch', async () => {
+		mockAgentDispatchClient.listDispatch.mockResolvedValue([existingDispatch('interviewer')]);
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({});
+		expect(res.status).toBe(200);
+		expect(res.body.success).toBe(true);
+		expect(res.body.already_dispatched).toBe(true);
+		expect(res.body.dispatched).toBeUndefined();
+		expect(mockAgentDispatchClient.createDispatch).not.toHaveBeenCalled();
+	});
+
+	test('observer mode passes mode through to dispatch metadata', async () => {
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({ mode: 'observer' });
+		expect(res.status).toBe(200);
+		expect(res.body.dispatched).toBe(true);
+		expect(mockAgentDispatchClient.createDispatch).toHaveBeenCalledWith(
+			'interview-10',
+			'rekrut-interviewer',
+			expect.objectContaining({
+				metadata: JSON.stringify({ interview_session_id: 10, mode: 'observer' }),
+			}),
+		);
+	});
+
+	test('a different mode is not treated as already dispatched', async () => {
+		mockAgentDispatchClient.listDispatch.mockResolvedValue([existingDispatch('interviewer')]);
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({ mode: 'observer' });
+		expect(res.status).toBe(200);
+		expect(res.body.dispatched).toBe(true);
+		expect(mockAgentDispatchClient.createDispatch).toHaveBeenCalledTimes(1);
+	});
+
+	test('a deleted dispatch is not treated as already dispatched', async () => {
+		mockAgentDispatchClient.listDispatch.mockResolvedValue([
+			{ ...existingDispatch('interviewer'), state: { deletedAt: '1700000000' } },
+		]);
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({});
+		expect(res.status).toBe(200);
+		expect(res.body.dispatched).toBe(true);
+		expect(mockAgentDispatchClient.createDispatch).toHaveBeenCalledTimes(1);
+	});
+
+	test('candidate gets 403 (hiring team only)', async () => {
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(1))
+			.send({});
+		expect(res.status).toBe(403);
+		expect(mockAgentDispatchClient.createDispatch).not.toHaveBeenCalled();
+	});
+
+	test('cross-company recruiter gets 403', async () => {
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(3))
+			.send({});
+		expect(res.status).toBe(403);
+		expect(mockAgentDispatchClient.createDispatch).not.toHaveBeenCalled();
+	});
+
+	test('unauthenticated request gets 401', async () => {
+		const res = await request(app).post('/api/livekit/session-rooms/10/dispatch').send({});
+		expect(res.status).toBe(401);
+	});
+
+	test('unknown session gets 404', async () => {
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/999/dispatch')
+			.set(as(2))
+			.send({});
+		expect(res.status).toBe(404);
+	});
+
+	test('invalid mode gets 400', async () => {
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({ mode: 'teleport' });
+		expect(res.status).toBe(400);
+		expect(mockAgentDispatchClient.createDispatch).not.toHaveBeenCalled();
+	});
+
+	test('LiveKit API failure returns 502 with a clear error (no crash)', async () => {
+		mockAgentDispatchClient.listDispatch.mockRejectedValue(new Error('connection refused'));
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({});
+		expect(res.status).toBe(502);
+		expect(res.body.error).toMatch(/dispatch/i);
 	});
 });

@@ -240,6 +240,92 @@ async function findRoomById(roomId) {
 	return result.rows[0] || null;
 }
 
+// ─── Voice Agent Dispatch (Issue #323) ───────────────────────────────────────
+// The voice agent worker itself is Task 3. This only dispatches a registered
+// agent to the session's room via the LiveKit Cloud Agent Dispatch API,
+// passing { interview_session_id, mode } as dispatch metadata. Idempotent per
+// session+mode: LiveKit is the source of truth (listDispatch), so a dispatch
+// deleted server-side is not treated as still active.
+
+const DISPATCH_MODES = ['interviewer', 'observer'];
+
+/**
+ * The registered LiveKit agent name to dispatch. Task 3's agent worker must
+ * register under this name (override via LIVEKIT_AGENT_NAME if it differs).
+ * @returns {string}
+ */
+function getVoiceAgentName() {
+	return process.env.LIVEKIT_AGENT_NAME || 'rekrut-interviewer';
+}
+
+function _getAgentDispatchClient() {
+	const { AgentDispatchClient } = require('livekit-server-sdk');
+	const { apiKey, apiSecret, livekitUrl } = getConfig();
+	// AgentDispatchClient expects the LiveKit host URL (ws:// or wss://) stripped to http/s
+	const httpUrl = livekitUrl.replace(/^wss?:\/\//, 'https://').replace(/\/$/, '');
+	return new AgentDispatchClient(httpUrl, apiKey, apiSecret);
+}
+
+/**
+ * True when a LiveKit dispatch record is one of ours (matching mode metadata)
+ * and has not been deleted. Unparseable metadata is never ours.
+ * @param {Object} dispatch - livekit AgentDispatch
+ * @param {string} mode - 'interviewer' | 'observer'
+ * @returns {boolean}
+ */
+function _isActiveDispatchForMode(dispatch, mode) {
+	if (!dispatch) return false;
+	const deletedAt = dispatch.state?.deletedAt;
+	if (deletedAt != null && Number(deletedAt) > 0) return false;
+	try {
+		const meta = JSON.parse(dispatch.metadata || '{}');
+		return meta.mode === mode;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Dispatch the voice agent to an already-provisioned session room. Narrow
+ * SDK-only unit: given the room row, it checks LiveKit for an existing active
+ * dispatch with matching mode metadata (idempotent per session+mode) and
+ * creates one if none exists.
+ * @param {Object} room - interview_rooms row (must have room_name)
+ * @param {number} sessionId
+ * @param {string} mode - 'interviewer' (Track A) | 'observer' (Track B)
+ * @returns {Promise<{dispatched?: boolean, already_dispatched?: boolean, dispatch_id?: string, room: Object}>}
+ */
+async function dispatchAgentToRoom(room, sessionId, mode) {
+	const client = _getAgentDispatchClient();
+
+	const existing = await client.listDispatch(room.room_name);
+	if (existing.some((d) => _isActiveDispatchForMode(d, mode))) {
+		return { already_dispatched: true, room };
+	}
+
+	const metadata = JSON.stringify({ interview_session_id: Number(sessionId), mode });
+	const dispatch = await client.createDispatch(room.room_name, getVoiceAgentName(), {
+		metadata,
+	});
+	return { dispatched: true, dispatch_id: dispatch.id, room };
+}
+
+/**
+ * Dispatch the voice agent to a session's LiveKit room. Idempotent per
+ * session+mode — a second call with the same mode returns
+ * { already_dispatched: true } without creating another dispatch.
+ * @param {number} sessionId
+ * @param {string} [mode='interviewer'] - 'interviewer' (Track A) | 'observer' (Track B)
+ * @returns {Promise<{dispatched?: boolean, already_dispatched?: boolean, dispatch_id?: string, room: Object}>}
+ */
+async function dispatchVoiceAgent(sessionId, mode = 'interviewer') {
+	if (!DISPATCH_MODES.includes(mode)) {
+		throw new Error(`Invalid dispatch mode: ${mode}`);
+	}
+	const room = await findOrCreateSessionRoom(sessionId);
+	return dispatchAgentToRoom(room, sessionId, mode);
+}
+
 // ─── Validation ─────────────────────────────────────────────────────────────
 
 /**
@@ -686,6 +772,9 @@ module.exports = {
 	findActiveRoomBySessionId,
 	createSessionRoomRecord,
 	findOrCreateSessionRoom,
+	dispatchVoiceAgent,
+	dispatchAgentToRoom,
+	getVoiceAgentName,
 	findRoomById,
 	validateRoomAccess,
 	autoCreateRoomForInterview,

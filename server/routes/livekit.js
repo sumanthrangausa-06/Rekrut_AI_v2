@@ -8,6 +8,7 @@
 //   DELETE /api/livekit/rooms/:id          — close a room
 //   POST   /api/livekit/session-rooms              — create-or-get a room for an interview session (#323)
 //   POST   /api/livekit/session-rooms/:sessionId/token — get a join token for a session room (#323)
+//   POST   /api/livekit/session-rooms/:sessionId/dispatch — dispatch the voice agent to a session room (#323)
 //
 // Auth: authMiddleware + role checks
 // Rate limiting: distributed rate limiter (strict for token endpoints)
@@ -340,6 +341,43 @@ router.post(
 				return res.status(503).json({ error: 'LiveKit not configured' });
 			}
 			res.status(500).json({ error: 'Failed to generate session token' });
+		}
+	},
+);
+
+// ─── POST /api/livekit/session-rooms/:sessionId/dispatch — Dispatch voice agent
+
+router.post(
+	'/session-rooms/:sessionId/dispatch',
+	authMiddleware,
+	rateLimits.standard,
+	[
+		param('sessionId').isInt({ min: 1 }).withMessage('Valid session ID required'),
+		body('mode').optional().isIn(['interviewer', 'observer']).withMessage('Invalid mode'),
+	],
+	handleValidationErrors,
+	async (req, res) => {
+		try {
+			const sessionId = parseInt(req.params.sessionId, 10);
+			const user = req.user;
+			const mode = req.body.mode || 'interviewer';
+
+			const session = await loadSessionOr404(sessionId, res);
+			if (!session) return;
+
+			// Hiring team only: the candidate never dispatches the agent.
+			if (!isHiringTeamForSession(session, user)) {
+				return res.status(403).json({ error: 'Only the hiring team can dispatch the voice agent' });
+			}
+
+			const result = await livekitService.dispatchVoiceAgent(sessionId, mode);
+			res.json({ success: true, ...result });
+		} catch (err) {
+			console.error('[livekit-routes] Agent dispatch error:', err.message);
+			if (err.message.includes('not configured')) {
+				return res.status(503).json({ error: 'LiveKit not configured' });
+			}
+			res.status(502).json({ error: 'Failed to dispatch voice agent' });
 		}
 	},
 );
