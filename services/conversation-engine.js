@@ -141,7 +141,14 @@ async function conductTurn(session, candidateText, _frames) {
 					config.base_questions || [],
 					config.current_question_index || 0,
 					config.target_role || '',
-					config.options || {},
+					// Personalized AI interviews: pass the frozen JD + resume snapshot
+					// through so turn-time prompts probe the candidate's actual
+					// experience (#322). Both are optional; absent → prompt unchanged.
+					{
+						...(config.options || {}),
+						resumeText: config.resume?.text,
+						jobDescription: config.job?.description,
+					},
 				),
 				TURN_TIMEOUT_MS,
 				'Interview AI turn generation',

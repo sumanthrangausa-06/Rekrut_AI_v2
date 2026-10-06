@@ -132,6 +132,27 @@ describe('conductTurn — ai_interview (personalized source)', () => {
 		expect(result.ai_message).toContain('bottleneck');
 		expect(result.is_complete).toBe(false);
 	});
+
+	test('passes the frozen JD + resume snapshot through to the interview turn', async () => {
+		conductInterviewTurn.mockResolvedValue({
+			reaction: 'Noted.',
+			action: 'follow_up',
+			question: 'Tell me more about the Spark work.',
+			score_hint: 5,
+			notes: '',
+		});
+
+		const session = aiInterviewSession();
+		session.config.resume = { text: 'Jane Doe: 5 years building Spark pipelines.' };
+		session.config.job = { description: 'We need a Spark expert for real-time ingestion.' };
+
+		await conductTurn(session, 'I built Spark pipelines.', []);
+
+		expect(conductInterviewTurn).toHaveBeenCalledTimes(1);
+		const options = conductInterviewTurn.mock.calls[0][4];
+		expect(options.resumeText).toBe('Jane Doe: 5 years building Spark pipelines.');
+		expect(options.jobDescription).toBe('We need a Spark expert for real-time ingestion.');
+	});
 });
 
 describe('conductTurn — generic reaction override', () => {
