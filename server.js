@@ -105,6 +105,7 @@ if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
+const interviewSessionRoutes = require('./routes/interview-sessions'); // Phase 1 (#322) — unified interview sessions
 const interviewEventsRoutes = require('./routes/interview-events'); // Issue #127 — Calendar scheduling
 const quickPracticeRoutes = require('./routes/quick-practice'); // ISOLATED from Mock Interview (#32717)
 const omniscoreRoutes = require('./routes/omniscore');
@@ -648,7 +649,8 @@ app.use('/api', chatRoutes.router);
 // API Routes - Candidate side
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
-app.use('/api/interviews', interviewEventsRoutes); // Issue #127 — Calendar interview scheduling (mounted BEFORE mock routes)
+app.use('/api/interviews', interviewSessionRoutes); // Phase 1 (#322) — unified sessions (mounted FIRST: the single-segment list GETs /interview-sessions and /interview-flows would otherwise die in interviewEventsRoutes' isInt(:id) validator with 400)
+app.use('/api/interviews', interviewEventsRoutes); // Issue #127 — Calendar interview scheduling
 app.use('/api/interviews', quickPracticeRoutes); // ISOLATED Quick Practice — must be BEFORE interview routes (#32717)
 app.use('/api/interviews', interviewRoutes); // Mock Interview + video analysis (no practice routes)
 
@@ -970,6 +972,27 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 	}, STALL_INTERVAL);
 
 	console.log('[stall-check] Screening stall checker started (24h interval)');
+})();
+
+// ─── Recording Retention Cron: soft-delete expired recordings, daily ───────
+// Session-linked recordings expire 30 days after the hiring decision (#322);
+// the table default is 90 days. Follows the stall-check pattern above.
+(function startRecordingRetention() {
+	const RETENTION_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+
+	setInterval(async () => {
+		try {
+			const EuComplianceService = require('./services/euComplianceService');
+			const { deletedCount } = await EuComplianceService.purgeExpiredRecordings();
+			if (deletedCount > 0) {
+				console.log(`[retention] Soft-deleted ${deletedCount} expired recording(s)`);
+			}
+		} catch (err) {
+			console.error('[retention] Failed:', err.message);
+		}
+	}, RETENTION_INTERVAL);
+
+	console.log('[retention] Recording retention purger started (24h interval)');
 })();
 
 // ─── AI Health Monitoring Endpoints ──────────────────────────────────────────

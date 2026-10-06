@@ -20,6 +20,9 @@ const marketBenchmarks = require('../lib/market-benchmarks');
 const { uploadToB2, checkB2Health } = require('../lib/file-storage');
 const emailService = require('../lib/email-service');
 const { notifyUser } = require('../lib/notify');
+// Task 11 (#322): company audit log (#251 pattern — routes/audit.js
+// insertAuditLog → audit_logs table).
+const { insertAuditLog } = require('./audit');
 const { checkFeatureAccess, incrementUsage } = require('../lib/subscription');
 const calendarService = require('../server/services/calendar-service');
 
@@ -2553,36 +2556,101 @@ async function submitApplication({
 	try {
 		const jobSettings = job.rows[0];
 		if (jobSettings.auto_send_on_apply === true) {
-			const threshold = jobSettings.auto_send_min_score || 70;
+			const threshold = jobSettings.auto_send_min_score ?? 70;
 			if (matchScore >= threshold) {
 				// Check for existing session (idempotency)
 				const existing = await pool.query(
-					'SELECT id FROM screening_sessions WHERE application_id = $1 LIMIT 1',
+					'SELECT id FROM interview_sessions WHERE application_id = $1 LIMIT 1',
 					[application.id],
 				);
 				if (existing.rows.length === 0) {
-					// Find active template for this job
-					const templateResult = await pool.query(
-						`SELECT * FROM screening_templates WHERE job_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+					// Find the active screening config for this job — prefer the job's
+					// interview flow (Task 10 cutover), fall back to screening_templates
+					// during the transition.
+					let template = null;
+					const flowResult = await pool.query(
+						`SELECT * FROM interview_flows WHERE job_id = $1 AND type = 'screening' AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
 						[jobId],
 					);
-					if (templateResult.rows.length > 0) {
-						const template = templateResult.rows[0];
-						const crypto = require('crypto');
+					if (flowResult.rows.length > 0) {
+						const flow = flowResult.rows[0];
+						template = {
+							id: flow.id,
+							title: flow.name,
+							topics: Array.isArray(flow.topics) ? flow.topics : [],
+							questions: Array.isArray(flow.questions) ? flow.questions : [],
+						};
+					} else {
+						const templateResult = await pool.query(
+							`SELECT * FROM screening_templates WHERE job_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+							[jobId],
+						);
+						if (templateResult.rows.length > 0) {
+							template = templateResult.rows[0];
+						}
+					}
+					if (template) {
+						const crypto = require('node:crypto');
 						const inviteToken = crypto.randomBytes(32).toString('hex');
 
-						await pool.query(
-							`INSERT INTO screening_sessions (template_id, application_id, candidate_id, company_id, job_id, invite_token, status, created_at)
-							 VALUES ($1, $2, $3, $4, $5, $6, 'invited', NOW())`,
+						// Freeze the engine config at creation (Task 2 contract):
+						// question_source + every key conductScreeningTurn reads.
+						const sessionConfig = {
+							question_source: 'template',
+							current_phase: 'intro',
+							job: {
+								id: job.rows[0].id,
+								title: job.rows[0].title,
+								company_name: job.rows[0].company_name || job.rows[0].company || null,
+								description: job.rows[0].description || null,
+							},
+							template: {
+								id: template.id,
+								title: template.title,
+								topics: template.topics || [],
+								questions: template.questions || [],
+							},
+						};
+
+						const autoSendResult = await pool.query(
+							`INSERT INTO interview_sessions
+							   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
+							 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+							 RETURNING id`,
 							[
-								template.id,
+								'screening',
+								jobId,
 								application.id,
 								candidateId,
 								jobSettings.company_id,
-								jobId,
+								null, // system-triggered auto-send
 								inviteToken,
+								JSON.stringify(sessionConfig),
+								JSON.stringify([]),
 							],
 						);
+						const autoSendSessionId = autoSendResult.rows[0]?.id ?? null;
+
+						// Task 11 (#322): audit event — session.sent (system actor).
+						// Non-blocking: an audit failure is logged and never fails
+						// the application (the whole auto-send block is already
+						// best-effort, but this makes the audit intent explicit).
+						try {
+							await insertAuditLog({
+								company_id: jobSettings.company_id ?? null,
+								actor_id: null, // system-triggered auto-send
+								target_id: autoSendSessionId,
+								action: 'session.sent',
+								metadata: {
+									session_id: autoSendSessionId,
+									type: 'screening',
+									job_id: jobId,
+									application_id: application.id,
+								},
+							});
+						} catch (auditErr) {
+							console.error('[auto-send] audit event failed:', auditErr.message);
+						}
 
 						await pool.query(
 							`UPDATE job_applications SET screening_status = 'invited' WHERE id = $1`,

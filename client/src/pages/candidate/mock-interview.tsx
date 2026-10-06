@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall, getToken } from '@/lib/api';
+import { useInterviewerAudio } from '@/hooks/useInterviewerAudio';
 
 import type {
 	MockConversationTurn,
@@ -74,7 +75,6 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 	const voiceProcessingRef = useRef(false);
 	const [silenceTimer, setSilenceTimer] = useState<number>(0);
 	const [voiceError, setVoiceError] = useState<string | null>(null);
-	const aiAudioRef = useRef<HTMLAudioElement | null>(null);
 	const voiceRecorderRef = useRef<MediaRecorder | null>(null);
 	const voiceChunksRef = useRef<Blob[]>([]);
 	const voiceStreamRef = useRef<MediaStream | null>(null);
@@ -89,8 +89,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 	const mockStreamRef = useRef<MediaStream | null>(null);
 	const [_showTranscript, setShowTranscript] = useState(false);
 
-	// Enhanced mock interview: AudioContext, frame capture, live transcript
-	const audioCtxRef = useRef<AudioContext | null>(null);
+	// Enhanced mock interview: frame capture, live transcript
 	const mockCanvasRef = useRef<HTMLCanvasElement | null>(null);
 	const mockFramesRef = useRef<string[]>([]);
 	const mockPerQuestionFramesRef = useRef<string[]>([]);
@@ -99,7 +98,6 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 	const [mockLiveTranscript, setMockLiveTranscript] = useState('');
 	const mockLiveTranscriptRef = useRef('');
 	const mockRecognitionRef = useRef<any>(null);
-	const mockAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
 	const voiceRetryCountRef = useRef<number>(0);
 	const mockRecordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const [mockRecordingTime, setMockRecordingTime] = useState(0);
@@ -118,6 +116,23 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 
 	// Feedback expandable sections
 	const [_expandedSection, _setExpandedSection] = useState<string | null>('mock-content');
+
+	// Shared AI-interviewer audio playback (extracted hook, #322)
+	const {
+		playInterviewerAudio,
+		playAudioBuffer,
+		speakWithBrowserTTS,
+		ensureAudioContext,
+		stopAudio,
+		dispose: disposeAudio,
+	} = useInterviewerAudio({
+		getTtsRequest: (text) => ({ url: '/api/interviews/mock/tts', body: { text } }),
+		onSpeakingChange: setAiSpeaking,
+		onError: setVoiceError,
+		isVoiceMode: () => voiceModeRef.current,
+		isRecording: () => candidateRecordingRef.current,
+		startRecording: () => startVoiceRecording(),
+	});
 
 	// Keep mockSessionRef in sync
 	useEffect(() => {
@@ -192,15 +207,9 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 			stopMockFrameCapture();
 			stopMockSpeechRecognition();
 			if (mockRecordingTimerRef.current) clearInterval(mockRecordingTimerRef.current);
-			if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-				try {
-					audioCtxRef.current.close();
-				} catch (err) {
-					console.error('[mock-interview] Operation failed:', err);
-				}
-			}
+			disposeAudio();
 		};
-	}, [stopMockFrameCapture, stopMockSpeechRecognition, stopVoiceMode, stopMockCamera]);
+	}, [stopMockFrameCapture, stopMockSpeechRecognition, stopVoiceMode, stopMockCamera, disposeAudio]);
 
 	// ===== CAMERA FUNCTIONS =====
 
@@ -381,191 +390,6 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 				console.error('[mock-interview] Operation failed:', err);
 			}
 			mockRecognitionRef.current = null;
-		}
-	}
-
-	function ensureAudioContext(): AudioContext {
-		if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-			audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-		}
-		if (audioCtxRef.current.state === 'suspended') {
-			audioCtxRef.current.resume();
-		}
-		return audioCtxRef.current;
-	}
-
-	// ===== VOICE FUNCTIONS =====
-
-	function speakWithBrowserTTS(text: string): Promise<void> {
-		return new Promise((resolve) => {
-			if (!window.speechSynthesis) {
-				console.warn('[browser-tts] speechSynthesis not available');
-				resolve();
-				return;
-			}
-			window.speechSynthesis.cancel();
-			const utterance = new SpeechSynthesisUtterance(text);
-			utterance.rate = 1.0;
-			utterance.pitch = 1.0;
-			utterance.volume = 1.0;
-
-			let voices = window.speechSynthesis.getVoices();
-			if (voices.length === 0) {
-				window.speechSynthesis.onvoiceschanged = () => {
-					voices = window.speechSynthesis.getVoices();
-					const preferred =
-						voices.find(
-							(v) => v.lang.startsWith('en') && v.name.toLowerCase().includes('female'),
-						) ||
-						voices.find(
-							(v) => v.lang.startsWith('en') && v.name.toLowerCase().includes('samantha'),
-						) ||
-						voices.find((v) => v.lang.startsWith('en-US')) ||
-						voices.find((v) => v.lang.startsWith('en'));
-					if (preferred) utterance.voice = preferred;
-				};
-			} else {
-				const preferred =
-					voices.find((v) => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ||
-					voices.find(
-						(v) => v.lang.startsWith('en') && v.name.toLowerCase().includes('samantha'),
-					) ||
-					voices.find((v) => v.lang.startsWith('en-US')) ||
-					voices.find((v) => v.lang.startsWith('en'));
-				if (preferred) utterance.voice = preferred;
-			}
-
-			const timeout = setTimeout(() => {
-				console.warn('[browser-tts] Safety timeout — resolving after 30s');
-				resolve();
-			}, 30000);
-
-			const keepAlive = setInterval(() => {
-				if (window.speechSynthesis.speaking) {
-					window.speechSynthesis.resume();
-				} else {
-					clearInterval(keepAlive);
-				}
-			}, 5000);
-
-			utterance.onend = () => {
-				clearTimeout(timeout);
-				clearInterval(keepAlive);
-				resolve();
-			};
-			utterance.onerror = (e) => {
-				clearTimeout(timeout);
-				clearInterval(keepAlive);
-				console.warn('[browser-tts] error:', e);
-				resolve();
-			};
-
-			window.speechSynthesis.speak(utterance);
-			console.log('[browser-tts] Speaking via browser speechSynthesis');
-		});
-	}
-
-	async function playInterviewerAudio(text: string) {
-		if (!text) return;
-		setAiSpeaking(true);
-		setVoiceError(null);
-		try {
-			const token = getToken();
-			const response = await fetch('/api/interviews/mock/tts', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-				body: JSON.stringify({ text }),
-			});
-
-			const contentType = response.headers.get('content-type') || '';
-
-			if (contentType.includes('application/json')) {
-				console.log('[tts-client] TTS API unavailable, falling back to browser speech synthesis');
-				await speakWithBrowserTTS(text);
-				setAiSpeaking(false);
-				if (voiceModeRef.current && !candidateRecordingRef.current) startVoiceRecording();
-				return;
-			}
-
-			if (!response.ok) {
-				console.error('[tts-client] TTS failed:', response.status);
-				await speakWithBrowserTTS(text);
-				setAiSpeaking(false);
-				if (voiceModeRef.current && !candidateRecordingRef.current)
-					setTimeout(() => startVoiceRecording(), 500);
-				return;
-			}
-
-			const arrayBuffer = await response.arrayBuffer();
-			if (arrayBuffer.byteLength < 100) {
-				console.error('[tts-client] Audio too small:', arrayBuffer.byteLength);
-				await speakWithBrowserTTS(text);
-				setAiSpeaking(false);
-				if (voiceModeRef.current && !candidateRecordingRef.current)
-					setTimeout(() => startVoiceRecording(), 500);
-				return;
-			}
-
-			const ctx = ensureAudioContext();
-
-			try {
-				const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-				if (mockAudioSourceRef.current) {
-					try {
-						mockAudioSourceRef.current.stop();
-					} catch (err) {
-						console.error('[mock-interview] Operation failed:', err);
-					}
-				}
-				const source = ctx.createBufferSource();
-				source.buffer = audioBuffer;
-				source.connect(ctx.destination);
-				mockAudioSourceRef.current = source;
-
-				source.onended = () => {
-					setAiSpeaking(false);
-					mockAudioSourceRef.current = null;
-					if (voiceModeRef.current && !candidateRecordingRef.current) startVoiceRecording();
-				};
-
-				source.start();
-				console.log('[tts-client] Playing via Web Audio API');
-			} catch (decodeErr) {
-				console.warn(
-					'[tts-client] Web Audio decode failed, falling back to Audio element:',
-					decodeErr,
-				);
-				const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
-				const audioUrl = URL.createObjectURL(blob);
-				if (aiAudioRef.current) {
-					aiAudioRef.current.pause();
-					URL.revokeObjectURL(aiAudioRef.current.src);
-				}
-				const audio = new Audio(audioUrl);
-				aiAudioRef.current = audio;
-				audio.onended = () => {
-					setAiSpeaking(false);
-					URL.revokeObjectURL(audioUrl);
-					if (voiceModeRef.current && !candidateRecordingRef.current) startVoiceRecording();
-				};
-				audio.onerror = () => {
-					setAiSpeaking(false);
-					URL.revokeObjectURL(audioUrl);
-					if (voiceModeRef.current && !candidateRecordingRef.current)
-						setTimeout(() => startVoiceRecording(), 1000);
-				};
-				await audio.play();
-			}
-		} catch (err) {
-			console.error('[tts-client] TTS playback error:', err);
-			try {
-				await speakWithBrowserTTS(text);
-			} catch (err) {
-				console.error('[mock-interview] Operation failed:', err);
-			}
-			setAiSpeaking(false);
-			if (voiceModeRef.current && !candidateRecordingRef.current)
-				setTimeout(() => startVoiceRecording(), 500);
 		}
 	}
 
@@ -790,55 +614,14 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 						setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
 						if (data.interviewer_audio_base64 && !textWasDeduped) {
-							setAiSpeaking(true);
 							const audioData = Uint8Array.from(atob(data.interviewer_audio_base64), (c) =>
 								c.charCodeAt(0),
 							);
-							const ctx = ensureAudioContext();
-
-							try {
-								const audioBuffer = await ctx.decodeAudioData(audioData.buffer.slice(0));
-								if (mockAudioSourceRef.current) {
-									try {
-										mockAudioSourceRef.current.stop();
-									} catch (err) {
-										console.error('[mock-interview] Operation failed:', err);
-									}
-								}
-								const srcNode = ctx.createBufferSource();
-								srcNode.buffer = audioBuffer;
-								srcNode.connect(ctx.destination);
-								mockAudioSourceRef.current = srcNode;
-								srcNode.onended = () => {
-									setAiSpeaking(false);
-									mockAudioSourceRef.current = null;
+							await playAudioBuffer(audioData.buffer.slice(0), {
+								onEnded: () => {
 									if (voiceModeRef.current && !data.is_wrapping_up) startVoiceRecording();
-								};
-								srcNode.start();
-								console.log('[voice-respond] Playing AI audio via Web Audio API');
-							} catch (decodeErr) {
-								console.warn('[voice-respond] Web Audio decode failed, fallback:', decodeErr);
-								const blob = new Blob([audioData], { type: 'audio/mpeg' });
-								const url = URL.createObjectURL(blob);
-								if (aiAudioRef.current) {
-									aiAudioRef.current.pause();
-									URL.revokeObjectURL(aiAudioRef.current.src);
-								}
-								const audio = new Audio(url);
-								aiAudioRef.current = audio;
-								audio.onended = () => {
-									setAiSpeaking(false);
-									URL.revokeObjectURL(url);
-									if (voiceModeRef.current && !data.is_wrapping_up) startVoiceRecording();
-								};
-								audio.onerror = () => {
-									setAiSpeaking(false);
-									URL.revokeObjectURL(url);
-									if (voiceModeRef.current && !data.is_wrapping_up)
-										setTimeout(() => startVoiceRecording(), 1000);
-								};
-								await audio.play();
-							}
+								},
+							});
 						} else {
 							// No backend audio or text was deduped (backend audio has question twice) — use frontend TTS
 							await playInterviewerAudio(cleanedInterviewerMsg.text);
@@ -912,18 +695,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 	}
 
 	function stopVoiceMode() {
-		if (mockAudioSourceRef.current) {
-			try {
-				mockAudioSourceRef.current.stop();
-			} catch (err) {
-				console.error('[mock-interview] Operation failed:', err);
-			}
-			mockAudioSourceRef.current = null;
-		}
-		if (aiAudioRef.current) {
-			aiAudioRef.current.pause();
-			aiAudioRef.current = null;
-		}
+		stopAudio();
 		stopVoiceRecording();
 		stopMockSpeechRecognition();
 		if (voiceStreamRef.current && voiceStreamRef.current !== mockStreamRef.current) {

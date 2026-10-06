@@ -592,6 +592,24 @@ class EuComplianceService {
 		return summary;
 	}
 
+	/**
+	 * Soft-delete recordings past their per-recording retention_expires_at
+	 * (#322, Task 4). Session-linked recordings get retention_expires_at set
+	 * to 30 days after the hiring decision; the table default is 90 days.
+	 * Transcript, analysis, key frames, and scores are retained — only the
+	 * raw recording row is marked deleted (storage file cleanup is a
+	 * follow-up). Runs daily via the server.js retention cron.
+	 * @returns {Promise<{ deletedCount: number }>}
+	 */
+	static async purgeExpiredRecordings() {
+		const r = await pool.query(
+			`UPDATE interview_recordings
+			 SET status = 'deleted', updated_at = NOW()
+			 WHERE retention_expires_at < NOW() AND status != 'deleted'`,
+		);
+		return { deletedCount: r.rowCount };
+	}
+
 	// ── Consent Management ───────────────────────────────────────────────
 
 	static async recordConsent({
