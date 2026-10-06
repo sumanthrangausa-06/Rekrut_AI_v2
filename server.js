@@ -974,6 +974,27 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 	console.log('[stall-check] Screening stall checker started (24h interval)');
 })();
 
+// ─── Recording Retention Cron: soft-delete expired recordings, daily ───────
+// Session-linked recordings expire 30 days after the hiring decision (#322);
+// the table default is 90 days. Follows the stall-check pattern above.
+(function startRecordingRetention() {
+	const RETENTION_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+
+	setInterval(async () => {
+		try {
+			const EuComplianceService = require('./services/euComplianceService');
+			const { deletedCount } = await EuComplianceService.purgeExpiredRecordings();
+			if (deletedCount > 0) {
+				console.log(`[retention] Soft-deleted ${deletedCount} expired recording(s)`);
+			}
+		} catch (err) {
+			console.error('[retention] Failed:', err.message);
+		}
+	}, RETENTION_INTERVAL);
+
+	console.log('[retention] Recording retention purger started (24h interval)');
+})();
+
 // ─── AI Health Monitoring Endpoints ──────────────────────────────────────────
 // Comprehensive AI call logs, model metrics, budget predictions, prompt management
 

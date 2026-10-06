@@ -1272,6 +1272,17 @@ router.put(
 				[status, req.params.id],
 			);
 
+			// ── Hiring decision: session recordings for this application expire
+			// 30 days after the decision (#322, Task 4). Non-blocking.
+			if (['hired', 'rejected'].includes(status) && previousStatus !== status) {
+				try {
+					const livekitService = require('../server/services/livekit');
+					await livekitService.setSessionRecordingsRetentionAfterDecision(req.params.id);
+				} catch (retErr) {
+					console.error('[retention] Failed to update recording expiry:', retErr.message);
+				}
+			}
+
 			// ── Send status update notification to candidate (non-blocking) ──
 			try {
 				const candidateInfo = await pool.query(

@@ -22,6 +22,7 @@ const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { conductTurn } = require('../services/conversation-engine');
 const { generateScreeningReport } = require('../services/interview-ai');
+const livekitService = require('../server/services/livekit');
 const aiProvider = require('../lib/ai-provider');
 const { textToSpeech } = require('../lib/polsia-ai');
 
@@ -144,11 +145,36 @@ router.post('/interview-sessions/:id/start', authMiddleware, async (req, res) =>
 			[JSON.stringify(conversation), JSON.stringify(config), session.id],
 		);
 
+		// Task 4 (#322): create the session-linked recording row (status
+		// 'pending' — consent is written before capture begins, so no capture
+		// has happened yet). Idempotent: re-start returns the existing row.
+		// Non-blocking: a recording-row failure must not fail the session start.
+		let recording = null;
+		try {
+			recording = await livekitService.findRecordingBySessionId(session.id);
+			if (!recording) {
+				recording = await livekitService.createRecordingRecord({
+					interviewSessionId: session.id,
+					status: 'pending',
+				});
+			}
+		} catch (recErr) {
+			console.error('[interview-sessions] recording row creation failed:', recErr.message);
+		}
+
 		res.json({
 			success: true,
 			session: updated.rows[0],
 			ai_message: intro.ai_message,
 			phase: intro.phase,
+			recording: recording
+				? {
+						id: recording.id,
+						interview_session_id: recording.interview_session_id,
+						status: recording.status,
+						started_at: recording.started_at,
+					}
+				: null,
 		});
 	} catch (err) {
 		console.error('[interview-sessions] start error:', err.message);
@@ -204,11 +230,32 @@ router.post(
 				return res.status(400).json({ error: 'Response too short. Please elaborate.' });
 			}
 
+			const frames = Array.isArray(req.body?.frames) ? req.body.frames : [];
+			const frameIndicators =
+				req.body?.frame_indicators && typeof req.body.frame_indicators === 'object'
+					? req.body.frame_indicators
+					: null;
+
+			// Task 4 (#322): frame capture requires non-withdrawn consent.
+			// Consent is written to recording_consent before capture begins;
+			// a withdrawn consent blocks further capture (text-only answers
+			// still go through).
+			if (frames.length > 0 || frameIndicators) {
+				const recording = await livekitService.findRecordingBySessionId(session.id);
+				if (recording && (await livekitService.hasWithdrawnConsent(recording.id, req.user.id))) {
+					return res.status(403).json({
+						error: 'Recording consent withdrawn',
+						code: 'CONSENT_REQUIRED',
+					});
+				}
+			}
+
 			const conversation = Array.isArray(session.conversation) ? [...session.conversation] : [];
 			conversation.push({
 				role: 'candidate',
 				text: candidateText,
 				...(hasAudio ? { has_audio: true } : {}),
+				...(frameIndicators ? { frame_indicators: frameIndicators } : {}),
 				timestamp: newTimestamp(),
 			});
 
@@ -220,7 +267,6 @@ router.post(
 			]);
 
 			const config = { ...(session.config || {}) };
-			const frames = Array.isArray(req.body?.frames) ? req.body.frames : [];
 			const result = await conductTurn({ conversation, config }, candidateText, frames);
 
 			conversation.push({
@@ -300,6 +346,54 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 			  WHERE id = $3 RETURNING *`,
 			[JSON.stringify(session.conversation || []), JSON.stringify(config), session.id],
 		);
+
+		// Task 4 (#322): persist transcript segments against the session's
+		// recording, aggregate per-turn frame indicators into frame_analysis,
+		// and finalize the recording row. Non-blocking: the report above is
+		// the primary outcome; capture failures are logged, not thrown.
+		try {
+			const recording = await livekitService.findRecordingBySessionId(session.id);
+			const turns = Array.isArray(session.conversation) ? session.conversation : [];
+			if (recording && turns.length > 0) {
+				const baseMs = new Date(turns[0].timestamp).getTime();
+				const base = Number.isFinite(baseMs) ? baseMs : Date.now();
+				for (let i = 0; i < turns.length; i++) {
+					const turn = turns[i];
+					const tMs = new Date(turn.timestamp).getTime();
+					const startMs = Number.isFinite(tMs) ? Math.max(0, tMs - base) : i * 1000;
+					const nextMs = new Date(turns[i + 1]?.timestamp).getTime();
+					const endMs =
+						i + 1 < turns.length && Number.isFinite(nextMs)
+							? Math.max(startMs, nextMs - base)
+							: startMs + 1000;
+					await pool.query(
+						`INSERT INTO interview_transcripts
+						 (recording_id, speaker_identity, text, start_time_ms, end_time_ms, confidence)
+						 VALUES ($1, $2, $3, $4, $5, NULL)`,
+						[recording.id, turn.role || 'unknown', turn.text || '', startMs, endMs],
+					);
+				}
+				await pool.query(
+					`UPDATE interview_recordings
+					 SET status = 'completed', stopped_at = NOW(), updated_at = NOW()
+					 WHERE id = $1`,
+					[recording.id],
+				);
+			}
+			const indicators = turns.filter((t) => t?.frame_indicators).map((t) => t.frame_indicators);
+			if (indicators.length > 0) {
+				await pool.query(`UPDATE interview_sessions SET frame_analysis = $1 WHERE id = $2`, [
+					JSON.stringify({
+						per_turn: indicators,
+						turn_count: indicators.length,
+						aggregated_at: new Date().toISOString(),
+					}),
+					session.id,
+				]);
+			}
+		} catch (transcriptErr) {
+			console.error('[interview-sessions] transcript/finalize failed:', transcriptErr.message);
+		}
 
 		res.json({ success: true, session: updated.rows[0], report });
 	} catch (err) {
