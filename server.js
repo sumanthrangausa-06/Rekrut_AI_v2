@@ -105,6 +105,7 @@ if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
+const interviewSessionRoutes = require('./routes/interview-sessions'); // Phase 1 (#322) — unified interview sessions
 const interviewEventsRoutes = require('./routes/interview-events'); // Issue #127 — Calendar scheduling
 const quickPracticeRoutes = require('./routes/quick-practice'); // ISOLATED from Mock Interview (#32717)
 const omniscoreRoutes = require('./routes/omniscore');
@@ -651,6 +652,7 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/interviews', interviewEventsRoutes); // Issue #127 — Calendar interview scheduling (mounted BEFORE mock routes)
 app.use('/api/interviews', quickPracticeRoutes); // ISOLATED Quick Practice — must be BEFORE interview routes (#32717)
 app.use('/api/interviews', interviewRoutes); // Mock Interview + video analysis (no practice routes)
+app.use('/api/interviews', interviewSessionRoutes); // Phase 1 (#322) — unified sessions (after interviewRoutes; /interview-sessions/* doesn't collide)
 
 // API Routes - Collaboration (Issue #128)
 app.use('/api/collaboration', collaborationRoutes);

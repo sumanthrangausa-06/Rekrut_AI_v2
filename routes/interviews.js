@@ -10,7 +10,6 @@ const {
 	analyzeVideoPresentation,
 	analyzeVoiceQuality,
 	generateQuestionBank,
-	conductInterviewTurn,
 	generateSessionFeedback,
 	textToSpeech,
 	transcribeAudioWithWhisper,
@@ -18,6 +17,7 @@ const {
 	handleAIError,
 } = require('../lib/polsia-ai');
 const crypto = require('node:crypto');
+const { conductTurn } = require('../services/conversation-engine');
 const omniscoreService = require('../services/omniscore');
 const multer = require('multer');
 
@@ -928,32 +928,33 @@ router.post('/mock/:sessionId/respond', authMiddleware, rateLimits.ai, async (re
 			};
 		} else {
 			try {
-				aiTurn = await withTimeout(
-					conductInterviewTurn(
+				// Phase 1 (#322): delegate turn generation to the unified conversation
+				// engine (owns the 20s timeout + scripted fallback). Map its result
+				// back to the aiTurn shape this handler persists downstream.
+				// Non-complete turns advance the planned-question pointer; the
+				// follow_up/challenge granularity now lives in the LLM's
+				// conversational follow-ups rather than the question index.
+				const engineTurn = await conductTurn(
+					{
 						conversation,
-						baseQuestions,
-						session.current_question_index,
-						session.target_role,
-						{ subscriptionId: req.user.stripe_subscription_id },
-					),
-					20000,
-					'Interview AI turn generation',
+						config: {
+							question_source: 'personalized',
+							base_questions: baseQuestions,
+							current_question_index: session.current_question_index,
+							target_role: session.target_role,
+							options: { subscriptionId: req.user.stripe_subscription_id },
+						},
+					},
+					response_text.trim(),
+					[],
 				);
-				// BUG FIX: Override generic AI reactions — don't echo user's words
-				if (
-					aiTurn?.reaction &&
-					/^(Thank you for (that|sharing|your) (response|answer)|That's (helpful|great|good|interesting)\.?)\s*$/i.test(
-						aiTurn.reaction.trim(),
-					)
-				) {
-					const NATURAL_AI_ACKS = [
-						'Interesting perspective. Let me follow up on that.',
-						"That gives me good context. I'd like to dig a little deeper.",
-						"That's a thoughtful response. Let me explore another angle.",
-						'I appreciate the detail. Let me build on that.',
-					];
-					aiTurn.reaction = NATURAL_AI_ACKS[candidateTurnCount % NATURAL_AI_ACKS.length];
-				}
+				aiTurn = {
+					reaction: '',
+					question: engineTurn.ai_message,
+					action: engineTurn.is_complete ? 'wrap_up' : 'transition',
+					score_hint: null,
+					notes: null,
+				};
 			} catch (aiErr) {
 				console.warn(
 					`[mock] AI turn generation failed (${aiErr.message}), using scripted fallback`,
@@ -2240,32 +2241,33 @@ router.post(
 				// BUG FIX: Wrap with 20s overall timeout — the LLM chain can take 135s (9 providers × 15s each),
 				// but Render kills the request at ~30s. Without this, the scripted fallback never fires.
 				try {
-					aiTurn = await withTimeout(
-						conductInterviewTurn(
+					// Phase 1 (#322): delegate turn generation to the unified conversation
+					// engine (owns the 20s timeout + scripted fallback). Map its result
+					// back to the aiTurn shape this handler persists downstream.
+					// Non-complete turns advance the planned-question pointer; the
+					// follow_up/challenge granularity now lives in the LLM's
+					// conversational follow-ups rather than the question index.
+					const engineTurn = await conductTurn(
+						{
 							conversation,
-							baseQuestions,
-							session.current_question_index,
-							session.target_role,
-							{ subscriptionId: req.user.stripe_subscription_id },
-						),
-						20000,
-						'Voice interview AI turn generation',
+							config: {
+								question_source: 'personalized',
+								base_questions: baseQuestions,
+								current_question_index: session.current_question_index,
+								target_role: session.target_role,
+								options: { subscriptionId: req.user.stripe_subscription_id },
+							},
+						},
+						transcribedText,
+						[],
 					);
-					// BUG FIX: Override generic AI reactions — don't echo user's words
-					if (
-						aiTurn?.reaction &&
-						/^(Thank you for (that|sharing|your) (response|answer)|That's (helpful|great|good|interesting)\.?)\s*$/i.test(
-							aiTurn.reaction.trim(),
-						)
-					) {
-						const NATURAL_AI_ACKS = [
-							'Interesting perspective. Let me follow up on that.',
-							"That gives me good context. I'd like to dig a little deeper.",
-							"That's a thoughtful response. Let me explore another angle.",
-							'I appreciate the detail. Let me build on that.',
-						];
-						aiTurn.reaction = NATURAL_AI_ACKS[voiceCandidateCount % NATURAL_AI_ACKS.length];
-					}
+					aiTurn = {
+						reaction: '',
+						question: engineTurn.ai_message,
+						action: engineTurn.is_complete ? 'wrap_up' : 'transition',
+						score_hint: null,
+						notes: null,
+					};
 				} catch (aiErr) {
 					console.warn(
 						`[voice-respond] AI turn generation failed (${aiErr.message}), using scripted fallback`,
@@ -3132,22 +3134,30 @@ router.post('/screening/session/:token/start', async (req, res) => {
 		const s = sessionResult.rows[0];
 
 		// Generate AI intro turn
-		const interviewAI = require('../services/interview-ai');
-		const introTurn = await interviewAI.conductScreeningTurn(
+		// Phase 1 (#322): delegate turn generation to the unified conversation engine.
+		const engineIntro = await conductTurn(
+			{
+				conversation: [],
+				config: {
+					question_source: 'template',
+					job: {
+						title: s.job_title,
+						description: s.job_description,
+						company_name: s.company_name,
+					},
+					template: {
+						questions: s.template_questions || [],
+						topics: s.template_topics || [],
+						title: s.template_title,
+						screening_mode: s.screening_mode || 'conversational',
+					},
+					current_phase: 'intro',
+				},
+			},
+			'',
 			[],
-			{
-				title: s.job_title,
-				description: s.job_description,
-				company_name: s.company_name,
-			},
-			{
-				questions: s.template_questions || [],
-				topics: s.template_topics || [],
-				title: s.template_title,
-				screening_mode: s.screening_mode || 'conversational',
-			},
-			'intro',
 		);
+		const introTurn = { question: engineIntro.ai_message, phase: engineIntro.phase };
 
 		// Save intro to conversation
 		const conversation = [
@@ -3224,34 +3234,38 @@ router.post('/screening/session/:token/respond', async (req, res) => {
 		});
 
 		// AI generates next turn (conversational screening)
-		const interviewAI = require('../services/interview-ai');
-		let aiTurn;
-		try {
-			aiTurn = await interviewAI.conductScreeningTurn(
+		// Phase 1 (#322): delegate turn generation to the unified conversation
+		// engine (owns the 20s timeout + scripted fallback). Map its result to
+		// the aiTurn shape this handler persists downstream.
+		const engineTurn = await conductTurn(
+			{
 				conversation,
-				{
-					title: s.job_title,
-					description: s.job_description,
-					company_name: s.company_name,
+				config: {
+					question_source: 'template',
+					job: {
+						title: s.job_title,
+						description: s.job_description,
+						company_name: s.company_name,
+					},
+					template: {
+						questions: s.template_questions || [],
+						topics: s.template_topics || [],
+						title: s.template_title,
+						screening_mode: s.screening_mode || 'conversational',
+					},
+					current_phase: currentPhase,
 				},
-				{
-					questions: s.template_questions || [],
-					topics: s.template_topics || [],
-					title: s.template_title,
-					screening_mode: s.screening_mode || 'conversational',
-				},
-				currentPhase,
-			);
-		} catch (aiErr) {
-			console.error('[screening] AI turn failed, using fallback:', aiErr.message);
-			aiTurn = {
-				reaction: 'Thanks for sharing that.',
-				action: 'transition',
-				question: "Let's move on — what questions do you have about the role?",
-				phase: 'candidate_questions',
-				notes: 'AI fallback',
-			};
-		}
+			},
+			response_text.trim(),
+			[],
+		);
+		const aiTurn = {
+			reaction: '',
+			question: engineTurn.ai_message,
+			action: engineTurn.is_complete ? 'wrap_up' : 'transition',
+			phase: engineTurn.phase,
+			notes: null,
+		};
 
 		// Add AI turn to conversation
 		const aiMessage = aiTurn.reaction
@@ -3295,7 +3309,6 @@ router.post(
 	async (req, res) => {
 		try {
 			const aiProvider = require('../lib/ai-provider');
-			const interviewAI = require('../services/interview-ai');
 
 			// Step 1: Transcribe audio
 			let transcribedText = '';
@@ -3364,32 +3377,36 @@ router.post(
 			});
 
 			// Step 3: Generate AI turn (same logic as text endpoint)
-			let aiTurn;
-			try {
-				aiTurn = await interviewAI.conductScreeningTurn(
+			// Phase 1 (#322): delegate turn generation to the unified conversation
+			// engine (owns the 20s timeout + scripted fallback). Its result shape
+			// already matches what this handler consumes downstream.
+			const engineTurn = await conductTurn(
+				{
 					conversation,
-					{
-						title: s.job_title,
-						description: s.job_description,
-						company_name: s.company_name,
+					config: {
+						question_source: 'template',
+						job: {
+							title: s.job_title,
+							description: s.job_description,
+							company_name: s.company_name,
+						},
+						template: {
+							questions: s.template_questions || [],
+							topics: s.template_topics || [],
+							title: s.template_title,
+							screening_mode: s.screening_mode || 'conversational',
+						},
+						current_phase: currentPhase,
 					},
-					{
-						questions: s.template_questions || [],
-						topics: s.template_topics || [],
-						title: s.template_title,
-						screening_mode: s.screening_mode || 'conversational',
-					},
-					currentPhase,
-				);
-			} catch (aiErr) {
-				console.error('[screening-voice] AI turn failed:', aiErr.message);
-				aiTurn = {
-					ai_message:
-						'Thanks for sharing that. Could you tell me a bit more about your experience?',
-					phase: currentPhase,
-					should_wrap_up: false,
-				};
-			}
+				},
+				transcribedText,
+				[],
+			);
+			const aiTurn = {
+				ai_message: engineTurn.ai_message,
+				phase: engineTurn.phase,
+				should_wrap_up: engineTurn.is_complete,
+			};
 
 			// Add AI response to conversation
 			conversation.push({
