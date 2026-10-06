@@ -68,6 +68,10 @@ const scheduledInterviews = [];
 const interviewEvents = [];
 // Conversation lengths seen by the (mocked) engine at call time, per test.
 const engineSeenLengths = [];
+// Ordered DB/engine events for the crash-resume test: 'update' (each UPDATE
+// interview_sessions, with its SQL + params) vs 'engine' (conductTurn call).
+const dbCallOrder = [];
+const recordedUpdates = [];
 
 function maybeParse(v) {
 	if (typeof v === 'string' && (v.startsWith('{') || v.startsWith('['))) {
@@ -131,6 +135,8 @@ function handleSessionSql(normalized, params) {
 		const id = Number(params[params.length - 1]);
 		const row = sessions.get(id);
 		if (!row) return { rows: [], rowCount: 0 };
+		dbCallOrder.push('update');
+		recordedUpdates.push({ normalized, params: [...(params || [])] });
 		for (const assignment of setPart.split(',')) {
 			const trimmed = assignment.trim();
 			const paramMatch = trimmed.match(/^(\w+)\s*=\s*\$(\d+)$/);
@@ -157,15 +163,18 @@ db.query.mockImplementation(async (sql, params) => {
 		return handleSessionSql(normalized, params || []);
 	}
 	if (normalized.includes('scheduled_interviews')) {
-		const rows = scheduledInterviews.filter(
-			(r) => Number(r.candidate_id) === Number((params || [])[0]),
-		);
+		// The candidate branch filters by candidate_id; the recruiter job_id
+		// branch filters by job_id.
+		const key = normalized.includes('where job_id') ? 'job_id' : 'candidate_id';
+		const rows = scheduledInterviews.filter((r) => Number(r[key]) === Number((params || [])[0]));
 		return { rows, rowCount: rows.length };
 	}
 	if (normalized.includes('interview_events')) {
-		const rows = interviewEvents.filter(
-			(r) => Number(r.candidate_id) === Number((params || [])[0]),
-		);
+		// The candidate branch filters e.candidate_id; the recruiter job_id
+		// branch filters ja.job_id through the job_applications JOIN (note:
+		// the SELECT clause also names ja.job_id — match the WHERE clause).
+		const key = normalized.includes('where ja.job_id') ? 'job_id' : 'candidate_id';
+		const rows = interviewEvents.filter((r) => Number(r[key]) === Number((params || [])[0]));
 		return { rows, rowCount: rows.length };
 	}
 	return baseQueryImpl(sql, params);
@@ -221,10 +230,13 @@ beforeEach(() => {
 	mockTextToSpeech.mockReset();
 	mockTextToSpeech.mockResolvedValue(Buffer.from('fake-mp3-bytes'));
 	engineSeenLengths.length = 0;
+	dbCallOrder.length = 0;
+	recordedUpdates.length = 0;
 	mockConductTurn.mockImplementation(async (sess) => {
 		// Snapshot the conversation length at call time (the router keeps
 		// mutating the array afterwards, so the recorded arg can't be trusted).
 		engineSeenLengths.push(sess.conversation.length);
+		dbCallOrder.push('engine');
 		return {
 			ai_message: 'Thanks for that. Tell me about a challenging project.',
 			phase: 'background',
@@ -375,6 +387,36 @@ describe('session lifecycle: create → start → respond → complete', () => {
 		expect(second.body.session.conversation).toHaveLength(1);
 	});
 
+	it('persists the candidate turn before the engine call (crash-resume safe)', async () => {
+		const app = buildApp();
+		const created = await createSession(app);
+		const id = created.body.session.id;
+		await request(app)
+			.post(`/api/interviews/interview-sessions/${id}/start`)
+			.set('x-test-user-id', '1')
+			.send();
+
+		dbCallOrder.length = 0;
+		recordedUpdates.length = 0;
+		const text = 'My five years of backend experience.';
+		const res = await request(app)
+			.post(`/api/interviews/interview-sessions/${id}/respond`)
+			.set('x-test-user-id', '1')
+			.send({ text });
+
+		expect(res.status).toBe(200);
+		// The candidate's answer hits the DB before the ≤20s LLM call runs:
+		// a crash mid-turn can never lose it.
+		expect(dbCallOrder).toEqual(['update', 'engine', 'update']);
+		const preTurnConversation = JSON.parse(recordedUpdates[0].params[0]);
+		expect(preTurnConversation).toHaveLength(2); // intro + candidate turn only
+		expect(preTurnConversation[1]).toMatchObject({ role: 'candidate', text });
+		// Post-turn write adds the interviewer turn.
+		const postTurnConversation = JSON.parse(recordedUpdates[1].params[0]);
+		expect(postTurnConversation).toHaveLength(3);
+		expect(postTurnConversation[2]).toMatchObject({ role: 'interviewer' });
+	});
+
 	it('rejects respond on a session that has not started', async () => {
 		const app = buildApp();
 		const created = await createSession(app);
@@ -510,6 +552,39 @@ describe('GET /api/interviews/interview-sessions', () => {
 
 		expect(res.status).toBe(200);
 		expect(res.body.sessions).toHaveLength(1);
+	});
+
+	it('read-links human-scheduled interviews in the recruiter job_id view', async () => {
+		const app = buildApp();
+		await createSession(app); // job_id: 10
+		scheduledInterviews.push({
+			id: 77,
+			status: 'scheduled',
+			job_id: 10,
+			candidate_id: 1,
+			scheduled_at: new Date().toISOString(),
+		});
+		interviewEvents.push({
+			id: 88,
+			status: 'confirmed',
+			job_id: 10,
+			candidate_id: 1,
+			job_application_id: 20,
+			scheduled_at: new Date().toISOString(),
+		});
+
+		const res = await request(app)
+			.get('/api/interviews/interview-sessions')
+			.set('x-test-user-id', '2')
+			.query({ job_id: 10 });
+
+		expect(res.status).toBe(200);
+		expect(res.body.success).toBe(true);
+		expect(res.body.sessions).toHaveLength(3);
+		const bySource = Object.fromEntries(res.body.sessions.map((s) => [s.source, s]));
+		expect(bySource.interview_session).toBeDefined();
+		expect(bySource.scheduled_interviews.type).toBe('human_scheduled');
+		expect(bySource.interview_events.type).toBe('human_scheduled');
 	});
 
 	it('requires a filter', async () => {

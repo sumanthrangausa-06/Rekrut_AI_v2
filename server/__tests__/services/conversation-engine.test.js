@@ -134,6 +134,43 @@ describe('conductTurn — ai_interview (personalized source)', () => {
 	});
 });
 
+describe('conductTurn — generic reaction override', () => {
+	test('replaces generic LLM reactions with natural acknowledgments', async () => {
+		conductInterviewTurn.mockResolvedValue({
+			reaction: 'Thank you for your response.',
+			action: 'follow_up',
+			question: 'What was the hardest bug you fixed?',
+			score_hint: 7,
+			notes: '',
+		});
+
+		const result = await conductTurn(aiInterviewSession(), 'I fixed a race condition.', []);
+
+		// Restored bug fix: generic reactions are replaced, the question is kept.
+		expect(result.ai_message).not.toContain('Thank you for your response.');
+		expect(result.ai_message).toContain('What was the hardest bug you fixed?');
+		// 2 candidate turns in history → NATURAL_AI_ACKS[2 % 4]
+		expect(result.ai_message).toContain(
+			"That's a thoughtful response. Let me explore another angle.",
+		);
+	});
+
+	test('keeps specific, non-generic reactions untouched', async () => {
+		conductInterviewTurn.mockResolvedValue({
+			reaction: 'That 1M events/day figure is impressive.',
+			action: 'follow_up',
+			question: 'How did you measure the improvement?',
+			score_hint: 8,
+			notes: '',
+		});
+
+		const result = await conductTurn(aiInterviewSession(), 'I scaled our pipeline.', []);
+
+		expect(result.ai_message).toContain('That 1M events/day figure is impressive.');
+		expect(result.ai_message).toContain('How did you measure the improvement?');
+	});
+});
+
 describe('conductTurn — provider failure', () => {
 	test('on LLM throw returns the scripted fallback shape', async () => {
 		conductScreeningTurn.mockRejectedValue(new Error('provider 429'));

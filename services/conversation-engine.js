@@ -64,11 +64,32 @@ function candidateTurnCount(conversation) {
 	return conversation.filter((t) => t.role === 'candidate').length;
 }
 
+// BUG FIX (restored from the old /mock + /mock/voice-respond shims): the LLM
+// sometimes emits generic reactions ("Thank you for your response") instead of
+// real acknowledgments. Replace them with natural ones, rotating by candidate
+// turn count so they don't repeat.
+//
+// Note: the original shim regex had `\.?` inside the second alternative only,
+// so "Thank you for your response." (with period) slipped through. Moved here
+// so the optional period applies to all generic patterns — that's the evident
+// intent of the original fix.
+const GENERIC_REACTION_RE =
+	/^(Thank you for (that|sharing|your) (response|answer)|That's (helpful|great|good|interesting))\.?\s*$/i;
+const NATURAL_AI_ACKS = [
+	'Interesting perspective. Let me follow up on that.',
+	"That gives me good context. I'd like to dig a little deeper.",
+	"That's a thoughtful response. Let me explore another angle.",
+	'I appreciate the detail. Let me build on that.',
+];
+
 // Spoken message composition — same as the existing respond paths:
 // "<reaction> <question>".
-function composeMessage(turn) {
-	const reaction = (turn.reaction || '').trim();
-	const question = (turn.question || '').trim();
+function composeMessage(turn, conversation = []) {
+	let reaction = (turn?.reaction || '').trim();
+	if (reaction && GENERIC_REACTION_RE.test(reaction)) {
+		reaction = NATURAL_AI_ACKS[candidateTurnCount(conversation) % NATURAL_AI_ACKS.length];
+	}
+	const question = (turn?.question || '').trim();
 	if (reaction && question) return `${reaction} ${question}`;
 	return question || reaction;
 }
@@ -139,7 +160,7 @@ async function conductTurn(session, candidateText, _frames) {
 		}
 
 		return {
-			ai_message: composeMessage(turn),
+			ai_message: composeMessage(turn, conversation),
 			phase:
 				turn.phase ||
 				config.current_phase ||

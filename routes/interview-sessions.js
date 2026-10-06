@@ -212,6 +212,13 @@ router.post(
 				timestamp: newTimestamp(),
 			});
 
+			// Crash-resume safety: persist the candidate's answer BEFORE the
+			// ≤20s LLM call — a crash/restart mid-turn must never lose it.
+			await pool.query(`UPDATE interview_sessions SET conversation = $1 WHERE id = $2`, [
+				JSON.stringify(conversation),
+				session.id,
+			]);
+
 			const config = { ...(session.config || {}) };
 			const frames = Array.isArray(req.body?.frames) ? req.body.frames : [];
 			const result = await conductTurn({ conversation, config }, candidateText, frames);
@@ -393,6 +400,31 @@ router.get('/interview-sessions', authMiddleware, async (req, res) => {
 				[job_id],
 			);
 			sessions.push(...unified.rows.map((s) => ({ ...s, source: 'interview_session' })));
+
+			// Read-link human-scheduled interviews for the recruiter's job view
+			// too (mirrors the candidate_id branch above).
+			const scheduled = await pool.query(
+				`SELECT * FROM scheduled_interviews WHERE job_id = $1 ORDER BY scheduled_at DESC`,
+				[job_id],
+			);
+			sessions.push(
+				...scheduled.rows.map((s) => ({
+					...s,
+					source: 'scheduled_interviews',
+					type: 'human_scheduled',
+				})),
+			);
+
+			const events = await pool.query(
+				`SELECT e.*, ja.job_id FROM interview_events e
+				   JOIN job_applications ja ON ja.id = e.job_application_id
+				 WHERE ja.job_id = $1 AND e.status <> 'cancelled'
+				 ORDER BY e.scheduled_at DESC`,
+				[job_id],
+			);
+			sessions.push(
+				...events.rows.map((s) => ({ ...s, source: 'interview_events', type: 'human_scheduled' })),
+			);
 		}
 
 		sessions.sort(
