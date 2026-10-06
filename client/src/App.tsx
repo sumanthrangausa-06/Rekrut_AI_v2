@@ -310,6 +310,9 @@ const RecordingPlaybackPage = lazy(() =>
 		default: m.RecordingPlaybackPage,
 	})),
 );
+const InterviewReportPage = lazy(() =>
+	import('@/pages/recruiter/InterviewReport').then((m) => ({ default: m.InterviewReportPage })),
+);
 
 const RecruiterPanelsPage = lazy(() =>
 	import('@/pages/recruiter/panels').then((m) => ({ default: m.RecruiterPanelsPage })),
@@ -1173,6 +1176,16 @@ function AppRoutes() {
 						<Protected>
 							<RecruiterGuard>
 								<RecordingPlaybackPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path="interviews/report/:sessionId"
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<InterviewReportPage />
 							</RecruiterGuard>
 						</Protected>
 					}

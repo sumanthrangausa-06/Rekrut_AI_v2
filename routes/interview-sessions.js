@@ -754,6 +754,39 @@ router.get('/interview-sessions', authMiddleware, async (req, res) => {
 	}
 });
 
+// GET /interview-sessions/:id/recording — the session's linked recording (Task 9).
+// The recruiter report view uses this to offer playback of the session recording.
+router.get('/interview-sessions/:id/recording', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		if (!canAccess(session, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+		const recording = await livekitService.findRecordingBySessionId(session.id);
+		if (!recording) {
+			return res.json({ success: true, recording: null });
+		}
+		res.json({
+			success: true,
+			recording: {
+				id: recording.id,
+				status: recording.status,
+				started_at: recording.started_at,
+				stopped_at: recording.stopped_at,
+				duration_seconds: recording.duration_seconds,
+				file_size_bytes: recording.file_size_bytes,
+				file_format: recording.file_format,
+			},
+		});
+	} catch (err) {
+		console.error('[interview-sessions] recording lookup error:', err.message);
+		res.status(500).json({ error: 'Failed to load session recording' });
+	}
+});
+
 // ─── Interview flows (Task 7) ──────────────────────────────────────────────
 // Generalized per-job interview configuration: screening AND AI-interview
 // flows with phases, topics/questions, rubric weights, and triggers.

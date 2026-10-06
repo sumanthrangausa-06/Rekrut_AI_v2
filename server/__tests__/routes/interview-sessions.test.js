@@ -71,6 +71,8 @@ const sessions = new Map();
 let nextSessionId = 1;
 const scheduledInterviews = [];
 const interviewEvents = [];
+// Session-linked recordings (Task 9): interview_session_id -> recording row.
+const sessionRecordings = new Map();
 // Trigger fixtures (Task 6): jobs, applications, resumes, question bank.
 const jobs = new Map();
 const applications = new Map();
@@ -193,6 +195,11 @@ db.query.mockImplementation(async (sql, params) => {
 		const rows = interviewEvents.filter((r) => Number(r[key]) === Number((params || [])[0]));
 		return { rows, rowCount: rows.length };
 	}
+	if (normalized.includes('from interview_recordings')) {
+		// findRecordingBySessionId: WHERE interview_session_id = $1
+		const row = sessionRecordings.get(Number((params || [])[0]));
+		return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+	}
 	if (normalized.includes('from jobs where id =')) {
 		const row = jobs.get(Number((params || [])[0]));
 		return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
@@ -256,6 +263,7 @@ beforeEach(() => {
 	nextSessionId = 1;
 	scheduledInterviews.length = 0;
 	interviewEvents.length = 0;
+	sessionRecordings.clear();
 	jobs.clear();
 	applications.clear();
 	resumes.clear();
@@ -858,5 +866,70 @@ describe('GET /api/interviews/interview-sessions/by-token/:token (Task 8)', () =
 		);
 
 		expect(res.status).toBe(404);
+	});
+});
+
+describe('GET /api/interviews/interview-sessions/:id/recording (Task 9)', () => {
+	function seedRecording(sessionId) {
+		const row = {
+			id: 900 + sessionId,
+			interview_session_id: sessionId,
+			status: 'completed',
+			started_at: new Date().toISOString(),
+			stopped_at: new Date().toISOString(),
+			duration_seconds: 372,
+			file_size_bytes: 1024,
+			file_format: 'webm',
+		};
+		sessionRecordings.set(sessionId, row);
+		return row;
+	}
+
+	it('returns the linked recording for the session', async () => {
+		const app = buildApp();
+		const created = await createSession(app);
+		const sessionId = created.body.session.id;
+		const rec = seedRecording(sessionId);
+
+		const res = await request(app)
+			.get(`/api/interviews/interview-sessions/${sessionId}/recording`)
+			.set('x-test-user-id', '2'); // recruiter
+
+		expect(res.status).toBe(200);
+		expect(res.body.success).toBe(true);
+		expect(res.body.recording).toMatchObject({ id: rec.id, status: 'completed' });
+	});
+
+	it('returns null recording when the session has none', async () => {
+		const app = buildApp();
+		const created = await createSession(app);
+
+		const res = await request(app)
+			.get(`/api/interviews/interview-sessions/${created.body.session.id}/recording`)
+			.set('x-test-user-id', '2');
+
+		expect(res.status).toBe(200);
+		expect(res.body.recording).toBeNull();
+	});
+
+	it('404s for an unknown session', async () => {
+		const app = buildApp();
+		const res = await request(app)
+			.get('/api/interviews/interview-sessions/99999/recording')
+			.set('x-test-user-id', '2');
+
+		expect(res.status).toBe(404);
+	});
+
+	it("403s when a candidate accesses another candidate's session", async () => {
+		const app = buildApp();
+		const created = await createSession(app); // candidate_id: 1
+		global.__testUsers[3] = { id: 3, email: 'other@test.com', role: 'candidate' };
+
+		const res = await request(app)
+			.get(`/api/interviews/interview-sessions/${created.body.session.id}/recording`)
+			.set('x-test-user-id', '3');
+
+		expect(res.status).toBe(403);
 	});
 });
