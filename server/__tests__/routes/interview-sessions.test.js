@@ -554,6 +554,18 @@ describe('GET /api/interviews/interview-sessions', () => {
 		expect(res.body.sessions).toHaveLength(1);
 	});
 
+	it('forbids candidates from listing by job_id', async () => {
+		const app = buildApp();
+		await createSession(app);
+
+		const res = await request(app)
+			.get('/api/interviews/interview-sessions')
+			.set('x-test-user-id', '1')
+			.query({ job_id: 10 });
+
+		expect(res.status).toBe(403);
+	});
+
 	it('read-links human-scheduled interviews in the recruiter job_id view', async () => {
 		const app = buildApp();
 		await createSession(app); // job_id: 10

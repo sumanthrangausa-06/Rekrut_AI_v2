@@ -363,6 +363,12 @@ router.get('/interview-sessions', authMiddleware, async (req, res) => {
 		) {
 			return res.status(403).json({ error: 'Forbidden' });
 		}
+		// The job_id view is the recruiter's unified panel (Task 9): candidates
+		// have no legitimate use for it and must not enumerate other candidates'
+		// sessions and transcripts.
+		if (req.user.role === 'candidate' && job_id) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
 
 		const sessions = [];
 		if (candidate_id) {
