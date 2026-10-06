@@ -213,8 +213,12 @@ router.post(
 				return res.status(403).json({ error: 'You do not have access to this job' });
 			}
 
-			// Validate pass_threshold
-			const threshold = Math.max(0, Math.min(100, parseInt(pass_threshold, 10) || 70));
+			// Validate pass_threshold (null-safe: 0 is a valid threshold, NaN/missing → 70)
+			const parsedThreshold = parseInt(pass_threshold, 10);
+			const threshold = Math.max(
+				0,
+				Math.min(100, Number.isNaN(parsedThreshold) ? 70 : parsedThreshold),
+			);
 
 			// Validate questions
 			const validTypes = ['single_choice', 'multiple_choice', 'short_text', 'yes_no', 'numeric'];
@@ -777,7 +781,7 @@ router.post('/submit', authMiddleware, async (req, res) => {
 			// (they were already validated via knockout logic)
 			if (evaluatedCount > 0) {
 				overallScore = Math.round(totalScore / evaluatedCount);
-				const passThreshold = response.pass_threshold || 70;
+				const passThreshold = response.pass_threshold ?? 70;
 
 				if (overallScore >= passThreshold) {
 					status = 'evaluated';

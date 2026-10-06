@@ -41,6 +41,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { InterviewPanel } from '@/components/domain/InterviewPanel';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -1314,6 +1315,20 @@ export function RecruiterJobApplicantsPage() {
 							</Button>
 						</div>
 
+					{/* Interviews (Task 9, #322): screening + AI interviews + human-scheduled */}
+						<div>
+							<h4 className="font-medium text-sm mb-2">Interviews</h4>
+							<InterviewPanel
+								candidateId={selected.candidate_id}
+								applicationId={selected.id}
+								onViewReport={(s) =>
+									navigate(
+										`/recruiter/interviews/report/${s.id}?candidateId=${selected.candidate_id}`,
+									)
+								}
+							/>
+						</div>
+
 						{/* Hiring actions: AI screening + assessment */}
 						<div>
 							<h4 className="font-medium text-sm mb-2">Hiring Actions</h4>
@@ -1596,7 +1611,7 @@ export function RecruiterJobApplicantsPage() {
 													type="number"
 													min={0}
 													max={100}
-													value={automationRules?.advance_match_min || 70}
+													value={automationRules?.advance_match_min ?? 70}
 													onChange={(e) =>
 														setAutomationRules((r: any) => ({
 															...r,

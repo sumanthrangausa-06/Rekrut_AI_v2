@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { AdminAuthGuard } from '@/components/admin-auth-guard';
 import { ErrorBoundary, RouteErrorBoundary } from '@/components/error-boundary';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
@@ -156,9 +156,14 @@ const CandidateBackgroundCheckPage = lazy(() =>
 		default: m.CandidateBackgroundCheckPage,
 	})),
 );
-const CandidateScreeningPage = lazy(() =>
-	import('@/pages/candidate/voice-screening').then((m) => ({ default: m.VoiceScreeningPage })),
+const CandidateInterviewSessionPage = lazy(() =>
+	import('@/pages/candidate/InterviewSession').then((m) => ({ default: m.default })),
 );
+// Legacy /screening/:token links forward to the unified interview session page (#322)
+function ScreeningTokenRedirect() {
+	const { token } = useParams<{ token: string }>();
+	return <Navigate to={`/interview/session/${token ?? ''}`} replace />;
+}
 const CandidateScreeningQuestionnairePage = lazy(() =>
 	import('@/pages/candidate/screening-questionnaire').then((m) => ({
 		default: m.ScreeningQuestionnairePage,
@@ -304,6 +309,9 @@ const RecordingPlaybackPage = lazy(() =>
 	import('@/pages/recruiter/recording-playback').then((m) => ({
 		default: m.RecordingPlaybackPage,
 	})),
+);
+const InterviewReportPage = lazy(() =>
+	import('@/pages/recruiter/InterviewReport').then((m) => ({ default: m.InterviewReportPage })),
 );
 
 const RecruiterPanelsPage = lazy(() =>
@@ -538,7 +546,8 @@ function AppRoutes() {
 			<Route path="/test-camera" element={<TestCameraPage />} />
 			<Route path="/pricing" element={<PricingPage />} />
 			<Route path="/payment-success" element={<PaymentSuccessPage />} />
-			<Route path="/screening/:token" element={<CandidateScreeningPage />} />
+			<Route path="/screening/:token" element={<ScreeningTokenRedirect />} />
+			<Route path="/interview/session/:token" element={<CandidateInterviewSessionPage />} />
 			<Route path="/blog" element={<BlogPage />} />
 			<Route path="/blog/:slug" element={<BlogPostPage />} />
 			<Route path="/about" element={<AboutPage />} />
@@ -1167,6 +1176,16 @@ function AppRoutes() {
 						<Protected>
 							<RecruiterGuard>
 								<RecordingPlaybackPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path="interviews/report/:sessionId"
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<InterviewReportPage />
 							</RecruiterGuard>
 						</Protected>
 					}

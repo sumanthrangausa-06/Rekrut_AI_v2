@@ -59,6 +59,29 @@ async function canAccessRecording(recordingId, user) {
 	const recording = await livekitService.findRecordingById(recordingId);
 	if (!recording) return { canAccess: false, recording: null, isRecruiter: false };
 
+	// Phase 1 (#322, Task 4): session-linked recordings (AI screening /
+	// AI interview) have no interview_event — access is governed by the
+	// interview session: the candidate owns it; recruiters are company-scoped.
+	if (recording.interview_session_id) {
+		const sessRes = await pool.query('SELECT * FROM interview_sessions WHERE id = $1', [
+			recording.interview_session_id,
+		]);
+		const session = sessRes.rows[0];
+		if (!session) return { canAccess: false, recording: null, isRecruiter: false };
+
+		const isCandidate = Number(session.candidate_id) === Number(user.id);
+		const isRecruiter =
+			user.role === 'admin' ||
+			(isRecruiterRole(user.role) && Number(session.company_id) === Number(user.company_id));
+		return {
+			canAccess: isCandidate || isRecruiter,
+			recording,
+			session,
+			isRecruiter,
+			isCandidate,
+		};
+	}
+
 	const eventRes = await pool.query(
 		`SELECT ie.*, u.company_id as recruiter_company_id
 		 FROM interview_events ie
@@ -745,7 +768,7 @@ router.post(
 		param('id').isInt({ min: 1 }).withMessage('Valid recording ID required'),
 		body('consent_type')
 			.optional()
-			.isIn(['explicit', 'implicit'])
+			.isIn(['explicit', 'implicit', 'withdrawn'])
 			.withMessage('Invalid consent_type'),
 	],
 	handleValidationErrors,

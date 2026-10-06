@@ -385,20 +385,40 @@ async function getEgressInfo(egressId) {
 /**
  * Persist a new recording record.
  * @param {Object} opts
- * @param {number} opts.interviewEventId
- * @param {number} opts.roomId
- * @param {string} opts.egressId
+ * @param {number} [opts.interviewEventId] - LiveKit flow (interview_events.id)
+ * @param {number} [opts.roomId] - LiveKit flow (interview_rooms.id)
+ * @param {string} [opts.egressId] - LiveKit egress id (LiveKit flow only)
+ * @param {number} [opts.interviewSessionId] - Phase 1 unified sessions (#322):
+ *   session-linked recordings have no event/room; exactly one of
+ *   interviewEventId / interviewSessionId must be set (migration 130).
+ * @param {string} [opts.status] - defaults to 'recording' (LiveKit flow);
+ *   session recordings start as 'pending' until capture begins.
+ * @param {number} [opts.retentionDays] - overrides RECORDING_RETENTION_DAYS.
  * @returns {Promise<Object>} inserted row
  */
-async function createRecordingRecord({ interviewEventId, roomId, egressId }) {
-	const retentionDays = parseInt(process.env.RECORDING_RETENTION_DAYS || '90', 10);
-	const retentionDate = new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000);
+async function createRecordingRecord({
+	interviewEventId,
+	roomId,
+	egressId,
+	interviewSessionId,
+	status = 'recording',
+	retentionDays,
+}) {
+	const days = retentionDays ?? parseInt(process.env.RECORDING_RETENTION_DAYS || '90', 10);
+	const retentionDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 	const result = await pool.query(
 		`INSERT INTO interview_recordings
-		 (interview_event_id, room_id, livekit_egress_id, status, started_at, retention_expires_at, created_at, updated_at)
-		 VALUES ($1, $2, $3, 'recording', NOW(), $4, NOW(), NOW())
+		 (interview_event_id, room_id, interview_session_id, livekit_egress_id, status, started_at, retention_expires_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, NOW(), $6, NOW(), NOW())
 		 RETURNING *`,
-		[interviewEventId, roomId, egressId, retentionDate],
+		[
+			interviewEventId || null,
+			roomId || null,
+			interviewSessionId || null,
+			egressId || null,
+			status,
+			retentionDate,
+		],
 	);
 	return result.rows[0];
 }
@@ -467,6 +487,58 @@ async function findActiveRecordingByRoomId(roomId) {
 		[roomId],
 	);
 	return result.rows[0] || null;
+}
+
+/**
+ * Find the latest recording for a unified interview session (#322).
+ * @param {number} interviewSessionId
+ * @returns {Promise<Object|null>}
+ */
+async function findRecordingBySessionId(interviewSessionId) {
+	const result = await pool.query(
+		`SELECT * FROM interview_recordings
+		 WHERE interview_session_id = $1
+		 ORDER BY created_at DESC
+		 LIMIT 1`,
+		[interviewSessionId],
+	);
+	return result.rows[0] || null;
+}
+
+/**
+ * Whether the user has active (non-withdrawn) recording consent.
+ * Capture requires a consent row to exist AND not be withdrawn (#322, Task 4):
+ * missing consent blocks capture just like withdrawn consent does.
+ * @param {number} recordingId
+ * @param {number} userId
+ * @returns {Promise<boolean>}
+ */
+async function hasActiveConsent(recordingId, userId) {
+	const result = await pool.query(
+		`SELECT consent_type FROM recording_consent WHERE recording_id = $1 AND user_id = $2`,
+		[recordingId, userId],
+	);
+	return result.rows.length > 0 && result.rows[0].consent_type !== 'withdrawn';
+}
+
+/**
+ * Set recording retention to 30 days after the hiring decision (#322).
+ * Called when an application reaches a terminal decision (hired/rejected);
+ * the per-recording retention_expires_at is set explicitly rather than
+ * relying on the 90-day table default.
+ * @param {number} applicationId
+ * @param {number} [daysAfterDecision=30]
+ * @returns {Promise<number>} number of recordings updated
+ */
+async function setSessionRecordingsRetentionAfterDecision(applicationId, daysAfterDecision = 30) {
+	const retentionDate = new Date(Date.now() + daysAfterDecision * 24 * 60 * 60 * 1000);
+	const result = await pool.query(
+		`UPDATE interview_recordings
+		 SET retention_expires_at = $1, updated_at = NOW()
+		 WHERE interview_session_id IN (SELECT id FROM interview_sessions WHERE application_id = $2)`,
+		[retentionDate, applicationId],
+	);
+	return result.rowCount;
 }
 
 /**
@@ -558,6 +630,9 @@ module.exports = {
 	failRecordingRecord,
 	findRecordingById,
 	findActiveRecordingByRoomId,
+	findRecordingBySessionId,
+	hasActiveConsent,
+	setSessionRecordingsRetentionAfterDecision,
 	listRecordingsByEventId,
 	decryptStoragePath,
 	downloadRecordingAudio,

@@ -10,7 +10,6 @@ const {
 	analyzeVideoPresentation,
 	analyzeVoiceQuality,
 	generateQuestionBank,
-	conductInterviewTurn,
 	generateSessionFeedback,
 	textToSpeech,
 	transcribeAudioWithWhisper,
@@ -18,6 +17,7 @@ const {
 	handleAIError,
 } = require('../lib/polsia-ai');
 const crypto = require('node:crypto');
+const { conductTurn } = require('../services/conversation-engine');
 const omniscoreService = require('../services/omniscore');
 const multer = require('multer');
 
@@ -26,6 +26,8 @@ const emailService = require('../lib/email-service');
 const calendarService = require('../server/services/calendar-service');
 const { notifyUser } = require('../lib/notify');
 const { uploadToB2 } = require('../lib/file-storage');
+// Task 11 (#322): company audit log (#251 pattern) for session.sent on manual send.
+const { insertAuditLog } = require('./audit');
 
 const router = express.Router();
 const upload = multer({
@@ -928,32 +930,33 @@ router.post('/mock/:sessionId/respond', authMiddleware, rateLimits.ai, async (re
 			};
 		} else {
 			try {
-				aiTurn = await withTimeout(
-					conductInterviewTurn(
+				// Phase 1 (#322): delegate turn generation to the unified conversation
+				// engine (owns the 20s timeout + scripted fallback). Map its result
+				// back to the aiTurn shape this handler persists downstream.
+				// Non-complete turns advance the planned-question pointer; the
+				// follow_up/challenge granularity now lives in the LLM's
+				// conversational follow-ups rather than the question index.
+				const engineTurn = await conductTurn(
+					{
 						conversation,
-						baseQuestions,
-						session.current_question_index,
-						session.target_role,
-						{ subscriptionId: req.user.stripe_subscription_id },
-					),
-					20000,
-					'Interview AI turn generation',
+						config: {
+							question_source: 'personalized',
+							base_questions: baseQuestions,
+							current_question_index: session.current_question_index,
+							target_role: session.target_role,
+							options: { subscriptionId: req.user.stripe_subscription_id },
+						},
+					},
+					response_text.trim(),
+					[],
 				);
-				// BUG FIX: Override generic AI reactions — don't echo user's words
-				if (
-					aiTurn?.reaction &&
-					/^(Thank you for (that|sharing|your) (response|answer)|That's (helpful|great|good|interesting)\.?)\s*$/i.test(
-						aiTurn.reaction.trim(),
-					)
-				) {
-					const NATURAL_AI_ACKS = [
-						'Interesting perspective. Let me follow up on that.',
-						"That gives me good context. I'd like to dig a little deeper.",
-						"That's a thoughtful response. Let me explore another angle.",
-						'I appreciate the detail. Let me build on that.',
-					];
-					aiTurn.reaction = NATURAL_AI_ACKS[candidateTurnCount % NATURAL_AI_ACKS.length];
-				}
+				aiTurn = {
+					reaction: '',
+					question: engineTurn.ai_message,
+					action: engineTurn.is_complete ? 'wrap_up' : 'transition',
+					score_hint: null,
+					notes: null,
+				};
 			} catch (aiErr) {
 				console.warn(
 					`[mock] AI turn generation failed (${aiErr.message}), using scripted fallback`,
@@ -2240,32 +2243,33 @@ router.post(
 				// BUG FIX: Wrap with 20s overall timeout — the LLM chain can take 135s (9 providers × 15s each),
 				// but Render kills the request at ~30s. Without this, the scripted fallback never fires.
 				try {
-					aiTurn = await withTimeout(
-						conductInterviewTurn(
+					// Phase 1 (#322): delegate turn generation to the unified conversation
+					// engine (owns the 20s timeout + scripted fallback). Map its result
+					// back to the aiTurn shape this handler persists downstream.
+					// Non-complete turns advance the planned-question pointer; the
+					// follow_up/challenge granularity now lives in the LLM's
+					// conversational follow-ups rather than the question index.
+					const engineTurn = await conductTurn(
+						{
 							conversation,
-							baseQuestions,
-							session.current_question_index,
-							session.target_role,
-							{ subscriptionId: req.user.stripe_subscription_id },
-						),
-						20000,
-						'Voice interview AI turn generation',
+							config: {
+								question_source: 'personalized',
+								base_questions: baseQuestions,
+								current_question_index: session.current_question_index,
+								target_role: session.target_role,
+								options: { subscriptionId: req.user.stripe_subscription_id },
+							},
+						},
+						transcribedText,
+						[],
 					);
-					// BUG FIX: Override generic AI reactions — don't echo user's words
-					if (
-						aiTurn?.reaction &&
-						/^(Thank you for (that|sharing|your) (response|answer)|That's (helpful|great|good|interesting)\.?)\s*$/i.test(
-							aiTurn.reaction.trim(),
-						)
-					) {
-						const NATURAL_AI_ACKS = [
-							'Interesting perspective. Let me follow up on that.',
-							"That gives me good context. I'd like to dig a little deeper.",
-							"That's a thoughtful response. Let me explore another angle.",
-							'I appreciate the detail. Let me build on that.',
-						];
-						aiTurn.reaction = NATURAL_AI_ACKS[voiceCandidateCount % NATURAL_AI_ACKS.length];
-					}
+					aiTurn = {
+						reaction: '',
+						question: engineTurn.ai_message,
+						action: engineTurn.is_complete ? 'wrap_up' : 'transition',
+						score_hint: null,
+						notes: null,
+					};
 				} catch (aiErr) {
 					console.warn(
 						`[voice-respond] AI turn generation failed (${aiErr.message}), using scripted fallback`,
@@ -2937,6 +2941,12 @@ router.delete('/screening/templates/:id', authMiddleware, async (req, res) => {
 });
 
 // POST /api/interviews/screening/send — Send screening invite to candidate
+// Phase 1 (#322, C2): writes the UNIFIED interview_sessions model
+// (type='screening', frozen engine config mirroring the auto-send hook in
+// routes/candidate.js). /screening/:token now redirects to
+// /interview/session/:token, which resolves ONLY via interview_sessions —
+// writing screening_sessions here would produce dead invite links. The legacy
+// /screening/session/:token/* endpoints stay for in-flight pre-migration sessions.
 router.post('/screening/send', authMiddleware, async (req, res) => {
 	try {
 		const { template_id, candidate_id, application_id, job_id } = req.body;
@@ -2945,7 +2955,7 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'Template and candidate are required' });
 		}
 
-		// Get template
+		// Get template (company-scoped — the recruiter's explicit choice)
 		const template = await pool.query(
 			'SELECT * FROM screening_templates WHERE id = $1 AND company_id = $2',
 			[template_id, req.user.company_id],
@@ -2956,12 +2966,23 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 		}
 
 		const tmpl = template.rows[0];
+		const resolvedJobId = tmpl.job_id || job_id || null;
 
-		// Check if screening already sent
-		const existing = await pool.query(
-			`SELECT id FROM screening_sessions WHERE template_id = $1 AND candidate_id = $2 AND status != 'expired'`,
-			[template_id, candidate_id],
-		);
+		// Duplicate check against the unified table (was: screening_sessions).
+		let existing;
+		if (application_id) {
+			existing = await pool.query(
+				`SELECT id FROM interview_sessions WHERE application_id = $1 AND type = 'screening' LIMIT 1`,
+				[application_id],
+			);
+		} else {
+			existing = await pool.query(
+				`SELECT id FROM interview_sessions
+				  WHERE candidate_id = $1 AND job_id IS NOT DISTINCT FROM $2
+				    AND type = 'screening' AND status != 'expired' LIMIT 1`,
+				[candidate_id, resolvedJobId],
+			);
+		}
 
 		if (existing.rows.length > 0) {
 			return res.status(409).json({
@@ -2970,27 +2991,51 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 			});
 		}
 
-		// Create screening session with invite token
-		const inviteToken = crypto.randomBytes(32).toString('hex');
-		const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60000); // 7 days
+		// Job row for the frozen engine config (mirrors the auto-send hook).
+		let jobRow = null;
+		if (resolvedJobId) {
+			const jobResult = await pool.query('SELECT * FROM jobs WHERE id = $1', [resolvedJobId]);
+			jobRow = jobResult.rows[0] || null;
+		}
 
+		// Freeze the engine config at creation (Task 2 contract) — identical
+		// shape to the auto-send hook in routes/candidate.js.
+		const sessionConfig = {
+			question_source: 'template',
+			current_phase: 'intro',
+			job: {
+				id: jobRow?.id ?? resolvedJobId,
+				title: jobRow?.title || null,
+				company_name: jobRow?.company_name || jobRow?.company || null,
+				description: jobRow?.description || null,
+			},
+			template: {
+				id: tmpl.id,
+				title: tmpl.title,
+				topics: tmpl.topics || [],
+				questions: tmpl.questions || [],
+			},
+		};
+
+		const inviteToken = crypto.randomBytes(32).toString('hex');
 		const result = await pool.query(
-			`INSERT INTO screening_sessions
-       (template_id, company_id, job_id, candidate_id, application_id, invited_by, invite_token, questions, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING *`,
+			`INSERT INTO interview_sessions
+			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+			 RETURNING *`,
 			[
-				template_id,
-				req.user.company_id,
-				tmpl.job_id || job_id,
-				candidate_id,
+				'screening',
+				resolvedJobId,
 				application_id || null,
+				candidate_id,
+				req.user.company_id,
 				req.user.id,
 				inviteToken,
-				JSON.stringify(tmpl.questions),
-				expiresAt,
+				JSON.stringify(sessionConfig),
+				JSON.stringify([]),
 			],
 		);
+		const session = result.rows[0];
 
 		// Update application screening status
 		if (application_id) {
@@ -3000,25 +3045,45 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 			);
 		}
 
+		// Task 11 (#322): audit event — session.sent with the recruiter as
+		// actor. Non-blocking: an audit failure never fails the send.
+		try {
+			await insertAuditLog({
+				company_id: req.user.company_id ?? null,
+				actor_id: req.user.id,
+				target_id: session.id,
+				action: 'session.sent',
+				metadata: {
+					session_id: session.id,
+					type: 'screening',
+					job_id: resolvedJobId,
+					application_id: application_id || null,
+					template_id,
+				},
+			});
+		} catch (auditErr) {
+			console.error('[screening/send] audit event failed:', auditErr.message);
+		}
+
 		// In-app notification for the candidate (non-blocking)
-		const inviteUrl = `/screening/${inviteToken}`;
+		const inviteUrl = `/interview/session/${inviteToken}`;
 		notifyUser(
 			candidate_id,
 			'screening_invited',
 			'AI screening interview invited',
-			`You've been invited to complete an AI screening interview (${tmpl.title}). Complete it within 7 days.`,
+			`You've been invited to complete an AI screening interview (${tmpl.title}).`,
 			{
-				session_id: result.rows[0].id,
+				session_id: session.id,
 				template_id,
 				application_id: application_id || null,
-				job_id: tmpl.job_id || job_id || null,
+				job_id: resolvedJobId,
 				invite_url: inviteUrl,
 			},
 		);
 
 		res.json({
 			success: true,
-			session: result.rows[0],
+			session,
 			invite_url: inviteUrl,
 		});
 	} catch (err) {
@@ -3132,22 +3197,30 @@ router.post('/screening/session/:token/start', async (req, res) => {
 		const s = sessionResult.rows[0];
 
 		// Generate AI intro turn
-		const interviewAI = require('../services/interview-ai');
-		const introTurn = await interviewAI.conductScreeningTurn(
+		// Phase 1 (#322): delegate turn generation to the unified conversation engine.
+		const engineIntro = await conductTurn(
+			{
+				conversation: [],
+				config: {
+					question_source: 'template',
+					job: {
+						title: s.job_title,
+						description: s.job_description,
+						company_name: s.company_name,
+					},
+					template: {
+						questions: s.template_questions || [],
+						topics: s.template_topics || [],
+						title: s.template_title,
+						screening_mode: s.screening_mode || 'conversational',
+					},
+					current_phase: 'intro',
+				},
+			},
+			'',
 			[],
-			{
-				title: s.job_title,
-				description: s.job_description,
-				company_name: s.company_name,
-			},
-			{
-				questions: s.template_questions || [],
-				topics: s.template_topics || [],
-				title: s.template_title,
-				screening_mode: s.screening_mode || 'conversational',
-			},
-			'intro',
 		);
+		const introTurn = { question: engineIntro.ai_message, phase: engineIntro.phase };
 
 		// Save intro to conversation
 		const conversation = [
@@ -3224,34 +3297,38 @@ router.post('/screening/session/:token/respond', async (req, res) => {
 		});
 
 		// AI generates next turn (conversational screening)
-		const interviewAI = require('../services/interview-ai');
-		let aiTurn;
-		try {
-			aiTurn = await interviewAI.conductScreeningTurn(
+		// Phase 1 (#322): delegate turn generation to the unified conversation
+		// engine (owns the 20s timeout + scripted fallback). Map its result to
+		// the aiTurn shape this handler persists downstream.
+		const engineTurn = await conductTurn(
+			{
 				conversation,
-				{
-					title: s.job_title,
-					description: s.job_description,
-					company_name: s.company_name,
+				config: {
+					question_source: 'template',
+					job: {
+						title: s.job_title,
+						description: s.job_description,
+						company_name: s.company_name,
+					},
+					template: {
+						questions: s.template_questions || [],
+						topics: s.template_topics || [],
+						title: s.template_title,
+						screening_mode: s.screening_mode || 'conversational',
+					},
+					current_phase: currentPhase,
 				},
-				{
-					questions: s.template_questions || [],
-					topics: s.template_topics || [],
-					title: s.template_title,
-					screening_mode: s.screening_mode || 'conversational',
-				},
-				currentPhase,
-			);
-		} catch (aiErr) {
-			console.error('[screening] AI turn failed, using fallback:', aiErr.message);
-			aiTurn = {
-				reaction: 'Thanks for sharing that.',
-				action: 'transition',
-				question: "Let's move on — what questions do you have about the role?",
-				phase: 'candidate_questions',
-				notes: 'AI fallback',
-			};
-		}
+			},
+			response_text.trim(),
+			[],
+		);
+		const aiTurn = {
+			reaction: '',
+			question: engineTurn.ai_message,
+			action: engineTurn.is_complete ? 'wrap_up' : 'transition',
+			phase: engineTurn.phase,
+			notes: null,
+		};
 
 		// Add AI turn to conversation
 		const aiMessage = aiTurn.reaction
@@ -3295,7 +3372,6 @@ router.post(
 	async (req, res) => {
 		try {
 			const aiProvider = require('../lib/ai-provider');
-			const interviewAI = require('../services/interview-ai');
 
 			// Step 1: Transcribe audio
 			let transcribedText = '';
@@ -3364,32 +3440,36 @@ router.post(
 			});
 
 			// Step 3: Generate AI turn (same logic as text endpoint)
-			let aiTurn;
-			try {
-				aiTurn = await interviewAI.conductScreeningTurn(
+			// Phase 1 (#322): delegate turn generation to the unified conversation
+			// engine (owns the 20s timeout + scripted fallback). Its result shape
+			// already matches what this handler consumes downstream.
+			const engineTurn = await conductTurn(
+				{
 					conversation,
-					{
-						title: s.job_title,
-						description: s.job_description,
-						company_name: s.company_name,
+					config: {
+						question_source: 'template',
+						job: {
+							title: s.job_title,
+							description: s.job_description,
+							company_name: s.company_name,
+						},
+						template: {
+							questions: s.template_questions || [],
+							topics: s.template_topics || [],
+							title: s.template_title,
+							screening_mode: s.screening_mode || 'conversational',
+						},
+						current_phase: currentPhase,
 					},
-					{
-						questions: s.template_questions || [],
-						topics: s.template_topics || [],
-						title: s.template_title,
-						screening_mode: s.screening_mode || 'conversational',
-					},
-					currentPhase,
-				);
-			} catch (aiErr) {
-				console.error('[screening-voice] AI turn failed:', aiErr.message);
-				aiTurn = {
-					ai_message:
-						'Thanks for sharing that. Could you tell me a bit more about your experience?',
-					phase: currentPhase,
-					should_wrap_up: false,
-				};
-			}
+				},
+				transcribedText,
+				[],
+			);
+			const aiTurn = {
+				ai_message: engineTurn.ai_message,
+				phase: engineTurn.phase,
+				should_wrap_up: engineTurn.is_complete,
+			};
 
 			// Add AI response to conversation
 			conversation.push({
