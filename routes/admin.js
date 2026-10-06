@@ -96,7 +96,7 @@ async function initAdminCredentials() {
 initAdminCredentials();
 
 // ─── Middleware ──────────────────────────────────────────────────────────────
-function requireAdmin(req, res, next) {
+async function requireAdmin(req, res, next) {
 	// Path 1: Already authenticated via admin login
 	if (req.session?.isAdmin) {
 		// Admin session timeout enforcement
@@ -128,13 +128,21 @@ function requireAdmin(req, res, next) {
 	const token = req.headers.authorization?.split(' ')[1] || req.session?.token;
 	if (token && verifyToken) {
 		const decoded = verifyToken(token);
-		if (decoded && decoded.role === 'admin') {
-			// Bridge: set admin session so subsequent requests don't re-verify
-			req.session.isAdmin = true;
-			req.session.adminLoginAt = new Date().toISOString();
-			req.session.lastAdminActivity = new Date().toISOString();
-			req.session.adminBridgedFrom = decoded.email;
-			return next();
+		if (decoded?.id) {
+			// --- Issue #336: re-check role from the DB; never trust JWT claims ---
+			try {
+				const userResult = await pool.query('SELECT role FROM users WHERE id = $1', [decoded.id]);
+				if (userResult.rows[0]?.role === 'admin') {
+					// Bridge: set admin session so subsequent requests don't re-verify
+					req.session.isAdmin = true;
+					req.session.adminLoginAt = new Date().toISOString();
+					req.session.lastAdminActivity = new Date().toISOString();
+					req.session.adminBridgedFrom = decoded.email;
+					return next();
+				}
+			} catch (dbErr) {
+				console.error('[admin] Bridge DB role check failed:', dbErr.message);
+			}
 		}
 	}
 
