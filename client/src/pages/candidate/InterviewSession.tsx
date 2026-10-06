@@ -38,6 +38,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useInterviewerAudio } from '@/hooks/useInterviewerAudio';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall, getToken } from '@/lib/api';
+import { useVoiceRoom, type VoiceRoomTurn } from './useVoiceRoom';
 
 type Phase =
 	| 'loading'
@@ -79,7 +80,11 @@ interface Session {
 	type: string;
 	status: string;
 	conversation: Turn[];
-	config?: { question_source?: string; current_phase?: string };
+	config?: {
+		question_source?: string;
+		current_phase?: string;
+		observer_enabled?: boolean;
+	};
 }
 
 const SESSION_TYPE_LABEL: Record<string, string> = {
@@ -87,6 +92,7 @@ const SESSION_TYPE_LABEL: Record<string, string> = {
 	ai_interview: 'AI Interview',
 	mock: 'Mock Interview',
 	live: 'Live Interview',
+	human: 'Human Interview',
 };
 
 const FRAME_INTERVAL_MS = 4000;
@@ -159,6 +165,34 @@ export default function CandidateInterviewSessionPage() {
 	});
 
 	const questionCount = turns.filter((t) => t.role === 'interviewer').length;
+
+	// ---- Track A live voice (Phase 2, #323) ----
+	// The voice agent persists turns to the session conversation after every
+	// turn; merge them into the transcript while the room is live.
+	const handleVoiceTranscript = useCallback((conv: VoiceRoomTurn[]) => {
+		setTurns(
+			conv.map((t, i) => ({
+				role: t.role === 'interviewer' ? ('interviewer' as const) : ('candidate' as const),
+				text: t.text,
+				timestamp: t.timestamp ?? new Date().toISOString(),
+				_key: i,
+			})),
+		);
+	}, []);
+	const {
+		voiceState,
+		start: startVoice,
+		stop: stopVoice,
+		setVideoEnabled: setVoiceVideoEnabled,
+	} = useVoiceRoom({
+		sessionId: session?.id ?? -1,
+		candidateName: '',
+		videoEnabled: videoConsent,
+		onTranscript: handleVoiceTranscript,
+		// Full-branch review C1 (#323): human interviews (Track B) are for
+		// the two humans — the candidate joins the room, no AI interviewer.
+		dispatchMode: session?.type === 'human' ? null : 'interviewer',
+	});
 
 	// ---- token resolution ----
 	useEffect(() => {
@@ -370,12 +404,23 @@ export default function CandidateInterviewSessionPage() {
 		setPhase('active');
 		trackEvent('interview_session_joined', { session_id: session?.id, video: videoConsent });
 		if (videoConsent) startFrameCapture();
-		// Speak the latest interviewer message out loud
-		const lastAi = [...turns].reverse().find((t) => t.role === 'interviewer');
-		if (lastAi) {
-			void playInterviewerAudio(lastAi.text).catch(() => {});
+		// Track A voice attempt (#323). On 'live' the agent speaks the intro
+		// itself; on 'fallback' restore the Phase 1 behavior (speak the intro
+		// aloud) and keep the HTTP-turn UI as the path.
+		const outcome = await startVoice();
+		if (outcome === 'fallback') {
+			setNotice(
+				'Live voice isn\u2019t available right now \u2014 continuing with text and voice answers.',
+			);
+			trackEvent('interview_session_voice_fallback', { session_id: session?.id });
+			const lastAi = [...turns].reverse().find((t) => t.role === 'interviewer');
+			if (lastAi) {
+				void playInterviewerAudio(lastAi.text).catch(() => {});
+			}
+		} else {
+			trackEvent('interview_session_voice_live', { session_id: session?.id });
 		}
-	}, [videoConsent, startCamera, startFrameCapture, playInterviewerAudio, turns, session?.id]);
+	}, [videoConsent, startCamera, startFrameCapture, playInterviewerAudio, turns, session?.id, startVoice]);
 
 	// ---- voice input (manual toggle, same as mock-interview v1) ----
 	const startDictation = useCallback(() => {
@@ -414,6 +459,7 @@ export default function CandidateInterviewSessionPage() {
 		if (!session || finishing) return;
 		setFinishing(true);
 		sessionActiveRef.current = false;
+		stopVoice();
 		stopAudio();
 		stopFrameCapture();
 		stopCamera();
@@ -440,7 +486,7 @@ export default function CandidateInterviewSessionPage() {
 			setFinishing(false);
 			setPhase('done');
 		}
-	}, [session, finishing, stopAudio, stopFrameCapture, stopCamera, stopDictation]);
+	}, [session, finishing, stopVoice, stopAudio, stopFrameCapture, stopCamera, stopDictation]);
 
 	// ---- respond ----
 	const handleRespondResult = useCallback(
@@ -619,9 +665,12 @@ export default function CandidateInterviewSessionPage() {
 		stopFrameCapture();
 		stopCamera();
 		stopAudio();
+		// Also kill the voice room's camera track — withdrawing consent must
+		// stop video everywhere, not just the local preview (#323).
+		void setVoiceVideoEnabled(false);
 		setNotice('Video recording stopped. Your interview continues with text and voice.');
 		trackEvent('interview_session_video_withdrawn', { recording_id: recordingId });
-	}, [recordingId, stopFrameCapture, stopCamera, stopAudio]);
+	}, [recordingId, stopFrameCapture, stopCamera, stopAudio, setVoiceVideoEnabled]);
 
 	// ================= RENDER =================
 
@@ -766,6 +815,17 @@ export default function CandidateInterviewSessionPage() {
 								without video, or close this page — no recording was made.
 							</p>
 						)}
+						{/* Task 5 (#323) — Track B: the candidate is told the AI
+						    observer is present before joining (spec §5). */}
+						{session?.config?.observer_enabled && (
+							<p className="text-sm bg-blue-50 border border-blue-200 rounded-md p-3">
+								<strong className="text-blue-900">AI observer present:</strong>{' '}
+								<span className="text-blue-800">
+									an AI assistant will silently observe this interview to help the hiring
+									team evaluate it. It listens only — it won't speak or interrupt.
+								</span>
+							</p>
+						)}
 						{error && <p className="text-sm text-destructive">{error}</p>}
 						<div className="space-y-2">
 							<Button
@@ -847,7 +907,11 @@ export default function CandidateInterviewSessionPage() {
 									Enable camera
 								</Button>
 							)}
-							<Button className="flex-1 min-h-[44px]" onClick={handleJoin}>
+							<Button
+								className="flex-1 min-h-[44px]"
+								onClick={handleJoin}
+								disabled={voiceState === 'connecting'}
+							>
 								Join interview
 							</Button>
 						</div>
@@ -982,6 +1046,20 @@ export default function CandidateInterviewSessionPage() {
 			)}
 
 			{/* main */}
+			{voiceState === 'connecting' ? (
+				<main className="flex-1 flex items-center justify-center p-4">
+					<Card className="max-w-md w-full">
+						<CardContent className="py-10 flex flex-col items-center gap-3 text-center">
+							<Loader2 className="h-8 w-8 animate-spin text-primary" />
+							<p className="font-medium">Connecting to your live voice interview…</p>
+							<p className="text-sm text-muted-foreground">
+								This takes a few seconds. If live voice isn&apos;t available, you&apos;ll
+								continue with text answers instead.
+							</p>
+						</CardContent>
+					</Card>
+				</main>
+			) : (
 			<main className="flex-1 grid md:grid-cols-[1fr_380px] gap-4 p-4 max-w-6xl w-full mx-auto">
 				{/* left: self view + status */}
 				<div className="space-y-4">
@@ -1025,7 +1103,9 @@ export default function CandidateInterviewSessionPage() {
 								? 'Interviewer is speaking…'
 								: recording
 									? 'Listening — tap the mic to stop'
-									: 'Your turn — answer by text or voice'}
+									: voiceState === 'live'
+										? 'Connected — the interviewer is listening'
+										: 'Your turn — answer by text or voice'}
 					</div>
 
 					{/* live interim transcript */}
@@ -1037,7 +1117,22 @@ export default function CandidateInterviewSessionPage() {
 
 					{error && <p className="text-sm text-destructive">{error}</p>}
 
-					{/* input */}
+					{/* input: voice room replaces the HTTP-turn controls while live */}
+					{voiceState === 'live' ? (
+						<div className="flex gap-2 items-center rounded-lg border border-primary/30 bg-primary/5 p-3">
+							<span className="relative flex h-3 w-3 shrink-0">
+								<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
+								<span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
+							</span>
+							<p className="text-sm flex-1">
+								Live voice interview — speak naturally, the interviewer hears you and
+								responds out loud.
+							</p>
+							<Button size="sm" variant="outline" onClick={stopVoice} className="shrink-0">
+								Switch to text
+							</Button>
+						</div>
+					) : (
 					<div className="flex gap-2 items-end">
 						<Textarea
 							value={draft}
@@ -1071,6 +1166,7 @@ export default function CandidateInterviewSessionPage() {
 							<span className="ml-1">Send</span>
 						</Button>
 					</div>
+					)}
 				</div>
 
 				{/* right: transcript */}
@@ -1099,6 +1195,7 @@ export default function CandidateInterviewSessionPage() {
 					</div>
 				</div>
 			</main>
+			)}
 		</div>
 	);
 }

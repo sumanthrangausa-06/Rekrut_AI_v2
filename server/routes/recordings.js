@@ -806,6 +806,18 @@ router.post(
 				],
 			);
 
+			// Task 6 (#323): consent withdrawal stops capture mid-session — stop the
+			// session's room egress (best-effort). The recording row is kept per
+			// the Phase 1 retention policy; only capture stops, mirroring the
+			// frame-capture gate (Phase 1 blocks capture, it does not delete).
+			if (consentType === 'withdrawn' && recording.interview_session_id) {
+				try {
+					await livekitService.stopSessionEgress(recording.interview_session_id);
+				} catch (stopErr) {
+					console.error('[recordings] egress stop on consent withdrawal failed:', stopErr.message);
+				}
+			}
+
 			res.json({
 				success: true,
 				message: 'Consent recorded',

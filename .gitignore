@@ -52,6 +52,7 @@ e2e-reports/
 *.log
 .env.local
 .env.*.local
+agents/voice-interviewer/agent.env
 
 # Stripe CLI (if installed locally)
 stripe
