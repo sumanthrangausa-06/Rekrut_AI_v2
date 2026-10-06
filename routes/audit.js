@@ -10,10 +10,20 @@ const router = express.Router();
  * Used by other route files (e.g. company.js) to log events.
  */
 async function insertAuditLog({ company_id, actor_id, target_id, action, reason, metadata = {} }) {
+	// action_type is VARCHAR(100) NOT NULL with no default (migrations/013);
+	// omitting it makes every insert fail on the real DB. Set it to the action value.
 	await pool.query(
-		`INSERT INTO audit_logs (company_id, actor_id, target_id, action, reason, metadata, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-		[company_id, actor_id, target_id || null, action, reason || null, JSON.stringify(metadata)],
+		`INSERT INTO audit_logs (company_id, actor_id, target_id, action, reason, metadata, created_at, action_type)
+     VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)`,
+		[
+			company_id,
+			actor_id,
+			target_id || null,
+			action,
+			reason || null,
+			JSON.stringify(metadata),
+			action,
+		],
 	);
 }
 
