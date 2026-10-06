@@ -37,6 +37,11 @@ jest.mock('../../../lib/auth', () => {
 // (the SQL/naming/idempotency surface under test).
 const mockGenerateToken = jest.fn(async () => 'mock-jwt-token');
 const mockCreateRoom = jest.fn(async (roomName) => ({ name: roomName, sid: 'RM_mock' }));
+// Task 6 (#323): session egress boundary — the dispatch route must start
+// egress after a successful dispatch; the real startSessionEgress would hit
+// the (mocked-out-here) EgressClient, so it is stubbed per-test.
+const mockStartSessionEgress = jest.fn(async () => ({ egressId: 'EG_mock' }));
+const mockStopSessionEgress = jest.fn(async () => null);
 jest.mock('../../services/livekit', () => {
 	const actual = jest.requireActual('../../services/livekit');
 	const findOrCreateSessionRoom = async (sessionId) => {
@@ -65,6 +70,8 @@ jest.mock('../../services/livekit', () => {
 			const room = await findOrCreateSessionRoom(sessionId);
 			return actual.dispatchAgentToRoom(room, sessionId, mode);
 		},
+		startSessionEgress: (...args) => mockStartSessionEgress(...args),
+		stopSessionEgress: (...args) => mockStopSessionEgress(...args),
 	};
 });
 
@@ -104,6 +111,8 @@ function seed() {
 	nextRoomId = 1;
 	mockGenerateToken.mockClear();
 	mockCreateRoom.mockClear();
+	mockStartSessionEgress.mockClear();
+	mockStopSessionEgress.mockClear();
 	// Session 10: candidate 1, company 100, recruiter 2's company.
 	sessions.set(10, {
 		id: 10,
@@ -529,5 +538,45 @@ describe('GET /api/livekit/session-rooms/:sessionId/transcript', () => {
 	test('unknown session gets 404', async () => {
 		const res = await request(app).get('/api/livekit/session-rooms/999/transcript').set(as(1));
 		expect(res.status).toBe(404);
+	});
+});
+
+describe('POST /api/livekit/session-rooms/:sessionId/dispatch — session egress (Task 6)', () => {
+	beforeEach(() => {
+		mockAgentDispatchClient.listDispatch.mockReset().mockResolvedValue([]);
+		mockAgentDispatchClient.createDispatch
+			.mockReset()
+			.mockImplementation(async (roomName, agentName, options) => ({
+				id: 'D_mock1',
+				agentName,
+				room: roomName,
+				metadata: options?.metadata || '',
+			}));
+	});
+
+	test('starts session egress after a successful dispatch, consent-gated on the candidate', async () => {
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({});
+
+		expect(res.status).toBe(200);
+		expect(res.body.dispatched).toBe(true);
+		// Session 10's candidate is user 1 — their consent gates the capture.
+		expect(mockStartSessionEgress).toHaveBeenCalledTimes(1);
+		expect(mockStartSessionEgress).toHaveBeenCalledWith(10, { consentUserId: 1 });
+	});
+
+	test('an egress start failure does not fail the dispatch (voice call is primary)', async () => {
+		mockStartSessionEgress.mockRejectedValueOnce(new Error('storage not configured'));
+
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({});
+
+		expect(res.status).toBe(200);
+		expect(res.body.dispatched).toBe(true);
+		expect(mockStartSessionEgress).toHaveBeenCalledTimes(1);
 	});
 });

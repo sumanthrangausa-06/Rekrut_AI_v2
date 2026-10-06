@@ -690,7 +690,16 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 		// recording, aggregate per-turn frame indicators into frame_analysis,
 		// and finalize the recording row. Non-blocking: the report above is
 		// the primary outcome; capture failures are logged, not thrown.
+		// Task 6 (#323): stop the session's room egress (best-effort) and
+		// finalize the recording even when the turn conversation is empty
+		// (Track B human interviews) — retention re-asserted per the Phase 1
+		// policy when missing.
 		try {
+			try {
+				await livekitService.stopSessionEgress(session.id);
+			} catch (stopErr) {
+				console.error('[interview-sessions] session egress stop failed:', stopErr.message);
+			}
 			const recording = await livekitService.findRecordingBySessionId(session.id);
 			const turns = Array.isArray(session.conversation) ? session.conversation : [];
 			if (recording && turns.length > 0) {
@@ -712,11 +721,14 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 						[recording.id, turn.role || 'unknown', turn.text || '', startMs, endMs],
 					);
 				}
+			}
+			if (recording) {
 				await pool.query(
 					`UPDATE interview_recordings
-					 SET status = 'completed', stopped_at = NOW(), updated_at = NOW()
-					 WHERE id = $1`,
-					[recording.id],
+					    SET status = 'completed', stopped_at = NOW(), updated_at = NOW(),
+					        retention_expires_at = COALESCE(retention_expires_at, $2)
+					  WHERE id = $1`,
+					[recording.id, livekitService.getRecordingRetentionDate()],
 				);
 			}
 			const indicators = turns.filter((t) => t?.frame_indicators).map((t) => t.frame_indicators);
@@ -854,6 +866,18 @@ router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (re
 		} catch (err) {
 			console.error('[interview-sessions] observer dispatch failed:', err.message);
 			return res.status(502).json({ error: 'Failed to dispatch observer agent' });
+		}
+
+		// Task 6 (#323): the human call is live — start room-composite egress
+		// (both humans' media) so the observer has a recording to analyze.
+		// Non-blocking, consent-gated on the candidate — same contract as the
+		// dispatch route's hook.
+		try {
+			await livekitService.startSessionEgress(session.id, {
+				consentUserId: session.candidate_id,
+			});
+		} catch (egressErr) {
+			console.error('[interview-sessions] observer egress start failed:', egressErr.message);
 		}
 
 		// M1 (#323): jsonb merge instead of read-modify-write — matches the

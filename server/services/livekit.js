@@ -18,8 +18,13 @@ const encryption = require('../../services/encryption');
 let _livekitModule = null;
 
 async function getLivekitModule() {
+	// Static require (not dynamic import): the SDK ships a CJS build and the
+	// rest of this module already requires it statically (RoomServiceClient,
+	// AgentDispatchClient). Dynamic import() cannot run under this repo's
+	// jest setup (no --experimental-vm-modules), which made the egress path
+	// untestable — see Task 6 (#323).
 	if (!_livekitModule) {
-		_livekitModule = await import('livekit-server-sdk');
+		_livekitModule = require('livekit-server-sdk');
 	}
 	return _livekitModule;
 }
@@ -551,7 +556,98 @@ async function getEgressInfo(egressId) {
 	return info?.[0] || null;
 }
 
+// ─── Session Egress Recording (Issue #323, Task 6) ─────────────────────────
+// Phase 2 sessions record the LiveKit ROOM composite (Track A: candidate +
+// agent; Track B: both humans — the muted observer's subscription produces
+// no media of its own). The egress lifecycle is tied to the session:
+// started when the voice session goes live (dispatch), stopped when the
+// session completes or consent is withdrawn.
+
+/** Egress statuses after which a new egress may be started. */
+const TERMINAL_EGRESS_STATUSES = new Set([
+	'EGRESS_COMPLETE',
+	'EGRESS_ENDING',
+	'EGRESS_FAILED',
+	'EGRESS_ABORTED',
+	'EGRESS_LIMIT_REACHED',
+]);
+
+/**
+ * Start room-composite egress for a session's LiveKit room and link it to
+ * the session's recording row. Idempotent: an already-active egress is
+ * returned, not duplicated.
+ * Consent-gated on the candidate (spec §5: no capture before explicit
+ * consent) — mirrors the Phase 1 frame-capture gate (403 CONSENT_REQUIRED).
+ * @param {number} sessionId
+ * @param {Object} [opts]
+ * @param {number} [opts.consentUserId] - user whose consent is required; when
+ *   omitted the gate is skipped (caller already gated).
+ * @returns {Promise<{egressId: string, recording?: Object, already_started?: boolean}>}
+ */
+async function startSessionEgress(sessionId, { consentUserId } = {}) {
+	let recording = await findRecordingBySessionId(sessionId);
+	if (!recording) {
+		recording = await createRecordingRecord({ interviewSessionId: sessionId, status: 'pending' });
+	}
+	if (consentUserId != null && !(await hasActiveConsent(recording.id, consentUserId))) {
+		const err = new Error('Recording consent required');
+		err.status = 403;
+		err.code = 'CONSENT_REQUIRED';
+		throw err;
+	}
+	if (recording.livekit_egress_id) {
+		const info = await getEgressInfo(recording.livekit_egress_id).catch(() => null);
+		if (info && !TERMINAL_EGRESS_STATUSES.has(info.status)) {
+			return { already_started: true, egressId: recording.livekit_egress_id };
+		}
+	}
+	const room = await findActiveRoomBySessionId(sessionId);
+	if (!room) {
+		throw new Error(`No active LiveKit room for session ${sessionId}`);
+	}
+	const egress = await startRoomRecording(room.room_name);
+	const updated = await pool.query(
+		`UPDATE interview_recordings
+		    SET livekit_egress_id = $1, status = 'recording',
+		        started_at = COALESCE(started_at, NOW()), updated_at = NOW()
+		  WHERE id = $2 RETURNING *`,
+		[egress.egressId, recording.id],
+	);
+	return { egressId: egress.egressId, recording: updated.rows[0] };
+}
+
+/**
+ * Stop a session's room egress (best-effort). Never throws: an egress that
+ * is already complete/aborted is reported, not raised — callers treat the
+ * stop as non-blocking.
+ * @param {number} sessionId
+ * @returns {Promise<{egressId: string, status: string, error?: string}|null>}
+ */
+async function stopSessionEgress(sessionId) {
+	const recording = await findRecordingBySessionId(sessionId);
+	if (!recording?.livekit_egress_id) return null;
+	try {
+		const info = await stopRoomRecording(recording.livekit_egress_id);
+		return { egressId: recording.livekit_egress_id, status: info.status };
+	} catch (err) {
+		console.error('[livekit] stopSessionEgress failed:', err.message);
+		return { egressId: recording.livekit_egress_id, status: 'unknown', error: err.message };
+	}
+}
+
 // ─── Recording Database Operations ────────────────────────────────────────
+
+/**
+ * Phase 1 retention policy for recordings (#322): RECORDING_RETENTION_DAYS
+ * (default 90) from now. Shared by createRecordingRecord and the Task 6
+ * session-finalize path — one formula, no drift.
+ * @param {number} [retentionDays] - overrides RECORDING_RETENTION_DAYS.
+ * @returns {Date}
+ */
+function getRecordingRetentionDate(retentionDays) {
+	const days = retentionDays ?? parseInt(process.env.RECORDING_RETENTION_DAYS || '90', 10);
+	return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+}
 
 /**
  * Persist a new recording record.
@@ -575,8 +671,7 @@ async function createRecordingRecord({
 	status = 'recording',
 	retentionDays,
 }) {
-	const days = retentionDays ?? parseInt(process.env.RECORDING_RETENTION_DAYS || '90', 10);
-	const retentionDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+	const retentionDate = getRecordingRetentionDate(retentionDays);
 	const result = await pool.query(
 		`INSERT INTO interview_recordings
 		 (interview_event_id, room_id, interview_session_id, livekit_egress_id, status, started_at, retention_expires_at, created_at, updated_at)
@@ -803,6 +898,10 @@ module.exports = {
 	startRoomRecording,
 	stopRoomRecording,
 	getEgressInfo,
+	// Issue #323 Task 6 — session egress
+	getRecordingRetentionDate,
+	startSessionEgress,
+	stopSessionEgress,
 	createRecordingRecord,
 	completeRecordingRecord,
 	failRecordingRecord,

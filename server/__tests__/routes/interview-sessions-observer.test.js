@@ -42,10 +42,12 @@ jest.mock('../../../routes/audit', () => ({ insertAuditLog: jest.fn(async () => 
 const mockFindRecordingBySessionId = jest.fn();
 const mockHasActiveConsent = jest.fn();
 const mockDispatchVoiceAgent = jest.fn();
+const mockStartSessionEgress = jest.fn();
 jest.mock('../../services/livekit', () => ({
 	findRecordingBySessionId: (...a) => mockFindRecordingBySessionId(...a),
 	hasActiveConsent: (...a) => mockHasActiveConsent(...a),
 	dispatchVoiceAgent: (...a) => mockDispatchVoiceAgent(...a),
+	startSessionEgress: (...a) => mockStartSessionEgress(...a),
 }));
 
 const mockExtractQAPairs = jest.fn();
@@ -117,11 +119,13 @@ beforeEach(() => {
 	mockFindRecordingBySessionId.mockReset();
 	mockHasActiveConsent.mockReset();
 	mockDispatchVoiceAgent.mockReset();
+	mockStartSessionEgress.mockReset();
 	mockExtractQAPairs.mockReset();
 	mockAnalyzeObserverSession.mockReset();
 	mockFindRecordingBySessionId.mockResolvedValue({ id: 55 });
 	mockHasActiveConsent.mockResolvedValue(true);
 	mockDispatchVoiceAgent.mockResolvedValue({ dispatched: true });
+	mockStartSessionEgress.mockResolvedValue({ egressId: 'EG_mock' });
 });
 
 describe('POST /interview-sessions/:id/observer/enable', () => {
@@ -202,6 +206,26 @@ describe('POST /interview-sessions/:id/observer/enable', () => {
 
 		expect(res.status).toBe(502);
 		expect(mockSessions.get(s.id).config.observer_enabled).not.toBe(true);
+	});
+
+	test('starts session egress after enabling, consent-gated on the candidate (Task 6)', async () => {
+		const s = seedSession(); // candidate_id 4
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(mockStartSessionEgress).toHaveBeenCalledTimes(1);
+		expect(mockStartSessionEgress).toHaveBeenCalledWith(s.id, { consentUserId: 4 });
+	});
+
+	test('an egress start failure does not fail observer enable (human call is primary)', async () => {
+		const s = seedSession();
+		mockStartSessionEgress.mockRejectedValueOnce(new Error('storage not configured'));
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(res.body.observer_enabled).toBe(true);
 	});
 });
 

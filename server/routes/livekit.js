@@ -374,6 +374,21 @@ router.post(
 			}
 
 			const result = await livekitService.dispatchVoiceAgent(sessionId, mode);
+
+			// Task 6 (#323): the voice session is live — start room-composite
+			// egress so the room is recorded (Track A: candidate + agent;
+			// Track B: both humans; the muted observer's subscription produces
+			// no media of its own). Non-blocking and consent-gated on the
+			// candidate: capture must never break the call, and never happen
+			// without consent (spec §5).
+			try {
+				await livekitService.startSessionEgress(sessionId, {
+					consentUserId: session.candidate_id,
+				});
+			} catch (egressErr) {
+				console.error('[livekit-routes] Session egress start failed:', egressErr.message);
+			}
+
 			res.json({ success: true, ...result });
 		} catch (err) {
 			console.error('[livekit-routes] Agent dispatch error:', err.message);
