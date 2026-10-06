@@ -16,10 +16,10 @@ const MIGRATION_PATH = path.join(
 	'..',
 	'..',
 	'migrations',
-	'132_interview_flows.js',
+	'138_interview_flows.js',
 );
 
-describe('132_interview_flows migration', () => {
+describe('138_interview_flows migration', () => {
 	let src;
 	let migration;
 

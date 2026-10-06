@@ -1,9 +1,12 @@
 /**
- * Migration 132: interview_flows — generalized interview configuration (#322).
+ * Migration 138: interview_flows — generalized interview configuration (#322).
  *
  * Generalizes screening_templates into interview_flows so recruiters can define
  * screening AND AI-interview flows with phases, topics/questions, rubric
- * weights, and triggers ({manual, auto_send_on_apply, auto_send_threshold}).
+ * weights, and triggers ({manual, auto_send_on_apply}). The auto-send
+ * threshold stays a job-level setting (jobSettings.auto_send_min_score);
+ * triggers is JSONB so per-flow thresholds can be added later without a
+ * schema change.
  *
  * screening_templates is NOT dropped: the auto-send hook and session creation
  * keep reading it during the transition (Task 10's recruiter UI cuts over to
