@@ -356,6 +356,45 @@ describe('POST /api/livekit/session-rooms/:sessionId/dispatch', () => {
 		expect(mockAgentDispatchClient.createDispatch).toHaveBeenCalledTimes(1);
 	});
 
+	test('a dispatch for a different session is not treated as already dispatched', async () => {
+		mockAgentDispatchClient.listDispatch.mockResolvedValue([
+			{
+				id: 'D_other_session',
+				agentName: 'rekrut-interviewer',
+				room: 'interview-10',
+				metadata: JSON.stringify({ interview_session_id: 11, mode: 'interviewer' }),
+				state: {},
+			},
+		]);
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({});
+		expect(res.status).toBe(200);
+		expect(res.body.dispatched).toBe(true);
+		expect(mockAgentDispatchClient.createDispatch).toHaveBeenCalledTimes(1);
+	});
+
+	test('two concurrent dispatches for the same session+mode create only one dispatch', async () => {
+		// I1 fix round: the module factory replaces dispatchVoiceAgent with a
+		// wrapper that bypasses the real one, so the REAL dispatchVoiceAgent
+		// (with its in-flight dedupe map) is exercised directly via
+		// requireActual. The room is seeded first so the real function's
+		// internal room lookup hits the in-memory DB without network.
+		const actualService = jest.requireActual('../../services/livekit');
+		const mockedService = require('../../services/livekit');
+		await mockedService.findOrCreateSessionRoom(10);
+
+		const [first, second] = await Promise.all([
+			actualService.dispatchVoiceAgent(10, 'interviewer'),
+			actualService.dispatchVoiceAgent(10, 'interviewer'),
+		]);
+		expect(mockAgentDispatchClient.createDispatch).toHaveBeenCalledTimes(1);
+		expect(first.dispatched).toBe(true);
+		expect(second.dispatched).toBe(true);
+		expect(second.dispatch_id).toBe(first.dispatch_id);
+	});
+
 	test('candidate gets 403 (hiring team only)', async () => {
 		const res = await request(app)
 			.post('/api/livekit/session-rooms/10/dispatch')

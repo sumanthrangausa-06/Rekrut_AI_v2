@@ -267,19 +267,22 @@ function _getAgentDispatchClient() {
 }
 
 /**
- * True when a LiveKit dispatch record is one of ours (matching mode metadata)
- * and has not been deleted. Unparseable metadata is never ours.
+ * True when a LiveKit dispatch record is one of ours (matching mode metadata
+ * AND the session it was dispatched for) and has not been deleted.
+ * Unparseable metadata is never ours.
  * @param {Object} dispatch - livekit AgentDispatch
  * @param {string} mode - 'interviewer' | 'observer'
+ * @param {number|string} sessionId - interview session the dispatch belongs to
  * @returns {boolean}
  */
-function _isActiveDispatchForMode(dispatch, mode) {
+function _isActiveDispatchForMode(dispatch, mode, sessionId) {
 	if (!dispatch) return false;
 	const deletedAt = dispatch.state?.deletedAt;
 	if (deletedAt != null && Number(deletedAt) > 0) return false;
 	try {
 		const meta = JSON.parse(dispatch.metadata || '{}');
-		return meta.mode === mode;
+		if (meta.mode !== mode) return false;
+		return meta.interview_session_id === Number(sessionId);
 	} catch {
 		return false;
 	}
@@ -299,7 +302,7 @@ async function dispatchAgentToRoom(room, sessionId, mode) {
 	const client = _getAgentDispatchClient();
 
 	const existing = await client.listDispatch(room.room_name);
-	if (existing.some((d) => _isActiveDispatchForMode(d, mode))) {
+	if (existing.some((d) => _isActiveDispatchForMode(d, mode, sessionId))) {
 		return { already_dispatched: true, room };
 	}
 
@@ -314,16 +317,34 @@ async function dispatchAgentToRoom(room, sessionId, mode) {
  * Dispatch the voice agent to a session's LiveKit room. Idempotent per
  * session+mode — a second call with the same mode returns
  * { already_dispatched: true } without creating another dispatch.
+ *
+ * An in-flight map closes the check-then-act race in dispatchAgentToRoom:
+ * two concurrent calls for the same session+mode share one pending dispatch
+ * promise instead of both seeing an empty listDispatch and creating two
+ * agents. The entry is deleted in `finally`, so a failed dispatch does not
+ * poison later calls (they retry). This covers same-process races; cross-
+ * process races remain deduped by the listDispatch check on the next call.
  * @param {number} sessionId
  * @param {string} [mode='interviewer'] - 'interviewer' (Track A) | 'observer' (Track B)
  * @returns {Promise<{dispatched?: boolean, already_dispatched?: boolean, dispatch_id?: string, room: Object}>}
  */
+const inFlightDispatches = new Map();
+
 async function dispatchVoiceAgent(sessionId, mode = 'interviewer') {
 	if (!DISPATCH_MODES.includes(mode)) {
 		throw new Error(`Invalid dispatch mode: ${mode}`);
 	}
-	const room = await findOrCreateSessionRoom(sessionId);
-	return dispatchAgentToRoom(room, sessionId, mode);
+	const key = `${sessionId}:${mode}`;
+	const inFlight = inFlightDispatches.get(key);
+	if (inFlight) return inFlight;
+	const promise = (async () => {
+		const room = await findOrCreateSessionRoom(sessionId);
+		return dispatchAgentToRoom(room, sessionId, mode);
+	})().finally(() => {
+		inFlightDispatches.delete(key);
+	});
+	inFlightDispatches.set(key, promise);
+	return promise;
 }
 
 // ─── Validation ─────────────────────────────────────────────────────────────
