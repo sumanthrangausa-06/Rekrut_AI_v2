@@ -189,6 +189,9 @@ export default function CandidateInterviewSessionPage() {
 		candidateName: '',
 		videoEnabled: videoConsent,
 		onTranscript: handleVoiceTranscript,
+		// Full-branch review C1 (#323): human interviews (Track B) are for
+		// the two humans — the candidate joins the room, no AI interviewer.
+		dispatchMode: session?.type === 'human' ? null : 'interviewer',
 	});
 
 	// ---- token resolution ----

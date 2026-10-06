@@ -373,6 +373,16 @@ router.post(
 				return res.status(403).json({ error: 'Not authorized to dispatch the voice agent' });
 			}
 
+			// Full-branch review C1 (#323): the AI interviewer must never be
+			// dispatched into a human interview — Track B is the two humans
+			// talking. The frontend skips dispatch for human sessions; this
+			// is the defense-in-depth backend guard.
+			if (session.type === 'human' && mode === 'interviewer') {
+				return res
+					.status(409)
+					.json({ error: 'The AI interviewer cannot be dispatched into a human interview' });
+			}
+
 			const result = await livekitService.dispatchVoiceAgent(sessionId, mode);
 
 			// Task 6 (#323): the voice session is live — start room-composite

@@ -291,6 +291,10 @@ const RecruiterJobApplicantsPage = lazy(() =>
 const RecruiterApplicationsPage = lazy(() =>
 	import('@/pages/recruiter/applications').then((m) => ({ default: m.RecruiterApplicationsPage })),
 );
+// M4 (#323) — recruiter's side of the human-interview voice room (Track B).
+const SessionRoomPage = lazy(() =>
+	import('@/pages/recruiter/session-room').then((m) => ({ default: m.SessionRoomPage })),
+);
 const RecruiterAssessmentsPage = lazy(() =>
 	import('@/pages/recruiter/assessments').then((m) => ({ default: m.RecruiterAssessmentsPage })),
 );
@@ -1146,6 +1150,17 @@ function AppRoutes() {
 						<Protected>
 							<RecruiterGuard>
 								<RecruiterInterviewsPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				{/* M4 (#323) — recruiter joins the human-interview voice room (Track B). */}
+				<Route
+					path="session-room"
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<SessionRoomPage />
 							</RecruiterGuard>
 						</Protected>
 					}

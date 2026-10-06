@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "build": "cd client && npm install --include=dev && npm run build",
-    "test:unit": "npx jest --testPathPatterns=server/__tests__ --forceExit",
+    "test:unit": "npx jest --testPathPatterns=\"(server/__tests__|agents)\" --forceExit",
     "test": "npx playwright test",
     "migrate": "node migrate.js",
     "lint": "npx @biomejs/biome check",

@@ -30,8 +30,12 @@ jest.mock('../../../services/conversation-engine', () => ({
 	selectQuestionSource: jest.fn(() => 'template'),
 	TURN_TIMEOUT_MS: 20000,
 }));
+const mockGenerateScreeningReport = jest.fn(async () => ({
+	overall_score: 80,
+	recommendation: 'advance',
+}));
 jest.mock('../../../services/interview-ai', () => ({
-	generateScreeningReport: jest.fn(async () => ({ overall_score: 80, recommendation: 'advance' })),
+	generateScreeningReport: (...a) => mockGenerateScreeningReport(...a),
 	runMultiEvaluation: jest.fn(async () => ({})),
 }));
 jest.mock('../../../lib/ai-provider', () => ({ transcribeAudio: jest.fn() }));
@@ -43,11 +47,16 @@ const mockFindRecordingBySessionId = jest.fn();
 const mockHasActiveConsent = jest.fn();
 const mockDispatchVoiceAgent = jest.fn();
 const mockStartSessionEgress = jest.fn();
+const mockStopSessionEgress = jest.fn();
+const mockCompleteRecordingRecord = jest.fn();
 jest.mock('../../services/livekit', () => ({
 	findRecordingBySessionId: (...a) => mockFindRecordingBySessionId(...a),
 	hasActiveConsent: (...a) => mockHasActiveConsent(...a),
 	dispatchVoiceAgent: (...a) => mockDispatchVoiceAgent(...a),
 	startSessionEgress: (...a) => mockStartSessionEgress(...a),
+	stopSessionEgress: (...a) => mockStopSessionEgress(...a),
+	completeRecordingRecord: (...a) => mockCompleteRecordingRecord(...a),
+	getRecordingRetentionDate: () => new Date('2026-01-01T00:00:00Z'),
 }));
 
 const mockExtractQAPairs = jest.fn();
@@ -91,6 +100,19 @@ jest.mock('../../../lib/db', () => ({
 			if (row) row.config = { ...(row.config || {}), ...JSON.parse(params[0]) };
 			return { rows: row ? [{ ...row }] : [] };
 		}
+		if (n.startsWith("update interview_sessions set status = 'completed'")) {
+			// I1 (#323): the complete endpoint writes
+			// `SET status='completed', completed_at=NOW(), conversation=$1,
+			// config=config||$2::jsonb WHERE id=$3` — mirror it.
+			const row = mockSessions.get(Number(params[2]));
+			if (row) {
+				row.status = 'completed';
+				row.completed_at = new Date().toISOString();
+				row.conversation = JSON.parse(params[0]);
+				row.config = { ...(row.config || {}), ...JSON.parse(params[1]) };
+			}
+			return { rows: row ? [{ ...row }] : [] };
+		}
 		if (n.includes('from interview_flows')) {
 			return { rows: [{ rubric_weights: { can_do_the_work: 60, communication_quality: 40 } }] };
 		}
@@ -122,6 +144,10 @@ beforeEach(() => {
 	mockStartSessionEgress.mockReset();
 	mockExtractQAPairs.mockReset();
 	mockAnalyzeObserverSession.mockReset();
+	mockGenerateScreeningReport.mockReset();
+	mockStopSessionEgress.mockReset();
+	mockCompleteRecordingRecord.mockReset();
+	mockStopSessionEgress.mockResolvedValue(null);
 	mockFindRecordingBySessionId.mockResolvedValue({ id: 55 });
 	mockHasActiveConsent.mockResolvedValue(true);
 	mockDispatchVoiceAgent.mockResolvedValue({ dispatched: true });
@@ -277,5 +303,62 @@ describe('POST /interview-sessions/:id/observer/report', () => {
 		const res = await request(app).post(`/interview-sessions/${s.id}/observer/report`).set(as(9));
 
 		expect(res.status).toBe(403);
+	});
+});
+
+describe("POST /interview-sessions/:id/complete — 'human' without observer data (I1, #323)", () => {
+	test('human session with no observer transcript → no-data report, LLM never called', async () => {
+		const s = seedSession({ type: 'human', config: {} });
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/complete`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(mockGenerateScreeningReport).not.toHaveBeenCalled();
+		expect(res.body.report.overall_score).toBeNull();
+		expect(res.body.report.note).toMatch(/observer/i);
+		expect(mockSessions.get(s.id).status).toBe('completed');
+	});
+
+	test('non-human session without observer data still runs the standard report', async () => {
+		const s = seedSession({ type: 'screening', config: {} });
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/complete`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(mockGenerateScreeningReport).toHaveBeenCalled();
+	});
+});
+
+describe('POST /interview-sessions/:id/complete — egress backfill (I2, #323)', () => {
+	test('stopSessionEgress fileLocation → completeRecordingRecord writes storage_path + duration', async () => {
+		const s = seedSession({ type: 'screening', config: {} });
+		mockStopSessionEgress.mockResolvedValue({
+			egressId: 'EG_1',
+			status: 'EGRESS_COMPLETE',
+			fileLocation: 's3://test-bucket/rekrut-recordings/interview-1-123.mp4',
+			durationSeconds: 120,
+			fileSizeBytes: 1048576,
+		});
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/complete`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(mockStopSessionEgress).toHaveBeenCalledWith(s.id);
+		expect(mockCompleteRecordingRecord).toHaveBeenCalledWith(
+			55,
+			's3://test-bucket/rekrut-recordings/interview-1-123.mp4',
+			120,
+			1048576,
+		);
+	});
+
+	test('no fileLocation → no backfill call', async () => {
+		const s = seedSession({ type: 'screening', config: {} });
+		mockStopSessionEgress.mockResolvedValue({ egressId: 'EG_1', status: 'EGRESS_COMPLETE' });
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/complete`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(mockCompleteRecordingRecord).not.toHaveBeenCalled();
 	});
 });

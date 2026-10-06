@@ -662,6 +662,17 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 				rubricWeights: await getRubricWeightsForSession(session),
 				job: await getJobForSession(session),
 			});
+		} else if (session.type === 'human') {
+			// Full-branch review I1 (#323): a human interview completed with
+			// no observer data has an empty conversation — running the LLM
+			// report on it would fabricate candidate scores. Emit an explicit
+			// no-data report instead.
+			report = {
+				overall_score: null,
+				recommendation: null,
+				note: 'No interview data captured: the AI observer was not enabled for this human interview.',
+				observer_enabled: false,
+			};
 		} else {
 			const questions =
 				config.question_source === 'personalized'
@@ -694,9 +705,10 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 		// finalize the recording even when the turn conversation is empty
 		// (Track B human interviews) — retention re-asserted per the Phase 1
 		// policy when missing.
+		let egressResult = null;
 		try {
 			try {
-				await livekitService.stopSessionEgress(session.id);
+				egressResult = await livekitService.stopSessionEgress(session.id);
 			} catch (stopErr) {
 				console.error('[interview-sessions] session egress stop failed:', stopErr.message);
 			}
@@ -723,6 +735,19 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 				}
 			}
 			if (recording) {
+				// I2 (#323): backfill the R2 file location + duration from
+				// egress completion so the recording row points at the actual
+				// file (spec §6: analysis re-runnable from the recording).
+				// completeRecordingRecord encrypts storage_path (BYTEA) the
+				// same way the event-flow does.
+				if (egressResult?.fileLocation) {
+					await livekitService.completeRecordingRecord(
+						recording.id,
+						egressResult.fileLocation,
+						egressResult.durationSeconds ?? null,
+						egressResult.fileSizeBytes ?? null,
+					);
+				}
 				await pool.query(
 					`UPDATE interview_recordings
 					    SET status = 'completed', stopped_at = NOW(), updated_at = NOW(),

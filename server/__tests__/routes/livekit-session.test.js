@@ -125,6 +125,19 @@ function seed() {
 		config: {},
 		conversation: [],
 	});
+	// Session 11: human interview (Track B) — the AI interviewer must never
+	// be dispatched here (full-branch review C1, #323).
+	sessions.set(11, {
+		id: 11,
+		type: 'human',
+		status: 'invited',
+		job_id: 5,
+		company_id: 100,
+		candidate_id: 1,
+		invite_token: 'inv-test-11',
+		config: {},
+		conversation: [],
+	});
 }
 
 function handleSql(normalized, params) {
@@ -485,6 +498,35 @@ describe('POST /api/livekit/session-rooms/:sessionId/dispatch', () => {
 			.send({});
 		expect(res.status).toBe(502);
 		expect(res.body.error).toMatch(/dispatch/i);
+	});
+
+	// Full-branch review C1 (#323): the AI interviewer must never be
+	// dispatched into a human interview — the room is for the two humans.
+	test("interviewer dispatch on a 'human' session → 409 (recruiter)", async () => {
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/11/dispatch')
+			.set(as(2))
+			.send({ mode: 'interviewer' });
+		expect(res.status).toBe(409);
+		expect(mockAgentDispatchClient.createDispatch).not.toHaveBeenCalled();
+	});
+
+	test("interviewer dispatch on a 'human' session → 409 (own candidate)", async () => {
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/11/dispatch')
+			.set(as(1))
+			.send({ mode: 'interviewer' });
+		expect(res.status).toBe(409);
+		expect(mockAgentDispatchClient.createDispatch).not.toHaveBeenCalled();
+	});
+
+	test("observer dispatch on a 'human' session still works → 200", async () => {
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/11/dispatch')
+			.set(as(2))
+			.send({ mode: 'observer' });
+		expect(res.status).toBe(200);
+		expect(res.body.dispatched).toBe(true);
 	});
 });
 

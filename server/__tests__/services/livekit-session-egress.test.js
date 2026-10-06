@@ -274,6 +274,35 @@ describe('stopSessionEgress', () => {
 		expect(result).toMatchObject({ egressId: 'EG_1', status: 'EGRESS_COMPLETE' });
 	});
 
+	// I2 (#323): the stopEgress response is the only source of the final R2
+	// file location and duration — surface them so the complete endpoint can
+	// backfill the recording row.
+	test('surfaces fileLocation + durationSeconds from the stopEgress fileResults', async () => {
+		seedRecording({ interview_session_id: 10, livekit_egress_id: 'EG_1', status: 'recording' });
+		mockEgressClient.stopEgress.mockResolvedValueOnce({
+			egressId: 'EG_1',
+			status: 'EGRESS_COMPLETE',
+			fileResults: [
+				{
+					filename: 'interview-10-123.mp4',
+					location: 's3://test-bucket/rekrut-recordings/interview-10-123.mp4',
+					size: 1048576n,
+					duration: 120_000_000_000n, // int64 nanoseconds
+				},
+			],
+		});
+
+		const result = await livekitService.stopSessionEgress(10);
+
+		expect(result).toMatchObject({
+			egressId: 'EG_1',
+			status: 'EGRESS_COMPLETE',
+			fileLocation: 's3://test-bucket/rekrut-recordings/interview-10-123.mp4',
+			durationSeconds: 120,
+			fileSizeBytes: 1048576,
+		});
+	});
+
 	test('returns null and stops nothing when there is no egress id', async () => {
 		seedRecording({ interview_session_id: 10, livekit_egress_id: null });
 

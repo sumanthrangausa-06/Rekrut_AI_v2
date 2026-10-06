@@ -6,7 +6,7 @@
  * human-scheduled interviews (read-linked from scheduled_interviews /
  * interview_events by the backend).
  */
-import { CalendarClock, Eye, FileText, Loader2, Play, Sparkles } from 'lucide-react';
+import { CalendarClock, Eye, FileText, Loader2, Phone, Play, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { EmptyState } from '@/components/domain/empty-state';
 import { Skeleton } from '@/components/domain/skeleton';
@@ -257,6 +257,23 @@ export function InterviewPanel({ candidateId, applicationId, onViewReport }: Int
 										onClick={() => onViewReport(s)}
 									>
 										<FileText className="h-3.5 w-3.5" /> Report
+									</Button>
+								)}
+								{/* M4 (#323) — Track B: the recruiter joins the human-interview
+								    voice room (participant grants: publish+subscribe — the
+								    recruiter interviews the candidate). Opens the shared
+								    session room page, not a second room system. */}
+								{isUnified && s.type === 'human' && s.status !== 'completed' && (
+									<Button
+										size="sm"
+										variant="outline"
+										className="gap-1 text-xs shrink-0 min-h-[44px]"
+										onClick={() =>
+											window.open(`/recruiter/session-room?sessionId=${s.id}`, '_blank')
+										}
+									>
+										<Phone className="h-3.5 w-3.5" />
+										Join voice room
 									</Button>
 								)}
 								{/* Task 5 (#323) — Track B observer toggle, default off. */}

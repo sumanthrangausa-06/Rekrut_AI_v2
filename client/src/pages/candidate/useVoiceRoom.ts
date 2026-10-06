@@ -3,7 +3,8 @@
  *
  * Thin adapter over livekit-client: on candidate join it fetches a session
  * token, dispatches the voice agent (fire-and-forget — dispatch failures are
- * silent by design, spec §6), and connects the room with camera+mic.
+ * silent by design, spec §6; skipped when dispatchMode is null, i.e. human
+ * interviews), and connects the room with camera+mic.
  * The voice agent does NOT publish transcript data events; it persists turns
  * to interview_sessions.conversation after every turn (worker.mjs), so this
  * hook polls the transcript endpoint while live and reports new turns via
@@ -30,6 +31,13 @@ interface UseVoiceRoomOptions {
 	/** Camera is only enabled when the candidate granted video consent. */
 	videoEnabled: boolean;
 	onTranscript: (turns: VoiceRoomTurn[]) => void;
+	/**
+	 * Full-branch review C1 (#323): for human interviews (Track B) the
+	 * candidate joins the room but NO agent is dispatched. `null` skips the
+	 * dispatch call while keeping the room join; default 'interviewer'
+	 * preserves Track A behavior.
+	 */
+	dispatchMode?: 'interviewer' | null;
 }
 
 interface TokenResponse {
@@ -45,7 +53,13 @@ interface TranscriptResponse {
 
 const TRANSCRIPT_POLL_MS = 3000;
 
-export function useVoiceRoom({ sessionId, candidateName, videoEnabled, onTranscript }: UseVoiceRoomOptions) {
+export function useVoiceRoom({
+	sessionId,
+	candidateName,
+	videoEnabled,
+	onTranscript,
+	dispatchMode = 'interviewer',
+}: UseVoiceRoomOptions) {
 	const [voiceState, setVoiceState] = useState<VoiceState>('idle');
 	const voiceStateRef = useRef<VoiceState>('idle');
 	const setVoiceStateSync = useCallback((s: VoiceState) => {
@@ -107,10 +121,14 @@ export function useVoiceRoom({ sessionId, candidateName, videoEnabled, onTranscr
 			);
 			// Fire-and-forget: dispatch failures must never surface to the
 			// candidate (spec §6). The interview continues over HTTP turns.
-			apiCall(`/livekit/session-rooms/${sessionId}/dispatch`, {
-				method: 'POST',
-				body: { mode: 'interviewer' },
-			}).catch(() => {});
+			// C1 (#323): dispatchMode null (human interviews) skips the
+			// dispatch entirely — the candidate still joins the room.
+			if (dispatchMode !== null) {
+				apiCall(`/livekit/session-rooms/${sessionId}/dispatch`, {
+					method: 'POST',
+					body: { mode: dispatchMode },
+				}).catch(() => {});
+			}
 
 			const room = new Room();
 			roomRef.current = room;
@@ -153,7 +171,7 @@ export function useVoiceRoom({ sessionId, candidateName, videoEnabled, onTranscr
 		} finally {
 			startingRef.current = false;
 		}
-	}, [sessionId, candidateName, videoEnabled, setVoiceStateSync]);
+	}, [sessionId, candidateName, videoEnabled, dispatchMode, setVoiceStateSync]);
 
 	useEffect(() => {
 		return () => {

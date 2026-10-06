@@ -227,6 +227,27 @@ describe('useVoiceRoom', () => {
 		expect(playMock).toHaveBeenCalled();
 	});
 
+	// Full-branch review C1 (#323): for human interviews the candidate joins
+	// the room but no AI interviewer is dispatched.
+	test('dispatchMode: null skips dispatch but still joins the room', async () => {
+		const { result } = renderHook(() => useVoiceRoom({ ...baseOpts, dispatchMode: null }));
+
+		await act(async () => {
+			await result.current.start();
+		});
+
+		const dispatchCalls = apiCallMock.mock.calls.filter(
+			([url]) => url === '/livekit/session-rooms/42/dispatch',
+		);
+		expect(dispatchCalls).toHaveLength(0);
+		expect(apiCallMock).toHaveBeenCalledWith('/livekit/session-rooms/42/token', {
+			method: 'POST',
+			body: { name: 'Cand' },
+		});
+		expect(connectMock).toHaveBeenCalled();
+		expect(result.current.voiceState).toBe('live');
+	});
+
 	test('setVideoEnabled(false) disables the room camera (consent withdrawal)', async () => {
 		const { result } = renderHook(() => useVoiceRoom(baseOpts));
 

@@ -534,7 +534,7 @@ async function startRoomRecording(roomName, options = {}) {
 /**
  * Stop an active Egress recording.
  * @param {string} egressId
- * @returns {Promise<{egressId: string, status: string}>}
+ * @returns {Promise<{egressId: string, status: string, fileResults: Array}>}
  */
 async function stopRoomRecording(egressId) {
 	const client = await getEgressClient();
@@ -542,6 +542,9 @@ async function stopRoomRecording(egressId) {
 	return {
 		egressId: info.egressId,
 		status: info.status,
+		// I2 (#323): surface the file results — the stop response is the
+		// only source of the final R2 file location and duration.
+		fileResults: info.fileResults || [],
 	};
 }
 
@@ -621,14 +624,23 @@ async function startSessionEgress(sessionId, { consentUserId } = {}) {
  * is already complete/aborted is reported, not raised — callers treat the
  * stop as non-blocking.
  * @param {number} sessionId
- * @returns {Promise<{egressId: string, status: string, error?: string}|null>}
+ * @returns {Promise<{egressId: string, status: string, fileLocation?: string, durationSeconds?: number, fileSizeBytes?: number, error?: string}|null>}
  */
 async function stopSessionEgress(sessionId) {
 	const recording = await findRecordingBySessionId(sessionId);
 	if (!recording?.livekit_egress_id) return null;
 	try {
 		const info = await stopRoomRecording(recording.livekit_egress_id);
-		return { egressId: recording.livekit_egress_id, status: info.status };
+		// I2 (#323): FileInfo.duration is int64 nanoseconds; the recordings
+		// table stores seconds.
+		const file = (info.fileResults || [])[0] || null;
+		return {
+			egressId: recording.livekit_egress_id,
+			status: info.status,
+			fileLocation: file?.location || null,
+			durationSeconds: file?.duration != null ? Math.round(Number(file.duration) / 1e9) : null,
+			fileSizeBytes: file?.size != null ? Number(file.size) : null,
+		};
 	} catch (err) {
 		console.error('[livekit] stopSessionEgress failed:', err.message);
 		return { egressId: recording.livekit_egress_id, status: 'unknown', error: err.message };
