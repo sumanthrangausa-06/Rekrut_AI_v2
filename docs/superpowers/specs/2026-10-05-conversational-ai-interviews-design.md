@@ -100,13 +100,20 @@ New `interview_sessions` table:
 | frame_analysis | JSONB | per-answer vision indicators + aggregate (no existing table covers this) |
 | started_at, completed_at | timestamptz | |
 
-**Reuse, don't duplicate — with an honest caveat.** The recording/consent/
-transcript/evaluation infrastructure already exists in migrations and the new
-session row links to it instead of adding columns:
-- `interview_recordings` (migration 128): gets a nullable
-  `interview_session_id` FK. Reuses its status lifecycle
+**Reuse, don't duplicate — verified end to end.** The recording/consent/
+transcript/evaluation infrastructure exists, is written, and is read by both
+sides — scoped to the LiveKit room flow:
+- `interview_recordings` (migration 128): rows created by
+  `server/services/livekit.js` on room start; status lifecycle
   (`pending→recording→processing→completed→failed→deleted`), encrypted
-  `storage_path` (BYTEA, never raw URLs), and `retention_expires_at`.
+  `storage_path` (BYTEA, never raw URLs), `retention_expires_at`. Gets a
+  nullable `interview_session_id` FK so turn-based sessions reuse it.
+- `server/routes/recordings.js` (mounted at `/api/interviews/recordings`):
+  9 working endpoints — start/stop, list, detail, playback, transcribe,
+  transcript, consent, highlight.
+- Candidate UI (`livekit-room.tsx`) calls start/stop/consent; recruiter UI
+  (`recordings.tsx`, `recording-playback.tsx`) lists, plays back, transcribes,
+  and highlights. So the tables ARE present on both sides — for LiveKit rooms.
 - `interview_transcripts` (128): speaker-attributed segments; the turn-based
   conversation JSONB stays as the live working copy, final transcript lands here.
 - `recording_consent` (128): per-user consent records
@@ -115,14 +122,11 @@ session row links to it instead of adding columns:
   nullable `interview_id`/`screening_session_id` and are actively written by
   `runMultiEvaluation` — per-evaluator and composite scores go here, not in a
   new `scores` JSONB column.
-- **Caveat (verified 2026-10-06):** the 128 tables have zero write paths and
-  zero UI reads today — nothing creates recording rows, and only the
-  compliance deleter touches them. They were built for the unshipped LiveKit
-  flow. Phase 1 therefore BUILDS the write path (recording row on session
-  start, consent write, transcript write, status transitions). Pre-build gate:
-  verify these tables exist in the live database — migration files existing
-  locally does not prove they ran (precedent: migration 230 never ran on
-  staging). The Phase 1 migration re-asserts them with `IF NOT EXISTS`.
+- Phase 1 therefore EXTENDS the existing write path to turn-based sessions
+  (nullable `interview_session_id` on recordings/evaluations) rather than
+  building it. Pre-build gate remains: verify the 128 tables exist in the
+  live database (migration file existing locally is not proof it ran —
+  precedent: migration 230).
 
 Migration: backfill from `screening_sessions` and `mock_interview_sessions`;
 link `scheduled_interviews` and `interview_rooms` rows as `human_scheduled`.
