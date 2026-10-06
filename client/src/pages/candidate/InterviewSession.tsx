@@ -80,7 +80,11 @@ interface Session {
 	type: string;
 	status: string;
 	conversation: Turn[];
-	config?: { question_source?: string; current_phase?: string };
+	config?: {
+		question_source?: string;
+		current_phase?: string;
+		observer_enabled?: boolean;
+	};
 }
 
 const SESSION_TYPE_LABEL: Record<string, string> = {
@@ -805,6 +809,17 @@ export default function CandidateInterviewSessionPage() {
 							<p className="text-sm text-muted-foreground bg-muted rounded-md p-3">
 								Without recording consent the AI interview can't proceed. You can continue
 								without video, or close this page — no recording was made.
+							</p>
+						)}
+						{/* Task 5 (#323) — Track B: the candidate is told the AI
+						    observer is present before joining (spec §5). */}
+						{session?.config?.observer_enabled && (
+							<p className="text-sm bg-blue-50 border border-blue-200 rounded-md p-3">
+								<strong className="text-blue-900">AI observer present:</strong>{' '}
+								<span className="text-blue-800">
+									an AI assistant will silently observe this interview to help the hiring
+									team evaluate it. It listens only — it won't speak or interrupt.
+								</span>
 							</p>
 						)}
 						{error && <p className="text-sm text-destructive">{error}</p>}

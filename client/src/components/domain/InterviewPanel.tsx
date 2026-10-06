@@ -6,7 +6,7 @@
  * human-scheduled interviews (read-linked from scheduled_interviews /
  * interview_events by the backend).
  */
-import { CalendarClock, FileText, Loader2, Play, Sparkles } from 'lucide-react';
+import { CalendarClock, Eye, FileText, Loader2, Play, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { EmptyState } from '@/components/domain/empty-state';
 import { Skeleton } from '@/components/domain/skeleton';
@@ -26,6 +26,7 @@ export interface UnifiedSession {
 	config?: {
 		report?: { overall_score?: number | null } | null;
 		question_source?: string;
+		observer_enabled?: boolean;
 	} | null;
 	conversation?: Array<{ role?: string; text?: string; timestamp?: string; phase?: string }> | null;
 }
@@ -72,6 +73,8 @@ export function InterviewPanel({ candidateId, applicationId, onViewReport }: Int
 	const [error, setError] = useState<string | null>(null);
 	const [triggering, setTriggering] = useState(false);
 	const [triggerMsg, setTriggerMsg] = useState<string | null>(null);
+	const [enablingObserver, setEnablingObserver] = useState<number | null>(null);
+	const [observerMsg, setObserverMsg] = useState<string | null>(null);
 
 	const load = useCallback(async () => {
 		setError(null);
@@ -111,6 +114,27 @@ export function InterviewPanel({ candidateId, applicationId, onViewReport }: Int
 		}
 	}
 
+	// Task 5 (#323) — Track B: the hiring team enables a muted AI observer on
+	// a human interview. Explicit toggle, default off; the backend consent-
+	// gates the dispatch (403 when the candidate has not consented).
+	async function enableObserver(sessionId: number) {
+		setEnablingObserver(sessionId);
+		setObserverMsg(null);
+		try {
+			await apiCall(`/interviews/interview-sessions/${sessionId}/observer/enable`, {
+				method: 'POST',
+			});
+			setObserverMsg('AI observer enabled — it will join the interview room muted.');
+			await load();
+		} catch (err) {
+			setObserverMsg(
+				err instanceof Error ? err.message : 'Failed to enable the AI observer',
+			);
+		} finally {
+			setEnablingObserver(null);
+		}
+	}
+
 	if (sessions === null) {
 		return (
 			<div className="space-y-2">
@@ -144,6 +168,7 @@ export function InterviewPanel({ candidateId, applicationId, onViewReport }: Int
 				</Button>
 			</div>
 			{triggerMsg && <p className="text-xs text-muted-foreground">{triggerMsg}</p>}
+			{observerMsg && <p className="text-xs text-muted-foreground">{observerMsg}</p>}
 			{error && <p className="text-xs text-red-600">{error}</p>}
 
 			{sessions.length === 0 && !error ? (
@@ -190,6 +215,29 @@ export function InterviewPanel({ candidateId, applicationId, onViewReport }: Int
 										<FileText className="h-3.5 w-3.5" /> Report
 									</Button>
 								)}
+								{/* Task 5 (#323) — Track B observer toggle, default off. */}
+								{isUnified &&
+									s.status !== 'completed' &&
+									(s.config?.observer_enabled ? (
+										<Badge variant="outline" className="text-xs shrink-0">
+											Observer on
+										</Badge>
+									) : (
+										<Button
+											size="sm"
+											variant="ghost"
+											className="gap-1 text-xs shrink-0 min-h-[44px]"
+											onClick={() => enableObserver(s.id)}
+											disabled={enablingObserver === s.id}
+										>
+											{enablingObserver === s.id ? (
+												<Loader2 className="h-3.5 w-3.5 animate-spin" />
+											) : (
+												<Eye className="h-3.5 w-3.5" />
+											)}
+											{enablingObserver === s.id ? 'Enabling…' : 'AI observer'}
+										</Button>
+									))}
 								{isUnified && s.status !== 'completed' && (
 									<span className="text-xs text-muted-foreground shrink-0 flex items-center gap-1">
 										<Play className="h-3 w-3" /> Awaiting candidate
