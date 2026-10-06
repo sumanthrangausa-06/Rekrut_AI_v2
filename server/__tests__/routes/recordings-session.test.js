@@ -420,6 +420,40 @@ describe('POST /api/interviews/recordings/:id/consent — session recordings', (
 		expect(res.status).toBe(200);
 		expect(res.body.success).toBe(true);
 	});
+
+	it('blocks frame capture when no consent row exists', async () => {
+		const app = buildApp();
+		const session = seedSession();
+		await request(app)
+			.post(`/api/interviews/interview-sessions/${session.id}/start`)
+			.set('x-test-user-id', '1');
+		// No consent written at all — capture must not proceed.
+
+		const res = await request(app)
+			.post(`/api/interviews/interview-sessions/${session.id}/respond`)
+			.set('x-test-user-id', '1')
+			.send({ text: 'My answer with video on.', frames: ['frame-bytes-1'] });
+
+		expect(res.status).toBe(403);
+		expect(res.body.code).toBe('CONSENT_REQUIRED');
+	});
+
+	it('still allows text-only respond when no consent row exists', async () => {
+		const app = buildApp();
+		const session = seedSession();
+		await request(app)
+			.post(`/api/interviews/interview-sessions/${session.id}/start`)
+			.set('x-test-user-id', '1');
+		// No consent written at all.
+
+		const res = await request(app)
+			.post(`/api/interviews/interview-sessions/${session.id}/respond`)
+			.set('x-test-user-id', '1')
+			.send({ text: 'My answer without video.' });
+
+		expect(res.status).toBe(200);
+		expect(res.body.success).toBe(true);
+	});
 });
 
 // ─── Complete writes transcripts + frame analysis ───────────────────────────

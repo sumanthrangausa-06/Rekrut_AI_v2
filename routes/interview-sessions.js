@@ -236,15 +236,18 @@ router.post(
 					? req.body.frame_indicators
 					: null;
 
-			// Task 4 (#322): frame capture requires non-withdrawn consent.
-			// Consent is written to recording_consent before capture begins;
-			// a withdrawn consent blocks further capture (text-only answers
-			// still go through).
+			// Task 4 (#322): frame capture requires active consent.
+			// Consent is written to recording_consent before any capture
+			// begins: a missing consent row blocks capture just like a
+			// withdrawn one does. Text-only answers still go through.
+			// Consent governs media capture (frames, recordings, frame
+			// analysis); the conversational transcript is the interview
+			// record and exists regardless.
 			if (frames.length > 0 || frameIndicators) {
 				const recording = await livekitService.findRecordingBySessionId(session.id);
-				if (recording && (await livekitService.hasWithdrawnConsent(recording.id, req.user.id))) {
+				if (!recording || !(await livekitService.hasActiveConsent(recording.id, req.user.id))) {
 					return res.status(403).json({
-						error: 'Recording consent withdrawn',
+						error: 'Recording consent required',
 						code: 'CONSENT_REQUIRED',
 					});
 				}

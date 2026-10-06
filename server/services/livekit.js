@@ -521,6 +521,22 @@ async function hasWithdrawnConsent(recordingId, userId) {
 }
 
 /**
+ * Whether the user has active (non-withdrawn) recording consent.
+ * Capture requires a consent row to exist AND not be withdrawn (#322, Task 4):
+ * missing consent blocks capture just like withdrawn consent does.
+ * @param {number} recordingId
+ * @param {number} userId
+ * @returns {Promise<boolean>}
+ */
+async function hasActiveConsent(recordingId, userId) {
+	const result = await pool.query(
+		`SELECT consent_type FROM recording_consent WHERE recording_id = $1 AND user_id = $2`,
+		[recordingId, userId],
+	);
+	return result.rows.length > 0 && result.rows[0].consent_type !== 'withdrawn';
+}
+
+/**
  * Set recording retention to 30 days after the hiring decision (#322).
  * Called when an application reaches a terminal decision (hired/rejected);
  * the per-recording retention_expires_at is set explicitly rather than
@@ -631,6 +647,7 @@ module.exports = {
 	findActiveRecordingByRoomId,
 	findRecordingBySessionId,
 	hasWithdrawnConsent,
+	hasActiveConsent,
 	setSessionRecordingsRetentionAfterDecision,
 	listRecordingsByEventId,
 	decryptStoragePath,
