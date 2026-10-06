@@ -880,6 +880,7 @@ describe('GET /api/interviews/interview-sessions/:id/recording (Task 9)', () => 
 			duration_seconds: 372,
 			file_size_bytes: 1024,
 			file_format: 'webm',
+			retention_expires_at: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
 		};
 		sessionRecordings.set(sessionId, row);
 		return row;
@@ -898,6 +899,9 @@ describe('GET /api/interviews/interview-sessions/:id/recording (Task 9)', () => 
 		expect(res.status).toBe(200);
 		expect(res.body.success).toBe(true);
 		expect(res.body.recording).toMatchObject({ id: rec.id, status: 'completed' });
+		// Task 12: the endpoint must expose the retention expiry so retention
+		// can be verified without DB access.
+		expect(res.body.recording.retention_expires_at).toBe(rec.retention_expires_at);
 	});
 
 	it('returns null recording when the session has none', async () => {
