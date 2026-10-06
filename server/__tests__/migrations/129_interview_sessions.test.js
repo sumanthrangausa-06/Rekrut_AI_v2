@@ -105,6 +105,7 @@ describe('129_interview_sessions_unified migration', () => {
 			'idx_recording_consent_recording',
 			'idx_recording_consent_user',
 			'idx_transcript_highlights_transcript',
+			'idx_transcript_highlights_user',
 		]) {
 			expect(src).toMatch(new RegExp(`CREATE INDEX IF NOT EXISTS ${idx}`));
 		}

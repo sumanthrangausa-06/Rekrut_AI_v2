@@ -124,6 +124,10 @@ module.exports = {
       CREATE INDEX IF NOT EXISTS idx_transcript_highlights_transcript
       ON transcript_highlights(transcript_id)
     `);
+		await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_transcript_highlights_user
+      ON transcript_highlights(user_id)
+    `);
 
 		// ─── Unified sessions table ──────────────────────────────────────────
 		await client.query(`
