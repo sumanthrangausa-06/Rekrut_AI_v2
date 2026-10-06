@@ -506,21 +506,6 @@ async function findRecordingBySessionId(interviewSessionId) {
 }
 
 /**
- * Whether the user has withdrawn recording consent for a recording.
- * Withdrawn consent blocks further capture (#322, Task 4).
- * @param {number} recordingId
- * @param {number} userId
- * @returns {Promise<boolean>}
- */
-async function hasWithdrawnConsent(recordingId, userId) {
-	const result = await pool.query(
-		`SELECT consent_type FROM recording_consent WHERE recording_id = $1 AND user_id = $2`,
-		[recordingId, userId],
-	);
-	return result.rows.length > 0 && result.rows[0].consent_type === 'withdrawn';
-}
-
-/**
  * Whether the user has active (non-withdrawn) recording consent.
  * Capture requires a consent row to exist AND not be withdrawn (#322, Task 4):
  * missing consent blocks capture just like withdrawn consent does.
@@ -646,7 +631,6 @@ module.exports = {
 	findRecordingById,
 	findActiveRecordingByRoomId,
 	findRecordingBySessionId,
-	hasWithdrawnConsent,
 	hasActiveConsent,
 	setSessionRecordingsRetentionAfterDecision,
 	listRecordingsByEventId,
