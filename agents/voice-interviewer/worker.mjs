@@ -16,9 +16,9 @@
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-import { defineAgent, cli, WorkerOptions, VADEventType } from '@livekit/agents';
+import { defineAgent, cli, ServerOptions, VADEventType } from '@livekit/agents';
 import { VAD } from '@livekit/agents-plugin-silero';
-import { AudioStream, AudioSource, AudioFrame, LocalAudioTrack } from '@livekit/rtc-node';
+import { AudioStream, AudioSource, AudioFrame, LocalAudioTrack, RoomEvent } from '@livekit/rtc-node';
 
 const require = createRequire(import.meta.url);
 const {
@@ -163,7 +163,7 @@ async function runInterviewer(ctx, sessionId) {
 		}
 	}
 
-	ctx.room.on('trackSubscribed', (track, _pub, participant) => {
+	ctx.room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
 		if (track.kind === 'audio' && participant.identity !== ctx.agent.identity) {
 			handleAudioTrack(track).catch((err) =>
 				console.error('[voice-interviewer] track handler error:', err.message),
@@ -225,7 +225,7 @@ async function runObserver(ctx, sessionId) {
 			);
 		}
 	};
-	ctx.room.on('trackSubscribed', (track, _pub, participant) => attach(track, participant));
+	ctx.room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => attach(track, participant));
 	for (const [, participant] of ctx.room.remoteParticipants) {
 		for (const [, pub] of participant.trackPublications) {
 			if (pub.track) attach(pub.track, participant);
@@ -272,5 +272,5 @@ export default defineAgent({
 });
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-	cli.runApp(new WorkerOptions({ agent: import.meta.filename }));
+	cli.runApp(new ServerOptions({ agent: import.meta.filename }));
 }

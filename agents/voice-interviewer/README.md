@@ -62,7 +62,9 @@ lk cloud auth
 #    create the agent. First run writes livekit.toml (per-project; gitignored).
 cp agents/voice-interviewer/agent.env.example agents/voice-interviewer/agent.env
 # ... fill in agent.env (no LIVEKIT_* keys — Cloud injects those) ...
-lk agent create --secrets-file agents/voice-interviewer/agent.env .
+lk agent create --name rekrut-interviewer --secrets-file agents/voice-interviewer/agent.env .
+# ^ --name MUST be rekrut-interviewer (or match LIVEKIT_AGENT_NAME): Task 2's
+#   dispatch targets that name (server/services/livekit.js getVoiceAgentName()).
 
 # 3. Later deploys
 lk agent deploy .
