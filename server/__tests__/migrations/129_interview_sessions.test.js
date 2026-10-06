@@ -94,6 +94,22 @@ describe('129_interview_sessions_unified migration', () => {
 		}
 	});
 
+	test('re-asserts all nine migration-128 indexes with IF NOT EXISTS', () => {
+		for (const idx of [
+			'idx_interview_recordings_event',
+			'idx_interview_recordings_room',
+			'idx_interview_recordings_status',
+			'idx_interview_recordings_retention',
+			'idx_interview_transcripts_recording',
+			'idx_interview_transcripts_time',
+			'idx_recording_consent_recording',
+			'idx_recording_consent_user',
+			'idx_transcript_highlights_transcript',
+		]) {
+			expect(src).toMatch(new RegExp(`CREATE INDEX IF NOT EXISTS ${idx}`));
+		}
+	});
+
 	test('every CREATE TABLE uses IF NOT EXISTS', () => {
 		const bare = src.match(/CREATE TABLE\s+(?!IF NOT EXISTS)/g);
 		expect(bare).toBeNull();

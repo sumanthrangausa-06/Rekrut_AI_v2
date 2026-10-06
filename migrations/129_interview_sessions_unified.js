@@ -14,7 +14,7 @@
 // Safety:
 //   - Every DDL statement uses IF NOT EXISTS (may run where 128 never ran —
 //     precedent: migration 230 never ran on staging).
-//   - Migration 128's tables are re-asserted verbatim below.
+//   - Migration 128's tables AND indexes are re-asserted verbatim below.
 // =============================================================================
 
 module.exports = {
@@ -82,6 +82,47 @@ module.exports = {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
+    `);
+
+		// ─── Re-assert migration 128 indexes (verbatim) ───────────────────────
+		// If 128 truly never ran somewhere, the LiveKit recording queries and
+		// the compliance deleter's retention scan would lose these indexes.
+		await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_interview_recordings_event
+      ON interview_recordings(interview_event_id)
+    `);
+		await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_interview_recordings_room
+      ON interview_recordings(room_id)
+    `);
+		await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_interview_recordings_status
+      ON interview_recordings(status)
+    `);
+		await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_interview_recordings_retention
+      ON interview_recordings(retention_expires_at)
+      WHERE status != 'deleted'
+    `);
+		await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_interview_transcripts_recording
+      ON interview_transcripts(recording_id)
+    `);
+		await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_interview_transcripts_time
+      ON interview_transcripts(recording_id, start_time_ms)
+    `);
+		await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_recording_consent_recording
+      ON recording_consent(recording_id)
+    `);
+		await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_recording_consent_user
+      ON recording_consent(user_id)
+    `);
+		await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_transcript_highlights_transcript
+      ON transcript_highlights(transcript_id)
     `);
 
 		// ─── Unified sessions table ──────────────────────────────────────────
@@ -152,8 +193,8 @@ module.exports = {
         job_id, application_id, candidate_id, company_id, invited_by,
         invite_token, status,
         jsonb_build_object('template_id', template_id, 'questions', questions),
-        COALESCE(conversation, '[]'),
-        '{}',
+        COALESCE(conversation, '[]'::jsonb),
+        '{}'::jsonb,
         started_at, completed_at,
         COALESCE(invited_at, NOW())
       FROM screening_sessions
@@ -178,7 +219,7 @@ module.exports = {
           'overall_score', overall_score,
           'overall_feedback', overall_feedback
         ),
-        COALESCE(conversation, '[]'),
+        COALESCE(conversation, '[]'::jsonb),
         started_at, completed_at
       FROM mock_interview_sessions
     `);
