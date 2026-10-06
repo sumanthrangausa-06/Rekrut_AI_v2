@@ -4,7 +4,7 @@
  * Every interview lifecycle transition emits an event into the company audit
  * log, following the #251 pattern exactly: routes/audit.js insertAuditLog →
  * audit_logs(company_id, actor_id, target_id, action, reason, metadata,
- * created_at). Each event carries the actor (actor_id) and a timestamp
+ * created_at, action_type). Each event carries the actor (actor_id) and a timestamp
  * (created_at). Emission is non-blocking: an audit-write failure is logged
  * and never fails the primary operation.
  *
@@ -124,17 +124,42 @@ db.query.mockImplementation(async (sql, params = []) => {
 	// ─── The assertion target: every audit_logs write is captured ───
 	if (normalized.startsWith('insert into audit_logs')) {
 		if (failAuditWrites) throw new Error('audit_logs unavailable (simulated)');
+		// Enforce the real DB's NOT NULL on audit_logs.action_type
+		// (migrations/013_compliance_system.js: action_type VARCHAR(100) NOT
+		// NULL, no default — never relaxed by a later migration). The pre-fix
+		// helper omits this column, which the real DB rejects; the mock must
+		// reject it too or the test can't catch the staging bug.
+		const columnsMatch = normalized.match(/insert into audit_logs\s*\(([^)]+)\)/);
+		const columns = columnsMatch ? columnsMatch[1].split(',').map((c) => c.trim()) : [];
+		if (!columns.includes('action_type')) {
+			throw new Error(
+				'null value in column "action_type" of relation "audit_logs" violates not-null constraint',
+			);
+		}
+		// Align columns to VALUES expressions (greedy match survives NOW()).
+		// $N → params[N-1]; NOW() → timestamp. This mirrors what the real DB
+		// receives positionally.
+		const valuesMatch = normalized.match(/\)\s*values\s*\((.*)\)\s*$/);
+		const valueExprs = valuesMatch ? valuesMatch[1].split(',').map((v) => v.trim()) : [];
+		const at = (name) => {
+			const expr = valueExprs[columns.indexOf(name)];
+			const pm = expr?.match(/^\$(\d+)$/);
+			if (pm) return params[Number(pm[1]) - 1];
+			if (expr === 'now()') return new Date().toISOString();
+			return undefined;
+		};
 		// routes/audit.js insertAuditLog SQL:
-		// (company_id, actor_id, target_id, action, reason, metadata, created_at)
-		// VALUES ($1,$2,$3,$4,$5,$6,NOW())
+		// (company_id, actor_id, target_id, action, reason, metadata, created_at, action_type)
+		// VALUES ($1,$2,$3,$4,$5,$6,NOW(),$7)
 		const row = {
 			id: nextAuditId++,
-			company_id: params[0],
-			actor_id: params[1],
-			target_id: params[2],
-			action: params[3],
-			reason: params[4],
-			metadata: maybeParse(params[5]),
+			company_id: at('company_id'),
+			actor_id: at('actor_id'),
+			target_id: at('target_id'),
+			action: at('action'),
+			action_type: at('action_type'),
+			reason: at('reason'),
+			metadata: maybeParse(at('metadata')),
 			created_at: new Date().toISOString(),
 		};
 		auditLogRows.push(row);
@@ -309,6 +334,9 @@ describe('interview audit events (Task 11 / #322)', () => {
 		expect(sent[0].metadata.session_id).toBe(sessionId);
 		expect(sent[0].metadata.type).toBe('ai_interview');
 		expect(sent[0].metadata.application_id).toBe(20);
+		// The real DB rejects audit rows without action_type (NOT NULL, no
+		// default — migrations/013). The helper sets it to the action value.
+		expect(sent[0].action_type).toBe('session.sent');
 		expect(Date.parse(sent[0].created_at)).toBeGreaterThan(Date.now() - 60_000);
 	});
 

@@ -888,6 +888,7 @@ router.get('/interview-sessions/:id/recording', authMiddleware, async (req, res)
 				duration_seconds: recording.duration_seconds,
 				file_size_bytes: recording.file_size_bytes,
 				file_format: recording.file_format,
+				retention_expires_at: recording.retention_expires_at,
 			},
 		});
 	} catch (err) {
