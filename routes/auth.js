@@ -69,7 +69,19 @@ function getPasswordPolicyMessage(role) {
 // Register
 router.post('/register', rateLimits.strict, async (req, res) => {
 	try {
-		const { email, password, name, role = 'candidate', company_name } = req.body;
+		const { email, password, name, company_name } = req.body;
+		// --- Issue #336: whitelist public-signup roles. 'admin' can never originate
+		// from public signup (owner status is granted server-side via user_roles).
+		// Strict: only undefined defaults to 'candidate'; null/non-strings → 400.
+		const rawRole = req.body.role === undefined ? 'candidate' : req.body.role;
+		const role = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
+		const allowedSignupRoles = ['candidate', 'employer', 'recruiter', 'hiring_manager'];
+		if (!allowedSignupRoles.includes(role)) {
+			return res.status(400).json({
+				error: `Invalid role "${req.body.role}". Allowed roles: ${allowedSignupRoles.join(', ')}.`,
+				code: 'INVALID_ROLE',
+			});
+		}
 
 		if (!email || !password) {
 			return res.status(400).json({ error: 'Email and password are required' });
@@ -82,7 +94,8 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 		}
 
 		// --- Issue #103: Enforce company email domain for recruiter roles ---
-		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+		// (Issue #336: 'admin' removed — it can never come from public signup)
+		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager'];
 		if (recruiterRoles.includes(role)) {
 			const {
 				validateRecruiterEmail,

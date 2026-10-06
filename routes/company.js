@@ -716,6 +716,16 @@ router.post(
 				return res.status(400).json({ error: 'Email is required' });
 			}
 
+			// --- Issue #336: whitelist invited roles — never mint platform admins via invite ---
+			const normalizedInviteRole = String(role).toLowerCase();
+			const allowedInviteRoles = ['employer', 'recruiter', 'hiring_manager'];
+			if (!allowedInviteRoles.includes(normalizedInviteRole)) {
+				return res.status(400).json({
+					error: `Invalid role "${role}". Team invites are limited to: ${allowedInviteRoles.join(', ')}.`,
+					code: 'INVALID_ROLE',
+				});
+			}
+
 			// Validate invited email domain matches company domain
 			const companyResult = await pool.query(
 				'SELECT verified_domain, email_domain FROM companies WHERE id = $1',
@@ -758,7 +768,14 @@ router.post(
 				`INSERT INTO users (email, password_hash, name, role, company_name, company_id)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, email, name, role`,
-				[email, password_hash, name, role, companyNameResult.rows[0].name, req.user.company_id],
+				[
+					email,
+					password_hash,
+					name,
+					normalizedInviteRole,
+					companyNameResult.rows[0].name,
+					req.user.company_id,
+				],
 			);
 
 			// In production, send email with invite link
