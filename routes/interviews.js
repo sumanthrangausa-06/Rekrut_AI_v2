@@ -26,6 +26,8 @@ const emailService = require('../lib/email-service');
 const calendarService = require('../server/services/calendar-service');
 const { notifyUser } = require('../lib/notify');
 const { uploadToB2 } = require('../lib/file-storage');
+// Task 11 (#322): company audit log (#251 pattern) for session.sent on manual send.
+const { insertAuditLog } = require('./audit');
 
 const router = express.Router();
 const upload = multer({
@@ -2939,6 +2941,12 @@ router.delete('/screening/templates/:id', authMiddleware, async (req, res) => {
 });
 
 // POST /api/interviews/screening/send — Send screening invite to candidate
+// Phase 1 (#322, C2): writes the UNIFIED interview_sessions model
+// (type='screening', frozen engine config mirroring the auto-send hook in
+// routes/candidate.js). /screening/:token now redirects to
+// /interview/session/:token, which resolves ONLY via interview_sessions —
+// writing screening_sessions here would produce dead invite links. The legacy
+// /screening/session/:token/* endpoints stay for in-flight pre-migration sessions.
 router.post('/screening/send', authMiddleware, async (req, res) => {
 	try {
 		const { template_id, candidate_id, application_id, job_id } = req.body;
@@ -2947,7 +2955,7 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'Template and candidate are required' });
 		}
 
-		// Get template
+		// Get template (company-scoped — the recruiter's explicit choice)
 		const template = await pool.query(
 			'SELECT * FROM screening_templates WHERE id = $1 AND company_id = $2',
 			[template_id, req.user.company_id],
@@ -2958,12 +2966,23 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 		}
 
 		const tmpl = template.rows[0];
+		const resolvedJobId = tmpl.job_id || job_id || null;
 
-		// Check if screening already sent
-		const existing = await pool.query(
-			`SELECT id FROM screening_sessions WHERE template_id = $1 AND candidate_id = $2 AND status != 'expired'`,
-			[template_id, candidate_id],
-		);
+		// Duplicate check against the unified table (was: screening_sessions).
+		let existing;
+		if (application_id) {
+			existing = await pool.query(
+				`SELECT id FROM interview_sessions WHERE application_id = $1 AND type = 'screening' LIMIT 1`,
+				[application_id],
+			);
+		} else {
+			existing = await pool.query(
+				`SELECT id FROM interview_sessions
+				  WHERE candidate_id = $1 AND job_id IS NOT DISTINCT FROM $2
+				    AND type = 'screening' AND status != 'expired' LIMIT 1`,
+				[candidate_id, resolvedJobId],
+			);
+		}
 
 		if (existing.rows.length > 0) {
 			return res.status(409).json({
@@ -2972,27 +2991,51 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 			});
 		}
 
-		// Create screening session with invite token
-		const inviteToken = crypto.randomBytes(32).toString('hex');
-		const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60000); // 7 days
+		// Job row for the frozen engine config (mirrors the auto-send hook).
+		let jobRow = null;
+		if (resolvedJobId) {
+			const jobResult = await pool.query('SELECT * FROM jobs WHERE id = $1', [resolvedJobId]);
+			jobRow = jobResult.rows[0] || null;
+		}
 
+		// Freeze the engine config at creation (Task 2 contract) — identical
+		// shape to the auto-send hook in routes/candidate.js.
+		const sessionConfig = {
+			question_source: 'template',
+			current_phase: 'intro',
+			job: {
+				id: jobRow?.id ?? resolvedJobId,
+				title: jobRow?.title || null,
+				company_name: jobRow?.company_name || jobRow?.company || null,
+				description: jobRow?.description || null,
+			},
+			template: {
+				id: tmpl.id,
+				title: tmpl.title,
+				topics: tmpl.topics || [],
+				questions: tmpl.questions || [],
+			},
+		};
+
+		const inviteToken = crypto.randomBytes(32).toString('hex');
 		const result = await pool.query(
-			`INSERT INTO screening_sessions
-       (template_id, company_id, job_id, candidate_id, application_id, invited_by, invite_token, questions, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING *`,
+			`INSERT INTO interview_sessions
+			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+			 RETURNING *`,
 			[
-				template_id,
-				req.user.company_id,
-				tmpl.job_id || job_id,
-				candidate_id,
+				'screening',
+				resolvedJobId,
 				application_id || null,
+				candidate_id,
+				req.user.company_id,
 				req.user.id,
 				inviteToken,
-				JSON.stringify(tmpl.questions),
-				expiresAt,
+				JSON.stringify(sessionConfig),
+				JSON.stringify([]),
 			],
 		);
+		const session = result.rows[0];
 
 		// Update application screening status
 		if (application_id) {
@@ -3002,25 +3045,45 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 			);
 		}
 
+		// Task 11 (#322): audit event — session.sent with the recruiter as
+		// actor. Non-blocking: an audit failure never fails the send.
+		try {
+			await insertAuditLog({
+				company_id: req.user.company_id ?? null,
+				actor_id: req.user.id,
+				target_id: session.id,
+				action: 'session.sent',
+				metadata: {
+					session_id: session.id,
+					type: 'screening',
+					job_id: resolvedJobId,
+					application_id: application_id || null,
+					template_id,
+				},
+			});
+		} catch (auditErr) {
+			console.error('[screening/send] audit event failed:', auditErr.message);
+		}
+
 		// In-app notification for the candidate (non-blocking)
-		const inviteUrl = `/screening/${inviteToken}`;
+		const inviteUrl = `/interview/session/${inviteToken}`;
 		notifyUser(
 			candidate_id,
 			'screening_invited',
 			'AI screening interview invited',
-			`You've been invited to complete an AI screening interview (${tmpl.title}). Complete it within 7 days.`,
+			`You've been invited to complete an AI screening interview (${tmpl.title}).`,
 			{
-				session_id: result.rows[0].id,
+				session_id: session.id,
 				template_id,
 				application_id: application_id || null,
-				job_id: tmpl.job_id || job_id || null,
+				job_id: resolvedJobId,
 				invite_url: inviteUrl,
 			},
 		);
 
 		res.json({
 			success: true,
-			session: result.rows[0],
+			session,
 			invite_url: inviteUrl,
 		});
 	} catch (err) {

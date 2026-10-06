@@ -82,7 +82,7 @@
 
 **Files:**
 - Create: `routes/interview-sessions.js`
-- Modify: `server.js` (mount at `/api/interviews` — after `interviewRoutes`, new paths don't collide), `routes/interviews.js` (thin shims for `/mock/*` and `/screening/session/:token/*` delegating to the engine)
+- Modify: `server.js` (mount at `/api/interviews` — interviewSessionRoutes must be mounted BEFORE interviewEventsRoutes: the events router's `GET /:id` isInt validator 400s without next() and would shadow the single-segment list GETs), `routes/interviews.js` (thin shims for `/mock/*` and `/screening/session/:token/*` delegating to the engine)
 - Test: `server/__tests__/routes/interview-sessions.test.js` (supertest against the router with a test DB)
 
 **Interfaces:**

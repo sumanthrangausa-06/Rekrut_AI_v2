@@ -649,10 +649,10 @@ app.use('/api', chatRoutes.router);
 // API Routes - Candidate side
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
-app.use('/api/interviews', interviewEventsRoutes); // Issue #127 — Calendar interview scheduling (mounted BEFORE mock routes)
+app.use('/api/interviews', interviewSessionRoutes); // Phase 1 (#322) — unified sessions (mounted FIRST: the single-segment list GETs /interview-sessions and /interview-flows would otherwise die in interviewEventsRoutes' isInt(:id) validator with 400)
+app.use('/api/interviews', interviewEventsRoutes); // Issue #127 — Calendar interview scheduling
 app.use('/api/interviews', quickPracticeRoutes); // ISOLATED Quick Practice — must be BEFORE interview routes (#32717)
 app.use('/api/interviews', interviewRoutes); // Mock Interview + video analysis (no practice routes)
-app.use('/api/interviews', interviewSessionRoutes); // Phase 1 (#322) — unified sessions (after interviewRoutes; /interview-sessions/* doesn't collide)
 
 // API Routes - Collaboration (Issue #128)
 app.use('/api/collaboration', collaborationRoutes);

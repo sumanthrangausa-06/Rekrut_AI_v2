@@ -45,6 +45,12 @@ const upload = multer({
 
 const SESSION_TYPES = ['screening', 'ai_interview', 'practice'];
 
+// Hiring-team roles with session visibility (spec §2, #322): recruiter +
+// hiring_manager. Distinct from TRIGGER_ROLES (which also includes employer
+// for trigger/flow management): employers cannot open session transcripts,
+// reports, or recordings.
+const HIRING_ROLES = ['recruiter', 'hiring_manager'];
+
 async function loadSession(id) {
 	const result = await pool.query('SELECT * FROM interview_sessions WHERE id = $1', [id]);
 	return result.rows[0] || null;
@@ -53,7 +59,14 @@ async function loadSession(id) {
 function canAccess(session, user) {
 	if (!user) return false;
 	if (Number(user.id) === Number(session.candidate_id)) return true;
-	return user.role === 'recruiter' || user.role === 'admin';
+	if (user.role === 'admin') return true;
+	// Hiring-team visibility (spec §2, #322): recruiter + hiring_manager of the
+	// session's company only. Fail-closed: a missing company_id never matches.
+	return (
+		HIRING_ROLES.includes(user.role) &&
+		user.company_id != null &&
+		Number(user.company_id) === Number(session.company_id)
+	);
 }
 
 function newTimestamp() {
@@ -93,6 +106,17 @@ router.post('/interview-sessions', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: `type must be one of: ${SESSION_TYPES.join(', ')}` });
 		}
 
+		// C3 (#322): hiring-side callers cannot create sessions for another
+		// company. A mismatched company_id is rejected; an absent one is
+		// derived from the caller. Candidates keep passing their own (or none).
+		let sessionCompanyId = company_id || null;
+		if (req.user.role !== 'admin' && HIRING_ROLES.includes(req.user.role)) {
+			if (company_id != null && Number(company_id) !== Number(req.user.company_id)) {
+				return res.status(403).json({ error: 'Forbidden' });
+			}
+			sessionCompanyId = req.user.company_id ?? null;
+		}
+
 		const frozen = { ...(config || {}) };
 		if (!frozen.question_source) {
 			frozen.question_source = type === 'ai_interview' ? 'personalized' : 'template';
@@ -118,7 +142,7 @@ router.post('/interview-sessions', authMiddleware, async (req, res) => {
 				job_id || null,
 				application_id || null,
 				candidate_id || req.user.id,
-				company_id || null,
+				sessionCompanyId,
 				req.user.id,
 				token,
 				JSON.stringify(frozen),
@@ -748,17 +772,26 @@ router.get('/interview-sessions', authMiddleware, async (req, res) => {
 			return res.status(403).json({ error: 'Forbidden' });
 		}
 
+		// C3 (#322): non-admin, non-candidate callers only see their own
+		// company's rows (session transcripts, AI reports, and configs embed
+		// PII like resume text). Candidates are restricted to themselves above;
+		// admins bypass. Fail-closed on a missing company_id.
+		const scopedToCompany = req.user.role !== 'admin' && req.user.role !== 'candidate';
+		const scopeCompanyId = scopedToCompany ? (req.user.company_id ?? null) : null;
+		const withCompany = (column) => (scopedToCompany ? ` AND ${column}company_id = $2` : '');
+		const withParams = (id) => (scopedToCompany ? [id, scopeCompanyId] : [id]);
+
 		const sessions = [];
 		if (candidate_id) {
 			const unified = await pool.query(
-				`SELECT * FROM interview_sessions WHERE candidate_id = $1 ORDER BY created_at DESC`,
-				[candidate_id],
+				`SELECT * FROM interview_sessions WHERE candidate_id = $1${withCompany('')} ORDER BY created_at DESC`,
+				withParams(candidate_id),
 			);
 			sessions.push(...unified.rows.map((s) => ({ ...s, source: 'interview_session' })));
 
 			const scheduled = await pool.query(
-				`SELECT * FROM scheduled_interviews WHERE candidate_id = $1 ORDER BY scheduled_at DESC`,
-				[candidate_id],
+				`SELECT * FROM scheduled_interviews WHERE candidate_id = $1${withCompany('')} ORDER BY scheduled_at DESC`,
+				withParams(candidate_id),
 			);
 			sessions.push(
 				...scheduled.rows.map((s) => ({
@@ -771,25 +804,25 @@ router.get('/interview-sessions', authMiddleware, async (req, res) => {
 			const events = await pool.query(
 				`SELECT e.*, ja.job_id FROM interview_events e
 				   JOIN job_applications ja ON ja.id = e.job_application_id
-				 WHERE e.candidate_id = $1 AND e.status <> 'cancelled'
+				 WHERE e.candidate_id = $1 AND e.status <> 'cancelled'${withCompany('ja.')}
 				 ORDER BY e.scheduled_at DESC`,
-				[candidate_id],
+				withParams(candidate_id),
 			);
 			sessions.push(
 				...events.rows.map((s) => ({ ...s, source: 'interview_events', type: 'human_scheduled' })),
 			);
 		} else {
 			const unified = await pool.query(
-				`SELECT * FROM interview_sessions WHERE job_id = $1 ORDER BY created_at DESC`,
-				[job_id],
+				`SELECT * FROM interview_sessions WHERE job_id = $1${withCompany('')} ORDER BY created_at DESC`,
+				withParams(job_id),
 			);
 			sessions.push(...unified.rows.map((s) => ({ ...s, source: 'interview_session' })));
 
 			// Read-link human-scheduled interviews for the recruiter's job view
 			// too (mirrors the candidate_id branch above).
 			const scheduled = await pool.query(
-				`SELECT * FROM scheduled_interviews WHERE job_id = $1 ORDER BY scheduled_at DESC`,
-				[job_id],
+				`SELECT * FROM scheduled_interviews WHERE job_id = $1${withCompany('')} ORDER BY scheduled_at DESC`,
+				withParams(job_id),
 			);
 			sessions.push(
 				...scheduled.rows.map((s) => ({
@@ -802,9 +835,9 @@ router.get('/interview-sessions', authMiddleware, async (req, res) => {
 			const events = await pool.query(
 				`SELECT e.*, ja.job_id FROM interview_events e
 				   JOIN job_applications ja ON ja.id = e.job_application_id
-				 WHERE ja.job_id = $1 AND e.status <> 'cancelled'
+				 WHERE ja.job_id = $1 AND e.status <> 'cancelled'${withCompany('ja.')}
 				 ORDER BY e.scheduled_at DESC`,
-				[job_id],
+				withParams(job_id),
 			);
 			sessions.push(
 				...events.rows.map((s) => ({ ...s, source: 'interview_events', type: 'human_scheduled' })),
