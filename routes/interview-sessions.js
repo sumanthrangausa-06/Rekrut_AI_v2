@@ -50,7 +50,11 @@ const upload = multer({
 	limits: { fileSize: 25 * 1024 * 1024 },
 });
 
-const SESSION_TYPES = ['screening', 'ai_interview', 'practice'];
+// Track B (#323): 'human' sessions are unified-session rows for human
+// interviews — the recruiter + candidate talk, and the muted AI observer
+// (not an AI interviewer) may transcribe. Same room/token/consent/recording
+// flow as every other session type; no AI turns.
+const SESSION_TYPES = ['screening', 'ai_interview', 'practice', 'human'];
 
 // Hiring-team roles with session visibility (spec §2, #322): recruiter +
 // hiring_manager. Distinct from TRIGGER_ROLES (which also includes employer
@@ -111,6 +115,12 @@ router.post('/interview-sessions', authMiddleware, async (req, res) => {
 
 		if (!type || !SESSION_TYPES.includes(type)) {
 			return res.status(400).json({ error: `type must be one of: ${SESSION_TYPES.join(', ')}` });
+		}
+
+		// Track B (#323): a human interview is scheduled BY the hiring team FOR a
+		// candidate — a candidate cannot create their own human interview.
+		if (type === 'human' && req.user.role !== 'admin' && !HIRING_ROLES.includes(req.user.role)) {
+			return res.status(403).json({ error: 'Only the hiring team can schedule a human interview' });
 		}
 
 		// C3 (#322): hiring-side callers cannot create sessions for another
@@ -399,27 +409,39 @@ router.post('/interview-sessions/:id/start', authMiddleware, async (req, res) =>
 		}
 
 		const config = { ...(session.config || {}) };
-		const intro = await conductTurn({ conversation: [], config }, '', []);
+		let conversation = session.conversation || [];
+		let ai_message = null;
+		let phase = null;
 
-		// The intro consumes the first planned question slot for personalized sessions,
-		// so the first respond's "next planned question" doesn't repeat it.
-		if (config.question_source === 'personalized') {
-			config.current_question_index = Math.min(
-				(config.current_question_index || 0) + 1,
-				Array.isArray(config.base_questions) ? config.base_questions.length : 0,
-			);
+		if (session.type === 'human') {
+			// Track B (#323): no AI intro turn — the humans talk. The session
+			// still moves to in_progress and the recording row is created below,
+			// so the consent gate covers the observer flow.
 		} else {
-			config.current_phase = intro.phase;
-		}
+			const intro = await conductTurn({ conversation: [], config }, '', []);
 
-		const conversation = [
-			{
-				role: 'interviewer',
-				text: intro.ai_message,
-				phase: intro.phase,
-				timestamp: newTimestamp(),
-			},
-		];
+			// The intro consumes the first planned question slot for personalized sessions,
+			// so the first respond's "next planned question" doesn't repeat it.
+			if (config.question_source === 'personalized') {
+				config.current_question_index = Math.min(
+					(config.current_question_index || 0) + 1,
+					Array.isArray(config.base_questions) ? config.base_questions.length : 0,
+				);
+			} else {
+				config.current_phase = intro.phase;
+			}
+
+			conversation = [
+				{
+					role: 'interviewer',
+					text: intro.ai_message,
+					phase: intro.phase,
+					timestamp: newTimestamp(),
+				},
+			];
+			ai_message = intro.ai_message;
+			phase = intro.phase;
+		}
 		const updated = await pool.query(
 			`UPDATE interview_sessions
 			    SET status = 'in_progress', started_at = NOW(), conversation = $1, config = $2
@@ -456,8 +478,8 @@ router.post('/interview-sessions/:id/start', authMiddleware, async (req, res) =>
 		res.json({
 			success: true,
 			session: updated.rows[0],
-			ai_message: intro.ai_message,
-			phase: intro.phase,
+			ai_message,
+			phase,
 			recording: recording
 				? {
 						id: recording.id,
@@ -490,6 +512,11 @@ router.post(
 			}
 			if (session.status !== 'in_progress') {
 				return res.status(409).json({ error: 'Session is not in progress' });
+			}
+
+			// Track B (#323): human interviews have no AI turns — the humans talk.
+			if (session.type === 'human') {
+				return res.status(400).json({ error: 'AI turns are not available for human interviews' });
 			}
 
 			let candidateText = (req.body?.text || '').trim();
@@ -619,7 +646,7 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 			});
 		}
 
-		const config = { ...(session.config || {}) };
+		const config = session.config || {};
 
 		// Track B (#323): if the muted observer captured a transcript, the
 		// report comes from the observer analysis (Q&A extraction + the
@@ -649,13 +676,14 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 				responses: [],
 			});
 		}
-		config.report = report;
-
 		const updated = await pool.query(
+			// M1 (#323): jsonb merge instead of read-modify-write — the agent's
+			// shutdown callback persists observer_transcript the same way, so
+			// concurrent writes can't clobber each other.
 			`UPDATE interview_sessions
-			    SET status = 'completed', completed_at = NOW(), conversation = $1, config = $2
+			    SET status = 'completed', completed_at = NOW(), conversation = $1, config = config || $2::jsonb
 			  WHERE id = $3 RETURNING *`,
-			[JSON.stringify(session.conversation || []), JSON.stringify(config), session.id],
+			[JSON.stringify(session.conversation || []), JSON.stringify({ report }), session.id],
 		);
 
 		// Task 4 (#322): persist transcript segments against the session's
@@ -803,8 +831,7 @@ router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (re
 			return res.status(409).json({ error: 'Observer cannot be enabled on a completed session' });
 		}
 
-		const config = { ...(session.config || {}) };
-		if (config.observer_enabled) {
+		if (session.config?.observer_enabled) {
 			return res.json({ success: true, observer_enabled: true, already_enabled: true });
 		}
 
@@ -829,9 +856,10 @@ router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (re
 			return res.status(502).json({ error: 'Failed to dispatch observer agent' });
 		}
 
-		config.observer_enabled = true;
-		await pool.query('UPDATE interview_sessions SET config = $1 WHERE id = $2', [
-			JSON.stringify(config),
+		// M1 (#323): jsonb merge instead of read-modify-write — matches the
+		// agent shutdown callback (worker.mjs), so concurrent writes merge.
+		await pool.query('UPDATE interview_sessions SET config = config || $1::jsonb WHERE id = $2', [
+			JSON.stringify({ observer_enabled: true }),
 			session.id,
 		]);
 
@@ -875,9 +903,10 @@ router.post('/interview-sessions/:id/observer/report', authMiddleware, async (re
 		const job = await getJobForSession(session);
 		const report = await analyzeObserverSession({ session, qaPairs, rubricWeights, job });
 
-		const config = { ...(session.config || {}), report };
-		await pool.query('UPDATE interview_sessions SET config = $1 WHERE id = $2', [
-			JSON.stringify(config),
+		// M1 (#323): jsonb merge instead of read-modify-write — the agent's
+		// shutdown callback persists observer_transcript the same way.
+		await pool.query('UPDATE interview_sessions SET config = config || $1::jsonb WHERE id = $2', [
+			JSON.stringify({ report }),
 			session.id,
 		]);
 

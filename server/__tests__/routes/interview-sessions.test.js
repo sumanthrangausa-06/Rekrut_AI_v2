@@ -157,6 +157,14 @@ function handleSessionSql(normalized, params) {
 		recordedUpdates.push({ normalized, params: [...(params || [])] });
 		for (const assignment of setPart.split(',')) {
 			const trimmed = assignment.trim();
+			// M1 (#323): jsonb merge — `config = config || $N::jsonb` merges
+			// top-level keys, mirroring real Postgres semantics.
+			const mergeMatch = trimmed.match(/^(\w+)\s*=\s*\1\s*\|\|\s*\$(\d+)(::\w+)?$/);
+			if (mergeMatch) {
+				const delta = maybeParse(params[Number(mergeMatch[2]) - 1]) || {};
+				row[mergeMatch[1]] = { ...(row[mergeMatch[1]] || {}), ...delta };
+				continue;
+			}
 			const paramMatch = trimmed.match(/^(\w+)\s*=\s*\$(\d+)$/);
 			if (paramMatch) {
 				row[paramMatch[1]] = maybeParse(params[Number(paramMatch[2]) - 1]);
@@ -935,5 +943,74 @@ describe('GET /api/interviews/interview-sessions/:id/recording (Task 9)', () => 
 			.set('x-test-user-id', '3');
 
 		expect(res.status).toBe(403);
+	});
+});
+
+describe('human interview sessions (Track B observer target, #323)', () => {
+	it('recruiter can create a human session', async () => {
+		const app = buildApp();
+		const res = await request(app)
+			.post('/api/interviews/interview-sessions')
+			.set('x-test-user-id', '2')
+			.send({ type: 'human', candidate_id: 1, job_id: 10, application_id: 20 });
+
+		expect(res.status).toBe(201);
+		expect(res.body.success).toBe(true);
+		expect(res.body.session).toMatchObject({
+			type: 'human',
+			status: 'invited',
+			candidate_id: 1,
+			company_id: 5,
+		});
+	});
+
+	it('candidate cannot create a human session', async () => {
+		const app = buildApp();
+		const res = await request(app)
+			.post('/api/interviews/interview-sessions')
+			.set('x-test-user-id', '1')
+			.send({ type: 'human', candidate_id: 1 });
+
+		expect(res.status).toBe(403);
+	});
+
+	it('start skips the AI intro turn for human sessions (but still in_progress)', async () => {
+		const app = buildApp();
+		const created = await request(app)
+			.post('/api/interviews/interview-sessions')
+			.set('x-test-user-id', '2')
+			.send({ type: 'human', candidate_id: 1 });
+		expect(created.status).toBe(201);
+		const id = created.body.session.id;
+
+		const res = await request(app)
+			.post(`/api/interviews/interview-sessions/${id}/start`)
+			.set('x-test-user-id', '1');
+
+		expect(res.status).toBe(200);
+		expect(res.body.session.status).toBe('in_progress');
+		// No AI intro: the engine must not be asked to speak for a human interview.
+		expect(mockConductTurn).not.toHaveBeenCalled();
+		expect(res.body.session.conversation).toEqual([]);
+	});
+
+	it('respond is rejected for human sessions — humans talk, the AI does not', async () => {
+		const app = buildApp();
+		const created = await request(app)
+			.post('/api/interviews/interview-sessions')
+			.set('x-test-user-id', '2')
+			.send({ type: 'human', candidate_id: 1 });
+		const id = created.body.session.id;
+		await request(app)
+			.post(`/api/interviews/interview-sessions/${id}/start`)
+			.set('x-test-user-id', '1');
+
+		const res = await request(app)
+			.post(`/api/interviews/interview-sessions/${id}/respond`)
+			.set('x-test-user-id', '1')
+			.send({ text: 'Hello?' });
+
+		expect(res.status).toBe(400);
+		expect(mockConductTurn).not.toHaveBeenCalled();
 	});
 });

@@ -186,3 +186,54 @@ describe('analyzeObserverSession', () => {
 		expect(Array.isArray(ctx.conversation)).toBe(true);
 	});
 });
+
+describe('analyzeObserverSession rubric threading (I1, #323)', () => {
+	const session = { id: 7, candidate_id: 4, job_id: 11, company_id: 2 };
+	const qaPairs = [
+		{
+			question: 'Tell me about yourself.',
+			answer: 'I am a data analyst.',
+			asker: 'recruiter-9',
+			answerer: 'candidate-4',
+		},
+	];
+	const RECRUITER_WEIGHTS = { can_do_the_work: 60, communication_quality: 40 };
+
+	beforeEach(() => {
+		mockGenerateScreeningReport.mockReset();
+		mockGenerateScreeningReport.mockResolvedValue({ overall_score: 80, recommendation: 'advance' });
+		mockRunMultiEvaluation.mockReset();
+		mockRunMultiEvaluation.mockResolvedValue({});
+	});
+
+	test('recruiter weights are threaded into the scoring call as options', async () => {
+		await analyzeObserverSession({
+			session,
+			qaPairs,
+			rubricWeights: RECRUITER_WEIGHTS,
+			job: { title: 'Data Analyst', description: 'SQL' },
+		});
+
+		expect(mockGenerateScreeningReport).toHaveBeenCalledTimes(1);
+		const [payload, options] = mockGenerateScreeningReport.mock.calls[0];
+		expect(payload).toHaveProperty('conversation');
+		expect(options).toEqual({
+			rubricWeights: RECRUITER_WEIGHTS,
+			rubricSource: 'recruiter',
+		});
+	});
+
+	test('default rubric is threaded when the recruiter defined none', async () => {
+		await analyzeObserverSession({
+			session,
+			qaPairs,
+			rubricWeights: null,
+			job: { title: 'Data Analyst', description: 'SQL' },
+		});
+
+		expect(mockGenerateScreeningReport).toHaveBeenCalledTimes(1);
+		const [, options] = mockGenerateScreeningReport.mock.calls[0];
+		expect(options.rubricSource).toBe('default');
+		expect(Object.values(options.rubricWeights).reduce((a, b) => a + b, 0)).toBe(100);
+	});
+});

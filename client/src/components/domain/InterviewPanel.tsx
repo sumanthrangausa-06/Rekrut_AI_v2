@@ -16,7 +16,7 @@ import { apiCall } from '@/lib/api';
 
 export interface UnifiedSession {
 	id: number;
-	type: 'screening' | 'ai_interview' | 'practice' | 'human_scheduled' | string;
+	type: 'screening' | 'ai_interview' | 'practice' | 'human' | 'human_scheduled' | string;
 	status: string;
 	source: 'interview_session' | 'scheduled_interviews' | 'interview_events' | string;
 	created_at?: string;
@@ -36,6 +36,10 @@ const TYPE_META: Record<string, { label: string; className: string }> = {
 	ai_interview: { label: 'AI Interview', className: 'bg-blue-100 text-blue-800 border-blue-200' },
 	practice: { label: 'Practice', className: 'bg-gray-100 text-gray-700 border-gray-200' },
 	human_scheduled: {
+		label: 'Human Interview',
+		className: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+	},
+	human: {
 		label: 'Human Interview',
 		className: 'bg-cyan-100 text-cyan-800 border-cyan-200',
 	},
@@ -73,6 +77,8 @@ export function InterviewPanel({ candidateId, applicationId, onViewReport }: Int
 	const [error, setError] = useState<string | null>(null);
 	const [triggering, setTriggering] = useState(false);
 	const [triggerMsg, setTriggerMsg] = useState<string | null>(null);
+	const [startingHuman, setStartingHuman] = useState(false);
+	const [humanMsg, setHumanMsg] = useState<string | null>(null);
 	const [enablingObserver, setEnablingObserver] = useState<number | null>(null);
 	const [observerMsg, setObserverMsg] = useState<string | null>(null);
 
@@ -114,6 +120,27 @@ export function InterviewPanel({ candidateId, applicationId, onViewReport }: Int
 		}
 	}
 
+	// Task 5 fix round (C1, #323) — Track B: the hiring team schedules a human
+	// interview as a unified session (type 'human'). Both humans join the
+	// session's LiveKit room; the AI observer toggle (below) is the opt-in
+	// transcription + analysis layer. Default: no observer.
+	async function startHumanInterview() {
+		setStartingHuman(true);
+		setHumanMsg(null);
+		try {
+			await apiCall('/interviews/interview-sessions', {
+				method: 'POST',
+				body: { type: 'human', candidate_id: candidateId, application_id: applicationId },
+			});
+			setHumanMsg('Human interview scheduled — share the room link with the candidate.');
+			await load();
+		} catch (err) {
+			setHumanMsg(err instanceof Error ? err.message : 'Failed to schedule human interview');
+		} finally {
+			setStartingHuman(false);
+		}
+	}
+
 	// Task 5 (#323) — Track B: the hiring team enables a muted AI observer on
 	// a human interview. Explicit toggle, default off; the backend consent-
 	// gates the dispatch (403 when the candidate has not consented).
@@ -152,22 +179,39 @@ export function InterviewPanel({ candidateId, applicationId, onViewReport }: Int
 						? 'No interviews yet.'
 						: `${sessions.length} interview${sessions.length === 1 ? '' : 's'}`}
 				</p>
-				<Button
-					size="sm"
-					variant="outline"
-					className="gap-1 text-xs min-h-[44px]"
-					onClick={triggerAiInterview}
-					disabled={triggering}
-				>
-					{triggering ? (
-						<Loader2 className="h-3.5 w-3.5 animate-spin" />
-					) : (
-						<Sparkles className="h-3.5 w-3.5" />
-					)}
-					{triggering ? 'Triggering…' : 'Start AI interview'}
-				</Button>
+				<div className="flex items-center gap-2">
+					<Button
+						size="sm"
+						variant="outline"
+						className="gap-1 text-xs min-h-[44px]"
+						onClick={startHumanInterview}
+						disabled={startingHuman}
+					>
+						{startingHuman ? (
+							<Loader2 className="h-3.5 w-3.5 animate-spin" />
+						) : (
+							<CalendarClock className="h-3.5 w-3.5" />
+						)}
+						{startingHuman ? 'Scheduling…' : 'Start human interview'}
+					</Button>
+					<Button
+						size="sm"
+						variant="outline"
+						className="gap-1 text-xs min-h-[44px]"
+						onClick={triggerAiInterview}
+						disabled={triggering}
+					>
+						{triggering ? (
+							<Loader2 className="h-3.5 w-3.5 animate-spin" />
+						) : (
+							<Sparkles className="h-3.5 w-3.5" />
+						)}
+						{triggering ? 'Triggering…' : 'Start AI interview'}
+					</Button>
+				</div>
 			</div>
 			{triggerMsg && <p className="text-xs text-muted-foreground">{triggerMsg}</p>}
+			{humanMsg && <p className="text-xs text-muted-foreground">{humanMsg}</p>}
 			{observerMsg && <p className="text-xs text-muted-foreground">{observerMsg}</p>}
 			{error && <p className="text-xs text-red-600">{error}</p>}
 

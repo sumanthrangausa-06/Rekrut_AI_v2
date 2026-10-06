@@ -148,9 +148,15 @@ async function analyzeObserverSession({ session, qaPairs, rubricWeights, job = {
 	const questions = pairs.map((p) => ({ question_text: p.question }));
 	const responses = pairs.map((p) => ({ response_text: p.answer }));
 
-	const report = await generateScreeningReport({ conversation, questions, responses });
-
 	const { weights, source } = resolveRubricWeights(rubricWeights);
+
+	// I1 (#323): the resolved weights are USED in scoring (threaded into the
+	// prompt), not just stamped on the report.
+	const report = await generateScreeningReport(
+		{ conversation, questions, responses },
+		{ rubricWeights: weights, rubricSource: source },
+	);
+
 	report.rubric_weights_used = weights;
 	report.rubric_source = source;
 

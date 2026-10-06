@@ -92,6 +92,7 @@ const SESSION_TYPE_LABEL: Record<string, string> = {
 	ai_interview: 'AI Interview',
 	mock: 'Mock Interview',
 	live: 'Live Interview',
+	human: 'Human Interview',
 };
 
 const FRAME_INTERVAL_MS = 4000;

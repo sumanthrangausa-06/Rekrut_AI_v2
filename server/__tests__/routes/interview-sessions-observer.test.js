@@ -83,8 +83,10 @@ jest.mock('../../../lib/db', () => ({
 			return { rows: row ? [{ ...row }] : [] };
 		}
 		if (n.startsWith('update interview_sessions set config =')) {
+			// M1 (#323): the route writes `config = config || $1::jsonb` —
+			// merge top-level keys, mirroring real Postgres semantics.
 			const row = mockSessions.get(Number(params[1]));
-			if (row) row.config = JSON.parse(params[0]);
+			if (row) row.config = { ...(row.config || {}), ...JSON.parse(params[0]) };
 			return { rows: row ? [{ ...row }] : [] };
 		}
 		if (n.includes('from interview_flows')) {
