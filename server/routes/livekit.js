@@ -365,9 +365,12 @@ router.post(
 			const session = await loadSessionOr404(sessionId, res);
 			if (!session) return;
 
-			// Hiring team only: the candidate never dispatches the agent.
-			if (!isHiringTeamForSession(session, user)) {
-				return res.status(403).json({ error: 'Only the hiring team can dispatch the voice agent' });
+			// The session's own candidate may dispatch the interviewer for their own
+			// session (spec §3: candidate start → backend dispatches). Observer mode
+			// stays hiring-team-only.
+			const isOwnCandidate = Number(user.id) === Number(session.candidate_id);
+			if (!isHiringTeamForSession(session, user) && !(isOwnCandidate && mode === 'interviewer')) {
+				return res.status(403).json({ error: 'Not authorized to dispatch the voice agent' });
 			}
 
 			const result = await livekitService.dispatchVoiceAgent(sessionId, mode);

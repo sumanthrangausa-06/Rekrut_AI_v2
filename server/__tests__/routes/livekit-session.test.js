@@ -164,6 +164,7 @@ global.__testUsers = {
 	2: { id: 2, email: 'rec-a@test.local', name: 'RecA', role: 'recruiter', company_id: 100 },
 	3: { id: 3, email: 'rec-b@test.local', name: 'RecB', role: 'recruiter', company_id: 200 },
 	4: { id: 4, email: 'admin@test.local', name: 'Admin', role: 'admin', company_id: null },
+	5: { id: 5, email: 'cand2@test.local', name: 'Cand2', role: 'candidate', company_id: null },
 };
 
 const as = (userId) => ({ 'x-test-user-id': String(userId) });
@@ -398,11 +399,40 @@ describe('POST /api/livekit/session-rooms/:sessionId/dispatch', () => {
 		expect(second.dispatch_id).toBe(first.dispatch_id);
 	});
 
-	test('candidate gets 403 (hiring team only)', async () => {
+	// C1 fix round (Task 4 review): spec §3 says the candidate starting the
+	// session dispatches the interviewer. The session's own candidate may
+	// dispatch `interviewer`; observer mode stays hiring-team-only.
+	test('own candidate dispatches interviewer on own session → 200', async () => {
 		const res = await request(app)
 			.post('/api/livekit/session-rooms/10/dispatch')
 			.set(as(1))
-			.send({});
+			.send({ mode: 'interviewer' });
+		expect(res.status).toBe(200);
+		expect(res.body.success).toBe(true);
+		expect(res.body.dispatched).toBe(true);
+		expect(mockAgentDispatchClient.createDispatch).toHaveBeenCalledWith(
+			'interview-10',
+			'rekrut-interviewer',
+			expect.objectContaining({
+				metadata: JSON.stringify({ interview_session_id: 10, mode: 'interviewer' }),
+			}),
+		);
+	});
+
+	test('own candidate dispatching observer mode → 403', async () => {
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(1))
+			.send({ mode: 'observer' });
+		expect(res.status).toBe(403);
+		expect(mockAgentDispatchClient.createDispatch).not.toHaveBeenCalled();
+	});
+
+	test("a different candidate cannot dispatch someone else's session → 403", async () => {
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(5))
+			.send({ mode: 'interviewer' });
 		expect(res.status).toBe(403);
 		expect(mockAgentDispatchClient.createDispatch).not.toHaveBeenCalled();
 	});
