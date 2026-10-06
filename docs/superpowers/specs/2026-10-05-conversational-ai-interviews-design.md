@@ -38,9 +38,11 @@ recording — with zero GPU spend.
 - **Visibility.** Session data visible to hiring team only (recruiter + hiring
   manager); candidates see their own sessions.
 - **Recording & retention.** Explicit consent checkbox before joining
-  (consent table already exists). Full session video to R2. Transcript,
-  analysis, key frames, and scores stay in the DB. Raw video auto-deleted
-  30 days after the hiring decision via a retention cron.
+  (`recording_consent`, migration 128). Full session video to R2 via
+  `interview_recordings` (encrypted storage reference). Transcript, analysis,
+  key frames, and scores stay in the DB. Raw video auto-deleted 30 days after
+  the hiring decision via `retention_expires_at` (note: the table default is
+  90 days — the 30-day-post-decision value is set explicitly per recording).
 - **Transparency.** Every flow change and session event is audit-logged.
 
 ## 3. Architecture
@@ -95,11 +97,23 @@ New `interview_sessions` table:
 | status | text | `invited` \| `in_progress` \| `completed` \| `expired` \| `cancelled` |
 | config | JSONB | frozen template snapshot: phases, topics/questions, scoring rubric, question source |
 | conversation | JSONB | turns: role, text, timestamp, phase, per-turn metadata |
-| recording_url | text | R2 |
-| scores | JSONB | per-question + overall |
-| frame_analysis | JSONB | per-answer indicators + aggregate |
-| consent_at | timestamptz | explicit consent |
+| frame_analysis | JSONB | per-answer vision indicators + aggregate (no existing table covers this) |
 | started_at, completed_at | timestamptz | |
+
+**Reuse, don't duplicate.** The recording/consent/transcript/evaluation
+infrastructure already exists and the new session row links to it instead of
+adding columns:
+- `interview_recordings` (migration 128): gets a nullable
+  `interview_session_id` FK. Reuses its status lifecycle
+  (`pending→recording→processing→completed→failed→deleted`), encrypted
+  `storage_path` (BYTEA, never raw URLs), and `retention_expires_at`.
+- `interview_transcripts` (128): speaker-attributed segments; the turn-based
+  conversation JSONB stays as the live working copy, final transcript lands here.
+- `recording_consent` (128): per-user consent records
+  (`explicit`/`implicit`/`withdrawn`) — replaces the proposed `consent_at` column.
+- `interview_evaluations` + `interview_composite_scores` (041): already carry
+  nullable `interview_id`/`screening_session_id` — per-evaluator and composite
+  scores go here, not in a new `scores` JSONB column.
 
 Migration: backfill from `screening_sessions` and `mock_interview_sessions`;
 link `scheduled_interviews` and `interview_rooms` rows as `human_scheduled`.
@@ -137,7 +151,10 @@ Endpoints (new; old routes become thin shims, then are removed):
 ### 5.3 Media pipeline
 
 - Candidate media: getUserMedia video+audio; MediaRecorder captures the full
-  session → chunked upload to R2 on complete. Consent persisted before start.
+  session → chunked upload to R2 on complete. An `interview_recordings` row is
+  created at session start (status `pending` → `recording` → `processing` →
+  `completed`); consent is written to `recording_consent` before capture
+  begins. Both tables already exist (migration 128).
 - Frame capture: reuse mock-interview's capture cadence (periodic + per
   answer). Frames ride along on `respond` → existing analyze-frame vision
   pipeline → per-answer indicators stored in `frame_analysis`, aggregated into
@@ -178,8 +195,10 @@ thank-you screen. Frame capture wired in using mock-interview's cadence.
 
 - Audit events: `flow.created/updated`, `session.sent/started/completed/scored`,
   `report.viewed` (feeds the company audit log, #251).
-- Retention cron: deletes R2 raw video 30 days after the hiring decision.
-  Transcript, analysis, key frames, and scores are retained.
+- Retention: the existing `retention_expires_at` mechanism on
+  `interview_recordings` (migration 128) drives auto-deletion — set it to
+  30 days after the hiring decision per recording (the table default is
+  90 days). Transcript, analysis, key frames, and scores are retained.
 
 ### 5.8 Error handling
 
