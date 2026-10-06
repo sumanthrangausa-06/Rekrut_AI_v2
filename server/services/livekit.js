@@ -46,9 +46,10 @@ function getConfig() {
  * @param {string} opts.name - display name
  * @param {string} opts.roomName - LiveKit room name
  * @param {number} [opts.ttlMs=3600000] - token TTL in ms (default 1 hour)
+ * @param {Object} [opts.grants] - grant overrides (default: full participant grants)
  * @returns {Promise<string>} JWT token
  */
-async function generateToken({ identity, name, roomName, ttlMs = 60 * 60 * 1000 }) {
+async function generateToken({ identity, name, roomName, ttlMs = 60 * 60 * 1000, grants = {} }) {
 	const { AccessToken } = await getLivekitModule();
 	const { apiKey, apiSecret } = getConfig();
 
@@ -64,6 +65,7 @@ async function generateToken({ identity, name, roomName, ttlMs = 60 * 60 * 1000 
 		canPublish: true,
 		canSubscribe: true,
 		canPublishData: true,
+		...grants,
 	});
 
 	return token.toJwt();
@@ -164,6 +166,68 @@ async function findActiveRoomByInterviewEventId(interviewEventId) {
 		[interviewEventId],
 	);
 	return result.rows[0] || null;
+}
+
+// ─── Session-linked rooms (Issue #323) ──────────────────────────────────────
+// Phase 2 keys LiveKit rooms to the unified interview_sessions model. A room
+// is linked to EITHER an interview_event (legacy, migration 127) OR an
+// interview_session (migration 139) — never both.
+
+/**
+ * Find the active room linked to an interview session.
+ * @param {number} sessionId
+ * @returns {Promise<Object|null>}
+ */
+async function findActiveRoomBySessionId(sessionId) {
+	const result = await pool.query(
+		`SELECT * FROM interview_rooms
+     WHERE interview_session_id = $1 AND status = 'active'
+     ORDER BY created_at DESC
+     LIMIT 1`,
+		[sessionId],
+	);
+	return result.rows[0] || null;
+}
+
+/**
+ * Persist a session-linked room record.
+ * @param {Object} opts
+ * @param {number} opts.sessionId
+ * @param {string} opts.roomName
+ * @param {string} opts.livekitRoomId
+ */
+async function createSessionRoomRecord({ sessionId, roomName, livekitRoomId }) {
+	const result = await pool.query(
+		`INSERT INTO interview_rooms (interview_event_id, interview_session_id, room_name, livekit_room_id, status, created_at)
+     VALUES (NULL, $1, $2, $3, 'active', NOW())
+     RETURNING *`,
+		[sessionId, roomName, livekitRoomId],
+	);
+	return result.rows[0];
+}
+
+/**
+ * Get the active room for a session, creating it on the LiveKit server if
+ * none exists. Idempotent under sequential calls — a second call reuses the
+ * active room instead of creating another one.
+ * @param {number} sessionId
+ * @returns {Promise<Object>} the interview_rooms row
+ */
+async function findOrCreateSessionRoom(sessionId) {
+	const existing = await findActiveRoomBySessionId(sessionId);
+	if (existing) return existing;
+
+	const roomName = `interview-${sessionId}`;
+	const livekitRoom = await createRoom(roomName, {
+		emptyTimeout: 600, // 10 minutes
+		maxParticipants: 10,
+	});
+
+	return createSessionRoomRecord({
+		sessionId,
+		roomName: livekitRoom.name,
+		livekitRoomId: livekitRoom.sid,
+	});
 }
 
 /**
@@ -618,6 +682,10 @@ module.exports = {
 	createRoomRecord,
 	closeRoomRecord,
 	findActiveRoomByInterviewEventId,
+	// Issue #323 — Session-linked rooms
+	findActiveRoomBySessionId,
+	createSessionRoomRecord,
+	findOrCreateSessionRoom,
 	findRoomById,
 	validateRoomAccess,
 	autoCreateRoomForInterview,
