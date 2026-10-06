@@ -94,7 +94,7 @@ describe('129_interview_sessions_unified migration', () => {
 		}
 	});
 
-	test('re-asserts all nine migration-128 indexes with IF NOT EXISTS', () => {
+	test('re-asserts all ten migration-128 indexes with IF NOT EXISTS', () => {
 		for (const idx of [
 			'idx_interview_recordings_event',
 			'idx_interview_recordings_room',
