@@ -100,9 +100,9 @@ New `interview_sessions` table:
 | frame_analysis | JSONB | per-answer vision indicators + aggregate (no existing table covers this) |
 | started_at, completed_at | timestamptz | |
 
-**Reuse, don't duplicate.** The recording/consent/transcript/evaluation
-infrastructure already exists and the new session row links to it instead of
-adding columns:
+**Reuse, don't duplicate — with an honest caveat.** The recording/consent/
+transcript/evaluation infrastructure already exists in migrations and the new
+session row links to it instead of adding columns:
 - `interview_recordings` (migration 128): gets a nullable
   `interview_session_id` FK. Reuses its status lifecycle
   (`pending→recording→processing→completed→failed→deleted`), encrypted
@@ -112,8 +112,17 @@ adding columns:
 - `recording_consent` (128): per-user consent records
   (`explicit`/`implicit`/`withdrawn`) — replaces the proposed `consent_at` column.
 - `interview_evaluations` + `interview_composite_scores` (041): already carry
-  nullable `interview_id`/`screening_session_id` — per-evaluator and composite
-  scores go here, not in a new `scores` JSONB column.
+  nullable `interview_id`/`screening_session_id` and are actively written by
+  `runMultiEvaluation` — per-evaluator and composite scores go here, not in a
+  new `scores` JSONB column.
+- **Caveat (verified 2026-10-06):** the 128 tables have zero write paths and
+  zero UI reads today — nothing creates recording rows, and only the
+  compliance deleter touches them. They were built for the unshipped LiveKit
+  flow. Phase 1 therefore BUILDS the write path (recording row on session
+  start, consent write, transcript write, status transitions). Pre-build gate:
+  verify these tables exist in the live database — migration files existing
+  locally does not prove they ran (precedent: migration 230 never ran on
+  staging). The Phase 1 migration re-asserts them with `IF NOT EXISTS`.
 
 Migration: backfill from `screening_sessions` and `mock_interview_sessions`;
 link `scheduled_interviews` and `interview_rooms` rows as `human_scheduled`.
@@ -209,6 +218,10 @@ the candidate.
 
 ### 5.9 Verification
 
+- Pre-build: verify `interview_recordings`, `recording_consent`, and
+  `interview_transcripts` exist in the live database (staging + production
+  share one DB — check once). Migration 128's file existing locally is not
+  proof it ran.
 - Unit: question-source selection, fallback paths, retention worker.
 - Staging E2E (targeted Playwright scripts, not the broken full suite):
   apply → auto-send → completed screening with transcript + frame analysis +
