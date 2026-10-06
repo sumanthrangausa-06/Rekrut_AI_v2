@@ -2553,11 +2553,11 @@ async function submitApplication({
 	try {
 		const jobSettings = job.rows[0];
 		if (jobSettings.auto_send_on_apply === true) {
-			const threshold = jobSettings.auto_send_min_score || 70;
+			const threshold = jobSettings.auto_send_min_score ?? 70;
 			if (matchScore >= threshold) {
 				// Check for existing session (idempotency)
 				const existing = await pool.query(
-					'SELECT id FROM screening_sessions WHERE application_id = $1 LIMIT 1',
+					'SELECT id FROM interview_sessions WHERE application_id = $1 LIMIT 1',
 					[application.id],
 				);
 				if (existing.rows.length === 0) {
@@ -2568,19 +2568,42 @@ async function submitApplication({
 					);
 					if (templateResult.rows.length > 0) {
 						const template = templateResult.rows[0];
-						const crypto = require('crypto');
+						const crypto = require('node:crypto');
 						const inviteToken = crypto.randomBytes(32).toString('hex');
 
+						// Freeze the engine config at creation (Task 2 contract):
+						// question_source + every key conductScreeningTurn reads.
+						const sessionConfig = {
+							question_source: 'template',
+							current_phase: 'intro',
+							job: {
+								id: job.rows[0].id,
+								title: job.rows[0].title,
+								company_name: job.rows[0].company_name || job.rows[0].company || null,
+								description: job.rows[0].description || null,
+							},
+							template: {
+								id: template.id,
+								title: template.title,
+								topics: template.topics || [],
+								questions: template.questions || [],
+							},
+						};
+
 						await pool.query(
-							`INSERT INTO screening_sessions (template_id, application_id, candidate_id, company_id, job_id, invite_token, status, created_at)
-							 VALUES ($1, $2, $3, $4, $5, $6, 'invited', NOW())`,
+							`INSERT INTO interview_sessions
+							   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
+							 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)`,
 							[
-								template.id,
+								'screening',
+								jobId,
 								application.id,
 								candidateId,
 								jobSettings.company_id,
-								jobId,
+								null, // system-triggered auto-send
 								inviteToken,
+								JSON.stringify(sessionConfig),
+								JSON.stringify([]),
 							],
 						);
 
