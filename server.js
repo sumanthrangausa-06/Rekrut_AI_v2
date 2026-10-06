@@ -650,6 +650,9 @@ app.use('/api', chatRoutes.router);
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/interviews', interviewSessionRoutes); // Phase 1 (#322) — unified sessions (mounted FIRST: the single-segment list GETs /interview-sessions and /interview-flows would otherwise die in interviewEventsRoutes' isInt(:id) validator with 400)
+// Issue #244 — mount BEFORE interviewEventsRoutes: its GET /:id isInt validator
+// would otherwise 400 every /recordings request (same shadowing class as C1).
+app.use('/api/interviews/recordings', recordingRoutes); // Issue #126 — Interview recording, playback & AI transcript
 app.use('/api/interviews', interviewEventsRoutes); // Issue #127 — Calendar interview scheduling
 app.use('/api/interviews', quickPracticeRoutes); // ISOLATED Quick Practice — must be BEFORE interview routes (#32717)
 app.use('/api/interviews', interviewRoutes); // Mock Interview + video analysis (no practice routes)
@@ -659,9 +662,6 @@ app.use('/api/collaboration', collaborationRoutes);
 
 // API Routes - LiveKit Video Infrastructure (Issue #124)
 app.use('/api/livekit', livekitRoutes);
-
-// API Routes - Interview Recordings (Issue #126)
-app.use('/api/interviews/recordings', recordingRoutes);
 
 // API Routes - Interview Panels (Issue #125 — Multi-interviewer panel with scorecards and shared notes)
 app.use('/api/panels', panelRoutes);
