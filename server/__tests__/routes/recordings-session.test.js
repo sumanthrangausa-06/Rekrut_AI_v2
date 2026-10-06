@@ -55,6 +55,24 @@ jest.mock('../../../lib/polsia-ai', () => ({
 	transcribeAudioWithWhisper: jest.fn(),
 }));
 
+// ─── LiveKit EgressClient boundary (Task 6) ─────────────────────────────────
+// Consent withdrawal stops the session's room egress via the real service;
+// only the EgressClient constructor is stubbed (no network).
+const mockEgressClient = {
+	startRoomCompositeEgress: jest.fn(),
+	stopEgress: jest.fn(async (egressId) => ({ egressId, status: 'EGRESS_COMPLETE' })),
+	listEgress: jest.fn(async () => []),
+};
+jest.mock('livekit-server-sdk', () => {
+	const actual = jest.requireActual('livekit-server-sdk');
+	return { ...actual, EgressClient: jest.fn(() => mockEgressClient) };
+});
+
+// Hermetic LiveKit config for the egress tests (values never leave the process).
+process.env.LIVEKIT_API_KEY = 'test-key';
+process.env.LIVEKIT_API_SECRET = 'test-secret';
+process.env.LIVEKIT_URL = 'wss://test.livekit.cloud';
+
 // ─── In-memory interview-domain stores ──────────────────────────────────────
 const db = require('../../../lib/db');
 const baseQueryImpl = db.query.getMockImplementation();
@@ -90,6 +108,7 @@ function resetStores() {
 	nextRecordingId = 1;
 	nextTranscriptId = 1;
 	global.__testUsers = { 1: CANDIDATE, 2: RECRUITER };
+	mockEgressClient.stopEgress.mockClear();
 	mockConductTurn.mockReset();
 	mockGenerateReport.mockReset();
 	mockConductTurn.mockImplementation(async () => ({
@@ -557,5 +576,52 @@ describe('retention', () => {
 		// ~30 days from now (within a 1-minute tolerance for test execution time)
 		expect(after).toBeGreaterThan(Date.now() + 29 * 86400000);
 		expect(after).toBeLessThan(Date.now() + 31 * 86400000);
+	});
+});
+
+describe('POST /api/interviews/recordings/:id/consent — withdrawal stops session egress (Task 6)', () => {
+	it('stops the session room egress when consent is withdrawn mid-session', async () => {
+		const app = buildApp();
+		const session = seedSession();
+		await request(app)
+			.post(`/api/interviews/interview-sessions/${session.id}/start`)
+			.set('x-test-user-id', '1');
+		const recording = [...recordings.values()].find(
+			(r) => Number(r.interview_session_id) === session.id,
+		);
+		// Simulate a live voice session: egress was started at dispatch.
+		recording.livekit_egress_id = 'EG_withdraw';
+
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${recording.id}/consent`)
+			.set('x-test-user-id', '1')
+			.send({ consent_type: 'withdrawn' });
+
+		expect(res.status).toBe(200);
+		expect(mockEgressClient.stopEgress).toHaveBeenCalledTimes(1);
+		expect(mockEgressClient.stopEgress).toHaveBeenCalledWith('EG_withdraw');
+		// Phase 1 retention semantics: the row is kept (not deleted) — only
+		// capture stops.
+		expect(recordings.get(recording.id).status).not.toBe('deleted');
+	});
+
+	it('does not stop egress on a non-withdrawal consent', async () => {
+		const app = buildApp();
+		const session = seedSession();
+		await request(app)
+			.post(`/api/interviews/interview-sessions/${session.id}/start`)
+			.set('x-test-user-id', '1');
+		const recording = [...recordings.values()].find(
+			(r) => Number(r.interview_session_id) === session.id,
+		);
+		recording.livekit_egress_id = 'EG_keep';
+
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${recording.id}/consent`)
+			.set('x-test-user-id', '1')
+			.send({ consent_type: 'explicit' });
+
+		expect(res.status).toBe(200);
+		expect(mockEgressClient.stopEgress).not.toHaveBeenCalled();
 	});
 });

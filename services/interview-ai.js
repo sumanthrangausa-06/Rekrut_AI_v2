@@ -37,10 +37,9 @@ async function suggestSlots(recruiterId, candidateTimezone = 'America/New_York',
 		: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 	let hours = prefs.available_hours || { start: '09:00', end: '17:00' };
 	if (candidateId) {
-		const candPrefs = await pool.query(
-			'SELECT * FROM scheduling_preferences WHERE user_id = $1',
-			[candidateId],
-		);
+		const candPrefs = await pool.query('SELECT * FROM scheduling_preferences WHERE user_id = $1', [
+			candidateId,
+		]);
 		if (candPrefs.rows.length > 0) {
 			const cp = candPrefs.rows[0];
 			const candDays = Array.isArray(cp.available_days) ? cp.available_days : availDays;
@@ -356,9 +355,18 @@ Return ONLY valid JSON array of strings, no markdown.`;
 }
 
 /**
- * Generate structured evaluation report from screening responses
+ * Generate structured evaluation report from screening responses.
+ *
+ * I1 (#323): additive optional rubric weights — when supplied (Track B
+ * observer), the scoring prompt weights the dimensions accordingly. No
+ * options → the prompt is unchanged (screening/AI flows unaffected).
+ *
+ * @param {object} session - {conversation, questions, responses}
+ * @param {object} [options]
+ * @param {object} [options.rubricWeights] - dimension → percentage (sums to 100)
+ * @param {string} [options.rubricSource] - 'recruiter' | 'default'
  */
-async function generateScreeningReport(session) {
+async function generateScreeningReport(session, options = {}) {
 	const aiProvider = require('../lib/ai-provider');
 
 	const conversation = session.conversation || [];
@@ -388,6 +396,15 @@ async function generateScreeningReport(session) {
 	// Build context
 	const qaContext = transcriptContext;
 
+	// I1 (#323): when the caller supplies rubric weights, the LLM scores USING
+	// them instead of just stamping them on the report. Empty/absent → the
+	// block is omitted and the prompt is byte-identical to before.
+	const { rubricWeights, rubricSource } = options || {};
+	let rubricSection = '';
+	if (rubricWeights && typeof rubricWeights === 'object' && Object.keys(rubricWeights).length > 0) {
+		rubricSection = `\nRUBRIC WEIGHTS (${rubricSource === 'recruiter' ? 'recruiter-defined' : 'default'}):\nWhen computing overall_score, weight the 5 dimensions as follows (percentages, sum to 100):\n${JSON.stringify(rubricWeights)}\nEmphasize higher-weighted dimensions in dimension_scores and overall_score.\n`;
+	}
+
 	const prompt = `You are an expert recruiter evaluating a screening interview transcript. Analyze the conversation and produce a structured evaluation report.
 
 SCREENING TRANSCRIPT:
@@ -399,7 +416,7 @@ Evaluate across these 5 dimensions (from real recruiter practice):
 3. Logistics fit — any blocking issues (comp, location, notice, auth)?
 4. Communication quality — clear, concise, structured?
 5. Red flags — vagueness, bluffing, gaps, inconsistencies?
-
+${rubricSection}
 Return ONLY valid JSON with this structure:
 {
   "overall_score": 0-100,
@@ -752,9 +769,7 @@ async function conductScreeningTurn(conversation, job, template, currentPhase) {
 		})
 		.join('\n\n');
 
-	const candidateTurnCount = conversation.filter(
-		(t) => t.role === 'candidate',
-	).length;
+	const candidateTurnCount = conversation.filter((t) => t.role === 'candidate').length;
 
 	// Count consecutive follow-ups in current phase (to bound probing)
 	let consecutiveFollowUps = 0;
@@ -857,12 +872,17 @@ Return JSON only: {"reaction": "1-2 sentences referencing SPECIFIC details from 
 		console.error('[screening] conductScreeningTurn failed:', err.message);
 		// Fallback: transition to next phase with a generic question
 		const fallbacks = {
-			intro: "Hi! Thanks for taking the time. Let me quickly tell you about the role, then I'd love to hear about you. To start — tell me about yourself and your background.",
-			background: 'Thanks for that overview. Let me dig into your experience a bit — tell me about a recent project that\'s most relevant to this role. What was your specific contribution?',
-			experience: 'That\'s helpful context. What motivated you to look for a new opportunity right now, and what stood out to you about this role?',
-			motivation: 'Got it. Let me cover a few quick logistics — what\'s your notice period, and are you set on location or open to remote/hybrid?',
+			intro:
+				"Hi! Thanks for taking the time. Let me quickly tell you about the role, then I'd love to hear about you. To start — tell me about yourself and your background.",
+			background:
+				"Thanks for that overview. Let me dig into your experience a bit — tell me about a recent project that's most relevant to this role. What was your specific contribution?",
+			experience:
+				"That's helpful context. What motivated you to look for a new opportunity right now, and what stood out to you about this role?",
+			motivation:
+				"Got it. Let me cover a few quick logistics — what's your notice period, and are you set on location or open to remote/hybrid?",
 			logistics: 'Thanks. What questions do you have for me about the role or the company?',
-			candidate_questions: 'Great questions. We\'re at time — thanks so much for chatting. Here\'s what happens next: I\'ll share my notes with the hiring team and we\'ll be in touch within a few days.',
+			candidate_questions:
+				"Great questions. We're at time — thanks so much for chatting. Here's what happens next: I'll share my notes with the hiring team and we'll be in touch within a few days.",
 			close: 'Thanks for your time today!',
 		};
 		return {

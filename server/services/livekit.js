@@ -18,8 +18,13 @@ const encryption = require('../../services/encryption');
 let _livekitModule = null;
 
 async function getLivekitModule() {
+	// Static require (not dynamic import): the SDK ships a CJS build and the
+	// rest of this module already requires it statically (RoomServiceClient,
+	// AgentDispatchClient). Dynamic import() cannot run under this repo's
+	// jest setup (no --experimental-vm-modules), which made the egress path
+	// untestable — see Task 6 (#323).
 	if (!_livekitModule) {
-		_livekitModule = await import('livekit-server-sdk');
+		_livekitModule = require('livekit-server-sdk');
 	}
 	return _livekitModule;
 }
@@ -46,9 +51,10 @@ function getConfig() {
  * @param {string} opts.name - display name
  * @param {string} opts.roomName - LiveKit room name
  * @param {number} [opts.ttlMs=3600000] - token TTL in ms (default 1 hour)
+ * @param {Object} [opts.grants] - grant overrides (default: full participant grants)
  * @returns {Promise<string>} JWT token
  */
-async function generateToken({ identity, name, roomName, ttlMs = 60 * 60 * 1000 }) {
+async function generateToken({ identity, name, roomName, ttlMs = 60 * 60 * 1000, grants = {} }) {
 	const { AccessToken } = await getLivekitModule();
 	const { apiKey, apiSecret } = getConfig();
 
@@ -64,6 +70,7 @@ async function generateToken({ identity, name, roomName, ttlMs = 60 * 60 * 1000 
 		canPublish: true,
 		canSubscribe: true,
 		canPublishData: true,
+		...grants,
 	});
 
 	return token.toJwt();
@@ -166,6 +173,68 @@ async function findActiveRoomByInterviewEventId(interviewEventId) {
 	return result.rows[0] || null;
 }
 
+// ─── Session-linked rooms (Issue #323) ──────────────────────────────────────
+// Phase 2 keys LiveKit rooms to the unified interview_sessions model. A room
+// is linked to EITHER an interview_event (legacy, migration 127) OR an
+// interview_session (migration 139) — never both.
+
+/**
+ * Find the active room linked to an interview session.
+ * @param {number} sessionId
+ * @returns {Promise<Object|null>}
+ */
+async function findActiveRoomBySessionId(sessionId) {
+	const result = await pool.query(
+		`SELECT * FROM interview_rooms
+     WHERE interview_session_id = $1 AND status = 'active'
+     ORDER BY created_at DESC
+     LIMIT 1`,
+		[sessionId],
+	);
+	return result.rows[0] || null;
+}
+
+/**
+ * Persist a session-linked room record.
+ * @param {Object} opts
+ * @param {number} opts.sessionId
+ * @param {string} opts.roomName
+ * @param {string} opts.livekitRoomId
+ */
+async function createSessionRoomRecord({ sessionId, roomName, livekitRoomId }) {
+	const result = await pool.query(
+		`INSERT INTO interview_rooms (interview_event_id, interview_session_id, room_name, livekit_room_id, status, created_at)
+     VALUES (NULL, $1, $2, $3, 'active', NOW())
+     RETURNING *`,
+		[sessionId, roomName, livekitRoomId],
+	);
+	return result.rows[0];
+}
+
+/**
+ * Get the active room for a session, creating it on the LiveKit server if
+ * none exists. Idempotent under sequential calls — a second call reuses the
+ * active room instead of creating another one.
+ * @param {number} sessionId
+ * @returns {Promise<Object>} the interview_rooms row
+ */
+async function findOrCreateSessionRoom(sessionId) {
+	const existing = await findActiveRoomBySessionId(sessionId);
+	if (existing) return existing;
+
+	const roomName = `interview-${sessionId}`;
+	const livekitRoom = await createRoom(roomName, {
+		emptyTimeout: 600, // 10 minutes
+		maxParticipants: 10,
+	});
+
+	return createSessionRoomRecord({
+		sessionId,
+		roomName: livekitRoom.name,
+		livekitRoomId: livekitRoom.sid,
+	});
+}
+
 /**
  * Find a room by its local record ID.
  * @param {number} roomId
@@ -174,6 +243,113 @@ async function findActiveRoomByInterviewEventId(interviewEventId) {
 async function findRoomById(roomId) {
 	const result = await pool.query(`SELECT * FROM interview_rooms WHERE id = $1`, [roomId]);
 	return result.rows[0] || null;
+}
+
+// ─── Voice Agent Dispatch (Issue #323) ───────────────────────────────────────
+// The voice agent worker itself is Task 3. This only dispatches a registered
+// agent to the session's room via the LiveKit Cloud Agent Dispatch API,
+// passing { interview_session_id, mode } as dispatch metadata. Idempotent per
+// session+mode: LiveKit is the source of truth (listDispatch), so a dispatch
+// deleted server-side is not treated as still active.
+
+const DISPATCH_MODES = ['interviewer', 'observer'];
+
+/**
+ * The registered LiveKit agent name to dispatch. Task 3's agent worker must
+ * register under this name (override via LIVEKIT_AGENT_NAME if it differs).
+ * @returns {string}
+ */
+function getVoiceAgentName() {
+	return process.env.LIVEKIT_AGENT_NAME || 'rekrut-interviewer';
+}
+
+function _getAgentDispatchClient() {
+	const { AgentDispatchClient } = require('livekit-server-sdk');
+	const { apiKey, apiSecret, livekitUrl } = getConfig();
+	// AgentDispatchClient expects the LiveKit host URL (ws:// or wss://) stripped to http/s
+	const httpUrl = livekitUrl.replace(/^wss?:\/\//, 'https://').replace(/\/$/, '');
+	return new AgentDispatchClient(httpUrl, apiKey, apiSecret);
+}
+
+/**
+ * True when a LiveKit dispatch record is one of ours (matching mode metadata
+ * AND the session it was dispatched for) and has not been deleted.
+ * Unparseable metadata is never ours.
+ * @param {Object} dispatch - livekit AgentDispatch
+ * @param {string} mode - 'interviewer' | 'observer'
+ * @param {number|string} sessionId - interview session the dispatch belongs to
+ * @returns {boolean}
+ */
+function _isActiveDispatchForMode(dispatch, mode, sessionId) {
+	if (!dispatch) return false;
+	const deletedAt = dispatch.state?.deletedAt;
+	if (deletedAt != null && Number(deletedAt) > 0) return false;
+	try {
+		const meta = JSON.parse(dispatch.metadata || '{}');
+		if (meta.mode !== mode) return false;
+		return meta.interview_session_id === Number(sessionId);
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Dispatch the voice agent to an already-provisioned session room. Narrow
+ * SDK-only unit: given the room row, it checks LiveKit for an existing active
+ * dispatch with matching mode metadata (idempotent per session+mode) and
+ * creates one if none exists.
+ * @param {Object} room - interview_rooms row (must have room_name)
+ * @param {number} sessionId
+ * @param {string} mode - 'interviewer' (Track A) | 'observer' (Track B)
+ * @returns {Promise<{dispatched?: boolean, already_dispatched?: boolean, dispatch_id?: string, room: Object}>}
+ */
+async function dispatchAgentToRoom(room, sessionId, mode) {
+	const client = _getAgentDispatchClient();
+
+	const existing = await client.listDispatch(room.room_name);
+	if (existing.some((d) => _isActiveDispatchForMode(d, mode, sessionId))) {
+		return { already_dispatched: true, room };
+	}
+
+	const metadata = JSON.stringify({ interview_session_id: Number(sessionId), mode });
+	const dispatch = await client.createDispatch(room.room_name, getVoiceAgentName(), {
+		metadata,
+	});
+	return { dispatched: true, dispatch_id: dispatch.id, room };
+}
+
+/**
+ * Dispatch the voice agent to a session's LiveKit room. Idempotent per
+ * session+mode — a second call with the same mode returns
+ * { already_dispatched: true } without creating another dispatch.
+ *
+ * An in-flight map closes the check-then-act race in dispatchAgentToRoom:
+ * two concurrent calls for the same session+mode share one pending dispatch
+ * promise instead of both seeing an empty listDispatch and creating two
+ * agents. The entry is deleted in `finally`, so a failed dispatch does not
+ * poison later calls (they retry). This covers same-process races; cross-
+ * process races remain deduped by the listDispatch check on the next call.
+ * @param {number} sessionId
+ * @param {string} [mode='interviewer'] - 'interviewer' (Track A) | 'observer' (Track B)
+ * @returns {Promise<{dispatched?: boolean, already_dispatched?: boolean, dispatch_id?: string, room: Object}>}
+ */
+const inFlightDispatches = new Map();
+
+async function dispatchVoiceAgent(sessionId, mode = 'interviewer') {
+	if (!DISPATCH_MODES.includes(mode)) {
+		throw new Error(`Invalid dispatch mode: ${mode}`);
+	}
+	const key = `${sessionId}:${mode}`;
+	const inFlight = inFlightDispatches.get(key);
+	if (inFlight) return inFlight;
+	const promise = (async () => {
+		const room = await findOrCreateSessionRoom(sessionId);
+		return dispatchAgentToRoom(room, sessionId, mode);
+	})().finally(() => {
+		inFlightDispatches.delete(key);
+	});
+	inFlightDispatches.set(key, promise);
+	return promise;
 }
 
 // ─── Validation ─────────────────────────────────────────────────────────────
@@ -358,7 +534,7 @@ async function startRoomRecording(roomName, options = {}) {
 /**
  * Stop an active Egress recording.
  * @param {string} egressId
- * @returns {Promise<{egressId: string, status: string}>}
+ * @returns {Promise<{egressId: string, status: string, fileResults: Array}>}
  */
 async function stopRoomRecording(egressId) {
 	const client = await getEgressClient();
@@ -366,6 +542,9 @@ async function stopRoomRecording(egressId) {
 	return {
 		egressId: info.egressId,
 		status: info.status,
+		// I2 (#323): surface the file results — the stop response is the
+		// only source of the final R2 file location and duration.
+		fileResults: info.fileResults || [],
 	};
 }
 
@@ -380,7 +559,107 @@ async function getEgressInfo(egressId) {
 	return info?.[0] || null;
 }
 
+// ─── Session Egress Recording (Issue #323, Task 6) ─────────────────────────
+// Phase 2 sessions record the LiveKit ROOM composite (Track A: candidate +
+// agent; Track B: both humans — the muted observer's subscription produces
+// no media of its own). The egress lifecycle is tied to the session:
+// started when the voice session goes live (dispatch), stopped when the
+// session completes or consent is withdrawn.
+
+/** Egress statuses after which a new egress may be started. */
+const TERMINAL_EGRESS_STATUSES = new Set([
+	'EGRESS_COMPLETE',
+	'EGRESS_ENDING',
+	'EGRESS_FAILED',
+	'EGRESS_ABORTED',
+	'EGRESS_LIMIT_REACHED',
+]);
+
+/**
+ * Start room-composite egress for a session's LiveKit room and link it to
+ * the session's recording row. Idempotent: an already-active egress is
+ * returned, not duplicated.
+ * Consent-gated on the candidate (spec §5: no capture before explicit
+ * consent) — mirrors the Phase 1 frame-capture gate (403 CONSENT_REQUIRED).
+ * @param {number} sessionId
+ * @param {Object} [opts]
+ * @param {number} [opts.consentUserId] - user whose consent is required; when
+ *   omitted the gate is skipped (caller already gated).
+ * @returns {Promise<{egressId: string, recording?: Object, already_started?: boolean}>}
+ */
+async function startSessionEgress(sessionId, { consentUserId } = {}) {
+	let recording = await findRecordingBySessionId(sessionId);
+	if (!recording) {
+		recording = await createRecordingRecord({ interviewSessionId: sessionId, status: 'pending' });
+	}
+	if (consentUserId != null && !(await hasActiveConsent(recording.id, consentUserId))) {
+		const err = new Error('Recording consent required');
+		err.status = 403;
+		err.code = 'CONSENT_REQUIRED';
+		throw err;
+	}
+	if (recording.livekit_egress_id) {
+		const info = await getEgressInfo(recording.livekit_egress_id).catch(() => null);
+		if (info && !TERMINAL_EGRESS_STATUSES.has(info.status)) {
+			return { already_started: true, egressId: recording.livekit_egress_id };
+		}
+	}
+	const room = await findActiveRoomBySessionId(sessionId);
+	if (!room) {
+		throw new Error(`No active LiveKit room for session ${sessionId}`);
+	}
+	const egress = await startRoomRecording(room.room_name);
+	const updated = await pool.query(
+		`UPDATE interview_recordings
+		    SET livekit_egress_id = $1, status = 'recording',
+		        started_at = COALESCE(started_at, NOW()), updated_at = NOW()
+		  WHERE id = $2 RETURNING *`,
+		[egress.egressId, recording.id],
+	);
+	return { egressId: egress.egressId, recording: updated.rows[0] };
+}
+
+/**
+ * Stop a session's room egress (best-effort). Never throws: an egress that
+ * is already complete/aborted is reported, not raised — callers treat the
+ * stop as non-blocking.
+ * @param {number} sessionId
+ * @returns {Promise<{egressId: string, status: string, fileLocation?: string, durationSeconds?: number, fileSizeBytes?: number, error?: string}|null>}
+ */
+async function stopSessionEgress(sessionId) {
+	const recording = await findRecordingBySessionId(sessionId);
+	if (!recording?.livekit_egress_id) return null;
+	try {
+		const info = await stopRoomRecording(recording.livekit_egress_id);
+		// I2 (#323): FileInfo.duration is int64 nanoseconds; the recordings
+		// table stores seconds.
+		const file = (info.fileResults || [])[0] || null;
+		return {
+			egressId: recording.livekit_egress_id,
+			status: info.status,
+			fileLocation: file?.location || null,
+			durationSeconds: file?.duration != null ? Math.round(Number(file.duration) / 1e9) : null,
+			fileSizeBytes: file?.size != null ? Number(file.size) : null,
+		};
+	} catch (err) {
+		console.error('[livekit] stopSessionEgress failed:', err.message);
+		return { egressId: recording.livekit_egress_id, status: 'unknown', error: err.message };
+	}
+}
+
 // ─── Recording Database Operations ────────────────────────────────────────
+
+/**
+ * Phase 1 retention policy for recordings (#322): RECORDING_RETENTION_DAYS
+ * (default 90) from now. Shared by createRecordingRecord and the Task 6
+ * session-finalize path — one formula, no drift.
+ * @param {number} [retentionDays] - overrides RECORDING_RETENTION_DAYS.
+ * @returns {Date}
+ */
+function getRecordingRetentionDate(retentionDays) {
+	const days = retentionDays ?? parseInt(process.env.RECORDING_RETENTION_DAYS || '90', 10);
+	return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+}
 
 /**
  * Persist a new recording record.
@@ -404,8 +683,7 @@ async function createRecordingRecord({
 	status = 'recording',
 	retentionDays,
 }) {
-	const days = retentionDays ?? parseInt(process.env.RECORDING_RETENTION_DAYS || '90', 10);
-	const retentionDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+	const retentionDate = getRecordingRetentionDate(retentionDays);
 	const result = await pool.query(
 		`INSERT INTO interview_recordings
 		 (interview_event_id, room_id, interview_session_id, livekit_egress_id, status, started_at, retention_expires_at, created_at, updated_at)
@@ -618,6 +896,13 @@ module.exports = {
 	createRoomRecord,
 	closeRoomRecord,
 	findActiveRoomByInterviewEventId,
+	// Issue #323 — Session-linked rooms
+	findActiveRoomBySessionId,
+	createSessionRoomRecord,
+	findOrCreateSessionRoom,
+	dispatchVoiceAgent,
+	dispatchAgentToRoom,
+	getVoiceAgentName,
 	findRoomById,
 	validateRoomAccess,
 	autoCreateRoomForInterview,
@@ -625,6 +910,10 @@ module.exports = {
 	startRoomRecording,
 	stopRoomRecording,
 	getEgressInfo,
+	// Issue #323 Task 6 — session egress
+	getRecordingRetentionDate,
+	startSessionEgress,
+	stopSessionEgress,
 	createRecordingRecord,
 	completeRecordingRecord,
 	failRecordingRecord,

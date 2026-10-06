@@ -89,9 +89,12 @@ function isNetworkError(err) {
  * @param {number} [options.speed] — playback speed 0.5–2.0
  * @param {string} [options.emotion] — e.g. "neutral", "happy"
  * @param {string} [options.language] — ISO language code, default "en"
- * @returns {Promise<Buffer>} — MP3 audio buffer
+ * @param {Object} [options.outputFormat] — Cartesia output_format override
+ *   (e.g. {container:'raw', encoding:'pcm_s16le', sample_rate:24000} for the
+ *   voice agent's LiveKit publishing). Default is MP3.
+ * @returns {Promise<Buffer>} — audio buffer (MP3 by default, or outputFormat's encoding)
  */
-async function synthesize({ text, voiceId, speed, emotion, language }) {
+async function synthesize({ text, voiceId, speed, emotion, language, outputFormat }) {
 	if (!CARTESIA_API_KEY) {
 		throw new CartesiaAuthError('CARTESIA_API_KEY environment variable is not set');
 	}
@@ -100,7 +103,9 @@ async function synthesize({ text, voiceId, speed, emotion, language }) {
 		model_id: 'sonic-2',
 		transcript: text,
 		voice: { mode: 'id', id: voiceId || CARTESIA_DEFAULT_VOICE_ID },
-		output_format: {
+		// Task 3 (#323): the voice agent needs raw PCM for LiveKit publishing.
+		// Default stays mp3 so every existing caller is unchanged.
+		output_format: outputFormat || {
 			container: 'mp3',
 			encoding: 'mp3',
 			sample_rate: 44100,

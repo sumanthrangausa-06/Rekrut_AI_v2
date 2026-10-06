@@ -9,6 +9,10 @@
  *   POST   /interview-sessions/:id/respond     text or audio turn (per-turn persistence)
  *   POST   /interview-sessions/:id/complete    finalize + evaluation report
  *   POST   /interview-sessions/:id/tts         synthesize a turn's text to audio
+ *   POST   /interview-sessions/:id/observer/enable  hiring team enables the AI
+ *                                              observer (Track B, consent-gated)
+ *   POST   /interview-sessions/:id/observer/report  observer analysis report
+ *                                              (Q&A extraction + analysis stack)
  *   GET    /interview-sessions                 unified list (unified sessions +
  *                                              read-linked human-scheduled interviews)
  *   POST   /interview-flows                    create an interview flow (Task 7)
@@ -29,6 +33,9 @@ const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { conductTurn } = require('../services/conversation-engine');
 const { generateScreeningReport } = require('../services/interview-ai');
+// Task 5 (#323): Track B observer — Q&A extraction + analysis over the muted
+// observer agent's transcript (config.observer_transcript).
+const { extractQAPairs, analyzeObserverSession } = require('../services/qa-extraction');
 const { notifyUser } = require('../lib/notify');
 // Task 11 (#322): company audit log (#251 pattern — routes/audit.js
 // insertAuditLog → audit_logs table). No new table, no new event schema.
@@ -43,7 +50,11 @@ const upload = multer({
 	limits: { fileSize: 25 * 1024 * 1024 },
 });
 
-const SESSION_TYPES = ['screening', 'ai_interview', 'practice'];
+// Track B (#323): 'human' sessions are unified-session rows for human
+// interviews — the recruiter + candidate talk, and the muted AI observer
+// (not an AI interviewer) may transcribe. Same room/token/consent/recording
+// flow as every other session type; no AI turns.
+const SESSION_TYPES = ['screening', 'ai_interview', 'practice', 'human'];
 
 // Hiring-team roles with session visibility (spec §2, #322): recruiter +
 // hiring_manager. Distinct from TRIGGER_ROLES (which also includes employer
@@ -104,6 +115,12 @@ router.post('/interview-sessions', authMiddleware, async (req, res) => {
 
 		if (!type || !SESSION_TYPES.includes(type)) {
 			return res.status(400).json({ error: `type must be one of: ${SESSION_TYPES.join(', ')}` });
+		}
+
+		// Track B (#323): a human interview is scheduled BY the hiring team FOR a
+		// candidate — a candidate cannot create their own human interview.
+		if (type === 'human' && req.user.role !== 'admin' && !HIRING_ROLES.includes(req.user.role)) {
+			return res.status(403).json({ error: 'Only the hiring team can schedule a human interview' });
 		}
 
 		// C3 (#322): hiring-side callers cannot create sessions for another
@@ -392,27 +409,39 @@ router.post('/interview-sessions/:id/start', authMiddleware, async (req, res) =>
 		}
 
 		const config = { ...(session.config || {}) };
-		const intro = await conductTurn({ conversation: [], config }, '', []);
+		let conversation = session.conversation || [];
+		let ai_message = null;
+		let phase = null;
 
-		// The intro consumes the first planned question slot for personalized sessions,
-		// so the first respond's "next planned question" doesn't repeat it.
-		if (config.question_source === 'personalized') {
-			config.current_question_index = Math.min(
-				(config.current_question_index || 0) + 1,
-				Array.isArray(config.base_questions) ? config.base_questions.length : 0,
-			);
+		if (session.type === 'human') {
+			// Track B (#323): no AI intro turn — the humans talk. The session
+			// still moves to in_progress and the recording row is created below,
+			// so the consent gate covers the observer flow.
 		} else {
-			config.current_phase = intro.phase;
-		}
+			const intro = await conductTurn({ conversation: [], config }, '', []);
 
-		const conversation = [
-			{
-				role: 'interviewer',
-				text: intro.ai_message,
-				phase: intro.phase,
-				timestamp: newTimestamp(),
-			},
-		];
+			// The intro consumes the first planned question slot for personalized sessions,
+			// so the first respond's "next planned question" doesn't repeat it.
+			if (config.question_source === 'personalized') {
+				config.current_question_index = Math.min(
+					(config.current_question_index || 0) + 1,
+					Array.isArray(config.base_questions) ? config.base_questions.length : 0,
+				);
+			} else {
+				config.current_phase = intro.phase;
+			}
+
+			conversation = [
+				{
+					role: 'interviewer',
+					text: intro.ai_message,
+					phase: intro.phase,
+					timestamp: newTimestamp(),
+				},
+			];
+			ai_message = intro.ai_message;
+			phase = intro.phase;
+		}
 		const updated = await pool.query(
 			`UPDATE interview_sessions
 			    SET status = 'in_progress', started_at = NOW(), conversation = $1, config = $2
@@ -449,8 +478,8 @@ router.post('/interview-sessions/:id/start', authMiddleware, async (req, res) =>
 		res.json({
 			success: true,
 			session: updated.rows[0],
-			ai_message: intro.ai_message,
-			phase: intro.phase,
+			ai_message,
+			phase,
 			recording: recording
 				? {
 						id: recording.id,
@@ -483,6 +512,11 @@ router.post(
 			}
 			if (session.status !== 'in_progress') {
 				return res.status(409).json({ error: 'Session is not in progress' });
+			}
+
+			// Track B (#323): human interviews have no AI turns — the humans talk.
+			if (session.type === 'human') {
+				return res.status(400).json({ error: 'AI turns are not available for human interviews' });
 			}
 
 			let candidateText = (req.body?.text || '').trim();
@@ -612,33 +646,72 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 			});
 		}
 
-		const config = { ...(session.config || {}) };
-		const questions =
-			config.question_source === 'personalized'
-				? (config.base_questions || []).map((q) => ({
-						question_text: typeof q === 'string' ? q : q?.question_text || '',
-					}))
-				: config.template?.questions || [];
+		const config = session.config || {};
 
-		const report = await generateScreeningReport({
-			conversation: session.conversation || [],
-			questions,
-			responses: [],
-		});
-		config.report = report;
+		// Track B (#323): if the muted observer captured a transcript, the
+		// report comes from the observer analysis (Q&A extraction + the
+		// mock-interview analysis stack) — the turn conversation is empty for
+		// human interviews, so the standard path would score nothing.
+		const observerTranscript = config.observer_transcript;
+		let report;
+		if (Array.isArray(observerTranscript) && observerTranscript.length > 0) {
+			const qaPairs = await extractQAPairs(observerTranscript);
+			report = await analyzeObserverSession({
+				session,
+				qaPairs,
+				rubricWeights: await getRubricWeightsForSession(session),
+				job: await getJobForSession(session),
+			});
+		} else if (session.type === 'human') {
+			// Full-branch review I1 (#323): a human interview completed with
+			// no observer data has an empty conversation — running the LLM
+			// report on it would fabricate candidate scores. Emit an explicit
+			// no-data report instead.
+			report = {
+				overall_score: null,
+				recommendation: null,
+				note: 'No interview data captured: the AI observer was not enabled for this human interview.',
+				observer_enabled: false,
+			};
+		} else {
+			const questions =
+				config.question_source === 'personalized'
+					? (config.base_questions || []).map((q) => ({
+							question_text: typeof q === 'string' ? q : q?.question_text || '',
+						}))
+					: config.template?.questions || [];
 
+			report = await generateScreeningReport({
+				conversation: session.conversation || [],
+				questions,
+				responses: [],
+			});
+		}
 		const updated = await pool.query(
+			// M1 (#323): jsonb merge instead of read-modify-write — the agent's
+			// shutdown callback persists observer_transcript the same way, so
+			// concurrent writes can't clobber each other.
 			`UPDATE interview_sessions
-			    SET status = 'completed', completed_at = NOW(), conversation = $1, config = $2
+			    SET status = 'completed', completed_at = NOW(), conversation = $1, config = config || $2::jsonb
 			  WHERE id = $3 RETURNING *`,
-			[JSON.stringify(session.conversation || []), JSON.stringify(config), session.id],
+			[JSON.stringify(session.conversation || []), JSON.stringify({ report }), session.id],
 		);
 
 		// Task 4 (#322): persist transcript segments against the session's
 		// recording, aggregate per-turn frame indicators into frame_analysis,
 		// and finalize the recording row. Non-blocking: the report above is
 		// the primary outcome; capture failures are logged, not thrown.
+		// Task 6 (#323): stop the session's room egress (best-effort) and
+		// finalize the recording even when the turn conversation is empty
+		// (Track B human interviews) — retention re-asserted per the Phase 1
+		// policy when missing.
+		let egressResult = null;
 		try {
+			try {
+				egressResult = await livekitService.stopSessionEgress(session.id);
+			} catch (stopErr) {
+				console.error('[interview-sessions] session egress stop failed:', stopErr.message);
+			}
 			const recording = await livekitService.findRecordingBySessionId(session.id);
 			const turns = Array.isArray(session.conversation) ? session.conversation : [];
 			if (recording && turns.length > 0) {
@@ -660,11 +733,27 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 						[recording.id, turn.role || 'unknown', turn.text || '', startMs, endMs],
 					);
 				}
+			}
+			if (recording) {
+				// I2 (#323): backfill the R2 file location + duration from
+				// egress completion so the recording row points at the actual
+				// file (spec §6: analysis re-runnable from the recording).
+				// completeRecordingRecord encrypts storage_path (BYTEA) the
+				// same way the event-flow does.
+				if (egressResult?.fileLocation) {
+					await livekitService.completeRecordingRecord(
+						recording.id,
+						egressResult.fileLocation,
+						egressResult.durationSeconds ?? null,
+						egressResult.fileSizeBytes ?? null,
+					);
+				}
 				await pool.query(
 					`UPDATE interview_recordings
-					 SET status = 'completed', stopped_at = NOW(), updated_at = NOW()
-					 WHERE id = $1`,
-					[recording.id],
+					    SET status = 'completed', stopped_at = NOW(), updated_at = NOW(),
+					        retention_expires_at = COALESCE(retention_expires_at, $2)
+					  WHERE id = $1`,
+					[recording.id, livekitService.getRecordingRetentionDate()],
 				);
 			}
 			const indicators = turns.filter((t) => t?.frame_indicators).map((t) => t.frame_indicators);
@@ -707,6 +796,186 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 	} catch (err) {
 		console.error('[interview-sessions] complete error:', err.message);
 		res.status(500).json({ error: 'Failed to complete interview session' });
+	}
+});
+
+// ─── Track B observer (Phase 2, #323) ───────────────────────────────────────
+// The hiring team enables a muted AI observer on a human interview (explicit
+// toggle, default off). The observer agent transcribes both speakers into
+// config.observer_transcript (Task 3); these endpoints gate, analyze, and
+// report on it.
+
+/**
+ * Recruiter-defined rubric weights for the session's job, from the active
+ * interview flow. Returns {} when none are defined (default rubric applies).
+ */
+async function getRubricWeightsForSession(session) {
+	if (!session.job_id) return {};
+	try {
+		const r = await pool.query(
+			`SELECT rubric_weights FROM interview_flows
+			  WHERE job_id = $1 AND status = 'active'
+			  ORDER BY updated_at DESC LIMIT 1`,
+			[session.job_id],
+		);
+		return r.rows[0]?.rubric_weights || {};
+	} catch (err) {
+		console.error('[interview-sessions] rubric weights lookup failed:', err.message);
+		return {};
+	}
+}
+
+/** Job context for the analysis prompts. Never throws. */
+async function getJobForSession(session) {
+	if (!session.job_id) return {};
+	try {
+		const r = await pool.query('SELECT title, description FROM jobs WHERE id = $1', [
+			session.job_id,
+		]);
+		return r.rows[0] || {};
+	} catch (err) {
+		console.error('[interview-sessions] job lookup failed:', err.message);
+		return {};
+	}
+}
+
+/** Hiring-team membership for a session (admin bypasses; candidate never qualifies). */
+function isHiringTeamForSession(session, user) {
+	if (!user) return false;
+	if (user.role === 'admin') return true;
+	return (
+		HIRING_ROLES.includes(user.role) &&
+		user.company_id != null &&
+		Number(user.company_id) === Number(session.company_id)
+	);
+}
+
+// POST /interview-sessions/:id/observer/enable — hiring team enables the AI
+// observer on a human interview. Consent-gated: without the candidate's
+// active recording consent the observer may not subscribe (403
+// CONSENT_REQUIRED, and the agent is never dispatched). Dispatch failure
+// leaves the flag unset — enabling the observer IS the dispatch.
+router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		if (!isHiringTeamForSession(session, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+		if (session.status === 'completed') {
+			return res.status(409).json({ error: 'Observer cannot be enabled on a completed session' });
+		}
+
+		if (session.config?.observer_enabled) {
+			return res.json({ success: true, observer_enabled: true, already_enabled: true });
+		}
+
+		// Review Focus #5: subscription blocked without candidate consent —
+		// mirrors the Phase 1 frame-capture gate (respond endpoint).
+		const recording = await livekitService.findRecordingBySessionId(session.id);
+		if (
+			!recording ||
+			!(await livekitService.hasActiveConsent(recording.id, session.candidate_id))
+		) {
+			return res.status(403).json({
+				error: 'Recording consent required',
+				code: 'CONSENT_REQUIRED',
+			});
+		}
+
+		let dispatched;
+		try {
+			dispatched = await livekitService.dispatchVoiceAgent(session.id, 'observer');
+		} catch (err) {
+			console.error('[interview-sessions] observer dispatch failed:', err.message);
+			return res.status(502).json({ error: 'Failed to dispatch observer agent' });
+		}
+
+		// Task 6 (#323): the human call is live — start room-composite egress
+		// (both humans' media) so the observer has a recording to analyze.
+		// Non-blocking, consent-gated on the candidate — same contract as the
+		// dispatch route's hook.
+		try {
+			await livekitService.startSessionEgress(session.id, {
+				consentUserId: session.candidate_id,
+			});
+		} catch (egressErr) {
+			console.error('[interview-sessions] observer egress start failed:', egressErr.message);
+		}
+
+		// M1 (#323): jsonb merge instead of read-modify-write — matches the
+		// agent shutdown callback (worker.mjs), so concurrent writes merge.
+		await pool.query('UPDATE interview_sessions SET config = config || $1::jsonb WHERE id = $2', [
+			JSON.stringify({ observer_enabled: true }),
+			session.id,
+		]);
+
+		// Task 11 (#322) pattern: audit events are non-blocking.
+		await emitInterviewAudit({
+			company_id: session.company_id,
+			actor_id: req.user.id,
+			target_id: session.id,
+			action: 'session.observer_enabled',
+			metadata: { session_id: session.id },
+		});
+
+		res.json({ success: true, observer_enabled: true, dispatched });
+	} catch (err) {
+		console.error('[interview-sessions] observer enable error:', err.message);
+		res.status(500).json({ error: 'Failed to enable observer' });
+	}
+});
+
+// POST /interview-sessions/:id/observer/report — generate the observer
+// analysis report on demand: Q&A extraction over the observer transcript,
+// then the mock-interview analysis stack with the job's rubric weights
+// (recruiter-defined when present, default otherwise).
+router.post('/interview-sessions/:id/observer/report', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		if (!canAccess(session, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+
+		const transcript = session.config?.observer_transcript;
+		if (!Array.isArray(transcript) || transcript.length === 0) {
+			return res.status(422).json({ error: 'No observer transcript available yet' });
+		}
+
+		const qaPairs = await extractQAPairs(transcript);
+		const rubricWeights = await getRubricWeightsForSession(session);
+		const job = await getJobForSession(session);
+		const report = await analyzeObserverSession({ session, qaPairs, rubricWeights, job });
+
+		// M1 (#323): jsonb merge instead of read-modify-write — the agent's
+		// shutdown callback persists observer_transcript the same way.
+		await pool.query('UPDATE interview_sessions SET config = config || $1::jsonb WHERE id = $2', [
+			JSON.stringify({ report }),
+			session.id,
+		]);
+
+		await emitInterviewAudit({
+			company_id: session.company_id,
+			actor_id: req.user.id,
+			target_id: session.id,
+			action: 'session.scored',
+			metadata: {
+				session_id: session.id,
+				overall_score: report?.overall_score ?? null,
+				recommendation: report?.recommendation ?? null,
+				source: 'observer',
+			},
+		});
+
+		res.json({ success: true, report, qa_pair_count: qaPairs.length });
+	} catch (err) {
+		console.error('[interview-sessions] observer report error:', err.message);
+		res.status(500).json({ error: 'Failed to generate observer report' });
 	}
 });
 

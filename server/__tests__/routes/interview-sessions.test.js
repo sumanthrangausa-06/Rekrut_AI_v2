@@ -58,6 +58,24 @@ jest.mock('../../../lib/polsia-ai', () => ({
 	textToSpeech: (...args) => mockTextToSpeech(...args),
 }));
 
+// ─── LiveKit EgressClient boundary (Task 6) ─────────────────────────────────
+// The session-complete hook stops the session's room egress via the real
+// service; only the EgressClient constructor is stubbed (no network).
+const mockEgressClient = {
+	startRoomCompositeEgress: jest.fn(),
+	stopEgress: jest.fn(async (egressId) => ({ egressId, status: 'EGRESS_COMPLETE' })),
+	listEgress: jest.fn(async () => []),
+};
+jest.mock('livekit-server-sdk', () => {
+	const actual = jest.requireActual('livekit-server-sdk');
+	return { ...actual, EgressClient: jest.fn(() => mockEgressClient) };
+});
+
+// Hermetic LiveKit config for the egress tests (values never leave the process).
+process.env.LIVEKIT_API_KEY = 'test-key';
+process.env.LIVEKIT_API_SECRET = 'test-secret';
+process.env.LIVEKIT_URL = 'wss://test.livekit.cloud';
+
 const mockNotifyUser = jest.fn();
 jest.mock('../../../lib/notify', () => ({
 	notifyUser: (...args) => mockNotifyUser(...args),
@@ -157,6 +175,14 @@ function handleSessionSql(normalized, params) {
 		recordedUpdates.push({ normalized, params: [...(params || [])] });
 		for (const assignment of setPart.split(',')) {
 			const trimmed = assignment.trim();
+			// M1 (#323): jsonb merge — `config = config || $N::jsonb` merges
+			// top-level keys, mirroring real Postgres semantics.
+			const mergeMatch = trimmed.match(/^(\w+)\s*=\s*\1\s*\|\|\s*\$(\d+)(::\w+)?$/);
+			if (mergeMatch) {
+				const delta = maybeParse(params[Number(mergeMatch[2]) - 1]) || {};
+				row[mergeMatch[1]] = { ...(row[mergeMatch[1]] || {}), ...delta };
+				continue;
+			}
 			const paramMatch = trimmed.match(/^(\w+)\s*=\s*\$(\d+)$/);
 			if (paramMatch) {
 				row[paramMatch[1]] = maybeParse(params[Number(paramMatch[2]) - 1]);
@@ -199,6 +225,21 @@ db.query.mockImplementation(async (sql, params) => {
 		// findRecordingBySessionId: WHERE interview_session_id = $1
 		const row = sessionRecordings.get(Number((params || [])[0]));
 		return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+	}
+	if (normalized.startsWith('update interview_recordings')) {
+		// Task 6 finalize: status completed + retention COALESCE.
+		// Router SQL: SET status='completed', stopped_at=NOW(), updated_at=NOW(),
+		// retention_expires_at=COALESCE(retention_expires_at, $2) WHERE id=$1.
+		const row = [...sessionRecordings.values()].find((r) => Number(r.id) === Number(params[0]));
+		if (row) {
+			row.status = 'completed';
+			row.stopped_at = new Date().toISOString();
+			row.updated_at = new Date().toISOString();
+			if (!row.retention_expires_at && params[1]) {
+				row.retention_expires_at = params[1] instanceof Date ? params[1].toISOString() : params[1];
+			}
+		}
+		return { rows: [], rowCount: row ? 1 : 0 };
 	}
 	if (normalized.includes('from jobs where id =')) {
 		const row = jobs.get(Number((params || [])[0]));
@@ -935,5 +976,159 @@ describe('GET /api/interviews/interview-sessions/:id/recording (Task 9)', () => 
 			.set('x-test-user-id', '3');
 
 		expect(res.status).toBe(403);
+	});
+});
+
+describe('human interview sessions (Track B observer target, #323)', () => {
+	it('recruiter can create a human session', async () => {
+		const app = buildApp();
+		const res = await request(app)
+			.post('/api/interviews/interview-sessions')
+			.set('x-test-user-id', '2')
+			.send({ type: 'human', candidate_id: 1, job_id: 10, application_id: 20 });
+
+		expect(res.status).toBe(201);
+		expect(res.body.success).toBe(true);
+		expect(res.body.session).toMatchObject({
+			type: 'human',
+			status: 'invited',
+			candidate_id: 1,
+			company_id: 5,
+		});
+	});
+
+	it('candidate cannot create a human session', async () => {
+		const app = buildApp();
+		const res = await request(app)
+			.post('/api/interviews/interview-sessions')
+			.set('x-test-user-id', '1')
+			.send({ type: 'human', candidate_id: 1 });
+
+		expect(res.status).toBe(403);
+	});
+
+	it('start skips the AI intro turn for human sessions (but still in_progress)', async () => {
+		const app = buildApp();
+		const created = await request(app)
+			.post('/api/interviews/interview-sessions')
+			.set('x-test-user-id', '2')
+			.send({ type: 'human', candidate_id: 1 });
+		expect(created.status).toBe(201);
+		const id = created.body.session.id;
+
+		const res = await request(app)
+			.post(`/api/interviews/interview-sessions/${id}/start`)
+			.set('x-test-user-id', '1');
+
+		expect(res.status).toBe(200);
+		expect(res.body.session.status).toBe('in_progress');
+		// No AI intro: the engine must not be asked to speak for a human interview.
+		expect(mockConductTurn).not.toHaveBeenCalled();
+		expect(res.body.session.conversation).toEqual([]);
+	});
+
+	it('respond is rejected for human sessions — humans talk, the AI does not', async () => {
+		const app = buildApp();
+		const created = await request(app)
+			.post('/api/interviews/interview-sessions')
+			.set('x-test-user-id', '2')
+			.send({ type: 'human', candidate_id: 1 });
+		const id = created.body.session.id;
+		await request(app)
+			.post(`/api/interviews/interview-sessions/${id}/start`)
+			.set('x-test-user-id', '1');
+
+		const res = await request(app)
+			.post(`/api/interviews/interview-sessions/${id}/respond`)
+			.set('x-test-user-id', '1')
+			.send({ text: 'Hello?' });
+
+		expect(res.status).toBe(400);
+		expect(mockConductTurn).not.toHaveBeenCalled();
+	});
+});
+
+describe('POST /api/interviews/interview-sessions/:id/complete — recording finalize (Task 6)', () => {
+	function seedRecording(sessionId, overrides = {}) {
+		const row = {
+			id: 900 + sessionId,
+			interview_event_id: null,
+			room_id: null,
+			interview_session_id: sessionId,
+			livekit_egress_id: null,
+			status: 'recording',
+			started_at: new Date().toISOString(),
+			stopped_at: null,
+			retention_expires_at: null, // prove the finalize path sets it per policy
+			created_at: new Date().toISOString(),
+			updated_at: new Date().toISOString(),
+			...overrides,
+		};
+		sessionRecordings.set(sessionId, row);
+		return row;
+	}
+
+	beforeEach(() => {
+		mockEgressClient.stopEgress.mockClear();
+	});
+
+	it('stops the room egress and finalizes the recording on complete', async () => {
+		const app = buildApp();
+		const created = await createSession(app);
+		const sessionId = created.body.session.id;
+		seedRecording(sessionId, { livekit_egress_id: 'EG_1' });
+
+		const completed = await request(app)
+			.post(`/api/interviews/interview-sessions/${sessionId}/complete`)
+			.set('x-test-user-id', '1')
+			.send();
+
+		expect(completed.status).toBe(200);
+		expect(completed.body.success).toBe(true);
+		// Egress stopped...
+		expect(mockEgressClient.stopEgress).toHaveBeenCalledTimes(1);
+		expect(mockEgressClient.stopEgress).toHaveBeenCalledWith('EG_1');
+		// ...recording finalized, retention set per the Phase 1 (90-day) policy.
+		const row = sessionRecordings.get(sessionId);
+		expect(row.status).toBe('completed');
+		expect(row.stopped_at).toBeTruthy();
+		expect(row.retention_expires_at).toBeTruthy();
+		const deltaDays =
+			(new Date(row.retention_expires_at).getTime() - Date.now()) / (24 * 3600 * 1000);
+		expect(deltaDays).toBeGreaterThan(89);
+		expect(deltaDays).toBeLessThan(91);
+	});
+
+	it('finalizes the recording even with an empty conversation (Track B human interview)', async () => {
+		const app = buildApp();
+		const created = await createSession(app);
+		const sessionId = created.body.session.id;
+		seedRecording(sessionId, { livekit_egress_id: 'EG_2' });
+		// No start/respond: conversation stays empty like a human interview.
+
+		const completed = await request(app)
+			.post(`/api/interviews/interview-sessions/${sessionId}/complete`)
+			.set('x-test-user-id', '1')
+			.send();
+
+		expect(completed.status).toBe(200);
+		expect(mockEgressClient.stopEgress).toHaveBeenCalledWith('EG_2');
+		expect(sessionRecordings.get(sessionId).status).toBe('completed');
+	});
+
+	it('does not touch egress when the session recording has no egress id', async () => {
+		const app = buildApp();
+		const created = await createSession(app);
+		const sessionId = created.body.session.id;
+		seedRecording(sessionId, { livekit_egress_id: null });
+
+		const completed = await request(app)
+			.post(`/api/interviews/interview-sessions/${sessionId}/complete`)
+			.set('x-test-user-id', '1')
+			.send();
+
+		expect(completed.status).toBe(200);
+		expect(mockEgressClient.stopEgress).not.toHaveBeenCalled();
+		expect(sessionRecordings.get(sessionId).status).toBe('completed');
 	});
 });
