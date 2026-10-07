@@ -151,6 +151,8 @@ const statusConfig: Record<
 > = {
 	applied: { label: 'New', variant: 'secondary', color: 'border-blue-300 bg-blue-50' },
 	screening: { label: 'Screening', variant: 'default', color: 'border-purple-300 bg-purple-50' },
+	shortlisted: { label: 'Shortlisted', variant: 'default', color: 'border-indigo-300 bg-indigo-50' },
+	reviewing: { label: 'Reviewing', variant: 'default', color: 'border-amber-300 bg-amber-50' },
 	interviewed: { label: 'Interviewed', variant: 'default', color: 'border-cyan-300 bg-cyan-50' },
 	offered: { label: 'Offered', variant: 'success', color: 'border-emerald-300 bg-emerald-50' },
 	hired: { label: 'Hired', variant: 'success', color: 'border-green-300 bg-green-50' },
@@ -761,7 +763,7 @@ export function RecruiterJobApplicantsPage() {
 					<div className="flex gap-3 min-w-[900px]">
 						{kanbanStages.map((stage) => {
 							const stageApps = applicants.filter((a) => a.status === stage);
-							const cfg = statusConfig[stage];
+							const cfg = statusConfig[stage] || { label: stage, variant: 'secondary' as const, color: 'border-gray-300 bg-gray-50' };
 							return (
 								<div key={stage} className="flex-1 min-w-[160px]">
 									<div className={`rounded-t-lg border-t-2 px-3 py-2 ${cfg.color} border-b`}>
