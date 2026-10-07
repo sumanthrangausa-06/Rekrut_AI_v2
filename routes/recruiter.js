@@ -1981,6 +1981,31 @@ router.put(
 				}
 			}
 
+			// Notify candidate of manual status change (non-blocking)
+			if (status && status !== existing.rows[0].old_status) {
+				const statusLabels = {
+					screening: 'Screening',
+					shortlisted: 'Shortlisted',
+					reviewing: 'Under Review',
+					interviewed: 'Interview',
+					offered: 'Offer',
+					hired: 'Hired',
+					rejected: 'Not moved forward',
+				};
+				notifyUser(
+					existing.rows[0].candidate_id,
+					'application_status_changed',
+					'Application update',
+					`Your application status changed to ${statusLabels[status] || status}.`,
+					{
+						application_id: parseInt(req.params.id, 10),
+						job_id: existing.rows[0].job_id,
+						old_status: existing.rows[0].old_status,
+						new_status: status,
+					},
+				);
+			}
+
 			// Update job analytics
 			if (status) {
 				const app = existing.rows[0];
@@ -3445,6 +3470,19 @@ router.put(
 				[existing.rows[0].job_id, existing.rows[0].candidate_id],
 			);
 
+			// Notify candidate of the offer (non-blocking)
+			notifyUser(
+				existing.rows[0].candidate_id,
+				'offer_received',
+				'Job offer received',
+				`You've received a job offer. Review the details and respond.`,
+				{
+					offer_id: result.rows[0].id,
+					job_id: existing.rows[0].job_id,
+					url: `/candidate/offers`,
+				},
+			);
+
 			// Update job analytics
 			try {
 				await pool.query(
@@ -3979,6 +4017,13 @@ router.post(
 						await pool.query(
 							`UPDATE job_applications SET status = 'rejected', updated_at = NOW() WHERE id = $1`,
 							[app.id],
+						);
+						notifyUser(
+							app.candidate_id,
+							'application_rejected',
+							'Application update',
+							`Your application was not moved forward at this time.`,
+							{ application_id: app.id, job_id: app.job_id },
 						);
 						actions.push({
 							type: 'rejected',
