@@ -833,10 +833,13 @@ export function CandidateJobDetailPage() {
 											<span className="break-words">{job.location}</span>
 										</span>
 									)}
-									{job.salary_range && (
+									{(job.salary_range || job.salary_min || job.salary_max) && (
 										<span className="flex items-center gap-1 min-w-0">
 											<DollarSign className="h-4 w-4 shrink-0" />
-											<span className="break-words">{job.salary_range}</span>
+											<span className="break-words">
+												{job.salary_range ||
+													`${job.salary_min ? `$${Number(job.salary_min).toLocaleString()}` : ''}${job.salary_min && job.salary_max ? ' - ' : ''}${job.salary_max ? `$${Number(job.salary_max).toLocaleString()}` : ''}`}
+											</span>
 										</span>
 									)}
 									{job.job_type && <Badge variant="secondary">{job.job_type}</Badge>}
