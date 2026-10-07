@@ -10,6 +10,7 @@ import {
 	Mail,
 	MapPin,
 	MessageCircle,
+	Target,
 	Zap,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -44,6 +45,8 @@ export interface KanbanApplication {
 	intro_id?: number | null;
 	is_auto_applied?: boolean;
 	outreach_count?: number;
+	assessment_score?: number | null;
+	assessment_result?: 'pass' | 'fail' | null;
 }
 
 export interface KanbanSavedJob {
@@ -204,6 +207,24 @@ export function KanbanCard({
 					>
 						<MessageCircle className="h-3 w-3" />
 						{item.data.outreach_count} outreach logged
+					</Badge>
+				)}
+				{item.type === 'application' && item.data.assessment_score != null && (
+					<Badge
+						variant="outline"
+						className={`text-[10px] gap-1 ${
+							item.data.assessment_result === 'pass'
+								? 'bg-green-50 text-green-700 border-green-200'
+								: 'bg-amber-50 text-amber-700 border-amber-200'
+						}`}
+						title={
+							item.data.assessment_result === 'pass'
+								? 'You passed this assessment'
+								: 'You did not pass this assessment'
+						}
+					>
+						<Target className="h-3 w-3" />
+						{item.data.assessment_score}/100
 					</Badge>
 				)}
 				{data.location && (
