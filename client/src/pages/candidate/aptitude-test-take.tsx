@@ -345,6 +345,12 @@ export function CandidateAptitudeTestTakePage() {
 				</Badge>
 			</div>
 
+			{/* AI disclosure (#343 task 5) */}
+			<div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700">
+				<AlertTriangle className="h-4 w-4 shrink-0" />
+				<span>This assessment is scored by AI and reviewed by a human.</span>
+			</div>
+
 			{/* Progress bar */}
 			<div className="h-2 rounded-full bg-muted overflow-hidden">
 				<div
