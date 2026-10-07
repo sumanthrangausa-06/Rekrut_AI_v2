@@ -2084,11 +2084,12 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 		else if (sortBy === 'salary_low') orderBy = 'j.salary_min ASC NULLS LAST';
 		else if (sortBy === 'match') orderBy = 'j.created_at DESC'; // placeholder until match scoring is integrated
 
-		const joinClause = 'LEFT JOIN companies c ON j.company_id = c.id';
+		const joinClause =
+			'LEFT JOIN companies c ON j.company_id = c.id LEFT JOIN users u ON j.user_id = u.id';
 
 		const jobsQuery = `
       SELECT
-        j.id, j.title, j.description, j.company, j.company as poster_company, j.location, j.job_type,
+        j.id, j.title, j.description, j.company, COALESCE(NULLIF(u.company_name, ''), j.company) as poster_company, j.location, j.job_type,
         j.salary_min, j.salary_max, j.salary_range, j.currency_code, j.country_code,
         j.skills_required, j.status, j.created_at, j.updated_at, j.screening_questions,
         j.requirements, j.user_id, j.remote_type, j.experience_level,
@@ -2169,7 +2170,8 @@ router.get('/jobs/recommended', authMiddleware, async (req, res) => {
 		// Get active jobs
 		const jobs = await pool.query(
 			`
-      SELECT j.*, u.company_name as posted_by_company
+      SELECT j.*, u.company_name as posted_by_company,
+             COALESCE(NULLIF(u.company_name, ''), j.company) as poster_company
       FROM jobs j
       LEFT JOIN users u ON j.user_id = u.id
       WHERE j.status = 'active'
@@ -2246,7 +2248,8 @@ router.get('/jobs/saved', authMiddleware, async (req, res) => {
 	try {
 		const jobs = await pool.query(
 			`
-      SELECT j.*, sj.saved_at, sj.notes, u.company_name as posted_by_company
+      SELECT j.*, sj.saved_at, sj.notes, u.company_name as posted_by_company,
+             COALESCE(NULLIF(u.company_name, ''), j.company) as poster_company
       FROM saved_jobs sj
       JOIN jobs j ON sj.job_id = j.id
       LEFT JOIN users u ON j.user_id = u.id
@@ -2840,6 +2843,7 @@ router.get('/applications', authMiddleware, async (req, res) => {
 			`
       SELECT ja.*, ja.is_auto_applied, j.title, j.company, j.location, j.salary_range, j.job_type,
              j.screening_questions, u.company_name as posted_by_company,
+             COALESCE(NULLIF(u.company_name, ''), j.company) as poster_company,
              ri.status as intro_status, ri.id as intro_id,
              (SELECT COUNT(*) FROM outreach_attempts oa WHERE oa.application_id = ja.id) as outreach_count
       FROM job_applications ja
@@ -4128,6 +4132,7 @@ Only return JSON.`;
 
 		const sqlQuery = `
       SELECT j.*, u.company_name as posted_by_company,
+             COALESCE(NULLIF(u.company_name, ''), j.company) as poster_company,
              (SELECT COUNT(*) FROM job_applications WHERE job_id = j.id) as applicant_count
       FROM jobs j
       LEFT JOIN users u ON j.user_id = u.id
