@@ -722,6 +722,146 @@ async function calculateSalaryCompetitiveness(companyId) {
 }
 
 /**
+ * Assessment Responsiveness — standalone metric (NOT a v2 factor)
+ *
+ * Measures how promptly the hiring team acts on completed assessments:
+ * - review_rate: % of completed assessments where a recruiter viewed results
+ * - median_days_to_action: median days from scored_at to first recruiter-initiated status change
+ * - ghost_rate: % of completed assessments with no recruiter action ever
+ *
+ * Kept standalone (not in TRUST_V2_FACTORS) because:
+ * 1. Cold start — ~0 companies will have 5+ assessments at launch
+ * 2. A 9th factor would penalize sufficiency scores and shift historical weights
+ * 3. Can be promoted to a factor later once data accumulates (see diversity_metrics max:0 pattern)
+ *
+ * Minimum 5 completed assessments before sufficient=true.
+ */
+const ASSESSMENT_RESPONSIVENESS_MIN_DATA_POINTS = 5;
+
+async function calculateAssessmentResponsiveness(companyId) {
+	// Get all completed assessment attempts for this company
+	const attempts = await pool.query(
+		`
+    SELECT jaa.id as attempt_id, jaa.candidate_id, jaa.scored_at, ja.job_id, ja.id as assessment_id
+    FROM job_assessment_attempts jaa
+    JOIN job_assessments ja ON ja.id = jaa.assessment_id
+    JOIN jobs j ON j.id = ja.job_id
+    WHERE j.company_id = $1
+      AND jaa.status = 'completed'
+      AND jaa.scored_at IS NOT NULL
+    ORDER BY jaa.scored_at DESC
+  `,
+		[companyId],
+	);
+
+	const total = attempts.rows.length;
+	if (total < ASSESSMENT_RESPONSIVENESS_MIN_DATA_POINTS) {
+		return {
+			review_rate: 0,
+			median_days_to_action: null,
+			ghost_rate: 0,
+			total_assessments: total,
+			sufficient: false,
+		};
+	}
+
+	// Check which assessments were viewed (assessment_result.viewed audit events)
+	const viewed = await pool.query(
+		`
+    SELECT DISTINCT target_id as assessment_id
+    FROM audit_logs
+    WHERE action_type = 'assessment_result.viewed'
+      AND target_type = 'job_assessment'
+      AND target_id = ANY($1)
+  `,
+		[attempts.rows.map((a) => a.assessment_id)],
+	);
+	const viewedIds = new Set(viewed.rows.map((r) => parseInt(r.assessment_id, 10)));
+
+	// For each attempt, find the first recruiter-initiated status change after scoring
+	// Link via (job_id, candidate_id) → job_applications
+	let reviewedCount = 0;
+	let ghostCount = 0;
+	const daysToAction = [];
+
+	for (const attempt of attempts.rows) {
+		if (viewedIds.has(attempt.assessment_id)) reviewedCount++;
+
+		// Find the application for this candidate+job
+		const app = await pool.query(
+			`SELECT id FROM job_applications WHERE job_id = $1 AND candidate_id = $2 LIMIT 1`,
+			[attempt.job_id, attempt.candidate_id],
+		);
+		if (app.rows.length === 0) {
+			ghostCount++; // No application found = no action possible
+			continue;
+		}
+
+		// First recruiter-initiated status change after scoring
+		// (user_id IS NOT NULL excludes system auto-advances)
+		const action = await pool.query(
+			`
+      SELECT MIN(created_at) as first_action
+      FROM audit_logs
+      WHERE action_type = 'application_status_changed'
+        AND target_type = 'job_application'
+        AND target_id = $1
+        AND user_id IS NOT NULL
+        AND created_at > $2
+    `,
+			[app.rows[0].id, attempt.scored_at],
+		);
+
+		if (action.rows[0].first_action) {
+			const days =
+				(new Date(action.rows[0].first_action) - new Date(attempt.scored_at)) /
+				(1000 * 60 * 60 * 24);
+			daysToAction.push(Math.max(0, days));
+		} else {
+			ghostCount++;
+		}
+	}
+
+	const reviewRate = Math.round((reviewedCount / total) * 1000) / 10;
+	const ghostRate = Math.round((ghostCount / total) * 1000) / 10;
+
+	// Median days to action
+	let medianDays = null;
+	if (daysToAction.length > 0) {
+		const sorted = daysToAction.sort((a, b) => a - b);
+		const mid = Math.floor(sorted.length / 2);
+		medianDays =
+			sorted.length % 2 === 0
+				? Math.round(((sorted[mid - 1] + sorted[mid]) / 2) * 10) / 10
+				: Math.round(sorted[mid] * 10) / 10;
+	}
+
+	// Composite score 0-100: 40% review rate, 40% inverse ghost rate, 20% speed
+	// Speed: 0 days = 100, 7 days = 70, 14 days = 40, 30+ days = 0
+	let speedScore = 0;
+	if (medianDays !== null) {
+		if (medianDays <= 1) speedScore = 100;
+		else if (medianDays <= 7) speedScore = 100 - (medianDays - 1) * 5;
+		else if (medianDays <= 14) speedScore = 70 - (medianDays - 7) * 4.28;
+		else if (medianDays <= 30) speedScore = 40 - (medianDays - 14) * 2.5;
+		else speedScore = 0;
+		speedScore = Math.max(0, Math.round(speedScore));
+	}
+	const score = Math.round(reviewRate * 0.4 + (100 - ghostRate) * 0.4 + speedScore * 0.2);
+
+	return {
+		score,
+		review_rate: reviewRate,
+		median_days_to_action: medianDays,
+		ghost_rate: ghostRate,
+		total_assessments: total,
+		reviewed_count: reviewedCount,
+		ghost_count: ghostCount,
+		sufficient: true,
+	};
+}
+
+/**
  * Diversity Metrics — placeholder (insufficient demographic data in most cases)
  * Computes geographic diversity as a proxy when available
  */
@@ -1386,6 +1526,9 @@ module.exports = {
 	calculateSalaryCompetitiveness,
 	calculateDiversityMetrics,
 	calculateCareerGrowth,
+	// Standalone metrics (not v2 factors)
+	calculateAssessmentResponsiveness,
+	ASSESSMENT_RESPONSIVENESS_MIN_DATA_POINTS,
 	getLeaderboard,
 	compareCompanies,
 	generateAISummary,

@@ -417,6 +417,41 @@ router.get('/company/:id/public', async (req, res) => {
 });
 
 /**
+ * GET /api/trustscore/assessment-responsiveness/:companyId
+ * Standalone metric: how promptly the hiring team acts on completed assessments.
+ * Public (no auth) — only returns data when sufficient (>= 5 completed assessments).
+ * Does NOT affect the main TrustScore; shown as a separate indicator.
+ */
+router.get('/assessment-responsiveness/:companyId', async (req, res) => {
+	try {
+		const companyId = parseInt(req.params.companyId, 10);
+		if (!companyId || Number.isNaN(companyId)) {
+			return res.status(400).json({ error: 'Invalid company ID' });
+		}
+
+		const result =
+			await trustscoreService.calculateAssessmentResponsiveness(companyId);
+
+		// Don't expose insufficient-data details publicly; just the flag
+		if (!result.sufficient) {
+			return res.json({ sufficient: false });
+		}
+
+		res.json({
+			sufficient: true,
+			score: result.score,
+			review_rate: result.review_rate,
+			median_days_to_action: result.median_days_to_action,
+			ghost_rate: result.ghost_rate,
+			total_assessments: result.total_assessments,
+		});
+	} catch (err) {
+		console.error('Assessment responsiveness error:', err);
+		res.status(500).json({ error: 'Failed to get assessment responsiveness' });
+	}
+});
+
+/**
  * POST /api/trustscore/feedback — Candidate submits interview feedback after decision
  * Body: { job_id, interview_id, overall_rating, interview_experience_rating, communication_rating, transparency_rating, professionalism_rating, feedback_text, would_recommend, is_anonymous }
  */
