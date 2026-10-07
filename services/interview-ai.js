@@ -705,17 +705,17 @@ Return JSON only:
 async function checkStalledScreenings() {
 	const { notifyUser } = require('../lib/notify');
 	const stalled = await pool.query(
-		`SELECT ss.id, ss.invited_by, ss.candidate_id, ss.job_id, ss.invited_at,
+		`SELECT s.id, s.triggered_by as invited_by, s.candidate_id, s.job_id, s.created_at as invited_at,
             u.name as candidate_name, j.title as job_title
-     FROM screening_sessions ss
-     JOIN users u ON u.id = ss.candidate_id
-     JOIN jobs j ON j.id = ss.job_id
-     WHERE ss.status = 'invited'
-       AND ss.invited_at < NOW() - INTERVAL '3 days'
+     FROM interview_sessions s
+     JOIN users u ON u.id = s.candidate_id
+     JOIN jobs j ON j.id = s.job_id
+     WHERE s.type = 'screening' AND s.status = 'invited'
+       AND s.created_at < NOW() - INTERVAL '3 days'
        AND NOT EXISTS (
          SELECT 1 FROM user_notifications un
          WHERE un.type = 'screening_stalled'
-           AND (un.metadata->>'session_id')::int = ss.id
+           AND (un.metadata->>'session_id')::int = s.id
        )`,
 	);
 	for (const s of stalled.rows) {

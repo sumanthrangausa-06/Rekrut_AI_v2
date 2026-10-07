@@ -2858,8 +2858,8 @@ router.get('/screening/templates', authMiddleware, async (req, res) => {
 		const { job_id } = req.query;
 		let query = `
       SELECT st.*, j.title as job_title,
-             (SELECT COUNT(*) FROM screening_sessions ss WHERE ss.template_id = st.id) as sessions_count,
-             (SELECT COUNT(*) FROM screening_sessions ss WHERE ss.template_id = st.id AND ss.status = 'completed') as completed_count
+             (SELECT COUNT(*) FROM interview_sessions s WHERE s.type = 'screening' AND (s.config->'template'->>'id')::int = st.id) as sessions_count,
+             (SELECT COUNT(*) FROM interview_sessions s WHERE s.type = 'screening' AND (s.config->'template'->>'id')::int = st.id AND s.status = 'completed') as completed_count
       FROM screening_templates st
       JOIN jobs j ON st.job_id = j.id
       WHERE st.company_id = $1 AND st.status = 'active'
@@ -3661,14 +3661,21 @@ router.get('/screening/sessions', authMiddleware, async (req, res) => {
 });
 
 // GET /api/interviews/screening/:id/report — Recruiter gets screening report
+// Reads the UNIFIED interview_sessions table (type='screening'). Phase 1 (#322)
+// migrated screening writes here; the legacy screening_sessions table is stale.
 router.get('/screening/:id/report', authMiddleware, async (req, res) => {
 	try {
 		const session = await pool.query(
-			`SELECT ss.*, j.title as job_title, u.name as candidate_name, u.email as candidate_email
-       FROM screening_sessions ss
-       JOIN jobs j ON ss.job_id = j.id
-       JOIN users u ON ss.candidate_id = u.id
-       WHERE ss.id = $1 AND ss.company_id = $2`,
+			`SELECT s.id, s.status, s.invite_token, s.application_id, s.job_id, s.candidate_id,
+              s.started_at, s.completed_at, s.created_at, s.conversation,
+              s.config->'template'->'questions' as questions,
+              s.config->'report' as ai_report,
+              (SELECT score FROM interview_evaluations WHERE interview_session_id = s.id ORDER BY created_at DESC LIMIT 1) as overall_score,
+              j.title as job_title, u.name as candidate_name, u.email as candidate_email
+       FROM interview_sessions s
+       JOIN jobs j ON s.job_id = j.id
+       JOIN users u ON s.candidate_id = u.id
+       WHERE s.id = $1 AND s.type = 'screening' AND s.company_id = $2`,
 			[req.params.id, req.user.company_id],
 		);
 
@@ -3681,13 +3688,13 @@ router.get('/screening/:id/report', authMiddleware, async (req, res) => {
 		// Get multi-evaluation scores if available
 		const evaluations = await pool.query(
 			`SELECT evaluator_type, score, breakdown, reasoning FROM interview_evaluations
-       WHERE screening_session_id = $1 ORDER BY created_at`,
+       WHERE interview_session_id = $1 ORDER BY created_at`,
 			[s.id],
 		);
 
 		const composite = await pool.query(
-			`SELECT * FROM interview_composite_scores WHERE screening_session_id = $1 ORDER BY created_at DESC LIMIT 1`,
-			[s.id],
+			`SELECT * FROM interview_composite_scores WHERE candidate_id = $1 AND job_id = $2 ORDER BY created_at DESC LIMIT 1`,
+			[s.candidate_id, s.job_id],
 		);
 
 		res.json({
@@ -3702,10 +3709,12 @@ router.get('/screening/:id/report', authMiddleware, async (req, res) => {
 				started_at: s.started_at,
 				completed_at: s.completed_at,
 				questions: s.questions,
-				responses: s.responses,
-				conversation: s.conversation,
+				responses: null,
+				conversation:
+					typeof s.conversation === 'string' ? JSON.parse(s.conversation) : s.conversation,
 			},
-			report: s.ai_report,
+			report:
+				typeof s.ai_report === 'string' ? JSON.parse(s.ai_report) : s.ai_report,
 			evaluations: evaluations.rows,
 			composite: composite.rows[0] || null,
 		});
