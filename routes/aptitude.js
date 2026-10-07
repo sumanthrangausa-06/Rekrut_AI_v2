@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { AuditLogger } = require('../services/auditLogService');
+const { notifyUser } = require('../lib/notify');
 
 const RECRUITER_ROLES = ['employer', 'recruiter', 'hiring_manager', 'admin'];
 
@@ -899,6 +900,26 @@ router.post(
 			);
 
 			res.json({ assignment: result.rows[0] });
+
+			// In-app notification for every applicant with an active application
+			// to this job (non-blocking). Previously attaching a test notified
+			// nobody, so candidates never knew a test was required.
+			const testName = await pool.query(`SELECT title FROM aptitude_tests WHERE id = $1`, [testId]);
+			const applicants = await pool.query(
+				`SELECT DISTINCT candidate_id FROM job_applications
+         WHERE job_id = $1 AND status NOT IN ('withdrawn', 'hired', 'rejected')`,
+				[jobId],
+			);
+			const title = testName.rows[0]?.title || 'Aptitude test';
+			for (const row of applicants.rows) {
+				notifyUser(
+					row.candidate_id,
+					'aptitude_test_assigned',
+					'Aptitude test assigned',
+					`You've been assigned the "${title}" aptitude test. Complete it to continue in the hiring process.`,
+					{ test_id: testId, job_id: jobId, url: '/aptitude-tests' },
+				);
+			}
 		} catch (error) {
 			console.error('Error assigning test to job:', error);
 			res.status(500).json({ error: 'Failed to assign test' });

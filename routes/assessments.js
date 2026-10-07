@@ -224,6 +224,29 @@ router.get('/results', authMiddleware, async (req, res) => {
 	}
 });
 
+// Candidate: job assessments currently assigned to me (status 'assigned').
+// Powers the "Assigned to you" section — without this, candidates only learn
+// about assignments from the notification, which previously had no link.
+router.get('/assigned', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`SELECT jaa.id AS attempt_id, jaa.assessment_id, jaa.application_id, jaa.status,
+              jaa.created_at, ja.title AS assessment_title, ja.job_id, j.title AS job_title
+       FROM job_assessment_attempts jaa
+       JOIN job_assessments ja ON ja.id = jaa.assessment_id
+       JOIN jobs j ON j.id = ja.job_id
+       WHERE jaa.candidate_id = $1 AND jaa.status = 'assigned'
+       ORDER BY jaa.created_at DESC`,
+			[req.user.id],
+		);
+
+		res.json({ attempts: result.rows });
+	} catch (error) {
+		console.error('Error fetching assigned assessments:', error);
+		res.status(500).json({ error: 'Failed to fetch assigned assessments' });
+	}
+});
+
 // Start new assessment - accepts skillName+category OR skillId (AI RATE LIMITED)
 router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 	const client = await pool.connect();
@@ -1252,7 +1275,9 @@ router.post('/assign', authMiddleware, async (req, res) => {
 			[assessment_id, a.candidate_id, application_id],
 		);
 
-		// In-app notification for the candidate (non-blocking)
+		// In-app notification for the candidate (non-blocking).
+		// metadata.url deep-links the notification center's "View" action
+		// straight to the take page (notification-center.tsx).
 		notifyUser(
 			a.candidate_id,
 			'assessment_assigned',
@@ -1263,6 +1288,7 @@ router.post('/assign', authMiddleware, async (req, res) => {
 				assessment_id,
 				application_id,
 				job_id: a.job_id,
+				url: `/candidate/job-assessment/${assessment_id}`,
 			},
 		);
 
