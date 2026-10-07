@@ -153,43 +153,51 @@ export function NotificationCenter({ className }: { className?: string }) {
 
 	const unreadCount = notifications.filter((n) => !n.read).length;
 
+	const loadNotifications = async (showLoading = true) => {
+		if (showLoading) setLoading(true);
+		try {
+			const data = await apiCall<{
+				notifications: Array<{
+					id: number;
+					type: string;
+					title: string;
+					message: string;
+					read: boolean;
+					created_at: string;
+					metadata?: Record<string, unknown>;
+				}>;
+				unread_count: number;
+			}>('/notifications/in-app?limit=50');
+
+			const mapped: Notification[] = (data.notifications || []).map((n) => ({
+				id: String(n.id),
+				title: n.title,
+				message: n.message,
+				type: (n.type as Notification['type']) || 'info',
+				read: n.read,
+				timestamp: n.created_at,
+				action: n.metadata?.url || n.metadata?.invite_url ? { label: 'View', url: String(n.metadata.url || n.metadata.invite_url) } : undefined,
+			}));
+			setNotifications(mapped);
+		} catch (err) {
+			console.error('[NotificationCenter] Load error:', err);
+			if (showLoading) setNotifications([]);
+		} finally {
+			if (showLoading) setLoading(false);
+		}
+	};
+
 	useEffect(() => {
 		if (!open) return;
-		async function load() {
-			setLoading(true);
-			try {
-				const data = await apiCall<{
-					notifications: Array<{
-						id: number;
-						type: string;
-						title: string;
-						message: string;
-						read: boolean;
-						created_at: string;
-						metadata?: Record<string, unknown>;
-					}>;
-					unread_count: number;
-				}>('/notifications/in-app?limit=50');
-
-				const mapped: Notification[] = (data.notifications || []).map((n) => ({
-					id: String(n.id),
-					title: n.title,
-					message: n.message,
-					type: (n.type as Notification['type']) || 'info',
-					read: n.read,
-					timestamp: n.created_at,
-					action: n.metadata?.url || n.metadata?.invite_url ? { label: 'View', url: String(n.metadata.url || n.metadata.invite_url) } : undefined,
-				}));
-				setNotifications(mapped);
-			} catch (err) {
-				console.error('[NotificationCenter] Load error:', err);
-				setNotifications([]);
-			} finally {
-				setLoading(false);
-			}
-		}
-		load();
+		loadNotifications();
 	}, [open]);
+
+	// Poll for new notifications every 30s so the badge updates without opening the dropdown
+	useEffect(() => {
+		loadNotifications(false);
+		const interval = setInterval(() => loadNotifications(false), 30000);
+		return () => clearInterval(interval);
+	}, []);
 
 	const markRead = async (id: string) => {
 		try {
