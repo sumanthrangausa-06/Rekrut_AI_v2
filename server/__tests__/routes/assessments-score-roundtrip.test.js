@@ -59,6 +59,13 @@ jest.mock('../../../lib/polsia-ai', () => ({
 	},
 }));
 
+// OmniScore recalculation is non-blocking and DB-heavy; mock it out so
+// scoreAttempt tests don't hang on pool.connect().
+jest.mock('../../../services/omniscore', () => ({
+	calculateScore: jest.fn(async () => ({})),
+	addTechnicalComponent: jest.fn(async () => ({})),
+}));
+
 global.__testUsers = {
 	2: { id: 2, role: 'recruiter', company_id: 5, name: 'Rita Recruiter' },
 	7: { id: 7, role: 'candidate', company_id: null, name: 'Asha Candidate' },
