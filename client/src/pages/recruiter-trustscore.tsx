@@ -214,6 +214,14 @@ export function RecruiterTrustscorePage() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [toasts, setToasts] = useState<Toast[]>([]);
+	const [responsiveness, setResponsiveness] = useState<{
+		score: number;
+		review_rate: number;
+		median_days_to_action: number | null;
+		ghost_rate: number;
+		total_assessments: number;
+		sufficient: boolean;
+	} | null>(null);
 
 	const showToast = useCallback((message: string, type: ToastType = 'info') => {
 		const id = `${Date.now()}-${Math.random()}`;
@@ -231,12 +239,14 @@ export function RecruiterTrustscorePage() {
 		setLoading(true);
 		setError(null);
 		try {
-			const [tsData, bdData] = await Promise.all([
+			const [tsData, bdData, respData] = await Promise.all([
 				apiCall<{ success: boolean; trustscore: V1Score }>('/trustscore'),
 				apiCall<BreakdownResponse>('/trustscore/breakdown'),
+				apiCall<any>('/trustscore/assessment-responsiveness').catch(() => null),
 			]);
 			setTrustscore(tsData.trustscore);
 			setBreakdown(bdData);
+			if (respData?.sufficient) setResponsiveness(respData);
 		} catch (err: any) {
 			setError(err.message || 'Failed to load TrustScore data');
 			showToast(err.message || 'Failed to load TrustScore data', 'error');
@@ -444,6 +454,54 @@ export function RecruiterTrustscorePage() {
 						})}
 					</div>
 				</div>
+
+				{/* Assessment Responsiveness (standalone metric, not a v2 factor) */}
+				{responsiveness && (
+					<div className="mb-8">
+						<h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+							<Clock className="w-5 h-5 text-blue-400" />
+							Assessment Responsiveness
+							<span className="text-xs font-normal text-gray-400 ml-2">
+								Private to your team · based on {responsiveness.total_assessments} assessments
+							</span>
+						</h2>
+						<Card className="bg-white/10 backdrop-blur-lg border-white/20">
+							<CardContent className="pt-5 pb-4">
+								<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+									<div>
+										<p className="text-xs text-gray-400 mb-1">Overall</p>
+										<p className="text-2xl font-bold text-white">{responsiveness.score}/100</p>
+									</div>
+									<div>
+										<p className="text-xs text-gray-400 mb-1">Review rate</p>
+										<p className="text-2xl font-bold text-white">{responsiveness.review_rate}%</p>
+										<p className="text-xs text-gray-500 mt-1">Assessments your team reviewed</p>
+									</div>
+									<div>
+										<p className="text-xs text-gray-400 mb-1">Median time to action</p>
+										<p className="text-2xl font-bold text-white">
+											{responsiveness.median_days_to_action !== null
+												? `${responsiveness.median_days_to_action}d`
+												: '—'}
+										</p>
+										<p className="text-xs text-gray-500 mt-1">Score to first follow-up</p>
+									</div>
+									<div>
+										<p className="text-xs text-gray-400 mb-1">Ghost rate</p>
+										<p className="text-2xl font-bold text-white">{responsiveness.ghost_rate}%</p>
+										<p className="text-xs text-gray-500 mt-1">Assessments with no follow-up</p>
+									</div>
+								</div>
+								{responsiveness.ghost_rate > 20 && (
+									<p className="text-xs text-amber-400 mt-4">
+										Tip: {responsiveness.ghost_rate}% of candidates who completed assessments
+										never heard back. Following up — even with a rejection — builds trust.
+									</p>
+								)}
+							</CardContent>
+						</Card>
+					</div>
+				)}
 
 				{/* Improvement Guidance */}
 				{guidance.length > 0 && (

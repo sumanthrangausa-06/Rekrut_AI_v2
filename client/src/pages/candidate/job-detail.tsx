@@ -54,6 +54,7 @@ interface Job {
 	id: number;
 	title: string;
 	company: string;
+	company_id?: number;
 	poster_company?: string;
 	description: string;
 	requirements: string;
@@ -142,6 +143,28 @@ export function CandidateJobDetailPage() {
 		status: string;
 		question_count: number;
 	} | null>(null);
+	const [responsiveness, setResponsiveness] = useState<{
+		score: number;
+		review_rate: number;
+		median_days_to_action: number | null;
+		ghost_rate: number;
+		total_assessments: number;
+	} | null>(null);
+
+	// Fetch assessment responsiveness when company_id is available (non-blocking)
+	useEffect(() => {
+		if (!job?.company_id) return;
+		let cancelled = false;
+		fetch(`/api/trustscore/assessment-responsiveness/${job.company_id}`)
+			.then((r) => (r.ok ? r.json() : null))
+			.then((data) => {
+				if (!cancelled && data?.sufficient) setResponsiveness(data);
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [job?.company_id]);
 	const [saved, setSaved] = useState(false);
 	const [profileCompleteness, setProfileCompleteness] = useState(0);
 	const [tailoredDocs, setTailoredDocs] = useState<TailoredDocument | null>(null);
@@ -840,6 +863,18 @@ export function CandidateJobDetailPage() {
 										</span>
 									)}
 									{job.job_type && <Badge variant="secondary">{job.job_type}</Badge>}
+									{responsiveness && (
+										<span
+											className="flex items-center gap-1 min-w-0 text-xs"
+											title={`Based on ${responsiveness.total_assessments} completed assessments`}
+										>
+											<span className="break-words text-muted-foreground">
+												Responds to {responsiveness.review_rate}% of assessments
+												{responsiveness.median_days_to_action !== null &&
+													` · median ${responsiveness.median_days_to_action}d to follow up`}
+											</span>
+										</span>
+									)}
 									{job.remote_type && (
 										<Badge variant="outline">
 											<Globe className="h-3 w-3 mr-0.5" />

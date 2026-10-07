@@ -417,6 +417,32 @@ router.get('/company/:id/public', async (req, res) => {
 });
 
 /**
+ * GET /api/trustscore/assessment-responsiveness
+ * Recruiter-scoped: returns responsiveness for the authenticated recruiter's company.
+ * Private coaching view — includes full details.
+ */
+router.get(
+	'/assessment-responsiveness',
+	authMiddleware,
+	requireRecruiter,
+	async (req, res) => {
+		try {
+			const companyId = req.user.company_id;
+			if (!companyId) {
+				return res.status(400).json({ error: 'No company associated' });
+			}
+
+			const result =
+				await trustscoreService.calculateAssessmentResponsiveness(companyId);
+			res.json(result);
+		} catch (err) {
+			console.error('Assessment responsiveness error:', err);
+			res.status(500).json({ error: 'Failed to get assessment responsiveness' });
+		}
+	},
+);
+
+/**
  * GET /api/trustscore/assessment-responsiveness/:companyId
  * Standalone metric: how promptly the hiring team acts on completed assessments.
  * Public (no auth) — only returns data when sufficient (>= 5 completed assessments).
