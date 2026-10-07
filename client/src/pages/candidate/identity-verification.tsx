@@ -149,7 +149,7 @@ export function CandidateIdentityVerificationPage() {
 	}, []);
 
 	// ── Load status ──
-	async function loadStatus() {
+	const loadStatus = useCallback(async () => {
 		setLoading(true);
 		setError(null);
 		try {
@@ -161,7 +161,7 @@ export function CandidateIdentityVerificationPage() {
 		} finally {
 			setLoading(false);
 		}
-	}
+	}, []);
 
 	useEffect(() => {
 		loadStatus();

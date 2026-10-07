@@ -447,7 +447,12 @@ export function JobDetailContent({
 				</div>
 				<div className="flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50 min-w-0">
 					<DollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
-					<span className="truncate">{job.salary_range || 'Salary not specified'}</span>
+					<span className="truncate">
+						{job.salary_range ||
+							(job.salary_min || job.salary_max
+								? `${job.salary_min ? `$${Number(job.salary_min).toLocaleString()}` : ''}${job.salary_min && job.salary_max ? ' - ' : ''}${job.salary_max ? `$${Number(job.salary_max).toLocaleString()}` : ''}`
+								: 'Salary not specified')}
+					</span>
 				</div>
 				<div className="flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50 min-w-0">
 					<Briefcase className="h-4 w-4 text-muted-foreground shrink-0" />

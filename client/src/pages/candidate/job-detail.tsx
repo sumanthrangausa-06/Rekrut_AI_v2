@@ -54,6 +54,7 @@ interface Job {
 	id: number;
 	title: string;
 	company: string;
+	company_id?: number;
 	poster_company?: string;
 	description: string;
 	requirements: string;
@@ -142,6 +143,35 @@ export function CandidateJobDetailPage() {
 		status: string;
 		question_count: number;
 	} | null>(null);
+	const [responsiveness, setResponsiveness] = useState<{
+		score: number;
+		review_rate: number;
+		median_days_to_action: number | null;
+		ghost_rate: number;
+		total_assessments: number;
+	} | null>(null);
+	const [standaloneMetrics, setStandaloneMetrics] = useState<Record<string, any> | null>(null);
+
+	// Fetch assessment responsiveness + standalone metrics when company_id is available (non-blocking)
+	useEffect(() => {
+		if (!job?.company_id) return;
+		let cancelled = false;
+		fetch(`/api/trustscore/assessment-responsiveness/${job.company_id}`)
+			.then((r) => (r.ok ? r.json() : null))
+			.then((data) => {
+				if (!cancelled && data?.sufficient) setResponsiveness(data);
+			})
+			.catch(() => {});
+		fetch(`/api/trustscore/standalone/${job.company_id}`)
+			.then((r) => (r.ok ? r.json() : null))
+			.then((data) => {
+				if (!cancelled && data) setStandaloneMetrics(data);
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [job?.company_id]);
 	const [saved, setSaved] = useState(false);
 	const [profileCompleteness, setProfileCompleteness] = useState(0);
 	const [tailoredDocs, setTailoredDocs] = useState<TailoredDocument | null>(null);
@@ -833,13 +863,59 @@ export function CandidateJobDetailPage() {
 											<span className="break-words">{job.location}</span>
 										</span>
 									)}
-									{job.salary_range && (
+									{(job.salary_range || job.salary_min || job.salary_max) && (
 										<span className="flex items-center gap-1 min-w-0">
 											<DollarSign className="h-4 w-4 shrink-0" />
-											<span className="break-words">{job.salary_range}</span>
+											<span className="break-words">
+												{job.salary_range ||
+													`${job.salary_min ? `$${Number(job.salary_min).toLocaleString()}` : ''}${job.salary_min && job.salary_max ? ' - ' : ''}${job.salary_max ? `$${Number(job.salary_max).toLocaleString()}` : ''}`}
+											</span>
 										</span>
 									)}
 									{job.job_type && <Badge variant="secondary">{job.job_type}</Badge>}
+									{responsiveness && (
+										<span
+											className="flex items-center gap-1 min-w-0 text-xs"
+											title={`Based on ${responsiveness.total_assessments} completed assessments`}
+										>
+											<span className="break-words text-muted-foreground">
+												Responds to {responsiveness.review_rate}% of assessments
+												{responsiveness.median_days_to_action !== null &&
+													` · median ${responsiveness.median_days_to_action}d to follow up`}
+											</span>
+										</span>
+									)}
+									{standaloneMetrics?.workplace_culture && (
+										<span
+											className="flex items-center gap-1 min-w-0 text-xs"
+											title="Workplace culture rating from employee reviews"
+										>
+											<span className="break-words text-muted-foreground">
+												Culture {standaloneMetrics.workplace_culture.score}/100
+											</span>
+										</span>
+									)}
+									{standaloneMetrics?.candidate_nps && (
+										<span
+											className="flex items-center gap-1 min-w-0 text-xs"
+											title={`${standaloneMetrics.candidate_nps.promoters} would recommend, ${standaloneMetrics.candidate_nps.detractors} would not`}
+										>
+											<span className="break-words text-muted-foreground">
+												{standaloneMetrics.candidate_nps.nps >= 0 ? '+' : ''}
+												{standaloneMetrics.candidate_nps.nps} NPS
+											</span>
+										</span>
+									)}
+									{standaloneMetrics?.communication && (
+										<span
+											className="flex items-center gap-1 min-w-0 text-xs"
+											title="Median recruiter reply time to candidate messages"
+										>
+											<span className="break-words text-muted-foreground">
+												Replies in ~{standaloneMetrics.communication.median_reply_hours}h
+											</span>
+										</span>
+									)}
 									{job.remote_type && (
 										<Badge variant="outline">
 											<Globe className="h-3 w-3 mr-0.5" />

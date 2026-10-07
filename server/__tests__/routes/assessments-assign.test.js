@@ -135,7 +135,7 @@ function buildApp() {
 	const app = express();
 	app.use(express.json());
 	app.use('/api/assessments', assessmentsRouter);
-	app.use('/api/aptitude', aptitudeRouter);
+	app.use('/api', aptitudeRouter);
 	return app;
 }
 
@@ -206,7 +206,7 @@ describe('Task 1c — aptitude attach notifies applicants', () => {
 	it('creates an in-app notification per applicant with a link to the aptitude page', async () => {
 		const app = buildApp();
 		const res = await request(app)
-			.post('/api/aptitude/recruiter/jobs/10/aptitude-test')
+			.post('/api/recruiter/jobs/10/aptitude-test')
 			.set('x-test-user-id', '2')
 			.send({ testId: 3, isRequired: true });
 

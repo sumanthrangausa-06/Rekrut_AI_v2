@@ -661,6 +661,8 @@ router.post(
 				requirements,
 				location,
 				salary_range,
+				salary_min,
+				salary_max,
 				job_type,
 				screening_questions,
 				optimize = false, // Flag to run AI optimization
@@ -724,8 +726,8 @@ router.post(
 
 			// Create job
 			const result = await pool.query(
-				`INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions, auto_send_on_apply, auto_send_min_score)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+				`INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, salary_min, salary_max, job_type, screening_questions, auto_send_on_apply, auto_send_min_score)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
 				[
 					req.user.id,
@@ -736,6 +738,8 @@ router.post(
 					finalRequirements,
 					sanitizedLocation,
 					salary_range,
+					salary_min || null,
+					salary_max || null,
 					normalizedJobType,
 					screening_questions ? JSON.stringify(screening_questions) : null,
 					auto_send_on_apply === true,
@@ -1036,6 +1040,8 @@ router.put(
 				requirements,
 				location,
 				salary_range,
+				salary_min,
+				salary_max,
 				job_type,
 				status,
 				screening_questions,
@@ -1099,13 +1105,15 @@ router.put(
         requirements = COALESCE($3, requirements),
         location = COALESCE($4, location),
         salary_range = COALESCE($5, salary_range),
-        job_type = COALESCE($6, job_type),
-        status = COALESCE($7, status),
-        screening_questions = COALESCE($8, screening_questions),
-        auto_send_on_apply = COALESCE($9, auto_send_on_apply),
-        auto_send_min_score = COALESCE($10, auto_send_min_score),
+        salary_min = COALESCE($6, salary_min),
+        salary_max = COALESCE($7, salary_max),
+        job_type = COALESCE($8, job_type),
+        status = COALESCE($9, status),
+        screening_questions = COALESCE($10, screening_questions),
+        auto_send_on_apply = COALESCE($11, auto_send_on_apply),
+        auto_send_min_score = COALESCE($12, auto_send_min_score),
         updated_at = NOW()
-       WHERE id = $11
+       WHERE id = $13
        RETURNING *`,
 				[
 					sanitizedTitle,
@@ -1113,6 +1121,8 @@ router.put(
 					sanitizedRequirements,
 					sanitizedLocation,
 					normalizedSalaryRange,
+					salary_min ?? null,
+					salary_max ?? null,
 					normalizedUpdateJobType,
 					status,
 					screening_questions || null,
