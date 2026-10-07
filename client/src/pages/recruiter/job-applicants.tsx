@@ -864,7 +864,22 @@ export function RecruiterJobApplicantsPage() {
 				/* LIST VIEW */
 				<>
 					{/* Status filter pills */}
-					<div className="flex flex-wrap gap-2">
+					<div className="flex flex-wrap items-center gap-2">
+						<label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer mr-2">
+							<input
+								type="checkbox"
+								checked={filtered.length > 0 && filtered.every((a) => selectedIds.has(a.id))}
+								onChange={(e) => {
+									if (e.target.checked) {
+										setSelectedIds(new Set(filtered.map((a) => a.id)));
+									} else {
+										setSelectedIds(new Set());
+									}
+								}}
+								className="h-4 w-4 rounded border-gray-300"
+							/>
+							Select all
+						</label>
 						<Button
 							variant={!statusFilter ? 'default' : 'outline'}
 							size="sm"
