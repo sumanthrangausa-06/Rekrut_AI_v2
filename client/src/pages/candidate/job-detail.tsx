@@ -1053,6 +1053,44 @@ export function CandidateJobDetailPage() {
 				</CardContent>
 			</Card>
 
+			{/* Employee reviews (Tier-1 public reviews) */}
+			{standaloneMetrics?.recent_reviews?.reviews?.length > 0 && (
+				<Card>
+					<CardContent className="p-4 sm:p-6">
+						<h2 className="font-heading text-base font-semibold mb-3">Employee reviews</h2>
+						<div className="space-y-4">
+							{standaloneMetrics.recent_reviews.reviews.map((review: any, i: number) => (
+								<div key={review.created_at || `review-${i}`} className="border-b last:border-0 pb-3 last:pb-0">
+									<div className="flex items-center gap-0.5 mb-1.5">
+										{[1, 2, 3, 4, 5].map((s) => (
+											<Star
+												key={s}
+												className={`h-3.5 w-3.5 ${s <= (review.overall_rating || 0) ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/30'}`}
+											/>
+										))}
+									</div>
+									{review.review_text && <p className="text-sm mb-2">{review.review_text}</p>}
+									<div className="flex gap-4">
+										{review.pros && (
+											<div className="flex-1">
+												<p className="text-[10px] font-medium text-emerald-600 mb-0.5">Pros</p>
+												<p className="text-xs text-muted-foreground">{review.pros}</p>
+											</div>
+										)}
+										{review.cons && (
+											<div className="flex-1">
+												<p className="text-[10px] font-medium text-red-500 mb-0.5">Cons</p>
+												<p className="text-xs text-muted-foreground">{review.cons}</p>
+											</div>
+										)}
+									</div>
+								</div>
+							))}
+						</div>
+					</CardContent>
+				</Card>
+			)}
+
 			{/* Profile completeness banner for new users */}
 			{user && !applied && profileCompleteness < 80 && (
 				<Card className="border-amber-200 bg-amber-50/50">
