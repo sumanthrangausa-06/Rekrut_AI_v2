@@ -230,6 +230,7 @@ export function RecruiterCandidatesPage() {
 	const [candidates, setCandidates] = useState<Candidate[]>([]);
 	const [stats, setStats] = useState<PipelineStats | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [loadError, setLoadError] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
 	const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
 	const [selectedTab, setSelectedTab] = useState(searchParams.get('status') || 'all');
@@ -293,6 +294,7 @@ export function RecruiterCandidatesPage() {
 
 	const loadCandidates = useCallback(async () => {
 		setLoading(true);
+		setLoadError(null);
 		try {
 			const params = buildSearchParams();
 
@@ -317,6 +319,7 @@ export function RecruiterCandidatesPage() {
 			}
 		} catch (err) {
 			console.error('Failed to load candidates:', err);
+			setLoadError(err instanceof Error ? err.message : 'Failed to load candidates');
 		} finally {
 			setLoading(false);
 		}
@@ -956,6 +959,13 @@ export function RecruiterCandidatesPage() {
 				<TabsContent value={selectedTab} className="mt-4">
 					{loading ? (
 						<Skeleton count={4} variant="card" />
+					) : loadError ? (
+						<EmptyState
+							icon={Search}
+							title="Failed to load candidates"
+							description={loadError}
+							action={{ label: 'Try again', onClick: loadCandidates }}
+						/>
 					) : candidates.length === 0 ? (
 						<EmptyState
 							icon={Search}

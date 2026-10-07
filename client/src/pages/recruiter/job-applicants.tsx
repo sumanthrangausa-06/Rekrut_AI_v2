@@ -116,12 +116,11 @@ interface ScreeningResponseData {
 	} | null;
 }
 
-// Aligned with backend PIPELINE_STAGES
+// Aligned with backend PIPELINE_STAGES (routes/recruiter.js) and
+// chk_job_applications_status CHECK constraint
 const statuses = [
 	'applied',
 	'screening',
-	'shortlisted',
-	'reviewing',
 	'interviewed',
 	'offered',
 	'hired',
@@ -131,11 +130,11 @@ const statuses = [
 const kanbanStages = [
 	'applied',
 	'screening',
-	'shortlisted',
-	'reviewing',
 	'interviewed',
 	'offered',
 	'hired',
+	'rejected',
+	'withdrawn',
 ];
 
 const statusConfig: Record<
@@ -148,12 +147,6 @@ const statusConfig: Record<
 > = {
 	applied: { label: 'New', variant: 'secondary', color: 'border-blue-300 bg-blue-50' },
 	screening: { label: 'Screening', variant: 'default', color: 'border-purple-300 bg-purple-50' },
-	shortlisted: {
-		label: 'Shortlisted',
-		variant: 'default',
-		color: 'border-indigo-300 bg-indigo-50',
-	},
-	reviewing: { label: 'Reviewing', variant: 'warning', color: 'border-amber-300 bg-amber-50' },
 	interviewed: { label: 'Interviewed', variant: 'default', color: 'border-cyan-300 bg-cyan-50' },
 	offered: { label: 'Offered', variant: 'success', color: 'border-emerald-300 bg-emerald-50' },
 	hired: { label: 'Hired', variant: 'success', color: 'border-green-300 bg-green-50' },
@@ -684,9 +677,7 @@ export function RecruiterJobApplicantsPage() {
 				<Card>
 					<CardContent className="p-3 text-center">
 						<p className="text-2xl font-bold text-amber-600">
-							{(statusCounts.screening || 0) +
-								(statusCounts.shortlisted || 0) +
-								(statusCounts.reviewing || 0)}
+							{statusCounts.screening || 0}
 						</p>
 						<p className="text-xs text-muted-foreground">In Pipeline</p>
 					</CardContent>
@@ -943,6 +934,15 @@ export function RecruiterJobApplicantsPage() {
 															<Badge variant={config.variant} className="shrink-0">
 																{config.label}
 															</Badge>
+															{app.screening_status && (
+																<Badge
+																	variant="outline"
+																	className="shrink-0 text-[10px] gap-0.5 text-purple-600 border-purple-200 bg-purple-50"
+																>
+																	Screening: {app.screening_status}
+																	{app.screening_score != null && ` (${app.screening_score})`}
+																</Badge>
+															)}
 															{app.match_score != null && app.match_score >= 80 && (
 																<Badge
 																	variant="outline"
