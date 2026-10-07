@@ -128,6 +128,19 @@ async function fetchCandidateData(userId) {
 			[userId],
 		);
 
+		// Job assessments (recruiter-assigned, proctored) — feed verified_skills at 2x weight
+		const jobAssessmentsRes = await client.query(
+			`SELECT jaa.composite_score, jaa.completed_at, jaa.scored_at,
+			        COALESCE(ja.passing_score, 70) AS passing_score
+			 FROM job_assessment_attempts jaa
+			 JOIN job_assessments ja ON ja.id = jaa.assessment_id
+			 WHERE jaa.candidate_id = $1
+			   AND jaa.status = 'completed'
+			   AND jaa.scored_at IS NOT NULL
+			   AND jaa.composite_score IS NOT NULL`,
+			[userId],
+		);
+
 		// Practice sessions
 		const practiceRes = await client.query(
 			`SELECT category, score, created_at, coaching_data
@@ -185,6 +198,7 @@ async function fetchCandidateData(userId) {
 			experience: expRes.rows,
 			education: eduRes.rows,
 			assessments: assessmentsRes.rows,
+			jobAssessments: jobAssessmentsRes.rows,
 			practice: practiceRes.rows,
 			interviews: interviewsRes.rows,
 			applications: appsRes.rows,
@@ -210,11 +224,20 @@ function calcVerifiedSkills(data) {
 	score += verifiedPts;
 	details.push(`${verifiedSkills.length} verified skills (+${verifiedPts})`);
 
-	// Passed assessments (max 30)
-	const passedAssessments = data.assessments.filter((a) => a.passed);
-	const assessPts = Math.min(30, passedAssessments.length * 10);
+	// Passed assessments (max 30) — skill self-tests at 10 pts each, job
+	// assessments at 20 pts each (2x: proctored and employer-validated).
+	const passedSkillAssessments = data.assessments.filter((a) => a.passed);
+	const passedJobAssessments = (data.jobAssessments || []).filter(
+		(a) => a.composite_score != null && a.composite_score >= (a.passing_score ?? 70),
+	);
+	const assessPts = Math.min(
+		30,
+		passedSkillAssessments.length * 10 + passedJobAssessments.length * 20,
+	);
 	score += assessPts;
-	details.push(`${passedAssessments.length} passed assessments (+${assessPts})`);
+	details.push(
+		`${passedSkillAssessments.length} passed skill assessments, ${passedJobAssessments.length} passed job assessments (+${assessPts})`,
+	);
 
 	// Portfolio projects (max 20)
 	const projectPts = Math.min(20, data.projects.length * 5);
@@ -230,6 +253,7 @@ function calcVerifiedSkills(data) {
 	const hasData =
 		verifiedSkills.length > 0 ||
 		data.assessments.length > 0 ||
+		(data.jobAssessments || []).length > 0 ||
 		data.projects.length > 0 ||
 		data.docs.length > 0;
 
@@ -620,8 +644,7 @@ function calcGrowthTrajectory(data) {
 	score += streakPts;
 	details.push(`${activeWeeks} active weeks in last 30d (+${streakPts})`);
 
-	const hasData =
-		data.skills.length > 0 || data.assessments.length > 0 || data.activity.length > 0;
+	const hasData = data.skills.length > 0 || data.assessments.length > 0 || data.activity.length > 0;
 
 	return {
 		raw: clamp(score, 0, 100),
@@ -841,7 +864,12 @@ async function calculateScore(userId) {
 		factors: Object.fromEntries(
 			Object.entries(factors).map(([k, v]) => [
 				k,
-				{ raw: Math.round(v.raw), weight: FACTOR_WEIGHTS[k], details: v.details, hasData: v.hasData },
+				{
+					raw: Math.round(v.raw),
+					weight: FACTOR_WEIGHTS[k],
+					details: v.details,
+					hasData: v.hasData,
+				},
 			]),
 		),
 	};

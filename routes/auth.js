@@ -110,6 +110,22 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 			}
 		}
 
+		// --- Issue #347: recruiter roles require company_name (fail fast) ---
+		// Without it, the company auto-creation branch below is skipped and the
+		// user is left with company_id=null, permanently blocked by
+		// requireApprovedRecruiter. The existing-company-by-domain path still
+		// works: if the domain matches, they proceed to the pending-approval flow.
+		if (recruiterRoles.includes(role) && !company_name) {
+			const { extractDomain, findCompanyByDomain } = require('../services/domain-validator');
+			const existingCompany = await findCompanyByDomain(extractDomain(email));
+			if (!existingCompany) {
+				return res.status(400).json({
+					error: 'Company name is required for recruiter registration',
+					code: 'COMPANY_NAME_REQUIRED',
+				});
+			}
+		}
+
 		// Check if user exists
 		const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
 		if (existing.rows.length > 0) {
