@@ -937,7 +937,7 @@ export function RecruiterDashboard() {
 							<p className="font-medium">
 								Employer Trust Score:{' '}
 								<span style={{ color: data.trust_score.tier_color }}>
-									{data.trust_score.total_score}/100
+									{data.trust_score.total_score}/1000
 								</span>
 							</p>
 							<p className="text-xs text-muted-foreground">
