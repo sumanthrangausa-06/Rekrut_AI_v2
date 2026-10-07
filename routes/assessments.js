@@ -1566,7 +1566,7 @@ router.post('/:id/refer', authMiddleware, rateLimits.strict, async (req, res) =>
 
 // GET /api/assessments/refer/:token/preview — public. Sanitized assessment info.
 // Never includes correct_answer, rubric, explanation, or question text.
-router.get('/refer/:token/preview', async (req, res) => {
+router.get('/refer/:token/preview', rateLimits.strict, async (req, res) => {
 	try {
 		const tokenHash = hashReferralToken(req.params.token);
 		const ref = await pool.query(

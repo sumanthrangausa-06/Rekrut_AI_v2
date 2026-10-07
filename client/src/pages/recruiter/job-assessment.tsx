@@ -337,7 +337,7 @@ export function RecruiterJobAssessmentPage() {
 						</div>
 						<p className="text-sm text-muted-foreground">
 							Generate a link for a candidate by email. They'll sign up (or log in) and
-							land directly in this assessment — no application needed first.
+							land directly in this assessment — their application is created automatically.
 						</p>
 						<div className="flex flex-col gap-2 sm:flex-row">
 							<Input
