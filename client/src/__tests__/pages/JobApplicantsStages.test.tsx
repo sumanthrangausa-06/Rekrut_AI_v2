@@ -1,11 +1,10 @@
 /**
  * C1: Frontend kanban stages must match backend PIPELINE_STAGES exactly.
  *
- * Backend (routes/recruiter.js PIPELINE_STAGES + chk_job_applications_status):
- *   applied, screening, interviewed, offered, hired, rejected, withdrawn
+ * Backend (routes/recruiter.js PIPELINE_STAGES + chk_job_applications_status via p4):
+ *   applied, screening, shortlisted, reviewing, interviewed, offered, hired, rejected, withdrawn
  *
- * RED: frontend kanbanStages includes 'shortlisted'/'reviewing' (invalid per DB constraint)
- * GREEN: frontend matches backend exactly.
+ * All three layers (DB constraint, backend, frontend) must have the identical 9-stage list.
  */
 import fs from 'fs';
 import path from 'path';
@@ -13,6 +12,8 @@ import path from 'path';
 const BACKEND_STAGES = [
 	'applied',
 	'screening',
+	'shortlisted',
+	'reviewing',
 	'interviewed',
 	'offered',
 	'hired',
@@ -47,13 +48,13 @@ describe('job-applicants stage alignment', () => {
 		expect(statuses).toEqual(BACKEND_STAGES);
 	});
 
-	test('does not reference invalid stages shortlisted/reviewing', () => {
-		// These stages violate the chk_job_applications_status CHECK constraint
+	test('includes shortlisted/reviewing per p4 DB constraint', () => {
+		// These stages are in chk_job_applications_status (migration p4) and must be supported
 		const kanbanStages = extractArray(source, 'kanbanStages');
 		const statuses = extractArray(source, 'statuses');
-		expect(kanbanStages).not.toContain('shortlisted');
-		expect(kanbanStages).not.toContain('reviewing');
-		expect(statuses).not.toContain('shortlisted');
-		expect(statuses).not.toContain('reviewing');
+		expect(kanbanStages).toContain('shortlisted');
+		expect(kanbanStages).toContain('reviewing');
+		expect(statuses).toContain('shortlisted');
+		expect(statuses).toContain('reviewing');
 	});
 });
