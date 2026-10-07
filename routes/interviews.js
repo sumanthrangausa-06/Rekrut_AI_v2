@@ -3268,7 +3268,7 @@ router.post('/screening/session/:token/start', async (req, res) => {
 		// Update application status
 		if (s.application_id) {
 			await pool.query(
-				`UPDATE job_applications SET screening_status = 'in_progress', updated_at = NOW() WHERE id = $1`,
+				`UPDATE job_applications SET screening_status = 'in_progress', status = CASE WHEN status = 'applied' THEN 'screening' ELSE status END, updated_at = NOW() WHERE id = $1`,
 				[s.application_id],
 			);
 		}
@@ -3552,7 +3552,7 @@ router.post('/screening/session/:token/complete', async (req, res) => {
 		// Update application screening status
 		if (s.application_id) {
 			await pool.query(
-				`UPDATE job_applications SET screening_status = 'completed', screening_score = $1, updated_at = NOW() WHERE id = $2`,
+				`UPDATE job_applications SET screening_status = 'completed', screening_score = $1, status = CASE WHEN status = 'screening' THEN 'shortlisted' ELSE status END, updated_at = NOW() WHERE id = $2`,
 				[report.overall_score, s.application_id],
 			);
 		}
