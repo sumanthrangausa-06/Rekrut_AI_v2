@@ -185,7 +185,9 @@ export function ReferralAssessmentPage() {
 										<Building2 className="h-3.5 w-3.5" />
 										{preview.company_name ?? 'Company'} · {preview.job_title}
 									</span>
-									{preview.company_trustscore && (
+								</CardDescription>
+								{preview.company_trustscore && (
+									<div className="mt-2">
 										<Badge
 											variant="outline"
 											className={
@@ -195,8 +197,8 @@ export function ReferralAssessmentPage() {
 											<ShieldCheck className="mr-1 h-3 w-3" />
 											TrustScore {preview.company_trustscore.score}
 										</Badge>
-									)}
-								</CardDescription>
+									</div>
+								)}
 							</div>
 						</div>
 					</CardHeader>
