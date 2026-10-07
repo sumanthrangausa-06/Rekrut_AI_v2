@@ -236,9 +236,9 @@ export function RecruiterOmniScorePage() {
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="font-heading text-2xl font-bold">OmniScore Dashboard</h1>
+					<h1 className="font-heading text-2xl font-bold">Scores Dashboard</h1>
 					<p className="text-sm text-muted-foreground">
-						Two-sided scoring — your TrustScore + candidate OmniScores
+						Your TrustScore + candidate OmniScores in one place
 					</p>
 				</div>
 				<Badge variant="outline" className="gap-1 border-primary/30 text-primary">
