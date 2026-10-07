@@ -1993,6 +1993,12 @@ async function scoreAttempt(attemptId, assessmentId) {
 		if (attempt.rows.length === 0) return;
 		const att = attempt.rows[0];
 
+		// Idempotency (I1): never re-score an already-scored attempt — the
+		// async path (candidate's last answer) and POST /score can both fire
+		// on the same attempt, and a re-run would double-notify. A failed
+		// scoring run leaves scored_at NULL, so retries still work.
+		if (att.scored_at) return;
+
 		const answers = typeof att.answers === 'string' ? JSON.parse(att.answers) : att.answers || [];
 		if (answers.length === 0) return;
 
@@ -2187,8 +2193,82 @@ Return ONLY valid JSON:
 		console.log(
 			`[scoring] Attempt ${attemptId} scored: ${compositeScore}% (${earnedPoints}/${totalPoints} pts)`,
 		);
+
+		// Round-trip the result to the linked application: score write,
+		// conservative stage advance on pass, recruiter notification (#343 task 4).
+		// Non-blocking — failures are logged inside, never thrown.
+		await roundTripAssessmentResult(att, assessmentId, compositeScore);
 	} catch (error) {
 		console.error('[scoring] Failed to score attempt:', error);
+	}
+}
+
+// Round-trip a scored job assessment to its linked application (#343 task 4).
+// Called at the end of scoreAttempt so BOTH the async path (candidate's last
+// answer) and the manual POST /job-assessment/:id/score path are covered.
+//
+// What it does:
+//  1. Writes assessment_score + assessment_result ('pass'/'fail') to
+//     job_applications (migration 233).
+//  2. On pass, advances a 'screening' application to 'shortlisted'. A fail is
+//     marked but never auto-rejects — signals, not verdicts. Applications in
+//     any other stage keep their stage and only record the score.
+//  3. Fires the 'assessment_completed' in-app notification to the recruiter.
+//
+// Conservative by design: the stage only moves out of 'screening', and every
+// step is guarded (missing application, missing recruiter). Non-blocking —
+// failures are logged, never thrown; the attempt is already scored.
+async function roundTripAssessmentResult(att, assessmentId, compositeScore) {
+	if (!att?.application_id || att.status !== 'completed') return;
+	try {
+		const aRes = await pool.query('SELECT passing_score FROM job_assessments WHERE id = $1', [
+			assessmentId,
+		]);
+		const passingScore = aRes.rows[0]?.passing_score ?? 70;
+		const passed = compositeScore >= passingScore;
+		const result = passed ? 'pass' : 'fail';
+
+		const appRes = await pool.query('SELECT id, status FROM job_applications WHERE id = $1', [
+			att.application_id,
+		]);
+		if (appRes.rows.length === 0) return;
+
+		if (appRes.rows[0].status === 'screening' && passed) {
+			await pool.query(
+				`UPDATE job_applications SET status = 'shortlisted', assessment_score = $1, assessment_result = $2, updated_at = NOW() WHERE id = $3 AND status = 'screening'`,
+				[compositeScore, result, att.application_id],
+			);
+		} else {
+			await pool.query(
+				`UPDATE job_applications SET assessment_score = $1, assessment_result = $2, updated_at = NOW() WHERE id = $3`,
+				[compositeScore, result, att.application_id],
+			);
+		}
+
+		const appInfo = await pool.query(
+			`SELECT ja.job_id, j.user_id as recruiter_id, j.title as job_title, u.name as candidate_name
+       FROM job_applications ja JOIN jobs j ON j.id = ja.job_id JOIN users u ON u.id = ja.candidate_id
+       WHERE ja.id = $1`,
+			[att.application_id],
+		);
+		const info = appInfo.rows[0];
+		if (info?.recruiter_id) {
+			await notifyUser(
+				info.recruiter_id,
+				'assessment_completed',
+				'Assessment completed',
+				`${info.candidate_name} completed the assessment for ${info.job_title} — score ${compositeScore ?? 'N/A'}.`,
+				{
+					attempt_id: att.id,
+					assessment_id: assessmentId,
+					application_id: att.application_id,
+					job_id: info.job_id,
+					composite_score: compositeScore,
+				},
+			);
+		}
+	} catch (err) {
+		console.error('[scoring] Round-trip to application failed:', err.message);
 	}
 }
 
@@ -2218,33 +2298,6 @@ router.post('/job-assessment/:id/score', authMiddleware, async (req, res) => {
 		const result = await pool.query('SELECT * FROM job_assessment_attempts WHERE id = $1', [
 			attemptId,
 		]);
-
-		// In-app notification for the recruiter when a candidate completes an assigned assessment
-		const att = result.rows[0];
-		if (att?.application_id && att?.status === 'completed') {
-			const appInfo = await pool.query(
-				`SELECT ja.job_id, j.user_id as recruiter_id, j.title as job_title, u.name as candidate_name
-         FROM job_applications ja JOIN jobs j ON j.id = ja.job_id JOIN users u ON u.id = ja.candidate_id
-         WHERE ja.id = $1`,
-				[att.application_id],
-			);
-			const info = appInfo.rows[0];
-			if (info?.recruiter_id) {
-				notifyUser(
-					info.recruiter_id,
-					'assessment_completed',
-					'Assessment completed',
-					`${info.candidate_name} completed the assessment for ${info.job_title} — score ${att.composite_score ?? 'N/A'}.`,
-					{
-						attempt_id: attemptId,
-						assessment_id: assessmentId,
-						application_id: att.application_id,
-						job_id: info.job_id,
-						composite_score: att.composite_score,
-					},
-				);
-			}
-		}
 
 		res.json({ attempt: result.rows[0] || null });
 	} catch (error) {
