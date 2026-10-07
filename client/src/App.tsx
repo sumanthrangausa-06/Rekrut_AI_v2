@@ -16,6 +16,9 @@ const LoginPage = lazy(() => import('@/pages/login').then((m) => ({ default: m.L
 const RegisterPage = lazy(() =>
 	import('@/pages/register').then((m) => ({ default: m.RegisterPage })),
 );
+const ReferralAssessmentPage = lazy(() =>
+	import('@/pages/referral-assessment').then((m) => ({ default: m.ReferralAssessmentPage })),
+);
 const ForgotPasswordPage = lazy(() =>
 	import('@/pages/forgot-password').then((m) => ({ default: m.ForgotPasswordPage })),
 );
@@ -551,6 +554,7 @@ function AppRoutes() {
 			<Route path="/pricing" element={<PricingPage />} />
 			<Route path="/payment-success" element={<PaymentSuccessPage />} />
 			<Route path="/screening/:token" element={<ScreeningTokenRedirect />} />
+			<Route path="/r/:token" element={<ReferralAssessmentPage />} />
 			<Route path="/interview/session/:token" element={<CandidateInterviewSessionPage />} />
 			<Route path="/blog" element={<BlogPage />} />
 			<Route path="/blog/:slug" element={<BlogPostPage />} />
