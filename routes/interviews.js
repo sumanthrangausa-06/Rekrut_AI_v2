@@ -3078,6 +3078,7 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 				application_id: application_id || null,
 				job_id: resolvedJobId,
 				invite_url: inviteUrl,
+				url: inviteUrl,
 			},
 		);
 
@@ -3093,36 +3094,42 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 });
 
 // GET /api/interviews/screening/my-sessions — Candidate's AI screening sessions
+// Reads the UNIFIED interview_sessions table (type='screening'). Phase 1 (#322)
+// migrated screening writes here; the legacy screening_sessions table is stale.
 router.get('/screening/my-sessions', authMiddleware, async (req, res) => {
 	try {
 		const result = await pool.query(
-			`SELECT ss.id, ss.status, ss.overall_score, ss.invited_at, ss.started_at, ss.completed_at, ss.expires_at,
-              ss.invite_token, ss.application_id,
-              j.title as job_title, c.name as company_name, st.title as template_title
-       FROM screening_sessions ss
-       JOIN jobs j ON ss.job_id = j.id
-       JOIN companies c ON ss.company_id = c.id
-       LEFT JOIN screening_templates st ON st.id = ss.template_id
-       WHERE ss.candidate_id = $1
-       ORDER BY ss.invited_at DESC`,
+			`SELECT s.id, s.status, s.invite_token, s.application_id, s.job_id,
+              s.started_at, s.completed_at, s.created_at,
+              s.config->'job'->>'title' as job_title,
+              s.config->'job'->>'company_name' as config_company_name,
+              s.config->'template'->>'title' as template_title,
+              (SELECT score FROM interview_evaluations WHERE interview_session_id = s.id ORDER BY created_at DESC LIMIT 1) as overall_score,
+              j.title as db_job_title, c.name as db_company_name
+       FROM interview_sessions s
+       LEFT JOIN jobs j ON s.job_id = j.id
+       LEFT JOIN companies c ON s.company_id = c.id
+       WHERE s.candidate_id = $1 AND s.type = 'screening'
+       ORDER BY s.created_at DESC`,
 			[req.user.id],
 		);
 		const sessions = result.rows.map((s) => ({
 			id: s.id,
 			status: s.status,
-			overall_score: s.overall_score,
-			job_title: s.job_title,
-			company_name: s.company_name,
-			template_title: s.template_title,
+			overall_score: s.overall_score ?? null,
+			job_title: s.job_title || s.db_job_title || 'Screening',
+			company_name: s.config_company_name || s.db_company_name || '',
+			template_title: s.template_title || null,
 			application_id: s.application_id,
-			invited_at: s.invited_at,
+			invited_at: s.created_at,
 			started_at: s.started_at,
 			completed_at: s.completed_at,
-			expires_at: s.expires_at,
+			expires_at: null,
+			invite_token: s.invite_token,
 			// Only expose the invite link for sessions the candidate can still act on
 			invite_url:
 				s.status === 'invited' || s.status === 'in_progress'
-					? `/screening/${s.invite_token}`
+					? `/interview/session/${s.invite_token}`
 					: null,
 		}));
 		res.json({ success: true, sessions });
