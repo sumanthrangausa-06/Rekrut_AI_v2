@@ -327,10 +327,12 @@ export function CandidateAiScreeningPage() {
 				</div>
 			)}
 
-			{/* Screenings List */}
+			{/* Screenings List — empty only when BOTH sources are empty.
+			    screenings = fit-score screenings (/candidates/me/screenings);
+			    interviewSessions = interview invitations (/interviews/screening/my-sessions). */}
 			{loading ? (
 				<Skeleton count={3} variant="card" />
-			) : screenings.length === 0 ? (
+			) : screenings.length === 0 && interviewSessions.length === 0 ? (
 				<EmptyState
 					icon={Sparkles}
 					title="No AI screenings yet"

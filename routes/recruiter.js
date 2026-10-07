@@ -2485,6 +2485,8 @@ router.get(
 const PIPELINE_STAGES = [
 	'applied',
 	'screening',
+	'shortlisted',
+	'reviewing',
 	'interviewed',
 	'offered',
 	'hired',

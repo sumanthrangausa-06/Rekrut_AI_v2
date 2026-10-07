@@ -2968,6 +2968,22 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 		const tmpl = template.rows[0];
 		const resolvedJobId = tmpl.job_id || job_id || null;
 
+		// Validate candidate_id matches the application (if application_id provided)
+		if (application_id) {
+			const appCheck = await pool.query(
+				'SELECT candidate_id FROM job_applications WHERE id = $1',
+				[application_id],
+			);
+			if (
+				appCheck.rows.length > 0 &&
+				String(appCheck.rows[0].candidate_id) !== String(candidate_id)
+			) {
+				return res
+					.status(400)
+					.json({ error: 'Candidate does not match the application' });
+			}
+		}
+
 		// Duplicate check against the unified table (was: screening_sessions).
 		let existing;
 		if (application_id) {
@@ -3037,10 +3053,11 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 		);
 		const session = result.rows[0];
 
-		// Update application screening status
+		// Update application screening status and auto-advance pipeline status
+		// from 'applied' to 'screening' (don't override manual moves)
 		if (application_id) {
 			await pool.query(
-				`UPDATE job_applications SET screening_status = 'invited', updated_at = NOW() WHERE id = $1`,
+				`UPDATE job_applications SET screening_status = 'invited', status = CASE WHEN status = 'applied' THEN 'screening' ELSE status END, updated_at = NOW() WHERE id = $1`,
 				[application_id],
 			);
 		}
@@ -3589,38 +3606,45 @@ router.post('/screening/session/:token/complete', async (req, res) => {
 
 // GET /api/interviews/screening/sessions — Recruiter lists screening sessions for their company
 // Query params: job_id (optional), status (optional)
+// Reads the UNIFIED interview_sessions table (type='screening'). Phase 1 (#322)
+// migrated screening writes here; the legacy screening_sessions table is stale.
 router.get('/screening/sessions', authMiddleware, async (req, res) => {
 	try {
 		const { job_id, status } = req.query;
 
 		let query = `
-      SELECT ss.id, ss.status, ss.current_phase, ss.overall_score, ss.recommendation,
-             ss.invited_at, ss.started_at, ss.completed_at,
-             ss.conversation,
-             j.id as job_id, j.title as job_title,
+      SELECT s.id, s.status, s.invite_token, s.application_id,
+             s.config->>'current_phase' as current_phase,
+             s.config->'report'->>'recommendation' as recommendation,
+             s.created_at as invited_at, s.started_at, s.completed_at,
+             s.conversation,
+             s.config->'job'->>'title' as config_job_title,
+             s.config->'template'->>'title' as config_template_title,
+             (SELECT score FROM interview_evaluations WHERE interview_session_id = s.id ORDER BY created_at DESC LIMIT 1) as overall_score,
+             j.id as job_id, j.title as db_job_title,
              u.id as candidate_id, u.name as candidate_name, u.email as candidate_email,
-             st.title as template_title, st.screening_mode
-      FROM screening_sessions ss
-      JOIN jobs j ON ss.job_id = j.id
-      JOIN users u ON ss.candidate_id = u.id
-      LEFT JOIN screening_templates st ON ss.template_id = st.id
-      WHERE ss.company_id = $1
+             st.title as db_template_title, st.screening_mode
+      FROM interview_sessions s
+      JOIN jobs j ON s.job_id = j.id
+      JOIN users u ON s.candidate_id = u.id
+      LEFT JOIN screening_templates st ON (s.config->'template'->>'id')::int = st.id
+      WHERE s.company_id = $1 AND s.type = 'screening'
     `;
 		const params = [req.user.company_id];
 		let paramIdx = 2;
 
 		if (job_id) {
-			query += ` AND ss.job_id = $${paramIdx}`;
+			query += ` AND s.job_id = $${paramIdx}`;
 			params.push(job_id);
 			paramIdx++;
 		}
 		if (status) {
-			query += ` AND ss.status = $${paramIdx}`;
+			query += ` AND s.status = $${paramIdx}`;
 			params.push(status);
 			paramIdx++;
 		}
 
-		query += ` ORDER BY ss.invited_at DESC LIMIT 100`;
+		query += ` ORDER BY s.created_at DESC LIMIT 100`;
 
 		const result = await pool.query(query, params);
 
@@ -3633,11 +3657,11 @@ router.get('/screening/sessions', authMiddleware, async (req, res) => {
 				overall_score: s.overall_score,
 				recommendation: s.recommendation,
 				job_id: s.job_id,
-				job_title: s.job_title,
+				job_title: s.config_job_title || s.db_job_title,
 				candidate_id: s.candidate_id,
 				candidate_name: s.candidate_name,
 				candidate_email: s.candidate_email,
-				template_title: s.template_title,
+				template_title: s.config_template_title || s.db_template_title,
 				screening_mode: s.screening_mode,
 				invited_at: s.invited_at,
 				started_at: s.started_at,
