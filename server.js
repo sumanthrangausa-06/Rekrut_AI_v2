@@ -782,7 +782,7 @@ const ttsRoutes = require('./routes/tts');
 const aptitudeRoutes = require('./routes/aptitude');
 app.use('/api/voice', voiceRoutes);
 app.use('/api/tts', ttsRoutes);
-app.use('/api/aptitude', aptitudeRoutes);
+app.use('/api', aptitudeRoutes);
 
 // API Routes - Calendar Integration (Google + Outlook)
 const calendarRoutes = require('./routes/calendar');
