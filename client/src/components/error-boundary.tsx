@@ -108,6 +108,17 @@ export class RouteErrorBoundary extends Component<Props, State> {
 						<RefreshCw className="h-4 w-4" />
 						Try Again
 					</button>
+					{this.state.error && (
+						<details className="mt-6 max-w-xl text-left">
+							<summary className="cursor-pointer text-xs text-muted-foreground hover:underline">
+								Error details (copy this when reporting the bug)
+							</summary>
+							<pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs text-destructive whitespace-pre-wrap break-words">
+								{this.state.error.message}
+								{this.state.error.stack ? `\n${this.state.error.stack}` : ''}
+							</pre>
+						</details>
+					)}
 				</div>
 			);
 		}
