@@ -15,6 +15,7 @@ const {
 	calculateCandidateNPS,
 	calculateReapplicationRate,
 	calculateCommunicationResponsiveness,
+	getRecentReviews,
 	MIN_DATA_POINTS,
 } = require('../../../services/trustscore-standalone');
 
@@ -308,5 +309,76 @@ describe('calculateCommunicationResponsiveness', () => {
 
 	test('min data points constant is 10', () => {
 		expect(MIN_DATA_POINTS.COMMUNICATION).toBe(10);
+	});
+});
+
+describe('getRecentReviews', () => {
+	beforeEach(() => {
+		jest.clearAllMocks();
+	});
+
+	test('returns insufficient when fewer than 3 published reviews', async () => {
+		mockQuery.mockResolvedValueOnce({
+			rows: [
+				{
+					total_count: '2',
+					overall_rating: 4,
+					pros: 'Great team',
+					cons: 'Slow promo',
+					review_text: 'Good place',
+					created_at: new Date('2026-01-01'),
+				},
+			],
+		});
+		const result = await getRecentReviews(1);
+		expect(result.sufficient).toBe(false);
+		expect(result.data_points).toBe(2);
+		expect(result.reviews).toEqual([]);
+	});
+
+	test('returns latest 3 published reviews with pros/cons/review_text when sufficient', async () => {
+		const mk = (rating, text) => ({
+			total_count: '5',
+			overall_rating: rating,
+			pros: 'pros text',
+			cons: 'cons text',
+			review_text: text,
+			created_at: new Date('2026-02-01'),
+		});
+		mockQuery.mockResolvedValueOnce({ rows: [mk(5, 'Loved it'), mk(4, 'Good'), mk(3, 'Okay')] });
+		const result = await getRecentReviews(1);
+		expect(result.sufficient).toBe(true);
+		expect(result.data_points).toBe(5);
+		expect(result.reviews).toHaveLength(3);
+		expect(result.reviews[0]).toEqual({
+			overall_rating: 5,
+			pros: 'pros text',
+			cons: 'cons text',
+			review_text: 'Loved it',
+			created_at: expect.any(Date),
+		});
+		// Only published rows come from the query — verify the filter
+		expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining("status = 'published'"), [1]);
+	});
+
+	test('nulls out empty pros/cons/review_text', async () => {
+		const mk = () => ({
+			total_count: '3',
+			overall_rating: 4,
+			pros: '',
+			cons: null,
+			review_text: '',
+			created_at: new Date('2026-03-01'),
+		});
+		mockQuery.mockResolvedValueOnce({ rows: [mk(), mk(), mk()] });
+		const result = await getRecentReviews(1);
+		expect(result.sufficient).toBe(true);
+		expect(result.reviews[0].pros).toBeNull();
+		expect(result.reviews[0].cons).toBeNull();
+		expect(result.reviews[0].review_text).toBeNull();
+	});
+
+	test('min data points constant is 3', () => {
+		expect(MIN_DATA_POINTS.REVIEWS).toBe(3);
 	});
 });
