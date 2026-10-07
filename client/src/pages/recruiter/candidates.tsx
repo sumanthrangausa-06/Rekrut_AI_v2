@@ -8,7 +8,6 @@ import {
 	Clock,
 	Download,
 	Filter,
-	Kanban,
 	List,
 	Mail,
 	MapPin,
@@ -236,7 +235,6 @@ export function RecruiterCandidatesPage() {
 	const [selectedTab, setSelectedTab] = useState(searchParams.get('status') || 'all');
 	const [page, setPage] = useState(1);
 	const [totalPages, setTotalPages] = useState(1);
-	const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
 	const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
 	const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
 	const [showSaveSearchDialog, setShowSaveSearchDialog] = useState(false);
@@ -612,44 +610,6 @@ export function RecruiterCandidatesPage() {
 		}
 	});
 
-	// Kanban board grouping
-	const kanbanColumns = [
-		{
-			id: 'applied',
-			label: 'Applied',
-			color: 'border-blue-200',
-			bg: 'bg-blue-50/50',
-			badge: 'bg-blue-100 text-blue-700',
-		},
-		{
-			id: 'screening',
-			label: 'Screening',
-			color: 'border-amber-200',
-			bg: 'bg-amber-50/50',
-			badge: 'bg-amber-100 text-amber-700',
-		},
-		{
-			id: 'interview',
-			label: 'Interview',
-			color: 'border-purple-200',
-			bg: 'bg-purple-50/50',
-			badge: 'bg-purple-100 text-purple-700',
-		},
-		{
-			id: 'offer',
-			label: 'Offer',
-			color: 'border-green-200',
-			bg: 'bg-green-50/50',
-			badge: 'bg-green-100 text-green-700',
-		},
-		{
-			id: 'hired',
-			label: 'Hired',
-			color: 'border-emerald-200',
-			bg: 'bg-emerald-50/50',
-			badge: 'bg-emerald-100 text-emerald-700',
-		},
-	];
 
 	return (
 		<div className="space-y-6">
@@ -774,19 +734,6 @@ export function RecruiterCandidatesPage() {
 						>
 							<Save className="h-3.5 w-3.5" />
 							Save Search
-						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => setViewMode(viewMode === 'list' ? 'kanban' : 'list')}
-							className="gap-1 min-h-[44px]"
-						>
-							{viewMode === 'list' ? (
-								<Kanban className="h-3.5 w-3.5" />
-							) : (
-								<List className="h-3.5 w-3.5" />
-							)}
-							{viewMode === 'list' ? 'Kanban' : 'List'}
 						</Button>
 						<div className="relative">
 							<select
@@ -982,7 +929,7 @@ export function RecruiterCandidatesPage() {
 							}
 							image={UNSPLASH_IMAGES.emptyCandidates}
 						/>
-					) : viewMode === 'list' ? (
+					) : (
 						<div className="space-y-4">
 							<div className="grid gap-4">
 								{sortedCandidates.map((candidate) => (
@@ -1073,87 +1020,6 @@ export function RecruiterCandidatesPage() {
 									</Button>
 								</div>
 							)}
-						</div>
-					) : (
-						/* Kanban View */
-						<div className="flex gap-4 overflow-x-auto pb-2">
-							{kanbanColumns.map((column) => {
-								const columnCandidates = sortedCandidates.filter(
-									(c) => c.applicationStatus === column.id,
-								);
-								return (
-									<div
-										key={column.id}
-										className={`flex-shrink-0 w-72 rounded-lg border ${column.color} ${column.bg} p-3`}
-									>
-										<div className="flex items-center justify-between mb-3">
-											<h3 className="text-sm font-semibold">{column.label}</h3>
-											<Badge className={`text-xs ${column.badge}`}>{columnCandidates.length}</Badge>
-										</div>
-										<div className="space-y-3">
-											{columnCandidates.map((candidate) => (
-												<div
-													key={candidate.id}
-													className="rounded-lg border bg-white p-3 cursor-pointer hover:shadow-md transition-shadow"
-													onClick={() => handleOpenProfilePreview(candidate)}
-												>
-													<div className="flex items-center gap-2 mb-2">
-														<Avatar
-															className="h-8 w-8"
-															seed={candidate.id}
-															fallback={candidate.name.slice(0, 2).toUpperCase()}
-															useDiceBear={true}
-														/>
-														<div className="min-w-0 flex-1">
-															<p className="text-sm font-medium truncate">{candidate.name}</p>
-															<p className="text-xs text-muted-foreground truncate">
-																{candidate.headline || candidate.location}
-															</p>
-														</div>
-													</div>
-													{candidate.omniscore != null && (
-														<div className="flex items-center gap-2 mb-2">
-															<Zap className="h-3 w-3 text-indigo-500" />
-															<span className="text-xs font-bold text-indigo-600">
-																OmniScore {candidate.omniscore}
-															</span>
-														</div>
-													)}
-													{candidate.matchScore && candidate.matchScore > 0 && (
-														<div className="flex items-center gap-2 mb-2">
-															<div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-																<div
-																	className={`h-full rounded-full ${
-																		candidate.matchScore >= 80
-																			? 'bg-green-500'
-																			: candidate.matchScore >= 60
-																				? 'bg-amber-500'
-																				: 'bg-red-500'
-																	}`}
-																	style={{ width: `${candidate.matchScore}%` }}
-																/>
-															</div>
-															<span className="text-xs font-medium">{candidate.matchScore}%</span>
-														</div>
-													)}
-													<div className="flex flex-wrap gap-1">
-														{candidate.skills.slice(0, 3).map((skill) => (
-															<Badge key={skill} variant="secondary" className="text-[10px]">
-																{skill}
-															</Badge>
-														))}
-													</div>
-												</div>
-											))}
-											{columnCandidates.length === 0 && (
-												<div className="text-center py-6 text-xs text-muted-foreground">
-													No candidates in this stage
-												</div>
-											)}
-										</div>
-									</div>
-								);
-							})}
 						</div>
 					)}
 				</TabsContent>
