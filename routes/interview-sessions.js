@@ -619,6 +619,7 @@ router.post(
 				ai_message: result.ai_message,
 				phase: result.phase,
 				is_complete: result.is_complete,
+				transcript: candidateText,
 			});
 		} catch (err) {
 			console.error('[interview-sessions] respond error:', err.message);
@@ -792,10 +793,69 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 			},
 		});
 
+		// Mirror the legacy screening flow (routes/interviews.js): mark the
+		// linked application as screened so dashboards/kanban reflect it.
+		// Non-blocking: the report above is the primary outcome.
+		if (session.application_id) {
+			try {
+				await pool.query(
+					`UPDATE job_applications
+					    SET screening_status = 'completed', screening_score = $1, updated_at = NOW()
+					  WHERE id = $2`,
+					[report?.overall_score ?? null, session.application_id],
+				);
+			} catch (appErr) {
+				console.error(
+					'[interview-sessions] application screening_status update failed:',
+					appErr.message,
+				);
+			}
+		}
+
 		res.json({ success: true, session: updated.rows[0], report });
 	} catch (err) {
 		console.error('[interview-sessions] complete error:', err.message);
 		res.status(500).json({ error: 'Failed to complete interview session' });
+	}
+});
+
+// GET /interview-sessions/:id/report — candidate-facing screening report.
+// Candidate-scoped: only the session owner (or hiring team via canAccess)
+// may read it. Returns candidate-safe report fields only — never raw AI
+// prompts or internal metadata.
+router.get('/interview-sessions/:id/report', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		if (!canAccess(session, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+		const report = session.config?.report || null;
+		if (!report) {
+			return res.status(404).json({ error: 'Report not available yet' });
+		}
+		// Whitelist candidate-safe fields.
+		res.json({
+			success: true,
+			report: {
+				overall_score: report.overall_score ?? null,
+				recommendation: report.recommendation ?? null,
+				recommendation_reasoning: report.recommendation_reasoning ?? null,
+				strengths: report.strengths || [],
+				red_flags: report.red_flags || [],
+				dimension_scores: report.dimension_scores || {},
+				question_scores: report.question_scores || [],
+				key_moments: report.key_moments || [],
+				communication_clarity: report.communication_clarity || null,
+				technical_depth: report.technical_depth || null,
+				confidence_enthusiasm: report.confidence_enthusiasm || null,
+			},
+		});
+	} catch (err) {
+		console.error('[interview-sessions] report error:', err.message);
+		res.status(500).json({ error: 'Failed to load report' });
 	}
 });
 
