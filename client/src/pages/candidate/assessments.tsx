@@ -39,22 +39,36 @@ interface AssessmentResult {
 	copy_paste_attempts: number;
 }
 
+interface AssignedAttempt {
+	attempt_id: number;
+	assessment_id: number;
+	application_id: number;
+	status: string;
+	created_at: string;
+	assessment_title: string;
+	job_id: number;
+	job_title: string;
+}
+
 export function CandidateAssessmentsPage() {
 	const navigate = useNavigate();
 	const [tab, setTab] = useState('available');
 	const [skills, setSkills] = useState<SkillCatalog[]>([]);
 	const [results, setResults] = useState<AssessmentResult[]>([]);
+	const [assigned, setAssigned] = useState<AssignedAttempt[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [starting, setStarting] = useState<string | null>(null);
 
 	const loadData = useCallback(async () => {
 		try {
-			const [skillsRes, resultsRes] = await Promise.allSettled([
+			const [skillsRes, resultsRes, assignedRes] = await Promise.allSettled([
 				apiCall<{ skills: SkillCatalog[] }>('/assessments/available'),
 				apiCall<{ results: AssessmentResult[] }>('/assessments/results'),
+				apiCall<{ attempts: AssignedAttempt[] }>('/assessments/assigned'),
 			]);
 			if (skillsRes.status === 'fulfilled') setSkills(skillsRes.value.skills || []);
 			if (resultsRes.status === 'fulfilled') setResults(resultsRes.value.results || []);
+			if (assignedRes.status === 'fulfilled') setAssigned(assignedRes.value.attempts || []);
 		} catch {
 			// silent
 		} finally {
@@ -149,8 +163,56 @@ export function CandidateAssessmentsPage() {
 			<Tabs value={tab} onValueChange={setTab}>
 				<TabsList>
 					<TabsTrigger value="available">Available Tests</TabsTrigger>
+					<TabsTrigger value="assigned">
+						Assigned to You
+						{assigned.length > 0 && (
+							<Badge variant="default" className="ml-1.5 text-[10px] px-1.5">
+								{assigned.length}
+							</Badge>
+						)}
+					</TabsTrigger>
 					<TabsTrigger value="results">My Results</TabsTrigger>
 				</TabsList>
+
+				<TabsContent value="assigned">
+					{loading ? (
+						<div className="space-y-4 mt-4">
+							<Skeleton variant="card" count={2} />
+						</div>
+					) : assigned.length === 0 ? (
+						<EmptyState
+							icon={Clock}
+							title="No assigned assessments"
+							description="When a recruiter assigns you an assessment for a job you've applied to, it will appear here."
+							className="mt-4"
+						/>
+					) : (
+						<div className="space-y-3 mt-4">
+							{assigned.map((a) => (
+								<Card key={a.attempt_id}>
+									<CardContent className="p-4">
+										<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+											<div>
+												<h4 className="font-medium">{a.assessment_title}</h4>
+												<p className="text-xs text-muted-foreground mt-0.5">
+													{a.job_title} · Assigned{' '}
+													{new Date(a.created_at).toLocaleDateString()}
+												</p>
+											</div>
+											<Button
+												size="sm"
+												className="gap-1 min-h-[44px]"
+												onClick={() => navigate(`/candidate/job-assessment/${a.assessment_id}`)}
+											>
+												<Play className="h-3 w-3" /> Start Test
+											</Button>
+										</div>
+									</CardContent>
+								</Card>
+							))}
+						</div>
+					)}
+				</TabsContent>
 
 				<TabsContent value="available">
 					{loading ? (

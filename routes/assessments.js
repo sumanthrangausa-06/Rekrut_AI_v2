@@ -8,6 +8,22 @@ const { rateLimits } = require('../lib/distributed-rate-limiter');
 const { AuditLogger } = require('../services/auditLogService');
 const { notifyUser } = require('../lib/notify');
 
+// Retake policy for skill self-assessments: a completed assessment blocks a
+// new start for this many days (mirrors aptitude's retake_lockout_days default
+// of 30). Skills have no per-skill config row, so this is a code constant —
+// no admin UI. See POST /start below and canRetake().
+const SKILL_RETAKE_LOCKOUT_DAYS = 30;
+
+// Mirrors canRetake() in routes/aptitude.js: true when the user may start a
+// new attempt, false while a completed attempt is inside the lockout window.
+function canRetakeSkill(lockoutDays, lastCompletedAt) {
+	if (!lastCompletedAt) return true;
+	if (!lockoutDays || lockoutDays <= 0) return true;
+	const lockoutEnd = new Date(lastCompletedAt);
+	lockoutEnd.setDate(lockoutEnd.getDate() + lockoutDays);
+	return new Date() >= lockoutEnd;
+}
+
 // Skill catalog - available to all candidates without pre-existing skills
 const SKILL_CATALOG = [
 	{
@@ -166,6 +182,7 @@ router.get('/available', authMiddleware, async (req, res) => {
 				assessment_count: userSkill ? parseInt(userSkill.assessment_count, 10) : 0,
 				best_score: userSkill ? userSkill.best_score : null,
 				last_attempted: userSkill ? userSkill.last_attempted : null,
+				can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, userSkill?.last_attempted),
 			};
 		});
 
@@ -187,6 +204,7 @@ router.get('/available', authMiddleware, async (req, res) => {
 					assessment_count: parseInt(skill.assessment_count, 10),
 					best_score: skill.best_score,
 					last_attempted: skill.last_attempted,
+					can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, skill.last_attempted),
 				});
 			}
 		}
@@ -221,6 +239,29 @@ router.get('/results', authMiddleware, async (req, res) => {
 	} catch (error) {
 		console.error('Error fetching assessment results:', error);
 		res.status(500).json({ error: 'Failed to fetch results' });
+	}
+});
+
+// Candidate: job assessments currently assigned to me (status 'assigned').
+// Powers the "Assigned to you" section — without this, candidates only learn
+// about assignments from the notification, which previously had no link.
+router.get('/assigned', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`SELECT jaa.id AS attempt_id, jaa.assessment_id, jaa.application_id, jaa.status,
+              jaa.created_at, ja.title AS assessment_title, ja.job_id, j.title AS job_title
+       FROM job_assessment_attempts jaa
+       JOIN job_assessments ja ON ja.id = jaa.assessment_id
+       JOIN jobs j ON j.id = ja.job_id
+       WHERE jaa.candidate_id = $1 AND jaa.status = 'assigned'
+       ORDER BY jaa.created_at DESC`,
+			[req.user.id],
+		);
+
+		res.json({ attempts: result.rows });
+	} catch (error) {
+		console.error('Error fetching assigned assessments:', error);
+		res.status(500).json({ error: 'Failed to fetch assigned assessments' });
 	}
 });
 
@@ -270,6 +311,28 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 		if (!skill) {
 			await client.query('ROLLBACK');
 			return res.status(400).json({ error: 'Skill name or ID required' });
+		}
+
+		// Retake lockout: a completed assessment inside the lockout window
+		// blocks a new start (mirrors aptitude's RETAKE_LOCKOUT). Checked
+		// before abandoning any in-progress session, same order as aptitude.
+		const lastCompleted = await client.query(
+			`SELECT completed_at FROM skill_assessments
+       WHERE user_id = $1 AND skill_id = $2 AND completed_at IS NOT NULL
+       ORDER BY completed_at DESC LIMIT 1`,
+			[userId, skill.id],
+		);
+		if (
+			lastCompleted.rows.length > 0 &&
+			!canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, lastCompleted.rows[0].completed_at)
+		) {
+			await client.query('ROLLBACK');
+			return res.status(403).json({
+				error: 'Retake lockout active',
+				code: 'RETAKE_LOCKOUT',
+				lockoutDays: SKILL_RETAKE_LOCKOUT_DAYS,
+				lastCompletedAt: lastCompleted.rows[0].completed_at,
+			});
 		}
 
 		// Check for active session
@@ -1206,9 +1269,32 @@ router.get('/recruiter/detail/:assessmentId', authMiddleware, async (req, res) =
 // POST /api/assessments/assign — Recruiter assigns an assessment to a candidate application
 router.post('/assign', authMiddleware, async (req, res) => {
 	try {
+		// Hiring-team only (#343 task 2) — checked before anything else so
+		// unauthorized callers learn nothing about applications or assessments.
+		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+		if (!recruiterRoles.includes(req.user.role)) {
+			return res.status(403).json({ error: 'Recruiter access required', code: 'RECRUITER_ONLY' });
+		}
+
 		const { assessment_id, application_id } = req.body;
 		if (!assessment_id || !application_id) {
 			return res.status(400).json({ error: 'assessment_id and application_id are required' });
+		}
+
+		// Optional deadline (#343 task 3): must be a valid future timestamp.
+		let dueDate = null;
+		if (req.body.due_date !== undefined && req.body.due_date !== null) {
+			dueDate = new Date(req.body.due_date);
+			if (Number.isNaN(dueDate.getTime())) {
+				return res
+					.status(400)
+					.json({ error: 'due_date must be a valid timestamp', code: 'INVALID_DUE_DATE' });
+			}
+			if (dueDate <= new Date()) {
+				return res
+					.status(400)
+					.json({ error: 'due_date must be in the future', code: 'INVALID_DUE_DATE' });
+			}
 		}
 
 		// Verify the application belongs to the recruiter's company and get candidate/job
@@ -1247,12 +1333,14 @@ router.post('/assign', authMiddleware, async (req, res) => {
 		}
 
 		const attempt = await pool.query(
-			`INSERT INTO job_assessment_attempts (assessment_id, candidate_id, application_id, status)
-       VALUES ($1, $2, $3, 'assigned') RETURNING *`,
-			[assessment_id, a.candidate_id, application_id],
+			`INSERT INTO job_assessment_attempts (assessment_id, candidate_id, application_id, status, due_date)
+       VALUES ($1, $2, $3, 'assigned', $4) RETURNING *`,
+			[assessment_id, a.candidate_id, application_id, dueDate],
 		);
 
-		// In-app notification for the candidate (non-blocking)
+		// In-app notification for the candidate (non-blocking).
+		// metadata.url deep-links the notification center's "View" action
+		// straight to the take page (notification-center.tsx).
 		notifyUser(
 			a.candidate_id,
 			'assessment_assigned',
@@ -1263,6 +1351,7 @@ router.post('/assign', authMiddleware, async (req, res) => {
 				assessment_id,
 				application_id,
 				job_id: a.job_id,
+				url: `/candidate/job-assessment/${assessment_id}`,
 			},
 		);
 
@@ -1504,6 +1593,14 @@ router.get('/job/:jobId', authMiddleware, async (req, res) => {
 			[assessment.id],
 		);
 
+		// I1 (#343 review): never leak grading material to non-hiring users.
+		// The candidate job-detail page calls this endpoint on every job view,
+		// so full rows would expose the entire question bank with answers.
+		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+		const questionRows = recruiterRoles.includes(req.user.role)
+			? questions.rows
+			: questions.rows.map(({ correct_answer, rubric, explanation, ...rest }) => rest);
+
 		// Get attempt stats
 		const stats = await pool.query(
 			`
@@ -1518,7 +1615,7 @@ router.get('/job/:jobId', authMiddleware, async (req, res) => {
 		res.json({
 			assessment: {
 				...assessment,
-				questions: questions.rows,
+				questions: questionRows,
 				stats: stats.rows[0] || {},
 			},
 		});
@@ -1623,6 +1720,11 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 			return res.status(404).json({ error: 'Assessment not found or not published' });
 		}
 
+		// Recruiters may preview any published assessment; candidates may only
+		// start when they have an assigned (or in-progress) attempt (#343 task 2).
+		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+		const isRecruiter = recruiterRoles.includes(req.user.role);
+
 		// Check for existing active attempt
 		let existing = await pool.query(
 			"SELECT * FROM job_assessment_attempts WHERE assessment_id = $1 AND candidate_id = $2 AND status = 'in_progress'",
@@ -1636,6 +1738,13 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 				[assessmentId, candidateId],
 			);
 			if (assigned.rows.length > 0) {
+				// Deadline: an assigned attempt past its due_date can't be started (#343 task 3).
+				if (assigned.rows[0].due_date && new Date(assigned.rows[0].due_date) < new Date()) {
+					return res.status(410).json({
+						error: 'This assessment assignment has expired',
+						code: 'ASSESSMENT_EXPIRED',
+					});
+				}
 				await pool.query(
 					`UPDATE job_assessment_attempts SET status = 'in_progress', started_at = NOW() WHERE id = $1`,
 					[assigned.rows[0].id],
@@ -1648,6 +1757,13 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 		if (existing.rows.length > 0) {
 			// Resume existing attempt
 			const attempt = existing.rows[0];
+			// Deadline: an in_progress attempt past its due_date can't continue (#343 task 3).
+			if (attempt.due_date && new Date(attempt.due_date) < new Date()) {
+				return res.status(410).json({
+					error: 'This assessment assignment has expired',
+					code: 'ASSESSMENT_EXPIRED',
+				});
+			}
 			const answers =
 				typeof attempt.answers === 'string' ? JSON.parse(attempt.answers) : attempt.answers || [];
 			const nextIndex = answers.length;
@@ -1662,6 +1778,8 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 				attemptId: attempt.id,
 				resumed: true,
 				progress: { current: nextIndex + 1, total: questions.rows.length },
+				timeLimitMinutes: assessment.rows[0].time_limit_minutes || 45,
+				startedAt: attempt.started_at,
 				question: nextQ
 					? {
 							id: nextQ.id,
@@ -1678,7 +1796,14 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 			});
 		}
 
-		// Create new attempt
+		// Create new attempt — recruiter preview only. Candidates without an
+		// assigned attempt cannot self-start (#343 task 2).
+		if (!isRecruiter) {
+			return res.status(403).json({
+				error: 'No assessment assignment found for this candidate',
+				code: 'ASSIGNMENT_REQUIRED',
+			});
+		}
 		const attempt = await pool.query(
 			`
       INSERT INTO job_assessment_attempts (assessment_id, candidate_id, application_id, status)
@@ -1704,6 +1829,8 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 			attemptId: attempt.rows[0].id,
 			resumed: false,
 			progress: { current: 1, total: parseInt(totalCount.rows[0].total, 10) },
+			timeLimitMinutes: assessment.rows[0].time_limit_minutes || 45,
+			startedAt: attempt.rows[0].started_at,
 			question: firstQ
 				? {
 						id: firstQ.id,
@@ -1734,9 +1861,12 @@ router.post('/job-assessment/:id/answer', authMiddleware, async (req, res) => {
 
 		await client.query('BEGIN');
 
-		// Get attempt
+		// Get attempt (join the assessment for its time_limit_minutes)
 		const attemptResult = await client.query(
-			"SELECT * FROM job_assessment_attempts WHERE id = $1 AND candidate_id = $2 AND status = 'in_progress'",
+			`SELECT jaa.*, ja.time_limit_minutes
+       FROM job_assessment_attempts jaa
+       JOIN job_assessments ja ON ja.id = jaa.assessment_id
+       WHERE jaa.id = $1 AND jaa.candidate_id = $2 AND jaa.status = 'in_progress'`,
 			[attemptId, candidateId],
 		);
 		if (attemptResult.rows.length === 0) {
@@ -1744,6 +1874,28 @@ router.post('/job-assessment/:id/answer', authMiddleware, async (req, res) => {
 			return res.status(404).json({ error: 'Active attempt not found' });
 		}
 		const attempt = attemptResult.rows[0];
+
+		// Deadline: reject answers on expired attempts (#343 task 3).
+		if (attempt.due_date && new Date(attempt.due_date) < new Date()) {
+			await client.query('ROLLBACK');
+			return res.status(410).json({
+				error: 'This assessment assignment has expired',
+				code: 'ASSESSMENT_EXPIRED',
+			});
+		}
+
+		// Overall time limit: started_at + time_limit_minutes (#343 task 3).
+		const timeLimitMinutes = attempt.time_limit_minutes || 45;
+		if (
+			attempt.started_at &&
+			Date.now() - new Date(attempt.started_at).getTime() > timeLimitMinutes * 60 * 1000
+		) {
+			await client.query('ROLLBACK');
+			return res.status(410).json({
+				error: 'The time limit for this assessment has elapsed',
+				code: 'TIME_LIMIT_EXCEEDED',
+			});
+		}
 
 		// Get question
 		const qResult = await client.query(
@@ -1880,6 +2032,12 @@ async function scoreAttempt(attemptId, assessmentId) {
 		]);
 		if (attempt.rows.length === 0) return;
 		const att = attempt.rows[0];
+
+		// Idempotency (I1): never re-score an already-scored attempt — the
+		// async path (candidate's last answer) and POST /score can both fire
+		// on the same attempt, and a re-run would double-notify. A failed
+		// scoring run leaves scored_at NULL, so retries still work.
+		if (att.scored_at) return;
 
 		const answers = typeof att.answers === 'string' ? JSON.parse(att.answers) : att.answers || [];
 		if (answers.length === 0) return;
@@ -2075,8 +2233,82 @@ Return ONLY valid JSON:
 		console.log(
 			`[scoring] Attempt ${attemptId} scored: ${compositeScore}% (${earnedPoints}/${totalPoints} pts)`,
 		);
+
+		// Round-trip the result to the linked application: score write,
+		// conservative stage advance on pass, recruiter notification (#343 task 4).
+		// Non-blocking — failures are logged inside, never thrown.
+		await roundTripAssessmentResult(att, assessmentId, compositeScore);
 	} catch (error) {
 		console.error('[scoring] Failed to score attempt:', error);
+	}
+}
+
+// Round-trip a scored job assessment to its linked application (#343 task 4).
+// Called at the end of scoreAttempt so BOTH the async path (candidate's last
+// answer) and the manual POST /job-assessment/:id/score path are covered.
+//
+// What it does:
+//  1. Writes assessment_score + assessment_result ('pass'/'fail') to
+//     job_applications (migration 233).
+//  2. On pass, advances a 'screening' application to 'shortlisted'. A fail is
+//     marked but never auto-rejects — signals, not verdicts. Applications in
+//     any other stage keep their stage and only record the score.
+//  3. Fires the 'assessment_completed' in-app notification to the recruiter.
+//
+// Conservative by design: the stage only moves out of 'screening', and every
+// step is guarded (missing application, missing recruiter). Non-blocking —
+// failures are logged, never thrown; the attempt is already scored.
+async function roundTripAssessmentResult(att, assessmentId, compositeScore) {
+	if (!att?.application_id || att.status !== 'completed') return;
+	try {
+		const aRes = await pool.query('SELECT passing_score FROM job_assessments WHERE id = $1', [
+			assessmentId,
+		]);
+		const passingScore = aRes.rows[0]?.passing_score ?? 70;
+		const passed = compositeScore >= passingScore;
+		const result = passed ? 'pass' : 'fail';
+
+		const appRes = await pool.query('SELECT id, status FROM job_applications WHERE id = $1', [
+			att.application_id,
+		]);
+		if (appRes.rows.length === 0) return;
+
+		if (appRes.rows[0].status === 'screening' && passed) {
+			await pool.query(
+				`UPDATE job_applications SET status = 'shortlisted', assessment_score = $1, assessment_result = $2, updated_at = NOW() WHERE id = $3 AND status = 'screening'`,
+				[compositeScore, result, att.application_id],
+			);
+		} else {
+			await pool.query(
+				`UPDATE job_applications SET assessment_score = $1, assessment_result = $2, updated_at = NOW() WHERE id = $3`,
+				[compositeScore, result, att.application_id],
+			);
+		}
+
+		const appInfo = await pool.query(
+			`SELECT ja.job_id, j.user_id as recruiter_id, j.title as job_title, u.name as candidate_name
+       FROM job_applications ja JOIN jobs j ON j.id = ja.job_id JOIN users u ON u.id = ja.candidate_id
+       WHERE ja.id = $1`,
+			[att.application_id],
+		);
+		const info = appInfo.rows[0];
+		if (info?.recruiter_id) {
+			await notifyUser(
+				info.recruiter_id,
+				'assessment_completed',
+				'Assessment completed',
+				`${info.candidate_name} completed the assessment for ${info.job_title} — score ${compositeScore ?? 'N/A'}.`,
+				{
+					attempt_id: att.id,
+					assessment_id: assessmentId,
+					application_id: att.application_id,
+					job_id: info.job_id,
+					composite_score: compositeScore,
+				},
+			);
+		}
+	} catch (err) {
+		console.error('[scoring] Round-trip to application failed:', err.message);
 	}
 }
 
@@ -2106,33 +2338,6 @@ router.post('/job-assessment/:id/score', authMiddleware, async (req, res) => {
 		const result = await pool.query('SELECT * FROM job_assessment_attempts WHERE id = $1', [
 			attemptId,
 		]);
-
-		// In-app notification for the recruiter when a candidate completes an assigned assessment
-		const att = result.rows[0];
-		if (att?.application_id && att?.status === 'completed') {
-			const appInfo = await pool.query(
-				`SELECT ja.job_id, j.user_id as recruiter_id, j.title as job_title, u.name as candidate_name
-         FROM job_applications ja JOIN jobs j ON j.id = ja.job_id JOIN users u ON u.id = ja.candidate_id
-         WHERE ja.id = $1`,
-				[att.application_id],
-			);
-			const info = appInfo.rows[0];
-			if (info?.recruiter_id) {
-				notifyUser(
-					info.recruiter_id,
-					'assessment_completed',
-					'Assessment completed',
-					`${info.candidate_name} completed the assessment for ${info.job_title} — score ${att.composite_score ?? 'N/A'}.`,
-					{
-						attempt_id: attemptId,
-						assessment_id: assessmentId,
-						application_id: att.application_id,
-						job_id: info.job_id,
-						composite_score: att.composite_score,
-					},
-				);
-			}
-		}
 
 		res.json({ attempt: result.rows[0] || null });
 	} catch (error) {
@@ -2221,11 +2426,44 @@ router.get('/job-assessments/all', authMiddleware, async (req, res) => {
 router.post('/job-assessment/:id/converse', authMiddleware, rateLimits.ai, async (req, res) => {
 	try {
 		const assessmentId = req.params.id;
-		const _candidateId = req.user.id;
+		const candidateId = req.user.id;
 		const { attemptId, questionId, message } = req.body;
 
 		if (!attemptId || !message) {
 			return res.status(400).json({ error: 'attemptId and message required' });
+		}
+
+		// Ownership: only the attempt owner may converse on it (IDOR fix, #343 I2).
+		const attemptResult = await pool.query(
+			`SELECT jaa.*, ja.time_limit_minutes
+       FROM job_assessment_attempts jaa
+       JOIN job_assessments ja ON ja.id = jaa.assessment_id
+       WHERE jaa.id = $1 AND jaa.candidate_id = $2 AND jaa.status = 'in_progress'`,
+			[attemptId, candidateId],
+		);
+		if (attemptResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Active attempt not found' });
+		}
+		const attempt = attemptResult.rows[0];
+
+		// Deadline: reject converse on expired attempts (#343 I1).
+		if (attempt.due_date && new Date(attempt.due_date) < new Date()) {
+			return res.status(410).json({
+				error: 'This assessment assignment has expired',
+				code: 'ASSESSMENT_EXPIRED',
+			});
+		}
+
+		// Overall time limit: started_at + time_limit_minutes (#343 I1).
+		const timeLimitMinutes = attempt.time_limit_minutes || 45;
+		if (
+			attempt.started_at &&
+			Date.now() - new Date(attempt.started_at).getTime() > timeLimitMinutes * 60 * 1000
+		) {
+			return res.status(410).json({
+				error: 'The time limit for this assessment has elapsed',
+				code: 'TIME_LIMIT_EXCEEDED',
+			});
 		}
 
 		// Get the question context

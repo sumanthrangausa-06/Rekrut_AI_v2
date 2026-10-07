@@ -53,8 +53,11 @@ export function JobAssessmentTakePage() {
 	const [submitting, setSubmitting] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [completed, setCompleted] = useState(false);
+	const [startError, setStartError] = useState<string | null>(null);
 	const [feedback, setFeedback] = useState<string | null>(null);
 	const [timeLeft, setTimeLeft] = useState(0);
+	const [overallTimeLeft, setOverallTimeLeft] = useState<number | null>(null);
+	const [expired, setExpired] = useState(false);
 	const [scoring, setScoring] = useState(false);
 
 	// Conversational mode
@@ -74,6 +77,8 @@ export function JobAssessmentTakePage() {
 				resumed: boolean;
 				progress: Progress;
 				question: Question | null;
+				timeLimitMinutes?: number;
+				startedAt?: string;
 			}>(`/assessments/job-assessment/${assessmentId}/start`, {
 				method: 'POST',
 				body: { applicationId: applicationId ? Number(applicationId) : undefined },
@@ -86,8 +91,21 @@ export function JobAssessmentTakePage() {
 				setTimeLeft(data.question.timeLimit || 120);
 				startTimeRef.current = Date.now();
 			}
+			// Overall time limit (#343 task 3): countdown from startedAt + timeLimitMinutes.
+			if (data.timeLimitMinutes && data.startedAt) {
+				const elapsedSec = Math.floor((Date.now() - new Date(data.startedAt).getTime()) / 1000);
+				const remaining = data.timeLimitMinutes * 60 - elapsedSec;
+				if (remaining <= 0) {
+					setExpired(true);
+				} else {
+					setOverallTimeLeft(remaining);
+				}
+			}
 		} catch (e: any) {
 			console.error('Failed to start assessment:', e);
+			// Surface server errors (e.g. 403 when the candidate has no
+			// assignment) instead of the generic "no questions" state below.
+			setStartError(e?.message || 'Failed to start assessment');
 		} finally {
 			setLoading(false);
 		}
@@ -99,8 +117,22 @@ export function JobAssessmentTakePage() {
 
 	// Timer
 
+	// Overall countdown (#343 task 3): ticks once the attempt starts; the
+	// server enforces the same limit on /answer, this is the visible clock.
+	useEffect(() => {
+		if (expired || completed) return;
+		const id = setInterval(() => {
+			setOverallTimeLeft((prev) => (prev === null ? prev : Math.max(0, prev - 1)));
+		}, 1000);
+		return () => clearInterval(id);
+	}, [expired, completed]);
+
+	useEffect(() => {
+		if (overallTimeLeft === 0 && !expired) setExpired(true);
+	}, [overallTimeLeft, expired]);
+
 	async function submitAnswer() {
-		if (!attemptId || !question) return;
+		if (!attemptId || !question || expired) return;
 		setSubmitting(true);
 		setFeedback(null);
 
@@ -240,12 +272,32 @@ export function JobAssessmentTakePage() {
 		);
 	}
 
+	if (expired) {
+		return (
+			<div className="max-w-xl mx-auto py-12 text-center space-y-4 px-4 sm:px-6">
+				<AlertTriangle className="h-10 w-10 text-red-500 mx-auto" />
+				<h2 className="text-xl font-bold">Time Expired</h2>
+				<p className="text-muted-foreground">
+					The time limit for this assessment has elapsed. Your submitted answers have been
+					saved.
+				</p>
+				<Button variant="outline" onClick={() => navigate(-1)}>
+					Go Back
+				</Button>
+			</div>
+		);
+	}
+
 	if (!question) {
 		return (
 			<div className="max-w-xl mx-auto py-12 text-center space-y-4 px-4 sm:px-6">
 				<AlertTriangle className="h-10 w-10 text-amber-500 mx-auto" />
-				<h2 className="text-xl font-bold">No Questions Available</h2>
-				<p className="text-muted-foreground">This assessment doesn't have any questions yet.</p>
+				<h2 className="text-xl font-bold">
+					{startError ? 'Cannot Start Assessment' : 'No Questions Available'}
+				</h2>
+				<p className="text-muted-foreground">
+					{startError || "This assessment doesn't have any questions yet."}
+				</p>
 				<Button variant="outline" onClick={() => navigate(-1)}>
 					Go Back
 				</Button>
@@ -279,6 +331,15 @@ export function JobAssessmentTakePage() {
 							<Clock className={`h-3.5 w-3.5 ${isLowTime ? 'animate-pulse' : ''}`} />
 							{minutes}:{seconds.toString().padStart(2, '0')}
 						</span>
+						{overallTimeLeft !== null && (
+							<span
+								className={`flex items-center gap-1 font-mono text-sm ${overallTimeLeft < 300 ? 'text-red-600 font-bold' : 'text-muted-foreground'}`}
+								title="Total time remaining for this assessment"
+							>
+								<Clock className={`h-3.5 w-3.5 ${overallTimeLeft < 300 ? 'animate-pulse' : ''}`} />
+								{Math.floor(overallTimeLeft / 60)}:{(overallTimeLeft % 60).toString().padStart(2, '0')}
+							</span>
+						)}
 					</div>
 				</div>
 				<div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -287,6 +348,12 @@ export function JobAssessmentTakePage() {
 						style={{ width: `${(progress.current / progress.total) * 100}%` }}
 					/>
 				</div>
+			</div>
+
+			{/* AI disclosure (#343 task 5) */}
+			<div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700">
+				<AlertTriangle className="h-4 w-4 shrink-0" />
+				<span>This assessment is scored by AI and reviewed by a human.</span>
 			</div>
 
 			{/* Question Card */}
