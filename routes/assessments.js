@@ -265,6 +265,36 @@ router.get('/assigned', authMiddleware, async (req, res) => {
 	}
 });
 
+// Candidate: get my own attempt's score (transparency — candidates see their results).
+// Only returns composite_score and pass/fail; never correct_answer/rubric.
+router.get('/attempt/:attemptId/score', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`SELECT jaa.composite_score, jaa.status, jaa.scored_at,
+              ja.passing_score
+       FROM job_assessment_attempts jaa
+       JOIN job_assessments ja ON ja.id = jaa.assessment_id
+       WHERE jaa.id = $1 AND jaa.candidate_id = $2`,
+			[req.params.attemptId, req.user.id],
+		);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Attempt not found' });
+		}
+		const row = result.rows[0];
+		const passed =
+			row.composite_score != null && row.composite_score >= (row.passing_score ?? 70);
+		res.json({
+			composite_score: row.composite_score,
+			status: row.status,
+			scored: !!row.scored_at,
+			result: row.composite_score != null ? (passed ? 'pass' : 'fail') : null,
+		});
+	} catch (error) {
+		console.error('Error fetching attempt score:', error);
+		res.status(500).json({ error: 'Failed to fetch score' });
+	}
+});
+
 // Start new assessment - accepts skillName+category OR skillId (AI RATE LIMITED)
 router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 	const client = await pool.connect();
@@ -2290,7 +2320,8 @@ async function roundTripAssessmentResult(att, assessmentId, compositeScore) {
 		]);
 		if (appRes.rows.length === 0) return;
 
-		if (appRes.rows[0].status === 'screening' && passed) {
+		const advancedToShortlisted = appRes.rows[0].status === 'screening' && passed;
+		if (advancedToShortlisted) {
 			await pool.query(
 				`UPDATE job_applications SET status = 'shortlisted', assessment_score = $1, assessment_result = $2, updated_at = NOW() WHERE id = $3 AND status = 'screening'`,
 				[compositeScore, result, att.application_id],
@@ -2321,6 +2352,40 @@ async function roundTripAssessmentResult(att, assessmentId, compositeScore) {
 					application_id: att.application_id,
 					job_id: info.job_id,
 					composite_score: compositeScore,
+				},
+			);
+		}
+		// Transparency: the candidate sees their own score, not just the recruiter.
+		// Non-blocking — notifyUser never throws, and scoring must not fail on notify.
+		if (att.candidate_id) {
+			await notifyUser(
+				att.candidate_id,
+				'assessment_scored',
+				'Assessment scored',
+				`Your assessment for ${info?.job_title ?? 'the role'} was scored: ${compositeScore ?? 'N/A'}/100 (${result}).`,
+				{
+					attempt_id: att.id,
+					assessment_id: assessmentId,
+					application_id: att.application_id,
+					job_id: info?.job_id,
+					composite_score: compositeScore,
+					assessment_result: result,
+					url: `/candidate/applications`,
+				},
+			);
+		}
+		// Transparency: a silent stage move is a black box — tell the candidate.
+		if (advancedToShortlisted && att.candidate_id) {
+			await notifyUser(
+				att.candidate_id,
+				'application_shortlisted',
+				"You've been shortlisted",
+				`Great news — your assessment score moved you to the shortlist for ${info?.job_title ?? 'the role'}. The hiring team will be in touch with next steps.`,
+				{
+					application_id: att.application_id,
+					job_id: info?.job_id,
+					composite_score: compositeScore,
+					url: `/candidate/applications`,
 				},
 			);
 		}

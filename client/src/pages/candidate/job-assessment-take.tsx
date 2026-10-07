@@ -59,6 +59,8 @@ export function JobAssessmentTakePage() {
 	const [overallTimeLeft, setOverallTimeLeft] = useState<number | null>(null);
 	const [expired, setExpired] = useState(false);
 	const [scoring, setScoring] = useState(false);
+	const [finalScore, setFinalScore] = useState<number | null>(null);
+	const [finalResult, setFinalResult] = useState<'pass' | 'fail' | null>(null);
 
 	// Conversational mode
 	const [conversationMode, setConversationMode] = useState(false);
@@ -156,7 +158,31 @@ export function JobAssessmentTakePage() {
 			if (data.completed) {
 				setCompleted(true);
 				setScoring(true);
-				setTimeout(() => setScoring(false), 5000);
+				// Poll for the score — the server scores async after the last answer.
+				// Transparency: show the candidate their own score, not just "recruiter will review".
+				const pollScore = async (tries = 0) => {
+					if (!attemptId || tries > 10) {
+						setScoring(false);
+						return;
+					}
+					try {
+						const s = await apiCall<{
+							composite_score: number | null;
+							scored: boolean;
+							result: 'pass' | 'fail' | null;
+						}>(`/assessments/attempt/${attemptId}/score`);
+						if (s.scored && s.composite_score != null) {
+							setFinalScore(s.composite_score);
+							setFinalResult(s.result);
+							setScoring(false);
+							return;
+						}
+					} catch {
+						/* keep polling */
+					}
+					setTimeout(() => pollScore(tries + 1), 2000);
+				};
+				setTimeout(() => pollScore(), 3000);
 				return;
 			}
 
@@ -250,12 +276,23 @@ export function JobAssessmentTakePage() {
 							<Trophy className="h-8 w-8 text-green-600" />
 						</div>
 						<h2 className="text-2xl font-bold">Assessment Complete!</h2>
-						<p className="text-muted-foreground max-w-md mx-auto">
-							{scoring
-								? 'Your answers are being scored by AI. Results will be available shortly.'
-								: 'Your assessment has been submitted and scored. The recruiter will review your results.'}
-						</p>
-						{scoring && (
+						{finalScore != null ? (
+							<div className="space-y-2">
+								<div className="text-5xl font-bold text-green-700">{finalScore}/100</div>
+								<p className="text-muted-foreground max-w-md mx-auto">
+									{finalResult === 'pass'
+										? 'You passed this assessment. The hiring team will be in touch with next steps.'
+										: 'Your assessment has been scored. Check your applications page for updates from the hiring team.'}
+								</p>
+							</div>
+						) : (
+							<p className="text-muted-foreground max-w-md mx-auto">
+								{scoring
+									? 'Your answers are being scored by AI. Results will be available shortly.'
+									: 'Your assessment has been submitted and scored. The recruiter will review your results.'}
+							</p>
+						)}
+						{scoring && finalScore == null && (
 							<div className="flex items-center justify-center gap-2 text-violet-600">
 								<Loader2 className="h-4 w-4 animate-spin" />
 								<span className="text-sm font-medium">AI is scoring your answers...</span>
