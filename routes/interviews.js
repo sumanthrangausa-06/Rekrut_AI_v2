@@ -2955,18 +2955,6 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'Template and candidate are required' });
 		}
 
-		// Validate candidate_id against the application when provided — the
-		// invite must go to the candidate who owns the application.
-		if (application_id) {
-			const appCheck = await pool.query(
-				'SELECT candidate_id FROM job_applications WHERE id = $1',
-				[application_id],
-			);
-			if (appCheck.rows.length > 0 && Number(appCheck.rows[0].candidate_id) !== Number(candidate_id)) {
-				return res.status(400).json({ error: 'Candidate does not match the application' });
-			}
-		}
-
 		// Get template (company-scoped — the recruiter's explicit choice)
 		const template = await pool.query(
 			'SELECT * FROM screening_templates WHERE id = $1 AND company_id = $2',
