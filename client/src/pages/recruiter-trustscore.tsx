@@ -214,6 +214,15 @@ export function RecruiterTrustscorePage() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [toasts, setToasts] = useState<Toast[]>([]);
+	const [responsiveness, setResponsiveness] = useState<{
+		score: number;
+		review_rate: number;
+		median_days_to_action: number | null;
+		ghost_rate: number;
+		total_assessments: number;
+		sufficient: boolean;
+	} | null>(null);
+	const [standalone, setStandalone] = useState<Record<string, any> | null>(null);
 
 	const showToast = useCallback((message: string, type: ToastType = 'info') => {
 		const id = `${Date.now()}-${Math.random()}`;
@@ -231,12 +240,16 @@ export function RecruiterTrustscorePage() {
 		setLoading(true);
 		setError(null);
 		try {
-			const [tsData, bdData] = await Promise.all([
+			const [tsData, bdData, respData, standaloneData] = await Promise.all([
 				apiCall<{ success: boolean; trustscore: V1Score }>('/trustscore'),
 				apiCall<BreakdownResponse>('/trustscore/breakdown'),
+				apiCall<any>('/trustscore/assessment-responsiveness').catch(() => null),
+				apiCall<Record<string, any>>('/trustscore/standalone').catch(() => null),
 			]);
 			setTrustscore(tsData.trustscore);
 			setBreakdown(bdData);
+			if (respData?.sufficient) setResponsiveness(respData);
+			if (standaloneData) setStandalone(standaloneData);
 		} catch (err: any) {
 			setError(err.message || 'Failed to load TrustScore data');
 			showToast(err.message || 'Failed to load TrustScore data', 'error');
@@ -444,6 +457,168 @@ export function RecruiterTrustscorePage() {
 						})}
 					</div>
 				</div>
+
+				{/* Assessment Responsiveness (standalone metric, not a v2 factor) */}
+				{responsiveness && (
+					<div className="mb-8">
+						<h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+							<Clock className="w-5 h-5 text-blue-400" />
+							Assessment Responsiveness
+							<span className="text-xs font-normal text-gray-400 ml-2">
+								Private to your team · based on {responsiveness.total_assessments} assessments
+							</span>
+						</h2>
+						<Card className="bg-white/10 backdrop-blur-lg border-white/20">
+							<CardContent className="pt-5 pb-4">
+								<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+									<div>
+										<p className="text-xs text-gray-400 mb-1">Overall</p>
+										<p className="text-2xl font-bold text-white">{responsiveness.score}/100</p>
+									</div>
+									<div>
+										<p className="text-xs text-gray-400 mb-1">Review rate</p>
+										<p className="text-2xl font-bold text-white">{responsiveness.review_rate}%</p>
+										<p className="text-xs text-gray-500 mt-1">Assessments your team reviewed</p>
+									</div>
+									<div>
+										<p className="text-xs text-gray-400 mb-1">Median time to action</p>
+										<p className="text-2xl font-bold text-white">
+											{responsiveness.median_days_to_action !== null
+												? `${responsiveness.median_days_to_action}d`
+												: '—'}
+										</p>
+										<p className="text-xs text-gray-500 mt-1">Score to first follow-up</p>
+									</div>
+									<div>
+										<p className="text-xs text-gray-400 mb-1">Ghost rate</p>
+										<p className="text-2xl font-bold text-white">{responsiveness.ghost_rate}%</p>
+										<p className="text-xs text-gray-500 mt-1">Assessments with no follow-up</p>
+									</div>
+								</div>
+								{responsiveness.ghost_rate > 20 && (
+									<p className="text-xs text-amber-400 mt-4">
+										Tip: {responsiveness.ghost_rate}% of candidates who completed assessments
+										never heard back. Following up — even with a rejection — builds trust.
+									</p>
+								)}
+							</CardContent>
+						</Card>
+					</div>
+				)}
+
+				{/* Standalone Metrics (not v2 factors) */}
+				{standalone && (
+					<div className="mb-8">
+						<h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+							<Star className="w-5 h-5 text-yellow-400" />
+							Additional Insights
+							<span className="text-xs font-normal text-gray-400 ml-2">
+								Private to your team
+							</span>
+						</h2>
+						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+							{standalone.workplace_culture?.sufficient && (
+								<Card className="bg-white/10 backdrop-blur-lg border-white/20">
+									<CardContent className="pt-5 pb-4">
+										<p className="text-sm font-medium text-white mb-2">Workplace Culture</p>
+										<p className="text-2xl font-bold text-white">
+											{standalone.workplace_culture.score}/100
+										</p>
+										<p className="text-xs text-gray-400 mt-1">
+											Based on {standalone.workplace_culture.data_points} reviews
+										</p>
+									</CardContent>
+								</Card>
+							)}
+							{standalone.candidate_nps?.sufficient && (
+								<Card className="bg-white/10 backdrop-blur-lg border-white/20">
+									<CardContent className="pt-5 pb-4">
+										<p className="text-sm font-medium text-white mb-2">Candidate NPS</p>
+										<p className="text-2xl font-bold text-white">
+											{standalone.candidate_nps.nps >= 0 ? '+' : ''}
+											{standalone.candidate_nps.nps}
+										</p>
+										<p className="text-xs text-gray-400 mt-1">
+											{standalone.candidate_nps.promoters} recommend ·{' '}
+											{standalone.candidate_nps.detractors} don't
+										</p>
+									</CardContent>
+								</Card>
+							)}
+							{standalone.reapplication_rate?.sufficient && (
+								<Card className="bg-white/10 backdrop-blur-lg border-white/20">
+									<CardContent className="pt-5 pb-4">
+										<p className="text-sm font-medium text-white mb-2">Re-application Rate</p>
+										<p className="text-2xl font-bold text-white">
+											{standalone.reapplication_rate.reapplication_rate}%
+										</p>
+										<p className="text-xs text-gray-400 mt-1">
+											Rejected candidates who applied again
+										</p>
+									</CardContent>
+								</Card>
+							)}
+							{standalone.communication?.sufficient && (
+								<Card className="bg-white/10 backdrop-blur-lg border-white/20">
+									<CardContent className="pt-5 pb-4">
+										<p className="text-sm font-medium text-white mb-2">Communication</p>
+										<p className="text-2xl font-bold text-white">
+											~{standalone.communication.median_reply_hours}h
+										</p>
+										<p className="text-xs text-gray-400 mt-1">
+											Median reply time · {standalone.communication.reply_coverage_pct}% get
+											a reply
+										</p>
+									</CardContent>
+								</Card>
+							)}
+							{standalone.offer_decline?.sufficient && (
+								<Card className="bg-white/10 backdrop-blur-lg border-white/20">
+									<CardContent className="pt-5 pb-4">
+										<p className="text-sm font-medium text-white mb-2">Offer Declines</p>
+										<p className="text-2xl font-bold text-white">
+											{standalone.offer_decline.score}/100
+										</p>
+										<p className="text-xs text-gray-400 mt-1">
+											{standalone.offer_decline.company_fault_count} of{' '}
+											{standalone.offer_decline.total_declines} declines were
+											company-related
+										</p>
+									</CardContent>
+								</Card>
+							)}
+							{standalone.posting_efficiency?.sufficient && (
+								<Card className="bg-white/10 backdrop-blur-lg border-white/20">
+									<CardContent className="pt-5 pb-4">
+										<p className="text-sm font-medium text-white mb-2">Posting Efficiency</p>
+										<p className="text-2xl font-bold text-white">
+											{standalone.posting_efficiency.hires_per_posting}
+										</p>
+										<p className="text-xs text-gray-400 mt-1">
+											Hires per posting ({standalone.posting_efficiency.hires} hires,{' '}
+											{standalone.posting_efficiency.postings} postings)
+										</p>
+									</CardContent>
+								</Card>
+							)}
+							{standalone.stage_fluidity?.sufficient && (
+								<Card className="bg-white/10 backdrop-blur-lg border-white/20">
+									<CardContent className="pt-5 pb-4">
+										<p className="text-sm font-medium text-white mb-2">Stage Fluidity</p>
+										<p className="text-2xl font-bold text-white">
+											{standalone.stage_fluidity.score}/100
+										</p>
+										<p className="text-xs text-gray-400 mt-1">
+											{standalone.stage_fluidity.violations.length > 0
+												? `Stuck in: ${standalone.stage_fluidity.violations.join(', ')}`
+												: 'No stuck stages'}
+										</p>
+									</CardContent>
+								</Card>
+							)}
+						</div>
+					</div>
+				)}
 
 				{/* Improvement Guidance */}
 				{guidance.length > 0 && (
