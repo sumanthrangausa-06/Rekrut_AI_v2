@@ -1241,6 +1241,22 @@ router.post('/assign', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'assessment_id and application_id are required' });
 		}
 
+		// Optional deadline (#343 task 3): must be a valid future timestamp.
+		let dueDate = null;
+		if (req.body.due_date !== undefined && req.body.due_date !== null) {
+			dueDate = new Date(req.body.due_date);
+			if (Number.isNaN(dueDate.getTime())) {
+				return res
+					.status(400)
+					.json({ error: 'due_date must be a valid timestamp', code: 'INVALID_DUE_DATE' });
+			}
+			if (dueDate <= new Date()) {
+				return res
+					.status(400)
+					.json({ error: 'due_date must be in the future', code: 'INVALID_DUE_DATE' });
+			}
+		}
+
 		// Verify the application belongs to the recruiter's company and get candidate/job
 		const app = await pool.query(
 			`SELECT ja.id, ja.candidate_id, ja.job_id, ja.company_id, j.title as job_title, u.name as candidate_name
@@ -1277,9 +1293,9 @@ router.post('/assign', authMiddleware, async (req, res) => {
 		}
 
 		const attempt = await pool.query(
-			`INSERT INTO job_assessment_attempts (assessment_id, candidate_id, application_id, status)
-       VALUES ($1, $2, $3, 'assigned') RETURNING *`,
-			[assessment_id, a.candidate_id, application_id],
+			`INSERT INTO job_assessment_attempts (assessment_id, candidate_id, application_id, status, due_date)
+       VALUES ($1, $2, $3, 'assigned', $4) RETURNING *`,
+			[assessment_id, a.candidate_id, application_id, dueDate],
 		);
 
 		// In-app notification for the candidate (non-blocking).
@@ -1682,6 +1698,13 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 				[assessmentId, candidateId],
 			);
 			if (assigned.rows.length > 0) {
+				// Deadline: an assigned attempt past its due_date can't be started (#343 task 3).
+				if (assigned.rows[0].due_date && new Date(assigned.rows[0].due_date) < new Date()) {
+					return res.status(410).json({
+						error: 'This assessment assignment has expired',
+						code: 'ASSESSMENT_EXPIRED',
+					});
+				}
 				await pool.query(
 					`UPDATE job_assessment_attempts SET status = 'in_progress', started_at = NOW() WHERE id = $1`,
 					[assigned.rows[0].id],
@@ -1694,6 +1717,13 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 		if (existing.rows.length > 0) {
 			// Resume existing attempt
 			const attempt = existing.rows[0];
+			// Deadline: an in_progress attempt past its due_date can't continue (#343 task 3).
+			if (attempt.due_date && new Date(attempt.due_date) < new Date()) {
+				return res.status(410).json({
+					error: 'This assessment assignment has expired',
+					code: 'ASSESSMENT_EXPIRED',
+				});
+			}
 			const answers =
 				typeof attempt.answers === 'string' ? JSON.parse(attempt.answers) : attempt.answers || [];
 			const nextIndex = answers.length;
@@ -1708,6 +1738,8 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 				attemptId: attempt.id,
 				resumed: true,
 				progress: { current: nextIndex + 1, total: questions.rows.length },
+				timeLimitMinutes: assessment.rows[0].time_limit_minutes || 45,
+				startedAt: attempt.started_at,
 				question: nextQ
 					? {
 							id: nextQ.id,
@@ -1757,6 +1789,8 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 			attemptId: attempt.rows[0].id,
 			resumed: false,
 			progress: { current: 1, total: parseInt(totalCount.rows[0].total, 10) },
+			timeLimitMinutes: assessment.rows[0].time_limit_minutes || 45,
+			startedAt: attempt.rows[0].started_at,
 			question: firstQ
 				? {
 						id: firstQ.id,
@@ -1787,9 +1821,12 @@ router.post('/job-assessment/:id/answer', authMiddleware, async (req, res) => {
 
 		await client.query('BEGIN');
 
-		// Get attempt
+		// Get attempt (join the assessment for its time_limit_minutes)
 		const attemptResult = await client.query(
-			"SELECT * FROM job_assessment_attempts WHERE id = $1 AND candidate_id = $2 AND status = 'in_progress'",
+			`SELECT jaa.*, ja.time_limit_minutes
+       FROM job_assessment_attempts jaa
+       JOIN job_assessments ja ON ja.id = jaa.assessment_id
+       WHERE jaa.id = $1 AND jaa.candidate_id = $2 AND jaa.status = 'in_progress'`,
 			[attemptId, candidateId],
 		);
 		if (attemptResult.rows.length === 0) {
@@ -1797,6 +1834,28 @@ router.post('/job-assessment/:id/answer', authMiddleware, async (req, res) => {
 			return res.status(404).json({ error: 'Active attempt not found' });
 		}
 		const attempt = attemptResult.rows[0];
+
+		// Deadline: reject answers on expired attempts (#343 task 3).
+		if (attempt.due_date && new Date(attempt.due_date) < new Date()) {
+			await client.query('ROLLBACK');
+			return res.status(410).json({
+				error: 'This assessment assignment has expired',
+				code: 'ASSESSMENT_EXPIRED',
+			});
+		}
+
+		// Overall time limit: started_at + time_limit_minutes (#343 task 3).
+		const timeLimitMinutes = attempt.time_limit_minutes || 45;
+		if (
+			attempt.started_at &&
+			Date.now() - new Date(attempt.started_at).getTime() > timeLimitMinutes * 60 * 1000
+		) {
+			await client.query('ROLLBACK');
+			return res.status(410).json({
+				error: 'The time limit for this assessment has elapsed',
+				code: 'TIME_LIMIT_EXCEEDED',
+			});
+		}
 
 		// Get question
 		const qResult = await client.query(
@@ -2274,11 +2333,44 @@ router.get('/job-assessments/all', authMiddleware, async (req, res) => {
 router.post('/job-assessment/:id/converse', authMiddleware, rateLimits.ai, async (req, res) => {
 	try {
 		const assessmentId = req.params.id;
-		const _candidateId = req.user.id;
+		const candidateId = req.user.id;
 		const { attemptId, questionId, message } = req.body;
 
 		if (!attemptId || !message) {
 			return res.status(400).json({ error: 'attemptId and message required' });
+		}
+
+		// Ownership: only the attempt owner may converse on it (IDOR fix, #343 I2).
+		const attemptResult = await pool.query(
+			`SELECT jaa.*, ja.time_limit_minutes
+       FROM job_assessment_attempts jaa
+       JOIN job_assessments ja ON ja.id = jaa.assessment_id
+       WHERE jaa.id = $1 AND jaa.candidate_id = $2 AND jaa.status = 'in_progress'`,
+			[attemptId, candidateId],
+		);
+		if (attemptResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Active attempt not found' });
+		}
+		const attempt = attemptResult.rows[0];
+
+		// Deadline: reject converse on expired attempts (#343 I1).
+		if (attempt.due_date && new Date(attempt.due_date) < new Date()) {
+			return res.status(410).json({
+				error: 'This assessment assignment has expired',
+				code: 'ASSESSMENT_EXPIRED',
+			});
+		}
+
+		// Overall time limit: started_at + time_limit_minutes (#343 I1).
+		const timeLimitMinutes = attempt.time_limit_minutes || 45;
+		if (
+			attempt.started_at &&
+			Date.now() - new Date(attempt.started_at).getTime() > timeLimitMinutes * 60 * 1000
+		) {
+			return res.status(410).json({
+				error: 'The time limit for this assessment has elapsed',
+				code: 'TIME_LIMIT_EXCEEDED',
+			});
 		}
 
 		// Get the question context
