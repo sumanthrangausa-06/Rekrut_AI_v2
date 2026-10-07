@@ -121,6 +121,8 @@ interface ScreeningResponseData {
 const statuses = [
 	'applied',
 	'screening',
+	'shortlisted',
+	'reviewing',
 	'interviewed',
 	'offered',
 	'hired',
@@ -130,6 +132,8 @@ const statuses = [
 const kanbanStages = [
 	'applied',
 	'screening',
+	'shortlisted',
+	'reviewing',
 	'interviewed',
 	'offered',
 	'hired',

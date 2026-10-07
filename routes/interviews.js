@@ -2968,6 +2968,22 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 		const tmpl = template.rows[0];
 		const resolvedJobId = tmpl.job_id || job_id || null;
 
+		// Validate candidate_id matches the application (if application_id provided)
+		if (application_id) {
+			const appCheck = await pool.query(
+				'SELECT candidate_id FROM job_applications WHERE id = $1',
+				[application_id],
+			);
+			if (
+				appCheck.rows.length > 0 &&
+				String(appCheck.rows[0].candidate_id) !== String(candidate_id)
+			) {
+				return res
+					.status(400)
+					.json({ error: 'Candidate does not match the application' });
+			}
+		}
+
 		// Duplicate check against the unified table (was: screening_sessions).
 		let existing;
 		if (application_id) {
