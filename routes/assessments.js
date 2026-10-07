@@ -8,6 +8,22 @@ const { rateLimits } = require('../lib/distributed-rate-limiter');
 const { AuditLogger } = require('../services/auditLogService');
 const { notifyUser } = require('../lib/notify');
 
+// Retake policy for skill self-assessments: a completed assessment blocks a
+// new start for this many days (mirrors aptitude's retake_lockout_days default
+// of 30). Skills have no per-skill config row, so this is a code constant —
+// no admin UI. See POST /start below and canRetake().
+const SKILL_RETAKE_LOCKOUT_DAYS = 30;
+
+// Mirrors canRetake() in routes/aptitude.js: true when the user may start a
+// new attempt, false while a completed attempt is inside the lockout window.
+function canRetakeSkill(lockoutDays, lastCompletedAt) {
+	if (!lastCompletedAt) return true;
+	if (!lockoutDays || lockoutDays <= 0) return true;
+	const lockoutEnd = new Date(lastCompletedAt);
+	lockoutEnd.setDate(lockoutEnd.getDate() + lockoutDays);
+	return new Date() >= lockoutEnd;
+}
+
 // Skill catalog - available to all candidates without pre-existing skills
 const SKILL_CATALOG = [
 	{
@@ -166,6 +182,7 @@ router.get('/available', authMiddleware, async (req, res) => {
 				assessment_count: userSkill ? parseInt(userSkill.assessment_count, 10) : 0,
 				best_score: userSkill ? userSkill.best_score : null,
 				last_attempted: userSkill ? userSkill.last_attempted : null,
+				can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, userSkill?.last_attempted),
 			};
 		});
 
@@ -187,6 +204,7 @@ router.get('/available', authMiddleware, async (req, res) => {
 					assessment_count: parseInt(skill.assessment_count, 10),
 					best_score: skill.best_score,
 					last_attempted: skill.last_attempted,
+					can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, skill.last_attempted),
 				});
 			}
 		}
@@ -293,6 +311,28 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 		if (!skill) {
 			await client.query('ROLLBACK');
 			return res.status(400).json({ error: 'Skill name or ID required' });
+		}
+
+		// Retake lockout: a completed assessment inside the lockout window
+		// blocks a new start (mirrors aptitude's RETAKE_LOCKOUT). Checked
+		// before abandoning any in-progress session, same order as aptitude.
+		const lastCompleted = await client.query(
+			`SELECT completed_at FROM skill_assessments
+       WHERE user_id = $1 AND skill_id = $2 AND completed_at IS NOT NULL
+       ORDER BY completed_at DESC LIMIT 1`,
+			[userId, skill.id],
+		);
+		if (
+			lastCompleted.rows.length > 0 &&
+			!canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, lastCompleted.rows[0].completed_at)
+		) {
+			await client.query('ROLLBACK');
+			return res.status(403).json({
+				error: 'Retake lockout active',
+				code: 'RETAKE_LOCKOUT',
+				lockoutDays: SKILL_RETAKE_LOCKOUT_DAYS,
+				lastCompletedAt: lastCompleted.rows[0].completed_at,
+			});
 		}
 
 		// Check for active session
