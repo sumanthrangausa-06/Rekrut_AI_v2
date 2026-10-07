@@ -79,7 +79,12 @@ export function LoginPage() {
 	}, []);
 
 	if (isAuthenticated && user) {
-		return <Navigate to={getDashboardPath(user)} replace />;
+		// Honor ?returnTo= for post-auth deep links (e.g. referral /r/:token).
+		// Only internal paths allowed — never an open redirect.
+		const returnTo = searchParams.get('returnTo');
+		const safeReturnTo =
+			returnTo?.startsWith('/') && !returnTo.startsWith('//') ? returnTo : null;
+		return <Navigate to={safeReturnTo ?? getDashboardPath(user)} replace />;
 	}
 
 	const hasOAuth = oauthChecked && (oauthStatus.google || oauthStatus.linkedin);

@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('node:crypto');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { chat, handleAIError } = require('../lib/polsia-ai');
@@ -1389,6 +1390,244 @@ router.post('/assign', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Assign assessment error:', err);
 		res.status(500).json({ error: 'Failed to assign assessment' });
+	}
+});
+
+// Referral links (#349): recruiter generates a tokenized link for a candidate
+// by email. The candidate signs up / logs in, claims it, and lands in a
+// pre-assigned attempt. Raw tokens are never stored (sha256 only, following
+// the oauth_exchange_codes pattern from migration 230).
+function hashReferralToken(rawToken) {
+	return crypto.createHash('sha256').update(rawToken).digest('hex');
+}
+
+const REFERRAL_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// POST /api/assessments/refer/claim — candidate claims a referral after auth.
+// Idempotent: re-claim by the same user returns the existing application/attempt.
+router.post('/refer/claim', authMiddleware, rateLimits.strict, async (req, res) => {
+	try {
+		const { token } = req.body;
+		if (!token || typeof token !== 'string') {
+			return res.status(400).json({ error: 'token is required' });
+		}
+
+		const tokenHash = hashReferralToken(token);
+		const ref = await pool.query(
+			`SELECT ar.*, ja.job_id, ja.title as assessment_title
+       FROM assessment_referrals ar
+       JOIN job_assessments ja ON ja.id = ar.job_assessment_id
+       WHERE ar.token_hash = $1`,
+			[tokenHash],
+		);
+		if (ref.rows.length === 0) {
+			return res.status(404).json({ error: 'Referral not found' });
+		}
+		const referral = ref.rows[0];
+
+		if (referral.due_date && new Date(referral.due_date) < new Date()) {
+			return res.status(410).json({ error: 'Referral expired', code: 'REFERRAL_EXPIRED' });
+		}
+
+		// Links aren't transferable: the claimant's email must match.
+		if ((req.user.email || '').toLowerCase() !== (referral.email || '').toLowerCase()) {
+			return res.status(403).json({ error: 'This referral was issued to a different email' });
+		}
+
+		// Already claimed by someone else.
+		if (referral.claimed_by_user_id && referral.claimed_by_user_id !== req.user.id) {
+			return res.status(409).json({ error: 'Referral already claimed' });
+		}
+
+		await pool.query('BEGIN');
+		try {
+			// Atomically claim (single-claim enforced by the WHERE clause).
+			if (!referral.claimed_by_user_id) {
+				const claimed = await pool.query(
+					`UPDATE assessment_referrals SET claimed_by_user_id = $1, claimed_at = NOW()
+           WHERE id = $2 AND claimed_by_user_id IS NULL`,
+					[req.user.id, referral.id],
+				);
+				if (claimed.rowCount === 0) {
+					await pool.query('ROLLBACK');
+					return res.status(409).json({ error: 'Referral already claimed' });
+				}
+			}
+
+			// Find or create the application (UNIQUE(job_id, candidate_id)).
+			const app = await pool.query(
+				`SELECT id, status FROM job_applications WHERE job_id = $1 AND candidate_id = $2`,
+				[referral.job_id, req.user.id],
+			);
+			let applicationId;
+			if (app.rows.length > 0) {
+				applicationId = app.rows[0].id;
+			} else {
+				const job = await pool.query(`SELECT company_id FROM jobs WHERE id = $1`, [
+					referral.job_id,
+				]);
+				const created = await pool.query(
+					`INSERT INTO job_applications (candidate_id, job_id, company_id, status, applied_via)
+           VALUES ($1, $2, $3, 'applied', 'referral') RETURNING id`,
+					[req.user.id, referral.job_id, job.rows[0]?.company_id || null],
+				);
+				applicationId = created.rows[0].id;
+			}
+
+			// Find or create the attempt: resume in-progress, return completed, else assign.
+			const existing = await pool.query(
+				`SELECT id, status, composite_score FROM job_assessment_attempts
+         WHERE assessment_id = $1 AND candidate_id = $2 AND status IN ('assigned','in_progress','completed')
+         ORDER BY created_at DESC LIMIT 1`,
+				[referral.job_assessment_id, req.user.id],
+			);
+			let attempt;
+			if (existing.rows.length > 0) {
+				attempt = existing.rows[0];
+			} else {
+				const created = await pool.query(
+					`INSERT INTO job_assessment_attempts (assessment_id, candidate_id, application_id, status, due_date)
+           VALUES ($1, $2, $3, 'assigned', $4) RETURNING id, status`,
+					[referral.job_assessment_id, req.user.id, applicationId, referral.due_date],
+				);
+				attempt = created.rows[0];
+			}
+
+			await pool.query('COMMIT');
+			res.json({
+				application_id: applicationId,
+				attempt_id: attempt.id,
+				status: attempt.status,
+				composite_score: attempt.composite_score ?? null,
+				redirect_url: `/candidate/job-assessment/${referral.job_assessment_id}`,
+			});
+		} catch (err) {
+			await pool.query('ROLLBACK');
+			throw err;
+		}
+	} catch (err) {
+		console.error('Claim referral error:', err);
+		res.status(500).json({ error: 'Failed to claim referral' });
+	}
+});
+
+// POST /api/assessments/:id/refer — hiring-team only. Creates a referral link.
+router.post('/:id/refer', authMiddleware, rateLimits.strict, async (req, res) => {
+	try {
+		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+		if (!recruiterRoles.includes(req.user.role)) {
+			return res.status(403).json({ error: 'Recruiter access required', code: 'RECRUITER_ONLY' });
+		}
+
+		const { email, due_date } = req.body;
+		if (!email || !REFERRAL_EMAIL_RE.test(email)) {
+			return res.status(400).json({ error: 'A valid email is required' });
+		}
+
+		// Assessment must exist, be published, and belong to the recruiter's company.
+		const asm = await pool.query(
+			`SELECT ja.id, ja.title FROM job_assessments ja
+       JOIN jobs j ON j.id = ja.job_id
+       WHERE ja.id = $1 AND j.company_id = $2 AND ja.status = 'published'`,
+			[req.params.id, req.user.company_id],
+		);
+		if (asm.rows.length === 0) {
+			return res.status(404).json({ error: 'Published assessment not found' });
+		}
+
+		let dueDate = new Date(Date.now() + 30 * 864e5); // default 30 days
+		if (due_date !== undefined && due_date !== null) {
+			dueDate = new Date(due_date);
+			if (Number.isNaN(dueDate.getTime())) {
+				return res.status(400).json({ error: 'due_date must be a valid timestamp' });
+			}
+			if (dueDate <= new Date()) {
+				return res.status(400).json({ error: 'due_date must be in the future' });
+			}
+		}
+
+		const rawToken = crypto.randomBytes(32).toString('hex');
+		const tokenHash = hashReferralToken(rawToken);
+		const created = await pool.query(
+			`INSERT INTO assessment_referrals (job_assessment_id, email, token_hash, created_by, due_date)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, due_date`,
+			[req.params.id, email.toLowerCase(), tokenHash, req.user.id, dueDate],
+		);
+
+		res.json({
+			referral_url: `/r/${rawToken}`,
+			expires_at: created.rows[0].due_date,
+		});
+	} catch (err) {
+		console.error('Create referral error:', err);
+		res.status(500).json({ error: 'Failed to create referral' });
+	}
+});
+
+// GET /api/assessments/refer/:token/preview — public. Sanitized assessment info.
+// Never includes correct_answer, rubric, explanation, or question text.
+router.get('/refer/:token/preview', rateLimits.strict, async (req, res) => {
+	try {
+		const tokenHash = hashReferralToken(req.params.token);
+		const ref = await pool.query(
+			`SELECT ar.due_date, ar.email,
+              ja.id, ja.title, ja.description, ja.status, ja.time_limit_minutes,
+              j.title as job_title, j.company_id,
+              c.name as company_name
+       FROM assessment_referrals ar
+       JOIN job_assessments ja ON ja.id = ar.job_assessment_id
+       JOIN jobs j ON j.id = ja.job_id
+       LEFT JOIN companies c ON c.id = j.company_id
+       WHERE ar.token_hash = $1`,
+			[tokenHash],
+		);
+		if (ref.rows.length === 0) {
+			return res.status(404).json({ error: 'Referral not found' });
+		}
+		const r = ref.rows[0];
+
+		if (r.due_date && new Date(r.due_date) < new Date()) {
+			return res.status(410).json({ error: 'Referral expired', code: 'REFERRAL_EXPIRED' });
+		}
+		if (r.status !== 'published') {
+			return res.status(410).json({ error: 'Assessment is no longer available' });
+		}
+
+		// Evaluation dimensions: distinct question categories only.
+		const cats = await pool.query(
+			`SELECT DISTINCT category FROM job_assessment_questions WHERE assessment_id = $1`,
+			[r.id],
+		);
+		const count = await pool.query(
+			`SELECT COUNT(*) as count FROM job_assessment_questions WHERE assessment_id = $1`,
+			[r.id],
+		);
+
+		// Company trust score: cheap read-only lookup, no side effects.
+		let trustscore = null;
+		if (r.company_id) {
+			const ts = await pool.query(`SELECT total_score, score_tier FROM trust_scores WHERE company_id = $1`, [
+				r.company_id,
+			]);
+			if (ts.rows.length > 0) {
+				trustscore = { score: ts.rows[0].total_score, tier: ts.rows[0].score_tier };
+			}
+		}
+
+		res.json({
+			job_title: r.job_title,
+			company_name: r.company_name,
+			company_trustscore: trustscore,
+			assessment_title: r.title,
+			assessment_description: r.description,
+			dimensions: cats.rows.map((c) => c.category),
+			question_count: parseInt(count.rows[0].count, 10),
+			time_limit_minutes: r.time_limit_minutes,
+			due_date: r.due_date,
+		});
+	} catch (err) {
+		console.error('Referral preview error:', err);
+		res.status(500).json({ error: 'Failed to load preview' });
 	}
 });
 router.get('/recruiter/catalog', authMiddleware, async (req, res) => {
