@@ -23,18 +23,21 @@ describe('calculateAssessmentResponsiveness', () => {
 		jest.clearAllMocks();
 	});
 
-	test('returns insufficient when fewer than 5 assessments', async () => {
-		mockQuery.mockResolvedValueOnce({ rows: [{}, {}, {}] }); // 3 attempts
+	test('returns insufficient when fewer than 5 linked assessments', async () => {
+		mockQuery.mockResolvedValueOnce({
+			rows: [{ application_id: 1 }, { application_id: 2 }, { application_id: null }],
+		});
 		const result = await calculateAssessmentResponsiveness(1);
 		expect(result.sufficient).toBe(false);
-		expect(result.total_assessments).toBe(3);
+		// null application_id excluded from count
+		expect(result.total_assessments).toBe(2);
 	});
 
 	test('computes review rate, ghost rate, and median days', async () => {
 		const now = new Date();
 		const scoredAt = new Date(now - 5 * 24 * 60 * 60 * 1000); // 5 days ago
+		const actionAt = new Date(scoredAt.getTime() + 2 * 24 * 60 * 60 * 1000); // 2 days after scoring
 
-		// 5 completed attempts
 		mockQuery.mockImplementation((sql) => {
 			if (sql.includes('job_assessment_attempts')) {
 				return Promise.resolve({
@@ -44,29 +47,24 @@ describe('calculateAssessmentResponsiveness', () => {
 						scored_at: scoredAt,
 						job_id: 100,
 						assessment_id: 200 + i,
+						application_id: 900 + i,
 					})),
 				});
 			}
 			if (sql.includes("action_type = 'assessment_result.viewed'")) {
-				// 3 of 5 viewed
+				// 3 of 5 assessments viewed
 				return Promise.resolve({
 					rows: [{ assessment_id: 201 }, { assessment_id: 202 }, { assessment_id: 203 }],
 				});
 			}
-			if (sql.includes('FROM job_applications')) {
-				return Promise.resolve({ rows: [{ id: 999 }] });
-			}
 			if (sql.includes("action_type = 'application_status_changed'")) {
-				// Action 2 days after scoring for 4 of 5; 1 ghost (null)
-				const callCount = mockQuery.mock.calls.filter((c) =>
-					c[0].includes('application_status_changed'),
-				).length;
-				if (callCount <= 4) {
-					return Promise.resolve({
-						rows: [{ first_action: new Date(scoredAt.getTime() + 2 * 24 * 60 * 60 * 1000) }],
-					});
-				}
-				return Promise.resolve({ rows: [{ first_action: null }] });
+				// 4 of 5 have actions; app 905 is a ghost
+				return Promise.resolve({
+					rows: [901, 902, 903, 904].map((id) => ({
+						application_id: id,
+						first_action: actionAt,
+					})),
+				});
 			}
 			return Promise.resolve({ rows: [] });
 		});
@@ -80,6 +78,8 @@ describe('calculateAssessmentResponsiveness', () => {
 		expect(result.median_days_to_action).toBe(2);
 		expect(result.score).toBeGreaterThan(0);
 		expect(result.score).toBeLessThanOrEqual(100);
+		// Only 3 queries: attempts, viewed, actions (no N+1)
+		expect(mockQuery).toHaveBeenCalledTimes(3);
 	});
 
 	test('min data points constant is 5', () => {

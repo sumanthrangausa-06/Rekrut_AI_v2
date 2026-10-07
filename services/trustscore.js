@@ -725,9 +725,12 @@ async function calculateSalaryCompetitiveness(companyId) {
  * Assessment Responsiveness — standalone metric (NOT a v2 factor)
  *
  * Measures how promptly the hiring team acts on completed assessments:
- * - review_rate: % of completed assessments where a recruiter viewed results
+ * - review_rate: % of assessments with linked applications where a recruiter viewed results
+ *   (viewing the results page counts all attempts on that assessment as reviewed)
  * - median_days_to_action: median days from scored_at to first recruiter-initiated status change
- * - ghost_rate: % of completed assessments with no recruiter action ever
+ * - ghost_rate: % of linked assessments with no recruiter action ever
+ * Attempts without a matching job application are excluded — a recruiter cannot
+ * act on a nonexistent application.
  *
  * Kept standalone (not in TRUST_V2_FACTORS) because:
  * 1. Cold start — ~0 companies will have 5+ assessments at launch
@@ -739,13 +742,17 @@ async function calculateSalaryCompetitiveness(companyId) {
 const ASSESSMENT_RESPONSIVENESS_MIN_DATA_POINTS = 5;
 
 async function calculateAssessmentResponsiveness(companyId) {
-	// Get all completed assessment attempts for this company
+	// Get all completed assessment attempts for this company, joined to their applications
+	// in a single query (avoids N+1). Attempts without a matching application are excluded
+	// from the denominator — a recruiter cannot act on a nonexistent application.
 	const attempts = await pool.query(
 		`
-    SELECT jaa.id as attempt_id, jaa.candidate_id, jaa.scored_at, ja.job_id, ja.id as assessment_id
+    SELECT jaa.id as attempt_id, jaa.candidate_id, jaa.scored_at, ja.job_id, ja.id as assessment_id,
+           jap.id as application_id
     FROM job_assessment_attempts jaa
     JOIN job_assessments ja ON ja.id = jaa.assessment_id
     JOIN jobs j ON j.id = ja.job_id
+    LEFT JOIN job_applications jap ON jap.job_id = ja.job_id AND jap.candidate_id = jaa.candidate_id
     WHERE j.company_id = $1
       AND jaa.status = 'completed'
       AND jaa.scored_at IS NOT NULL
@@ -754,7 +761,9 @@ async function calculateAssessmentResponsiveness(companyId) {
 		[companyId],
 	);
 
-	const total = attempts.rows.length;
+	// Only attempts with a linked application count toward the metric
+	const linked = attempts.rows.filter((a) => a.application_id !== null);
+	const total = linked.length;
 	if (total < ASSESSMENT_RESPONSIVENESS_MIN_DATA_POINTS) {
 		return {
 			review_rate: 0,
@@ -766,6 +775,7 @@ async function calculateAssessmentResponsiveness(companyId) {
 	}
 
 	// Check which assessments were viewed (assessment_result.viewed audit events)
+	// Viewing the results page reviews all attempts on that assessment.
 	const viewed = await pool.query(
 		`
     SELECT DISTINCT target_id as assessment_id
@@ -774,49 +784,41 @@ async function calculateAssessmentResponsiveness(companyId) {
       AND target_type = 'job_assessment'
       AND target_id = ANY($1)
   `,
-		[attempts.rows.map((a) => a.assessment_id)],
+		[linked.map((a) => a.assessment_id)],
 	);
 	const viewedIds = new Set(viewed.rows.map((r) => parseInt(r.assessment_id, 10)));
 
-	// For each attempt, find the first recruiter-initiated status change after scoring
-	// Link via (job_id, candidate_id) → job_applications
+	// First recruiter-initiated status change per application, in one query.
+	// user_id IS NOT NULL excludes system auto-advances.
+	const appIds = linked.map((a) => a.application_id);
+	const actions = await pool.query(
+		`
+    SELECT target_id as application_id, MIN(created_at) as first_action
+    FROM audit_logs
+    WHERE action_type = 'application_status_changed'
+      AND target_type = 'job_application'
+      AND target_id = ANY($1)
+      AND user_id IS NOT NULL
+    GROUP BY target_id
+  `,
+		[appIds],
+	);
+	const firstActionByApp = new Map(
+		actions.rows.map((r) => [parseInt(r.application_id, 10), new Date(r.first_action)]),
+	);
+
 	let reviewedCount = 0;
 	let ghostCount = 0;
 	const daysToAction = [];
 
-	for (const attempt of attempts.rows) {
+	for (const attempt of linked) {
 		if (viewedIds.has(attempt.assessment_id)) reviewedCount++;
 
-		// Find the application for this candidate+job
-		const app = await pool.query(
-			`SELECT id FROM job_applications WHERE job_id = $1 AND candidate_id = $2 LIMIT 1`,
-			[attempt.job_id, attempt.candidate_id],
-		);
-		if (app.rows.length === 0) {
-			ghostCount++; // No application found = no action possible
-			continue;
-		}
-
-		// First recruiter-initiated status change after scoring
-		// (user_id IS NOT NULL excludes system auto-advances)
-		const action = await pool.query(
-			`
-      SELECT MIN(created_at) as first_action
-      FROM audit_logs
-      WHERE action_type = 'application_status_changed'
-        AND target_type = 'job_application'
-        AND target_id = $1
-        AND user_id IS NOT NULL
-        AND created_at > $2
-    `,
-			[app.rows[0].id, attempt.scored_at],
-		);
-
-		if (action.rows[0].first_action) {
-			const days =
-				(new Date(action.rows[0].first_action) - new Date(attempt.scored_at)) /
-				(1000 * 60 * 60 * 24);
-			daysToAction.push(Math.max(0, days));
+		const firstAction = firstActionByApp.get(attempt.application_id);
+		const scoredAt = new Date(attempt.scored_at);
+		if (firstAction && firstAction > scoredAt) {
+			const days = (firstAction - scoredAt) / (1000 * 60 * 60 * 24);
+			daysToAction.push(days);
 		} else {
 			ghostCount++;
 		}

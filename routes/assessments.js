@@ -2702,6 +2702,24 @@ router.get('/job-assessment/:id/results', authMiddleware, async (req, res) => {
 			[assessmentId],
 		);
 
+		// Audit: track result views for TrustScore assessment_responsiveness (non-blocking)
+		try {
+			await AuditLogger.log({
+				actionType: 'assessment_result.viewed',
+				userId: req.user.id,
+				targetType: 'job_assessment',
+				targetId: parseInt(assessmentId, 10),
+				metadata: {
+					attempt_id: attemptId || null,
+					candidate_id: candidateId || null,
+					viewer_role: req.user.role,
+				},
+				req,
+			});
+		} catch (auditErr) {
+			console.error('Assessment view audit failed (non-blocking):', auditErr.message);
+		}
+
 		res.json({
 			assessment: assessment.rows[0] || null,
 			attempts: results.rows,
