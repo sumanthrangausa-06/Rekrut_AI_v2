@@ -501,6 +501,7 @@ router.get('/standalone', authMiddleware, requireRecruiter, async (req, res) => 
 			offerDecline,
 			postingEfficiency,
 			stageFluidity,
+			recentReviews,
 		] = await Promise.all([
 			standaloneMetrics.calculateWorkplaceCulture(companyId),
 			standaloneMetrics.calculateCandidateNPS(companyId),
@@ -509,6 +510,7 @@ router.get('/standalone', authMiddleware, requireRecruiter, async (req, res) => 
 			standaloneMetrics.calculateOfferDeclineAnalysis(companyId),
 			standaloneMetrics.calculatePostingEfficiency(companyId),
 			standaloneMetrics.calculateStageFluidity(companyId),
+			standaloneMetrics.getRecentReviews(companyId),
 		]);
 
 		res.json({
@@ -519,6 +521,7 @@ router.get('/standalone', authMiddleware, requireRecruiter, async (req, res) => 
 			offer_decline: offerDecline,
 			posting_efficiency: postingEfficiency,
 			stage_fluidity: stageFluidity,
+			recent_reviews: recentReviews,
 		});
 	} catch (err) {
 		console.error('Standalone metrics error:', err);
@@ -546,6 +549,7 @@ router.get('/standalone/:companyId', async (req, res) => {
 			offerDecline,
 			postingEfficiency,
 			stageFluidity,
+			recentReviews,
 		] = await Promise.all([
 			standaloneMetrics.calculateWorkplaceCulture(companyId),
 			standaloneMetrics.calculateCandidateNPS(companyId),
@@ -554,6 +558,7 @@ router.get('/standalone/:companyId', async (req, res) => {
 			standaloneMetrics.calculateOfferDeclineAnalysis(companyId),
 			standaloneMetrics.calculatePostingEfficiency(companyId),
 			standaloneMetrics.calculateStageFluidity(companyId),
+			standaloneMetrics.getRecentReviews(companyId),
 		]);
 
 		// Only expose sufficient metrics publicly
@@ -565,6 +570,7 @@ router.get('/standalone/:companyId', async (req, res) => {
 		if (offerDecline.sufficient) result.offer_decline = offerDecline;
 		if (postingEfficiency.sufficient) result.posting_efficiency = postingEfficiency;
 		if (stageFluidity.sufficient) result.stage_fluidity = stageFluidity;
+		if (recentReviews.sufficient) result.recent_reviews = recentReviews;
 
 		res.json(result);
 	} catch (err) {

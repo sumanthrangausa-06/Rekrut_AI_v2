@@ -24,6 +24,7 @@ const MIN_DATA_POINTS = {
 	OFFER_DECLINE: 3,
 	POSTING_EFFICIENCY: 3,
 	STAGE_FLUIDITY: 5,
+	REVIEWS: 3,
 };
 
 /**
@@ -503,6 +504,42 @@ async function calculateStageFluidity(companyId) {
 	};
 }
 
+/**
+ * Recent Reviews — latest published employee reviews (pros/cons/review_text).
+ * Exposed publicly so candidates see what employees actually wrote, not just
+ * aggregate scores. Requires MIN_DATA_POINTS.REVIEWS published reviews so a
+ * single review can't de-anonymize the author.
+ */
+async function getRecentReviews(companyId) {
+	const result = await pool.query(
+		`
+    SELECT COUNT(*) OVER () AS total_count,
+      overall_rating, pros, cons, review_text, created_at
+    FROM company_ratings
+    WHERE company_id = $1 AND status = 'published'
+    ORDER BY created_at DESC
+    LIMIT 3
+  `,
+		[companyId],
+	);
+
+	const dataPoints = result.rows.length > 0 ? parseInt(result.rows[0].total_count, 10) : 0;
+
+	if (dataPoints < MIN_DATA_POINTS.REVIEWS) {
+		return { sufficient: false, data_points: dataPoints, reviews: [] };
+	}
+
+	const reviews = result.rows.map((r) => ({
+		overall_rating: r.overall_rating,
+		pros: r.pros || null,
+		cons: r.cons || null,
+		review_text: r.review_text || null,
+		created_at: r.created_at,
+	}));
+
+	return { sufficient: true, data_points: dataPoints, reviews };
+}
+
 module.exports = {
 	MIN_DATA_POINTS,
 	calculateWorkplaceCulture,
@@ -512,4 +549,5 @@ module.exports = {
 	calculateOfferDeclineAnalysis,
 	calculatePostingEfficiency,
 	calculateStageFluidity,
+	getRecentReviews,
 };
