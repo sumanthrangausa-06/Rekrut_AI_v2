@@ -1473,8 +1473,8 @@ Return ONLY valid JSON:
       "category": "technical|scenario|behavioral|code_challenge",
       "question_type": "multiple_choice|free_text|scenario_response|code_challenge",
       "question_text": "The question",
-      "options": ["A", "B", "C", "D"] or null,
-      "correct_answer": "A" or null,
+      "options": ["A", "B", "C", "D"],
+      "correct_answer": "A",
       "rubric": "What makes a good answer (for free text/scenario)",
       "explanation": "Why the correct answer is right",
       "difficulty_level": 1-5,
@@ -1485,7 +1485,8 @@ Return ONLY valid JSON:
 }`;
 
 		const response = await chat(prompt, {
-			maxTokens: 4096,
+			maxTokens: 8000,
+			response_format: { type: 'json_object' },
 			system:
 				'You are a senior hiring manager creating job-specific assessments. Generate practical, relevant questions that test real-world capability. Always return valid JSON.',
 			module: 'assessments',
@@ -1494,7 +1495,10 @@ Return ONLY valid JSON:
 
 		const parsed = safeParseJSON(response);
 		if (!parsed?.questions || !Array.isArray(parsed.questions)) {
-			console.error('[assessment-gen] Failed to parse AI response');
+			console.error(
+				'[assessment-gen] Failed to parse AI response. Preview:',
+				String(response).slice(0, 500),
+			);
 			return res.status(500).json({ error: 'Failed to generate assessment. Please try again.' });
 		}
 
