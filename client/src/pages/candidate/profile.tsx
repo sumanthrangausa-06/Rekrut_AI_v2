@@ -2942,7 +2942,7 @@ function SkillsTab({
 	function getSuggestions(query: string): string[] {
 		if (!query.trim()) return [];
 		const q = query.toLowerCase();
-		const existing = new Set(skills.map((s) => s.skill_name.toLowerCase()));
+		const existing = new Set(skills.map((s) => (s.skill_name || '').toLowerCase()));
 		return PREDEFINED_SKILLS.filter(
 			(s) => s.toLowerCase().includes(q) && !existing.has(s.toLowerCase()),
 		).slice(0, 8);
