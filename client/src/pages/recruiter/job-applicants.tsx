@@ -78,6 +78,7 @@ interface Applicant {
 	cover_letter?: string;
 	screening_answers?: string;
 	screening_status?: string | null;
+	screening_expires_at?: string | null;
 	screening_score?: number | null;
 	recruiter_notes?: string;
 	matching_skills?: string[] | string;
@@ -384,8 +385,8 @@ export function RecruiterJobApplicantsPage() {
 			if (selected?.id === appId) {
 				setSelected((prev) => (prev ? { ...prev, status: newStatus } : null));
 			}
-		} catch {
-			// silent
+		} catch (err: any) {
+			setActionMsg(err.message || 'Failed to update status');
 		} finally {
 			setUpdating(false);
 		}
@@ -944,9 +945,15 @@ export function RecruiterJobApplicantsPage() {
 																<Badge
 																	variant="outline"
 																	className="shrink-0 text-[10px] gap-0.5 text-purple-600 border-purple-200 bg-purple-50"
+																	title={app.screening_expires_at ? `Expires: ${new Date(app.screening_expires_at).toLocaleString()}` : undefined}
 																>
 																	Screening: {app.screening_status}
 																	{app.screening_score != null && ` (${app.screening_score})`}
+																	{app.screening_expires_at && (
+																		<span className="ml-1 text-purple-500">
+																			· {new Date(app.screening_expires_at).toLocaleDateString()}
+																		</span>
+																	)}
 																</Badge>
 															)}
 															{app.match_score != null && app.match_score >= 80 && (
