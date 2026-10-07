@@ -3537,6 +3537,100 @@ Only return JSON.`;
 	}
 });
 
+// One-Click Apply — generate tailored resume, cover letter, and match analysis in one call (RATE LIMITED)
+// Does NOT submit the application; frontend submits separately via POST /candidate/jobs/:id/apply
+router.post('/ai/one-click-apply', authMiddleware, rateLimits.ai, async (req, res) => {
+	try {
+		const { job_id } = req.body;
+		if (!job_id) return res.status(400).json({ error: 'job_id required' });
+		const { chat } = require('../lib/polsia-ai');
+
+		const profile = await pool.query(
+			`
+      SELECT cp.*, u.name, u.email FROM candidate_profiles cp
+      RIGHT JOIN users u ON u.id = cp.user_id WHERE u.id = $1
+    `,
+			[req.user.id],
+		);
+		const skills = await pool.query(
+			'SELECT skill_name, years_experience FROM candidate_skills WHERE user_id = $1',
+			[req.user.id],
+		);
+		const experience = await pool.query(
+			'SELECT company_name, title, description FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC LIMIT 3',
+			[req.user.id],
+		);
+		const education = await pool.query(
+			'SELECT institution, degree, field_of_study FROM education WHERE user_id = $1 ORDER BY end_date DESC LIMIT 2',
+			[req.user.id],
+		);
+		const job = await pool.query(
+			'SELECT title, company, description, requirements FROM jobs WHERE id = $1',
+			[job_id],
+		);
+
+		if (!job.rows[0]) return res.status(404).json({ error: 'Job not found' });
+
+		const prompt = `You are helping a candidate apply to a job. Generate tailored application documents and a match analysis.
+
+CANDIDATE:
+Name: ${profile.rows[0]?.name || 'Not provided'}
+Email: ${profile.rows[0]?.email || 'Not provided'}
+Summary: ${profile.rows[0]?.summary || 'None listed'}
+Skills: ${skills.rows.map((s) => `${s.skill_name} (${s.years_experience || '?'}y)`).join(', ') || 'None listed'}
+Recent Experience: ${experience.rows.map((e) => `${e.title} at ${e.company_name}: ${e.description?.substring(0, 200)}`).join('\n') || 'None listed'}
+Education: ${education.rows.map((e) => `${e.degree} in ${e.field_of_study} from ${e.institution}`).join('; ') || 'None listed'}
+
+JOB:
+Title: ${job.rows[0].title} at ${job.rows[0].company}
+Description: ${job.rows[0].description?.substring(0, 800) || 'Not provided'}
+Requirements: ${job.rows[0].requirements?.substring(0, 500) || 'Not provided'}
+
+Return JSON with exactly these fields:
+{
+  "resume": "Tailored resume text highlighting relevant experience for this job (concise, professional)",
+  "cover_letter": "Compelling cover letter (3-4 paragraphs, specific to this job, no generic filler)",
+  "match_summary": "2-3 sentence summary of how well the candidate matches this job",
+  "key_strengths": ["3-5 specific strengths relevant to this job"],
+  "why_fit": "1-2 paragraphs on why this candidate is a great fit for this specific role"
+}
+Only return JSON.`;
+
+		const result = await chat(prompt, {
+			system:
+				'You are an expert career coach. Be authentic, specific, and persuasive. Never use generic filler. Always return valid JSON.',
+			module: 'resume_tools',
+			feature: 'one_click_apply',
+		});
+
+		let parsed;
+		try {
+			parsed = JSON.parse(result);
+		} catch {
+			const m = result.match(/\{[\s\S]*\}/);
+			parsed = m ? JSON.parse(m[0]) : { error: 'Parse failed' };
+		}
+
+		if (parsed.error) {
+			return res.status(500).json({ error: 'Failed to generate tailored documents' });
+		}
+
+		res.json({
+			success: true,
+			tailored: {
+				resume: parsed.resume || '',
+				cover_letter: parsed.cover_letter || '',
+				match_summary: parsed.match_summary || '',
+				key_strengths: parsed.key_strengths || [],
+				why_fit: parsed.why_fit || '',
+			},
+		});
+	} catch (err) {
+		console.error('One-click apply error:', err);
+		res.status(500).json({ error: 'Failed to generate tailored documents' });
+	}
+});
+
 // AI Screening Answer Suggestions — based on stored profile and past answers (RATE LIMITED)
 router.post('/ai/screening-suggestions', authMiddleware, rateLimits.ai, async (req, res) => {
 	try {
