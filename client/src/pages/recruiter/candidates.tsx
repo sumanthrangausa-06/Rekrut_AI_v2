@@ -606,7 +606,7 @@ export function RecruiterCandidatesPage() {
 			case 'matchScore':
 				return (b.matchScore || 0) - (a.matchScore || 0);
 			case 'name':
-				return a.name.localeCompare(b.name);
+				return (a.name || '').localeCompare(b.name || '');
 			default:
 				return 0;
 		}
