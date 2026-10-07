@@ -1369,6 +1369,12 @@ router.post('/assign', authMiddleware, async (req, res) => {
 			[assessment_id, a.candidate_id, application_id, dueDate],
 		);
 
+		// Auto-advance application status (don't override manual moves)
+		await pool.query(
+			`UPDATE job_applications SET status = CASE WHEN status IN ('applied', 'screening') THEN 'shortlisted' ELSE status END, updated_at = NOW() WHERE id = $1`,
+			[application_id],
+		);
+
 		// In-app notification for the candidate (non-blocking).
 		// metadata.url deep-links the notification center's "View" action
 		// straight to the take page (notification-center.tsx).
@@ -2559,10 +2565,10 @@ async function roundTripAssessmentResult(att, assessmentId, compositeScore) {
 		]);
 		if (appRes.rows.length === 0) return;
 
-		const advancedToShortlisted = appRes.rows[0].status === 'screening' && passed;
+		const advancedToShortlisted = ['applied', 'screening'].includes(appRes.rows[0].status) && passed;
 		if (advancedToShortlisted) {
 			await pool.query(
-				`UPDATE job_applications SET status = 'shortlisted', assessment_score = $1, assessment_result = $2, updated_at = NOW() WHERE id = $3 AND status = 'screening'`,
+				`UPDATE job_applications SET status = 'shortlisted', assessment_score = $1, assessment_result = $2, updated_at = NOW() WHERE id = $3`,
 				[compositeScore, result, att.application_id],
 			);
 		} else {
