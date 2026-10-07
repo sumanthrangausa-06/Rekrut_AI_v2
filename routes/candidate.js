@@ -2653,7 +2653,7 @@ async function submitApplication({
 						}
 
 						await pool.query(
-							`UPDATE job_applications SET screening_status = 'invited' WHERE id = $1`,
+							`UPDATE job_applications SET screening_status = 'invited', status = CASE WHEN status = 'applied' THEN 'screening' ELSE status END, updated_at = NOW() WHERE id = $1`,
 							[application.id],
 						);
 
