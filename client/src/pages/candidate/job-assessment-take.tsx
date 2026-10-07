@@ -53,6 +53,7 @@ export function JobAssessmentTakePage() {
 	const [submitting, setSubmitting] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [completed, setCompleted] = useState(false);
+	const [startError, setStartError] = useState<string | null>(null);
 	const [feedback, setFeedback] = useState<string | null>(null);
 	const [timeLeft, setTimeLeft] = useState(0);
 	const [scoring, setScoring] = useState(false);
@@ -88,6 +89,9 @@ export function JobAssessmentTakePage() {
 			}
 		} catch (e: any) {
 			console.error('Failed to start assessment:', e);
+			// Surface server errors (e.g. 403 when the candidate has no
+			// assignment) instead of the generic "no questions" state below.
+			setStartError(e?.message || 'Failed to start assessment');
 		} finally {
 			setLoading(false);
 		}
@@ -244,8 +248,12 @@ export function JobAssessmentTakePage() {
 		return (
 			<div className="max-w-xl mx-auto py-12 text-center space-y-4 px-4 sm:px-6">
 				<AlertTriangle className="h-10 w-10 text-amber-500 mx-auto" />
-				<h2 className="text-xl font-bold">No Questions Available</h2>
-				<p className="text-muted-foreground">This assessment doesn't have any questions yet.</p>
+				<h2 className="text-xl font-bold">
+					{startError ? 'Cannot Start Assessment' : 'No Questions Available'}
+				</h2>
+				<p className="text-muted-foreground">
+					{startError || "This assessment doesn't have any questions yet."}
+				</p>
 				<Button variant="outline" onClick={() => navigate(-1)}>
 					Go Back
 				</Button>

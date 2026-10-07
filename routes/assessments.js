@@ -1229,6 +1229,13 @@ router.get('/recruiter/detail/:assessmentId', authMiddleware, async (req, res) =
 // POST /api/assessments/assign — Recruiter assigns an assessment to a candidate application
 router.post('/assign', authMiddleware, async (req, res) => {
 	try {
+		// Hiring-team only (#343 task 2) — checked before anything else so
+		// unauthorized callers learn nothing about applications or assessments.
+		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+		if (!recruiterRoles.includes(req.user.role)) {
+			return res.status(403).json({ error: 'Recruiter access required', code: 'RECRUITER_ONLY' });
+		}
+
 		const { assessment_id, application_id } = req.body;
 		if (!assessment_id || !application_id) {
 			return res.status(400).json({ error: 'assessment_id and application_id are required' });
@@ -1530,6 +1537,14 @@ router.get('/job/:jobId', authMiddleware, async (req, res) => {
 			[assessment.id],
 		);
 
+		// I1 (#343 review): never leak grading material to non-hiring users.
+		// The candidate job-detail page calls this endpoint on every job view,
+		// so full rows would expose the entire question bank with answers.
+		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+		const questionRows = recruiterRoles.includes(req.user.role)
+			? questions.rows
+			: questions.rows.map(({ correct_answer, rubric, explanation, ...rest }) => rest);
+
 		// Get attempt stats
 		const stats = await pool.query(
 			`
@@ -1544,7 +1559,7 @@ router.get('/job/:jobId', authMiddleware, async (req, res) => {
 		res.json({
 			assessment: {
 				...assessment,
-				questions: questions.rows,
+				questions: questionRows,
 				stats: stats.rows[0] || {},
 			},
 		});
@@ -1649,6 +1664,11 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 			return res.status(404).json({ error: 'Assessment not found or not published' });
 		}
 
+		// Recruiters may preview any published assessment; candidates may only
+		// start when they have an assigned (or in-progress) attempt (#343 task 2).
+		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+		const isRecruiter = recruiterRoles.includes(req.user.role);
+
 		// Check for existing active attempt
 		let existing = await pool.query(
 			"SELECT * FROM job_assessment_attempts WHERE assessment_id = $1 AND candidate_id = $2 AND status = 'in_progress'",
@@ -1704,7 +1724,14 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 			});
 		}
 
-		// Create new attempt
+		// Create new attempt — recruiter preview only. Candidates without an
+		// assigned attempt cannot self-start (#343 task 2).
+		if (!isRecruiter) {
+			return res.status(403).json({
+				error: 'No assessment assignment found for this candidate',
+				code: 'ASSIGNMENT_REQUIRED',
+			});
+		}
 		const attempt = await pool.query(
 			`
       INSERT INTO job_assessment_attempts (assessment_id, candidate_id, application_id, status)
