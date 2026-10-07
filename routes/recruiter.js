@@ -1898,7 +1898,8 @@ router.get(
 				`
       SELECT ja.*,
              u.name as candidate_name, u.email as candidate_email,
-             os.total_score as current_omniscore, os.score_tier
+             os.total_score as current_omniscore, os.score_tier,
+             (SELECT s.expires_at FROM interview_sessions s WHERE s.application_id = ja.id AND s.type = 'screening' ORDER BY s.created_at DESC LIMIT 1) as screening_expires_at
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       LEFT JOIN omni_scores os ON u.id = os.user_id
@@ -1973,6 +1974,27 @@ router.put(
 								old_status: existing.rows[0].old_status,
 								new_status: status,
 								changed_by: req.user.id,
+							}),
+						],
+					);
+				} catch (_e) {
+					/* non-critical */
+				}
+
+				// Also log to hiring_activity so Team Activity feed shows status changes
+				try {
+					await pool.query(
+						`INSERT INTO hiring_activity (job_id, user_id, action_type, description, metadata)
+           VALUES ($1, $2, 'status_changed', $3, $4)`,
+						[
+							existing.rows[0].job_id,
+							req.user.id,
+							`Moved candidate to ${status}`,
+							JSON.stringify({
+								application_id: parseInt(req.params.id, 10),
+								candidate_id: existing.rows[0].candidate_id,
+								old_status: existing.rows[0].old_status,
+								new_status: status,
 							}),
 						],
 					);
