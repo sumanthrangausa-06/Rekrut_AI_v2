@@ -1363,6 +1363,26 @@ export function CandidateOnboardingPage() {
 	const [isDrawing, setIsDrawing] = useState(false);
 	const [hasSignature, setHasSignature] = useState(false);
 
+	const loadAIPrefill = useCallback(async () => {
+		try {
+			prefillLoadedRef.current = true;
+			const res = await apiCall<{ prefill: any; ai_suggestions: any }>(
+				'/onboarding/wizard/ai-prefill',
+			);
+			const p = res.prefill;
+			if (p.legal_first_name && !firstName) setFirstName(p.legal_first_name);
+			if (p.legal_middle_name && !middleName) setMiddleName(p.legal_middle_name);
+			if (p.legal_last_name && !lastName) setLastName(p.legal_last_name);
+			if (p.phone && !phone) setPhone(p.phone);
+			if (p.address_line1 && !address1) setAddress1(p.address_line1);
+			if (p.city && !city) setCity(p.city);
+			if (p.state && !state) setState(p.state);
+			if (p.zip_code && !zip) setZip(p.zip_code);
+		} catch {
+			// Non-blocking
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
 	const loadProgress = useCallback(async () => {
 		try {
 			setLoading(true);
@@ -1456,25 +1476,6 @@ export function CandidateOnboardingPage() {
 		loadProgress();
 	}, [loadProgress]);
 
-	async function loadAIPrefill() {
-		try {
-			prefillLoadedRef.current = true;
-			const res = await apiCall<{ prefill: any; ai_suggestions: any }>(
-				'/onboarding/wizard/ai-prefill',
-			);
-			const p = res.prefill;
-			if (p.legal_first_name && !firstName) setFirstName(p.legal_first_name);
-			if (p.legal_middle_name && !middleName) setMiddleName(p.legal_middle_name);
-			if (p.legal_last_name && !lastName) setLastName(p.legal_last_name);
-			if (p.phone && !phone) setPhone(p.phone);
-			if (p.address_line1 && !address1) setAddress1(p.address_line1);
-			if (p.city && !city) setCity(p.city);
-			if (p.state && !state) setState(p.state);
-			if (p.zip_code && !zip) setZip(p.zip_code);
-		} catch {
-			// Non-blocking
-		}
-	}
 
 	async function loadW4Guidance() {
 		setLoadingGuidance(true);
