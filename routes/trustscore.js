@@ -417,6 +417,163 @@ router.get('/company/:id/public', async (req, res) => {
 });
 
 /**
+ * GET /api/trustscore/assessment-responsiveness
+ * Recruiter-scoped: returns responsiveness for the authenticated recruiter's company.
+ * Private coaching view — includes full details.
+ */
+router.get(
+	'/assessment-responsiveness',
+	authMiddleware,
+	requireRecruiter,
+	async (req, res) => {
+		try {
+			const companyId = req.user.company_id;
+			if (!companyId) {
+				return res.status(400).json({ error: 'No company associated' });
+			}
+
+			const result =
+				await trustscoreService.calculateAssessmentResponsiveness(companyId);
+			res.json(result);
+		} catch (err) {
+			console.error('Assessment responsiveness error:', err);
+			res.status(500).json({ error: 'Failed to get assessment responsiveness' });
+		}
+	},
+);
+
+/**
+ * GET /api/trustscore/assessment-responsiveness/:companyId
+ * Standalone metric: how promptly the hiring team acts on completed assessments.
+ * Public (no auth) — only returns data when sufficient (>= 5 completed assessments).
+ * Does NOT affect the main TrustScore; shown as a separate indicator.
+ */
+router.get('/assessment-responsiveness/:companyId', async (req, res) => {
+	try {
+		const companyId = parseInt(req.params.companyId, 10);
+		if (!companyId || Number.isNaN(companyId)) {
+			return res.status(400).json({ error: 'Invalid company ID' });
+		}
+
+		const result =
+			await trustscoreService.calculateAssessmentResponsiveness(companyId);
+
+		// Don't expose insufficient-data details publicly; just the flag
+		if (!result.sufficient) {
+			return res.json({ sufficient: false });
+		}
+
+		res.json({
+			sufficient: true,
+			score: result.score,
+			review_rate: result.review_rate,
+			median_days_to_action: result.median_days_to_action,
+			ghost_rate: result.ghost_rate,
+			total_assessments: result.total_assessments,
+			cherry_picking: result.cherry_picking,
+		});
+	} catch (err) {
+		console.error('Assessment responsiveness error:', err);
+		res.status(500).json({ error: 'Failed to get assessment responsiveness' });
+	}
+});
+
+// ─── Standalone metrics (not v2 factors) ─────────────────────────────────────
+const standaloneMetrics = require('../services/trustscore-standalone');
+
+/**
+ * GET /api/trustscore/standalone
+ * Recruiter-scoped: returns all standalone metrics for their company,
+ * including insufficient ones (for coaching).
+ */
+router.get('/standalone', authMiddleware, requireRecruiter, async (req, res) => {
+	try {
+		const companyId = req.user.company_id;
+		if (!companyId) {
+			return res.status(400).json({ error: 'No company associated' });
+		}
+
+		const [
+			workplaceCulture,
+			candidateNPS,
+			reapplicationRate,
+			communication,
+			offerDecline,
+			postingEfficiency,
+			stageFluidity,
+		] = await Promise.all([
+			standaloneMetrics.calculateWorkplaceCulture(companyId),
+			standaloneMetrics.calculateCandidateNPS(companyId),
+			standaloneMetrics.calculateReapplicationRate(companyId),
+			standaloneMetrics.calculateCommunicationResponsiveness(companyId),
+			standaloneMetrics.calculateOfferDeclineAnalysis(companyId),
+			standaloneMetrics.calculatePostingEfficiency(companyId),
+			standaloneMetrics.calculateStageFluidity(companyId),
+		]);
+
+		res.json({
+			workplace_culture: workplaceCulture,
+			candidate_nps: candidateNPS,
+			reapplication_rate: reapplicationRate,
+			communication,
+			offer_decline: offerDecline,
+			posting_efficiency: postingEfficiency,
+			stage_fluidity: stageFluidity,
+		});
+	} catch (err) {
+		console.error('Standalone metrics error:', err);
+		res.status(500).json({ error: 'Failed to get standalone metrics' });
+	}
+});
+
+/**
+ * GET /api/trustscore/standalone/:companyId
+ * Public: returns all standalone metrics with sufficient data.
+ * Each metric is omitted unless sufficient=true.
+ */
+router.get('/standalone/:companyId', async (req, res) => {
+	try {
+		const companyId = parseInt(req.params.companyId, 10);
+		if (!companyId || Number.isNaN(companyId)) {
+			return res.status(400).json({ error: 'Invalid company ID' });
+		}
+
+		const [
+			workplaceCulture,
+			candidateNPS,
+			reapplicationRate,
+			communication,
+			offerDecline,
+			postingEfficiency,
+			stageFluidity,
+		] = await Promise.all([
+			standaloneMetrics.calculateWorkplaceCulture(companyId),
+			standaloneMetrics.calculateCandidateNPS(companyId),
+			standaloneMetrics.calculateReapplicationRate(companyId),
+			standaloneMetrics.calculateCommunicationResponsiveness(companyId),
+			standaloneMetrics.calculateOfferDeclineAnalysis(companyId),
+			standaloneMetrics.calculatePostingEfficiency(companyId),
+			standaloneMetrics.calculateStageFluidity(companyId),
+		]);
+
+		// Only expose sufficient metrics publicly
+		const result = {};
+		if (workplaceCulture.sufficient) result.workplace_culture = workplaceCulture;
+		if (candidateNPS.sufficient) result.candidate_nps = candidateNPS;
+		if (reapplicationRate.sufficient) result.reapplication_rate = reapplicationRate;
+		if (communication.sufficient) result.communication = communication;
+		if (offerDecline.sufficient) result.offer_decline = offerDecline;
+		if (postingEfficiency.sufficient) result.posting_efficiency = postingEfficiency;
+		if (stageFluidity.sufficient) result.stage_fluidity = stageFluidity;
+
+		res.json(result);
+	} catch (err) {
+		console.error('Standalone metrics error:', err);
+		res.status(500).json({ error: 'Failed to get standalone metrics' });
+	}
+});
+
+/**
  * POST /api/trustscore/feedback — Candidate submits interview feedback after decision
  * Body: { job_id, interview_id, overall_rating, interview_experience_rating, communication_rating, transparency_rating, professionalism_rating, feedback_text, would_recommend, is_anonymous }
  */

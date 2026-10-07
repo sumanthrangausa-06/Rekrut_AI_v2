@@ -722,6 +722,190 @@ async function calculateSalaryCompetitiveness(companyId) {
 }
 
 /**
+ * Assessment Responsiveness — standalone metric (NOT a v2 factor)
+ *
+ * Measures how promptly the hiring team acts on completed assessments:
+ * - review_rate: % of assessments with linked applications where a recruiter viewed results
+ *   (viewing the results page counts all attempts on that assessment as reviewed)
+ * - median_days_to_action: median days from scored_at to first recruiter-initiated status change
+ * - ghost_rate: % of linked assessments with no recruiter action ever
+ * Attempts without a matching job application are excluded — a recruiter cannot
+ * act on a nonexistent application.
+ *
+ * Kept standalone (not in TRUST_V2_FACTORS) because:
+ * 1. Cold start — ~0 companies will have 5+ assessments at launch
+ * 2. A 9th factor would penalize sufficiency scores and shift historical weights
+ * 3. Can be promoted to a factor later once data accumulates (see diversity_metrics max:0 pattern)
+ *
+ * Minimum 5 completed assessments before sufficient=true.
+ */
+const ASSESSMENT_RESPONSIVENESS_MIN_DATA_POINTS = 5;
+
+async function calculateAssessmentResponsiveness(companyId) {
+	// Get all completed assessment attempts for this company, joined to their applications
+	// in a single query (avoids N+1). Attempts without a matching application are excluded
+	// from the denominator — a recruiter cannot act on a nonexistent application.
+	const attempts = await pool.query(
+		`
+    SELECT jaa.id as attempt_id, jaa.candidate_id, jaa.scored_at, ja.job_id, ja.id as assessment_id,
+           jap.id as application_id, jaa.composite_score
+    FROM job_assessment_attempts jaa
+    JOIN job_assessments ja ON ja.id = jaa.assessment_id
+    JOIN jobs j ON j.id = ja.job_id
+    LEFT JOIN job_applications jap ON jap.job_id = ja.job_id AND jap.candidate_id = jaa.candidate_id
+    WHERE j.company_id = $1
+      AND jaa.status = 'completed'
+      AND jaa.scored_at IS NOT NULL
+    ORDER BY jaa.scored_at DESC
+  `,
+		[companyId],
+	);
+
+	// Only attempts with a linked application count toward the metric
+	const linked = attempts.rows.filter((a) => a.application_id !== null);
+	const total = linked.length;
+	if (total < ASSESSMENT_RESPONSIVENESS_MIN_DATA_POINTS) {
+		return {
+			review_rate: 0,
+			median_days_to_action: null,
+			ghost_rate: 0,
+			total_assessments: total,
+			cherry_picking: null,
+			sufficient: false,
+		};
+	}
+
+	// Check which assessments were viewed (assessment_result.viewed audit events)
+	// Viewing the results page reviews all attempts on that assessment.
+	const viewed = await pool.query(
+		`
+    SELECT DISTINCT target_id as assessment_id
+    FROM audit_logs
+    WHERE action_type = 'assessment_result.viewed'
+      AND target_type = 'job_assessment'
+      AND target_id = ANY($1)
+  `,
+		[linked.map((a) => a.assessment_id)],
+	);
+	const viewedIds = new Set(viewed.rows.map((r) => parseInt(r.assessment_id, 10)));
+
+	// First recruiter-initiated status change per application, in one query.
+	// user_id IS NOT NULL excludes system auto-advances.
+	const appIds = linked.map((a) => a.application_id);
+	const actions = await pool.query(
+		`
+    SELECT target_id as application_id, MIN(created_at) as first_action
+    FROM audit_logs
+    WHERE action_type = 'application_status_changed'
+      AND target_type = 'job_application'
+      AND target_id = ANY($1)
+      AND user_id IS NOT NULL
+    GROUP BY target_id
+  `,
+		[appIds],
+	);
+	const firstActionByApp = new Map(
+		actions.rows.map((r) => [parseInt(r.application_id, 10), new Date(r.first_action)]),
+	);
+
+	let reviewedCount = 0;
+	let ghostCount = 0;
+	const daysToAction = [];
+
+	for (const attempt of linked) {
+		if (viewedIds.has(attempt.assessment_id)) reviewedCount++;
+
+		const firstAction = firstActionByApp.get(attempt.application_id);
+		const scoredAt = new Date(attempt.scored_at);
+		if (firstAction && firstAction > scoredAt) {
+			const days = (firstAction - scoredAt) / (1000 * 60 * 60 * 24);
+			daysToAction.push(days);
+		} else {
+			ghostCount++;
+		}
+	}
+
+	const reviewRate = Math.round((reviewedCount / total) * 1000) / 10;
+	const ghostRate = Math.round((ghostCount / total) * 1000) / 10;
+
+	// Median days to action
+	let medianDays = null;
+	if (daysToAction.length > 0) {
+		const sorted = daysToAction.sort((a, b) => a - b);
+		const mid = Math.floor(sorted.length / 2);
+		medianDays =
+			sorted.length % 2 === 0
+				? Math.round(((sorted[mid - 1] + sorted[mid]) / 2) * 10) / 10
+				: Math.round(sorted[mid] * 10) / 10;
+	}
+
+	// Composite score 0-100: 40% review rate, 40% inverse ghost rate, 20% speed
+	// Speed: 0 days = 100, 7 days = 70, 14 days = 40, 30+ days = 0
+	let speedScore = 0;
+	if (medianDays !== null) {
+		if (medianDays <= 1) speedScore = 100;
+		else if (medianDays <= 7) speedScore = 100 - (medianDays - 1) * 5;
+		else if (medianDays <= 14) speedScore = 70 - (medianDays - 7) * 4.28;
+		else if (medianDays <= 30) speedScore = 40 - (medianDays - 14) * 2.5;
+		else speedScore = 0;
+		speedScore = Math.max(0, Math.round(speedScore));
+	}
+	const score = Math.round(reviewRate * 0.4 + (100 - ghostRate) * 0.4 + speedScore * 0.2);
+
+	// Cherry-picking detection: compare review rates above/below median score.
+	// A large gap means the team only reviews high-scorers and ignores the rest.
+	let cherryPicking = null;
+	const scored = linked.filter((a) => a.composite_score !== null);
+	if (scored.length >= 4) {
+		const scores = scored
+			.map((a) => parseFloat(a.composite_score))
+			.sort((a, b) => a - b);
+		const medianScore = scores[Math.floor(scores.length / 2)];
+
+		let highReviewed = 0,
+			highTotal = 0,
+			lowReviewed = 0,
+			lowTotal = 0;
+		for (const a of scored) {
+			const isHigh = parseFloat(a.composite_score) >= medianScore;
+			const reviewed = viewedIds.has(a.assessment_id);
+			if (isHigh) {
+				highTotal++;
+				if (reviewed) highReviewed++;
+			} else {
+				lowTotal++;
+				if (reviewed) lowReviewed++;
+			}
+		}
+
+		if (highTotal > 0 && lowTotal > 0) {
+			const highRate = highReviewed / highTotal;
+			const lowRate = lowReviewed / lowTotal;
+			// Gap of 0 = no cherry-picking (100); gap of 1.0 = max cherry-picking (0)
+			const gap = Math.max(0, highRate - lowRate);
+			cherryPicking = {
+				score: Math.round((1 - gap) * 100),
+				high_scorer_review_rate: Math.round(highRate * 1000) / 10,
+				low_scorer_review_rate: Math.round(lowRate * 1000) / 10,
+				median_score: Math.round(medianScore * 10) / 10,
+			};
+		}
+	}
+
+	return {
+		score,
+		review_rate: reviewRate,
+		median_days_to_action: medianDays,
+		ghost_rate: ghostRate,
+		total_assessments: total,
+		reviewed_count: reviewedCount,
+		ghost_count: ghostCount,
+		cherry_picking: cherryPicking,
+		sufficient: true,
+	};
+}
+
+/**
  * Diversity Metrics — placeholder (insufficient demographic data in most cases)
  * Computes geographic diversity as a proxy when available
  */
@@ -1386,6 +1570,9 @@ module.exports = {
 	calculateSalaryCompetitiveness,
 	calculateDiversityMetrics,
 	calculateCareerGrowth,
+	// Standalone metrics (not v2 factors)
+	calculateAssessmentResponsiveness,
+	ASSESSMENT_RESPONSIVENESS_MIN_DATA_POINTS,
 	getLeaderboard,
 	compareCompanies,
 	generateAISummary,
