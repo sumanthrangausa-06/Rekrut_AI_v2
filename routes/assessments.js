@@ -2242,6 +2242,19 @@ Return ONLY valid JSON:
 		// conservative stage advance on pass, recruiter notification (#343 task 4).
 		// Non-blocking — failures are logged inside, never thrown.
 		await roundTripAssessmentResult(att, assessmentId, compositeScore);
+
+		// Feed the job assessment into OmniScore verified_skills (2x weight).
+		// Non-blocking — same pattern as skill assessments (line ~904).
+		if (att.candidate_id) {
+			try {
+				await omniscoreService.calculateScore(att.candidate_id);
+				console.log(
+					`[OmniScore] Job assessment ${attemptId} fed into OmniScore for user ${att.candidate_id} (score: ${compositeScore})`,
+				);
+			} catch (err) {
+				console.error('[OmniScore] Failed to update from job assessment:', err.message);
+			}
+		}
 	} catch (error) {
 		console.error('[scoring] Failed to score attempt:', error);
 	}
