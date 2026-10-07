@@ -178,7 +178,7 @@ export function NotificationCenter({ className }: { className?: string }) {
 					type: (n.type as Notification['type']) || 'info',
 					read: n.read,
 					timestamp: n.created_at,
-					action: n.metadata?.url ? { label: 'View', url: String(n.metadata.url) } : undefined,
+					action: n.metadata?.url || n.metadata?.invite_url ? { label: 'View', url: String(n.metadata.url || n.metadata.invite_url) } : undefined,
 				}));
 				setNotifications(mapped);
 			} catch (err) {
