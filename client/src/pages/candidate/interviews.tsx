@@ -150,6 +150,7 @@ const INTERVIEW_TIPS = [
 export function CandidateInterviewsPage() {
 	const navigate = useNavigate();
 	const [interviews, setInterviews] = useState<Interview[]>([]);
+	const [screenings, setScreenings] = useState<any[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [tab, setTab] = useState('upcoming');
 	const [showDecline, setShowDecline] = useState<Interview | null>(null);
@@ -171,6 +172,16 @@ export function CandidateInterviewsPage() {
 			setInterviews(res.interviews || []);
 		} catch (err) {
 			console.error('Load interviews error:', err);
+		}
+		try {
+			const sres = await withTimeout(
+				apiCall<{ success: boolean; sessions: any[] }>('/api/interviews/screening/my-sessions'),
+				FETCH_TIMEOUT,
+				'Screenings',
+			);
+			setScreenings(sres.sessions || []);
+		} catch (err) {
+			console.error('Load screenings error:', err);
 		} finally {
 			setLoading(false);
 		}
@@ -319,6 +330,9 @@ export function CandidateInterviewsPage() {
 					<TabsTrigger value="past" className="min-h-[44px]">
 						Past ({past.length})
 					</TabsTrigger>
+					<TabsTrigger value="screenings" className="min-h-[44px]">
+						AI Screenings ({screenings.length})
+					</TabsTrigger>
 					<TabsTrigger value="tips" className="min-h-[44px]">
 						Interview Tips
 					</TabsTrigger>
@@ -377,6 +391,72 @@ export function CandidateInterviewsPage() {
 						<div className="space-y-3">
 							{past.map((interview) => (
 								<InterviewCard key={interview.id} interview={interview} isPast />
+							))}
+						</div>
+					)}
+				</TabsContent>
+
+				{/* AI Screenings */}
+				<TabsContent value="screenings">
+					{screenings.length === 0 ? (
+						<EmptyState
+							icon={MessageSquare}
+							title="No AI screenings"
+							description="When recruiters send you AI screening invites, they'll appear here."
+							image={UNSPLASH_IMAGES.emptyInterviews}
+						/>
+					) : (
+						<div className="space-y-3">
+							{screenings.map((s) => (
+								<Card key={s.id}>
+									<CardContent className="p-4">
+										<div className="flex items-start justify-between gap-3">
+											<div className="min-w-0 flex-1">
+												<div className="flex items-center gap-2 flex-wrap">
+													<Badge variant="secondary" className="bg-purple-100 text-purple-700">
+														AI Screening
+													</Badge>
+													<Badge
+														variant={
+															s.status === 'completed'
+																? 'default'
+																: s.status === 'invited'
+																	? 'warning'
+																	: 'secondary'
+														}
+													>
+														{s.status === 'invited'
+															? 'Invited'
+															: s.status === 'in_progress'
+																? 'In Progress'
+																: s.status === 'completed'
+																	? 'Completed'
+																	: s.status}
+													</Badge>
+												</div>
+												<h3 className="font-semibold mt-2">{s.job_title}</h3>
+												<p className="text-sm text-muted-foreground">
+													{s.company_name}
+													{s.template_title ? ` · ${s.template_title}` : ''}
+												</p>
+												{s.overall_score != null && (
+													<p className="text-sm mt-1">
+														Score: <span className="font-semibold">{s.overall_score}/100</span>
+													</p>
+												)}
+											</div>
+											{s.invite_url && (s.status === 'invited' || s.status === 'in_progress') && (
+												<Button
+													size="sm"
+													onClick={() => navigate(s.invite_url)}
+													className="shrink-0 min-h-[44px]"
+												>
+													{s.status === 'invited' ? 'Start' : 'Continue'}
+												</Button>
+											)}
+										</div>
+									</CardContent>
+								</Card>
 							))}
 						</div>
 					)}
