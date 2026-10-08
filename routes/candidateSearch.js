@@ -62,23 +62,25 @@ function parsePagination(req) {
 	return { limit, offset };
 }
 
+// ─── Candidate visibility (US-2.7) ─────────────────────────────────
+// Soft-deleted users and candidates who opted out of recruiter discovery
+// must never be reachable — by search OR by direct ID (#416).
+// user_settings.privacy->>'profile_visible' defaults to true when the row
+// or key is absent (matches DEFAULT_PRIVACY), so only an explicit false hides.
+// Requires the users table to be aliased as `u` (true for every query below).
+const CANDIDATE_VISIBILITY_SQL = `u.deleted_at IS NULL AND NOT EXISTS (
+    SELECT 1 FROM user_settings us
+    WHERE us.user_id = u.id
+      AND us.privacy->>'profile_visible' = 'false'
+  )`;
+
 // ─── Helper: Build WHERE clause for filtered search ──────────────
 
 function buildSearchWhere(params) {
-	const conditions = ["u.role = 'candidate'"];
+	// Visibility (US-2.7): never surface soft-deleted users or discovery opt-outs
+	const conditions = ["u.role = 'candidate'", CANDIDATE_VISIBILITY_SQL];
 	const queryParams = [];
 	let idx = 1;
-
-	// Visibility (US-2.7): never surface soft-deleted users …
-	conditions.push('u.deleted_at IS NULL');
-	// … or candidates who opted out of recruiter discovery.
-	// user_settings.privacy->>'profile_visible' defaults to true when the row
-	// or key is absent (matches DEFAULT_PRIVACY), so only an explicit false hides.
-	conditions.push(`NOT EXISTS (
-    SELECT 1 FROM user_settings us
-    WHERE us.user_id = csi.user_id
-      AND us.privacy->>'profile_visible' = 'false'
-  )`);
 
 	// Skills filter (JSONB overlap — any of the provided skills)
 	if (params.skills) {
@@ -500,8 +502,12 @@ router.get('/:id/preview', authMiddleware, requireRecruiter, async (req, res) =>
 
 	const client = await pool.connect();
 	try {
-		// Verify the user is actually a candidate
-		const userCheck = await client.query(`SELECT role FROM users WHERE id = $1`, [candidateId]);
+		// Verify the user is actually a candidate — and visible to recruiters (#416).
+		// Soft-deleted and discovery-opted-out candidates 404 like nonexistent IDs.
+		const userCheck = await client.query(
+			`SELECT u.role FROM users u WHERE u.id = $1 AND ${CANDIDATE_VISIBILITY_SQL}`,
+			[candidateId],
+		);
 		if (userCheck.rows.length === 0) {
 			return res.status(404).json({ error: 'Candidate not found' });
 		}
@@ -620,8 +626,12 @@ router.post('/:id/invite', authMiddleware, requireRecruiter, async (req, res) =>
 
 	const client = await pool.connect();
 	try {
-		// Verify candidate exists and is a candidate
-		const userCheck = await client.query(`SELECT role FROM users WHERE id = $1`, [candidateId]);
+		// Verify candidate exists, is a candidate, and is visible to recruiters (#416).
+		// Soft-deleted and discovery-opted-out candidates 404 like nonexistent IDs.
+		const userCheck = await client.query(
+			`SELECT u.role FROM users u WHERE u.id = $1 AND ${CANDIDATE_VISIBILITY_SQL}`,
+			[candidateId],
+		);
 		if (userCheck.rows.length === 0) {
 			return res.status(404).json({ error: 'Candidate not found' });
 		}
