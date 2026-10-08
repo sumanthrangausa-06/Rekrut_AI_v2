@@ -35,6 +35,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { getCameraErrorMessage } from '@/hooks/useInterviewCamera';
+import {
+	SPEECH_NOT_SUPPORTED_MESSAGE,
+	useSpeechRecognitionAvailable,
+} from '@/hooks/useSpeechRecognition';
 
 import type { MockConversationTurn, MockSession } from './coaching-types';
 import { formatTime } from './coaching-utils';
@@ -114,6 +118,9 @@ export function InterviewActiveLayout({
 }: InterviewActiveLayoutProps) {
 	const [showChat, setShowChat] = useState(true);
 	const [chatPanelMobileOpen, setChatPanelMobileOpen] = useState(false);
+	// Phase 3 (#447): show typed-answer fallback when Web Speech API is absent
+	// (Chrome iOS, Safari, Firefox).
+	const speechAvailable = useSpeechRecognitionAvailable();
 	const [controlsMobileOpen, setControlsMobileOpen] = useState(false);
 	const [isFullscreen, setIsFullscreen] = useState(false);
 	const [isVideoOn, setIsVideoOn] = useState(true);
@@ -635,8 +642,13 @@ export function InterviewActiveLayout({
 					</Tooltip>
 
 					{/* Settings */}
-					<Tooltip content="Settings">
-						<button type="button" className="h-11 w-11 rounded-xl flex items-center justify-center bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all duration-200">
+					{/* Phase 3 (#447): honestly disabled — no settings panel exists yet. */}
+					<Tooltip content="Settings (coming soon)">
+						<button
+							type="button"
+							disabled
+							className="h-11 w-11 rounded-xl flex items-center justify-center bg-white/5 text-white/30 cursor-not-allowed transition-all duration-200"
+						>
 							<Settings className="h-5 w-5" />
 						</button>
 					</Tooltip>
@@ -712,6 +724,7 @@ export function InterviewActiveLayout({
 							active={false}
 							icon={Settings}
 							label="Settings"
+							disabled
 						/>
 						<MobileControlButton
 							onClick={toggleFullscreen}
@@ -878,6 +891,13 @@ function ChatPanelContent({
 			{/* Text input fallback */}
 			{!candidateRecording && (
 				<div className="shrink-0 p-3 border-t border-white/5 bg-black/20">
+					{/* Phase 3 (#447): typed-answer fallback notice — above the
+						flex row so it stacks instead of squeezing inline. */}
+					{!speechAvailable && (
+						<p className="text-[11px] text-amber-400/90 mb-2 px-1">
+							{SPEECH_NOT_SUPPORTED_MESSAGE}
+						</p>
+					)}
 					<div className="flex items-end gap-2">
 						{/* Attachment / formatting icons */}
 						<div className="flex items-center gap-1 shrink-0 pb-1">

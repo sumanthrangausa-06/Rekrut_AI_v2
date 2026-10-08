@@ -37,6 +37,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import { useInterviewerAudio } from '@/hooks/useInterviewerAudio';
 import { getCameraErrorMessage, useInterviewCamera } from '@/hooks/useInterviewCamera';
+import {
+	isSpeechRecognitionAvailable,
+	SPEECH_NOT_SUPPORTED_MESSAGE,
+} from '@/hooks/useSpeechRecognition';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall, getToken } from '@/lib/api';
 import { useVoiceRoom, type VoiceRoomTurn } from './useVoiceRoom';
@@ -151,6 +155,8 @@ export default function CandidateInterviewSessionPage() {
 
 	// Chat
 	const [draft, setDraft] = useState('');
+	// Phase 3 (#447): tracks when Web Speech API is absent.
+	const [speechNotSupported, setSpeechNotSupported] = useState(false);
 	const [sending, setSending] = useState(false);
 	const [finishing, setFinishing] = useState(false);
 	const [confirmEnd, setConfirmEnd] = useState(false);
@@ -390,8 +396,13 @@ export default function CandidateInterviewSessionPage() {
 
 	// ---- voice input (manual toggle, same as mock-interview v1) ----
 	const startDictation = useCallback(() => {
+		// Phase 3 (#447): shared check. When absent, show the typed-answer
+		// fallback message instead of silently doing nothing.
+		if (!isSpeechRecognitionAvailable()) {
+			setSpeechNotSupported(true);
+			return;
+		}
 		const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-		if (!SR) return;
 		try {
 			const rec = new SR();
 			rec.continuous = true;
@@ -1103,6 +1114,13 @@ export default function CandidateInterviewSessionPage() {
 							</Button>
 						</div>
 					) : (
+					<div className="space-y-2">
+						{/* Phase 3 (#447): typed-answer fallback when Web Speech API absent */}
+						{speechNotSupported && (
+							<p className="text-sm text-amber-600">
+								{SPEECH_NOT_SUPPORTED_MESSAGE}
+							</p>
+						)}
 					<div className="flex gap-2 items-end">
 						<Textarea
 							value={draft}
@@ -1135,6 +1153,7 @@ export default function CandidateInterviewSessionPage() {
 							{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
 							<span className="ml-1">Send</span>
 						</Button>
+					</div>
 					</div>
 					)}
 				</div>

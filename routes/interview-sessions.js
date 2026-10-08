@@ -1002,6 +1002,53 @@ router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (re
 	}
 });
 
+// POST /interview-sessions/:id/observer/disable — hiring team disables the AI
+// observer on a human interview. Phase 3 (#447): terminates the observer
+// agent (removes participant + deletes dispatch) and flips observer_enabled
+// to false. Idempotent — safe to call when already disabled.
+router.post('/interview-sessions/:id/observer/disable', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		if (!isHiringTeamForSession(session, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+
+		if (!session.config?.observer_enabled) {
+			return res.json({ success: true, observer_enabled: false, already_disabled: true });
+		}
+
+		// Terminate the observer agent. Non-blocking on failure — the flag
+		// flip is the source of truth; a stale agent is harmless (muted).
+		let disconnectResult = null;
+		try {
+			disconnectResult = await livekitService.disconnectVoiceAgent(session.id, 'observer');
+		} catch (err) {
+			console.error('[interview-sessions] observer disconnect failed:', err.message);
+		}
+
+		await pool.query('UPDATE interview_sessions SET config = config || $1::jsonb WHERE id = $2', [
+			JSON.stringify({ observer_enabled: false }),
+			session.id,
+		]);
+
+		await emitInterviewAudit({
+			company_id: session.company_id,
+			actor_id: req.user.id,
+			target_id: session.id,
+			action: 'session.observer_disabled',
+			metadata: { session_id: session.id },
+		});
+
+		res.json({ success: true, observer_enabled: false, disconnectResult });
+	} catch (err) {
+		console.error('[interview-sessions] observer disable error:', err.message);
+		res.status(500).json({ error: 'Failed to disable observer' });
+	}
+});
+
 // POST /interview-sessions/:id/observer/report — generate the observer
 // analysis report on demand: Q&A extraction over the observer transcript,
 // then the mock-interview analysis stack with the job's rubric weights
