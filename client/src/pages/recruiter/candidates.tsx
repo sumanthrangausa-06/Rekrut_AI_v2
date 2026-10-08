@@ -267,7 +267,7 @@ export function RecruiterCandidatesPage() {
 		const params = new URLSearchParams();
 		params.set('page', String(page));
 		params.set('limit', String(limit));
-		if (searchQuery) params.set('search', searchQuery);
+		if (searchQuery) params.set('q', searchQuery);
 		if (selectedTab !== 'all') params.set('status', selectedTab);
 		if (activeFilters.experience) params.set('experience', activeFilters.experience);
 		if (activeFilters.location) params.set('location', activeFilters.location);
@@ -363,18 +363,18 @@ export function RecruiterCandidatesPage() {
 		}
 	}, []);
 
-	useEffect(() => {
-		if (searchQuery.trim()) {
-			setRecentSearches((prev) => {
-				const next = [searchQuery.trim(), ...prev.filter((s) => s !== searchQuery.trim())].slice(
-					0,
-					5,
-				);
-				localStorage.setItem('recruiter_recent_searches', JSON.stringify(next));
-				return next;
-			});
-		}
-	}, [searchQuery]);
+	// Save a search to recent history only when the user submits it (Enter),
+	// not on every keystroke — US-2.3
+	const saveRecentSearch = useCallback((query: string) => {
+		const trimmed = query.trim();
+		if (!trimmed) return;
+		setRecentSearches((prev) => {
+			if (prev[0] === trimmed) return prev; // already the most recent
+			const next = [trimmed, ...prev.filter((s) => s !== trimmed)].slice(0, 5);
+			localStorage.setItem('recruiter_recent_searches', JSON.stringify(next));
+			return next;
+		});
+	}, []);
 
 	useEffect(() => {
 		setPage(1);
@@ -696,6 +696,7 @@ export function RecruiterCandidatesPage() {
 					<FilterBar
 						searchPlaceholder="Search by name, skill, or location..."
 						onSearch={setSearchQuery}
+						onSearchSubmit={saveRecentSearch}
 						filters={filterOptions}
 						activeFilters={activeFilters}
 						onFilterChange={handleFilterChange}
