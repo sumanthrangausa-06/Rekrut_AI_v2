@@ -37,7 +37,6 @@ import { cn } from '@/lib/utils';
 import { getCameraErrorMessage } from '@/hooks/useInterviewCamera';
 import {
 	SPEECH_NOT_SUPPORTED_MESSAGE,
-	useSpeechRecognitionAvailable,
 } from '@/hooks/useSpeechRecognition';
 
 import type { MockConversationTurn, MockSession } from './coaching-types';
@@ -119,8 +118,10 @@ export function InterviewActiveLayout({
 	const [showChat, setShowChat] = useState(true);
 	const [chatPanelMobileOpen, setChatPanelMobileOpen] = useState(false);
 	// Phase 3 (#447): show typed-answer fallback when Web Speech API is absent
-	// (Chrome iOS, Safari, Firefox).
-	const speechAvailable = useSpeechRecognitionAvailable();
+	// (Chrome iOS, Safari, Firefox). Inlined (no hook) to avoid a
+	// transpilation issue that caused "Can't find variable: speechAvailable"
+	// on staging.
+	const speechAvailable = typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 	const [controlsMobileOpen, setControlsMobileOpen] = useState(false);
 	const [isFullscreen, setIsFullscreen] = useState(false);
 	const [isVideoOn, setIsVideoOn] = useState(true);
