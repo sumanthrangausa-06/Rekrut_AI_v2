@@ -303,6 +303,7 @@ export interface User {
 	avatar_url?: string;
 	subscriptionTier?: 'free' | 'pro';
 	is_company_owner?: boolean;
+	is_platform_admin?: boolean;
 }
 
 // ── Proctoring API helpers ──
@@ -409,8 +410,8 @@ export function isRecruiterRole(role: UserRole): boolean {
 }
 
 export function getDashboardPath(user: User): string {
-	// Platform admins bypass company join approval
-	if (user.role === 'admin') return '/recruiter';
+	// Platform admins bypass company join approval (users.role or user_roles RBAC table)
+	if (user.role === 'admin' || user.is_platform_admin) return '/recruiter';
 	if (isRecruiterRole(user.role) && !user.company_id) {
 		return '/recruiter/pending-approval';
 	}
