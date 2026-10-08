@@ -106,6 +106,7 @@ const candidateSections: NavSection[] = [
 		title: 'OTHER',
 		items: [
 			{ label: 'Interviews', href: '/candidate/interviews', icon: Video },
+			{ label: 'Messages', href: '/candidate/chat', icon: MessageSquare },
 			{ label: 'Offers', href: '/candidate/offers', icon: DollarSign },
 			{ label: 'Documents', href: '/candidate/documents', icon: File },
 			{ label: 'Pay & Compensation', href: '/candidate/payroll', icon: Wallet },

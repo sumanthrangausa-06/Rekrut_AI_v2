@@ -902,6 +902,9 @@ function AppRoutes() {
 						</Protected>
 					}
 				/>
+				{/* Redirects for dead routes (Issue #407) */}
+				<Route path="scores" element={<Navigate to="/candidate/assessments" replace />} />
+				<Route path="messages" element={<Navigate to="/candidate/chat" replace />} />
 				<Route
 					path="offers"
 					element={
