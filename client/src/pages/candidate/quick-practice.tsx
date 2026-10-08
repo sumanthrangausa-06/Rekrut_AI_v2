@@ -99,14 +99,23 @@ export function QuickPractice({
 	const audioChunksRef = useRef<Blob[]>([]);
 	const audioDataRef = useRef<string | null>(null);
 
-	// Cleanup on unmount
+	// Cleanup on unmount ONLY (#447 Phase 0).
+	// stopCamera is a plain function declaration with a new identity on every
+	// render. Listing it as an effect dep made React run this cleanup before
+	// EVERY re-render, killing the camera stream right after it started.
+	// The ref always points at the latest closure; the effect has empty deps
+	// so it runs only on unmount. (Same pattern as #449 for mock-interview.)
+	const unmountCleanupRef = useRef<() => void>(() => {});
+	unmountCleanupRef.current = () => {
+		stopCamera();
+		if (timerRef.current) clearInterval(timerRef.current);
+		if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
+	};
 	useEffect(() => {
 		return () => {
-			stopCamera();
-			if (timerRef.current) clearInterval(timerRef.current);
-			if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
+			unmountCleanupRef.current();
 		};
-	}, [stopCamera]);
+	}, []);
 
 	// Detect iOS (all browsers on iOS use WebKit)
 	const isIOS =

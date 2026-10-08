@@ -81,6 +81,9 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 	const silenceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const analyserRef = useRef<AnalyserNode | null>(null);
 	const silenceCountRef = useRef<number>(0);
+	// Phase 0 (#447): captures the silence count at stop time for the async
+	// onstop handler to read (see stopVoiceRecording).
+	const finalSilenceCountRef = useRef<number>(0);
 
 	// Mock interview camera state
 	const [mockCameraReady, setMockCameraReady] = useState(false);
@@ -508,9 +511,12 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 
 				if (voiceChunksRef.current.length === 0) return;
 
-				const totalSilenceChecks = silenceCountRef.current;
+				const totalSilenceChecks = finalSilenceCountRef.current;
 				const currentTranscript = mockLiveTranscriptRef.current;
-				if (totalSilenceChecks >= 23 && !currentTranscript.trim()) {
+				// Phase 0 (#447): threshold aligned with auto-stop (15 checks = 3s).
+				// Previously required 23 checks but auto-stop fired at 15, making
+				// this unreachable even without the reset race.
+				if (totalSilenceChecks >= 15 && !currentTranscript.trim()) {
 					console.log('[voice] Skipping — recording was mostly silence');
 					setMockLiveTranscript('');
 					noSpeechStreakRef.current += 1;
@@ -653,9 +659,18 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 						voiceRetryCountRef.current = 0;
 						setMockLiveTranscript('');
 						if (errorMsg.includes("didn't catch") || errorMsg.includes('Could not transcribe')) {
-							setVoiceError(
-								'Could not understand your response. Tap the mic button to try again, or type your answer below.',
-							);
+							// Phase 0 (#447): decouple the no-speech streak from the
+							// silence-skip path — transcription failures also count.
+							noSpeechStreakRef.current += 1;
+							if (noSpeechStreakRef.current >= 3) {
+								setVoiceError(
+									'Still no speech detected after 3 tries. Please check your microphone is enabled and not muted, or type your answer below instead.',
+								);
+							} else {
+								setVoiceError(
+									'Could not understand your response. Tap the mic button to try again, or type your answer below.',
+								);
+							}
 						} else {
 							setVoiceError(errorMsg);
 						}
@@ -707,6 +722,11 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 			silenceIntervalRef.current = null;
 		}
 		setSilenceTimer(0);
+		// Phase 0 (#447): capture the silence count BEFORE resetting, so the
+		// async recorder.onstop handler can read it. Previously the reset
+		// happened here and onstop always saw 0, making the silence-skip
+		// check dead code.
+		finalSilenceCountRef.current = silenceCountRef.current;
 		silenceCountRef.current = 0;
 		stopMockSpeechRecognition();
 		if (mockRecordingTimerRef.current) {
