@@ -579,9 +579,8 @@ export function QuickPractice({
 			<Dialog
 				open={!!practiceQuestion}
 				onClose={closePractice}
-				className="max-w-2xl max-h-[90vh] max-h-[90dvh] overflow-y-auto"
+				className="max-w-2xl"
 			>
-				<div className="max-h-[90vh] max-h-[90dvh] overflow-y-auto">
 					{practiceQuestion && !coaching && !textCoaching && (
 						<>
 							<DialogHeader>
@@ -1647,7 +1646,6 @@ export function QuickPractice({
 							</div>
 						</>
 					)}
-				</div>
 			</Dialog>
 		</>
 	);
