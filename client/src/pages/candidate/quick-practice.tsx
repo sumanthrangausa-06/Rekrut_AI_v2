@@ -579,7 +579,7 @@ export function QuickPractice({
 			<Dialog
 				open={!!practiceQuestion}
 				onClose={closePractice}
-				className="max-w-2xl max-h-[85dvh] sm:max-h-[90dvh] overscroll-contain"
+				className="max-w-2xl"
 			>
 					{practiceQuestion && !coaching && !textCoaching && (
 						<>
