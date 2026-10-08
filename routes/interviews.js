@@ -2,6 +2,10 @@ const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const {
+	filterWhisperHallucination,
+	isValidTranscriptLength,
+} = require('../lib/transcription');
+const {
 	chat,
 	generateInterviewQuestions,
 	analyzeInterviewResponse,
@@ -2140,37 +2144,11 @@ router.post(
 				usedFallback = true;
 			}
 
-			// BUG FIX: Whisper hallucinates known phrases on silent/near-silent audio
-			// Phase 0 (#447): added "Thank you." (with period) — Whisper's #1
-			// hallucination on silent English audio. The period makes it specific
-			// to the hallucination pattern; bare "Thank you" without period is
-			// NOT included to avoid false-positives on legitimate answers like
-			// "Thank you for the question...". Fixed corrupted U+FFFD entry.
-			const WHISPER_HALLUCINATIONS = [
-				'ご視聴ありがとうございました',
-				'視聴ありがとうございました',
-				'ありがとうございました',
-				'ご視聴ありがとうございます',
-				'字幕',
-				'サブスクライブ',
-				'チャンネル登録',
-				'谢谢观看',
-				'感谢观看',
-				'Sous-titres',
-				'Sottotitoli',
-				'Untertitel',
-				'Thanks for watching',
-				'Thank you for watching',
-				'Thank you.',
-				'Please subscribe',
-				'Like and subscribe',
-			];
-			const isHallucination =
-				!usedFallback &&
-				WHISPER_HALLUCINATIONS.some((phrase) =>
-					transcribedText.toLowerCase().includes(phrase.toLowerCase()),
-				);
-			if (isHallucination) {
+			// Phase 1 (#447): use shared transcription module.
+			// The !usedFallback guard is preserved — client SpeechRecognition
+			// transcripts are real speech, not Whisper hallucinations.
+			const { isHallucination } = filterWhisperHallucination(transcribedText);
+			if (isHallucination && !usedFallback) {
 				console.log(`[voice-respond] Filtered Whisper hallucination: "${transcribedText}"`);
 				// Try client transcript before rejecting
 				if (clientTranscript.length >= 10) {
@@ -2183,7 +2161,7 @@ router.post(
 				}
 			}
 
-			if (!transcribedText || transcribedText.length < 5) {
+			if (!isValidTranscriptLength(transcribedText)) {
 				return res.status(400).json({
 					error: 'Could not transcribe your response. Please try speaking louder and more clearly.',
 				});
@@ -3433,39 +3411,16 @@ router.post(
 						error: "Couldn't transcribe your audio. Please try speaking again.",
 					});
 				}
-				// Phase 0 (#447): filter Whisper hallucinations. Duplicated from the
-				// mock voice-respond path — Phase 1 extracts this to lib/transcription.js.
-				const WHISPER_HALLUCINATIONS = [
-					'ご視聴ありがとうございました',
-					'視聴ありがとうございました',
-					'ありがとうございました',
-					'ご視聴ありがとうございます',
-					'字幕',
-					'サブスクライブ',
-					'チャンネル登録',
-					'谢谢观看',
-					'感谢观看',
-					'Sous-titres',
-					'Sottotitoli',
-					'Untertitel',
-					'Thanks for watching',
-					'Thank you for watching',
-					'Thank you.',
-					'Please subscribe',
-					'Like and subscribe',
-				];
-				if (
-					transcribedText &&
-					WHISPER_HALLUCINATIONS.some((phrase) =>
-						transcribedText.toLowerCase().includes(phrase.toLowerCase()),
-					)
-				) {
+				// Phase 1 (#447): use shared transcription module.
+				const { isHallucination } = filterWhisperHallucination(transcribedText);
+				if (isHallucination) {
 					console.log(`[screening-voice] Filtered Whisper hallucination: "${transcribedText}"`);
 					transcribedText = '';
 				}
 			}
 
-			if (!transcribedText || transcribedText.length < 3) {
+			// Screening uses yes/no questions — "yes" (3 chars) is a legitimate answer.
+			if (!isValidTranscriptLength(transcribedText, 3)) {
 				return res.status(400).json({
 					error: "Didn't catch that. Could you please repeat your answer?",
 				});
