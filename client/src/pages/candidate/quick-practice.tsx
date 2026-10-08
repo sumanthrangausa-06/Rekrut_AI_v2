@@ -28,6 +28,11 @@ import {
 	Zap,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useInterviewCamera } from '@/hooks/useInterviewCamera';
+import {
+	isSpeechRecognitionAvailable,
+	SPEECH_NOT_SUPPORTED_MESSAGE,
+} from '@/hooks/useSpeechRecognition';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -70,27 +75,35 @@ export function QuickPractice({
 	const [responseText, setResponseText] = useState('');
 	const [submitting, setSubmitting] = useState(false);
 	const [coaching, setCoaching] = useState<VideoCoaching | null>(null);
+	// Phase 3 (#447): tracks when Web Speech API is absent so the UI can
+	// show the typed-answer fallback message.
+	const [speechNotSupported, setSpeechNotSupported] = useState(false);
 	const [textCoaching, setTextCoaching] = useState<TextCoaching | null>(null);
 
 	// Video recording state
 	const [isRecording, setIsRecording] = useState(false);
 	const [recordingTime, setRecordingTime] = useState(0);
-	const [cameraReady, setCameraReady] = useState(false);
-	const [cameraError, setCameraError] = useState<string | null>(null);
+	// Phase 2 (#447): shared camera hook (extracted from this file's battle-tested code).
 	const [transcription, setTranscription] = useState('');
 	const [isTranscribing, setIsTranscribing] = useState(false);
 	const [capturedFrames, setCapturedFrames] = useState<string[]>([]);
 	const [recordingDone, setRecordingDone] = useState(false);
 	const [countdown, setCountdown] = useState<number | null>(null);
-	const [cameraStatus, setCameraStatus] = useState('');
-	const [micActive, setMicActive] = useState(false);
 
 	// Feedback detail sections
 	const [expandedSection, setExpandedSection] = useState<string | null>('content');
 
 	// Refs
 	const videoRef = useRef<HTMLVideoElement>(null);
-	const streamRef = useRef<MediaStream | null>(null);
+	const {
+		cameraReady,
+		cameraError,
+		cameraStatus,
+		micActive,
+		startCamera,
+		stopCamera,
+		getStream,
+	} = useInterviewCamera({ videoRef });
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const frameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -99,14 +112,14 @@ export function QuickPractice({
 	const audioChunksRef = useRef<Blob[]>([]);
 	const audioDataRef = useRef<string | null>(null);
 
-	// Cleanup on unmount
+	// Cleanup on unmount: clear timers. Camera teardown is handled by the
+	// useInterviewCamera hook's built-in unmount effect (Phase 2).
 	useEffect(() => {
 		return () => {
-			stopCamera();
 			if (timerRef.current) clearInterval(timerRef.current);
 			if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
 		};
-	}, [stopCamera]);
+	}, []);
 
 	// Detect iOS (all browsers on iOS use WebKit)
 	const isIOS =
@@ -126,11 +139,11 @@ export function QuickPractice({
 		setTranscription('');
 		setCapturedFrames([]);
 		setRecordingTime(0);
-		setCameraError(null);
+		// Phase 2: stopCamera() resets all camera state via the shared hook.
+		stopCamera();
 		setExpandedSection('content');
 		audioDataRef.current = null;
 		audioChunksRef.current = [];
-		setMicActive(false);
 	}
 
 	function closePractice() {
@@ -146,151 +159,9 @@ export function QuickPractice({
 		setTranscription('');
 		setCapturedFrames([]);
 		setRecordingTime(0);
-		setCameraError(null);
 		setCountdown(null);
 	}
 
-	// Camera management — 13TH FIX (Feb 11 2026)
-	async function startCamera() {
-		try {
-			setCameraError(null);
-			setCameraReady(false);
-			setCameraStatus('Requesting camera...');
-
-			if (!navigator.mediaDevices?.getUserMedia) {
-				setCameraError('not_supported');
-				setCameraStatus('Camera not supported');
-				return;
-			}
-
-			let videoStream: MediaStream | null = null;
-			const constraintSets: Array<{
-				video: MediaStreamConstraints['video'];
-				audio: boolean;
-				label: string;
-			}> = [
-				{ video: { facingMode: 'user' }, audio: true, label: 'av:user' },
-				{ video: true, audio: true, label: 'av:true' },
-				{ video: { facingMode: 'user' }, audio: false, label: 'v:user' },
-				{ video: true, audio: false, label: 'v:true' },
-			];
-
-			for (const { video: vc, audio: ac, label } of constraintSets) {
-				try {
-					setCameraStatus(`Trying ${label}...`);
-					videoStream = await navigator.mediaDevices.getUserMedia({
-						video: vc,
-						...(ac ? { audio: true } : {}),
-					});
-
-					const vt = videoStream.getVideoTracks()[0];
-					if (vt?.readyState !== 'live') {
-						console.warn(`[camera] ${label}: no live video track`);
-						videoStream.getTracks().forEach((t) => {
-							t.stop();
-						});
-						videoStream = null;
-						continue;
-					}
-
-					const settings = vt.getSettings?.() || {};
-					const at = videoStream.getAudioTracks();
-					console.log(
-						`[camera] ${label}: track=${vt.readyState} ${settings.width}x${settings.height} audio:${at.length}`,
-					);
-					setCameraStatus(
-						`Got ${label}: ${settings.width || '?'}x${settings.height || '?'} ${at.length > 0 ? '🎙' : ''}`,
-					);
-					break;
-				} catch (err: any) {
-					console.warn(`[camera] ${label} error: ${err?.name} ${err?.message}`);
-					setCameraStatus(`${label}: ${err?.name}`);
-					if (err.name === 'NotAllowedError' && !ac) {
-						setCameraError('denied');
-						return;
-					}
-				}
-			}
-
-			if (!videoStream) {
-				setCameraError('not_found');
-				setCameraStatus('Camera not working — tap Retry');
-				return;
-			}
-
-			streamRef.current = videoStream;
-
-			const audioTracks = videoStream.getAudioTracks();
-			if (audioTracks.length > 0) {
-				setMicActive(true);
-				console.log(`[camera] mic active: ${audioTracks[0].label}`);
-			} else {
-				setMicActive(false);
-				console.log('[camera] no audio track — mic not available');
-			}
-
-			const v = videoRef.current;
-			if (v) {
-				v.srcObject = videoStream;
-				try {
-					await v.play();
-					console.log(
-						`[camera] play() succeeded, readyState=${v.readyState}, videoWidth=${v.videoWidth}`,
-					);
-				} catch (e: any) {
-					console.warn('[camera] play() failed, retrying:', e?.message);
-					try {
-						await v.play();
-					} catch (err) {
-						console.error('[quick-practice] Operation failed:', err);
-					}
-				}
-			}
-
-			const vt = videoStream.getVideoTracks()[0];
-			const at2 = videoStream.getAudioTracks();
-			const settings = vt?.getSettings?.() || {};
-			setCameraStatus(
-				`OK ${settings.width || '?'}x${settings.height || '?'} ${at2.length > 0 ? '🎙' : ''} ▶`,
-			);
-
-			setCameraReady(true);
-
-			if (vt) {
-				vt.addEventListener('ended', () => {
-					console.warn('[camera] video track ended');
-					setCameraReady(false);
-					setCameraError('denied');
-					setCameraStatus('Track ended');
-				});
-			}
-		} catch (err: any) {
-			console.error('Camera access error:', err?.name, err?.message);
-			setCameraStatus(`Error: ${err?.name} ${err?.message}`);
-			if (err.name === 'NotAllowedError') {
-				setCameraError('denied');
-			} else if (err.name === 'NotFoundError') {
-				setCameraError('not_found');
-			} else {
-				setCameraError('unknown');
-			}
-		}
-	}
-
-	function stopCamera() {
-		if (streamRef.current) {
-			streamRef.current.getTracks().forEach((track) => {
-				track.stop();
-			});
-			streamRef.current = null;
-		}
-		if (videoRef.current) {
-			videoRef.current.srcObject = null;
-		}
-		setCameraReady(false);
-		setCameraStatus('');
-		setMicActive(false);
-	}
 
 	function captureFrame(): string | null {
 		if (!videoRef.current || !canvasRef.current) return null;
@@ -305,12 +176,15 @@ export function QuickPractice({
 	}
 
 	function startSpeechRecognition() {
-		const SpeechRecognition =
-			(window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-		if (!SpeechRecognition) {
-			console.warn('Speech recognition not supported');
+		// Phase 3 (#447): shared availability check. When absent, the UI shows
+		// SPEECH_NOT_SUPPORTED_MESSAGE and the user types their answer instead.
+		if (!isSpeechRecognitionAvailable()) {
+			setSpeechNotSupported(true);
 			return;
 		}
+
+		const SpeechRecognition =
+			(window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
 		const recognition = new SpeechRecognition();
 		recognition.continuous = true;
@@ -388,7 +262,8 @@ export function QuickPractice({
 	}
 
 	function startRecording() {
-		if (!streamRef.current) return;
+		const activeStream = getStream();
+		if (!activeStream) return;
 
 		setIsRecording(true);
 		setRecordingTime(0);
@@ -414,7 +289,7 @@ export function QuickPractice({
 
 		startSpeechRecognition();
 
-		const stream = streamRef.current;
+		const stream = activeStream;
 		if (stream && stream.getAudioTracks().length > 0 && typeof MediaRecorder !== 'undefined') {
 			try {
 				const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -804,6 +679,12 @@ export function QuickPractice({
 							{/* Video Recording Mode */}
 							{responseMode === 'video' && (
 								<div className="mt-4 space-y-4">
+									{/* Phase 3 (#447): typed-answer fallback when Web Speech API absent */}
+									{speechNotSupported && (
+										<p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+											{SPEECH_NOT_SUPPORTED_MESSAGE}
+										</p>
+									)}
 									{/* Camera Preview */}
 									{!cameraError && (
 										<div className="relative bg-black aspect-video rounded-xl isolate overflow-hidden">
@@ -1052,8 +933,6 @@ export function QuickPractice({
 													variant="outline"
 													size="sm"
 													onClick={() => {
-														setCameraError(null);
-														setCameraReady(false);
 														startCamera();
 													}}
 													className="flex-1"
@@ -1065,7 +944,6 @@ export function QuickPractice({
 													size="sm"
 													onClick={() => {
 														stopCamera();
-														setCameraError(null);
 														setResponseMode('text');
 													}}
 													className="flex-1"
@@ -1192,7 +1070,6 @@ export function QuickPractice({
 												onClick={() => {
 													stopCamera();
 													setResponseMode('select');
-													setCameraError(null);
 												}}
 												className="text-xs text-muted-foreground hover:text-foreground underline"
 											>

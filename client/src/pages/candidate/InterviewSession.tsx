@@ -36,6 +36,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useInterviewerAudio } from '@/hooks/useInterviewerAudio';
+import { getCameraErrorMessage, useInterviewCamera } from '@/hooks/useInterviewCamera';
+import {
+	isSpeechRecognitionAvailable,
+	SPEECH_NOT_SUPPORTED_MESSAGE,
+} from '@/hooks/useSpeechRecognition';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall, getToken } from '@/lib/api';
 import { useVoiceRoom, type VoiceRoomTurn } from './useVoiceRoom';
@@ -118,11 +123,21 @@ export default function CandidateInterviewSessionPage() {
 	const [consentDeclined, setConsentDeclined] = useState(false);
 	const [consentBusy, setConsentBusy] = useState(false);
 
-	// Camera/mic
+	// Camera/mic — Phase 2 (#447): shared camera hook.
+	// videoConsent gate is preserved: startCamera is only called when consented.
 	const videoRef = useRef<HTMLVideoElement>(null);
-	const streamRef = useRef<MediaStream | null>(null);
-	const [cameraReady, setCameraReady] = useState(false);
-	const [cameraError, setCameraError] = useState<string | null>(null);
+	const {
+		cameraReady,
+		cameraError,
+		startCamera: startCameraInternal,
+		stopCamera,
+		getStream,
+	} = useInterviewCamera({ videoRef });
+	// Consent-gated wrapper: matches the original startCamera behavior.
+	const startCamera = useCallback(async () => {
+		if (!videoConsent) return;
+		await startCameraInternal();
+	}, [videoConsent, startCameraInternal]);
 
 	// Frame capture
 	const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -140,6 +155,8 @@ export default function CandidateInterviewSessionPage() {
 
 	// Chat
 	const [draft, setDraft] = useState('');
+	// Phase 3 (#447): tracks when Web Speech API is absent.
+	const [speechNotSupported, setSpeechNotSupported] = useState(false);
 	const [sending, setSending] = useState(false);
 	const [finishing, setFinishing] = useState(false);
 	const [confirmEnd, setConfirmEnd] = useState(false);
@@ -319,54 +336,9 @@ export default function CandidateInterviewSessionPage() {
 		setPhase('devices');
 	}, [recordingId]);
 
-	// ---- camera ----
-	const startCamera = useCallback(async () => {
-		if (!videoConsent) return;
-		setCameraError(null);
-		try {
-			const constraints: MediaStreamConstraints[] = [
-				{ video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: true },
-				{ video: true, audio: true },
-				{ video: true },
-			];
-			let stream: MediaStream | null = null;
-			let lastErr: unknown = null;
-			for (const c of constraints) {
-				try {
-					stream = await navigator.mediaDevices.getUserMedia(c);
-					break;
-				} catch (e) {
-					lastErr = e;
-				}
-			}
-			if (!stream) throw lastErr ?? new Error('Camera unavailable');
-			streamRef.current = stream;
-			if (videoRef.current) {
-				videoRef.current.srcObject = stream;
-				// play() can hang indefinitely on some platforms — don't let it block joining
-				await Promise.race([
-					videoRef.current.play().catch(() => {}),
-					new Promise((res) => setTimeout(res, 3000)),
-				]);
-			}
-			setCameraReady(true);
-		} catch {
-			setCameraError('Camera unavailable. You can continue with text and voice answers.');
-		}
-	}, [videoConsent]);
-
-	const stopCamera = useCallback(() => {
-		streamRef.current?.getTracks().forEach((t) => {
-			t.stop();
-		});
-		streamRef.current = null;
-		if (videoRef.current) videoRef.current.srcObject = null;
-		setCameraReady(false);
-	}, []);
-
 	// ---- frame capture (same cadence as mock-interview) ----
 	const captureFrame = useCallback(() => {
-		if (!videoConsent || !streamRef.current || !videoRef.current || !canvasRef.current) return;
+		if (!videoConsent || !getStream() || !videoRef.current || !canvasRef.current) return;
 		if (perQuestionFramesRef.current.length >= MAX_FRAMES_PER_QUESTION) return;
 		if (framesRef.current.length >= MAX_FRAMES_TOTAL) return;
 		try {
@@ -424,8 +396,13 @@ export default function CandidateInterviewSessionPage() {
 
 	// ---- voice input (manual toggle, same as mock-interview v1) ----
 	const startDictation = useCallback(() => {
+		// Phase 3 (#447): shared check. When absent, show the typed-answer
+		// fallback message instead of silently doing nothing.
+		if (!isSpeechRecognitionAvailable()) {
+			setSpeechNotSupported(true);
+			return;
+		}
 		const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-		if (!SR) return;
 		try {
 			const rec = new SR();
 			rec.continuous = true;
@@ -895,7 +872,11 @@ export default function CandidateInterviewSessionPage() {
 								</div>
 							)}
 						</div>
-						{cameraError && <p className="text-sm text-amber-600">{cameraError}</p>}
+						{cameraError && (
+							<p className="text-sm text-amber-600">
+								{getCameraErrorMessage(cameraError, true)}
+							</p>
+						)}
 						{!videoConsent && (
 							<p className="text-sm text-muted-foreground">
 								You'll answer by text and voice. Video analysis is off.
@@ -1133,6 +1114,13 @@ export default function CandidateInterviewSessionPage() {
 							</Button>
 						</div>
 					) : (
+					<div className="space-y-2">
+						{/* Phase 3 (#447): typed-answer fallback when Web Speech API absent */}
+						{speechNotSupported && (
+							<p className="text-sm text-amber-600">
+								{SPEECH_NOT_SUPPORTED_MESSAGE}
+							</p>
+						)}
 					<div className="flex gap-2 items-end">
 						<Textarea
 							value={draft}
@@ -1165,6 +1153,7 @@ export default function CandidateInterviewSessionPage() {
 							{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
 							<span className="ml-1">Send</span>
 						</Button>
+					</div>
 					</div>
 					)}
 				</div>

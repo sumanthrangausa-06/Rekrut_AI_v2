@@ -41,6 +41,11 @@ const { notifyUser } = require('../lib/notify');
 // insertAuditLog → audit_logs table). No new table, no new event schema.
 const { insertAuditLog } = require('./audit');
 const livekitService = require('../server/services/livekit');
+// Phase 1 (#447): shared transcription hygiene.
+const {
+	filterWhisperHallucination,
+	isValidTranscriptLength,
+} = require('../lib/transcription');
 const aiProvider = require('../lib/ai-provider');
 const { textToSpeech } = require('../lib/polsia-ai');
 
@@ -538,13 +543,22 @@ router.post(
 				} catch (asrErr) {
 					console.error('[interview-sessions] transcription failed:', asrErr.message);
 				}
+				// Phase 1 (#447): use shared transcription module.
+				const { isHallucination } = filterWhisperHallucination(candidateText);
+				if (isHallucination) {
+					console.log(`[interview-sessions] Filtered Whisper hallucination: "${candidateText}"`);
+					candidateText = '';
+					hasAudio = false;
+				}
 				// Client SpeechRecognition fallback (mirrors the mock voice-respond path)
 				if (!candidateText && (req.body?.client_transcript || '').trim().length >= 10) {
 					candidateText = req.body.client_transcript.trim();
 				}
 			}
 
-			if (!candidateText || candidateText.length < 2) {
+			// AI interview is conversational — short acknowledgments like "OK" (2 chars)
+			// are legitimate (e.g., "Ready for the next question?" → "OK").
+			if (!isValidTranscriptLength(candidateText, 2)) {
 				return res.status(400).json({ error: 'Response too short. Please elaborate.' });
 			}
 
@@ -985,6 +999,53 @@ router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (re
 	} catch (err) {
 		console.error('[interview-sessions] observer enable error:', err.message);
 		res.status(500).json({ error: 'Failed to enable observer' });
+	}
+});
+
+// POST /interview-sessions/:id/observer/disable — hiring team disables the AI
+// observer on a human interview. Phase 3 (#447): terminates the observer
+// agent (removes participant + deletes dispatch) and flips observer_enabled
+// to false. Idempotent — safe to call when already disabled.
+router.post('/interview-sessions/:id/observer/disable', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		if (!isHiringTeamForSession(session, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+
+		if (!session.config?.observer_enabled) {
+			return res.json({ success: true, observer_enabled: false, already_disabled: true });
+		}
+
+		// Terminate the observer agent. Non-blocking on failure — the flag
+		// flip is the source of truth; a stale agent is harmless (muted).
+		let disconnectResult = null;
+		try {
+			disconnectResult = await livekitService.disconnectVoiceAgent(session.id, 'observer');
+		} catch (err) {
+			console.error('[interview-sessions] observer disconnect failed:', err.message);
+		}
+
+		await pool.query('UPDATE interview_sessions SET config = config || $1::jsonb WHERE id = $2', [
+			JSON.stringify({ observer_enabled: false }),
+			session.id,
+		]);
+
+		await emitInterviewAudit({
+			company_id: session.company_id,
+			actor_id: req.user.id,
+			target_id: session.id,
+			action: 'session.observer_disabled',
+			metadata: { session_id: session.id },
+		});
+
+		res.json({ success: true, observer_enabled: false, disconnectResult });
+	} catch (err) {
+		console.error('[interview-sessions] observer disable error:', err.message);
+		res.status(500).json({ error: 'Failed to disable observer' });
 	}
 });
 

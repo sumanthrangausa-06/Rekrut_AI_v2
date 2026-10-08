@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall, getToken } from '@/lib/api';
 import { useInterviewerAudio } from '@/hooks/useInterviewerAudio';
+import { useInterviewCamera } from '@/hooks/useInterviewCamera';
 
 import type {
 	MockConversationTurn,
@@ -81,12 +82,21 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 	const silenceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const analyserRef = useRef<AnalyserNode | null>(null);
 	const silenceCountRef = useRef<number>(0);
+	// Phase 0 (#447): captures the silence count at stop time for the async
+	// onstop handler to read (see stopVoiceRecording).
+	const finalSilenceCountRef = useRef<number>(0);
 
-	// Mock interview camera state
-	const [mockCameraReady, setMockCameraReady] = useState(false);
-	const [mockCameraError, setMockCameraError] = useState<string | null>(null);
+	// Mock interview camera state — Phase 2 (#447): shared camera hook.
+	// The hook's cameraReady/cameraError map to mockCameraReady/mockCameraError
+	// for minimal UI churn.
 	const mockVideoRef = useRef<HTMLVideoElement>(null);
-	const mockStreamRef = useRef<MediaStream | null>(null);
+	const {
+		cameraReady: mockCameraReady,
+		cameraError: mockCameraError,
+		startCamera: startMockCamera,
+		stopCamera: stopMockCamera,
+		getStream: getMockStream,
+	} = useInterviewCamera({ videoRef: mockVideoRef });
 	const [_showTranscript, setShowTranscript] = useState(false);
 
 	// Enhanced mock interview: frame capture, live transcript
@@ -146,14 +156,14 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 	useEffect(() => {
 		if (
 			mockCameraReady &&
-			mockStreamRef.current &&
+			getMockStream() &&
 			mockSession &&
 			mockSession.status === 'in_progress'
 		) {
 			const v = mockVideoRef.current;
 			if (v && !v.srcObject) {
 				console.log('[camera] Attaching stream to video element (deferred)');
-				v.srcObject = mockStreamRef.current;
+				v.srcObject = getMockStream();
 				v.play().catch(() => {
 					v.play().catch(() => {});
 				});
@@ -212,7 +222,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 	const unmountCleanupRef = useRef<() => void>(() => {});
 	unmountCleanupRef.current = () => {
 		stopVoiceMode();
-		stopMockCamera();
+		// Phase 2: camera teardown handled by useInterviewCamera hook.
 		stopMockFrameCapture();
 		stopMockSpeechRecognition();
 		if (mockRecordingTimerRef.current) clearInterval(mockRecordingTimerRef.current);
@@ -223,67 +233,6 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 	}, []);
 
 	// ===== CAMERA FUNCTIONS =====
-
-	async function startMockCamera() {
-		try {
-			setMockCameraError(null);
-			if (!navigator.mediaDevices?.getUserMedia) {
-				setMockCameraError('Camera not supported in this browser');
-				return;
-			}
-			const constraints = [
-				{ video: { facingMode: 'user' }, audio: true },
-				{ video: true, audio: true },
-				{ video: { facingMode: 'user' }, audio: false },
-				{ video: true, audio: false },
-			];
-			let stream: MediaStream | null = null;
-			for (const c of constraints) {
-				try {
-					stream = await navigator.mediaDevices.getUserMedia(c);
-					const vt = stream.getVideoTracks()[0];
-					if (vt?.readyState === 'live') break;
-					stream.getTracks().forEach((t) => {
-						t.stop();
-					});
-					stream = null;
-				} catch {
-					stream = null;
-				}
-			}
-			if (!stream) {
-				setMockCameraError('Could not access camera');
-				return;
-			}
-			mockStreamRef.current = stream;
-			const v = mockVideoRef.current;
-			if (v) {
-				v.srcObject = stream;
-				try {
-					await v.play();
-				} catch {
-					try {
-						await v.play();
-					} catch (err) {
-						console.error('[mock-interview] Camera play failed:', err);
-					}
-				}
-			}
-			setMockCameraReady(true);
-		} catch (err: any) {
-			setMockCameraError(err.message || 'Camera error');
-		}
-	}
-
-	function stopMockCamera() {
-		if (mockStreamRef.current) {
-			mockStreamRef.current.getTracks().forEach((t) => {
-				t.stop();
-			});
-			mockStreamRef.current = null;
-		}
-		setMockCameraReady(false);
-	}
 
 	function captureMockFrame(): string | null {
 		if (!mockVideoRef.current) return null;
@@ -431,7 +380,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 					console.log('[voice] Audio track died between questions — re-acquiring fresh stream');
 					voiceStreamRef.current = null;
 				}
-				const cameraLiveTrack = mockStreamRef.current
+				const cameraLiveTrack = getMockStream()
 					?.getAudioTracks()
 					.find((t) => t.readyState === 'live');
 				if (cameraLiveTrack) {
@@ -508,9 +457,12 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 
 				if (voiceChunksRef.current.length === 0) return;
 
-				const totalSilenceChecks = silenceCountRef.current;
+				const totalSilenceChecks = finalSilenceCountRef.current;
 				const currentTranscript = mockLiveTranscriptRef.current;
-				if (totalSilenceChecks >= 23 && !currentTranscript.trim()) {
+				// Phase 0 (#447): threshold aligned with auto-stop (15 checks = 3s).
+				// Previously required 23 checks but auto-stop fired at 15, making
+				// this unreachable even without the reset race.
+				if (totalSilenceChecks >= 15 && !currentTranscript.trim()) {
 					console.log('[voice] Skipping — recording was mostly silence');
 					setMockLiveTranscript('');
 					noSpeechStreakRef.current += 1;
@@ -653,9 +605,18 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 						voiceRetryCountRef.current = 0;
 						setMockLiveTranscript('');
 						if (errorMsg.includes("didn't catch") || errorMsg.includes('Could not transcribe')) {
-							setVoiceError(
-								'Could not understand your response. Tap the mic button to try again, or type your answer below.',
-							);
+							// Phase 0 (#447): decouple the no-speech streak from the
+							// silence-skip path — transcription failures also count.
+							noSpeechStreakRef.current += 1;
+							if (noSpeechStreakRef.current >= 3) {
+								setVoiceError(
+									'Still no speech detected after 3 tries. Please check your microphone is enabled and not muted, or type your answer below instead.',
+								);
+							} else {
+								setVoiceError(
+									'Could not understand your response. Tap the mic button to try again, or type your answer below.',
+								);
+							}
 						} else {
 							setVoiceError(errorMsg);
 						}
@@ -707,6 +668,11 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 			silenceIntervalRef.current = null;
 		}
 		setSilenceTimer(0);
+		// Phase 0 (#447): capture the silence count BEFORE resetting, so the
+		// async recorder.onstop handler can read it. Previously the reset
+		// happened here and onstop always saw 0, making the silence-skip
+		// check dead code.
+		finalSilenceCountRef.current = silenceCountRef.current;
 		silenceCountRef.current = 0;
 		stopMockSpeechRecognition();
 		if (mockRecordingTimerRef.current) {
@@ -719,8 +685,8 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 		stopAudio();
 		stopVoiceRecording();
 		stopMockSpeechRecognition();
-		if (voiceStreamRef.current && voiceStreamRef.current !== mockStreamRef.current) {
-			const cameraAudioIds = mockStreamRef.current?.getAudioTracks().map((t) => t.id) || [];
+		if (voiceStreamRef.current && voiceStreamRef.current !== getMockStream()) {
+			const cameraAudioIds = getMockStream()?.getAudioTracks().map((t) => t.id) || [];
 			voiceStreamRef.current.getTracks().forEach((t) => {
 				if (!cameraAudioIds.includes(t.id)) t.stop();
 			});
