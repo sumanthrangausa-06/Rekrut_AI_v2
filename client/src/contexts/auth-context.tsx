@@ -159,7 +159,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	const isPendingApproval = (u: User | null): boolean => {
-		return u ? isRecruiterRole(u.role) && !u.company_id : false;
+		if (!u) return false;
+		// Platform admins bypass company join approval
+		if (u.role === 'admin') return false;
+		return isRecruiterRole(u.role) && !u.company_id;
 	};
 
 	const refreshUser = async () => {
