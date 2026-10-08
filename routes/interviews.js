@@ -2141,10 +2141,15 @@ router.post(
 			}
 
 			// BUG FIX: Whisper hallucinates known phrases on silent/near-silent audio
+			// Phase 0 (#447): added "Thank you." (with period) — Whisper's #1
+			// hallucination on silent English audio. The period makes it specific
+			// to the hallucination pattern; bare "Thank you" without period is
+			// NOT included to avoid false-positives on legitimate answers like
+			// "Thank you for the question...". Fixed corrupted U+FFFD entry.
 			const WHISPER_HALLUCINATIONS = [
 				'ご視聴ありがとうございました',
 				'視聴ありがとうございました',
-				'あ���がとうございました',
+				'ありがとうございました',
 				'ご視聴ありがとうございます',
 				'字幕',
 				'サブスクライブ',
@@ -2156,6 +2161,7 @@ router.post(
 				'Untertitel',
 				'Thanks for watching',
 				'Thank you for watching',
+				'Thank you.',
 				'Please subscribe',
 				'Like and subscribe',
 			];
@@ -3426,6 +3432,36 @@ router.post(
 					return res.status(400).json({
 						error: "Couldn't transcribe your audio. Please try speaking again.",
 					});
+				}
+				// Phase 0 (#447): filter Whisper hallucinations. Duplicated from the
+				// mock voice-respond path — Phase 1 extracts this to lib/transcription.js.
+				const WHISPER_HALLUCINATIONS = [
+					'ご視聴ありがとうございました',
+					'視聴ありがとうございました',
+					'ありがとうございました',
+					'ご視聴ありがとうございます',
+					'字幕',
+					'サブスクライブ',
+					'チャンネル登録',
+					'谢谢观看',
+					'感谢观看',
+					'Sous-titres',
+					'Sottotitoli',
+					'Untertitel',
+					'Thanks for watching',
+					'Thank you for watching',
+					'Thank you.',
+					'Please subscribe',
+					'Like and subscribe',
+				];
+				if (
+					transcribedText &&
+					WHISPER_HALLUCINATIONS.some((phrase) =>
+						transcribedText.toLowerCase().includes(phrase.toLowerCase()),
+					)
+				) {
+					console.log(`[screening-voice] Filtered Whisper hallucination: "${transcribedText}"`);
+					transcribedText = '';
 				}
 			}
 

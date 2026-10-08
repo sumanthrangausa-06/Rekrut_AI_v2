@@ -45,6 +45,11 @@ export function useInterviewerAudio(options: InterviewerAudioOptions) {
 
 	const stopAudio = useCallback(() => {
 		if (audioSourceRef.current) {
+			// Phase 0 (#447): null the onended handler BEFORE stopping.
+			// Otherwise the old source's onended fires finish(), corrupting
+			// state (onSpeakingChange(false) + auto-record) while new audio
+			// is starting.
+			audioSourceRef.current.onended = null;
 			try {
 				audioSourceRef.current.stop();
 			} catch {
@@ -54,6 +59,14 @@ export function useInterviewerAudio(options: InterviewerAudioOptions) {
 		}
 		if (audioElRef.current) {
 			audioElRef.current.pause();
+			// Phase 0 (#447): revoke the blob URL to prevent memory leak.
+			// The playAudioBuffer fallback path revokes on replace, but
+			// stopAudio() never did.
+			try {
+				URL.revokeObjectURL(audioElRef.current.src);
+			} catch {
+				/* not a blob URL */
+			}
 			audioElRef.current = null;
 		}
 		optionsRef.current.onSpeakingChange(false);
@@ -155,6 +168,9 @@ export function useInterviewerAudio(options: InterviewerAudioOptions) {
 			try {
 				const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
 				if (audioSourceRef.current) {
+					// Phase 0 (#447): null onended before stopping the old source,
+					// otherwise its finish() fires and corrupts the new playback state.
+					audioSourceRef.current.onended = null;
 					try {
 						audioSourceRef.current.stop();
 					} catch {

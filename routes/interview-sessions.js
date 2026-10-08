@@ -538,6 +538,38 @@ router.post(
 				} catch (asrErr) {
 					console.error('[interview-sessions] transcription failed:', asrErr.message);
 				}
+				// Phase 0 (#447): filter Whisper hallucinations before accepting the
+				// transcript. Duplicated from routes/interviews.js — Phase 1 extracts
+				// this to lib/transcription.js.
+				const WHISPER_HALLUCINATIONS = [
+					'ご視聴ありがとうございました',
+					'視聴ありがとうございました',
+					'ありがとうございました',
+					'ご視聴ありがとうございます',
+					'字幕',
+					'サブスクライブ',
+					'チャンネル登録',
+					'谢谢观看',
+					'感谢观看',
+					'Sous-titres',
+					'Sottotitoli',
+					'Untertitel',
+					'Thanks for watching',
+					'Thank you for watching',
+					'Thank you.',
+					'Please subscribe',
+					'Like and subscribe',
+				];
+				if (
+					candidateText &&
+					WHISPER_HALLUCINATIONS.some((phrase) =>
+						candidateText.toLowerCase().includes(phrase.toLowerCase()),
+					)
+				) {
+					console.log(`[interview-sessions] Filtered Whisper hallucination: "${candidateText}"`);
+					candidateText = '';
+					hasAudio = false;
+				}
 				// Client SpeechRecognition fallback (mirrors the mock voice-respond path)
 				if (!candidateText && (req.body?.client_transcript || '').trim().length >= 10) {
 					candidateText = req.body.client_transcript.trim();
