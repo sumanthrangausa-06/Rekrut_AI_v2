@@ -47,7 +47,7 @@ export type Notification = {
 	};
 };
 
-const typeConfig: Record<string, { icon: React.ReactNode; color: string; badge: string }> = {
+const typeConfig: Record<string, { icon: React.ReactNode; color: string; badge: string ; label: string }> = {
 	info: {
 		label: 'Info',
 		icon: <Info className="h-4 w-4" />,
