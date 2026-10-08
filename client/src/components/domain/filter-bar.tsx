@@ -22,6 +22,7 @@ export type FilterOption = {
 export type FilterBarProps = {
 	searchPlaceholder?: string;
 	onSearch?: (query: string) => void;
+	onSearchSubmit?: (query: string) => void;
 	filters: FilterOption[];
 	activeFilters: Record<string, string | string[]>;
 	onFilterChange: (id: string, value: string | string[]) => void;
@@ -32,6 +33,7 @@ export type FilterBarProps = {
 export function FilterBar({
 	searchPlaceholder = 'Search...',
 	onSearch,
+	onSearchSubmit,
 	filters,
 	activeFilters,
 	onFilterChange,
@@ -59,6 +61,9 @@ export function FilterBar({
 						placeholder={searchPlaceholder}
 						value={search}
 						onChange={(e) => handleSearch(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === 'Enter') onSearchSubmit?.(search);
+						}}
 						className="pl-9"
 					/>
 				</div>
