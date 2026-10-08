@@ -891,13 +891,14 @@ function ChatPanelContent({
 			{/* Text input fallback */}
 			{!candidateRecording && (
 				<div className="shrink-0 p-3 border-t border-white/5 bg-black/20">
+					{/* Phase 3 (#447): typed-answer fallback notice — above the
+						flex row so it stacks instead of squeezing inline. */}
+					{!speechAvailable && (
+						<p className="text-[11px] text-amber-400/90 mb-2 px-1">
+							{SPEECH_NOT_SUPPORTED_MESSAGE}
+						</p>
+					)}
 					<div className="flex items-end gap-2">
-						{/* Phase 3 (#447): typed-answer fallback notice */}
-						{!speechAvailable && (
-							<p className="text-[11px] text-amber-400/90 mb-1 px-1">
-								{SPEECH_NOT_SUPPORTED_MESSAGE}
-							</p>
-						)}
 						{/* Attachment / formatting icons */}
 						<div className="flex items-center gap-1 shrink-0 pb-1">
 							<button type="button" className="h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors">
