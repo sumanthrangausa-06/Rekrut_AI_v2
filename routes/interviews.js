@@ -3419,7 +3419,8 @@ router.post(
 				}
 			}
 
-			if (!isValidTranscriptLength(transcribedText)) {
+			// Screening uses yes/no questions — "yes" (3 chars) is a legitimate answer.
+			if (!isValidTranscriptLength(transcribedText, 3)) {
 				return res.status(400).json({
 					error: "Didn't catch that. Could you please repeat your answer?",
 				});

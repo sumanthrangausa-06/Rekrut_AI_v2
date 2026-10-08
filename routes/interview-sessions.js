@@ -556,7 +556,9 @@ router.post(
 				}
 			}
 
-			if (!isValidTranscriptLength(candidateText)) {
+			// AI interview is conversational — short acknowledgments like "OK" (2 chars)
+			// are legitimate (e.g., "Ready for the next question?" → "OK").
+			if (!isValidTranscriptLength(candidateText, 2)) {
 				return res.status(400).json({ error: 'Response too short. Please elaborate.' });
 			}
 
