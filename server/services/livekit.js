@@ -889,6 +889,61 @@ async function downloadRecordingAudio(storagePath) {
 	}
 }
 
+/**
+ * Disconnect the voice agent from a session's LiveKit room.
+ * Phase 3 (#447): supports the observer disable path.
+ *
+ * Removes the agent participant (if connected) and deletes any active
+ * dispatch for the given mode. Idempotent — safe to call when the agent
+ * isn't present.
+ *
+ * @param {string|number} sessionId
+ * @param {string} mode 'observer' or 'interviewer'
+ * @returns {{ removed_participant: boolean, deleted_dispatches: number }}
+ */
+async function disconnectVoiceAgent(sessionId, mode = 'observer') {
+	const room = await findOrCreateSessionRoom(sessionId);
+	const { RoomServiceClient, AgentDispatchClient } = await getLivekitModule();
+	const { apiKey, apiSecret, livekitUrl } = getConfig();
+	const httpUrl = livekitUrl.replace(/^wss?:\/\//, 'https://').replace(/\/$/, '');
+
+	let removedParticipant = false;
+	let deletedDispatches = 0;
+
+	// 1. Remove the agent participant if it's in the room.
+	try {
+		const roomClient = new RoomServiceClient(httpUrl, apiKey, apiSecret);
+		const participants = await roomClient.listParticipants(room.room_name);
+		const agentName = getVoiceAgentName();
+		for (const p of participants) {
+			// Agent identity typically contains the agent name; match loosely.
+			if (p.identity && p.identity.includes(agentName)) {
+				await roomClient.removeParticipant(room.room_name, p.identity);
+				removedParticipant = true;
+			}
+		}
+	} catch (err) {
+		console.error('[livekit] disconnect agent: removeParticipant failed:', err.message);
+	}
+
+	// 2. Delete active dispatches for this session+mode so the agent
+	// doesn't get re-dispatched.
+	try {
+		const dispatchClient = new AgentDispatchClient(httpUrl, apiKey, apiSecret);
+		const dispatches = await dispatchClient.listDispatch(room.room_name);
+		for (const d of dispatches) {
+			if (_isActiveDispatchForMode(d, mode, sessionId)) {
+				await dispatchClient.deleteDispatch(d.id, room.room_name);
+				deletedDispatches++;
+			}
+		}
+	} catch (err) {
+		console.error('[livekit] disconnect agent: deleteDispatch failed:', err.message);
+	}
+
+	return { removed_participant: removedParticipant, deleted_dispatches: deletedDispatches };
+}
+
 module.exports = {
 	generateToken,
 	createRoom,
@@ -902,6 +957,7 @@ module.exports = {
 	findOrCreateSessionRoom,
 	dispatchVoiceAgent,
 	dispatchAgentToRoom,
+	disconnectVoiceAgent,
 	getVoiceAgentName,
 	findRoomById,
 	validateRoomAccess,

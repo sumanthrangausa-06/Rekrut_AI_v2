@@ -29,6 +29,10 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useInterviewCamera } from '@/hooks/useInterviewCamera';
+import {
+	isSpeechRecognitionAvailable,
+	SPEECH_NOT_SUPPORTED_MESSAGE,
+} from '@/hooks/useSpeechRecognition';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -71,6 +75,9 @@ export function QuickPractice({
 	const [responseText, setResponseText] = useState('');
 	const [submitting, setSubmitting] = useState(false);
 	const [coaching, setCoaching] = useState<VideoCoaching | null>(null);
+	// Phase 3 (#447): tracks when Web Speech API is absent so the UI can
+	// show the typed-answer fallback message.
+	const [speechNotSupported, setSpeechNotSupported] = useState(false);
 	const [textCoaching, setTextCoaching] = useState<TextCoaching | null>(null);
 
 	// Video recording state
@@ -169,12 +176,15 @@ export function QuickPractice({
 	}
 
 	function startSpeechRecognition() {
-		const SpeechRecognition =
-			(window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-		if (!SpeechRecognition) {
-			console.warn('Speech recognition not supported');
+		// Phase 3 (#447): shared availability check. When absent, the UI shows
+		// SPEECH_NOT_SUPPORTED_MESSAGE and the user types their answer instead.
+		if (!isSpeechRecognitionAvailable()) {
+			setSpeechNotSupported(true);
 			return;
 		}
+
+		const SpeechRecognition =
+			(window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
 		const recognition = new SpeechRecognition();
 		recognition.continuous = true;
@@ -669,6 +679,12 @@ export function QuickPractice({
 							{/* Video Recording Mode */}
 							{responseMode === 'video' && (
 								<div className="mt-4 space-y-4">
+									{/* Phase 3 (#447): typed-answer fallback when Web Speech API absent */}
+									{speechNotSupported && (
+										<p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+											{SPEECH_NOT_SUPPORTED_MESSAGE}
+										</p>
+									)}
 									{/* Camera Preview */}
 									{!cameraError && (
 										<div className="relative bg-black aspect-video rounded-xl isolate overflow-hidden">
