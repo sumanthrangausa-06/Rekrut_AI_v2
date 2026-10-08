@@ -520,7 +520,21 @@ router.post('/refresh', rateLimits.strict, async (req, res) => {
 });
 
 // Get current user
-router.get('/me', authMiddleware, (req, res) => {
+router.get('/me', authMiddleware, async (req, res) => {
+	// Platform admin status can live in users.role OR the user_roles RBAC table
+	let isPlatformAdmin = req.user.role === 'admin';
+	try {
+		const roleResult = await pool.query(
+			`SELECT 1 FROM user_roles ur
+			 JOIN roles r ON r.id = ur.role_id
+			 WHERE ur.user_id = $1 AND r.name IN ('admin', 'owner')
+			 LIMIT 1`,
+			[req.user.id],
+		);
+		if (roleResult.rows.length > 0) isPlatformAdmin = true;
+	} catch (err) {
+		console.error('[auth/me] user_roles lookup failed (non-blocking):', err.message);
+	}
 	res.json({
 		user: {
 			id: req.user.id,
@@ -530,6 +544,7 @@ router.get('/me', authMiddleware, (req, res) => {
 			company_id: req.user.company_id,
 			company_name: req.user.company_name,
 			is_paid: req.user.is_paid,
+			is_platform_admin: isPlatformAdmin,
 			google_id: req.user.google_id,
 			linkedin_id: req.user.linkedin_id,
 			created_at: req.user.created_at,
