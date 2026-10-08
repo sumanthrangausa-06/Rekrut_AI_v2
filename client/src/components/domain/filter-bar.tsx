@@ -113,13 +113,15 @@ export function FilterBar({
 							) : (
 								<Select
 									value={activeFilters[filter.id] as string}
-									onValueChange={(value) => onFilterChange(filter.id, value)}
+									onValueChange={(value) =>
+										onFilterChange(filter.id, value === 'all' ? '' : value)
+									}
 								>
 									<SelectTrigger id={`filter-${filter.id}`} className="w-full">
 										<SelectValue placeholder={`All ${filter.label}`} />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="">All {filter.label}</SelectItem>
+										<SelectItem value="all">All {filter.label}</SelectItem>
 										{filter.options?.map((opt) => (
 											<SelectItem key={opt.value} value={opt.value}>
 												{opt.label}
