@@ -45,6 +45,15 @@ import { trackEvent } from '@/lib/analytics';
 import { apiCall } from '@/lib/api';
 import { UNSPLASH_IMAGES } from '@/lib/avatar';
 
+// Test accounts (QA/E2E/Debug) are kept until launch per #151 — badge them
+// so recruiters can identify them. Matches names containing test/qa/e2e/debug
+// markers (case-insensitive) or bracketed prefixes like [E2E-TEST].
+function isTestAccount(name: string | undefined): boolean {
+	if (!name) return false;
+	return /(test|qa|e2e|debug|\[)/i.test(name);
+}
+
+
 export type Candidate = {
 	id: string;
 	name: string;
@@ -901,6 +910,14 @@ export function RecruiterCandidatesPage() {
 										className={`absolute top-3 right-3 z-10 ${statusColors[candidate.applicationStatus]}`}
 									>
 										{statusLabels[candidate.applicationStatus]}
+									</Badge>
+								)}
+								{isTestAccount(candidate.name) && (
+									<Badge
+										variant="secondary"
+										className="absolute top-3 left-12 z-10 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+									>
+										Test
 									</Badge>
 								)}
 								<CandidateCard
