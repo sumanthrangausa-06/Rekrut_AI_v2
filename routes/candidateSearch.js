@@ -69,6 +69,17 @@ function buildSearchWhere(params) {
 	const queryParams = [];
 	let idx = 1;
 
+	// Visibility (US-2.7): never surface soft-deleted users …
+	conditions.push('u.deleted_at IS NULL');
+	// … or candidates who opted out of recruiter discovery.
+	// user_settings.privacy->>'profile_visible' defaults to true when the row
+	// or key is absent (matches DEFAULT_PRIVACY), so only an explicit false hides.
+	conditions.push(`NOT EXISTS (
+    SELECT 1 FROM user_settings us
+    WHERE us.user_id = csi.user_id
+      AND (us.privacy->>'profile_visible')::boolean = false
+  )`);
+
 	// Skills filter (JSONB overlap — any of the provided skills)
 	if (params.skills) {
 		const skillList = Array.isArray(params.skills)
