@@ -69,6 +69,17 @@ function buildSearchWhere(params) {
 	const queryParams = [];
 	let idx = 1;
 
+	// Visibility (US-2.7): never surface soft-deleted users …
+	conditions.push('u.deleted_at IS NULL');
+	// … or candidates who opted out of recruiter discovery.
+	// user_settings.privacy->>'profile_visible' defaults to true when the row
+	// or key is absent (matches DEFAULT_PRIVACY), so only an explicit false hides.
+	conditions.push(`NOT EXISTS (
+    SELECT 1 FROM user_settings us
+    WHERE us.user_id = csi.user_id
+      AND us.privacy->>'profile_visible' = 'false'
+  )`);
+
 	// Skills filter (JSONB overlap — any of the provided skills)
 	if (params.skills) {
 		const skillList = Array.isArray(params.skills)
@@ -89,6 +100,18 @@ function buildSearchWhere(params) {
 		conditions.push(`csi.location ILIKE $${idx}`);
 		queryParams.push(`%${params.location}%`);
 		idx++;
+	}
+
+	// Work-mode filter (candidate's stated preference, from candidate_profiles)
+	if (params.work_mode) {
+		const mode = String(params.work_mode).toLowerCase();
+		if (['remote', 'hybrid', 'onsite'].includes(mode)) {
+			conditions.push(
+				`csi.user_id IN (SELECT user_id FROM candidate_profiles WHERE remote_preference = $${idx})`,
+			);
+			queryParams.push(mode);
+			idx++;
+		}
 	}
 
 	// Experience range

@@ -1,6 +1,7 @@
 import {
 	Briefcase,
 	ChevronRight,
+	Clock,
 	GraduationCap,
 	Mail,
 	MapPin,
@@ -30,6 +31,7 @@ export type CandidateCardProps = {
 	matchScore?: number | null;
 	omniscore?: number | null;
 	trustscore?: number | null;
+	availability?: string | null;
 	isTopCandidate?: boolean;
 	onMessage?: (id: string) => void;
 	onSchedule?: (id: string) => void;
@@ -51,6 +53,7 @@ export function CandidateCard({
 	matchScore,
 	omniscore,
 	trustscore,
+	availability,
 	isTopCandidate,
 	onMessage,
 	onSchedule,
@@ -181,6 +184,12 @@ export function CandidateCard({
 						<span className="flex items-center gap-1">
 							<Briefcase className="h-3.5 w-3.5" />
 							{experienceYears} {experienceYears === 1 ? 'year' : 'years'}
+						</span>
+					)}
+					{availability && (
+						<span className="flex items-center gap-1">
+							<Clock className="h-3.5 w-3.5" />
+							{availability.replace(/[-_]/g, ' ').replace(/^\w/, (c) => c.toUpperCase())}
 						</span>
 					)}
 					{education && (

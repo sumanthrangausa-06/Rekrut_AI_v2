@@ -137,6 +137,12 @@ const filterOptions = [
 	{
 		id: 'location',
 		label: 'Location',
+		type: 'text' as const,
+		placeholder: 'City or region...',
+	},
+	{
+		id: 'workMode',
+		label: 'Work mode',
 		type: 'select' as const,
 		options: [
 			{ value: 'remote', label: 'Remote' },
@@ -200,9 +206,51 @@ const statusLabels: Record<string, string> = {
 function normalizeCandidate(raw: any): Candidate {
 	return {
 		...raw,
+		// API returns snake_case; the card reads camelCase (US-2.1)
+		avatar: raw.avatar_url || raw.avatar || undefined,
+		experienceYears: raw.experience_years ?? raw.experienceYears,
+		omniscore: raw.omni_score ?? raw.omniScore ?? raw.omniscore ?? null,
+		availability: raw.availability_status || raw.availability || undefined,
 		skills: raw.skills?.map((s: any) => (typeof s === 'string' ? s : s.name)) || [],
-		// Map omniScore (API) to omniscore (component prop) for display
-		omniscore: raw.omniScore ?? raw.omniscore ?? null,
+	};
+}
+
+// Normalize the GET /api/candidates/:id/preview payload ({ candidate: {...} })
+// into the ProfilePreviewData shape the preview dialog renders. The API uses
+// snake_case and nested row objects; the dialog expects camelCase scalars.
+// Never throws on sparse profiles: arrays default to [], scalars to undefined.
+function normalizePreviewProfile(raw: any): ProfilePreviewData {
+	const c = raw ?? {};
+	const yearOf = (d: any) => {
+		const y = d ? new Date(d).getFullYear() : NaN;
+		return Number.isNaN(y) ? '' : String(y);
+	};
+	const edu = Array.isArray(c.education) ? c.education[0] : null;
+	const eduParts = [edu?.degree, edu?.field_of_study, edu?.institution].filter(Boolean);
+	return {
+		id: String(c.id ?? ''),
+		name: c.name ?? '',
+		avatar: c.avatar_url ?? undefined,
+		headline: c.headline ?? undefined,
+		bio: c.bio ?? undefined,
+		location: c.location ?? undefined,
+		experienceYears: c.years_experience ?? undefined,
+		education: eduParts.length ? eduParts.join(' · ') : undefined,
+		skills: Array.isArray(c.skills)
+			? c.skills.map((s: any) => (typeof s === 'string' ? s : s?.skill_name)).filter(Boolean)
+			: [],
+		omniScore: c.omni_score ?? undefined,
+		availability: c.availability ?? undefined,
+		experience: Array.isArray(c.experience)
+			? c.experience.map((e: any) => ({
+					company: e.company_name ?? '',
+					title: e.title ?? '',
+					duration: [yearOf(e.start_date), e.is_current ? 'Present' : yearOf(e.end_date)]
+						.filter(Boolean)
+						.join(' – '),
+					description: e.description ?? undefined,
+				}))
+			: [],
 	};
 }
 
@@ -250,9 +298,10 @@ export function RecruiterCandidatesPage() {
 		const params = new URLSearchParams();
 		params.set('page', String(page));
 		params.set('limit', String(limit));
-		if (searchQuery) params.set('search', searchQuery);
+		if (searchQuery.trim()) params.set('q', searchQuery.trim());
 		if (activeFilters.experience) params.set('experience', activeFilters.experience);
 		if (activeFilters.location) params.set('location', activeFilters.location);
+		if (activeFilters.workMode) params.set('work_mode', activeFilters.workMode);
 		if (activeFilters.matchScore) {
 			const score = activeFilters.matchScore;
 			if (score === '90-100') {
@@ -351,18 +400,18 @@ export function RecruiterCandidatesPage() {
 		}
 	}, []);
 
-	useEffect(() => {
-		if (searchQuery.trim()) {
-			setRecentSearches((prev) => {
-				const next = [searchQuery.trim(), ...prev.filter((s) => s !== searchQuery.trim())].slice(
-					0,
-					5,
-				);
-				localStorage.setItem('recruiter_recent_searches', JSON.stringify(next));
-				return next;
-			});
-		}
-	}, [searchQuery]);
+	// Save a search to recent history only when the user submits it (Enter),
+	// not on every keystroke — US-2.3
+	const saveRecentSearch = useCallback((query: string) => {
+		const trimmed = query.trim();
+		if (!trimmed) return;
+		setRecentSearches((prev) => {
+			if (prev[0] === trimmed) return prev; // already the most recent
+			const next = [trimmed, ...prev.filter((s) => s !== trimmed)].slice(0, 5);
+			localStorage.setItem('recruiter_recent_searches', JSON.stringify(next));
+			return next;
+		});
+	}, []);
 
 	useEffect(() => {
 		setPage(1);
@@ -498,8 +547,10 @@ export function RecruiterCandidatesPage() {
 		setProfilePreviewOpen(true);
 		setProfilePreviewLoading(true);
 		try {
-			const data = await apiCall<ProfilePreviewData>(`/candidates/${candidate.id}/preview`);
-			setProfilePreviewData(data);
+			const data = await apiCall<{ candidate: any }>(`/candidates/${candidate.id}/preview`);
+			// API returns a { candidate } wrapper with snake_case fields — unwrap and
+			// normalize into the ProfilePreviewData shape the dialog renders.
+			setProfilePreviewData(normalizePreviewProfile(data.candidate));
 		} catch (err) {
 			console.error('Failed to load profile preview:', err);
 			// Fallback: use candidate data from list
@@ -647,6 +698,7 @@ export function RecruiterCandidatesPage() {
 					<FilterBar
 						searchPlaceholder="Search by name, skill, or location..."
 						onSearch={setSearchQuery}
+						onSearchSubmit={saveRecentSearch}
 						filters={filterOptions}
 						activeFilters={activeFilters}
 						onFilterChange={handleFilterChange}
@@ -842,8 +894,47 @@ export function RecruiterCandidatesPage() {
 										{selectedCandidates.has(candidate.id) && (
 											<CheckSquare className="h-4 w-4 text-indigo-600" />
 										)}
-									</button>
+									<CandidateCard
+										id={candidate.id}
+										name={candidate.name}
+										avatar={candidate.avatar}
+										headline={candidate.headline}
+										location={candidate.location}
+										experienceYears={candidate.experienceYears}
+										education={candidate.education}
+										skills={candidate.skills}
+										matchScore={candidate.matchScore}
+										omniscore={candidate.omniscore}
+										trustscore={candidate.trustscore}
+										availability={candidate.availability}
+										isTopCandidate={candidate.isTopCandidate}
+										onMessage={handleMessage}
+										onSchedule={handleSchedule}
+										onShortlist={handleShortlist}
+										onInvite={handleOpenInvite}
+										onClick={() => handleOpenProfilePreview(candidate)}
+										className={
+											selectedCandidates.has(candidate.id) ? 'ring-2 ring-indigo-200' : ''
+										}
+									/>
+									{/* AI Screener button overlay */}
+									<div className="absolute bottom-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block">
+										<Button
+											size="sm"
+											variant="outline"
+											className="gap-1 text-xs h-7 min-h-[44px] bg-background border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950"
+											onClick={(e) => {
+												e.stopPropagation();
+												handleAiScreen(candidate);
+											}}
+										>
+											<BrainCircuit className="h-3 w-3" />
+											AI Screen
+										</Button>
+									</div>
 								</div>
+							))}
+						</div>
 
 								{candidate.applicationStatus && (
 									<Badge
@@ -1040,12 +1131,13 @@ export function RecruiterCandidatesPage() {
 							<div className="flex items-start gap-4">
 								<Avatar className="h-16 w-16 border">
 									<AvatarFallback className="bg-indigo-100 text-indigo-600 text-lg font-semibold">
-										{profilePreviewData.name
+										{(profilePreviewData.name || '')
 											.split(' ')
+											.filter(Boolean)
 											.map((n) => n[0])
 											.join('')
 											.toUpperCase()
-											.slice(0, 2)}
+											.slice(0, 2) || '?'}
 									</AvatarFallback>
 								</Avatar>
 								<div className="flex-1 min-w-0">
@@ -1139,7 +1231,7 @@ export function RecruiterCandidatesPage() {
 							</div>
 
 							{/* Skills */}
-							{profilePreviewData.skills.length > 0 && (
+							{(profilePreviewData.skills ?? []).length > 0 && (
 								<div>
 									<Label className="text-sm font-medium">Skills</Label>
 									<div className="flex flex-wrap gap-1.5 mt-1">
