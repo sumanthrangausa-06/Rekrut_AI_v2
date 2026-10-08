@@ -36,7 +36,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useInterviewerAudio } from '@/hooks/useInterviewerAudio';
-import { useInterviewCamera } from '@/hooks/useInterviewCamera';
+import { getCameraErrorMessage, useInterviewCamera } from '@/hooks/useInterviewCamera';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall, getToken } from '@/lib/api';
 import { useVoiceRoom, type VoiceRoomTurn } from './useVoiceRoom';
@@ -861,7 +861,11 @@ export default function CandidateInterviewSessionPage() {
 								</div>
 							)}
 						</div>
-						{cameraError && <p className="text-sm text-amber-600">{cameraError}</p>}
+						{cameraError && (
+							<p className="text-sm text-amber-600">
+								{getCameraErrorMessage(cameraError, true)}
+							</p>
+						)}
 						{!videoConsent && (
 							<p className="text-sm text-muted-foreground">
 								You'll answer by text and voice. Video analysis is off.

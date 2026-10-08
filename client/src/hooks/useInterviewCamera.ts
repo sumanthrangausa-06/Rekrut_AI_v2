@@ -15,6 +15,27 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type CameraError = 'not_supported' | 'denied' | 'not_found' | 'unknown' | null;
 
+/**
+ * Map a CameraError code to a user-friendly message.
+ * Pass allowContinue=true for flows where the user can proceed without video
+ * (e.g., InterviewSession's "continue with text and voice answers").
+ */
+export function getCameraErrorMessage(error: CameraError, allowContinue = false): string | null {
+	if (!error) return null;
+	const suffix = allowContinue ? ' You can continue with text and voice answers.' : '';
+	switch (error) {
+		case 'not_supported':
+			return `Camera not supported in this browser.${suffix}`;
+		case 'denied':
+			return `Camera access was denied. Please allow camera access in your browser settings.${suffix}`;
+		case 'not_found':
+			return `No camera found.${suffix}`;
+		case 'unknown':
+		default:
+			return `Camera unavailable.${suffix}`;
+	}
+}
+
 export interface UseInterviewCameraOptions {
 	/** Ref to the <video> element to attach the stream to. */
 	videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -166,14 +187,22 @@ export function useInterviewCamera(
 			if (v) {
 				v.srcObject = videoStream;
 				try {
-					await v.play();
+					// play() can hang indefinitely on some platforms — don't let it block.
+					// (Preserved from InterviewSession's original implementation.)
+					await Promise.race([
+						v.play().catch(() => {}),
+						new Promise((res) => setTimeout(res, 3000)),
+					]);
 					console.log(
 						`[camera] play() succeeded, readyState=${v.readyState}, videoWidth=${v.videoWidth}`,
 					);
 				} catch (e: any) {
 					console.warn('[camera] play() failed, retrying:', e?.message);
 					try {
-						await v.play();
+						await Promise.race([
+							v.play().catch(() => {}),
+							new Promise((res) => setTimeout(res, 3000)),
+						]);
 					} catch (err) {
 						console.error('[camera] play() retry failed:', err);
 					}
