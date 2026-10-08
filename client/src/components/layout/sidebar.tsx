@@ -145,7 +145,10 @@ const recruiterNav: NavItem[] = [
 
 export function Sidebar({ open, onClose }: SidebarProps) {
 	const { isRecruiter, user, logout } = useAuth();
-	const _location = useLocation();
+	const location = useLocation();
+	// Show nav based on current route, not just user role (admins can visit both)
+	const isCandidateRoute = location.pathname.startsWith('/candidate');
+	const showRecruiterNav = !isCandidateRoute && isRecruiter;
 	const [joinRequestCount, setJoinRequestCount] = useState(0);
 
 	// Fetch pending join request count for company owners
@@ -216,7 +219,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
 				{/* Nav */}
 				<nav className="flex-1 overflow-y-auto p-3">
-					{isRecruiter ? (
+					{showRecruiterNav ? (
 						/* Recruiter: flat list */
 						<div className="space-y-1">
 							{recruiterNav.map((item) => (
