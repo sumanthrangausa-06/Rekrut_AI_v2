@@ -24,7 +24,7 @@ export function DialogContent({
 	return (
 		<div
 			className={cn(
-				'relative z-50 w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] overflow-y-auto border bg-background p-4 sm:p-6 shadow-lg',
+				'relative z-50 w-full max-w-lg max-h-[85dvh] sm:max-h-[90dvh] overflow-y-auto overscroll-contain touch-pan-y border bg-background p-4 sm:p-6 shadow-lg',
 				'rounded-t-2xl sm:rounded-lg mx-0 sm:mx-4',
 				className,
 			)}
@@ -50,7 +50,7 @@ export function Dialog({ open, onOpenChange, onClose, children, className, style
 			<div className="fixed inset-0 bg-black/50" onClick={handleClose} />
 			<div
 				className={cn(
-					'relative z-50 w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] overflow-y-auto border bg-background p-4 sm:p-6 shadow-lg',
+					'relative z-50 w-full max-w-lg max-h-[85dvh] sm:max-h-[90dvh] overflow-y-auto overscroll-contain touch-pan-y border bg-background p-4 sm:p-6 shadow-lg',
 					'rounded-t-2xl sm:rounded-lg mx-0 sm:mx-4',
 					className,
 				)}
