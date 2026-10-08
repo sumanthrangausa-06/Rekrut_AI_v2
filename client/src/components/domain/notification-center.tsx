@@ -49,82 +49,98 @@ export type Notification = {
 
 const typeConfig: Record<string, { icon: React.ReactNode; color: string; badge: string }> = {
 	info: {
+		label: 'Info',
 		icon: <Info className="h-4 w-4" />,
 		color: 'text-blue-600',
 		badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
 	},
 	success: {
+		label: 'Success',
 		icon: <CheckCircle className="h-4 w-4" />,
 		color: 'text-green-600',
 		badge: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
 	},
 	warning: {
+		label: 'Warning',
 		icon: <AlertTriangle className="h-4 w-4" />,
 		color: 'text-amber-600',
 		badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
 	},
 	error: {
+		label: 'Alert',
 		icon: <X className="h-4 w-4" />,
 		color: 'text-red-600',
 		badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 	},
 	interview: {
+		label: 'Interview',
 		icon: <Clock className="h-4 w-4" />,
 		color: 'text-purple-600',
 		badge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 	},
 	offer: {
+		label: 'Offer',
 		icon: <CheckCircle className="h-4 w-4" />,
 		color: 'text-emerald-600',
 		badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
 	},
 	message: {
+		label: 'Message',
 		icon: <Info className="h-4 w-4" />,
 		color: 'text-indigo-600',
 		badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
 	},
 	// Pipeline notification types (hiring-pipeline-v1)
 	application_submitted: {
+		label: 'Application',
 		icon: <CheckCircle className="h-4 w-4" />,
 		color: 'text-green-600',
 		badge: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
 	},
 	application_received: {
+		label: 'Application',
 		icon: <Bell className="h-4 w-4" />,
 		color: 'text-blue-600',
 		badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
 	},
 	application_status_changed: {
+		label: 'Status Update',
 		icon: <ChevronRight className="h-4 w-4" />,
 		color: 'text-purple-600',
 		badge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 	},
 	screening_invited: {
+		label: 'Screening',
 		icon: <Sparkles className="h-4 w-4" />,
 		color: 'text-violet-600',
 		badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
 	},
 	screening_completed: {
+		label: 'Screening',
 		icon: <CheckCircle className="h-4 w-4" />,
 		color: 'text-emerald-600',
 		badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
 	},
 	assessment_assigned: {
+		label: 'Assessment',
 		icon: <ClipboardList className="h-4 w-4" />,
 		color: 'text-orange-600',
 		badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
 	},
 	assessment_completed: {
+		label: 'Assessment',
 		icon: <CheckCircle className="h-4 w-4" />,
 		color: 'text-emerald-600',
 		badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
 	},
 	interview_scheduled: {
+		label: 'Interview',
 		icon: <CalendarClock className="h-4 w-4" />,
 		color: 'text-sky-600',
 		badge: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
 	},
 	interview_confirmed: {
+		label: 'Interview',
 		icon: <CheckCircle className="h-4 w-4" />,
 		color: 'text-green-600',
 		badge: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
@@ -396,7 +412,7 @@ export function NotificationCenter({ className }: { className?: string }) {
 													<p className={cn('text-sm font-medium', !n.read && 'text-primary')}>
 														{n.title}
 													</p>
-													<Badge className={cn('text-xs', config.badge)}>{n.type}</Badge>
+													<Badge className={cn('text-xs', config.badge)}>{config.label ?? n.type}</Badge>
 												</div>
 												<p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
 													{n.message}
