@@ -267,7 +267,7 @@ export function RecruiterCandidatesPage() {
 		const params = new URLSearchParams();
 		params.set('page', String(page));
 		params.set('limit', String(limit));
-		if (searchQuery) params.set('q', searchQuery);
+		if (searchQuery.trim()) params.set('q', searchQuery.trim());
 		if (selectedTab !== 'all') params.set('status', selectedTab);
 		if (activeFilters.experience) params.set('experience', activeFilters.experience);
 		if (activeFilters.location) params.set('location', activeFilters.location);
