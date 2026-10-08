@@ -91,6 +91,18 @@ function buildSearchWhere(params) {
 		idx++;
 	}
 
+	// Work-mode filter (candidate's stated preference, from candidate_profiles)
+	if (params.work_mode) {
+		const mode = String(params.work_mode).toLowerCase();
+		if (['remote', 'hybrid', 'onsite'].includes(mode)) {
+			conditions.push(
+				`csi.user_id IN (SELECT user_id FROM candidate_profiles WHERE remote_preference = $${idx})`,
+			);
+			queryParams.push(mode);
+			idx++;
+		}
+	}
+
 	// Experience range
 	if (params.experience_min !== undefined && params.experience_min !== '') {
 		const min = parseInt(params.experience_min, 10);
