@@ -19,6 +19,10 @@ const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-
 const marketBenchmarks = require('../lib/market-benchmarks');
 const { uploadToB2, checkB2Health } = require('../lib/file-storage');
 const emailService = require('../lib/email-service');
+const { notifyUser } = require('../lib/notify');
+// Task 11 (#322): company audit log (#251 pattern — routes/audit.js
+// insertAuditLog → audit_logs table).
+const { insertAuditLog } = require('./audit');
 const { checkFeatureAccess, incrementUsage } = require('../lib/subscription');
 const calendarService = require('../server/services/calendar-service');
 
@@ -2080,11 +2084,12 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 		else if (sortBy === 'salary_low') orderBy = 'j.salary_min ASC NULLS LAST';
 		else if (sortBy === 'match') orderBy = 'j.created_at DESC'; // placeholder until match scoring is integrated
 
-		const joinClause = 'LEFT JOIN companies c ON j.company_id = c.id';
+		const joinClause =
+			'LEFT JOIN companies c ON j.company_id = c.id LEFT JOIN users u ON j.user_id = u.id';
 
 		const jobsQuery = `
       SELECT
-        j.id, j.title, j.description, j.company, j.company as poster_company, j.location, j.job_type,
+        j.id, j.title, j.description, j.company, COALESCE(NULLIF(u.company_name, ''), j.company) as poster_company, j.location, j.job_type,
         j.salary_min, j.salary_max, j.salary_range, j.currency_code, j.country_code,
         j.skills_required, j.status, j.created_at, j.updated_at, j.screening_questions,
         j.requirements, j.user_id, j.remote_type, j.experience_level,
@@ -2165,7 +2170,8 @@ router.get('/jobs/recommended', authMiddleware, async (req, res) => {
 		// Get active jobs
 		const jobs = await pool.query(
 			`
-      SELECT j.*, u.company_name as posted_by_company
+      SELECT j.*, u.company_name as posted_by_company,
+             COALESCE(NULLIF(u.company_name, ''), j.company) as poster_company
       FROM jobs j
       LEFT JOIN users u ON j.user_id = u.id
       WHERE j.status = 'active'
@@ -2181,22 +2187,13 @@ router.get('/jobs/recommended', authMiddleware, async (req, res) => {
 			titles: experience.rows.map((e) => e.title),
 		};
 
-		// Calculate match scores for each job
-		const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
-			req.user.id,
-		]);
-		const subscriptionId = user.rows[0]?.stripe_subscription_id;
+		// Calculate deterministic match scores for each job (no LLM — fast and consistent)
+		const { calculateDeterministicMatch } = require('../services/matching-engine');
 
-		const jobsWithScores = await Promise.all(
-			jobs.rows.map(async (job) => {
-				try {
-					const match = await generateJobMatchScore(candidateProfile, job, { subscriptionId });
-					return { ...job, match };
-				} catch (_e) {
-					return { ...job, match: { match_score: 50, match_level: 'fair' } };
-				}
-			}),
-		);
+		const jobsWithScores = jobs.rows.map((job) => {
+			const match = calculateDeterministicMatch(candidateProfile, job);
+			return { ...job, match };
+		});
 
 		// Sort by match score
 		jobsWithScores.sort((a, b) => (b.match?.match_score || 0) - (a.match?.match_score || 0));
@@ -2251,7 +2248,8 @@ router.get('/jobs/saved', authMiddleware, async (req, res) => {
 	try {
 		const jobs = await pool.query(
 			`
-      SELECT j.*, sj.saved_at, sj.notes, u.company_name as posted_by_company
+      SELECT j.*, sj.saved_at, sj.notes, u.company_name as posted_by_company,
+             COALESCE(NULLIF(u.company_name, ''), j.company) as poster_company
       FROM saved_jobs sj
       JOIN jobs j ON sj.job_id = j.id
       LEFT JOIN users u ON j.user_id = u.id
@@ -2530,13 +2528,10 @@ async function submitApplication({
 	const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
 		candidateId,
 	]);
-	const subscriptionId = user.rows[0]?.stripe_subscription_id;
+	const { calculateDeterministicMatch } = require('../services/matching-engine');
 
-	let matchScore = 50;
-	try {
-		const match = await generateJobMatchScore(candidateProfile, job.rows[0], { subscriptionId });
-		matchScore = match.match_score;
-	} catch (_e) {}
+	const match = calculateDeterministicMatch(candidateProfile, job.rows[0]);
+	const matchScore = match.match_score;
 
 	const omniscore = profile.rows[0]?.omniscore || null;
 
@@ -2558,6 +2553,132 @@ async function submitApplication({
 			appliedVia || 'manual',
 		],
 	);
+
+	// Auto-send screening if job has it enabled and candidate meets threshold (#307)
+	const application = result.rows[0];
+	try {
+		const jobSettings = job.rows[0];
+		if (jobSettings.auto_send_on_apply === true) {
+			const threshold = jobSettings.auto_send_min_score ?? 70;
+			if (matchScore >= threshold) {
+				// Check for existing session (idempotency)
+				const existing = await pool.query(
+					'SELECT id FROM interview_sessions WHERE application_id = $1 LIMIT 1',
+					[application.id],
+				);
+				if (existing.rows.length === 0) {
+					// Find the active screening config for this job — prefer the job's
+					// interview flow (Task 10 cutover), fall back to screening_templates
+					// during the transition.
+					let template = null;
+					const flowResult = await pool.query(
+						`SELECT * FROM interview_flows WHERE job_id = $1 AND type = 'screening' AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+						[jobId],
+					);
+					if (flowResult.rows.length > 0) {
+						const flow = flowResult.rows[0];
+						template = {
+							id: flow.id,
+							title: flow.name,
+							topics: Array.isArray(flow.topics) ? flow.topics : [],
+							questions: Array.isArray(flow.questions) ? flow.questions : [],
+						};
+					} else {
+						const templateResult = await pool.query(
+							`SELECT * FROM screening_templates WHERE job_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+							[jobId],
+						);
+						if (templateResult.rows.length > 0) {
+							template = templateResult.rows[0];
+						}
+					}
+					if (template) {
+						const crypto = require('node:crypto');
+						const inviteToken = crypto.randomBytes(32).toString('hex');
+
+						// Freeze the engine config at creation (Task 2 contract):
+						// question_source + every key conductScreeningTurn reads.
+						const sessionConfig = {
+							question_source: 'template',
+							current_phase: 'intro',
+							job: {
+								id: job.rows[0].id,
+								title: job.rows[0].title,
+								company_name: job.rows[0].company_name || job.rows[0].company || null,
+								description: job.rows[0].description || null,
+							},
+							template: {
+								id: template.id,
+								title: template.title,
+								topics: template.topics || [],
+								questions: template.questions || [],
+							},
+						};
+
+						const autoSendResult = await pool.query(
+							`INSERT INTO interview_sessions
+							   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
+							 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+							 RETURNING id`,
+							[
+								'screening',
+								jobId,
+								application.id,
+								candidateId,
+								jobSettings.company_id,
+								null, // system-triggered auto-send
+								inviteToken,
+								JSON.stringify(sessionConfig),
+								JSON.stringify([]),
+							],
+						);
+						const autoSendSessionId = autoSendResult.rows[0]?.id ?? null;
+
+						// Task 11 (#322): audit event — session.sent (system actor).
+						// Non-blocking: an audit failure is logged and never fails
+						// the application (the whole auto-send block is already
+						// best-effort, but this makes the audit intent explicit).
+						try {
+							await insertAuditLog({
+								company_id: jobSettings.company_id ?? null,
+								actor_id: null, // system-triggered auto-send
+								target_id: autoSendSessionId,
+								action: 'session.sent',
+								metadata: {
+									session_id: autoSendSessionId,
+									type: 'screening',
+									job_id: jobId,
+									application_id: application.id,
+								},
+							});
+						} catch (auditErr) {
+							console.error('[auto-send] audit event failed:', auditErr.message);
+						}
+
+						await pool.query(
+							`UPDATE job_applications SET screening_status = 'invited' WHERE id = $1`,
+							[application.id],
+						);
+
+						// Notify candidate
+						await pool.query(
+							`INSERT INTO notifications (user_id, type, title, message, data, created_at)
+							 VALUES ($1, 'screening_invite', $2, $3, $4, NOW())`,
+							[
+								candidateId,
+								'Screening Invitation',
+								`You've been invited to complete an AI screening for ${jobSettings.title}`,
+								JSON.stringify({ application_id: application.id, invite_token: inviteToken }),
+							],
+						);
+					}
+				}
+			}
+		}
+	} catch (autoSendErr) {
+		console.error('[auto-send] Failed:', autoSendErr.message);
+		// Don't fail the application if auto-send fails
+	}
 
 	// Smart data enrichment from screening answers (manual only)
 	if (appliedVia === 'manual' && screeningAnswers && Object.keys(screeningAnswers).length > 0) {
@@ -2609,6 +2730,28 @@ async function submitApplication({
 		await getOrCreateConversation(jobId, candidateId, job.rows[0].user_id, job.rows[0].company_id);
 	} catch (convErr) {
 		console.error('[apply] Auto-create conversation failed (non-blocking):', convErr.message);
+	}
+
+	// In-app notifications for apply (non-blocking) — candidate + recruiter
+	notifyUser(
+		candidateId,
+		'application_submitted',
+		'Application submitted',
+		`Your application for ${job.rows[0].title} was submitted.`,
+		{ application_id: result.rows[0].id, job_id: jobId, company_id: job.rows[0].company_id },
+	);
+	const recruiterIdForNotif = await pool
+		.query('SELECT user_id FROM jobs WHERE id = $1', [jobId])
+		.then((r) => r.rows[0]?.user_id)
+		.catch(() => null);
+	if (recruiterIdForNotif) {
+		notifyUser(
+			recruiterIdForNotif,
+			'application_received',
+			'New application received',
+			`New application for ${job.rows[0].title}.`,
+			{ application_id: result.rows[0].id, job_id: jobId, candidate_id: candidateId },
+		);
 	}
 
 	// Send candidate notification (non-blocking)
@@ -2700,6 +2843,7 @@ router.get('/applications', authMiddleware, async (req, res) => {
 			`
       SELECT ja.*, ja.is_auto_applied, j.title, j.company, j.location, j.salary_range, j.job_type,
              j.screening_questions, u.company_name as posted_by_company,
+             COALESCE(NULLIF(u.company_name, ''), j.company) as poster_company,
              ri.status as intro_status, ri.id as intro_id,
              (SELECT COUNT(*) FROM outreach_attempts oa WHERE oa.application_id = ja.id) as outreach_count
       FROM job_applications ja
@@ -3397,6 +3541,100 @@ Only return JSON.`;
 	}
 });
 
+// One-Click Apply — generate tailored resume, cover letter, and match analysis in one call (RATE LIMITED)
+// Does NOT submit the application; frontend submits separately via POST /candidate/jobs/:id/apply
+router.post('/ai/one-click-apply', authMiddleware, rateLimits.ai, async (req, res) => {
+	try {
+		const { job_id } = req.body;
+		if (!job_id) return res.status(400).json({ error: 'job_id required' });
+		const { chat } = require('../lib/polsia-ai');
+
+		const profile = await pool.query(
+			`
+      SELECT cp.*, u.name, u.email FROM candidate_profiles cp
+      RIGHT JOIN users u ON u.id = cp.user_id WHERE u.id = $1
+    `,
+			[req.user.id],
+		);
+		const skills = await pool.query(
+			'SELECT skill_name, years_experience FROM candidate_skills WHERE user_id = $1',
+			[req.user.id],
+		);
+		const experience = await pool.query(
+			'SELECT company_name, title, description FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC LIMIT 3',
+			[req.user.id],
+		);
+		const education = await pool.query(
+			'SELECT institution, degree, field_of_study FROM education WHERE user_id = $1 ORDER BY end_date DESC LIMIT 2',
+			[req.user.id],
+		);
+		const job = await pool.query(
+			'SELECT title, company, description, requirements FROM jobs WHERE id = $1',
+			[job_id],
+		);
+
+		if (!job.rows[0]) return res.status(404).json({ error: 'Job not found' });
+
+		const prompt = `You are helping a candidate apply to a job. Generate tailored application documents and a match analysis.
+
+CANDIDATE:
+Name: ${profile.rows[0]?.name || 'Not provided'}
+Email: ${profile.rows[0]?.email || 'Not provided'}
+Summary: ${profile.rows[0]?.summary || 'None listed'}
+Skills: ${skills.rows.map((s) => `${s.skill_name} (${s.years_experience || '?'}y)`).join(', ') || 'None listed'}
+Recent Experience: ${experience.rows.map((e) => `${e.title} at ${e.company_name}: ${e.description?.substring(0, 200)}`).join('\n') || 'None listed'}
+Education: ${education.rows.map((e) => `${e.degree} in ${e.field_of_study} from ${e.institution}`).join('; ') || 'None listed'}
+
+JOB:
+Title: ${job.rows[0].title} at ${job.rows[0].company}
+Description: ${job.rows[0].description?.substring(0, 800) || 'Not provided'}
+Requirements: ${job.rows[0].requirements?.substring(0, 500) || 'Not provided'}
+
+Return JSON with exactly these fields:
+{
+  "resume": "Tailored resume text highlighting relevant experience for this job (concise, professional)",
+  "cover_letter": "Compelling cover letter (3-4 paragraphs, specific to this job, no generic filler)",
+  "match_summary": "2-3 sentence summary of how well the candidate matches this job",
+  "key_strengths": ["3-5 specific strengths relevant to this job"],
+  "why_fit": "1-2 paragraphs on why this candidate is a great fit for this specific role"
+}
+Only return JSON.`;
+
+		const result = await chat(prompt, {
+			system:
+				'You are an expert career coach. Be authentic, specific, and persuasive. Never use generic filler. Always return valid JSON.',
+			module: 'resume_tools',
+			feature: 'one_click_apply',
+		});
+
+		let parsed;
+		try {
+			parsed = JSON.parse(result);
+		} catch {
+			const m = result.match(/\{[\s\S]*\}/);
+			parsed = m ? JSON.parse(m[0]) : { error: 'Parse failed' };
+		}
+
+		if (parsed.error) {
+			return res.status(500).json({ error: 'Failed to generate tailored documents' });
+		}
+
+		res.json({
+			success: true,
+			tailored: {
+				resume: parsed.resume || '',
+				cover_letter: parsed.cover_letter || '',
+				match_summary: parsed.match_summary || '',
+				key_strengths: parsed.key_strengths || [],
+				why_fit: parsed.why_fit || '',
+			},
+		});
+	} catch (err) {
+		console.error('One-click apply error:', err);
+		res.status(500).json({ error: 'Failed to generate tailored documents' });
+	}
+});
+
 // AI Screening Answer Suggestions — based on stored profile and past answers (RATE LIMITED)
 router.post('/ai/screening-suggestions', authMiddleware, rateLimits.ai, async (req, res) => {
 	try {
@@ -3894,6 +4132,7 @@ Only return JSON.`;
 
 		const sqlQuery = `
       SELECT j.*, u.company_name as posted_by_company,
+             COALESCE(NULLIF(u.company_name, ''), j.company) as poster_company,
              (SELECT COUNT(*) FROM job_applications WHERE job_id = j.id) as applicant_count
       FROM jobs j
       LEFT JOIN users u ON j.user_id = u.id

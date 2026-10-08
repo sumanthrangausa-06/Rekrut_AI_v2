@@ -54,6 +54,7 @@ interface Job {
 	id: number;
 	title: string;
 	company: string;
+	company_id?: number;
 	poster_company?: string;
 	description: string;
 	requirements: string;
@@ -142,6 +143,35 @@ export function CandidateJobDetailPage() {
 		status: string;
 		question_count: number;
 	} | null>(null);
+	const [responsiveness, setResponsiveness] = useState<{
+		score: number;
+		review_rate: number;
+		median_days_to_action: number | null;
+		ghost_rate: number;
+		total_assessments: number;
+	} | null>(null);
+	const [standaloneMetrics, setStandaloneMetrics] = useState<Record<string, any> | null>(null);
+
+	// Fetch assessment responsiveness + standalone metrics when company_id is available (non-blocking)
+	useEffect(() => {
+		if (!job?.company_id) return;
+		let cancelled = false;
+		fetch(`/api/trustscore/assessment-responsiveness/${job.company_id}`)
+			.then((r) => (r.ok ? r.json() : null))
+			.then((data) => {
+				if (!cancelled && data?.sufficient) setResponsiveness(data);
+			})
+			.catch(() => {});
+		fetch(`/api/trustscore/standalone/${job.company_id}`)
+			.then((r) => (r.ok ? r.json() : null))
+			.then((data) => {
+				if (!cancelled && data) setStandaloneMetrics(data);
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [job?.company_id]);
 	const [saved, setSaved] = useState(false);
 	const [profileCompleteness, setProfileCompleteness] = useState(0);
 	const [tailoredDocs, setTailoredDocs] = useState<TailoredDocument | null>(null);
@@ -415,23 +445,40 @@ export function CandidateJobDetailPage() {
 			);
 			if (data.auto_fill) {
 				setAutoFill(data.auto_fill);
-				if (data.auto_fill.cover_letter && !coverLetter)
-					setCoverLetter(data.auto_fill.cover_letter);
-				const newAnswers: Record<string, string> = { ...screeningAnswers };
-				const sources: Record<string, string> = {};
-				for (const [qId, info] of Object.entries(data.auto_fill.screening_answers || {})) {
-					if (!newAnswers[qId] && info.value) {
-						newAnswers[qId] = info.value;
-						sources[qId] = info.source;
-					}
+				if (data.auto_fill.cover_letter)
+					setCoverLetter((prev) => prev || data.auto_fill.cover_letter);
+				// Merge auto-filled answers without clobbering what the user already typed.
+				// Functional updates keep this callback stable so the auto-fill effect
+				// runs once when the form opens instead of on every keystroke.
+				const autoAnswers = Object.entries(data.auto_fill.screening_answers || {}).filter(
+					([, info]) => info.value,
+				);
+				if (autoAnswers.length > 0) {
+					const filledKeys: string[] = [];
+					setScreeningAnswers((prev) => {
+						const next = { ...prev };
+						for (const [qId, info] of autoAnswers) {
+							if (!next[qId]) {
+								next[qId] = info.value;
+								filledKeys.push(qId);
+							}
+						}
+						return next;
+					});
+					setAutoFillSources((prev) => {
+						const next = { ...prev };
+						for (const qId of filledKeys) {
+							const info = autoAnswers.find(([id]) => id === qId)?.[1];
+							if (info) next[qId] = info.source;
+						}
+						return next;
+					});
 				}
-				setScreeningAnswers(newAnswers);
-				setAutoFillSources(sources);
 			}
 		} catch (err) {
 			console.error('[job-detail] Operation failed:', err);
 		}
-	}, [user, id, coverLetter, screeningAnswers]);
+	}, [user, id]);
 
 	useEffect(() => {
 		if (showApplyForm && user) loadAutoFill();
@@ -540,17 +587,25 @@ export function CandidateJobDetailPage() {
 				body: { job_id: job.id, questions: screeningQuestions },
 			});
 			if (data.suggestions?.length) {
-				const newAnswers = { ...screeningAnswers };
-				const sources = { ...autoFillSources };
-				for (const s of data.suggestions) {
-					const key = s.question_id || screeningQuestions.find((q) => q.id === s.question_id)?.id;
-					if (key && !newAnswers[key]) {
-						newAnswers[key] = s.suggested_answer;
-						sources[key] = `ai_${s.confidence}`;
+				// Merge AI suggestions without clobbering answers typed while the request was in flight.
+				const filled: Array<{ key: string; answer: string; source: string }> = [];
+				setScreeningAnswers((prev) => {
+					const next = { ...prev };
+					for (const s of data.suggestions) {
+						const key =
+							s.question_id || screeningQuestions.find((q) => q.id === s.question_id)?.id;
+						if (key && !next[key]) {
+							next[key] = s.suggested_answer;
+							filled.push({ key, answer: s.suggested_answer, source: `ai_${s.confidence}` });
+						}
 					}
-				}
-				setScreeningAnswers(newAnswers);
-				setAutoFillSources(sources);
+					return next;
+				});
+				setAutoFillSources((prev) => {
+					const next = { ...prev };
+					for (const f of filled) next[f.key] = f.source;
+					return next;
+				});
 			}
 		} catch {
 		} finally {
@@ -808,13 +863,59 @@ export function CandidateJobDetailPage() {
 											<span className="break-words">{job.location}</span>
 										</span>
 									)}
-									{job.salary_range && (
+									{(job.salary_range || job.salary_min || job.salary_max) && (
 										<span className="flex items-center gap-1 min-w-0">
 											<DollarSign className="h-4 w-4 shrink-0" />
-											<span className="break-words">{job.salary_range}</span>
+											<span className="break-words">
+												{job.salary_range ||
+													`${job.salary_min ? `$${Number(job.salary_min).toLocaleString()}` : ''}${job.salary_min && job.salary_max ? ' - ' : ''}${job.salary_max ? `$${Number(job.salary_max).toLocaleString()}` : ''}`}
+											</span>
 										</span>
 									)}
 									{job.job_type && <Badge variant="secondary">{job.job_type}</Badge>}
+									{responsiveness && (
+										<span
+											className="flex items-center gap-1 min-w-0 text-xs"
+											title={`Based on ${responsiveness.total_assessments} completed assessments`}
+										>
+											<span className="break-words text-muted-foreground">
+												Responds to {responsiveness.review_rate}% of assessments
+												{responsiveness.median_days_to_action !== null &&
+													` · median ${responsiveness.median_days_to_action}d to follow up`}
+											</span>
+										</span>
+									)}
+									{standaloneMetrics?.workplace_culture && (
+										<span
+											className="flex items-center gap-1 min-w-0 text-xs"
+											title="Workplace culture rating from employee reviews"
+										>
+											<span className="break-words text-muted-foreground">
+												Culture {standaloneMetrics.workplace_culture.score}/100
+											</span>
+										</span>
+									)}
+									{standaloneMetrics?.candidate_nps && (
+										<span
+											className="flex items-center gap-1 min-w-0 text-xs"
+											title={`${standaloneMetrics.candidate_nps.promoters} would recommend, ${standaloneMetrics.candidate_nps.detractors} would not`}
+										>
+											<span className="break-words text-muted-foreground">
+												{standaloneMetrics.candidate_nps.nps >= 0 ? '+' : ''}
+												{standaloneMetrics.candidate_nps.nps} NPS
+											</span>
+										</span>
+									)}
+									{standaloneMetrics?.communication && (
+										<span
+											className="flex items-center gap-1 min-w-0 text-xs"
+											title="Median recruiter reply time to candidate messages"
+										>
+											<span className="break-words text-muted-foreground">
+												Replies in ~{standaloneMetrics.communication.median_reply_hours}h
+											</span>
+										</span>
+									)}
 									{job.remote_type && (
 										<Badge variant="outline">
 											<Globe className="h-3 w-3 mr-0.5" />
@@ -951,6 +1052,44 @@ export function CandidateJobDetailPage() {
 					</div>
 				</CardContent>
 			</Card>
+
+			{/* Employee reviews (Tier-1 public reviews) */}
+			{standaloneMetrics?.recent_reviews?.reviews?.length > 0 && (
+				<Card>
+					<CardContent className="p-4 sm:p-6">
+						<h2 className="font-heading text-base font-semibold mb-3">Employee reviews</h2>
+						<div className="space-y-4">
+							{standaloneMetrics.recent_reviews.reviews.map((review: any, i: number) => (
+								<div key={review.created_at || `review-${i}`} className="border-b last:border-0 pb-3 last:pb-0">
+									<div className="flex items-center gap-0.5 mb-1.5">
+										{[1, 2, 3, 4, 5].map((s) => (
+											<Star
+												key={s}
+												className={`h-3.5 w-3.5 ${s <= (review.overall_rating || 0) ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/30'}`}
+											/>
+										))}
+									</div>
+									{review.review_text && <p className="text-sm mb-2">{review.review_text}</p>}
+									<div className="flex gap-4">
+										{review.pros && (
+											<div className="flex-1">
+												<p className="text-[10px] font-medium text-emerald-600 mb-0.5">Pros</p>
+												<p className="text-xs text-muted-foreground">{review.pros}</p>
+											</div>
+										)}
+										{review.cons && (
+											<div className="flex-1">
+												<p className="text-[10px] font-medium text-red-500 mb-0.5">Cons</p>
+												<p className="text-xs text-muted-foreground">{review.cons}</p>
+											</div>
+										)}
+									</div>
+								</div>
+							))}
+						</div>
+					</CardContent>
+				</Card>
+			)}
 
 			{/* Profile completeness banner for new users */}
 			{user && !applied && profileCompleteness < 80 && (

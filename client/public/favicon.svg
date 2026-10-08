@@ -1,4 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="8" fill="#3B82F6"/>
-  <text x="16" y="22" text-anchor="middle" fill="white" font-family="system-ui" font-weight="700" font-size="18">H</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#1e1b4b"/>
+  <g stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M14 50V14h17c6.6 0 12 5.4 12 12 0 4.2-2.2 7.9-5.4 10.1L45 50h-7.2l-6.6-13.8H20V50h-6z"/>
+    <path d="M20 30.5h9.6c3 0 5.4-2.4 5.4-5.4s-2.4-5.4-5.4-5.4H20v10.8z"/>
+    <circle cx="50" cy="18" r="3" />
+    <circle cx="53" cy="32" r="2.4" />
+    <circle cx="50" cy="46" r="3" />
+    <path d="M43 18h4M43 32h8M43 46h4"/>
+    <path d="M50 21v8M50 34.5v9"/>
+  </g>
 </svg>

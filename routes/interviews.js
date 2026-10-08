@@ -10,7 +10,6 @@ const {
 	analyzeVideoPresentation,
 	analyzeVoiceQuality,
 	generateQuestionBank,
-	conductInterviewTurn,
 	generateSessionFeedback,
 	textToSpeech,
 	transcribeAudioWithWhisper,
@@ -18,13 +17,17 @@ const {
 	handleAIError,
 } = require('../lib/polsia-ai');
 const crypto = require('node:crypto');
+const { conductTurn } = require('../services/conversation-engine');
 const omniscoreService = require('../services/omniscore');
 const multer = require('multer');
 
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const emailService = require('../lib/email-service');
 const calendarService = require('../server/services/calendar-service');
+const { notifyUser } = require('../lib/notify');
 const { uploadToB2 } = require('../lib/file-storage');
+// Task 11 (#322): company audit log (#251 pattern) for session.sent on manual send.
+const { insertAuditLog } = require('./audit');
 
 const router = express.Router();
 const upload = multer({
@@ -927,32 +930,33 @@ router.post('/mock/:sessionId/respond', authMiddleware, rateLimits.ai, async (re
 			};
 		} else {
 			try {
-				aiTurn = await withTimeout(
-					conductInterviewTurn(
+				// Phase 1 (#322): delegate turn generation to the unified conversation
+				// engine (owns the 20s timeout + scripted fallback). Map its result
+				// back to the aiTurn shape this handler persists downstream.
+				// Non-complete turns advance the planned-question pointer; the
+				// follow_up/challenge granularity now lives in the LLM's
+				// conversational follow-ups rather than the question index.
+				const engineTurn = await conductTurn(
+					{
 						conversation,
-						baseQuestions,
-						session.current_question_index,
-						session.target_role,
-						{ subscriptionId: req.user.stripe_subscription_id },
-					),
-					20000,
-					'Interview AI turn generation',
+						config: {
+							question_source: 'personalized',
+							base_questions: baseQuestions,
+							current_question_index: session.current_question_index,
+							target_role: session.target_role,
+							options: { subscriptionId: req.user.stripe_subscription_id },
+						},
+					},
+					response_text.trim(),
+					[],
 				);
-				// BUG FIX: Override generic AI reactions — don't echo user's words
-				if (
-					aiTurn?.reaction &&
-					/^(Thank you for (that|sharing|your) (response|answer)|That's (helpful|great|good|interesting)\.?)\s*$/i.test(
-						aiTurn.reaction.trim(),
-					)
-				) {
-					const NATURAL_AI_ACKS = [
-						'Interesting perspective. Let me follow up on that.',
-						"That gives me good context. I'd like to dig a little deeper.",
-						"That's a thoughtful response. Let me explore another angle.",
-						'I appreciate the detail. Let me build on that.',
-					];
-					aiTurn.reaction = NATURAL_AI_ACKS[candidateTurnCount % NATURAL_AI_ACKS.length];
-				}
+				aiTurn = {
+					reaction: '',
+					question: engineTurn.ai_message,
+					action: engineTurn.is_complete ? 'wrap_up' : 'transition',
+					score_hint: null,
+					notes: null,
+				};
 			} catch (aiErr) {
 				console.warn(
 					`[mock] AI turn generation failed (${aiErr.message}), using scripted fallback`,
@@ -2239,32 +2243,33 @@ router.post(
 				// BUG FIX: Wrap with 20s overall timeout — the LLM chain can take 135s (9 providers × 15s each),
 				// but Render kills the request at ~30s. Without this, the scripted fallback never fires.
 				try {
-					aiTurn = await withTimeout(
-						conductInterviewTurn(
+					// Phase 1 (#322): delegate turn generation to the unified conversation
+					// engine (owns the 20s timeout + scripted fallback). Map its result
+					// back to the aiTurn shape this handler persists downstream.
+					// Non-complete turns advance the planned-question pointer; the
+					// follow_up/challenge granularity now lives in the LLM's
+					// conversational follow-ups rather than the question index.
+					const engineTurn = await conductTurn(
+						{
 							conversation,
-							baseQuestions,
-							session.current_question_index,
-							session.target_role,
-							{ subscriptionId: req.user.stripe_subscription_id },
-						),
-						20000,
-						'Voice interview AI turn generation',
+							config: {
+								question_source: 'personalized',
+								base_questions: baseQuestions,
+								current_question_index: session.current_question_index,
+								target_role: session.target_role,
+								options: { subscriptionId: req.user.stripe_subscription_id },
+							},
+						},
+						transcribedText,
+						[],
 					);
-					// BUG FIX: Override generic AI reactions — don't echo user's words
-					if (
-						aiTurn?.reaction &&
-						/^(Thank you for (that|sharing|your) (response|answer)|That's (helpful|great|good|interesting)\.?)\s*$/i.test(
-							aiTurn.reaction.trim(),
-						)
-					) {
-						const NATURAL_AI_ACKS = [
-							'Interesting perspective. Let me follow up on that.',
-							"That gives me good context. I'd like to dig a little deeper.",
-							"That's a thoughtful response. Let me explore another angle.",
-							'I appreciate the detail. Let me build on that.',
-						];
-						aiTurn.reaction = NATURAL_AI_ACKS[voiceCandidateCount % NATURAL_AI_ACKS.length];
-					}
+					aiTurn = {
+						reaction: '',
+						question: engineTurn.ai_message,
+						action: engineTurn.is_complete ? 'wrap_up' : 'transition',
+						score_hint: null,
+						notes: null,
+					};
 				} catch (aiErr) {
 					console.warn(
 						`[voice-respond] AI turn generation failed (${aiErr.message}), using scripted fallback`,
@@ -2472,7 +2477,8 @@ const interviewAI = require('../services/interview-ai');
 // POST /api/interviews/suggest-slots — AI suggests optimal interview time slots
 router.post('/suggest-slots', authMiddleware, async (req, res) => {
 	try {
-		const { candidate_timezone, days_ahead, slots_count, duration_minutes } = req.body;
+		const { candidate_timezone, days_ahead, slots_count, duration_minutes, candidate_id } =
+			req.body;
 
 		const slots = await interviewAI.suggestSlots(
 			req.user.id,
@@ -2481,6 +2487,7 @@ router.post('/suggest-slots', authMiddleware, async (req, res) => {
 				daysAhead: Math.min(days_ahead || 7, 30),
 				slotsCount: Math.min(slots_count || 6, 12),
 				durationMinutes: duration_minutes || 60,
+				candidateId: candidate_id || null,
 			},
 		);
 
@@ -2570,6 +2577,21 @@ router.post('/schedule', authMiddleware, async (req, res) => {
 			const jobInfo = job.rows[0];
 			const recruiterInfo = recruiter.rows[0];
 
+			// In-app notification for the candidate (non-blocking)
+			if (candInfo?.id) {
+				notifyUser(
+					candInfo.id,
+					'interview_scheduled',
+					'Interview scheduled',
+					`Interview for ${jobInfo?.title || 'the position'} scheduled on ${new Date(scheduled_at).toLocaleString()}. Please confirm.`,
+					{
+						interview_id: interview.id,
+						application_id: interview.application_id || null,
+						job_id,
+						scheduled_at,
+					},
+				);
+			}
 			if (candInfo?.email) {
 				const scheduledDate = new Date(scheduled_at);
 				await emailService.sendTemplatedEmail({
@@ -2757,31 +2779,57 @@ router.get('/scheduling-preferences', authMiddleware, async (req, res) => {
 // POST /api/interviews/screening/create-template — Recruiter creates a screening template
 router.post('/screening/create-template', authMiddleware, async (req, res) => {
 	try {
-		const { job_id, title, description, questions, time_limit_minutes, auto_send_on_apply } =
-			req.body;
+		const {
+			job_id,
+			title,
+			description,
+			questions,
+			topics,
+			screening_mode,
+			time_limit_minutes,
+			auto_send_on_apply,
+		} = req.body;
 
 		if (!job_id) {
 			return res.status(400).json({ error: 'Job ID is required' });
 		}
 
-		// Get job details for AI question generation
+		// Get job details for AI generation
 		const job = await pool.query('SELECT title, description FROM jobs WHERE id = $1', [job_id]);
 		if (job.rows.length === 0) {
 			return res.status(404).json({ error: 'Job not found' });
 		}
 
-		// Use provided questions or generate with AI
-		let finalQuestions = questions;
-		if (!finalQuestions || finalQuestions.length === 0) {
-			finalQuestions = await interviewAI.generateScreeningQuestions(
-				job.rows[0].title,
-				job.rows[0].description,
-			);
+		// Determine mode: conversational (topics) vs legacy (questions)
+		const mode = screening_mode || (topics ? 'conversational' : 'legacy');
+
+		let finalQuestions = questions || [];
+		let finalTopics = topics || [];
+
+		if (mode === 'conversational') {
+			// Conversational mode: use topics as coverage checklist
+			// If no topics provided, generate them with AI based on job
+			if (finalTopics.length === 0) {
+				finalTopics = await interviewAI.generateScreeningTopics(
+					job.rows[0].title,
+					job.rows[0].description,
+				);
+			}
+			// Keep questions empty for conversational mode
+			finalQuestions = [];
+		} else {
+			// Legacy mode: use provided questions or generate with AI
+			if (finalQuestions.length === 0) {
+				finalQuestions = await interviewAI.generateScreeningQuestions(
+					job.rows[0].title,
+					job.rows[0].description,
+				);
+			}
 		}
 
 		const result = await pool.query(
-			`INSERT INTO screening_templates (company_id, job_id, created_by, title, description, questions, time_limit_minutes, auto_send_on_apply)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			`INSERT INTO screening_templates (company_id, job_id, created_by, title, description, questions, topics, screening_mode, time_limit_minutes, auto_send_on_apply)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
 			[
 				req.user.company_id,
@@ -2790,6 +2838,8 @@ router.post('/screening/create-template', authMiddleware, async (req, res) => {
 				title || `Screening: ${job.rows[0].title}`,
 				description || `AI screening interview for ${job.rows[0].title} candidates`,
 				JSON.stringify(finalQuestions),
+				JSON.stringify(finalTopics),
+				mode,
 				time_limit_minutes || 45,
 				auto_send_on_apply || false,
 			],
@@ -2808,8 +2858,8 @@ router.get('/screening/templates', authMiddleware, async (req, res) => {
 		const { job_id } = req.query;
 		let query = `
       SELECT st.*, j.title as job_title,
-             (SELECT COUNT(*) FROM screening_sessions ss WHERE ss.template_id = st.id) as sessions_count,
-             (SELECT COUNT(*) FROM screening_sessions ss WHERE ss.template_id = st.id AND ss.status = 'completed') as completed_count
+             (SELECT COUNT(*) FROM interview_sessions s WHERE s.type = 'screening' AND (s.config->'template'->>'id')::int = st.id) as sessions_count,
+             (SELECT COUNT(*) FROM interview_sessions s WHERE s.type = 'screening' AND (s.config->'template'->>'id')::int = st.id AND s.status = 'completed') as completed_count
       FROM screening_templates st
       JOIN jobs j ON st.job_id = j.id
       WHERE st.company_id = $1 AND st.status = 'active'
@@ -2831,7 +2881,72 @@ router.get('/screening/templates', authMiddleware, async (req, res) => {
 	}
 });
 
+// PUT /api/interviews/screening/templates/:id — Update a screening template
+router.put('/screening/templates/:id', authMiddleware, async (req, res) => {
+	try {
+		const { title, description, questions, time_limit_minutes } = req.body;
+		const sets = [];
+		const params = [];
+		if (title !== undefined) {
+			params.push(title);
+			sets.push(`title = $${params.length}`);
+		}
+		if (description !== undefined) {
+			params.push(description);
+			sets.push(`description = $${params.length}`);
+		}
+		if (questions !== undefined) {
+			params.push(JSON.stringify(questions));
+			sets.push(`questions = $${params.length}`);
+		}
+		if (time_limit_minutes !== undefined) {
+			params.push(time_limit_minutes);
+			sets.push(`time_limit_minutes = $${params.length}`);
+		}
+		if (sets.length === 0) {
+			return res.status(400).json({ error: 'Nothing to update' });
+		}
+		params.push(req.params.id, req.user.company_id);
+		const result = await pool.query(
+			`UPDATE screening_templates SET ${sets.join(', ')}, updated_at = NOW()
+       WHERE id = $${params.length - 1} AND company_id = $${params.length} RETURNING *`,
+			params,
+		);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Template not found' });
+		}
+		res.json({ success: true, template: result.rows[0] });
+	} catch (err) {
+		console.error('Update screening template error:', err);
+		res.status(500).json({ error: 'Failed to update template' });
+	}
+});
+
+// DELETE /api/interviews/screening/templates/:id — Deactivate a screening template
+router.delete('/screening/templates/:id', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`UPDATE screening_templates SET status = 'archived', updated_at = NOW()
+       WHERE id = $1 AND company_id = $2 RETURNING id`,
+			[req.params.id, req.user.company_id],
+		);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Template not found' });
+		}
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Delete screening template error:', err);
+		res.status(500).json({ error: 'Failed to delete template' });
+	}
+});
+
 // POST /api/interviews/screening/send — Send screening invite to candidate
+// Phase 1 (#322, C2): writes the UNIFIED interview_sessions model
+// (type='screening', frozen engine config mirroring the auto-send hook in
+// routes/candidate.js). /screening/:token now redirects to
+// /interview/session/:token, which resolves ONLY via interview_sessions —
+// writing screening_sessions here would produce dead invite links. The legacy
+// /screening/session/:token/* endpoints stay for in-flight pre-migration sessions.
 router.post('/screening/send', authMiddleware, async (req, res) => {
 	try {
 		const { template_id, candidate_id, application_id, job_id } = req.body;
@@ -2840,7 +2955,7 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'Template and candidate are required' });
 		}
 
-		// Get template
+		// Get template (company-scoped — the recruiter's explicit choice)
 		const template = await pool.query(
 			'SELECT * FROM screening_templates WHERE id = $1 AND company_id = $2',
 			[template_id, req.user.company_id],
@@ -2851,12 +2966,39 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 		}
 
 		const tmpl = template.rows[0];
+		const resolvedJobId = tmpl.job_id || job_id || null;
 
-		// Check if screening already sent
-		const existing = await pool.query(
-			`SELECT id FROM screening_sessions WHERE template_id = $1 AND candidate_id = $2 AND status != 'expired'`,
-			[template_id, candidate_id],
-		);
+		// Validate candidate_id matches the application (if application_id provided)
+		if (application_id) {
+			const appCheck = await pool.query(
+				'SELECT candidate_id FROM job_applications WHERE id = $1',
+				[application_id],
+			);
+			if (
+				appCheck.rows.length > 0 &&
+				String(appCheck.rows[0].candidate_id) !== String(candidate_id)
+			) {
+				return res
+					.status(400)
+					.json({ error: 'Candidate does not match the application' });
+			}
+		}
+
+		// Duplicate check against the unified table (was: screening_sessions).
+		let existing;
+		if (application_id) {
+			existing = await pool.query(
+				`SELECT id FROM interview_sessions WHERE application_id = $1 AND type = 'screening' LIMIT 1`,
+				[application_id],
+			);
+		} else {
+			existing = await pool.query(
+				`SELECT id FROM interview_sessions
+				  WHERE candidate_id = $1 AND job_id IS NOT DISTINCT FROM $2
+				    AND type = 'screening' AND status != 'expired' LIMIT 1`,
+				[candidate_id, resolvedJobId],
+			);
+		}
 
 		if (existing.rows.length > 0) {
 			return res.status(409).json({
@@ -2865,44 +3007,152 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 			});
 		}
 
-		// Create screening session with invite token
-		const inviteToken = crypto.randomBytes(32).toString('hex');
-		const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60000); // 7 days
+		// Job row for the frozen engine config (mirrors the auto-send hook).
+		let jobRow = null;
+		if (resolvedJobId) {
+			const jobResult = await pool.query('SELECT * FROM jobs WHERE id = $1', [resolvedJobId]);
+			jobRow = jobResult.rows[0] || null;
+		}
 
+		// Freeze the engine config at creation (Task 2 contract) — identical
+		// shape to the auto-send hook in routes/candidate.js.
+		const sessionConfig = {
+			question_source: 'template',
+			current_phase: 'intro',
+			job: {
+				id: jobRow?.id ?? resolvedJobId,
+				title: jobRow?.title || null,
+				company_name: jobRow?.company_name || jobRow?.company || null,
+				description: jobRow?.description || null,
+			},
+			template: {
+				id: tmpl.id,
+				title: tmpl.title,
+				topics: tmpl.topics || [],
+				questions: tmpl.questions || [],
+			},
+		};
+
+		const inviteToken = crypto.randomBytes(32).toString('hex');
 		const result = await pool.query(
-			`INSERT INTO screening_sessions
-       (template_id, company_id, job_id, candidate_id, application_id, invited_by, invite_token, questions, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING *`,
+			`INSERT INTO interview_sessions
+			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+			 RETURNING *`,
 			[
-				template_id,
-				req.user.company_id,
-				tmpl.job_id || job_id,
-				candidate_id,
+				'screening',
+				resolvedJobId,
 				application_id || null,
+				candidate_id,
+				req.user.company_id,
 				req.user.id,
 				inviteToken,
-				JSON.stringify(tmpl.questions),
-				expiresAt,
+				JSON.stringify(sessionConfig),
+				JSON.stringify([]),
 			],
 		);
+		const session = result.rows[0];
 
-		// Update application screening status
+		// Update application screening status and auto-advance pipeline status
+		// from 'applied' to 'screening' (don't override manual moves)
 		if (application_id) {
 			await pool.query(
-				`UPDATE job_applications SET screening_status = 'invited', updated_at = NOW() WHERE id = $1`,
+				`UPDATE job_applications SET screening_status = 'invited', status = CASE WHEN status = 'applied' THEN 'screening' ELSE status END, updated_at = NOW() WHERE id = $1`,
 				[application_id],
 			);
 		}
 
+		// Task 11 (#322): audit event — session.sent with the recruiter as
+		// actor. Non-blocking: an audit failure never fails the send.
+		try {
+			await insertAuditLog({
+				company_id: req.user.company_id ?? null,
+				actor_id: req.user.id,
+				target_id: session.id,
+				action: 'session.sent',
+				metadata: {
+					session_id: session.id,
+					type: 'screening',
+					job_id: resolvedJobId,
+					application_id: application_id || null,
+					template_id,
+				},
+			});
+		} catch (auditErr) {
+			console.error('[screening/send] audit event failed:', auditErr.message);
+		}
+
+		// In-app notification for the candidate (non-blocking)
+		const inviteUrl = `/interview/session/${inviteToken}`;
+		notifyUser(
+			candidate_id,
+			'screening_invited',
+			'AI screening interview invited',
+			`You've been invited to complete an AI screening interview (${tmpl.title}).`,
+			{
+				session_id: session.id,
+				template_id,
+				application_id: application_id || null,
+				job_id: resolvedJobId,
+				invite_url: inviteUrl,
+				url: inviteUrl,
+			},
+		);
+
 		res.json({
 			success: true,
-			session: result.rows[0],
-			invite_url: `/screening/${inviteToken}`,
+			session,
+			invite_url: inviteUrl,
 		});
 	} catch (err) {
 		console.error('Send screening error:', err);
 		res.status(500).json({ error: 'Failed to send screening invite' });
+	}
+});
+
+// GET /api/interviews/screening/my-sessions — Candidate's AI screening sessions
+// Reads the UNIFIED interview_sessions table (type='screening'). Phase 1 (#322)
+// migrated screening writes here; the legacy screening_sessions table is stale.
+router.get('/screening/my-sessions', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`SELECT s.id, s.status, s.invite_token, s.application_id, s.job_id,
+              s.started_at, s.completed_at, s.created_at,
+              s.config->'job'->>'title' as job_title,
+              s.config->'job'->>'company_name' as config_company_name,
+              s.config->'template'->>'title' as template_title,
+              (SELECT score FROM interview_evaluations WHERE interview_session_id = s.id ORDER BY created_at DESC LIMIT 1) as overall_score,
+              j.title as db_job_title, c.name as db_company_name
+       FROM interview_sessions s
+       LEFT JOIN jobs j ON s.job_id = j.id
+       LEFT JOIN companies c ON s.company_id = c.id
+       WHERE s.candidate_id = $1 AND s.type = 'screening'
+       ORDER BY s.created_at DESC`,
+			[req.user.id],
+		);
+		const sessions = result.rows.map((s) => ({
+			id: s.id,
+			status: s.status,
+			overall_score: s.overall_score ?? null,
+			job_title: s.job_title || s.db_job_title || 'Screening',
+			company_name: s.config_company_name || s.db_company_name || '',
+			template_title: s.template_title || null,
+			application_id: s.application_id,
+			invited_at: s.created_at,
+			started_at: s.started_at,
+			completed_at: s.completed_at,
+			expires_at: null,
+			invite_token: s.invite_token,
+			// Only expose the invite link for sessions the candidate can still act on
+			invite_url:
+				s.status === 'invited' || s.status === 'in_progress'
+					? `/interview/session/${s.invite_token}`
+					: null,
+		}));
+		res.json({ success: true, sessions });
+	} catch (err) {
+		console.error('Get my screening sessions error:', err);
+		res.status(500).json({ error: 'Failed to fetch screening sessions' });
 	}
 });
 
@@ -2952,43 +3202,106 @@ router.get('/screening/session/:token', async (req, res) => {
 // POST /api/interviews/screening/session/:token/start — Candidate starts screening
 router.post('/screening/session/:token/start', async (req, res) => {
 	try {
-		const result = await pool.query(
-			`UPDATE screening_sessions SET status = 'in_progress', started_at = NOW()
-       WHERE invite_token = $1 AND status = 'invited'
-       RETURNING id`,
+		// Get session with job details for AI intro (conversational screening)
+		const sessionResult = await pool.query(
+			`SELECT ss.*, j.title as job_title, j.description as job_description, c.name as company_name,
+              st.questions as template_questions, st.topics as template_topics, st.title as template_title, st.screening_mode
+       FROM screening_sessions ss
+       JOIN jobs j ON ss.job_id = j.id
+       JOIN companies c ON ss.company_id = c.id
+       LEFT JOIN screening_templates st ON ss.template_id = st.id
+       WHERE ss.invite_token = $1 AND ss.status = 'invited'`,
 			[req.params.token],
 		);
 
-		if (result.rows.length === 0) {
+		if (sessionResult.rows.length === 0) {
 			return res.status(404).json({ error: 'Screening not found or already started' });
 		}
 
-		// Update application status
-		const session = await pool.query(
-			'SELECT application_id FROM screening_sessions WHERE invite_token = $1',
-			[req.params.token],
+		const s = sessionResult.rows[0];
+
+		// Generate AI intro turn
+		// Phase 1 (#322): delegate turn generation to the unified conversation engine.
+		const engineIntro = await conductTurn(
+			{
+				conversation: [],
+				config: {
+					question_source: 'template',
+					job: {
+						title: s.job_title,
+						description: s.job_description,
+						company_name: s.company_name,
+					},
+					template: {
+						questions: s.template_questions || [],
+						topics: s.template_topics || [],
+						title: s.template_title,
+						screening_mode: s.screening_mode || 'conversational',
+					},
+					current_phase: 'intro',
+				},
+			},
+			'',
+			[],
 		);
-		if (session.rows[0]?.application_id) {
+		const introTurn = { question: engineIntro.ai_message, phase: engineIntro.phase };
+
+		// Save intro to conversation
+		const conversation = [
+			{
+				role: 'interviewer',
+				text: introTurn.question,
+				action: 'transition',
+				phase: 'background',
+				timestamp: new Date().toISOString(),
+			},
+		];
+
+		await pool.query(
+			`UPDATE screening_sessions
+       SET status = 'in_progress', started_at = NOW(), current_phase = 'background',
+           conversation = $1
+       WHERE id = $2`,
+			[JSON.stringify(conversation), s.id],
+		);
+
+		// Update application status
+		if (s.application_id) {
 			await pool.query(
-				`UPDATE job_applications SET screening_status = 'in_progress', updated_at = NOW() WHERE id = $1`,
-				[session.rows[0].application_id],
+				`UPDATE job_applications SET screening_status = 'in_progress', status = CASE WHEN status = 'applied' THEN 'screening' ELSE status END, updated_at = NOW() WHERE id = $1`,
+				[s.application_id],
 			);
 		}
 
-		res.json({ success: true, started: true });
+		res.json({
+			success: true,
+			started: true,
+			ai_message: introTurn.question,
+			phase: 'background',
+		});
 	} catch (err) {
 		console.error('Start screening error:', err);
 		res.status(500).json({ error: 'Failed to start screening' });
 	}
 });
 
-// POST /api/interviews/screening/session/:token/respond — Candidate submits a response
+// POST /api/interviews/screening/session/:token/respond — Candidate submits a response (conversational)
 router.post('/screening/session/:token/respond', async (req, res) => {
 	try {
-		const { question_index, response_text } = req.body;
+		const { response_text } = req.body;
+
+		if (!response_text || response_text.trim().length < 5) {
+			return res.status(400).json({ error: 'Response too short. Please elaborate.' });
+		}
 
 		const session = await pool.query(
-			`SELECT * FROM screening_sessions WHERE invite_token = $1 AND status = 'in_progress'`,
+			`SELECT ss.*, j.title as job_title, j.description as job_description, c.name as company_name,
+              st.questions as template_questions, st.topics as template_topics, st.title as template_title, st.screening_mode
+       FROM screening_sessions ss
+       JOIN jobs j ON ss.job_id = j.id
+       JOIN companies c ON ss.company_id = c.id
+       LEFT JOIN screening_templates st ON ss.template_id = st.id
+       WHERE ss.invite_token = $1 AND ss.status = 'in_progress'`,
 			[req.params.token],
 		);
 
@@ -2997,44 +3310,221 @@ router.post('/screening/session/:token/respond', async (req, res) => {
 		}
 
 		const s = session.rows[0];
-		const responses = s.responses || [];
 		const conversation = s.conversation || [];
+		const currentPhase = s.current_phase || 'background';
 
-		// Save response
-		responses[question_index] = {
-			question_index,
-			response_text: response_text || '',
-			submitted_at: new Date().toISOString(),
+		// Add candidate response to conversation
+		conversation.push({
+			role: 'candidate',
+			text: response_text.trim(),
+			timestamp: new Date().toISOString(),
+		});
+
+		// AI generates next turn (conversational screening)
+		// Phase 1 (#322): delegate turn generation to the unified conversation
+		// engine (owns the 20s timeout + scripted fallback). Map its result to
+		// the aiTurn shape this handler persists downstream.
+		const engineTurn = await conductTurn(
+			{
+				conversation,
+				config: {
+					question_source: 'template',
+					job: {
+						title: s.job_title,
+						description: s.job_description,
+						company_name: s.company_name,
+					},
+					template: {
+						questions: s.template_questions || [],
+						topics: s.template_topics || [],
+						title: s.template_title,
+						screening_mode: s.screening_mode || 'conversational',
+					},
+					current_phase: currentPhase,
+				},
+			},
+			response_text.trim(),
+			[],
+		);
+		const aiTurn = {
+			reaction: '',
+			question: engineTurn.ai_message,
+			action: engineTurn.is_complete ? 'wrap_up' : 'transition',
+			phase: engineTurn.phase,
+			notes: null,
 		};
 
-		// Add to conversation
-		const q = s.questions[question_index];
-		if (q) {
-			conversation.push(
-				{ role: 'interviewer', text: q.question_text, timestamp: new Date().toISOString() },
-				{ role: 'candidate', text: response_text || '', timestamp: new Date().toISOString() },
-			);
-		}
+		// Add AI turn to conversation
+		const aiMessage = aiTurn.reaction
+			? `${aiTurn.reaction} ${aiTurn.question}`
+			: aiTurn.question;
+		conversation.push({
+			role: 'interviewer',
+			text: aiMessage,
+			action: aiTurn.action,
+			phase: aiTurn.phase,
+			timestamp: new Date().toISOString(),
+		});
 
+		// Update session
 		await pool.query(
-			`UPDATE screening_sessions SET responses = $1, conversation = $2 WHERE id = $3`,
-			[JSON.stringify(responses), JSON.stringify(conversation), s.id],
+			`UPDATE screening_sessions SET conversation = $1, current_phase = $2 WHERE id = $3`,
+			[JSON.stringify(conversation), aiTurn.phase, s.id],
 		);
 
-		const answeredCount = responses.filter((r) => r?.response_text).length;
-		const totalQuestions = s.questions.length;
+		const candidateTurnCount = conversation.filter((t) => t.role === 'candidate').length;
 
 		res.json({
 			success: true,
-			answered: answeredCount,
-			total: totalQuestions,
-			is_complete: answeredCount >= totalQuestions,
+			ai_message: aiMessage,
+			action: aiTurn.action,
+			phase: aiTurn.phase,
+			exchanges: candidateTurnCount,
+			should_wrap_up: aiTurn.action === 'wrap_up',
 		});
 	} catch (err) {
 		console.error('Screening respond error:', err);
-		res.status(500).json({ error: 'Failed to save response' });
+		res.status(500).json({ error: 'Failed to process response' });
 	}
 });
+
+// POST /api/interviews/screening/session/:token/respond-voice — Candidate submits voice response
+// Accepts audio file, transcribes with Whisper, then runs conversational AI turn
+router.post(
+	'/screening/session/:token/respond-voice',
+	upload.single('audio'),
+	async (req, res) => {
+		try {
+			const aiProvider = require('../lib/ai-provider');
+
+			// Step 1: Transcribe audio
+			let transcribedText = '';
+			if (req.file) {
+				const baseMime = (req.file.mimetype || 'audio/webm').split(';')[0];
+				const ext = baseMime.includes('mp4')
+					? 'mp4'
+					: baseMime.includes('ogg')
+						? 'ogg'
+						: 'webm';
+				const filename = `screening-recording.${ext}`;
+
+				try {
+					const asrResult = await aiProvider.transcribeAudio(
+						req.file.buffer,
+						filename,
+						baseMime,
+						{
+							module: 'interview_screening',
+							feature: 'voice_transcription',
+						},
+					);
+					if (asrResult?.text) {
+						transcribedText = asrResult.text.trim();
+					}
+				} catch (asrErr) {
+					console.error('[screening-voice] Transcription failed:', asrErr.message);
+					return res.status(400).json({
+						error: "Couldn't transcribe your audio. Please try speaking again.",
+					});
+				}
+			}
+
+			if (!transcribedText || transcribedText.length < 3) {
+				return res.status(400).json({
+					error: "Didn't catch that. Could you please repeat your answer?",
+				});
+			}
+
+			// Step 2: Load session (same as text respond endpoint)
+			const session = await pool.query(
+				`SELECT ss.*, j.title as job_title, j.description as job_description, c.name as company_name,
+              st.questions as template_questions, st.topics as template_topics, st.title as template_title, st.screening_mode
+       FROM screening_sessions ss
+       JOIN jobs j ON ss.job_id = j.id
+       JOIN companies c ON ss.company_id = c.id
+       LEFT JOIN screening_templates st ON ss.template_id = st.id
+       WHERE ss.invite_token = $1 AND ss.status = 'in_progress'`,
+				[req.params.token],
+			);
+
+			if (session.rows.length === 0) {
+				return res.status(404).json({ error: 'Screening not found or not in progress' });
+			}
+
+			const s = session.rows[0];
+			const conversation = s.conversation || [];
+			const currentPhase = s.current_phase || 'background';
+
+			// Add candidate response to conversation
+			conversation.push({
+				role: 'candidate',
+				text: transcribedText,
+				timestamp: new Date().toISOString(),
+				input_mode: 'voice',
+			});
+
+			// Step 3: Generate AI turn (same logic as text endpoint)
+			// Phase 1 (#322): delegate turn generation to the unified conversation
+			// engine (owns the 20s timeout + scripted fallback). Its result shape
+			// already matches what this handler consumes downstream.
+			const engineTurn = await conductTurn(
+				{
+					conversation,
+					config: {
+						question_source: 'template',
+						job: {
+							title: s.job_title,
+							description: s.job_description,
+							company_name: s.company_name,
+						},
+						template: {
+							questions: s.template_questions || [],
+							topics: s.template_topics || [],
+							title: s.template_title,
+							screening_mode: s.screening_mode || 'conversational',
+						},
+						current_phase: currentPhase,
+					},
+				},
+				transcribedText,
+				[],
+			);
+			const aiTurn = {
+				ai_message: engineTurn.ai_message,
+				phase: engineTurn.phase,
+				should_wrap_up: engineTurn.is_complete,
+			};
+
+			// Add AI response to conversation
+			conversation.push({
+				role: 'ai',
+				text: aiTurn.ai_message,
+				timestamp: new Date().toISOString(),
+				phase: aiTurn.phase,
+			});
+
+			// Update session
+			await pool.query(
+				`UPDATE screening_sessions
+         SET conversation = $1, current_phase = $2, updated_at = NOW()
+         WHERE id = $3`,
+				[JSON.stringify(conversation), aiTurn.phase || currentPhase, s.id],
+			);
+
+			res.json({
+				success: true,
+				transcribed_text: transcribedText,
+				ai_message: aiTurn.ai_message,
+				phase: aiTurn.phase || currentPhase,
+				should_wrap_up: aiTurn.should_wrap_up || false,
+				exchange_count: Math.floor(conversation.length / 2),
+			});
+		} catch (err) {
+			console.error('Screening voice respond error:', err);
+			res.status(500).json({ error: 'Failed to process voice response' });
+		}
+	},
+);
 
 // POST /api/interviews/screening/session/:token/complete — Candidate completes screening
 router.post('/screening/session/:token/complete', async (req, res) => {
@@ -3062,10 +3552,25 @@ router.post('/screening/session/:token/complete', async (req, res) => {
 		// Update application screening status
 		if (s.application_id) {
 			await pool.query(
-				`UPDATE job_applications SET screening_status = 'completed', screening_score = $1, updated_at = NOW() WHERE id = $2`,
+				`UPDATE job_applications SET screening_status = 'completed', screening_score = $1, status = CASE WHEN status = 'screening' THEN 'shortlisted' ELSE status END, updated_at = NOW() WHERE id = $2`,
 				[report.overall_score, s.application_id],
 			);
 		}
+
+		// In-app notification for the recruiter (non-blocking)
+		notifyUser(
+			s.invited_by,
+			'screening_completed',
+			'Screening completed',
+			`Candidate completed the AI screening — score ${report.overall_score ?? 'N/A'}/100 (${report.recommendation || 'no recommendation'}).`,
+			{
+				session_id: s.id,
+				application_id: s.application_id,
+				job_id: s.job_id,
+				candidate_id: s.candidate_id,
+				overall_score: report.overall_score,
+			},
+		);
 
 		// Run multi-evaluator scoring in background
 		const jobResult = await pool.query('SELECT title, description FROM jobs WHERE id = $1', [
@@ -3099,15 +3604,102 @@ router.post('/screening/session/:token/complete', async (req, res) => {
 	}
 });
 
+// GET /api/interviews/screening/sessions — Recruiter lists screening sessions for their company
+// Query params: job_id (optional), status (optional)
+// Reads the UNIFIED interview_sessions table (type='screening'). Phase 1 (#322)
+// migrated screening writes here; the legacy screening_sessions table is stale.
+router.get('/screening/sessions', authMiddleware, async (req, res) => {
+	try {
+		const { job_id, status } = req.query;
+
+		let query = `
+      SELECT s.id, s.status, s.invite_token, s.application_id,
+             s.config->>'current_phase' as current_phase,
+             s.config->'report'->>'recommendation' as recommendation,
+             s.created_at as invited_at, s.started_at, s.completed_at,
+             s.conversation,
+             s.config->'job'->>'title' as config_job_title,
+             s.config->'template'->>'title' as config_template_title,
+             (SELECT score FROM interview_evaluations WHERE interview_session_id = s.id ORDER BY created_at DESC LIMIT 1) as overall_score,
+             j.id as job_id, j.title as db_job_title,
+             u.id as candidate_id, u.name as candidate_name, u.email as candidate_email,
+             st.title as db_template_title, st.screening_mode
+      FROM interview_sessions s
+      JOIN jobs j ON s.job_id = j.id
+      JOIN users u ON s.candidate_id = u.id
+      LEFT JOIN screening_templates st ON (s.config->'template'->>'id')::int = st.id
+      WHERE s.company_id = $1 AND s.type = 'screening'
+    `;
+		const params = [req.user.company_id];
+		let paramIdx = 2;
+
+		if (job_id) {
+			query += ` AND s.job_id = $${paramIdx}`;
+			params.push(job_id);
+			paramIdx++;
+		}
+		if (status) {
+			query += ` AND s.status = $${paramIdx}`;
+			params.push(status);
+			paramIdx++;
+		}
+
+		query += ` ORDER BY s.created_at DESC LIMIT 100`;
+
+		const result = await pool.query(query, params);
+
+		const sessions = result.rows.map((s) => {
+			const conversation = s.conversation || [];
+			return {
+				id: s.id,
+				status: s.status,
+				current_phase: s.current_phase,
+				overall_score: s.overall_score,
+				recommendation: s.recommendation,
+				job_id: s.job_id,
+				job_title: s.config_job_title || s.db_job_title,
+				candidate_id: s.candidate_id,
+				candidate_name: s.candidate_name,
+				candidate_email: s.candidate_email,
+				template_title: s.config_template_title || s.db_template_title,
+				screening_mode: s.screening_mode,
+				invited_at: s.invited_at,
+				started_at: s.started_at,
+				completed_at: s.completed_at,
+				exchange_count: Math.floor(conversation.length / 2),
+				// Include full transcript for monitoring
+				transcript: conversation.map((msg) => ({
+					role: msg.role,
+					text: msg.text,
+					timestamp: msg.timestamp,
+					phase: msg.phase,
+				})),
+			};
+		});
+
+		res.json({ success: true, sessions });
+	} catch (err) {
+		console.error('List screening sessions error:', err);
+		res.status(500).json({ error: 'Failed to fetch screening sessions' });
+	}
+});
+
 // GET /api/interviews/screening/:id/report — Recruiter gets screening report
+// Reads the UNIFIED interview_sessions table (type='screening'). Phase 1 (#322)
+// migrated screening writes here; the legacy screening_sessions table is stale.
 router.get('/screening/:id/report', authMiddleware, async (req, res) => {
 	try {
 		const session = await pool.query(
-			`SELECT ss.*, j.title as job_title, u.name as candidate_name, u.email as candidate_email
-       FROM screening_sessions ss
-       JOIN jobs j ON ss.job_id = j.id
-       JOIN users u ON ss.candidate_id = u.id
-       WHERE ss.id = $1 AND ss.company_id = $2`,
+			`SELECT s.id, s.status, s.invite_token, s.application_id, s.job_id, s.candidate_id,
+              s.started_at, s.completed_at, s.created_at, s.conversation,
+              s.config->'template'->'questions' as questions,
+              s.config->'report' as ai_report,
+              (SELECT score FROM interview_evaluations WHERE interview_session_id = s.id ORDER BY created_at DESC LIMIT 1) as overall_score,
+              j.title as job_title, u.name as candidate_name, u.email as candidate_email
+       FROM interview_sessions s
+       JOIN jobs j ON s.job_id = j.id
+       JOIN users u ON s.candidate_id = u.id
+       WHERE s.id = $1 AND s.type = 'screening' AND s.company_id = $2`,
 			[req.params.id, req.user.company_id],
 		);
 
@@ -3120,13 +3712,13 @@ router.get('/screening/:id/report', authMiddleware, async (req, res) => {
 		// Get multi-evaluation scores if available
 		const evaluations = await pool.query(
 			`SELECT evaluator_type, score, breakdown, reasoning FROM interview_evaluations
-       WHERE screening_session_id = $1 ORDER BY created_at`,
+       WHERE interview_session_id = $1 ORDER BY created_at`,
 			[s.id],
 		);
 
 		const composite = await pool.query(
-			`SELECT * FROM interview_composite_scores WHERE screening_session_id = $1 ORDER BY created_at DESC LIMIT 1`,
-			[s.id],
+			`SELECT * FROM interview_composite_scores WHERE candidate_id = $1 AND job_id = $2 ORDER BY created_at DESC LIMIT 1`,
+			[s.candidate_id, s.job_id],
 		);
 
 		res.json({
@@ -3141,10 +3733,12 @@ router.get('/screening/:id/report', authMiddleware, async (req, res) => {
 				started_at: s.started_at,
 				completed_at: s.completed_at,
 				questions: s.questions,
-				responses: s.responses,
-				conversation: s.conversation,
+				responses: null,
+				conversation:
+					typeof s.conversation === 'string' ? JSON.parse(s.conversation) : s.conversation,
 			},
-			report: s.ai_report,
+			report:
+				typeof s.ai_report === 'string' ? JSON.parse(s.ai_report) : s.ai_report,
 			evaluations: evaluations.rows,
 			composite: composite.rows[0] || null,
 		});

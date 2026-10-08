@@ -44,7 +44,19 @@ export interface Job {
 	status?: string;
 	created_at: string;
 	screening_questions?: string | any[];
-	// Match fields
+	// Match fields (deterministic engine — see #308)
+	match?: {
+		match_score: number;
+		match_level: string;
+		breakdown?: {
+			skills: number;
+			experience: number;
+			location: number;
+			title: number;
+		};
+		matching_skills?: string[];
+		missing_skills?: string[];
+	};
 	weighted_score?: number;
 	match_level?: string;
 	skill_match_pct?: number;
@@ -200,7 +212,11 @@ export function JobDetailContent({
 	userSkills = [],
 	onSkillClick,
 }: JobDetailContentProps) {
-	const score = job.weighted_score ? Math.round(job.weighted_score) : null;
+	const score = job.match?.match_score ?? (job.weighted_score ? Math.round(job.weighted_score) : null);
+	const matchLevel = job.match?.match_level ?? job.match_level;
+	const matchBreakdown = job.match?.breakdown;
+	const matchingSkills = job.match?.matching_skills ?? job.matching_skills;
+	const missingSkills = job.match?.missing_skills ?? job.missing_skills;
 	const fitScore = job.fit_score != null ? Math.round(job.fit_score) : null;
 	const [matchExpanded, setMatchExpanded] = useState(score != null && score >= 70);
 
@@ -275,66 +291,100 @@ export function JobDetailContent({
 				</div>
 			)}
 
-			{/* Fit Score Banner — prioritized over weighted_score */}
-			{fitScore != null && (
-				<div className={cn('rounded-lg border p-3', matchBg(fitScore))}>
+			{/* Jobright-style Match Banner — deterministic scores from #308 */}
+			{score != null && (
+				<div className={cn('rounded-lg border p-4', matchBg(score))}>
 					<div className="flex items-center justify-between gap-2">
 						<div className="flex items-center gap-3 min-w-0">
 							<div
 								className={cn(
-									'flex items-center justify-center rounded-full border-2 font-bold text-sm w-12 h-12 shrink-0',
-									fitScore >= 80
+									'flex items-center justify-center rounded-full border-2 font-bold text-base w-14 h-14 shrink-0',
+									score >= 80
 										? 'bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-700 dark:text-emerald-400'
-										: fitScore >= 60
+										: score >= 60
 											? 'bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-400'
 											: 'bg-red-50 border-red-300 text-red-700 dark:bg-red-950/30 dark:border-red-700 dark:text-red-400',
 								)}
 							>
-								{fitScore}%
+								{score}%
 							</div>
-							<div className="min-w-0">
-								<p className="font-semibold text-sm break-words flex items-center gap-1.5">
-									<Target className="h-3.5 w-3.5" />
-									Fit Score —{' '}
-									{fitScore >= 80 ? 'Strong Match' : fitScore >= 60 ? 'Good Match' : 'Fair Match'}
-								</p>
-								<p className="text-xs opacity-80 break-words">
-									Based on your profile skills, experience, and preferences
-								</p>
-							</div>
-						</div>
-						{fitScore >= 80 && <Zap className="h-5 w-5 text-green-600 shrink-0" />}
-					</div>
-				</div>
-			)}
-
-			{/* Legacy Match Score Banner (fallback) */}
-			{fitScore == null && score != null && (
-				<div className={cn('rounded-lg border p-3', matchBg(score))}>
-					<div className="flex items-center justify-between gap-2">
-						<div className="flex items-center gap-3 min-w-0">
-							<ScoreRing score={score} size="md" />
 							<div className="min-w-0">
 								<p className="font-semibold text-sm break-words">
-									{matchLevelLabel(job.match_level || '')}
+									{matchLevel === 'excellent'
+										? 'Excellent Match'
+										: matchLevel === 'good'
+											? 'Good Match'
+											: matchLevel === 'fair'
+												? 'Fair Match'
+												: 'Low Match'}
 								</p>
 								<p className="text-xs opacity-80 break-words">
-									{job.skill_match_pct != null && `${job.skill_match_pct}% skills match`}
-									{job.matching_skills &&
-										` · ${job.matching_skills.length}/${(job.matching_skills?.length || 0) + (job.missing_skills?.length || 0)} skills`}
+									Why this job is a match for you
 								</p>
 							</div>
 						</div>
-						{job.match_level === 'excellent' && <Zap className="h-5 w-5 text-green-600 shrink-0" />}
+						{score >= 80 && <Zap className="h-5 w-5 text-green-600 shrink-0" />}
 					</div>
-					{job.missing_skills && job.missing_skills.length > 0 && score < 80 && (
-						<div className="mt-2 pt-2 border-t border-current/10">
-							<p className="text-xs font-medium opacity-70">
-								To reach 90% match, add these skills:
+
+					{/* Breakdown bars — Jobright style */}
+					{matchBreakdown && (
+						<div className="mt-3 pt-3 border-t border-current/10 space-y-2">
+							{[
+								{ label: 'Skills', value: matchBreakdown.skills },
+								{ label: 'Experience', value: matchBreakdown.experience },
+								{ label: 'Location', value: matchBreakdown.location },
+								{ label: 'Title Match', value: matchBreakdown.title },
+							].map((item) => (
+								<div key={item.label} className="flex items-center gap-2">
+									<span className="text-xs w-24 shrink-0 opacity-80">{item.label}</span>
+									<div className="flex-1 h-2 bg-white/40 rounded-full overflow-hidden">
+										<div
+											className={cn(
+												'h-full rounded-full',
+												item.value >= 70
+													? 'bg-emerald-500'
+													: item.value >= 50
+														? 'bg-amber-500'
+														: 'bg-red-400',
+											)}
+											style={{ width: `${item.value}%` }}
+										/>
+									</div>
+									<span className="text-xs font-semibold w-10 text-right">{item.value}%</span>
+								</div>
+							))}
+						</div>
+					)}
+
+					{/* Matching skills */}
+					{matchingSkills && matchingSkills.length > 0 && (
+						<div className="mt-3 pt-3 border-t border-current/10">
+							<p className="text-xs font-medium opacity-70 mb-1.5">Matching skills:</p>
+							<div className="flex flex-wrap gap-1">
+								{matchingSkills.slice(0, 6).map((s) => (
+									<span
+										key={s}
+										className="text-[11px] bg-emerald-100 text-emerald-700 rounded-full px-2 py-0.5 border border-emerald-200"
+									>
+										{s}
+									</span>
+								))}
+							</div>
+						</div>
+					)}
+
+					{/* Missing skills */}
+					{missingSkills && missingSkills.length > 0 && score < 80 && (
+						<div className="mt-2">
+							<p className="text-xs font-medium opacity-70 mb-1.5">
+								To improve your match:
 							</p>
-							<div className="flex flex-wrap gap-1 mt-1">
-								{job.missing_skills.map((s) => (
-									<span key={s} className="text-[10px] bg-white/50 rounded px-1.5 py-0.5">
+							<div className="flex flex-wrap gap-1">
+								{missingSkills.slice(0, 4).map((s) => (
+									<span
+										key={s}
+										className="text-[11px] bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 border border-amber-200"
+									>
 										{s}
 									</span>
 								))}
@@ -344,8 +394,8 @@ export function JobDetailContent({
 				</div>
 			)}
 
-			{/* Fit Score Breakdown */}
-			{fitScore != null && breakdownEntries.length > 0 && (
+			{/* Legacy Fit Score Breakdown (fallback when no match.breakdown) */}
+			{matchBreakdown == null && fitScore != null && breakdownEntries.length > 0 && (
 				<div className="rounded-lg border border-indigo-100 dark:border-indigo-800/40 bg-indigo-50/30 dark:bg-indigo-950/10 p-3 space-y-3">
 					<p className="text-sm font-semibold flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300">
 						<Target className="h-4 w-4" />
@@ -397,7 +447,12 @@ export function JobDetailContent({
 				</div>
 				<div className="flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50 min-w-0">
 					<DollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
-					<span className="truncate">{job.salary_range || 'Salary not specified'}</span>
+					<span className="truncate">
+						{job.salary_range ||
+							(job.salary_min || job.salary_max
+								? `${job.salary_min ? `$${Number(job.salary_min).toLocaleString()}` : ''}${job.salary_min && job.salary_max ? ' - ' : ''}${job.salary_max ? `$${Number(job.salary_max).toLocaleString()}` : ''}`
+								: 'Salary not specified')}
+					</span>
 				</div>
 				<div className="flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50 min-w-0">
 					<Briefcase className="h-4 w-4 text-muted-foreground shrink-0" />

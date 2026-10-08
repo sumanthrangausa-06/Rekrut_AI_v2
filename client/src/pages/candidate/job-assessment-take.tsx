@@ -53,9 +53,14 @@ export function JobAssessmentTakePage() {
 	const [submitting, setSubmitting] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [completed, setCompleted] = useState(false);
+	const [startError, setStartError] = useState<string | null>(null);
 	const [feedback, setFeedback] = useState<string | null>(null);
 	const [timeLeft, setTimeLeft] = useState(0);
+	const [overallTimeLeft, setOverallTimeLeft] = useState<number | null>(null);
+	const [expired, setExpired] = useState(false);
 	const [scoring, setScoring] = useState(false);
+	const [finalScore, setFinalScore] = useState<number | null>(null);
+	const [finalResult, setFinalResult] = useState<'pass' | 'fail' | null>(null);
 
 	// Conversational mode
 	const [conversationMode, setConversationMode] = useState(false);
@@ -74,6 +79,8 @@ export function JobAssessmentTakePage() {
 				resumed: boolean;
 				progress: Progress;
 				question: Question | null;
+				timeLimitMinutes?: number;
+				startedAt?: string;
 			}>(`/assessments/job-assessment/${assessmentId}/start`, {
 				method: 'POST',
 				body: { applicationId: applicationId ? Number(applicationId) : undefined },
@@ -86,8 +93,21 @@ export function JobAssessmentTakePage() {
 				setTimeLeft(data.question.timeLimit || 120);
 				startTimeRef.current = Date.now();
 			}
+			// Overall time limit (#343 task 3): countdown from startedAt + timeLimitMinutes.
+			if (data.timeLimitMinutes && data.startedAt) {
+				const elapsedSec = Math.floor((Date.now() - new Date(data.startedAt).getTime()) / 1000);
+				const remaining = data.timeLimitMinutes * 60 - elapsedSec;
+				if (remaining <= 0) {
+					setExpired(true);
+				} else {
+					setOverallTimeLeft(remaining);
+				}
+			}
 		} catch (e: any) {
 			console.error('Failed to start assessment:', e);
+			// Surface server errors (e.g. 403 when the candidate has no
+			// assignment) instead of the generic "no questions" state below.
+			setStartError(e?.message || 'Failed to start assessment');
 		} finally {
 			setLoading(false);
 		}
@@ -99,8 +119,22 @@ export function JobAssessmentTakePage() {
 
 	// Timer
 
+	// Overall countdown (#343 task 3): ticks once the attempt starts; the
+	// server enforces the same limit on /answer, this is the visible clock.
+	useEffect(() => {
+		if (expired || completed) return;
+		const id = setInterval(() => {
+			setOverallTimeLeft((prev) => (prev === null ? prev : Math.max(0, prev - 1)));
+		}, 1000);
+		return () => clearInterval(id);
+	}, [expired, completed]);
+
+	useEffect(() => {
+		if (overallTimeLeft === 0 && !expired) setExpired(true);
+	}, [overallTimeLeft, expired]);
+
 	async function submitAnswer() {
-		if (!attemptId || !question) return;
+		if (!attemptId || !question || expired) return;
 		setSubmitting(true);
 		setFeedback(null);
 
@@ -124,7 +158,31 @@ export function JobAssessmentTakePage() {
 			if (data.completed) {
 				setCompleted(true);
 				setScoring(true);
-				setTimeout(() => setScoring(false), 5000);
+				// Poll for the score — the server scores async after the last answer.
+				// Transparency: show the candidate their own score, not just "recruiter will review".
+				const pollScore = async (tries = 0) => {
+					if (!attemptId || tries > 10) {
+						setScoring(false);
+						return;
+					}
+					try {
+						const s = await apiCall<{
+							composite_score: number | null;
+							scored: boolean;
+							result: 'pass' | 'fail' | null;
+						}>(`/assessments/attempt/${attemptId}/score`);
+						if (s.scored && s.composite_score != null) {
+							setFinalScore(s.composite_score);
+							setFinalResult(s.result);
+							setScoring(false);
+							return;
+						}
+					} catch {
+						/* keep polling */
+					}
+					setTimeout(() => pollScore(tries + 1), 2000);
+				};
+				setTimeout(() => pollScore(), 3000);
 				return;
 			}
 
@@ -218,12 +276,23 @@ export function JobAssessmentTakePage() {
 							<Trophy className="h-8 w-8 text-green-600" />
 						</div>
 						<h2 className="text-2xl font-bold">Assessment Complete!</h2>
-						<p className="text-muted-foreground max-w-md mx-auto">
-							{scoring
-								? 'Your answers are being scored by AI. Results will be available shortly.'
-								: 'Your assessment has been submitted and scored. The recruiter will review your results.'}
-						</p>
-						{scoring && (
+						{finalScore != null ? (
+							<div className="space-y-2">
+								<div className="text-5xl font-bold text-green-700">{finalScore}/100</div>
+								<p className="text-muted-foreground max-w-md mx-auto">
+									{finalResult === 'pass'
+										? 'You passed this assessment. The hiring team will be in touch with next steps.'
+										: 'Your assessment has been scored. Check your applications page for updates from the hiring team.'}
+								</p>
+							</div>
+						) : (
+							<p className="text-muted-foreground max-w-md mx-auto">
+								{scoring
+									? 'Your answers are being scored by AI. Results will be available shortly.'
+									: 'Your assessment has been submitted and scored. The recruiter will review your results.'}
+							</p>
+						)}
+						{scoring && finalScore == null && (
 							<div className="flex items-center justify-center gap-2 text-violet-600">
 								<Loader2 className="h-4 w-4 animate-spin" />
 								<span className="text-sm font-medium">AI is scoring your answers...</span>
@@ -240,12 +309,32 @@ export function JobAssessmentTakePage() {
 		);
 	}
 
+	if (expired) {
+		return (
+			<div className="max-w-xl mx-auto py-12 text-center space-y-4 px-4 sm:px-6">
+				<AlertTriangle className="h-10 w-10 text-red-500 mx-auto" />
+				<h2 className="text-xl font-bold">Time Expired</h2>
+				<p className="text-muted-foreground">
+					The time limit for this assessment has elapsed. Your submitted answers have been
+					saved.
+				</p>
+				<Button variant="outline" onClick={() => navigate(-1)}>
+					Go Back
+				</Button>
+			</div>
+		);
+	}
+
 	if (!question) {
 		return (
 			<div className="max-w-xl mx-auto py-12 text-center space-y-4 px-4 sm:px-6">
 				<AlertTriangle className="h-10 w-10 text-amber-500 mx-auto" />
-				<h2 className="text-xl font-bold">No Questions Available</h2>
-				<p className="text-muted-foreground">This assessment doesn't have any questions yet.</p>
+				<h2 className="text-xl font-bold">
+					{startError ? 'Cannot Start Assessment' : 'No Questions Available'}
+				</h2>
+				<p className="text-muted-foreground">
+					{startError || "This assessment doesn't have any questions yet."}
+				</p>
 				<Button variant="outline" onClick={() => navigate(-1)}>
 					Go Back
 				</Button>
@@ -279,6 +368,15 @@ export function JobAssessmentTakePage() {
 							<Clock className={`h-3.5 w-3.5 ${isLowTime ? 'animate-pulse' : ''}`} />
 							{minutes}:{seconds.toString().padStart(2, '0')}
 						</span>
+						{overallTimeLeft !== null && (
+							<span
+								className={`flex items-center gap-1 font-mono text-sm ${overallTimeLeft < 300 ? 'text-red-600 font-bold' : 'text-muted-foreground'}`}
+								title="Total time remaining for this assessment"
+							>
+								<Clock className={`h-3.5 w-3.5 ${overallTimeLeft < 300 ? 'animate-pulse' : ''}`} />
+								{Math.floor(overallTimeLeft / 60)}:{(overallTimeLeft % 60).toString().padStart(2, '0')}
+							</span>
+						)}
 					</div>
 				</div>
 				<div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -287,6 +385,12 @@ export function JobAssessmentTakePage() {
 						style={{ width: `${(progress.current / progress.total) * 100}%` }}
 					/>
 				</div>
+			</div>
+
+			{/* AI disclosure (#343 task 5) */}
+			<div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700">
+				<AlertTriangle className="h-4 w-4 shrink-0" />
+				<span>This assessment is scored by AI and reviewed by a human.</span>
 			</div>
 
 			{/* Question Card */}

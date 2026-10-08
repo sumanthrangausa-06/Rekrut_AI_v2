@@ -4,7 +4,9 @@ import {
 	CheckCircle,
 	ChevronDown,
 	Clock,
+	Copy,
 	GraduationCap,
+	Link2,
 	Loader2,
 	Shield,
 	Sparkles,
@@ -15,6 +17,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { apiCall } from '@/lib/api';
 
 interface Assessment {
@@ -87,6 +90,13 @@ export function RecruiterJobAssessmentPage() {
 	const [genError, setGenError] = useState<string | null>(null);
 	const [tab, setTab] = useState<'questions' | 'results'>('questions');
 	const [expandedQ, setExpandedQ] = useState<number | null>(null);
+	// Referral link (#349)
+	const [referEmail, setReferEmail] = useState('');
+	const [referDueDate, setReferDueDate] = useState('');
+	const [referBusy, setReferBusy] = useState(false);
+	const [referError, setReferError] = useState<string | null>(null);
+	const [referUrl, setReferUrl] = useState<string | null>(null);
+	const [referCopied, setReferCopied] = useState(false);
 
 	useEffect(() => {
 		loadAssessment();
@@ -147,6 +157,36 @@ export function RecruiterJobAssessmentPage() {
 			/* */
 		} finally {
 			setPublishing(false);
+		}
+	}
+
+	async function createReferralLink() {
+		if (!assessment || referBusy) return;
+		setReferBusy(true);
+		setReferError(null);
+		setReferCopied(false);
+		try {
+			const body: { email: string; due_date?: string } = { email: referEmail.trim() };
+			if (referDueDate) body.due_date = new Date(referDueDate).toISOString();
+			const data = await apiCall<{ referral_url: string }>(`/assessments/${assessment.id}/refer`, {
+				method: 'POST',
+				body,
+			});
+			setReferUrl(`${window.location.origin}${data.referral_url}`);
+		} catch (e: any) {
+			setReferError(e.message || 'Failed to create referral link');
+		} finally {
+			setReferBusy(false);
+		}
+	}
+
+	async function copyReferralLink() {
+		if (!referUrl) return;
+		try {
+			await navigator.clipboard.writeText(referUrl);
+			setReferCopied(true);
+		} catch {
+			/* clipboard unavailable — the URL is still visible for manual copy */
 		}
 	}
 
@@ -286,6 +326,59 @@ export function RecruiterJobAssessmentPage() {
 					</CardContent>
 				</Card>
 			</div>
+
+			{/* Referral link (#349) — only for published assessments */}
+			{assessment.status === 'published' && (
+				<Card>
+					<CardContent className="pt-5 space-y-4">
+						<div className="flex items-center gap-2">
+							<Link2 className="h-5 w-5 text-violet-600" />
+							<h2 className="font-heading text-base font-semibold">Refer a candidate</h2>
+						</div>
+						<p className="text-sm text-muted-foreground">
+							Generate a link for a candidate by email. They'll sign up (or log in) and
+							land directly in this assessment — their application is created automatically.
+						</p>
+						<div className="flex flex-col gap-2 sm:flex-row">
+							<Input
+								type="email"
+								placeholder="candidate@example.com"
+								value={referEmail}
+								onChange={(e) => setReferEmail(e.target.value)}
+								className="flex-1"
+								aria-label="Candidate email"
+							/>
+							<Input
+								type="date"
+								value={referDueDate}
+								onChange={(e) => setReferDueDate(e.target.value)}
+								className="sm:w-44"
+								aria-label="Due date (optional)"
+								title="Due date (optional, defaults to 30 days)"
+							/>
+							<Button onClick={createReferralLink} disabled={referBusy || !referEmail.trim()}>
+								{referBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+								Generate link
+							</Button>
+						</div>
+						{referError && (
+							<div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+								<AlertTriangle className="h-4 w-4 shrink-0" />
+								<span>{referError}</span>
+							</div>
+						)}
+						{referUrl && (
+							<div className="flex items-center gap-2 rounded-lg border bg-muted/40 p-3">
+								<Input value={referUrl} readOnly className="flex-1 font-mono text-xs" aria-label="Referral link" />
+								<Button variant="outline" size="sm" onClick={copyReferralLink} className="gap-1.5 shrink-0">
+									<Copy className="h-4 w-4" />
+									{referCopied ? 'Copied!' : 'Copy'}
+								</Button>
+							</div>
+						)}
+					</CardContent>
+				</Card>
+			)}
 
 			{/* Category badges */}
 			<div className="flex flex-wrap gap-1.5">

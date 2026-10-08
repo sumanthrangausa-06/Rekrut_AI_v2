@@ -6,6 +6,9 @@
 //   POST   /api/livekit/rooms              — create a room for an interview
 //   POST   /api/livekit/rooms/:id/token    — get a join token
 //   DELETE /api/livekit/rooms/:id          — close a room
+//   POST   /api/livekit/session-rooms              — create-or-get a room for an interview session (#323)
+//   POST   /api/livekit/session-rooms/:sessionId/token — get a join token for a session room (#323)
+//   POST   /api/livekit/session-rooms/:sessionId/dispatch — dispatch the voice agent to a session room (#323)
 //
 // Auth: authMiddleware + role checks
 // Rate limiting: distributed rate limiter (strict for token endpoints)
@@ -217,6 +220,221 @@ router.delete(
 				return res.status(503).json({ error: 'LiveKit not configured' });
 			}
 			res.status(500).json({ error: 'Failed to close room' });
+		}
+	},
+);
+
+// ─── Session-linked rooms (Issue #323) ───────────────────────────────────────
+// Phase 2 keys LiveKit rooms to the unified interview_sessions model. Access
+// mirrors Phase 1's canAccess (routes/interview-sessions.js): the session's
+// candidate, the session company's hiring team, or admin. Fail-closed — a
+// missing company_id never matches.
+
+const HIRING_ROLES = ['recruiter', 'hiring_manager'];
+
+function canAccessSession(session, user) {
+	if (!user) return false;
+	if (Number(user.id) === Number(session.candidate_id)) return true;
+	return isHiringTeamForSession(session, user);
+}
+
+function isHiringTeamForSession(session, user) {
+	if (!user) return false;
+	if (user.role === 'admin') return true;
+	return (
+		HIRING_ROLES.includes(user.role) &&
+		user.company_id != null &&
+		Number(user.company_id) === Number(session.company_id)
+	);
+}
+
+async function loadSessionOr404(sessionId, res) {
+	const pool = require('../../lib/db');
+	const sessionRes = await pool.query(`SELECT * FROM interview_sessions WHERE id = $1`, [
+		sessionId,
+	]);
+	if (sessionRes.rows.length === 0) {
+		res.status(404).json({ error: 'Interview session not found' });
+		return null;
+	}
+	return sessionRes.rows[0];
+}
+
+// ─── POST /api/livekit/session-rooms — Create-or-get a room for a session ───
+
+router.post(
+	'/session-rooms',
+	authMiddleware,
+	rateLimits.standard,
+	[body('session_id').isInt({ min: 1 }).withMessage('Valid session_id required')],
+	handleValidationErrors,
+	async (req, res) => {
+		try {
+			const sessionId = parseInt(req.body.session_id, 10);
+			const session = await loadSessionOr404(sessionId, res);
+			if (!session) return;
+
+			if (!canAccessSession(session, req.user)) {
+				return res.status(403).json({ error: 'Not authorized for this interview session' });
+			}
+
+			const room = await livekitService.findOrCreateSessionRoom(sessionId);
+			res.json({ success: true, room });
+		} catch (err) {
+			console.error('[livekit-routes] Session room error:', err.message);
+			if (err.message.includes('not configured')) {
+				return res.status(503).json({ error: 'LiveKit not configured' });
+			}
+			res.status(500).json({ error: 'Failed to create session room' });
+		}
+	},
+);
+
+// ─── POST /api/livekit/session-rooms/:sessionId/token — Join token ───────────
+
+router.post(
+	'/session-rooms/:sessionId/token',
+	authMiddleware,
+	rateLimits.strict, // strict rate limit for token generation
+	[
+		param('sessionId').isInt({ min: 1 }).withMessage('Valid session ID required'),
+		body('name').optional().isString().trim().isLength({ max: 255 }).withMessage('Name too long'),
+		body('mode').optional().isIn(['participant', 'observer']).withMessage('Invalid mode'),
+	],
+	handleValidationErrors,
+	async (req, res) => {
+		try {
+			const sessionId = parseInt(req.params.sessionId, 10);
+			const user = req.user;
+			const mode = req.body.mode || 'participant';
+
+			const session = await loadSessionOr404(sessionId, res);
+			if (!session) return;
+
+			if (!canAccessSession(session, user)) {
+				return res.status(403).json({ error: 'Not authorized for this interview session' });
+			}
+
+			const isObserver = mode === 'observer';
+			if (isObserver && !isHiringTeamForSession(session, user)) {
+				// Observer mode is subscribe-only: only the hiring team may use it.
+				// The candidate must always be able to publish (speak).
+				return res
+					.status(403)
+					.json({ error: 'Observer mode is only available to the hiring team' });
+			}
+
+			const room = await livekitService.findOrCreateSessionRoom(sessionId);
+			const token = await livekitService.generateToken({
+				identity: isObserver ? `observer-${user.id}` : `user-${user.id}`,
+				name: req.body.name || user.name || user.email || `User-${user.id}`,
+				roomName: room.room_name,
+				grants: isObserver
+					? { canPublish: false, canSubscribe: true, canPublishData: false }
+					: { canPublish: true, canSubscribe: true, canPublishData: true },
+			});
+
+			res.json({ token, roomName: room.room_name, livekitUrl: process.env.LIVEKIT_URL });
+		} catch (err) {
+			console.error('[livekit-routes] Session token error:', err.message);
+			if (err.message.includes('not configured')) {
+				return res.status(503).json({ error: 'LiveKit not configured' });
+			}
+			res.status(500).json({ error: 'Failed to generate session token' });
+		}
+	},
+);
+
+// ─── POST /api/livekit/session-rooms/:sessionId/dispatch — Dispatch voice agent
+
+router.post(
+	'/session-rooms/:sessionId/dispatch',
+	authMiddleware,
+	rateLimits.standard,
+	[
+		param('sessionId').isInt({ min: 1 }).withMessage('Valid session ID required'),
+		body('mode').optional().isIn(['interviewer', 'observer']).withMessage('Invalid mode'),
+	],
+	handleValidationErrors,
+	async (req, res) => {
+		try {
+			const sessionId = parseInt(req.params.sessionId, 10);
+			const user = req.user;
+			const mode = req.body.mode || 'interviewer';
+
+			const session = await loadSessionOr404(sessionId, res);
+			if (!session) return;
+
+			// The session's own candidate may dispatch the interviewer for their own
+			// session (spec §3: candidate start → backend dispatches). Observer mode
+			// stays hiring-team-only.
+			const isOwnCandidate = Number(user.id) === Number(session.candidate_id);
+			if (!isHiringTeamForSession(session, user) && !(isOwnCandidate && mode === 'interviewer')) {
+				return res.status(403).json({ error: 'Not authorized to dispatch the voice agent' });
+			}
+
+			// Full-branch review C1 (#323): the AI interviewer must never be
+			// dispatched into a human interview — Track B is the two humans
+			// talking. The frontend skips dispatch for human sessions; this
+			// is the defense-in-depth backend guard.
+			if (session.type === 'human' && mode === 'interviewer') {
+				return res
+					.status(409)
+					.json({ error: 'The AI interviewer cannot be dispatched into a human interview' });
+			}
+
+			const result = await livekitService.dispatchVoiceAgent(sessionId, mode);
+
+			// Task 6 (#323): the voice session is live — start room-composite
+			// egress so the room is recorded (Track A: candidate + agent;
+			// Track B: both humans; the muted observer's subscription produces
+			// no media of its own). Non-blocking and consent-gated on the
+			// candidate: capture must never break the call, and never happen
+			// without consent (spec §5).
+			try {
+				await livekitService.startSessionEgress(sessionId, {
+					consentUserId: session.candidate_id,
+				});
+			} catch (egressErr) {
+				console.error('[livekit-routes] Session egress start failed:', egressErr.message);
+			}
+
+			res.json({ success: true, ...result });
+		} catch (err) {
+			console.error('[livekit-routes] Agent dispatch error:', err.message);
+			if (err.message.includes('not configured')) {
+				return res.status(503).json({ error: 'LiveKit not configured' });
+			}
+			res.status(502).json({ error: 'Failed to dispatch voice agent' });
+		}
+	},
+);
+
+// ─── GET /api/livekit/session-rooms/:sessionId/transcript — Live conversation ─
+// Track A: the voice agent persists each turn to interview_sessions.conversation
+// (agents/voice-interviewer/worker.mjs). The candidate's session page polls
+// this endpoint while in voice mode to render live transcript lines.
+
+router.get(
+	'/session-rooms/:sessionId/transcript',
+	authMiddleware,
+	rateLimits.standard,
+	[param('sessionId').isInt({ min: 1 }).withMessage('Valid session ID required')],
+	handleValidationErrors,
+	async (req, res) => {
+		try {
+			const sessionId = parseInt(req.params.sessionId, 10);
+			const session = await loadSessionOr404(sessionId, res);
+			if (!session) return;
+
+			if (!canAccessSession(session, req.user)) {
+				return res.status(403).json({ error: 'Not authorized for this interview session' });
+			}
+
+			res.json({ success: true, conversation: session.conversation || [] });
+		} catch (err) {
+			console.error('[livekit-routes] Session transcript error:', err.message);
+			res.status(500).json({ error: 'Failed to load session transcript' });
 		}
 	},
 );

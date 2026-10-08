@@ -221,6 +221,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
 			`SELECT j.id, j.title, j.company, j.description, j.requirements, j.location,
               j.salary_range, j.job_type, j.screening_questions, j.country_code,
               j.currency_code, j.salary_min, j.salary_max, j.status, j.created_at,
+              j.auto_send_on_apply, j.auto_send_min_score,
               u.company_name as poster_company, u.name as poster_name
        FROM jobs j
        LEFT JOIN users u ON j.user_id = u.id

@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { AuditLogger } = require('../services/auditLogService');
+const { notifyUser } = require('../lib/notify');
 
 const RECRUITER_ROLES = ['employer', 'recruiter', 'hiring_manager', 'admin'];
 
@@ -729,6 +730,129 @@ router.post('/recruiter/aptitude-tests', authMiddleware, requireRecruiter, async
 });
 
 /**
+ * GET /recruiter/aptitude-tests/:id
+ * Get a single aptitude test with its questions.
+ */
+router.get('/recruiter/aptitude-tests/:id', authMiddleware, requireRecruiter, async (req, res) => {
+	try {
+		const testId = parseInt(req.params.id, 10);
+		const test = await pool.query('SELECT * FROM aptitude_tests WHERE id = $1', [testId]);
+		if (test.rows.length === 0) {
+			return res.status(404).json({ error: 'Test not found' });
+		}
+		const questions = await pool.query(
+			'SELECT * FROM aptitude_questions WHERE test_id = $1 ORDER BY id',
+			[testId],
+		);
+		res.json({ test: test.rows[0], questions: questions.rows });
+	} catch (error) {
+		console.error('Error fetching aptitude test:', error);
+		res.status(500).json({ error: 'Failed to fetch test' });
+	}
+});
+
+/**
+ * PUT /recruiter/aptitude-tests/:id
+ * Update an aptitude test.
+ */
+router.put('/recruiter/aptitude-tests/:id', authMiddleware, requireRecruiter, async (req, res) => {
+	try {
+		const testId = parseInt(req.params.id, 10);
+		const { title, description, durationMinutes, passScore, retakeLockoutDays, isActive } =
+			req.body;
+
+		const result = await pool.query(
+			`
+        UPDATE aptitude_tests SET
+          title = COALESCE($2, title),
+          description = COALESCE($3, description),
+          duration_minutes = COALESCE($4, duration_minutes),
+          pass_score = COALESCE($5, pass_score),
+          retake_lockout_days = COALESCE($6, retake_lockout_days),
+          is_active = COALESCE($7, is_active),
+          updated_at = NOW()
+        WHERE id = $1
+        RETURNING *
+      `,
+			[
+				testId,
+				title || null,
+				description || null,
+				durationMinutes || null,
+				passScore || null,
+				retakeLockoutDays ?? null,
+				isActive ?? null,
+			],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Test not found' });
+		}
+
+		res.json({ test: result.rows[0] });
+	} catch (error) {
+		console.error('Error updating aptitude test:', error);
+		res.status(500).json({ error: 'Failed to update test' });
+	}
+});
+
+/**
+ * DELETE /recruiter/aptitude-tests/:id
+ * Delete an aptitude test and its questions.
+ */
+router.delete(
+	'/recruiter/aptitude-tests/:id',
+	authMiddleware,
+	requireRecruiter,
+	async (req, res) => {
+		try {
+			const testId = parseInt(req.params.id, 10);
+			await pool.query('DELETE FROM aptitude_questions WHERE test_id = $1', [testId]);
+			const result = await pool.query(
+				'DELETE FROM aptitude_tests WHERE id = $1 RETURNING id',
+				[testId],
+			);
+			if (result.rows.length === 0) {
+				return res.status(404).json({ error: 'Test not found' });
+			}
+			res.json({ success: true });
+		} catch (error) {
+			console.error('Error deleting aptitude test:', error);
+			res.status(500).json({ error: 'Failed to delete test' });
+		}
+	},
+);
+
+/**
+ * GET /recruiter/aptitude-tests/:id/results
+ * Get all attempts/results for a test.
+ */
+router.get(
+	'/recruiter/aptitude-tests/:id/results',
+	authMiddleware,
+	requireRecruiter,
+	async (req, res) => {
+		try {
+			const testId = parseInt(req.params.id, 10);
+			const result = await pool.query(
+				`
+        SELECT ata.*, u.name as candidate_name, u.email as candidate_email
+        FROM aptitude_test_attempts ata
+        JOIN users u ON u.id = ata.user_id
+        WHERE ata.test_id = $1
+        ORDER BY ata.created_at DESC
+      `,
+				[testId],
+			);
+			res.json({ results: result.rows });
+		} catch (error) {
+			console.error('Error fetching aptitude test results:', error);
+			res.status(500).json({ error: 'Failed to fetch results' });
+		}
+	},
+);
+
+/**
  * POST /recruiter/aptitude-tests/:id/questions
  * Add a question to a test.
  */
@@ -899,6 +1023,26 @@ router.post(
 			);
 
 			res.json({ assignment: result.rows[0] });
+
+			// In-app notification for every applicant with an active application
+			// to this job (non-blocking). Previously attaching a test notified
+			// nobody, so candidates never knew a test was required.
+			const testName = await pool.query(`SELECT title FROM aptitude_tests WHERE id = $1`, [testId]);
+			const applicants = await pool.query(
+				`SELECT DISTINCT candidate_id FROM job_applications
+         WHERE job_id = $1 AND status NOT IN ('withdrawn', 'hired', 'rejected')`,
+				[jobId],
+			);
+			const title = testName.rows[0]?.title || 'Aptitude test';
+			for (const row of applicants.rows) {
+				notifyUser(
+					row.candidate_id,
+					'aptitude_test_assigned',
+					'Aptitude test assigned',
+					`You've been assigned the "${title}" aptitude test. Complete it to continue in the hiring process.`,
+					{ test_id: testId, job_id: jobId, url: '/aptitude-tests' },
+				);
+			}
 		} catch (error) {
 			console.error('Error assigning test to job:', error);
 			res.status(500).json({ error: 'Failed to assign test' });

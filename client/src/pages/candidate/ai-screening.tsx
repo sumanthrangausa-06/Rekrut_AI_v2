@@ -110,11 +110,27 @@ const recommendationConfig: Record<
 	},
 };
 
+type InterviewSession = {
+	id: number;
+	status: string;
+	overall_score: number | null;
+	job_title: string;
+	company_name: string;
+	template_title: string | null;
+	application_id: number | null;
+	invited_at: string;
+	started_at: string | null;
+	completed_at: string | null;
+	expires_at: string | null;
+	invite_url: string | null;
+};
+
 /* ─── Candidate AI Screening Page ───────────────────────────────────────── */
 
 export function CandidateAiScreeningPage() {
 	const navigate = useNavigate();
 	const [screenings, setScreenings] = useState<CandidateScreening[]>([]);
+	const [interviewSessions, setInterviewSessions] = useState<InterviewSession[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [selectedScreening, setSelectedScreening] = useState<CandidateScreening | null>(null);
 	const [requestingReview, setRequestingReview] = useState(false);
@@ -125,13 +141,19 @@ export function CandidateAiScreeningPage() {
 	const loadScreenings = useCallback(async () => {
 		setLoading(true);
 		try {
-			const data = await apiCall<{
-				success: boolean;
-				screenings: CandidateScreening[];
-				total: number;
-				advisory_note: string;
-			}>('/candidates/me/screenings');
-			setScreenings(data.screenings || []);
+			const [fit, sessions] = await Promise.all([
+				apiCall<{
+					success: boolean;
+					screenings: CandidateScreening[];
+					total: number;
+					advisory_note: string;
+				}>('/candidates/me/screenings').catch(() => ({ screenings: [] as CandidateScreening[] })),
+				apiCall<{ success: boolean; sessions: InterviewSession[] }>(
+					'/interviews/screening/my-sessions',
+				).catch(() => ({ sessions: [] as InterviewSession[] })),
+			]);
+			setScreenings(fit.screenings || []);
+			setInterviewSessions(sessions.sessions || []);
 		} catch (err) {
 			console.error('Failed to load screenings:', err);
 		} finally {
@@ -257,10 +279,60 @@ export function CandidateAiScreeningPage() {
 				</div>
 			</div>
 
-			{/* Screenings List */}
+			{/* AI Interview Screenings (invited by recruiters) */}
+			{interviewSessions.length > 0 && (
+				<div>
+					<h2 className="font-heading text-lg font-semibold mb-3">Interview Invitations</h2>
+					<div className="grid gap-3">
+						{interviewSessions.map((s) => (
+							<Card key={s.id} className="border-purple-200">
+								<CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+									<div className="flex-1 min-w-0">
+										<p className="font-medium text-sm">
+											{s.template_title || 'AI Screening Interview'}
+										</p>
+										<p className="text-xs text-muted-foreground">
+											{s.job_title} · {s.company_name}
+										</p>
+										<div className="flex items-center gap-2 mt-1">
+											<Badge
+												variant={s.status === 'completed' ? 'success' : 'warning'}
+												className="text-xs"
+											>
+												{s.status === 'invited'
+													? 'Invited'
+													: s.status === 'in_progress'
+														? 'In Progress'
+														: s.status === 'completed'
+															? `Completed${s.overall_score != null ? ` — ${s.overall_score}/100` : ''}`
+															: s.status}
+											</Badge>
+											{s.expires_at && (s.status === 'invited' || s.status === 'in_progress') && (
+												<span className="text-[11px] text-muted-foreground">
+													Expires {new Date(s.expires_at).toLocaleDateString()}
+												</span>
+											)}
+										</div>
+									</div>
+									{s.invite_url && (
+										<Button size="sm" onClick={() => navigate(s.invite_url as string)}>
+											{s.status === 'in_progress' ? 'Continue' : 'Start Interview'}
+											<ArrowRight className="h-3.5 w-3.5 ml-1" />
+										</Button>
+									)}
+								</CardContent>
+							</Card>
+						))}
+					</div>
+				</div>
+			)}
+
+			{/* Screenings List — empty only when BOTH sources are empty.
+			    screenings = fit-score screenings (/candidates/me/screenings);
+			    interviewSessions = interview invitations (/interviews/screening/my-sessions). */}
 			{loading ? (
 				<Skeleton count={3} variant="card" />
-			) : screenings.length === 0 ? (
+			) : screenings.length === 0 && interviewSessions.length === 0 ? (
 				<EmptyState
 					icon={Sparkles}
 					title="No AI screenings yet"

@@ -267,8 +267,15 @@ function extractSkillsFromText(text) {
 		.replace(/\band\b/g, ',')
 		.replace(/[()]/g, '')
 		.split(',')
-		.map((s) => s.trim())
-		.filter((s) => s.length > 1 && s.length < 60);
+		.map((s) => s.trim().replace(/\.$/, '')) // strip trailing periods
+		.filter((s) => {
+			if (s.length <= 1 || s.length >= 60) return false;
+			if (s.endsWith(':')) return false; // skip labels like "required qualifications:"
+			if (/^(required|preferred|qualifications|requirements|responsibilities|about|we|you|the|a|an|or|and)\b/i.test(s)) return false; // skip sentence starts/fragments
+			const words = s.split(/\s+/).length;
+			if (words > 4) return false; // skills are short, not sentences
+			return true;
+		});
 	// Deduplicate
 	return [...new Set(normalized)];
 }
@@ -297,6 +304,108 @@ function compareSkills(candidateSkills, jobRequirementsText) {
 	}
 
 	return { matching, missing };
+}
+
+/**
+ * Calculate a deterministic match score between a candidate and a job.
+ * No AI/LLM calls, no embeddings — pure logic based on skills, experience,
+ * location, and title relevance. Returns a Jobright-style breakdown.
+ *
+ * @param {Object} candidate - { skills: [{skill_name}], years_experience, location, titles: [] }
+ * @param {Object} job - { title, description, requirements, location, job_type }
+ * @returns {Object} { match_score, match_level, breakdown: { skills, experience, location, title }, matching_skills, missing_skills }
+ */
+function calculateDeterministicMatch(candidate, job) {
+	const candidateSkills = candidate.skills || [];
+	const jobText = `${job.requirements || ''} ${job.description || ''}`;
+
+	// 1. Skills match (40% weight)
+	const { matching: matchingSkills, missing: missingSkills } = compareSkills(
+		candidateSkills,
+		jobText,
+	);
+	const totalJobSkills = matchingSkills.length + missingSkills.length;
+	const skillsPct =
+		totalJobSkills > 0 ? Math.round((matchingSkills.length / totalJobSkills) * 100) : 50;
+
+	// 2. Experience match (25% weight)
+	// Extract years from job text (e.g., "3+ years", "5 years experience")
+	const yearsExp = candidate.years_experience || 0;
+	let requiredYears = 0;
+	const yearsMatch = jobText.match(/(\d+)\+?\s*years?/i);
+	if (yearsMatch) requiredYears = parseInt(yearsMatch[1], 10);
+
+	let experiencePct = 50;
+	if (requiredYears > 0) {
+		if (yearsExp >= requiredYears) {
+			// Candidate meets or exceeds — score based on how close (not overqualified penalty)
+			experiencePct = Math.min(100, 75 + Math.min(25, (yearsExp - requiredYears) * 5));
+		} else {
+			// Below requirement — proportional
+			experiencePct = Math.round((yearsExp / requiredYears) * 75);
+		}
+	} else if (yearsExp > 0) {
+		// No explicit requirement, candidate has experience
+		experiencePct = Math.min(85, 60 + yearsExp * 3);
+	}
+
+	// 3. Location match (15% weight)
+	let locationPct = 50;
+	const candLoc = (candidate.location || '').toLowerCase();
+	const jobLoc = (job.location || '').toLowerCase();
+	const isRemoteJob =
+		jobLoc.includes('remote') || (job.job_type || '').toLowerCase().includes('remote');
+	if (isRemoteJob) {
+		locationPct = 90; // Remote works for everyone
+	} else if (candLoc && jobLoc) {
+		if (candLoc === jobLoc) locationPct = 100;
+		else {
+			// Check city/state overlap
+			const candParts = candLoc.split(',').map((s) => s.trim());
+			const jobParts = jobLoc.split(',').map((s) => s.trim());
+			const overlap = candParts.some((cp) => jobParts.some((jp) => jp.includes(cp) || cp.includes(jp)));
+			locationPct = overlap ? 80 : 30;
+		}
+	}
+
+	// 4. Title relevance (20% weight)
+	let titlePct = 50;
+	const candidateTitles = (candidate.titles || []).map((t) => t.toLowerCase());
+	const jobTitle = (job.title || '').toLowerCase();
+	if (candidateTitles.length > 0 && jobTitle) {
+		const jobWords = jobTitle.split(/\s+/).filter((w) => w.length > 2);
+		let maxOverlap = 0;
+		for (const ct of candidateTitles) {
+			const ctWords = ct.split(/\s+/).filter((w) => w.length > 2);
+			const overlap = jobWords.filter((jw) => ctWords.some((cw) => cw.includes(jw) || jw.includes(cw)));
+			const pct = jobWords.length > 0 ? (overlap.length / jobWords.length) * 100 : 0;
+			maxOverlap = Math.max(maxOverlap, pct);
+		}
+		titlePct = Math.round(Math.min(100, 30 + maxOverlap));
+	}
+
+	// Weighted overall score
+	const matchScore = Math.round(
+		skillsPct * 0.4 + experiencePct * 0.25 + locationPct * 0.15 + titlePct * 0.2,
+	);
+
+	let matchLevel = 'poor';
+	if (matchScore >= 85) matchLevel = 'excellent';
+	else if (matchScore >= 70) matchLevel = 'good';
+	else if (matchScore >= 55) matchLevel = 'fair';
+
+	return {
+		match_score: matchScore,
+		match_level: matchLevel,
+		breakdown: {
+			skills: skillsPct,
+			experience: experiencePct,
+			location: locationPct,
+			title: titlePct,
+		},
+		matching_skills: matchingSkills.slice(0, 8),
+		missing_skills: missingSkills.slice(0, 8),
+	};
 }
 
 /**
@@ -692,4 +801,5 @@ module.exports = {
 	findMatchingJobs,
 	explainMatch,
 	compareSkills,
+	calculateDeterministicMatch,
 };

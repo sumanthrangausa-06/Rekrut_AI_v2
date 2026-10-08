@@ -69,7 +69,19 @@ function getPasswordPolicyMessage(role) {
 // Register
 router.post('/register', rateLimits.strict, async (req, res) => {
 	try {
-		const { email, password, name, role = 'candidate', company_name } = req.body;
+		const { email, password, name, company_name } = req.body;
+		// --- Issue #336: whitelist public-signup roles. 'admin' can never originate
+		// from public signup (owner status is granted server-side via user_roles).
+		// Strict: only undefined defaults to 'candidate'; null/non-strings → 400.
+		const rawRole = req.body.role === undefined ? 'candidate' : req.body.role;
+		const role = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
+		const allowedSignupRoles = ['candidate', 'employer', 'recruiter', 'hiring_manager'];
+		if (!allowedSignupRoles.includes(role)) {
+			return res.status(400).json({
+				error: `Invalid role "${req.body.role}". Allowed roles: ${allowedSignupRoles.join(', ')}.`,
+				code: 'INVALID_ROLE',
+			});
+		}
 
 		if (!email || !password) {
 			return res.status(400).json({ error: 'Email and password are required' });
@@ -82,7 +94,8 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 		}
 
 		// --- Issue #103: Enforce company email domain for recruiter roles ---
-		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+		// (Issue #336: 'admin' removed — it can never come from public signup)
+		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager'];
 		if (recruiterRoles.includes(role)) {
 			const {
 				validateRecruiterEmail,
@@ -93,6 +106,22 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 				return res.status(400).json({
 					error: `${emailValidation.error} Free/disposable email providers (${getBlockedDomainExamples()}) are not allowed for recruiter registration. Please use your company email address.`,
 					code: 'BLOCKED_EMAIL_DOMAIN',
+				});
+			}
+		}
+
+		// --- Issue #347: recruiter roles require company_name (fail fast) ---
+		// Without it, the company auto-creation branch below is skipped and the
+		// user is left with company_id=null, permanently blocked by
+		// requireApprovedRecruiter. The existing-company-by-domain path still
+		// works: if the domain matches, they proceed to the pending-approval flow.
+		if (recruiterRoles.includes(role) && !company_name) {
+			const { extractDomain, findCompanyByDomain } = require('../services/domain-validator');
+			const existingCompany = await findCompanyByDomain(extractDomain(email));
+			if (!existingCompany) {
+				return res.status(400).json({
+					error: 'Company name is required for recruiter registration',
+					code: 'COMPANY_NAME_REQUIRED',
 				});
 			}
 		}

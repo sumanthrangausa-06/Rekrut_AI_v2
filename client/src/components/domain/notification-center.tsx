@@ -1,18 +1,20 @@
 import {
 	AlertTriangle,
 	Bell,
+	CalendarClock,
 	CheckCircle,
 	ChevronRight,
+	ClipboardList,
 	Clock,
 	Info,
+	Sparkles,
 	Trash2,
 	Volume2,
 	X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { apiCall } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -20,7 +22,23 @@ export type Notification = {
 	id: string;
 	title: string;
 	message: string;
-	type: 'info' | 'success' | 'warning' | 'error' | 'interview' | 'offer' | 'message';
+	type:
+		| 'info'
+		| 'success'
+		| 'warning'
+		| 'error'
+		| 'interview'
+		| 'offer'
+		| 'message'
+		| 'application_submitted'
+		| 'application_received'
+		| 'application_status_changed'
+		| 'screening_invited'
+		| 'screening_completed'
+		| 'assessment_assigned'
+		| 'assessment_completed'
+		| 'interview_scheduled'
+		| 'interview_confirmed';
 	read: boolean;
 	timestamp: string;
 	action?: {
@@ -65,10 +83,69 @@ const typeConfig: Record<string, { icon: React.ReactNode; color: string; badge: 
 		color: 'text-indigo-600',
 		badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
 	},
+	// Pipeline notification types (hiring-pipeline-v1)
+	application_submitted: {
+		icon: <CheckCircle className="h-4 w-4" />,
+		color: 'text-green-600',
+		badge: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+	},
+	application_received: {
+		icon: <Bell className="h-4 w-4" />,
+		color: 'text-blue-600',
+		badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+	},
+	application_status_changed: {
+		icon: <ChevronRight className="h-4 w-4" />,
+		color: 'text-purple-600',
+		badge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+	},
+	screening_invited: {
+		icon: <Sparkles className="h-4 w-4" />,
+		color: 'text-violet-600',
+		badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
+	},
+	screening_completed: {
+		icon: <CheckCircle className="h-4 w-4" />,
+		color: 'text-emerald-600',
+		badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+	},
+	assessment_assigned: {
+		icon: <ClipboardList className="h-4 w-4" />,
+		color: 'text-orange-600',
+		badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+	},
+	assessment_completed: {
+		icon: <CheckCircle className="h-4 w-4" />,
+		color: 'text-emerald-600',
+		badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+	},
+	interview_scheduled: {
+		icon: <CalendarClock className="h-4 w-4" />,
+		color: 'text-sky-600',
+		badge: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
+	},
+	interview_confirmed: {
+		icon: <CheckCircle className="h-4 w-4" />,
+		color: 'text-green-600',
+		badge: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+	},
 };
 
 export function NotificationCenter({ className }: { className?: string }) {
 	const [open, setOpen] = useState(false);
+	const dropdownRef = useRef<HTMLDivElement>(null);
+
+	// Close on click outside
+	useEffect(() => {
+		if (!open) return;
+		const handleClickOutside = (e: MouseEvent) => {
+			if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+				setOpen(false);
+			}
+		};
+		document.addEventListener('mousedown', handleClickOutside);
+		return () => document.removeEventListener('mousedown', handleClickOutside);
+	}, [open ]);
 	const [notifications, setNotifications] = useState<Notification[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [playingId, setPlayingId] = useState<string | null>(null);
@@ -76,43 +153,51 @@ export function NotificationCenter({ className }: { className?: string }) {
 
 	const unreadCount = notifications.filter((n) => !n.read).length;
 
+	const loadNotifications = async (showLoading = true) => {
+		if (showLoading) setLoading(true);
+		try {
+			const data = await apiCall<{
+				notifications: Array<{
+					id: number;
+					type: string;
+					title: string;
+					message: string;
+					read: boolean;
+					created_at: string;
+					metadata?: Record<string, unknown>;
+				}>;
+				unread_count: number;
+			}>('/notifications/in-app?limit=50');
+
+			const mapped: Notification[] = (data.notifications || []).map((n) => ({
+				id: String(n.id),
+				title: n.title,
+				message: n.message,
+				type: (n.type as Notification['type']) || 'info',
+				read: n.read,
+				timestamp: n.created_at,
+				action: n.metadata?.url || n.metadata?.invite_url ? { label: 'View', url: String(n.metadata.url || n.metadata.invite_url) } : undefined,
+			}));
+			setNotifications(mapped);
+		} catch (err) {
+			console.error('[NotificationCenter] Load error:', err);
+			if (showLoading) setNotifications([]);
+		} finally {
+			if (showLoading) setLoading(false);
+		}
+	};
+
 	useEffect(() => {
 		if (!open) return;
-		async function load() {
-			setLoading(true);
-			try {
-				const data = await apiCall<{
-					notifications: Array<{
-						id: number;
-						type: string;
-						title: string;
-						message: string;
-						read: boolean;
-						created_at: string;
-						metadata?: Record<string, unknown>;
-					}>;
-					unread_count: number;
-				}>('/notifications/in-app?limit=50');
-
-				const mapped: Notification[] = (data.notifications || []).map((n) => ({
-					id: String(n.id),
-					title: n.title,
-					message: n.message,
-					type: (n.type as Notification['type']) || 'info',
-					read: n.read,
-					timestamp: n.created_at,
-					action: n.metadata?.url ? { label: 'View', url: String(n.metadata.url) } : undefined,
-				}));
-				setNotifications(mapped);
-			} catch (err) {
-				console.error('[NotificationCenter] Load error:', err);
-				setNotifications([]);
-			} finally {
-				setLoading(false);
-			}
-		}
-		load();
+		loadNotifications();
 	}, [open]);
+
+	// Poll for new notifications every 30s so the badge updates without opening the dropdown
+	useEffect(() => {
+		loadNotifications(false);
+		const interval = setInterval(() => loadNotifications(false), 30000);
+		return () => clearInterval(interval);
+	}, []);
 
 	const markRead = async (id: string) => {
 		try {
@@ -236,13 +321,14 @@ export function NotificationCenter({ className }: { className?: string }) {
 	};
 
 	return (
-		<>
+		<div className="relative" ref={dropdownRef}>
 			<Button
 				variant="ghost"
 				size="sm"
 				className={cn('relative h-9 w-9 p-0', className)}
-				onClick={() => setOpen(true)}
+				onClick={() => setOpen(!open)}
 				aria-label="Notifications"
+				aria-expanded={open}
 			>
 				<Bell className="h-5 w-5" />
 				{unreadCount > 0 && (
@@ -252,16 +338,16 @@ export function NotificationCenter({ className }: { className?: string }) {
 				)}
 			</Button>
 
-			<Dialog open={open} onOpenChange={setOpen}>
-				<DialogContent className="max-w-md max-h-[80vh] flex flex-col">
-					<DialogHeader className="flex flex-row items-center justify-between">
-						<DialogTitle>Notifications</DialogTitle>
+			{open && (
+				<div className="absolute right-0 top-full mt-2 w-96 max-w-[calc(100vw-2rem)] max-h-[80vh] flex flex-col rounded-lg border bg-background shadow-xl z-50 overflow-hidden">
+					<div className="flex flex-row items-center justify-between px-4 py-3 border-b">
+						<h3 className="font-semibold text-sm">Notifications</h3>
 						{unreadCount > 0 && (
-							<Button variant="ghost" size="sm" onClick={markAllRead}>
+							<Button variant="ghost" size="sm" onClick={markAllRead} className="h-7 text-xs">
 								Mark all read
 							</Button>
 						)}
-					</DialogHeader>
+					</div>
 
 					<div className="flex-1 overflow-y-auto space-y-2 -mx-2 px-2">
 						{audioError && (
@@ -288,7 +374,7 @@ export function NotificationCenter({ className }: { className?: string }) {
 							</div>
 						) : (
 							notifications.map((n) => {
-								const config = typeConfig[n.type];
+								const config = typeConfig[n.type] || typeConfig.info;
 								return (
 									<div
 										key={n.id}
@@ -364,8 +450,8 @@ export function NotificationCenter({ className }: { className?: string }) {
 							})
 						)}
 					</div>
-				</DialogContent>
-			</Dialog>
-		</>
+				</div>
+			)}
+		</div>
 	);
 }

@@ -1,25 +1,21 @@
 import {
 	Bookmark,
 	BrainCircuit,
-	Calendar,
 	CheckSquare,
 	ChevronLeft,
 	ChevronRight,
 	Clock,
 	Download,
 	Filter,
-	Kanban,
 	List,
 	Mail,
 	MapPin,
 	Save,
 	Search,
 	Send,
-	SlidersHorizontal,
 	Sparkles,
 	Square,
 	User,
-	UserCheck,
 	Users,
 	X,
 	Zap,
@@ -45,10 +41,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall } from '@/lib/api';
 import { UNSPLASH_IMAGES } from '@/lib/avatar';
+
+// Test accounts (QA/E2E/Debug) are kept until launch per #151 — badge them
+// so recruiters can identify them. Matches names containing test/qa/e2e/debug
+// markers (case-insensitive) or bracketed prefixes like [E2E-TEST].
+function isTestAccount(name: string | undefined): boolean {
+	if (!name) return false;
+	return /(test|qa|e2e|debug|\[)/i.test(name);
+}
+
 
 export type Candidate = {
 	id: string;
@@ -72,19 +76,6 @@ export type Candidate = {
 	availability?: string;
 	languages?: string[];
 	appliedAt?: string;
-};
-
-export type PipelineStats = {
-	total: number;
-	new: number;
-	screening: number;
-	interview: number;
-	offer: number;
-	hired: number;
-	rejected: number;
-	topCandidates?: number;
-	last24h?: number;
-	last7d?: number;
 };
 
 export type SavedSearch = {
@@ -155,6 +146,12 @@ const filterOptions = [
 	{
 		id: 'location',
 		label: 'Location',
+		type: 'text' as const,
+		placeholder: 'City or region...',
+	},
+	{
+		id: 'workMode',
+		label: 'Work mode',
 		type: 'select' as const,
 		options: [
 			{ value: 'remote', label: 'Remote' },
@@ -218,9 +215,51 @@ const statusLabels: Record<string, string> = {
 function normalizeCandidate(raw: any): Candidate {
 	return {
 		...raw,
+		// API returns snake_case; the card reads camelCase (US-2.1)
+		avatar: raw.avatar_url || raw.avatar || undefined,
+		experienceYears: raw.experience_years ?? raw.experienceYears,
+		omniscore: raw.omni_score ?? raw.omniScore ?? raw.omniscore ?? null,
+		availability: raw.availability_status || raw.availability || undefined,
 		skills: raw.skills?.map((s: any) => (typeof s === 'string' ? s : s.name)) || [],
-		// Map omniScore (API) to omniscore (component prop) for display
-		omniscore: raw.omniScore ?? raw.omniscore ?? null,
+	};
+}
+
+// Normalize the GET /api/candidates/:id/preview payload ({ candidate: {...} })
+// into the ProfilePreviewData shape the preview dialog renders. The API uses
+// snake_case and nested row objects; the dialog expects camelCase scalars.
+// Never throws on sparse profiles: arrays default to [], scalars to undefined.
+function normalizePreviewProfile(raw: any): ProfilePreviewData {
+	const c = raw ?? {};
+	const yearOf = (d: any) => {
+		const y = d ? new Date(d).getFullYear() : NaN;
+		return Number.isNaN(y) ? '' : String(y);
+	};
+	const edu = Array.isArray(c.education) ? c.education[0] : null;
+	const eduParts = [edu?.degree, edu?.field_of_study, edu?.institution].filter(Boolean);
+	return {
+		id: String(c.id ?? ''),
+		name: c.name ?? '',
+		avatar: c.avatar_url ?? undefined,
+		headline: c.headline ?? undefined,
+		bio: c.bio ?? undefined,
+		location: c.location ?? undefined,
+		experienceYears: c.years_experience ?? undefined,
+		education: eduParts.length ? eduParts.join(' · ') : undefined,
+		skills: Array.isArray(c.skills)
+			? c.skills.map((s: any) => (typeof s === 'string' ? s : s?.skill_name)).filter(Boolean)
+			: [],
+		omniScore: c.omni_score ?? undefined,
+		availability: c.availability ?? undefined,
+		experience: Array.isArray(c.experience)
+			? c.experience.map((e: any) => ({
+					company: e.company_name ?? '',
+					title: e.title ?? '',
+					duration: [yearOf(e.start_date), e.is_current ? 'Present' : yearOf(e.end_date)]
+						.filter(Boolean)
+						.join(' – '),
+					description: e.description ?? undefined,
+				}))
+			: [],
 	};
 }
 
@@ -228,14 +267,14 @@ export function RecruiterCandidatesPage() {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const [candidates, setCandidates] = useState<Candidate[]>([]);
-	const [stats, setStats] = useState<PipelineStats | null>(null);
+	const [totalResults, setTotalResults] = useState(0);
+	const [totalIndexed, setTotalIndexed] = useState(0);
 	const [loading, setLoading] = useState(true);
+	const [loadError, setLoadError] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
 	const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
-	const [selectedTab, setSelectedTab] = useState(searchParams.get('status') || 'all');
 	const [page, setPage] = useState(1);
 	const [totalPages, setTotalPages] = useState(1);
-	const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
 	const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
 	const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
 	const [showSaveSearchDialog, setShowSaveSearchDialog] = useState(false);
@@ -268,10 +307,10 @@ export function RecruiterCandidatesPage() {
 		const params = new URLSearchParams();
 		params.set('page', String(page));
 		params.set('limit', String(limit));
-		if (searchQuery) params.set('search', searchQuery);
-		if (selectedTab !== 'all') params.set('status', selectedTab);
+		if (searchQuery.trim()) params.set('q', searchQuery.trim());
 		if (activeFilters.experience) params.set('experience', activeFilters.experience);
 		if (activeFilters.location) params.set('location', activeFilters.location);
+		if (activeFilters.workMode) params.set('work_mode', activeFilters.workMode);
 		if (activeFilters.matchScore) {
 			const score = activeFilters.matchScore;
 			if (score === '90-100') {
@@ -289,10 +328,11 @@ export function RecruiterCandidatesPage() {
 		if (activeFilters.salary) params.set('salary', activeFilters.salary);
 		if (activeFilters.availability) params.set('availability', activeFilters.availability);
 		return params;
-	}, [page, searchQuery, activeFilters, selectedTab]);
+	}, [page, searchQuery, activeFilters]);
 
 	const loadCandidates = useCallback(async () => {
 		setLoading(true);
+		setLoadError(null);
 		try {
 			const params = buildSearchParams();
 
@@ -301,22 +341,21 @@ export function RecruiterCandidatesPage() {
 				? `/candidates/search/semantic?${params.toString()}`
 				: `/candidates/search?${params.toString()}`;
 
-			const [candidatesData, statsData] = await Promise.all([
-				apiCall<{ candidates: Array<any>; pagination: { totalPages: number } }>(searchEndpoint),
-				apiCall<{ stats: PipelineStats }>('/recruiter/pipeline-stats'),
-			]);
+			const candidatesData = await apiCall<{
+				candidates: Array<any>;
+				pagination: { totalPages: number; total: number };
+			}>(searchEndpoint);
 
 			if (candidatesData) {
 				const raw =
 					candidatesData.candidates ?? (Array.isArray(candidatesData) ? candidatesData : []);
 				setCandidates(raw.map(normalizeCandidate));
 				setTotalPages(candidatesData.pagination?.totalPages || 1);
-			}
-			if (statsData.stats) {
-				setStats(statsData.stats);
+				setTotalResults(candidatesData.pagination?.total ?? raw.length);
 			}
 		} catch (err) {
 			console.error('Failed to load candidates:', err);
+			setLoadError(err instanceof Error ? err.message : 'Failed to load candidates');
 		} finally {
 			setLoading(false);
 		}
@@ -346,6 +385,14 @@ export function RecruiterCandidatesPage() {
 		loadCandidates();
 	}, [loadCandidates]);
 
+	// Total indexed candidates (unfiltered pool size) — fetched once on mount.
+	// Powers the honest "Candidates" stat; per-search counts come from pagination.total.
+	useEffect(() => {
+		apiCall<{ pagination: { total: number } }>('/candidates/search?limit=1')
+			.then((data) => setTotalIndexed(data.pagination?.total ?? 0))
+			.catch(() => setTotalIndexed(0));
+	}, []);
+
 	useEffect(() => {
 		loadSavedSearches();
 		loadJobs();
@@ -362,18 +409,18 @@ export function RecruiterCandidatesPage() {
 		}
 	}, []);
 
-	useEffect(() => {
-		if (searchQuery.trim()) {
-			setRecentSearches((prev) => {
-				const next = [searchQuery.trim(), ...prev.filter((s) => s !== searchQuery.trim())].slice(
-					0,
-					5,
-				);
-				localStorage.setItem('recruiter_recent_searches', JSON.stringify(next));
-				return next;
-			});
-		}
-	}, [searchQuery]);
+	// Save a search to recent history only when the user submits it (Enter),
+	// not on every keystroke — US-2.3
+	const saveRecentSearch = useCallback((query: string) => {
+		const trimmed = query.trim();
+		if (!trimmed) return;
+		setRecentSearches((prev) => {
+			if (prev[0] === trimmed) return prev; // already the most recent
+			const next = [trimmed, ...prev.filter((s) => s !== trimmed)].slice(0, 5);
+			localStorage.setItem('recruiter_recent_searches', JSON.stringify(next));
+			return next;
+		});
+	}, []);
 
 	useEffect(() => {
 		setPage(1);
@@ -387,7 +434,6 @@ export function RecruiterCandidatesPage() {
 	const handleClearFilters = () => {
 		setActiveFilters({});
 		setSearchQuery('');
-		setSelectedTab('all');
 		setSemanticSearchEnabled(false);
 		trackEvent('candidate_filters_clear');
 	};
@@ -434,21 +480,6 @@ export function RecruiterCandidatesPage() {
 	const handleBulkExport = () => {
 		const ids = Array.from(selectedCandidates);
 		trackEvent('candidates_bulk_export', { count: ids.length });
-	};
-
-	const handleBulkStatusChange = async (status: string) => {
-		if (!status || selectedCandidates.size === 0) return;
-		try {
-			await apiCall('/recruiter/candidates/bulk-status', {
-				method: 'POST',
-				body: { candidateIds: Array.from(selectedCandidates), status },
-			});
-			setSelectedCandidates(new Set());
-			loadCandidates();
-			alert(`Status updated to ${status} for ${selectedCandidates.size} candidates`);
-		} catch (_err) {
-			alert('Failed to update status. Please try again.');
-		}
 	};
 
 	const handleSaveSearch = async () => {
@@ -525,8 +556,10 @@ export function RecruiterCandidatesPage() {
 		setProfilePreviewOpen(true);
 		setProfilePreviewLoading(true);
 		try {
-			const data = await apiCall<ProfilePreviewData>(`/candidates/${candidate.id}/preview`);
-			setProfilePreviewData(data);
+			const data = await apiCall<{ candidate: any }>(`/candidates/${candidate.id}/preview`);
+			// API returns a { candidate } wrapper with snake_case fields — unwrap and
+			// normalize into the ProfilePreviewData shape the dialog renders.
+			setProfilePreviewData(normalizePreviewProfile(data.candidate));
 		} catch (err) {
 			console.error('Failed to load profile preview:', err);
 			// Fallback: use candidate data from list
@@ -584,14 +617,6 @@ export function RecruiterCandidatesPage() {
 		}
 	};
 
-	const tabCounts = {
-		all: stats?.total || 0,
-		applied: stats?.new || 0,
-		screening: stats?.screening || 0,
-		interview: stats?.interview || 0,
-		offer: stats?.offer || 0,
-	};
-
 	const sortedCandidates = [...candidates].sort((a, b) => {
 		switch (sortBy) {
 			case 'newest':
@@ -603,50 +628,12 @@ export function RecruiterCandidatesPage() {
 			case 'matchScore':
 				return (b.matchScore || 0) - (a.matchScore || 0);
 			case 'name':
-				return a.name.localeCompare(b.name);
+				return (a.name || '').localeCompare(b.name || '');
 			default:
 				return 0;
 		}
 	});
 
-	// Kanban board grouping
-	const kanbanColumns = [
-		{
-			id: 'applied',
-			label: 'Applied',
-			color: 'border-blue-200',
-			bg: 'bg-blue-50/50',
-			badge: 'bg-blue-100 text-blue-700',
-		},
-		{
-			id: 'screening',
-			label: 'Screening',
-			color: 'border-amber-200',
-			bg: 'bg-amber-50/50',
-			badge: 'bg-amber-100 text-amber-700',
-		},
-		{
-			id: 'interview',
-			label: 'Interview',
-			color: 'border-purple-200',
-			bg: 'bg-purple-50/50',
-			badge: 'bg-purple-100 text-purple-700',
-		},
-		{
-			id: 'offer',
-			label: 'Offer',
-			color: 'border-green-200',
-			bg: 'bg-green-50/50',
-			badge: 'bg-green-100 text-green-700',
-		},
-		{
-			id: 'hired',
-			label: 'Hired',
-			color: 'border-emerald-200',
-			bg: 'bg-emerald-50/50',
-			badge: 'bg-emerald-100 text-emerald-700',
-		},
-	];
 
 	return (
 		<div className="space-y-6">
@@ -672,32 +659,19 @@ export function RecruiterCandidatesPage() {
 				</div>
 			</div>
 
-			{/* Stats */}
-			{stats && (
-				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-					<ChartCard
-						title="Total Candidates"
-						value={stats.total}
-						icon={<Users className="h-4 w-4" />}
-					/>
-					<ChartCard
-						title="New Applications"
-						value={stats.new}
-						icon={<Search className="h-4 w-4" />}
-					/>
-					<ChartCard
-						title="In Screening"
-						value={stats.screening}
-						icon={<SlidersHorizontal className="h-4 w-4" />}
-					/>
-					<ChartCard
-						title="Interviews"
-						value={stats.interview}
-						icon={<Calendar className="h-4 w-4" />}
-					/>
-					<ChartCard title="Hired" value={stats.hired} icon={<UserCheck className="h-4 w-4" />} />
-				</div>
-			)}
+			{/* Stats — candidate pool counts, not pipeline stages */}
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+				<ChartCard
+					title="Candidates"
+					value={totalIndexed}
+					icon={<Users className="h-4 w-4" />}
+				/>
+				<ChartCard
+					title="Matching filters"
+					value={totalResults}
+					icon={<Search className="h-4 w-4" />}
+				/>
+			</div>
 
 			{/* Saved Searches */}
 			{savedSearches.length > 0 && (
@@ -733,6 +707,7 @@ export function RecruiterCandidatesPage() {
 					<FilterBar
 						searchPlaceholder="Search by name, skill, or location..."
 						onSearch={setSearchQuery}
+						onSearchSubmit={saveRecentSearch}
 						filters={filterOptions}
 						activeFilters={activeFilters}
 						onFilterChange={handleFilterChange}
@@ -771,19 +746,6 @@ export function RecruiterCandidatesPage() {
 						>
 							<Save className="h-3.5 w-3.5" />
 							Save Search
-						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => setViewMode(viewMode === 'list' ? 'kanban' : 'list')}
-							className="gap-1 min-h-[44px]"
-						>
-							{viewMode === 'list' ? (
-								<Kanban className="h-3.5 w-3.5" />
-							) : (
-								<List className="h-3.5 w-3.5" />
-							)}
-							{viewMode === 'list' ? 'Kanban' : 'List'}
 						</Button>
 						<div className="relative">
 							<select
@@ -888,24 +850,6 @@ export function RecruiterCandidatesPage() {
 						>
 							<Square className="h-3 w-3" /> Select All
 						</Button>
-						<select
-							className="h-8 min-h-[44px] rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-							onChange={(e) => {
-								handleBulkStatusChange(e.target.value);
-								e.target.selectedIndex = 0;
-							}}
-							defaultValue=""
-						>
-							<option value="" disabled>
-								Change Status
-							</option>
-							<option value="applied">Applied</option>
-							<option value="screening">Screening</option>
-							<option value="interview">Interview</option>
-							<option value="offer">Offer</option>
-							<option value="hired">Hired</option>
-							<option value="rejected">Rejected</option>
-						</select>
 					</div>
 					<Button
 						size="sm"
@@ -918,236 +862,136 @@ export function RecruiterCandidatesPage() {
 				</div>
 			)}
 
-			{/* Tabs */}
-			<Tabs value={selectedTab} onValueChange={setSelectedTab}>
-				<TabsList className="flex-wrap h-auto">
-					<TabsTrigger value="all">
-						All
-						<Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-							{tabCounts.all}
-						</Badge>
-					</TabsTrigger>
-					<TabsTrigger value="applied">
-						Applied
-						<Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-							{tabCounts.applied}
-						</Badge>
-					</TabsTrigger>
-					<TabsTrigger value="screening">
-						Screening
-						<Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-							{tabCounts.screening}
-						</Badge>
-					</TabsTrigger>
-					<TabsTrigger value="interview">
-						Interview
-						<Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-							{tabCounts.interview}
-						</Badge>
-					</TabsTrigger>
-					<TabsTrigger value="offer">
-						Offer
-						<Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-							{tabCounts.offer}
-						</Badge>
-					</TabsTrigger>
-				</TabsList>
-
-				<TabsContent value={selectedTab} className="mt-4">
-					{loading ? (
-						<Skeleton count={4} variant="card" />
-					) : candidates.length === 0 ? (
-						<EmptyState
-							icon={Search}
-							title="No candidates found"
-							description={
-								searchQuery || Object.keys(activeFilters).length > 0 || semanticSearchEnabled
-									? 'Try adjusting your filters, search query, or turning off AI Semantic Search'
-									: 'Post a job to start receiving applications'
-							}
-							action={
-								searchQuery || Object.keys(activeFilters).length > 0 || semanticSearchEnabled
-									? { label: 'Clear filters', onClick: handleClearFilters }
-									: { label: 'Post a job', href: '/recruiter/jobs' }
-							}
-							image={UNSPLASH_IMAGES.emptyCandidates}
-						/>
-					) : viewMode === 'list' ? (
-						<div className="space-y-4">
-							<div className="grid gap-4">
-								{sortedCandidates.map((candidate) => (
-									<div key={candidate.id} className="relative group">
-										{/* Selection checkbox */}
-										<div className="absolute top-3 left-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-											<button type="button"
-												onClick={() => toggleSelectCandidate(candidate.id)}
-												className="flex h-5 w-5 items-center justify-center rounded border bg-background shadow-sm hover:border-indigo-400 min-h-[44px] min-w-[44px]"
-											>
-												{selectedCandidates.has(candidate.id) && (
-													<CheckSquare className="h-4 w-4 text-indigo-600" />
-												)}
-											</button>
-										</div>
-
-										{candidate.applicationStatus && (
-											<Badge
-												className={`absolute top-3 right-3 z-10 ${statusColors[candidate.applicationStatus]}`}
-											>
-												{statusLabels[candidate.applicationStatus]}
-											</Badge>
+			{/* Candidate results */}
+			<div className="mt-4">
+			{loading ? (
+				<Skeleton count={4} variant="card" />
+			) : loadError ? (
+				<EmptyState
+					icon={Search}
+					title="Failed to load candidates"
+					description={loadError}
+					action={{ label: 'Try again', onClick: loadCandidates }}
+				/>
+			) : candidates.length === 0 ? (
+				<EmptyState
+					icon={Search}
+					title="No candidates found"
+					description={
+						searchQuery || Object.keys(activeFilters).length > 0 || semanticSearchEnabled
+							? 'Try adjusting your filters, search query, or turning off AI Semantic Search'
+							: 'Post a job to start receiving applications'
+					}
+					action={
+						searchQuery || Object.keys(activeFilters).length > 0 || semanticSearchEnabled
+							? { label: 'Clear filters', onClick: handleClearFilters }
+							: { label: 'Post a job', href: '/recruiter/jobs' }
+					}
+					image={UNSPLASH_IMAGES.emptyCandidates}
+				/>
+			) : (
+				<div className="space-y-4">
+					<div className="grid gap-4">
+						{sortedCandidates.map((candidate) => (
+							<div key={candidate.id} className="relative group">
+								{/* Selection checkbox */}
+								<div className="absolute top-3 left-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+									<button type="button"
+										onClick={() => toggleSelectCandidate(candidate.id)}
+										className="flex h-5 w-5 items-center justify-center rounded border bg-background shadow-sm hover:border-indigo-400 min-h-[44px] min-w-[44px]"
+									>
+										{selectedCandidates.has(candidate.id) && (
+											<CheckSquare className="h-4 w-4 text-indigo-600" />
 										)}
-										<CandidateCard
-											id={candidate.id}
-											name={candidate.name}
-											avatar={candidate.avatar}
-											headline={candidate.headline}
-											location={candidate.location}
-											experienceYears={candidate.experienceYears}
-											education={candidate.education}
-											skills={candidate.skills}
-											matchScore={candidate.matchScore}
-											omniscore={candidate.omniscore}
-											trustscore={candidate.trustscore}
-											isTopCandidate={candidate.isTopCandidate}
-											onMessage={handleMessage}
-											onSchedule={handleSchedule}
-											onShortlist={handleShortlist}
-											onInvite={handleOpenInvite}
-											onClick={() => handleOpenProfilePreview(candidate)}
-											className={
-												selectedCandidates.has(candidate.id) ? 'ring-2 ring-indigo-200' : ''
-											}
-										/>
-										{/* AI Screener button overlay */}
-										<div className="absolute bottom-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block">
-											<Button
-												size="sm"
-												variant="outline"
-												className="gap-1 text-xs h-7 min-h-[44px] bg-background border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950"
-												onClick={(e) => {
-													e.stopPropagation();
-													handleAiScreen(candidate);
-												}}
-											>
-												<BrainCircuit className="h-3 w-3" />
-												AI Screen
-											</Button>
-										</div>
-									</div>
-								))}
-							</div>
-
-							{/* Pagination */}
-							{totalPages > 1 && (
-								<div className="flex items-center justify-center gap-2">
-									<Button
-										variant="outline"
-										size="sm"
-										disabled={page <= 1}
-										onClick={() => setPage((p) => p - 1)}
-										className="min-h-[44px] min-w-[44px]"
-									>
-										<ChevronLeft className="h-4 w-4" />
-									</Button>
-									<span className="text-sm text-muted-foreground">
-										Page {page} of {totalPages}
-									</span>
-									<Button
-										variant="outline"
-										size="sm"
-										disabled={page >= totalPages}
-										onClick={() => setPage((p) => p + 1)}
-										className="min-h-[44px] min-w-[44px]"
-									>
-										<ChevronRight className="h-4 w-4" />
-									</Button>
+									</button>
 								</div>
-							)}
-						</div>
-					) : (
-						/* Kanban View */
-						<div className="flex gap-4 overflow-x-auto pb-2">
-							{kanbanColumns.map((column) => {
-								const columnCandidates = sortedCandidates.filter(
-									(c) => c.applicationStatus === column.id,
-								);
-								return (
-									<div
-										key={column.id}
-										className={`flex-shrink-0 w-72 rounded-lg border ${column.color} ${column.bg} p-3`}
+								{candidate.applicationStatus && (
+									<Badge
+										className={`absolute top-3 right-3 z-10 ${statusColors[candidate.applicationStatus]}`}
 									>
-										<div className="flex items-center justify-between mb-3">
-											<h3 className="text-sm font-semibold">{column.label}</h3>
-											<Badge className={`text-xs ${column.badge}`}>{columnCandidates.length}</Badge>
-										</div>
-										<div className="space-y-3">
-											{columnCandidates.map((candidate) => (
-												<div
-													key={candidate.id}
-													className="rounded-lg border bg-white p-3 cursor-pointer hover:shadow-md transition-shadow"
-													onClick={() => handleOpenProfilePreview(candidate)}
-												>
-													<div className="flex items-center gap-2 mb-2">
-														<Avatar
-															className="h-8 w-8"
-															seed={candidate.id}
-															fallback={candidate.name.slice(0, 2).toUpperCase()}
-															useDiceBear={true}
-														/>
-														<div className="min-w-0 flex-1">
-															<p className="text-sm font-medium truncate">{candidate.name}</p>
-															<p className="text-xs text-muted-foreground truncate">
-																{candidate.headline || candidate.location}
-															</p>
-														</div>
-													</div>
-													{candidate.omniscore != null && (
-														<div className="flex items-center gap-2 mb-2">
-															<Zap className="h-3 w-3 text-indigo-500" />
-															<span className="text-xs font-bold text-indigo-600">
-																OmniScore {candidate.omniscore}
-															</span>
-														</div>
-													)}
-													{candidate.matchScore && candidate.matchScore > 0 && (
-														<div className="flex items-center gap-2 mb-2">
-															<div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-																<div
-																	className={`h-full rounded-full ${
-																		candidate.matchScore >= 80
-																			? 'bg-green-500'
-																			: candidate.matchScore >= 60
-																				? 'bg-amber-500'
-																				: 'bg-red-500'
-																	}`}
-																	style={{ width: `${candidate.matchScore}%` }}
-																/>
-															</div>
-															<span className="text-xs font-medium">{candidate.matchScore}%</span>
-														</div>
-													)}
-													<div className="flex flex-wrap gap-1">
-														{candidate.skills.slice(0, 3).map((skill) => (
-															<Badge key={skill} variant="secondary" className="text-[10px]">
-																{skill}
-															</Badge>
-														))}
-													</div>
-												</div>
-											))}
-											{columnCandidates.length === 0 && (
-												<div className="text-center py-6 text-xs text-muted-foreground">
-													No candidates in this stage
-												</div>
-											)}
-										</div>
+										{statusLabels[candidate.applicationStatus]}
+									</Badge>
+								)}
+								{isTestAccount(candidate.name) && (
+									<Badge
+										variant="secondary"
+										className="absolute top-3 left-12 z-10 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+									>
+										Test
+									</Badge>
+								)}
+								<CandidateCard
+										id={candidate.id}
+										name={candidate.name}
+										avatar={candidate.avatar}
+										headline={candidate.headline}
+										location={candidate.location}
+										experienceYears={candidate.experienceYears}
+										education={candidate.education}
+										skills={candidate.skills}
+										matchScore={candidate.matchScore}
+										omniscore={candidate.omniscore}
+										trustscore={candidate.trustscore}
+										availability={candidate.availability}
+										isTopCandidate={candidate.isTopCandidate}
+										onMessage={handleMessage}
+										onSchedule={handleSchedule}
+										onShortlist={handleShortlist}
+										onInvite={handleOpenInvite}
+										onClick={() => handleOpenProfilePreview(candidate)}
+										className={
+											selectedCandidates.has(candidate.id) ? 'ring-2 ring-indigo-200' : ''
+										}
+									/>
+									{/* AI Screener button overlay */}
+									<div className="absolute bottom-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block">
+										<Button
+											size="sm"
+											variant="outline"
+											className="gap-1 text-xs h-7 min-h-[44px] bg-background border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950"
+											onClick={(e) => {
+												e.stopPropagation();
+												handleAiScreen(candidate);
+											}}
+										>
+											<BrainCircuit className="h-3 w-3" />
+											AI Screen
+										</Button>
 									</div>
-								);
-							})}
+								</div>
+							))}
+						</div>
+
+
+					{/* Pagination */}
+					{totalPages > 1 && (
+						<div className="flex items-center justify-center gap-2">
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={page <= 1}
+								onClick={() => setPage((p) => p - 1)}
+								className="min-h-[44px] min-w-[44px]"
+							>
+								<ChevronLeft className="h-4 w-4" />
+							</Button>
+							<span className="text-sm text-muted-foreground">
+								Page {page} of {totalPages}
+							</span>
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={page >= totalPages}
+								onClick={() => setPage((p) => p + 1)}
+								className="min-h-[44px] min-w-[44px]"
+							>
+								<ChevronRight className="h-4 w-4" />
+							</Button>
 						</div>
 					)}
-				</TabsContent>
-			</Tabs>
+				</div>
+			)}
+			</div>
 
 			{/* Save Search Dialog */}
 			<Dialog open={showSaveSearchDialog} onOpenChange={setShowSaveSearchDialog}>
@@ -1266,12 +1110,13 @@ export function RecruiterCandidatesPage() {
 							<div className="flex items-start gap-4">
 								<Avatar className="h-16 w-16 border">
 									<AvatarFallback className="bg-indigo-100 text-indigo-600 text-lg font-semibold">
-										{profilePreviewData.name
+										{(profilePreviewData.name || '')
 											.split(' ')
+											.filter(Boolean)
 											.map((n) => n[0])
 											.join('')
 											.toUpperCase()
-											.slice(0, 2)}
+											.slice(0, 2) || '?'}
 									</AvatarFallback>
 								</Avatar>
 								<div className="flex-1 min-w-0">
@@ -1365,7 +1210,7 @@ export function RecruiterCandidatesPage() {
 							</div>
 
 							{/* Skills */}
-							{profilePreviewData.skills.length > 0 && (
+							{(profilePreviewData.skills ?? []).length > 0 && (
 								<div>
 									<Label className="text-sm font-medium">Skills</Label>
 									<div className="flex flex-wrap gap-1.5 mt-1">

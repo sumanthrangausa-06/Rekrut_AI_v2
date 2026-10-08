@@ -41,6 +41,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { InterviewPanel } from '@/components/domain/InterviewPanel';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -76,6 +77,8 @@ interface Applicant {
 	score_tier?: string;
 	cover_letter?: string;
 	screening_answers?: string;
+	screening_status?: string | null;
+	screening_score?: number | null;
 	recruiter_notes?: string;
 	matching_skills?: string[] | string;
 	missing_skills?: string[] | string;
@@ -113,7 +116,8 @@ interface ScreeningResponseData {
 	} | null;
 }
 
-// Aligned with backend PIPELINE_STAGES
+// Aligned with backend PIPELINE_STAGES (routes/recruiter.js) and
+// chk_job_applications_status CHECK constraint
 const statuses = [
 	'applied',
 	'screening',
@@ -133,6 +137,8 @@ const kanbanStages = [
 	'interviewed',
 	'offered',
 	'hired',
+	'rejected',
+	'withdrawn',
 ];
 
 const statusConfig: Record<
@@ -145,12 +151,8 @@ const statusConfig: Record<
 > = {
 	applied: { label: 'New', variant: 'secondary', color: 'border-blue-300 bg-blue-50' },
 	screening: { label: 'Screening', variant: 'default', color: 'border-purple-300 bg-purple-50' },
-	shortlisted: {
-		label: 'Shortlisted',
-		variant: 'default',
-		color: 'border-indigo-300 bg-indigo-50',
-	},
-	reviewing: { label: 'Reviewing', variant: 'warning', color: 'border-amber-300 bg-amber-50' },
+	shortlisted: { label: 'Shortlisted', variant: 'default', color: 'border-indigo-300 bg-indigo-50' },
+	reviewing: { label: 'Reviewing', variant: 'default', color: 'border-amber-300 bg-amber-50' },
 	interviewed: { label: 'Interviewed', variant: 'default', color: 'border-cyan-300 bg-cyan-50' },
 	offered: { label: 'Offered', variant: 'success', color: 'border-emerald-300 bg-emerald-50' },
 	hired: { label: 'Hired', variant: 'success', color: 'border-green-300 bg-green-50' },
@@ -206,9 +208,89 @@ export function RecruiterJobApplicantsPage() {
 	const [overrideReason, setOverrideReason] = useState('');
 	const [overrideSubmitting, setOverrideSubmitting] = useState(false);
 
+	// Hiring actions (AI screening + assessment assignment)
+	const [screeningTemplates, setScreeningTemplates] = useState<any[]>([]);
+	const [assessments, setAssessments] = useState<any[]>([]);
+	const [hiringActionsLoading, setHiringActionsLoading] = useState(false);
+	const [actionBusy, setActionBusy] = useState<string | null>(null);
+	const [actionMsg, setActionMsg] = useState<string | null>(null);
+
+	async function loadHiringActions(jobId: number) {
+		setHiringActionsLoading(true);
+		try {
+			const [t, a] = await Promise.all([
+				apiCall<{ templates?: any[] }>(`/interviews/screening/templates?job_id=${jobId}`).catch(() => ({})),
+				apiCall<{ results?: any[] }>(`/assessments/job-assessments/all`).catch(() => ({})),
+			]);
+			setScreeningTemplates(t.templates || []);
+			setAssessments((a.results || []).filter((x: any) => x.job_id === jobId));
+		} finally {
+			setHiringActionsLoading(false);
+		}
+	}
+
+	async function sendScreeningFromDialog(templateId: number) {
+		if (!selected) return;
+		setActionBusy('screening');
+		setActionMsg(null);
+		try {
+			const res = await apiCall<{ invite_url?: string }>('/interviews/screening/send', {
+				method: 'POST',
+				body: {
+					template_id: templateId,
+					candidate_id: selected.candidate_id,
+					application_id: selected.id,
+					job_id: Number(id),
+				},
+			});
+			if (res?.invite_url) {
+				const fullUrl = `${window.location.origin}${res.invite_url}`;
+				try {
+					await navigator.clipboard.writeText(fullUrl);
+					setActionMsg('Screening sent — invite link copied to clipboard.');
+				} catch {
+					setActionMsg(`Screening sent. Invite link: ${fullUrl}`);
+				}
+			} else {
+				setActionMsg('Screening invite sent.');
+			}
+			loadApplicants();
+		} catch (err: any) {
+			setActionMsg(err.message || 'Failed to send screening');
+		} finally {
+			setActionBusy(null);
+		}
+	}
+
+	async function assignAssessmentFromDialog(assessmentId: number) {
+		if (!selected) return;
+		setActionBusy('assessment');
+		setActionMsg(null);
+		try {
+			await apiCall('/assessments/assign', {
+				method: 'POST',
+				body: { assessment_id: assessmentId, application_id: selected.id },
+			});
+			setActionMsg('Assessment assigned — candidate has been notified.');
+			loadApplicants();
+		} catch (err: any) {
+			setActionMsg(err.message || 'Failed to assign assessment');
+		} finally {
+			setActionBusy(null);
+		}
+	}
+
 	useEffect(() => {
 		loadApplicants();
 	}, [loadApplicants]);
+
+	useEffect(() => {
+		if (selected && id) {
+			loadHiringActions(Number(id));
+			setActionMsg(null);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [selected?.id]);
 
 	async function loadMatchBreakdown(candidateId: number, jobId: number) {
 		setMatchBreakdownLoading(true);
@@ -249,7 +331,7 @@ export function RecruiterJobApplicantsPage() {
 	async function submitOverride(responseId: number) {
 		setOverrideSubmitting(true);
 		try {
-			await apiCall(`/api/questionnaire/${responseId}/override`, {
+			await apiCall(`/questionnaire/${responseId}/override`, {
 				method: 'POST',
 				body: { override_decision: overrideDecision, reason: overrideReason },
 			});
@@ -302,8 +384,8 @@ export function RecruiterJobApplicantsPage() {
 			if (selected?.id === appId) {
 				setSelected((prev) => (prev ? { ...prev, status: newStatus } : null));
 			}
-		} catch {
-			// silent
+		} catch (err: any) {
+			setActionMsg(err.message || 'Failed to update status');
 		} finally {
 			setUpdating(false);
 		}
@@ -601,9 +683,7 @@ export function RecruiterJobApplicantsPage() {
 				<Card>
 					<CardContent className="p-3 text-center">
 						<p className="text-2xl font-bold text-amber-600">
-							{(statusCounts.screening || 0) +
-								(statusCounts.shortlisted || 0) +
-								(statusCounts.reviewing || 0)}
+							{statusCounts.screening || 0}
 						</p>
 						<p className="text-xs text-muted-foreground">In Pipeline</p>
 					</CardContent>
@@ -683,7 +763,7 @@ export function RecruiterJobApplicantsPage() {
 					<div className="flex gap-3 min-w-[900px]">
 						{kanbanStages.map((stage) => {
 							const stageApps = applicants.filter((a) => a.status === stage);
-							const cfg = statusConfig[stage];
+							const cfg = statusConfig[stage] || { label: stage, variant: 'secondary' as const, color: 'border-gray-300 bg-gray-50' };
 							return (
 								<div key={stage} className="flex-1 min-w-[160px]">
 									<div className={`rounded-t-lg border-t-2 px-3 py-2 ${cfg.color} border-b`}>
@@ -784,7 +864,22 @@ export function RecruiterJobApplicantsPage() {
 				/* LIST VIEW */
 				<>
 					{/* Status filter pills */}
-					<div className="flex flex-wrap gap-2">
+					<div className="flex flex-wrap items-center gap-2">
+						<label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer mr-2">
+							<input
+								type="checkbox"
+								checked={filtered.length > 0 && filtered.every((a) => selectedIds.has(a.id))}
+								onChange={(e) => {
+									if (e.target.checked) {
+										setSelectedIds(new Set(filtered.map((a) => a.id)));
+									} else {
+										setSelectedIds(new Set());
+									}
+								}}
+								className="h-4 w-4 rounded border-gray-300"
+							/>
+							Select all
+						</label>
 						<Button
 							variant={!statusFilter ? 'default' : 'outline'}
 							size="sm"
@@ -860,6 +955,15 @@ export function RecruiterJobApplicantsPage() {
 															<Badge variant={config.variant} className="shrink-0">
 																{config.label}
 															</Badge>
+															{app.screening_status && (
+																<Badge
+																	variant="outline"
+																	className="shrink-0 text-[10px] gap-0.5 text-purple-600 border-purple-200 bg-purple-50"
+																>
+																	Screening: {app.screening_status}
+																	{app.screening_score != null && ` (${app.screening_score})`}
+																</Badge>
+															)}
 															{app.match_score != null && app.match_score >= 80 && (
 																<Badge
 																	variant="outline"
@@ -1232,6 +1336,99 @@ export function RecruiterJobApplicantsPage() {
 							</Button>
 						</div>
 
+					{/* Interviews (Task 9, #322): screening + AI interviews + human-scheduled */}
+						<div>
+							<h4 className="font-medium text-sm mb-2">Interviews</h4>
+							<InterviewPanel
+								candidateId={selected.candidate_id}
+								applicationId={selected.id}
+								onViewReport={(s) =>
+									navigate(
+										`/recruiter/interviews/report/${s.id}?candidateId=${selected.candidate_id}`,
+									)
+								}
+							/>
+						</div>
+
+						{/* Hiring actions: AI screening + assessment */}
+						<div>
+							<h4 className="font-medium text-sm mb-2">Hiring Actions</h4>
+							{actionMsg && (
+								<p className="text-xs text-muted-foreground mb-2 break-all">{actionMsg}</p>
+							)}
+							{hiringActionsLoading ? (
+								<p className="text-xs text-muted-foreground">Loading…</p>
+							) : (
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+									<div className="p-3 border rounded-lg">
+										<p className="text-xs font-medium mb-1">AI Screening Interview</p>
+										{selected.screening_status ? (
+											<p className="text-xs text-muted-foreground">
+												Status: {selected.screening_status}
+												{selected.screening_score != null && ` — ${selected.screening_score}/100`}
+											</p>
+										) : screeningTemplates.length === 0 ? (
+											<p className="text-xs text-muted-foreground">
+												No screening template for this job.{' '}
+												<a href="/recruiter/interviews?tab=screening" className="underline">
+													Create one
+												</a>
+											</p>
+										) : (
+											<div className="space-y-1">
+												{screeningTemplates.slice(0, 3).map((t: any) => (
+													<Button
+														key={t.id}
+														size="sm"
+														variant="outline"
+														className="w-full text-xs"
+														disabled={actionBusy === 'screening'}
+														onClick={() => sendScreeningFromDialog(t.id)}
+													>
+														{actionBusy === 'screening' ? 'Sending…' : `Send: ${t.title}`}
+													</Button>
+												))}
+											</div>
+										)}
+									</div>
+									<div className="p-3 border rounded-lg">
+										<p className="text-xs font-medium mb-1">Skill Assessment</p>
+										{assessments.length === 0 ? (
+											<p className="text-xs text-muted-foreground">
+												No assessment for this job.{' '}
+												<a
+													href={`/recruiter/jobs/${id}/assessment`}
+													className="underline"
+												>
+													Create one
+												</a>
+											</p>
+										) : (
+											<div className="space-y-1">
+												{assessments.slice(0, 3).map((a: any) => (
+													<Button
+														key={a.id}
+														size="sm"
+														variant="outline"
+														className="w-full text-xs"
+														disabled={actionBusy === 'assessment'}
+														onClick={() => assignAssessmentFromDialog(a.id)}
+													>
+														{actionBusy === 'assessment' ? 'Assigning…' : `Assign: ${a.title}`}
+													</Button>
+												))}
+											</div>
+										)}
+										{selected.screening_status === 'completed' && (
+											<p className="text-[10px] text-green-700 mt-1">
+												✓ Screening passed — good time to send a test.
+											</p>
+										)}
+									</div>
+								</div>
+							)}
+						</div>
+
 						{/* Make Offer button */}
 						{!['rejected', 'offered', 'hired', 'withdrawn'].includes(selected.status) && (
 							<Button
@@ -1435,7 +1632,7 @@ export function RecruiterJobApplicantsPage() {
 													type="number"
 													min={0}
 													max={100}
-													value={automationRules?.advance_match_min || 70}
+													value={automationRules?.advance_match_min ?? 70}
 													onChange={(e) =>
 														setAutomationRules((r: any) => ({
 															...r,

@@ -24,6 +24,7 @@ import {
 	Sparkles,
 	Wand2,
 	X,
+	Zap,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -62,6 +63,47 @@ interface ScreeningQuestion {
 	category?: string;
 	isKnockout?: boolean;
 	knockoutAnswer?: string;
+}
+
+// Interview flow row shape (Task 10, #322 — mirrors interview_flows DDL)
+interface InterviewFlow {
+	id: number;
+	name: string;
+	type: 'screening' | 'ai_interview';
+	description?: string | null;
+	phases?: string[] | string;
+	topics?: string[] | string;
+	questions?: (string | { question_text?: string })[] | string;
+	rubric_weights?: Record<string, number> | string;
+	triggers?: { manual?: boolean; auto_send_on_apply?: boolean } | string;
+	status?: string;
+}
+
+// pg returns JSONB parsed, but be defensive: accept string-or-already-parsed.
+function parseJsonArray<T>(v: unknown): T[] {
+	if (Array.isArray(v)) return v as T[];
+	if (typeof v === 'string') {
+		try {
+			const parsed: unknown = JSON.parse(v);
+			return Array.isArray(parsed) ? (parsed as T[]) : [];
+		} catch {
+			return [];
+		}
+	}
+	return [];
+}
+
+function parseJsonObject<T extends Record<string, unknown>>(v: unknown): T | null {
+	if (v && typeof v === 'object' && !Array.isArray(v)) return v as T;
+	if (typeof v === 'string') {
+		try {
+			const parsed: unknown = JSON.parse(v);
+			return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as T) : null;
+		} catch {
+			return null;
+		}
+	}
+	return null;
 }
 
 const defaultQuestionTemplates: ScreeningQuestion[] = [
@@ -151,6 +193,31 @@ export function RecruiterJobFormPage() {
 	const [experienceLevel, setExperienceLevel] = useState('');
 	const [educationLevel, setEducationLevel] = useState('');
 	const [screeningQuestions, setScreeningQuestions] = useState<ScreeningQuestion[]>([]);
+	const [autoSendEnabled, setAutoSendEnabled] = useState(false);
+	const [autoSendMinScore, setAutoSendMinScore] = useState(70);
+	const [screeningTopics, setScreeningTopics] = useState<string[]>([]);
+	const [topicsLoading, setTopicsLoading] = useState(false);
+	const [newTopic, setNewTopic] = useState('');
+	// Interview flow config (Task 10, #322) — edits interview_flows via CRUD.
+	// Topics are shared with the screeningTopics editor above (single source in
+	// the form); the flow row is the persisted source of truth after cutover.
+	const [flowId, setFlowId] = useState<number | null>(null);
+	const [flowName, setFlowName] = useState('');
+	const [flowType, setFlowType] = useState<'screening' | 'ai_interview'>('screening');
+	const [flowDescription, setFlowDescription] = useState('');
+	const [flowPhases, setFlowPhases] = useState<string[]>(['Introduction', 'Core questions', 'Wrap-up']);
+	const [newPhase, setNewPhase] = useState('');
+	const [flowQuestions, setFlowQuestions] = useState<string[]>([]);
+	const [newFlowQuestion, setNewFlowQuestion] = useState('');
+	const [flowRubric, setFlowRubric] = useState<Record<string, number>>({
+		can_do_work: 30,
+		wants_move: 20,
+		logistics_fit: 20,
+		communication: 30,
+	});
+	const [flowManual, setFlowManual] = useState(true);
+	const [flowShowPreview, setFlowShowPreview] = useState(false);
+	const [flowSaveError, setFlowSaveError] = useState<string | null>(null);
 	const [passThreshold, setPassThreshold] = useState(70);
 	const [showTemplates, setShowTemplates] = useState(false);
 	const [titleError, setTitleError] = useState('');
@@ -204,12 +271,72 @@ export function RecruiterJobFormPage() {
 					department?: string;
 					experience_level?: string;
 					education_level?: string;
+					auto_send_on_apply?: boolean;
+					auto_send_min_score?: number;
 				};
 			}>(`/jobs/${id}`);
 			const job = data.job;
 			setTitle(job.title || '');
 			setCompany(job.company || '');
 			setDepartment(job.department || '');
+			setAutoSendEnabled(job.auto_send_on_apply === true);
+			setAutoSendMinScore(job.auto_send_min_score ?? 70);
+			// Load existing screening topics from the job's template (#307)
+			try {
+				const tplData = await apiCall<{
+					templates: {
+						topics?: string[] | string;
+						questions?: string | string[] | { question_text?: string }[];
+					}[];
+				}>(`/interviews/screening/templates?job_id=${id}`);
+				const tpl = tplData.templates?.[0];
+				if (tpl?.topics) {
+					const topics =
+						typeof tpl.topics === 'string' ? JSON.parse(tpl.topics) : tpl.topics;
+					if (Array.isArray(topics)) setScreeningTopics(topics.filter((t) => typeof t === 'string'));
+				}
+				// Fallback: seed the flow editor's questions from the legacy template's
+				// AI-generated questions (#322 Task 10). Pure fallback — the flow load
+				// below overrides when a flow row exists.
+				if (tpl?.questions) {
+					const tplQuestions = parseJsonArray<string | { question_text?: string }>(tpl.questions)
+						.map((q) => (typeof q === 'string' ? q : q?.question_text || ''))
+						.filter((q) => q.length > 0);
+					if (tplQuestions.length > 0) setFlowQuestions(tplQuestions);
+				}
+			} catch {
+				// Non-blocking: topics stay empty if template fetch fails
+			}
+			// Load the job's interview flow (Task 10, #322) — the persisted source
+			// of truth after cutover; overrides template topics when present.
+			try {
+				const flowData = await apiCall<{ flows: InterviewFlow[] }>(
+					`/interviews/interview-flows?job_id=${id}`,
+				);
+				const flow = flowData.flows?.[0];
+				if (flow) {
+					setFlowId(flow.id);
+					setFlowName(flow.name || '');
+					if (flow.type === 'screening' || flow.type === 'ai_interview') setFlowType(flow.type);
+					setFlowDescription(flow.description || '');
+					const phases = parseJsonArray<string>(flow.phases);
+					if (phases.length > 0) setFlowPhases(phases.filter((p) => typeof p === 'string'));
+					const questions = parseJsonArray<string | { question_text?: string }>(flow.questions);
+					setFlowQuestions(
+						questions
+							.map((q) => (typeof q === 'string' ? q : q?.question_text || ''))
+							.filter((q) => q.length > 0),
+					);
+					const rubric = parseJsonObject<Record<string, number>>(flow.rubric_weights);
+					if (rubric) setFlowRubric((prev) => ({ ...prev, ...rubric }));
+					const triggers = parseJsonObject<{ manual?: boolean }>(flow.triggers);
+					if (triggers && typeof triggers.manual === 'boolean') setFlowManual(triggers.manual);
+					const topics = parseJsonArray<string>(flow.topics);
+					if (topics.length > 0) setScreeningTopics(topics.filter((t) => typeof t === 'string'));
+				}
+			} catch {
+				// Non-blocking: flow editor keeps defaults if fetch fails
+			}
 			setDescription(job.description || '');
 			setRequirements(job.requirements || '');
 			setLocation(job.location || '');
@@ -250,9 +377,9 @@ export function RecruiterJobFormPage() {
 							required: boolean;
 						}>;
 					};
-				}>(`/api/questionnaire/${id}`);
+				}>(`/questionnaire/${id}`);
 				if (qData.questionnaire) {
-					setPassThreshold(qData.questionnaire.pass_threshold || 70);
+					setPassThreshold(qData.questionnaire.pass_threshold ?? 70);
 					// Merge with existing screening questions if any
 					if (qData.questionnaire.questions?.length > 0) {
 						const mapped = qData.questionnaire.questions.map((q) => ({
@@ -459,6 +586,7 @@ export function RecruiterJobFormPage() {
 					suggested_skills: string[];
 					suggested_title: string;
 				};
+				screeningTopics?: string[];
 			}>('/recruiter/jobs/generate', {
 				method: 'POST',
 				body: { title, brief_notes: description, location, job_type: jobType },
@@ -468,10 +596,34 @@ export function RecruiterJobFormPage() {
 				setRequirements(data.generated.requirements || '');
 				flashSuccess('Description & requirements generated!');
 			}
+			if (data.screeningTopics) {
+				setScreeningTopics(data.screeningTopics);
+			}
 		} catch (err: any) {
 			alert(err instanceof Error ? err.message : 'AI generation failed');
 		} finally {
 			setAiGenerating(false);
+		}
+	}
+
+	async function handleGenerateTopics() {
+		if (!title.trim()) {
+			setTitleError('Enter a job title first');
+			return;
+		}
+		setTopicsLoading(true);
+		try {
+			const data = await apiCall<{ topics: string[] }>('/recruiter/jobs/generate-screening-topics', {
+				method: 'POST',
+				body: { title, description },
+			});
+			if (data.topics) {
+				setScreeningTopics(data.topics);
+			}
+		} catch (err: any) {
+			console.error('Topics generation failed:', err);
+		} finally {
+			setTopicsLoading(false);
 		}
 	}
 
@@ -537,6 +689,38 @@ export function RecruiterJobFormPage() {
 		trackEvent('job_form_apply_skills', { count: skillSuggestions.length });
 	}
 
+	async function saveInterviewFlow(jobId: number) {
+		setFlowSaveError(null);
+		const body = {
+			name: flowName.trim() || `Screening for ${title.trim()}`,
+			type: flowType,
+			description: flowDescription.trim() || undefined,
+			phases: flowPhases,
+			topics: screeningTopics,
+			questions: flowQuestions,
+			rubric_weights: flowRubric,
+			// The job-level auto-send toggle stays the authority for whether
+			// auto-send fires (Task 5 reads jobs.auto_send_on_apply); the flow
+			// carries a synced copy so the row is self-describing.
+			triggers: { manual: flowManual, auto_send_on_apply: autoSendEnabled },
+			job_id: jobId,
+		};
+		try {
+			if (flowId) {
+				await apiCall(`/interviews/interview-flows/${flowId}`, { method: 'PUT', body });
+			} else {
+				const res = await apiCall<{ success: boolean; flow?: { id: number } }>(
+					'/interviews/interview-flows',
+					{ method: 'POST', body },
+				);
+				if (res.flow?.id) setFlowId(res.flow.id);
+			}
+		} catch (err) {
+			// Non-blocking: the job itself is saved; surface a warning instead.
+			setFlowSaveError(err instanceof Error ? err.message : 'Failed to save interview flow');
+		}
+	}
+
 	async function handleSave() {
 		if (!title.trim()) {
 			setTitleError('Job title is required');
@@ -563,6 +747,9 @@ export function RecruiterJobFormPage() {
 				currency_code: currencyCode,
 				salary_min: salaryMin ? parseFloat(salaryMin) : undefined,
 				salary_max: salaryMax ? parseFloat(salaryMax) : undefined,
+				auto_send_on_apply: autoSendEnabled,
+				auto_send_min_score: autoSendMinScore,
+				screening_topics: screeningTopics,
 			};
 			let savedJobId: number | undefined;
 			if (isEdit) {
@@ -582,6 +769,12 @@ export function RecruiterJobFormPage() {
 				savedJobId = result.job?.id || result.id;
 			}
 
+			// Persist the interview flow config (Task 10, #322) — non-blocking:
+			// the job save must not fail if the flow upsert does.
+			if (savedJobId) {
+				await saveInterviewFlow(savedJobId);
+			}
+
 			// Save questionnaire to dedicated API
 			if (savedJobId && screeningQuestions.filter((q) => q.question.trim()).length > 0) {
 				const apiQuestions = screeningQuestions
@@ -599,7 +792,7 @@ export function RecruiterJobFormPage() {
 						order_index: i,
 						required: q.required,
 					}));
-				await apiCall('/api/questionnaire', {
+				await apiCall('/questionnaire', {
 					method: 'POST',
 					body: {
 						job_id: savedJobId,
@@ -1228,6 +1421,7 @@ export function RecruiterJobFormPage() {
 								</div>
 							)}
 						</div>
+
 					</CardContent>
 				</Card>
 			)}
@@ -1737,6 +1931,435 @@ export function RecruiterJobFormPage() {
 									>
 										<Save className="h-3 w-3" /> Save Questions to My Bank
 									</Button>
+								</div>
+							)}
+						</div>
+
+						{/* Auto-Send AI Screening (#307) */}
+						<div className="rounded-lg border border-indigo-200 bg-indigo-50/30 p-4 space-y-4">
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-sm font-medium flex items-center gap-2">
+										<Zap className="h-4 w-4 text-indigo-600" />
+										Auto-Send AI Screening
+									</p>
+									<p className="text-xs text-muted-foreground mt-1">
+										Automatically invite qualified candidates to a voice screening when they apply
+									</p>
+								</div>
+								<button type="button"
+									onClick={() => setAutoSendEnabled(!autoSendEnabled)}
+									className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
+										autoSendEnabled ? 'bg-indigo-600' : 'bg-gray-200'
+									}`}
+									aria-label="Toggle auto-send screening"
+								>
+									<span
+										className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform mt-1 ${
+											autoSendEnabled ? 'translate-x-6 ml-1' : 'translate-x-1'
+										}`}
+									/>
+								</button>
+							</div>
+
+							{autoSendEnabled && (
+								<div className="space-y-4 pt-2 border-t border-indigo-100">
+									<div>
+										<Label className="text-sm font-medium">
+											Minimum match score: {autoSendMinScore}%
+										</Label>
+										<p className="text-xs text-muted-foreground mb-2">
+											Only candidates scoring at or above this will receive a screening invite
+										</p>
+										<input
+											type="range"
+											min="0"
+											max="100"
+											value={autoSendMinScore}
+											onChange={(e) => setAutoSendMinScore(parseInt(e.target.value, 10))}
+											className="w-full"
+										/>
+										<div className="flex justify-between text-xs text-muted-foreground">
+											<span>0%</span>
+											<span>50%</span>
+											<span>100%</span>
+										</div>
+									</div>
+
+									<div>
+										<div className="flex items-center justify-between mb-2">
+											<Label className="text-sm font-medium">Screening Topics</Label>
+											<Button
+												variant="ghost"
+												size="sm"
+												onClick={handleGenerateTopics}
+												disabled={topicsLoading || !title.trim()}
+												className="h-7 text-xs gap-1 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+											>
+												{topicsLoading ? (
+													<Loader2 className="h-3 w-3 animate-spin" />
+												) : (
+													<Lightbulb className="h-3 w-3" />
+												)}
+												{screeningTopics.length > 0 ? 'Regenerate' : 'Generate with AI'}
+											</Button>
+										</div>
+										<p className="text-xs text-muted-foreground mb-2">
+											The AI will cover these areas conversationally during the screening
+										</p>
+										{screeningTopics.length > 0 ? (
+											<div className="space-y-1.5">
+												{screeningTopics.map((topic, i) => (
+													<div
+														key={i}
+														className="flex items-center gap-2 rounded-md border bg-white p-2 text-sm"
+													>
+														<span className="flex-1">{topic}</span>
+														<button type="button"
+															onClick={() =>
+																setScreeningTopics(screeningTopics.filter((_, idx) => idx !== i))
+															}
+															className="text-muted-foreground hover:text-red-600"
+															aria-label="Remove topic"
+														>
+															<X className="h-3.5 w-3.5" />
+														</button>
+													</div>
+												))}
+											</div>
+										) : (
+											<p className="text-xs text-muted-foreground italic">
+												No topics yet. Click "Generate with AI" or add your own below.
+											</p>
+										)}
+										<div className="flex gap-2 mt-2">
+											<Input
+												value={newTopic}
+												onChange={(e) => setNewTopic(e.target.value)}
+												placeholder="Add a custom topic..."
+												className="flex-1 text-sm"
+												onKeyDown={(e) => {
+													if (e.key === 'Enter' && newTopic.trim()) {
+														e.preventDefault();
+														setScreeningTopics([...screeningTopics, newTopic.trim()]);
+														setNewTopic('');
+													}
+												}}
+											/>
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => {
+													if (newTopic.trim()) {
+														setScreeningTopics([...screeningTopics, newTopic.trim()]);
+														setNewTopic('');
+													}
+												}}
+												className="min-h-[44px]"
+											>
+												Add
+											</Button>
+										</div>
+									</div>
+								</div>
+							)}
+						</div>
+
+						{/* Interview Flow config (Task 10, #322) */}
+						<div className="rounded-lg border border-indigo-200 bg-indigo-50/30 p-4 space-y-4">
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-sm font-medium flex items-center gap-2">
+										<ListChecks className="h-4 w-4 text-indigo-600" />
+										Interview Flow
+									</p>
+									<p className="text-xs text-muted-foreground mt-1">
+										The conversational flow used for this job's screenings and AI interviews
+									</p>
+								</div>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => setFlowShowPreview(!flowShowPreview)}
+									className="gap-1 min-h-[44px]"
+								>
+									<Eye className="h-3.5 w-3.5" />
+									{flowShowPreview ? 'Hide preview' : 'Preview'}
+								</Button>
+							</div>
+
+							{flowSaveError && (
+								<p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
+									Job saved, but the interview flow could not be saved: {flowSaveError}
+								</p>
+							)}
+
+							<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+								<div>
+									<Label className="text-sm font-medium">Flow name</Label>
+									<Input
+										value={flowName}
+										onChange={(e) => setFlowName(e.target.value)}
+										placeholder={`Screening for ${title || 'this job'}`}
+										className="mt-1 text-sm"
+									/>
+								</div>
+								<div>
+									<Label className="text-sm font-medium">Flow type</Label>
+									<div className="flex gap-2 mt-1">
+										{(['screening', 'ai_interview'] as const).map((t) => (
+											<button
+												key={t}
+												type="button"
+												onClick={() => setFlowType(t)}
+												className={`min-h-[44px] px-3 rounded-md border text-sm font-medium transition-colors ${
+													flowType === t
+														? 'border-indigo-600 bg-indigo-600 text-white'
+														: 'border-input bg-white hover:bg-indigo-50'
+												}`}
+											>
+												{t === 'screening' ? 'Screening' : 'AI interview'}
+											</button>
+										))}
+									</div>
+								</div>
+							</div>
+
+							<div>
+								<Label className="text-sm font-medium">
+									Description <span className="text-muted-foreground font-normal">(optional)</span>
+								</Label>
+								<Input
+									value={flowDescription}
+									onChange={(e) => setFlowDescription(e.target.value)}
+									placeholder="What this flow covers…"
+									className="mt-1 text-sm"
+								/>
+							</div>
+
+							<div>
+								<Label className="text-sm font-medium">Phases</Label>
+								<p className="text-xs text-muted-foreground mb-2">Conversation stages, in order</p>
+								<div className="space-y-1.5">
+									{flowPhases.map((phase, i) => (
+										<div
+											key={i}
+											className="flex items-center gap-2 rounded-md border bg-white p-2 text-sm"
+										>
+											<span className="text-xs text-muted-foreground w-6">{i + 1}.</span>
+											<span className="flex-1">{phase}</span>
+											<button
+												type="button"
+												onClick={() => setFlowPhases(flowPhases.filter((_, idx) => idx !== i))}
+												className="text-muted-foreground hover:text-red-600"
+												aria-label="Remove phase"
+											>
+												<X className="h-3.5 w-3.5" />
+											</button>
+										</div>
+									))}
+								</div>
+								<div className="flex gap-2 mt-2">
+									<Input
+										value={newPhase}
+										onChange={(e) => setNewPhase(e.target.value)}
+										placeholder="Add a phase…"
+										className="flex-1 text-sm"
+										onKeyDown={(e) => {
+											if (e.key === 'Enter' && newPhase.trim()) {
+												e.preventDefault();
+												setFlowPhases([...flowPhases, newPhase.trim()]);
+												setNewPhase('');
+											}
+										}}
+									/>
+									<Button
+										variant="outline"
+										size="sm"
+										className="min-h-[44px]"
+										onClick={() => {
+											if (newPhase.trim()) {
+												setFlowPhases([...flowPhases, newPhase.trim()]);
+												setNewPhase('');
+											}
+										}}
+									>
+										Add
+									</Button>
+								</div>
+							</div>
+
+							<div>
+								<Label className="text-sm font-medium">Planned questions</Label>
+								<p className="text-xs text-muted-foreground mb-2">
+									Optional — seed the conversation with specific questions
+								</p>
+								<div className="space-y-1.5">
+									{flowQuestions.map((q, i) => (
+										<div
+											key={i}
+											className="flex items-center gap-2 rounded-md border bg-white p-2 text-sm"
+										>
+											<span className="flex-1">{q}</span>
+											<button
+												type="button"
+												onClick={() => setFlowQuestions(flowQuestions.filter((_, idx) => idx !== i))}
+												className="text-muted-foreground hover:text-red-600"
+												aria-label="Remove question"
+											>
+												<X className="h-3.5 w-3.5" />
+											</button>
+										</div>
+									))}
+								</div>
+								<div className="flex gap-2 mt-2">
+									<Input
+										value={newFlowQuestion}
+										onChange={(e) => setNewFlowQuestion(e.target.value)}
+										placeholder="Add a question…"
+										className="flex-1 text-sm"
+										onKeyDown={(e) => {
+											if (e.key === 'Enter' && newFlowQuestion.trim()) {
+												e.preventDefault();
+												setFlowQuestions([...flowQuestions, newFlowQuestion.trim()]);
+												setNewFlowQuestion('');
+											}
+										}}
+									/>
+									<Button
+										variant="outline"
+										size="sm"
+										className="min-h-[44px]"
+										onClick={() => {
+											if (newFlowQuestion.trim()) {
+												setFlowQuestions([...flowQuestions, newFlowQuestion.trim()]);
+												setNewFlowQuestion('');
+											}
+										}}
+									>
+										Add
+									</Button>
+								</div>
+							</div>
+
+							<div>
+								<Label className="text-sm font-medium">Evaluation rubric weights</Label>
+								<p className="text-xs text-muted-foreground mb-2">
+									Relative emphasis per dimension (should total 100)
+								</p>
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+									{Object.entries(flowRubric).map(([key, val]) => (
+										<div key={key} className="flex items-center gap-2">
+											<Label className="text-xs flex-1 capitalize">{key.replace(/_/g, ' ')}</Label>
+											<Input
+												type="number"
+												min={0}
+												max={100}
+												value={val}
+												onChange={(e) =>
+													setFlowRubric({
+														...flowRubric,
+														[key]: Math.min(100, Math.max(0, parseInt(e.target.value || '0', 10))),
+													})
+												}
+												className="w-20 text-sm"
+											/>
+											<span className="text-xs text-muted-foreground">%</span>
+										</div>
+									))}
+								</div>
+							</div>
+
+							<div className="flex items-center justify-between rounded-md border bg-white p-3">
+								<div>
+									<p className="text-sm font-medium">Allow manual trigger</p>
+									<p className="text-xs text-muted-foreground">
+										Recruiters can start this flow for a candidate from the applicant panel
+									</p>
+								</div>
+								<button
+									type="button"
+									onClick={() => setFlowManual(!flowManual)}
+									className={`relative w-11 h-6 rounded-full transition-colors ${
+										flowManual ? 'bg-indigo-600' : 'bg-gray-300'
+									}`}
+									aria-label="Toggle manual trigger"
+								>
+									<span
+										className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+											flowManual ? 'left-[22px]' : 'left-0.5'
+										}`}
+									/>
+								</button>
+							</div>
+							<p className="text-xs text-muted-foreground">
+								Auto-send on apply is controlled by the toggle above
+								{autoSendEnabled ? ' (currently on)' : ' (currently off)'} — the minimum match
+								score stays a job-level setting.
+							</p>
+
+							{flowShowPreview && (
+								<div data-testid="flow-preview" className="rounded-md border bg-white p-3 space-y-2">
+									<p className="text-sm font-medium flex items-center gap-2">
+										<Eye className="h-4 w-4 text-indigo-600" /> Flow preview
+									</p>
+									<div className="flex items-center gap-2">
+										<Badge variant={flowType === 'screening' ? 'default' : 'secondary'}>
+											{flowType === 'screening' ? 'Screening' : 'AI interview'}
+										</Badge>
+										<span className="text-sm font-medium">
+											{flowName.trim() || `Screening for ${title || 'this job'}`}
+										</span>
+									</div>
+									{flowDescription.trim() && (
+										<p className="text-xs text-muted-foreground">{flowDescription.trim()}</p>
+									)}
+									<ol className="text-sm space-y-1">
+										{flowPhases.map((p, i) => (
+											<li key={i} className="flex gap-2">
+												<span className="text-indigo-600 font-medium">{i + 1}.</span>
+												<span>{p}</span>
+											</li>
+										))}
+									</ol>
+									<div className="text-xs">
+										<p className="font-medium mb-1">Topics ({screeningTopics.length})</p>
+										{screeningTopics.length > 0 ? (
+											<div className="flex flex-wrap gap-1">
+												{screeningTopics.map((t, i) => (
+													<Badge key={i} variant="outline">
+														{t}
+													</Badge>
+												))}
+											</div>
+										) : (
+											<p className="text-muted-foreground italic">No topics yet</p>
+										)}
+									</div>
+									{flowQuestions.length > 0 && (
+										<div className="text-xs">
+											<p className="font-medium mb-1">Planned questions ({flowQuestions.length})</p>
+											<ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+												{flowQuestions.map((q, i) => (
+													<li key={i}>{q}</li>
+												))}
+											</ul>
+										</div>
+									)}
+									<div className="text-xs">
+										<p className="font-medium mb-1">Rubric</p>
+										<div className="flex flex-wrap gap-1">
+											{Object.entries(flowRubric).map(([k, v]) => (
+												<Badge key={k} variant="outline">
+													{k.replace(/_/g, ' ')}: {v}%
+												</Badge>
+											))}
+										</div>
+									</div>
+									<div className="text-xs text-muted-foreground">
+										Triggers: {flowManual ? 'manual' : '—'}
+										{autoSendEnabled ? ', auto-send on apply' : ''}
+									</div>
 								</div>
 							)}
 						</div>

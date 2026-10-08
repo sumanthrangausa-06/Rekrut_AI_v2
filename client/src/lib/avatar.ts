@@ -8,7 +8,7 @@ const DICEBEAR_BASE = 'https://api.dicebear.com/7.x/avataaars/svg';
  * Returns a consistent SVG avatar for the same seed.
  */
 export function getDiceBearAvatar(
-	seed: string,
+	seed: string | number,
 	options?: {
 		backgroundColor?: string;
 		radius?: number;
@@ -17,7 +17,7 @@ export function getDiceBearAvatar(
 	if (!seed) seed = 'anonymous';
 
 	const params = new URLSearchParams({
-		seed: seed.toLowerCase().trim(),
+		seed: String(seed).toLowerCase().trim(),
 		backgroundColor: options?.backgroundColor || 'b6e3f4',
 	});
 

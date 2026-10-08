@@ -11,6 +11,7 @@ const auditLogService = require('../services/auditLogService');
 const { AuditLogger } = auditLogService;
 const { dataAccessAudit } = require('../middleware/dataAccessAudit');
 const emailService = require('../lib/email-service');
+const { notifyUser } = require('../lib/notify');
 const DOMPurify = require('isomorphic-dompurify');
 
 const router = express.Router();
@@ -660,9 +661,14 @@ router.post(
 				requirements,
 				location,
 				salary_range,
+				salary_min,
+				salary_max,
 				job_type,
 				screening_questions,
 				optimize = false, // Flag to run AI optimization
+				auto_send_on_apply = false,
+				auto_send_min_score = 70,
+				screening_topics = [],
 			} = req.body;
 
 			const sanitizedTitle = normalizeTextField(title, 120, 'Job title');
@@ -720,8 +726,8 @@ router.post(
 
 			// Create job
 			const result = await pool.query(
-				`INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+				`INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, salary_min, salary_max, job_type, screening_questions, auto_send_on_apply, auto_send_min_score)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
 				[
 					req.user.id,
@@ -732,12 +738,41 @@ router.post(
 					finalRequirements,
 					sanitizedLocation,
 					salary_range,
+					salary_min || null,
+					salary_max || null,
 					normalizedJobType,
 					screening_questions ? JSON.stringify(screening_questions) : null,
+					auto_send_on_apply === true,
+					clampAutoSendMinScore(auto_send_min_score) ?? 70,
 				],
 			);
 
 			const job = result.rows[0];
+
+			// Auto-create screening template if auto-send enabled
+			if (auto_send_on_apply === true) {
+				try {
+					const topics = Array.isArray(screening_topics) ? screening_topics : [];
+					await pool.query(
+						`INSERT INTO screening_templates (company_id, job_id, created_by, title, description, questions, topics, screening_mode, auto_send_on_apply, status)
+						 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')`,
+						[
+							req.user.company_id,
+							job.id,
+							req.user.id,
+							`Screening for ${sanitizedTitle}`,
+							`Auto-generated screening for ${sanitizedTitle}`,
+							JSON.stringify([]),
+							JSON.stringify(topics),
+							'conversational',
+							true,
+						],
+					);
+				} catch (templateErr) {
+					console.error('Auto-create screening template failed:', templateErr.message);
+					// Don't fail job creation if template fails
+				}
+			}
 
 			// Create analytics entry
 			await pool.query('INSERT INTO job_analytics (job_id) VALUES ($1)', [job.id]);
@@ -859,6 +894,14 @@ router.get(
 	},
 );
 
+// Clamp auto-send threshold 0-100; null/undefined/NaN -> null (keep existing / default)
+function clampAutoSendMinScore(v) {
+	if (v === undefined || v === null) return null;
+	const n = parseInt(v, 10);
+	if (Number.isNaN(n)) return null;
+	return Math.min(100, Math.max(0, n));
+}
+
 // Generate complete job description from title + optional notes
 router.post(
 	'/jobs/generate',
@@ -880,10 +923,49 @@ router.post(
 				job_type,
 				company: req.user.company_name,
 			});
-			res.json({ success: true, generated });
+
+			// Also generate screening topics from the JD (for auto-send setup)
+			let screeningTopics = [];
+			try {
+				const { generateScreeningTopics } = require('../services/interview-ai');
+				screeningTopics = await generateScreeningTopics(
+					title,
+					generated.description || generated,
+				);
+			} catch (topicErr) {
+				console.error('Screening topics generation failed:', topicErr.message);
+			}
+
+			res.json({ success: true, generated, screeningTopics });
 		} catch (err) {
 			console.error('Generate job description error:', err);
 			res.status(500).json({ error: 'Failed to generate job description' });
+		}
+	},
+);
+
+// Generate screening topics from job description (for auto-send screening setup)
+router.post(
+	'/jobs/generate-screening-topics',
+	authMiddleware,
+	requireNotSuspended,
+	requireApprovedRecruiter,
+	ensureCompany,
+	requirePermission('jobs:create'),
+	async (req, res) => {
+		try {
+			const { title, description } = req.body;
+
+			if (!title) {
+				return res.status(400).json({ error: 'Job title is required' });
+			}
+
+			const { generateScreeningTopics } = require('../services/interview-ai');
+			const topics = await generateScreeningTopics(title, description || '');
+			res.json({ success: true, topics });
+		} catch (err) {
+			console.error('Generate screening topics error:', err);
+			res.status(500).json({ error: 'Failed to generate screening topics' });
 		}
 	},
 );
@@ -958,9 +1040,14 @@ router.put(
 				requirements,
 				location,
 				salary_range,
+				salary_min,
+				salary_max,
 				job_type,
 				status,
 				screening_questions,
+				auto_send_on_apply,
+				auto_send_min_score,
+				screening_topics,
 			} = req.body;
 
 			const sanitizedTitle =
@@ -1018,11 +1105,15 @@ router.put(
         requirements = COALESCE($3, requirements),
         location = COALESCE($4, location),
         salary_range = COALESCE($5, salary_range),
-        job_type = COALESCE($6, job_type),
-        status = COALESCE($7, status),
-        screening_questions = COALESCE($8, screening_questions),
+        salary_min = COALESCE($6, salary_min),
+        salary_max = COALESCE($7, salary_max),
+        job_type = COALESCE($8, job_type),
+        status = COALESCE($9, status),
+        screening_questions = COALESCE($10, screening_questions),
+        auto_send_on_apply = COALESCE($11, auto_send_on_apply),
+        auto_send_min_score = COALESCE($12, auto_send_min_score),
         updated_at = NOW()
-       WHERE id = $9
+       WHERE id = $13
        RETURNING *`,
 				[
 					sanitizedTitle,
@@ -1030,12 +1121,54 @@ router.put(
 					sanitizedRequirements,
 					sanitizedLocation,
 					normalizedSalaryRange,
+					salary_min ?? null,
+					salary_max ?? null,
 					normalizedUpdateJobType,
 					status,
 					screening_questions || null,
+					auto_send_on_apply === undefined ? null : auto_send_on_apply === true,
+					auto_send_min_score === undefined
+						? null
+						: clampAutoSendMinScore(auto_send_min_score),
 					req.params.id,
 				],
 			);
+
+			// Sync screening template when auto-send settings change (#307)
+			try {
+				const updatedJob = result.rows[0];
+				if (updatedJob && auto_send_on_apply === true) {
+					const topics = Array.isArray(screening_topics) ? screening_topics : [];
+					const existingTemplate = await pool.query(
+						`SELECT id FROM screening_templates WHERE job_id = $1 AND status = 'active' LIMIT 1`,
+						[req.params.id],
+					);
+					if (existingTemplate.rows.length === 0) {
+						await pool.query(
+							`INSERT INTO screening_templates (company_id, job_id, created_by, title, description, questions, topics, screening_mode, auto_send_on_apply, status)
+							 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')`,
+							[
+								req.user.company_id,
+								req.params.id,
+								req.user.id,
+								`Screening for ${updatedJob.title}`,
+								`Auto-generated screening for ${updatedJob.title}`,
+								JSON.stringify([]),
+								JSON.stringify(topics),
+								'conversational',
+								true,
+							],
+						);
+					} else if (topics.length > 0) {
+						await pool.query(
+							`UPDATE screening_templates SET topics = $1, updated_at = NOW() WHERE id = $2`,
+							[JSON.stringify(topics), existingTemplate.rows[0].id],
+						);
+					}
+				}
+			} catch (templateErr) {
+				console.error('Screening template sync failed:', templateErr.message);
+			}
 
 			res.json({ success: true, job: result.rows[0] });
 		} catch (err) {
@@ -1069,7 +1202,8 @@ router.get(
              os.total_score as current_omniscore, os.score_tier,
              (SELECT COUNT(*) FROM skill_assessments sa2 JOIN candidate_skills cs2 ON sa2.skill_id = cs2.id WHERE cs2.user_id = ja.candidate_id AND sa2.passed = true) as verified_skills_count,
              (SELECT MAX(i2.overall_score) FROM interviews i2 WHERE i2.user_id = ja.candidate_id AND i2.status = 'completed') as best_interview_score,
-             (SELECT COUNT(*) FROM interviews i3 WHERE i3.user_id = ja.candidate_id AND i3.status = 'completed') as completed_interviews
+             (SELECT COUNT(*) FROM interviews i3 WHERE i3.user_id = ja.candidate_id AND i3.status = 'completed') as completed_interviews,
+             (SELECT s.id FROM interview_sessions s WHERE s.application_id = ja.id AND s.type = 'screening' ORDER BY s.created_at DESC LIMIT 1) as screening_session_id
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       JOIN jobs j ON ja.job_id = j.id
@@ -1117,6 +1251,8 @@ router.put(
 			const VALID_APP_STATUSES = [
 				'applied',
 				'screening',
+				'shortlisted',
+				'reviewing',
 				'interviewed',
 				'offered',
 				'hired',
@@ -1146,6 +1282,17 @@ router.put(
 				[status, req.params.id],
 			);
 
+			// ── Hiring decision: session recordings for this application expire
+			// 30 days after the decision (#322, Task 4). Non-blocking.
+			if (['hired', 'rejected'].includes(status) && previousStatus !== status) {
+				try {
+					const livekitService = require('../server/services/livekit');
+					await livekitService.setSessionRecordingsRetentionAfterDecision(req.params.id);
+				} catch (retErr) {
+					console.error('[retention] Failed to update recording expiry:', retErr.message);
+				}
+			}
+
 			// ── Send status update notification to candidate (non-blocking) ──
 			try {
 				const candidateInfo = await pool.query(
@@ -1158,6 +1305,21 @@ router.put(
 					[req.params.id],
 				);
 				const cand = candidateInfo.rows[0];
+				// In-app notification (non-blocking) — alongside the email
+				if (cand?.id) {
+					notifyUser(
+						cand.id,
+						'application_status_changed',
+						'Application status updated',
+						`Your application for ${cand.job_title || 'the position'} is now: ${status}.`,
+						{
+							application_id: req.params.id,
+							job_id: existing.rows[0].job_id,
+							new_status: status,
+							previous_status: previousStatus,
+						},
+					);
+				}
 				if (cand?.email) {
 					await emailService.sendTemplatedEmail({
 						to: cand.email,
@@ -1581,43 +1743,6 @@ router.get(
 	},
 );
 
-router.post(
-	'/candidates/bulk-status',
-	authMiddleware,
-	requireNotSuspended,
-	requireApprovedRecruiter,
-	ensureCompany,
-	requirePermission('candidates:manage'),
-	async (req, res) => {
-		try {
-			const { candidateIds, status } = req.body;
-			const VALID = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'];
-			if (!candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {
-				return res.status(400).json({ error: 'candidateIds array required' });
-			}
-			if (!VALID.includes(status)) {
-				return res
-					.status(400)
-					.json({ error: `Invalid status. Must be one of: ${VALID.join(', ')}` });
-			}
-			const result = await pool.query(
-				'UPDATE candidates SET status = $1, updated_at = NOW() WHERE id = ANY($2) AND company_id = $3',
-				[status, candidateIds, req.user.company_id],
-			);
-			console.log('[AUDIT] Bulk status update', {
-				userId: req.user.id,
-				count: result.rowCount,
-				fromStatus: 'various',
-				toStatus: status,
-			});
-			res.json({ updated: result.rowCount, candidateIds });
-		} catch (err) {
-			console.error('Bulk status update error:', err);
-			res.status(500).json({ error: 'Failed to update candidate statuses' });
-		}
-	},
-);
-
 // Get pipeline stats (B-001)
 router.get(
 	'/pipeline-stats',
@@ -1817,6 +1942,52 @@ router.put(
 				} catch (_e) {
 					/* non-critical */
 				}
+
+				// Also log to hiring_activity so Team Activity feed shows status changes
+				try {
+					await pool.query(
+						`INSERT INTO hiring_activity (job_id, user_id, action_type, description, metadata)
+           VALUES ($1, $2, 'status_changed', $3, $4)`,
+						[
+							existing.rows[0].job_id,
+							req.user.id,
+							`Moved candidate to ${status}`,
+							JSON.stringify({
+								application_id: parseInt(req.params.id, 10),
+								candidate_id: existing.rows[0].candidate_id,
+								old_status: existing.rows[0].old_status,
+								new_status: status,
+							}),
+						],
+					);
+				} catch (_e) {
+					/* non-critical */
+				}
+			}
+
+			// Notify candidate of manual status change (non-blocking)
+			if (status && status !== existing.rows[0].old_status) {
+				const statusLabels = {
+					screening: 'Screening',
+					shortlisted: 'Shortlisted',
+					reviewing: 'Under Review',
+					interviewed: 'Interview',
+					offered: 'Offer',
+					hired: 'Hired',
+					rejected: 'Not moved forward',
+				};
+				notifyUser(
+					existing.rows[0].candidate_id,
+					'application_status_changed',
+					'Application update',
+					`Your application status changed to ${statusLabels[status] || status}.`,
+					{
+						application_id: parseInt(req.params.id, 10),
+						job_id: existing.rows[0].job_id,
+						old_status: existing.rows[0].old_status,
+						new_status: status,
+					},
+				);
 			}
 
 			// Update job analytics
@@ -2333,6 +2504,8 @@ router.get(
 const PIPELINE_STAGES = [
 	'applied',
 	'screening',
+	'shortlisted',
+	'reviewing',
 	'interviewed',
 	'offered',
 	'hired',
@@ -3281,6 +3454,19 @@ router.put(
 				[existing.rows[0].job_id, existing.rows[0].candidate_id],
 			);
 
+			// Notify candidate of the offer (non-blocking)
+			notifyUser(
+				existing.rows[0].candidate_id,
+				'offer_received',
+				'Job offer received',
+				`You've received a job offer. Review the details and respond.`,
+				{
+					offer_id: result.rows[0].id,
+					job_id: existing.rows[0].job_id,
+					url: `/candidate/offers`,
+				},
+			);
+
 			// Update job analytics
 			try {
 				await pool.query(
@@ -3815,6 +4001,13 @@ router.post(
 						await pool.query(
 							`UPDATE job_applications SET status = 'rejected', updated_at = NOW() WHERE id = $1`,
 							[app.id],
+						);
+						notifyUser(
+							app.candidate_id,
+							'application_rejected',
+							'Application update',
+							`Your application was not moved forward at this time.`,
+							{ application_id: app.id, job_id: app.job_id },
 						);
 						actions.push({
 							type: 'rejected',

@@ -1,9 +1,10 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { AdminAuthGuard } from '@/components/admin-auth-guard';
 import { ErrorBoundary, RouteErrorBoundary } from '@/components/error-boundary';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { AuthProvider, getDashboardPath, useAuth } from '@/contexts/auth-context';
+import { isRecruiterRole } from '@/lib/api';
 
 // ─── Lazy page imports ───────────────────────────────────────────────────
 
@@ -15,6 +16,9 @@ const ReferralLandingPage = lazy(() =>
 const LoginPage = lazy(() => import('@/pages/login').then((m) => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() =>
 	import('@/pages/register').then((m) => ({ default: m.RegisterPage })),
+);
+const ReferralAssessmentPage = lazy(() =>
+	import('@/pages/referral-assessment').then((m) => ({ default: m.ReferralAssessmentPage })),
 );
 const ForgotPasswordPage = lazy(() =>
 	import('@/pages/forgot-password').then((m) => ({ default: m.ForgotPasswordPage })),
@@ -156,9 +160,14 @@ const CandidateBackgroundCheckPage = lazy(() =>
 		default: m.CandidateBackgroundCheckPage,
 	})),
 );
-const CandidateScreeningPage = lazy(() =>
-	import('@/pages/candidate/screening').then((m) => ({ default: m.CandidateScreeningPage })),
+const CandidateInterviewSessionPage = lazy(() =>
+	import('@/pages/candidate/InterviewSession').then((m) => ({ default: m.default })),
 );
+// Legacy /screening/:token links forward to the unified interview session page (#322)
+function ScreeningTokenRedirect() {
+	const { token } = useParams<{ token: string }>();
+	return <Navigate to={`/interview/session/${token ?? ''}`} replace />;
+}
 const CandidateScreeningQuestionnairePage = lazy(() =>
 	import('@/pages/candidate/screening-questionnaire').then((m) => ({
 		default: m.ScreeningQuestionnairePage,
@@ -175,9 +184,6 @@ const InterviewPracticePage = lazy(() =>
 );
 const LiveKitRoomPage = lazy(() =>
 	import('@/pages/candidate/livekit-room').then((m) => ({ default: m.LiveKitRoomPage })),
-);
-const VideoInterviewPage = lazy(() =>
-	import('@/pages/candidate/video-interview').then((m) => ({ default: m.VideoInterviewPage })),
 );
 const InterviewAnalysisPage = lazy(() =>
 	import('@/pages/candidate/interview-analysis').then((m) => ({
@@ -289,6 +295,10 @@ const RecruiterJobApplicantsPage = lazy(() =>
 const RecruiterApplicationsPage = lazy(() =>
 	import('@/pages/recruiter/applications').then((m) => ({ default: m.RecruiterApplicationsPage })),
 );
+// M4 (#323) — recruiter's side of the human-interview voice room (Track B).
+const SessionRoomPage = lazy(() =>
+	import('@/pages/recruiter/session-room').then((m) => ({ default: m.SessionRoomPage })),
+);
 const RecruiterAssessmentsPage = lazy(() =>
 	import('@/pages/recruiter/assessments').then((m) => ({ default: m.RecruiterAssessmentsPage })),
 );
@@ -307,6 +317,9 @@ const RecordingPlaybackPage = lazy(() =>
 	import('@/pages/recruiter/recording-playback').then((m) => ({
 		default: m.RecordingPlaybackPage,
 	})),
+);
+const InterviewReportPage = lazy(() =>
+	import('@/pages/recruiter/InterviewReport').then((m) => ({ default: m.InterviewReportPage })),
 );
 
 const RecruiterPanelsPage = lazy(() =>
@@ -337,6 +350,11 @@ const RecruiterCandidatesPage = lazy(() =>
 );
 const RecruiterInterviewsPage = lazy(() =>
 	import('@/pages/recruiter/interviews').then((m) => ({ default: m.RecruiterInterviewsPage })),
+);
+const ScreeningMonitorPage = lazy(() =>
+	import('@/pages/recruiter/screening-monitor').then((m) => ({
+		default: m.ScreeningMonitorPage,
+	})),
 );
 const RecruiterOmniScorePage = lazy(() =>
 	import('@/pages/recruiter/omniscore').then((m) => ({ default: m.RecruiterOmniScorePage })),
@@ -480,7 +498,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 	return <>{children}</>;
 }
 
-// Recruiter route guard: redirects pending-approval recruiters to the holding screen
+// Recruiter route guard: redirects non-recruiter roles to the candidate dashboard,
+// and pending-approval recruiters to the holding screen
 function RecruiterGuard({ children }: { children: React.ReactNode }) {
 	const { user, isPendingApproval, loading } = useAuth();
 
@@ -497,6 +516,10 @@ function RecruiterGuard({ children }: { children: React.ReactNode }) {
 
 	if (!user) {
 		return <Navigate to="/login" replace />;
+	}
+
+	if (!isRecruiterRole(user.role)) {
+		return <Navigate to="/candidate" replace />;
 	}
 
 	if (isPendingApproval) {
@@ -536,7 +559,9 @@ function AppRoutes() {
 			<Route path="/test-camera" element={<TestCameraPage />} />
 			<Route path="/pricing" element={<PricingPage />} />
 			<Route path="/payment-success" element={<PaymentSuccessPage />} />
-			<Route path="/screening/:token" element={<CandidateScreeningPage />} />
+			<Route path="/screening/:token" element={<ScreeningTokenRedirect />} />
+			<Route path="/r/:token" element={<ReferralAssessmentPage />} />
+			<Route path="/interview/session/:token" element={<CandidateInterviewSessionPage />} />
 			<Route path="/blog" element={<BlogPage />} />
 			<Route path="/blog/:slug" element={<BlogPostPage />} />
 			<Route path="/about" element={<AboutPage />} />
@@ -730,14 +755,6 @@ function AppRoutes() {
 					element={
 						<Protected>
 							<LiveKitRoomPage />
-						</Protected>
-					}
-				/>
-				<Route
-					path="video-interview"
-					element={
-						<Protected>
-							<VideoInterviewPage />
 						</Protected>
 					}
 				/>
@@ -1147,6 +1164,27 @@ function AppRoutes() {
 						</Protected>
 					}
 				/>
+				{/* M4 (#323) — recruiter joins the human-interview voice room (Track B). */}
+				<Route
+					path="session-room"
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<SessionRoomPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path="screening-monitor"
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<ScreeningMonitorPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
 				<Route
 					path="recordings"
 					element={
@@ -1163,6 +1201,16 @@ function AppRoutes() {
 						<Protected>
 							<RecruiterGuard>
 								<RecordingPlaybackPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path="interviews/report/:sessionId"
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<InterviewReportPage />
 							</RecruiterGuard>
 						</Protected>
 					}

@@ -23,6 +23,7 @@ import {
 	User,
 	Video,
 	XCircle,
+	Mic,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { EmptyState } from '@/components/domain/empty-state';
@@ -73,6 +74,7 @@ interface Application {
 	status: string;
 	screening_status?: string;
 	screening_score?: number;
+	screening_session_id?: number | null;
 }
 
 interface ScreeningTemplate {
@@ -144,7 +146,14 @@ export function RecruiterInterviewsPage() {
 	const [interviews, setInterviews] = useState<Interview[]>([]);
 	const [applications, setApplications] = useState<Application[]>([]);
 	const [loading, setLoading] = useState(true);
-	const [tab, setTab] = useState('upcoming');
+	const [tab, setTab] = useState(() => {
+		// Deep-link support: ?tab=screening opens the Screening tab directly
+		const params = new URLSearchParams(window.location.search);
+		const t = params.get('tab');
+		return t === 'screening' || t === 'upcoming' || t === 'calendar' || t === 'past'
+			? t
+			: 'upcoming';
+	});
 	const [showSchedule, setShowSchedule] = useState(false);
 	const [showFeedback, setShowFeedback] = useState<Interview | null>(null);
 	const [saving, setSaving] = useState(false);
@@ -166,8 +175,10 @@ export function RecruiterInterviewsPage() {
 	const [showCreateTemplate, setShowCreateTemplate] = useState(false);
 	const [templateJobId, setTemplateJobId] = useState('');
 	const [templateTitle, setTemplateTitle] = useState('');
+	const [templateTopics, setTemplateTopics] = useState('');
 	const [creatingTemplate, setCreatingTemplate] = useState(false);
 	const [showScreeningReport, setShowScreeningReport] = useState<any>(null);
+	const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
 	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
 	useEffect(() => {
@@ -288,16 +299,25 @@ export function RecruiterInterviewsPage() {
 		if (!templateJobId) return;
 		setCreatingTemplate(true);
 		try {
+			// Parse topics from textarea (one per line)
+			const topics = templateTopics
+				.split('\n')
+				.map((t) => t.trim())
+				.filter((t) => t.length > 0);
+
 			await apiCall('/interviews/screening/create-template', {
 				method: 'POST',
 				body: {
 					job_id: parseInt(templateJobId, 10),
 					title: templateTitle || undefined,
+					topics: topics.length > 0 ? topics : undefined,
+					screening_mode: 'conversational',
 				},
 			});
 			setShowCreateTemplate(false);
 			setTemplateJobId('');
 			setTemplateTitle('');
+			setTemplateTopics('');
 			await loadData();
 		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to create template' });
@@ -314,7 +334,7 @@ export function RecruiterInterviewsPage() {
 		jobId: number,
 	) {
 		try {
-			await apiCall('/interviews/screening/send', {
+			const res = await apiCall<{ invite_url?: string }>('/interviews/screening/send', {
 				method: 'POST',
 				body: {
 					template_id: templateId,
@@ -323,6 +343,16 @@ export function RecruiterInterviewsPage() {
 					job_id: jobId,
 				},
 			});
+			if (res?.invite_url) {
+				const fullUrl = `${window.location.origin}${res.invite_url}`;
+				try {
+					await navigator.clipboard.writeText(fullUrl);
+					setMessage({ type: 'success', text: 'Screening sent — invite link copied to clipboard.' });
+				} catch {
+					setMessage({ type: 'success', text: `Screening sent. Invite link: ${fullUrl}` });
+				}
+				setLastInviteUrl(fullUrl);
+			}
 			await loadData();
 		} catch (err: any) {
 			setMessage({ type: 'error', text: err.message || 'Failed to send screening' });
@@ -499,6 +529,13 @@ export function RecruiterInterviewsPage() {
 					>
 						<ClipboardList className="h-4 w-4 mr-2" /> Screening Templates
 					</Button>
+					<Button
+						variant="outline"
+						onClick={() => (window.location.href = '/recruiter/screening-monitor')}
+						className="min-h-[44px]"
+					>
+						<Mic className="h-4 w-4 mr-2" /> Monitor Screenings
+					</Button>
 					<Button onClick={() => setShowSchedule(true)} className="min-h-[44px]">
 						<Plus className="h-4 w-4 mr-2" /> Schedule Interview
 					</Button>
@@ -587,11 +624,6 @@ export function RecruiterInterviewsPage() {
 										<span className="text-xs text-muted-foreground">
 											{t.completed_count}/{t.sessions_count} completed
 										</span>
-										{t.auto_send_on_apply && (
-											<Badge variant="default" className="text-xs bg-purple-600">
-												Auto-send
-											</Badge>
-										)}
 									</div>
 								</div>
 							))}
@@ -645,6 +677,26 @@ export function RecruiterInterviewsPage() {
 				{/* Screening tab */}
 				<TabsContent value="screening">
 					<div className="space-y-4">
+						{lastInviteUrl && (
+							<Card className="border-green-200 bg-green-50">
+								<CardContent className="p-4 flex items-center justify-between gap-3">
+									<div className="min-w-0">
+										<p className="text-sm font-medium text-green-900">Invite link ready</p>
+										<p className="text-xs text-green-700 truncate">{lastInviteUrl}</p>
+									</div>
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() => {
+											navigator.clipboard.writeText(lastInviteUrl);
+											setMessage({ type: 'success', text: 'Invite link copied.' });
+										}}
+									>
+										Copy
+									</Button>
+								</CardContent>
+							</Card>
+						)}
 						{/* Screening-eligible applications */}
 						<Card>
 							<CardContent className="p-4">
@@ -756,7 +808,10 @@ export function RecruiterInterviewsPage() {
 													<Button
 														size="sm"
 														variant="outline"
-														onClick={() => viewScreeningReport(app.id)}
+														onClick={() =>
+														app.screening_session_id && viewScreeningReport(app.screening_session_id)
+													}
+													disabled={!app.screening_session_id}
 														className="min-h-[44px]"
 													>
 														<FileText className="h-3.5 w-3.5 mr-1" /> View Report
@@ -1054,7 +1109,7 @@ export function RecruiterInterviewsPage() {
 				<DialogHeader>
 					<DialogTitle>Create Screening Template</DialogTitle>
 					<DialogDescription>
-						AI will auto-generate screening questions from the job description
+						AI will conduct a conversational screening covering your topics
 					</DialogDescription>
 				</DialogHeader>
 				<div className="space-y-4 mt-4">
@@ -1082,11 +1137,23 @@ export function RecruiterInterviewsPage() {
 							className="min-h-[44px]"
 						/>
 					</div>
+					<div>
+						<Label>Topics to Cover (one per line, optional)</Label>
+						<Textarea
+							value={templateTopics}
+							onChange={(e) => setTemplateTopics(e.target.value)}
+							placeholder={"e.g.\nReact experience and recent projects\nTeam leadership and mentoring\nSalary expectations and availability"}
+							className="min-h-[100px]"
+						/>
+						<p className="text-xs text-muted-foreground mt-1">
+							Leave blank to let AI generate topics from the job description.
+						</p>
+					</div>
 					<div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
 						<p className="text-xs text-purple-700 flex items-center gap-1.5">
 							<Sparkles className="h-3.5 w-3.5" />
-							AI will analyze the job description and generate 6-8 tailored screening questions with
-							evaluation criteria.
+							AI will have a natural conversation covering these topics, with
+							follow-up questions based on the candidate's answers.
 						</p>
 					</div>
 					<div className="flex gap-2 justify-end">
@@ -1355,6 +1422,87 @@ export function RecruiterInterviewsPage() {
 											</li>
 										))}
 									</ul>
+								</div>
+							)}
+
+						{/* Dimension scores */}
+						{(showScreeningReport.report.technical_depth ||
+							showScreeningReport.report.communication_clarity ||
+							showScreeningReport.report.confidence_enthusiasm) && (
+							<div>
+								<h4 className="font-medium text-sm mb-2">Evaluation Dimensions</h4>
+								<div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+									{[
+										{ label: 'Technical Depth', data: showScreeningReport.report.technical_depth },
+										{ label: 'Communication', data: showScreeningReport.report.communication_clarity },
+										{ label: 'Confidence', data: showScreeningReport.report.confidence_enthusiasm },
+									]
+										.filter((d) => d.data)
+										.map((d) => (
+											<div key={d.label} className="p-3 border rounded-lg">
+												<div className="flex items-center justify-between mb-1">
+													<span className="text-xs font-medium text-muted-foreground">{d.label}</span>
+													<span className="text-lg font-bold">{d.data.score ?? '—'}</span>
+												</div>
+												{d.data.feedback && (
+													<p className="text-xs text-muted-foreground">{d.data.feedback}</p>
+												)}
+												{d.data.indicators && (
+													<ul className="mt-1 space-y-0.5">
+														{d.data.indicators.slice(0, 3).map((ind: string) => (
+															<li key={ind} className="text-xs text-muted-foreground">
+																• {ind}
+															</li>
+														))}
+													</ul>
+												)}
+											</div>
+										))}
+								</div>
+							</div>
+						)}
+
+						{/* Per-question breakdown */}
+						{showScreeningReport.report.question_scores &&
+							showScreeningReport.report.question_scores.length > 0 && (
+								<div>
+									<h4 className="font-medium text-sm mb-2">Per-Question Breakdown</h4>
+									<div className="space-y-2">
+										{showScreeningReport.report.question_scores.map((qs: any) => {
+											const q =
+												showScreeningReport.session?.questions?.[qs.question_index];
+											return (
+												<div key={qs.question_index} className="p-3 border rounded-lg">
+													<div className="flex items-center justify-between mb-1">
+														<span className="text-sm font-medium">
+															Q{qs.question_index + 1}
+															{q?.question_text && (
+																<span className="font-normal text-muted-foreground">
+																	{' '}
+																	— {q.question_text.slice(0, 80)}
+																	{q.question_text.length > 80 ? '…' : ''}
+																</span>
+															)}
+														</span>
+														<span
+															className={`text-sm font-bold ${
+																(qs.score || 0) >= 70
+																	? 'text-green-600'
+																	: (qs.score || 0) >= 50
+																		? 'text-yellow-600'
+																		: 'text-red-600'
+															}`}
+														>
+															{qs.score ?? '—'}/100
+														</span>
+													</div>
+													{qs.feedback && (
+														<p className="text-xs text-muted-foreground">{qs.feedback}</p>
+													)}
+												</div>
+											);
+										})}
+									</div>
 								</div>
 							)}
 
