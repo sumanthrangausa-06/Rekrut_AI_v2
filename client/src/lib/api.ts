@@ -409,6 +409,8 @@ export function isRecruiterRole(role: UserRole): boolean {
 }
 
 export function getDashboardPath(user: User): string {
+	// Platform admins bypass company join approval
+	if (user.role === 'admin') return '/recruiter';
 	if (isRecruiterRole(user.role) && !user.company_id) {
 		return '/recruiter/pending-approval';
 	}
