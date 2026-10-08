@@ -77,7 +77,7 @@ function buildSearchWhere(params) {
 	conditions.push(`NOT EXISTS (
     SELECT 1 FROM user_settings us
     WHERE us.user_id = csi.user_id
-      AND (us.privacy->>'profile_visible')::boolean = false
+      AND us.privacy->>'profile_visible' = 'false'
   )`);
 
 	// Skills filter (JSONB overlap — any of the provided skills)
