@@ -16,6 +16,7 @@ const DEFAULT_NOTIFICATIONS = {
 	push_jobs: true,
 	push_messages: true,
 	push_reminders: true,
+	important_only: false,
 };
 
 const DEFAULT_PRIVACY = {
