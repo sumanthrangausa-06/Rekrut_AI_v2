@@ -579,20 +579,9 @@ export function QuickPractice({
 			<Dialog
 				open={!!practiceQuestion}
 				onClose={closePractice}
-				className={`max-w-2xl ${responseMode === 'video' && !cameraError && !coaching ? 'overflow-visible isolate max-h-none' : ''}`}
-				style={
-					responseMode === 'video' && !cameraError && !coaching
-						? { overflow: 'visible', isolation: 'isolate' }
-						: undefined
-				}
+				className="max-w-2xl max-h-[90vh] max-h-[90dvh] overflow-y-auto"
 			>
-				<div
-					className={
-						responseMode === 'video' && !cameraError && !coaching
-							? ''
-							: 'max-h-[85vh] overflow-y-auto'
-					}
-				>
+				<div className="max-h-[90vh] max-h-[90dvh] overflow-y-auto">
 					{practiceQuestion && !coaching && !textCoaching && (
 						<>
 							<DialogHeader>
