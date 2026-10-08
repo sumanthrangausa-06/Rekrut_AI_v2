@@ -1205,6 +1205,8 @@ export function SettingsPage() {
 									<button
 										type="button"
 										onClick={() => togglePrivacy(item.key)}
+										aria-label={item.label}
+										aria-pressed={privacy[item.key]}
 										className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
 											privacy[item.key] ? 'bg-primary' : 'bg-muted-foreground/30'
 										}`}
