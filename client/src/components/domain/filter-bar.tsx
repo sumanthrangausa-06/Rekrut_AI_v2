@@ -3,13 +3,7 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '@/components/ui/select';
+import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 export type FilterOption = {
@@ -112,22 +106,17 @@ export function FilterBar({
 								/>
 							) : (
 								<Select
-									value={activeFilters[filter.id] as string}
-									onValueChange={(value) =>
-										onFilterChange(filter.id, value === 'all' ? '' : value)
-									}
+									id={`filter-${filter.id}`}
+									value={(activeFilters[filter.id] as string) ?? ''}
+									onChange={(e) => onFilterChange(filter.id, e.target.value)}
+									className="w-full"
 								>
-									<SelectTrigger id={`filter-${filter.id}`} className="w-full">
-										<SelectValue placeholder={`All ${filter.label}`} />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="all">All {filter.label}</SelectItem>
-										{filter.options?.map((opt) => (
-											<SelectItem key={opt.value} value={opt.value}>
-												{opt.label}
-											</SelectItem>
-										))}
-									</SelectContent>
+									<option value="">All {filter.label}</option>
+									{filter.options?.map((opt) => (
+										<option key={opt.value} value={opt.value}>
+											{opt.label}
+										</option>
+									))}
 								</Select>
 							)}
 						</div>
