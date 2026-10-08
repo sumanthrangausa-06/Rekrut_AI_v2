@@ -154,6 +154,12 @@ const filterOptions = [
 	{
 		id: 'location',
 		label: 'Location',
+		type: 'text' as const,
+		placeholder: 'City or region...',
+	},
+	{
+		id: 'workMode',
+		label: 'Work mode',
 		type: 'select' as const,
 		options: [
 			{ value: 'remote', label: 'Remote' },
@@ -271,6 +277,7 @@ export function RecruiterCandidatesPage() {
 		if (selectedTab !== 'all') params.set('status', selectedTab);
 		if (activeFilters.experience) params.set('experience', activeFilters.experience);
 		if (activeFilters.location) params.set('location', activeFilters.location);
+		if (activeFilters.workMode) params.set('work_mode', activeFilters.workMode);
 		if (activeFilters.matchScore) {
 			const score = activeFilters.matchScore;
 			if (score === '90-100') {
