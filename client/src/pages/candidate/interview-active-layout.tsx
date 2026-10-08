@@ -34,6 +34,7 @@ import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/comp
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { getCameraErrorMessage } from '@/hooks/useInterviewCamera';
 
 import type { MockConversationTurn, MockSession } from './coaching-types';
 import { formatTime } from './coaching-utils';
@@ -333,7 +334,7 @@ export function InterviewActiveLayout({
 										<>
 											<VideoOff className="h-10 w-10 mx-auto mb-3 opacity-60" />
 											<p className="text-sm font-medium">Camera unavailable</p>
-											<p className="text-xs opacity-60 mt-1">{mockCameraError}</p>
+											<p className="text-xs opacity-60 mt-1">{getCameraErrorMessage(mockCameraError)}</p>
 											<Button
 												variant="outline"
 												size="sm"
