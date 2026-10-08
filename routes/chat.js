@@ -18,6 +18,7 @@ const multer = require('multer');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { uploadToB2 } = require('../lib/file-storage');
+const { notifyUser } = require('../lib/notify');
 
 const router = express.Router();
 
@@ -408,6 +409,23 @@ router.post('/conversations/:id/messages', authMiddleware, async (req, res) => {
 		]);
 		const sender = senderRes.rows[0] || {};
 
+		// Notify the other party (non-blocking — notifyUser never throws)
+		const recipientId = isCandidate ? conv.recruiter_id : conv.candidate_id;
+		const senderName = sender.name || 'Unknown';
+		notifyUser(
+			recipientId,
+			'message',
+			`New message from ${senderName}`,
+			content.slice(0, 80),
+			{
+				url: isCandidate
+					? `/recruiter/chat?conversation=${conversationId}`
+					: `/candidate/chat?conversation=${conversationId}`,
+				conversation_id: conversationId,
+				job_id: conv.job_id,
+			},
+		);
+
 		res.json({
 			message: {
 				...buildChatMessage(message),
@@ -533,6 +551,23 @@ router.post(
 				userId,
 			]);
 			const sender = senderRes.rows[0] || {};
+
+			// Notify the other party (non-blocking — notifyUser never throws)
+			const recipientId = isCandidate ? conv.recruiter_id : conv.candidate_id;
+			const senderName = sender.name || 'Unknown';
+			notifyUser(
+				recipientId,
+				'message',
+				`New message from ${senderName}`,
+				`📎 ${req.file.originalname}`.slice(0, 80),
+				{
+					url: isCandidate
+						? `/recruiter/chat?conversation=${conversationId}`
+						: `/candidate/chat?conversation=${conversationId}`,
+					conversation_id: conversationId,
+					job_id: conv.job_id,
+				},
+			);
 
 			res.json({
 				success: true,
