@@ -12,6 +12,11 @@ vi.mock('@/lib/analytics', () => ({
 	trackEvent: vi.fn(),
 }));
 
+// NotificationCenter uses useAuth for role-aware deep links; mock the context
+vi.mock('@/contexts/auth-context', () => ({
+	useAuth: () => ({ isRecruiter: false, user: null, isAuthenticated: false }),
+}));
+
 import { apiCall } from '@/lib/api';
 
 const mockApiCall = vi.mocked(apiCall);
