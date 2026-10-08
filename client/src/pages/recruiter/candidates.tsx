@@ -223,6 +223,45 @@ function normalizeCandidate(raw: any): Candidate {
 	};
 }
 
+// Normalize the GET /api/candidates/:id/preview payload ({ candidate: {...} })
+// into the ProfilePreviewData shape the preview dialog renders. The API uses
+// snake_case and nested row objects; the dialog expects camelCase scalars.
+// Never throws on sparse profiles: arrays default to [], scalars to undefined.
+function normalizePreviewProfile(raw: any): ProfilePreviewData {
+	const c = raw ?? {};
+	const yearOf = (d: any) => {
+		const y = d ? new Date(d).getFullYear() : NaN;
+		return Number.isNaN(y) ? '' : String(y);
+	};
+	const edu = Array.isArray(c.education) ? c.education[0] : null;
+	const eduParts = [edu?.degree, edu?.field_of_study, edu?.institution].filter(Boolean);
+	return {
+		id: String(c.id ?? ''),
+		name: c.name ?? '',
+		avatar: c.avatar_url ?? undefined,
+		headline: c.headline ?? undefined,
+		bio: c.bio ?? undefined,
+		location: c.location ?? undefined,
+		experienceYears: c.years_experience ?? undefined,
+		education: eduParts.length ? eduParts.join(' · ') : undefined,
+		skills: Array.isArray(c.skills)
+			? c.skills.map((s: any) => (typeof s === 'string' ? s : s?.skill_name)).filter(Boolean)
+			: [],
+		omniScore: c.omni_score ?? undefined,
+		availability: c.availability ?? undefined,
+		experience: Array.isArray(c.experience)
+			? c.experience.map((e: any) => ({
+					company: e.company_name ?? '',
+					title: e.title ?? '',
+					duration: [yearOf(e.start_date), e.is_current ? 'Present' : yearOf(e.end_date)]
+						.filter(Boolean)
+						.join(' – '),
+					description: e.description ?? undefined,
+				}))
+			: [],
+	};
+}
+
 export function RecruiterCandidatesPage() {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
@@ -526,8 +565,10 @@ export function RecruiterCandidatesPage() {
 		setProfilePreviewOpen(true);
 		setProfilePreviewLoading(true);
 		try {
-			const data = await apiCall<ProfilePreviewData>(`/candidates/${candidate.id}/preview`);
-			setProfilePreviewData(data);
+			const data = await apiCall<{ candidate: any }>(`/candidates/${candidate.id}/preview`);
+			// API returns a { candidate } wrapper with snake_case fields — unwrap and
+			// normalize into the ProfilePreviewData shape the dialog renders.
+			setProfilePreviewData(normalizePreviewProfile(data.candidate));
 		} catch (err) {
 			console.error('Failed to load profile preview:', err);
 			// Fallback: use candidate data from list
@@ -1142,12 +1183,13 @@ export function RecruiterCandidatesPage() {
 							<div className="flex items-start gap-4">
 								<Avatar className="h-16 w-16 border">
 									<AvatarFallback className="bg-indigo-100 text-indigo-600 text-lg font-semibold">
-										{profilePreviewData.name
+										{(profilePreviewData.name || '')
 											.split(' ')
+											.filter(Boolean)
 											.map((n) => n[0])
 											.join('')
 											.toUpperCase()
-											.slice(0, 2)}
+											.slice(0, 2) || '?'}
 									</AvatarFallback>
 								</Avatar>
 								<div className="flex-1 min-w-0">
@@ -1241,7 +1283,7 @@ export function RecruiterCandidatesPage() {
 							</div>
 
 							{/* Skills */}
-							{profilePreviewData.skills.length > 0 && (
+							{(profilePreviewData.skills ?? []).length > 0 && (
 								<div>
 									<Label className="text-sm font-medium">Skills</Label>
 									<div className="flex flex-wrap gap-1.5 mt-1">
