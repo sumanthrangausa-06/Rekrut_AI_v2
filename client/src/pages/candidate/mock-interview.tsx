@@ -84,7 +84,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 
 	// Mock interview camera state
 	const [mockCameraReady, setMockCameraReady] = useState(false);
-	const [_mockCameraError, setMockCameraError] = useState<string | null>(null);
+	const [mockCameraError, setMockCameraError] = useState<string | null>(null);
 	const mockVideoRef = useRef<HTMLVideoElement>(null);
 	const mockStreamRef = useRef<MediaStream | null>(null);
 	const [_showTranscript, setShowTranscript] = useState(false);
@@ -99,6 +99,9 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 	const mockLiveTranscriptRef = useRef('');
 	const mockRecognitionRef = useRef<any>(null);
 	const voiceRetryCountRef = useRef<number>(0);
+	// Consecutive "no speech detected" count — after 3 in a row, show an
+	// escalating message so the user isn't stuck in a Q1 loop (#447).
+	const noSpeechStreakRef = useRef<number>(0);
 	const mockRecordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const [mockRecordingTime, setMockRecordingTime] = useState(0);
 
@@ -199,17 +202,25 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 		}
 	}, [voiceError]);
 
-	// Cleanup on unmount
+	// Cleanup on unmount ONLY (#447).
+	// The stop-* functions are plain declarations with new identities on every
+	// render. Listing them as effect deps made React run this cleanup before
+	// EVERY re-render, killing the camera/mic streams right after they started
+	// (camera showed disabled icon, mic dead, AI stuck repeating Q1).
+	// The ref always points at the latest closures; the effect has empty deps
+	// so it runs only on unmount.
+	const unmountCleanupRef = useRef<() => void>(() => {});
+	unmountCleanupRef.current = () => {
+		stopVoiceMode();
+		stopMockCamera();
+		stopMockFrameCapture();
+		stopMockSpeechRecognition();
+		if (mockRecordingTimerRef.current) clearInterval(mockRecordingTimerRef.current);
+		disposeAudio();
+	};
 	useEffect(() => {
-		return () => {
-			stopVoiceMode();
-			stopMockCamera();
-			stopMockFrameCapture();
-			stopMockSpeechRecognition();
-			if (mockRecordingTimerRef.current) clearInterval(mockRecordingTimerRef.current);
-			disposeAudio();
-		};
-	}, [stopMockFrameCapture, stopMockSpeechRecognition, stopVoiceMode, stopMockCamera, disposeAudio]);
+		return () => unmountCleanupRef.current();
+	}, []);
 
 	// ===== CAMERA FUNCTIONS =====
 
@@ -502,9 +513,18 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 				if (totalSilenceChecks >= 23 && !currentTranscript.trim()) {
 					console.log('[voice] Skipping — recording was mostly silence');
 					setMockLiveTranscript('');
-					setVoiceError('No speech detected. Tap the mic button when ready to speak.');
+					noSpeechStreakRef.current += 1;
+					if (noSpeechStreakRef.current >= 3) {
+						setVoiceError(
+							'Still no speech detected after 3 tries. Please check your microphone is enabled and not muted, or type your answer below instead.',
+						);
+					} else {
+						setVoiceError('No speech detected. Tap the mic button when ready to speak.');
+					}
 					return;
 				}
+				// Speech was detected — reset the no-speech streak.
+				noSpeechStreakRef.current = 0;
 
 				setVoiceProcessing(true);
 				voiceProcessingRef.current = true;
@@ -592,6 +612,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 
 					if (data.success) {
 						voiceRetryCountRef.current = 0;
+						noSpeechStreakRef.current = 0;
 
 						const candidateMsg: MockConversationTurn = {
 							role: 'candidate',
@@ -1047,7 +1068,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 					mockSession={mockSession}
 					mockVideoRef={mockVideoRef}
 					mockCameraReady={mockCameraReady}
-					mockCameraError={_mockCameraError}
+					mockCameraError={mockCameraError}
 					voiceMode={voiceMode}
 					aiSpeaking={aiSpeaking}
 					candidateRecording={candidateRecording}

@@ -53,6 +53,7 @@ interface NotificationSettings {
 	push_jobs: boolean;
 	push_messages: boolean;
 	push_reminders: boolean;
+	important_only: boolean;
 }
 
 interface PrivacySettings {
@@ -97,6 +98,7 @@ export function SettingsPage() {
 		push_jobs: true,
 		push_messages: true,
 		push_reminders: true,
+		important_only: false,
 	});
 
 	// Privacy state
@@ -1121,47 +1123,34 @@ export function SettingsPage() {
 
 					<Card>
 						<CardHeader>
-							<CardTitle>Push Notifications</CardTitle>
-							<CardDescription>Real-time alerts in your browser</CardDescription>
+							<CardTitle>In-App Notifications</CardTitle>
+							<CardDescription>Control which notifications appear in the app</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">
-							{[
-								{
-									key: 'push_jobs' as const,
-									label: 'Job alerts',
-									desc: 'Instant alerts for new job matches',
-								},
-								{
-									key: 'push_messages' as const,
-									label: 'Messages',
-									desc: 'When someone messages you',
-								},
-								{
-									key: 'push_reminders' as const,
-									label: 'Reminders',
-									desc: 'Interview and deadline reminders',
-								},
-							].map((item) => (
-								<div key={item.key} className="flex items-center justify-between">
-									<div className="space-y-0.5">
-										<p className="font-medium">{item.label}</p>
-										<p className="text-sm text-muted-foreground">{item.desc}</p>
-									</div>
-									<button
-										type="button"
-										onClick={() => toggleNotification(item.key)}
-										className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-											notifications[item.key] ? 'bg-primary' : 'bg-muted-foreground/30'
-										}`}
-									>
-										<span
-											className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
-												notifications[item.key] ? 'translate-x-6' : 'translate-x-1'
-											}`}
-										/>
-									</button>
+							<div className="flex items-center justify-between">
+								<div className="space-y-0.5">
+									<p className="font-medium">Important notifications only</p>
+									<p className="text-sm text-muted-foreground">
+										Only show messages, interviews, offers, and application status changes.
+										Turn off to see all notifications.
+									</p>
 								</div>
-							))}
+								<button
+									type="button"
+									onClick={() => toggleNotification('important_only')}
+									aria-label="Important notifications only"
+									aria-pressed={notifications.important_only}
+									className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+										notifications.important_only ? 'bg-primary' : 'bg-muted-foreground/30'
+									}`}
+								>
+									<span
+										className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+											notifications.important_only ? 'translate-x-6' : 'translate-x-1'
+										}`}
+									/>
+								</button>
+							</div>
 						</CardContent>
 					</Card>
 
