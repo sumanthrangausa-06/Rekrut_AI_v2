@@ -894,7 +894,16 @@ export function RecruiterCandidatesPage() {
 										{selectedCandidates.has(candidate.id) && (
 											<CheckSquare className="h-4 w-4 text-indigo-600" />
 										)}
-									<CandidateCard
+									</button>
+								</div>
+								{candidate.applicationStatus && (
+									<Badge
+										className={`absolute top-3 right-3 z-10 ${statusColors[candidate.applicationStatus]}`}
+									>
+										{statusLabels[candidate.applicationStatus]}
+									</Badge>
+								)}
+								<CandidateCard
 										id={candidate.id}
 										name={candidate.name}
 										avatar={candidate.avatar}
@@ -936,53 +945,6 @@ export function RecruiterCandidatesPage() {
 							))}
 						</div>
 
-								{candidate.applicationStatus && (
-									<Badge
-										className={`absolute top-3 right-3 z-10 ${statusColors[candidate.applicationStatus]}`}
-									>
-										{statusLabels[candidate.applicationStatus]}
-									</Badge>
-								)}
-								<CandidateCard
-									id={candidate.id}
-									name={candidate.name}
-									avatar={candidate.avatar}
-									headline={candidate.headline}
-									location={candidate.location}
-									experienceYears={candidate.experienceYears}
-									education={candidate.education}
-									skills={candidate.skills}
-									matchScore={candidate.matchScore}
-									omniscore={candidate.omniscore}
-									trustscore={candidate.trustscore}
-									isTopCandidate={candidate.isTopCandidate}
-									onMessage={handleMessage}
-									onSchedule={handleSchedule}
-									onShortlist={handleShortlist}
-									onInvite={handleOpenInvite}
-									onClick={() => handleOpenProfilePreview(candidate)}
-									className={
-										selectedCandidates.has(candidate.id) ? 'ring-2 ring-indigo-200' : ''
-									}
-								/>
-								{/* AI Screener button overlay */}
-								<div className="absolute bottom-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block">
-									<Button
-										size="sm"
-										variant="outline"
-										className="gap-1 text-xs h-7 min-h-[44px] bg-background border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950"
-										onClick={(e) => {
-											e.stopPropagation();
-											handleAiScreen(candidate);
-										}}
-									>
-										<BrainCircuit className="h-3 w-3" />
-										AI Screen
-									</Button>
-								</div>
-							</div>
-						))}
-					</div>
 
 					{/* Pagination */}
 					{totalPages > 1 && (
