@@ -217,9 +217,12 @@ const statusLabels: Record<string, string> = {
 function normalizeCandidate(raw: any): Candidate {
 	return {
 		...raw,
+		// API returns snake_case; the card reads camelCase (US-2.1)
+		avatar: raw.avatar_url || raw.avatar || undefined,
+		experienceYears: raw.experience_years ?? raw.experienceYears,
+		omniscore: raw.omni_score ?? raw.omniScore ?? raw.omniscore ?? null,
+		availability: raw.availability_status || raw.availability || undefined,
 		skills: raw.skills?.map((s: any) => (typeof s === 'string' ? s : s.name)) || [],
-		// Map omniScore (API) to omniscore (component prop) for display
-		omniscore: raw.omniScore ?? raw.omniscore ?? null,
 	};
 }
 
@@ -965,6 +968,7 @@ export function RecruiterCandidatesPage() {
 											matchScore={candidate.matchScore}
 											omniscore={candidate.omniscore}
 											trustscore={candidate.trustscore}
+											availability={candidate.availability}
 											isTopCandidate={candidate.isTopCandidate}
 											onMessage={handleMessage}
 											onSchedule={handleSchedule}
