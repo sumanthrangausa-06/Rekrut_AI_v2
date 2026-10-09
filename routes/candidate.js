@@ -163,7 +163,16 @@ router.get('/profile', authMiddleware, async (req, res) => {
 		);
 
 		const skills = await pool.query(
-			'SELECT * FROM candidate_skills WHERE user_id = $1 ORDER BY level DESC, skill_name',
+			`SELECT cs.*,
+			        COALESCE(e.endorsement_count, 0)::int AS endorsements
+			 FROM candidate_skills cs
+			 LEFT JOIN (
+			   SELECT candidate_id, skill_name, COUNT(*) AS endorsement_count
+			   FROM skill_endorsements
+			   WHERE candidate_id = $1
+			   GROUP BY candidate_id, skill_name
+			 ) e ON e.skill_name = cs.skill_name
+			 WHERE cs.user_id = $1 ORDER BY cs.level DESC, cs.skill_name`,
 			[req.user.id],
 		);
 
@@ -1554,7 +1563,16 @@ router.delete('/education/:id', authMiddleware, async (req, res) => {
 router.get('/skills', authMiddleware, async (req, res) => {
 	try {
 		const skills = await pool.query(
-			'SELECT * FROM candidate_skills WHERE user_id = $1 ORDER BY category, level DESC',
+			`SELECT cs.*,
+			        COALESCE(e.endorsement_count, 0)::int AS endorsements
+			 FROM candidate_skills cs
+			 LEFT JOIN (
+			   SELECT candidate_id, skill_name, COUNT(*) AS endorsement_count
+			   FROM skill_endorsements
+			   WHERE candidate_id = $1
+			   GROUP BY candidate_id, skill_name
+			 ) e ON e.skill_name = cs.skill_name
+			 WHERE cs.user_id = $1 ORDER BY cs.category, cs.level DESC`,
 			[req.user.id],
 		);
 		res.json({ success: true, skills: skills.rows });

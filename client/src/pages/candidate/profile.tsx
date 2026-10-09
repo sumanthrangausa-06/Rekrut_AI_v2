@@ -2971,7 +2971,6 @@ function SkillsTab({
 	const [newCategory, setNewCategory] = useState('technical');
 	const [newLevel, setNewLevel] = useState(3);
 	const [adding, setAdding] = useState(false);
-	const [_endorsing, setEndorsing] = useState<number | null>(null);
 	const [_expanded, setExpanded] = useState<Set<number>>(new Set());
 	const [addingMode, setAddingMode] = useState(false);
 	const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -3078,21 +3077,6 @@ function SkillsTab({
 			showMessage('success', 'Skill removed');
 		} catch {
 			showMessage('error', 'Failed to delete skill');
-		}
-	}
-
-	async function _endorseSkill(skillId: number) {
-		setEndorsing(skillId);
-		try {
-			await apiCall(`/candidate/skills/${skillId}/endorse`, { method: 'POST' });
-			setSkills((prev) =>
-				prev.map((s) => (s.id === skillId ? { ...s, endorsements: (s.endorsements || 0) + 1 } : s)),
-			);
-			showMessage('success', 'Skill endorsed!');
-		} catch {
-			showMessage('error', 'Failed to endorse');
-		} finally {
-			setEndorsing(null);
 		}
 	}
 
