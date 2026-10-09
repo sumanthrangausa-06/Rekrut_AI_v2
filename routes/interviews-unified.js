@@ -16,6 +16,29 @@ const interviewService = require('../services/interview-service');
 
 const router = express.Router();
 
+// Lazy-load analytics cache to avoid circular imports (only used for invalidation)
+let analyticsCache = null;
+function getAnalyticsCache() {
+	if (!analyticsCache) {
+		analyticsCache = require('../lib/analytics-cache');
+	}
+	return analyticsCache;
+}
+
+function invalidateRecruiterDashboard() {
+	try {
+		getAnalyticsCache().invalidatePatterns([
+			'/api/recruiter/dashboard',
+			'/api/recruiter/analytics',
+			'/api/recruiter/pipeline-stats',
+			'/api/analytics',
+		]);
+	} catch (err) {
+		// Non-blocking: cache invalidation must never break the request
+		console.error('[analytics-cache] invalidation failed:', err.message);
+	}
+}
+
 function interviewServiceErrorStatus(code) {
 	return (
 		{ NOT_FOUND: 404, FORBIDDEN: 403, INVALID_STATE: 400, VALIDATION: 400 }[code] || 500
@@ -57,6 +80,8 @@ router.post('/unified', authMiddleware, async (req, res) => {
 			notes: body.notes ?? null,
 			panel_member_ids: body.panel_member_ids ?? [],
 		});
+		// Invalidate recruiter dashboard cache — new interview affects counts (#524)
+		invalidateRecruiterDashboard();
 		res.status(201).json({ success: true, event: result.event, slots: result.slots });
 	} catch (err) {
 		console.error('Create unified interview error:', err);
@@ -78,6 +103,8 @@ router.post('/unified/:id/confirm-slot', authMiddleware, async (req, res) => {
 			(req.body || {}).slot_id,
 			req.user.id,
 		);
+		// Invalidate recruiter dashboard cache — confirmed slot affects counts (#524)
+		invalidateRecruiterDashboard();
 		res.json({ success: true, interview });
 	} catch (err) {
 		console.error('Confirm slot error:', err);
