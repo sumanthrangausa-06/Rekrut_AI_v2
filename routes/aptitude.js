@@ -730,6 +730,101 @@ router.post('/recruiter/aptitude-tests', authMiddleware, requireRecruiter, async
 });
 
 /**
+ * GET /recruiter/aptitude-tests/stats
+ * Pool statistics: avg score, score distribution, percentile data.
+ */
+router.get(
+	'/recruiter/aptitude-tests/stats',
+	authMiddleware,
+	requireRecruiter,
+	async (req, res) => {
+		try {
+			const { testId } = req.query;
+
+			// Overall stats
+			let statsQuery = `
+          SELECT
+            COUNT(*) as total_attempts,
+            COUNT(*) FILTER (WHERE status = 'completed') as completed_count,
+            COUNT(*) FILTER (WHERE status = 'timed_out') as timed_out_count,
+            ROUND(AVG(score) FILTER (WHERE status IN ('completed', 'timed_out')), 1) as avg_score,
+            ROUND(AVG(max_score) FILTER (WHERE status IN ('completed', 'timed_out')), 1) as avg_max_score,
+            ROUND(AVG(percentile) FILTER (WHERE percentile IS NOT NULL), 1) as avg_percentile,
+            MAX(score) as highest_score,
+            MIN(score) as lowest_score,
+            ROUND(AVG(anti_cheat_score), 1) as avg_anti_cheat_score,
+            ROUND(AVG(time_spent_seconds), 0) as avg_time_spent
+          FROM aptitude_test_attempts
+          WHERE status IN ('completed', 'timed_out')
+        `;
+			const statsParams = [];
+
+			if (testId) {
+				statsQuery += ' AND test_id = $1';
+				statsParams.push(parseInt(testId, 10));
+			}
+
+			const statsResult = await pool.query(statsQuery, statsParams);
+
+			// Score distribution buckets
+			let distQuery = `
+          SELECT
+            CASE
+              WHEN score < max_score * 0.4 THEN '0-39%'
+              WHEN score < max_score * 0.5 THEN '40-49%'
+              WHEN score < max_score * 0.6 THEN '50-59%'
+              WHEN score < max_score * 0.7 THEN '60-69%'
+              WHEN score < max_score * 0.8 THEN '70-79%'
+              WHEN score < max_score * 0.9 THEN '80-89%'
+              ELSE '90-100%'
+            END as bucket,
+            COUNT(*) as count
+          FROM aptitude_test_attempts
+          WHERE status IN ('completed', 'timed_out')
+        `;
+			if (testId) {
+				distQuery += ' AND test_id = $1';
+			}
+			distQuery += ' GROUP BY 1 ORDER BY 1';
+
+			const distResult = await pool.query(distQuery, statsParams);
+
+			// Category performance breakdown (from answers JSONB)
+			let categoryQuery = `
+          SELECT
+            q.category,
+            COUNT(*) as total_answers,
+            COUNT(*) FILTER (WHERE (a.value->>'isCorrect')::boolean = true) as correct_answers,
+            ROUND(
+              COUNT(*) FILTER (WHERE (a.value->>'isCorrect')::boolean = true) * 100.0 / NULLIF(COUNT(*), 0),
+              1
+            ) as accuracy_pct
+          FROM aptitude_test_attempts ata,
+               LATERAL jsonb_array_elements(ata.answers) a
+          JOIN aptitude_questions q ON (a.value->>'questionId')::int = q.id
+          WHERE ata.status IN ('completed', 'timed_out')
+            AND (a.value->>'answered')::boolean = true
+        `;
+			if (testId) {
+				categoryQuery += ' AND ata.test_id = $1';
+			}
+			categoryQuery += ' GROUP BY q.category ORDER BY accuracy_pct DESC';
+
+			const categoryResult = await pool.query(categoryQuery, statsParams);
+
+			res.json({
+				stats: statsResult.rows[0] || {},
+				scoreDistribution: distResult.rows,
+				categoryBreakdown: categoryResult.rows,
+			});
+		} catch (error) {
+			console.error('Error fetching aptitude stats:', error);
+			res.status(500).json({ error: 'Failed to fetch stats' });
+		}
+	},
+);
+
+/**
  * GET /recruiter/aptitude-tests/:id
  * Get a single aptitude test with its questions.
  */
@@ -838,7 +933,7 @@ router.get(
 				`
         SELECT ata.*, u.name as candidate_name, u.email as candidate_email
         FROM aptitude_test_attempts ata
-        JOIN users u ON u.id = ata.user_id
+        JOIN users u ON u.id = ata.candidate_id
         WHERE ata.test_id = $1
         ORDER BY ata.created_at DESC
       `,
@@ -1080,101 +1175,6 @@ router.get(
 		} catch (error) {
 			console.error('Error fetching candidate aptitude results:', error);
 			res.status(500).json({ error: 'Failed to fetch results' });
-		}
-	},
-);
-
-/**
- * GET /recruiter/aptitude-tests/stats
- * Pool statistics: avg score, score distribution, percentile data.
- */
-router.get(
-	'/recruiter/aptitude-tests/stats',
-	authMiddleware,
-	requireRecruiter,
-	async (req, res) => {
-		try {
-			const { testId } = req.query;
-
-			// Overall stats
-			let statsQuery = `
-          SELECT
-            COUNT(*) as total_attempts,
-            COUNT(*) FILTER (WHERE status = 'completed') as completed_count,
-            COUNT(*) FILTER (WHERE status = 'timed_out') as timed_out_count,
-            ROUND(AVG(score) FILTER (WHERE status IN ('completed', 'timed_out')), 1) as avg_score,
-            ROUND(AVG(max_score) FILTER (WHERE status IN ('completed', 'timed_out')), 1) as avg_max_score,
-            ROUND(AVG(percentile) FILTER (WHERE percentile IS NOT NULL), 1) as avg_percentile,
-            MAX(score) as highest_score,
-            MIN(score) as lowest_score,
-            ROUND(AVG(anti_cheat_score), 1) as avg_anti_cheat_score,
-            ROUND(AVG(time_spent_seconds), 0) as avg_time_spent
-          FROM aptitude_test_attempts
-          WHERE status IN ('completed', 'timed_out')
-        `;
-			const statsParams = [];
-
-			if (testId) {
-				statsQuery += ' AND test_id = $1';
-				statsParams.push(parseInt(testId, 10));
-			}
-
-			const statsResult = await pool.query(statsQuery, statsParams);
-
-			// Score distribution buckets
-			let distQuery = `
-          SELECT
-            CASE
-              WHEN score < max_score * 0.4 THEN '0-39%'
-              WHEN score < max_score * 0.5 THEN '40-49%'
-              WHEN score < max_score * 0.6 THEN '50-59%'
-              WHEN score < max_score * 0.7 THEN '60-69%'
-              WHEN score < max_score * 0.8 THEN '70-79%'
-              WHEN score < max_score * 0.9 THEN '80-89%'
-              ELSE '90-100%'
-            END as bucket,
-            COUNT(*) as count
-          FROM aptitude_test_attempts
-          WHERE status IN ('completed', 'timed_out')
-        `;
-			if (testId) {
-				distQuery += ' AND test_id = $1';
-			}
-			distQuery += ' GROUP BY 1 ORDER BY 1';
-
-			const distResult = await pool.query(distQuery, statsParams);
-
-			// Category performance breakdown (from answers JSONB)
-			let categoryQuery = `
-          SELECT
-            q.category,
-            COUNT(*) as total_answers,
-            COUNT(*) FILTER (WHERE (a.value->>'isCorrect')::boolean = true) as correct_answers,
-            ROUND(
-              COUNT(*) FILTER (WHERE (a.value->>'isCorrect')::boolean = true) * 100.0 / NULLIF(COUNT(*), 0),
-              1
-            ) as accuracy_pct
-          FROM aptitude_test_attempts ata,
-               LATERAL jsonb_array_elements(ata.answers) a
-          JOIN aptitude_questions q ON (a.value->>'questionId')::int = q.id
-          WHERE ata.status IN ('completed', 'timed_out')
-            AND (a.value->>'answered')::boolean = true
-        `;
-			if (testId) {
-				categoryQuery += ' AND ata.test_id = $1';
-			}
-			categoryQuery += ' GROUP BY q.category ORDER BY accuracy_pct DESC';
-
-			const categoryResult = await pool.query(categoryQuery, statsParams);
-
-			res.json({
-				stats: statsResult.rows[0] || {},
-				scoreDistribution: distResult.rows,
-				categoryBreakdown: categoryResult.rows,
-			});
-		} catch (error) {
-			console.error('Error fetching aptitude stats:', error);
-			res.status(500).json({ error: 'Failed to fetch stats' });
 		}
 	},
 );
