@@ -88,6 +88,7 @@ const LEGACY_RECRUITER_PERMISSIONS = [
 	'candidates:read', 'candidates:manage', 'applications:read', 'applications:update',
 	'analytics:read', 'company:read', 'company:manage',
 	'members:read', 'interviews:read', 'interviews:manage',
+	'interviews:schedule', 'interviews:conduct',
 ];
 const LEGACY_ROLE_PERMISSIONS = {
 	employer: LEGACY_RECRUITER_PERMISSIONS,
