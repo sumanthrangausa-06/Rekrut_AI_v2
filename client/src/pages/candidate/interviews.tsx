@@ -234,7 +234,7 @@ export function CandidateInterviewsPage() {
 		}
 		try {
 			const sres = await withTimeout(
-				apiCall<{ success: boolean; sessions: any[] }>('/api/interviews/screening/my-sessions'),
+				apiCall<{ success: boolean; sessions: any[] }>('/interviews/screening/my-sessions'),
 				FETCH_TIMEOUT,
 				'Screenings',
 			);
