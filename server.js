@@ -107,6 +107,7 @@ const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
 const interviewSessionRoutes = require('./routes/interview-sessions'); // Phase 1 (#322) — unified interview sessions
 const interviewEventsRoutes = require('./routes/interview-events'); // Issue #127 — Calendar scheduling
+const interviewsUnifiedRoutes = require('./routes/interviews-unified'); // Unified human interviews (must mount BEFORE interviewEventsRoutes — see below)
 const quickPracticeRoutes = require('./routes/quick-practice'); // ISOLATED from Mock Interview (#32717)
 const omniscoreRoutes = require('./routes/omniscore');
 const companyRoutes = require('./routes/company');
@@ -654,6 +655,10 @@ app.use('/api/interviews', interviewSessionRoutes); // Phase 1 (#322) — unifie
 // Issue #244 — mount BEFORE interviewEventsRoutes: its GET /:id isInt validator
 // would otherwise 400 every /recordings request (same shadowing class as C1).
 app.use('/api/interviews/recordings', recordingRoutes); // Issue #126 — Interview recording, playback & AI transcript
+// Unified human interviews (GET /my-interviews, POST /unified, POST /unified/:id/confirm-slot)
+// — mount BEFORE interviewEventsRoutes: its GET /:id isInt validator would
+// otherwise 400 on the fixed segment "my-interviews" (same shadowing class as #244).
+app.use('/api/interviews', interviewsUnifiedRoutes);
 app.use('/api/interviews', interviewEventsRoutes); // Issue #127 — Calendar interview scheduling
 app.use('/api/interviews', quickPracticeRoutes); // ISOLATED Quick Practice — must be BEFORE interview routes (#32717)
 app.use('/api/interviews', interviewRoutes); // Mock Interview + video analysis (no practice routes)
