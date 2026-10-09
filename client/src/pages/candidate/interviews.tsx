@@ -31,6 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { apiCall } from '@/lib/api';
 import { UNSPLASH_IMAGES } from '@/lib/avatar';
+import { expiryLabel } from '@/lib/invite-expiry';
 
 const FETCH_TIMEOUT = 10000; // 10 seconds
 
@@ -153,6 +154,8 @@ function sessionTypeLabel(s: any): string {
 
 function AISessionCard({ session: s }: { session: any }) {
 	const navigate = useNavigate();
+	const expiry = expiryLabel(s.expires_at);
+	const expiryActive = s.status === 'invited' || s.status === 'in_progress';
 	return (
 		<Card key={s.id}>
 			<CardContent className="p-4">
@@ -188,6 +191,15 @@ function AISessionCard({ session: s }: { session: any }) {
 						{s.overall_score != null && (
 							<p className="text-sm mt-1">
 								Score: <span className="font-semibold">{s.overall_score}/100</span>
+							</p>
+						)}
+						{expiry && expiryActive && (
+							<p
+								className={`text-xs mt-1.5 ${
+									expiry.urgent ? 'text-amber-600 font-medium' : 'text-muted-foreground'
+								}`}
+							>
+								{expiry.text}
 							</p>
 						)}
 					</div>
