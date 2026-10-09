@@ -139,7 +139,10 @@ router.get('/profile', authMiddleware, async (req, res) => {
 	try {
 		const profile = await pool.query(
 			`
-      SELECT cp.*, u.name, u.email, u.avatar_url, os.total_score as omni_score
+      SELECT cp.*, u.name, u.email, u.avatar_url, os.total_score as omni_score,
+      (SELECT original_filename FROM parsed_resumes
+        WHERE user_id = u.id AND file_url = cp.resume_url
+        ORDER BY id DESC LIMIT 1) as resume_filename
       FROM users u
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id
@@ -469,7 +472,7 @@ router.post('/profile/resume', authMiddleware, upload.single('resume'), async (r
 			});
 		}
 
-		res.json({ success: true, resume_url: resumeUrl });
+		res.json({ success: true, resume_url: resumeUrl, resume_filename: req.file.originalname });
 	} catch (err) {
 		console.error('Profile resume upload error:', err);
 		res.status(500).json({ error: 'Failed to upload resume', code: 'UNKNOWN' });
@@ -780,6 +783,7 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
 		res.json({
 			success: true,
 			resume_url: fileUrl,
+			resume_filename: req.file.originalname,
 			parsed_data: parsedData,
 			resume_id: resumeRecord.rows[0].id,
 		});
@@ -3207,15 +3211,23 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 			[req.user.id],
 		);
 
-		// Calculate profile completeness
+		// Calculate profile completeness — 12-field formula shared with the
+		// frontend (client/src/lib/profile-completion.ts). Both the Profile
+		// page and Dashboard must always show the same percentage.
 		const p = profile.rows[0] || {};
 		const completenessFields = [
+			p.name,
 			p.headline,
 			p.bio,
 			p.location,
 			p.linkedin_url || p.github_url,
+			p.resume_url,
 			parseInt(skillCount.rows[0]?.count, 10) > 0,
 			parseInt(experienceCount.rows[0]?.count, 10) > 0,
+			parseInt(educationCount.rows[0]?.count, 10) > 0,
+			p.phone,
+			p.years_experience != null,
+			p.avatar_url,
 		];
 		const completeness = Math.round(
 			(completenessFields.filter(Boolean).length / completenessFields.length) * 100,

@@ -62,6 +62,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/auth-context';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall } from '@/lib/api';
+import {
+	calculateProfileCompletion,
+	getMissingProfileSections,
+} from '@/lib/profile-completion';
+import { formatDateRange } from '@/lib/utils';
 
 interface Profile {
 	user_id?: number;
@@ -76,6 +81,7 @@ interface Profile {
 	github_url?: string;
 	portfolio_url?: string;
 	resume_url?: string;
+	resume_filename?: string;
 	availability?: string;
 	salary_min?: number;
 	salary_max?: number;
@@ -726,38 +732,25 @@ export function CandidateProfilePage() {
 		}
 	}
 
-	// Profile completeness
-	const completenessFields = [
-		profile.name,
-		profile.headline,
-		profile.bio,
-		profile.location,
-		profile.linkedin_url || profile.github_url,
-		profile.resume_url,
-		skills.length > 0,
-		experience.length > 0,
-		education.length > 0,
-		profile.phone,
-		profile.years_experience != null,
-		profile.avatar_url,
-	];
-	const completeness = Math.round(
-		(completenessFields.filter(Boolean).length / completenessFields.length) * 100,
-	);
-	const missingSections = [
-		!profile.name && 'Name',
-		!profile.headline && 'Headline',
-		!profile.bio && 'Bio',
-		!profile.location && 'Location',
-		!(profile.linkedin_url || profile.github_url) && 'Social Links',
-		!profile.resume_url && 'Resume',
-		skills.length === 0 && 'Skills',
-		experience.length === 0 && 'Experience',
-		education.length === 0 && 'Education',
-		!profile.phone && 'Phone',
-		profile.years_experience == null && 'Years of Experience',
-		!profile.avatar_url && 'Profile Photo',
-	].filter(Boolean) as string[];
+	// Profile completeness — shared calculation (see @/lib/profile-completion).
+	// The Dashboard uses the same 12-field formula via the backend.
+	const completionInput = {
+		name: profile.name,
+		headline: profile.headline,
+		bio: profile.bio,
+		location: profile.location,
+		linkedin_url: profile.linkedin_url,
+		github_url: profile.github_url,
+		resume_url: profile.resume_url,
+		phone: profile.phone,
+		years_experience: profile.years_experience,
+		avatar_url: profile.avatar_url,
+		hasSkills: skills.length > 0,
+		hasExperience: experience.length > 0,
+		hasEducation: education.length > 0,
+	};
+	const completeness = calculateProfileCompletion(completionInput);
+	const missingSections = getMissingProfileSections(completionInput);
 
 	if (loading) {
 		return (
@@ -1203,6 +1196,8 @@ interface CollapsibleSectionProps {
 	children: React.ReactNode;
 	defaultOpen?: boolean;
 	action?: React.ReactNode;
+	/** When false, the section is always expanded with no collapse arrow (e.g. Skills). */
+	collapsible?: boolean;
 }
 function CollapsibleSection({
 	title,
@@ -1211,37 +1206,58 @@ function CollapsibleSection({
 	children,
 	defaultOpen: _defaultOpen = true,
 	action,
+	collapsible = true,
 }: CollapsibleSectionProps) {
 	const [open, setOpen] = useResponsiveDefaultOpen();
+	const expanded = collapsible ? open : true;
 	return (
 		<div className="border rounded-xl bg-card">
-			<button type="button"
-				onClick={() => setOpen(!open)}
-				className="w-full flex items-center justify-between p-4 hover:bg-muted/50 rounded-xl transition-colors"
-			>
-				<div className="flex items-center gap-3">
-					<div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
-						<Icon className="h-5 w-5 text-primary" />
+			{collapsible ? (
+				<button type="button"
+					onClick={() => setOpen(!open)}
+					className="w-full flex items-center justify-between p-4 hover:bg-muted/50 rounded-xl transition-colors"
+				>
+					<div className="flex items-center gap-3">
+						<div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+							<Icon className="h-5 w-5 text-primary" />
+						</div>
+						<div className="text-left">
+							<h3 className="font-semibold text-sm">{title}</h3>
+							{count !== undefined && (
+								<p className="text-xs text-muted-foreground">
+									{count} {count === 1 ? 'entry' : 'entries'}
+								</p>
+							)}
+						</div>
 					</div>
-					<div className="text-left">
-						<h3 className="font-semibold text-sm">{title}</h3>
-						{count !== undefined && (
-							<p className="text-xs text-muted-foreground">
-								{count} {count === 1 ? 'entry' : 'entries'}
-							</p>
+					<div className="flex items-center gap-2">
+						{action}
+						{open ? (
+							<ChevronUp className="h-4 w-4 text-muted-foreground" />
+						) : (
+							<ChevronDown className="h-4 w-4 text-muted-foreground" />
 						)}
 					</div>
+				</button>
+			) : (
+				<div className="w-full flex items-center justify-between p-4">
+					<div className="flex items-center gap-3">
+						<div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+							<Icon className="h-5 w-5 text-primary" />
+						</div>
+						<div className="text-left">
+							<h3 className="font-semibold text-sm">{title}</h3>
+							{count !== undefined && (
+								<p className="text-xs text-muted-foreground">
+									{count} {count === 1 ? 'entry' : 'entries'}
+								</p>
+							)}
+						</div>
+					</div>
+					<div className="flex items-center gap-2">{action}</div>
 				</div>
-				<div className="flex items-center gap-2">
-					{action}
-					{open ? (
-						<ChevronUp className="h-4 w-4 text-muted-foreground" />
-					) : (
-						<ChevronDown className="h-4 w-4 text-muted-foreground" />
-					)}
-				</div>
-			</button>
-			{open && <div className="px-4 pb-4">{children}</div>}
+			)}
+			{expanded && <div className="px-4 pb-4">{children}</div>}
 		</div>
 	);
 }
@@ -1343,21 +1359,7 @@ function OverviewTab({
 												{exp.location && ` · ${exp.location}`}
 											</p>
 											<p className="text-xs text-muted-foreground mt-0.5">
-												{exp.start_date
-													? new Date(exp.start_date).toLocaleDateString('en-US', {
-															month: 'short',
-															year: 'numeric',
-														})
-													: 'Start'}{' '}
-												—{' '}
-												{exp.is_current
-													? 'Present'
-													: exp.end_date
-														? new Date(exp.end_date).toLocaleDateString('en-US', {
-																month: 'short',
-																year: 'numeric',
-															})
-														: 'End'}
+												{formatDateRange(exp.start_date, exp.end_date, exp.is_current)}
 											</p>
 											{exp.description && (
 												<p className="text-xs text-muted-foreground mt-1 line-clamp-2">
@@ -1408,21 +1410,7 @@ function OverviewTab({
 													{exp.location && ` · ${exp.location}`}
 												</p>
 												<p className="text-xs text-muted-foreground mt-0.5">
-													{exp.start_date
-														? new Date(exp.start_date).toLocaleDateString('en-US', {
-																month: 'short',
-																year: 'numeric',
-															})
-														: 'Start'}{' '}
-													—{' '}
-													{exp.is_current
-														? 'Present'
-														: exp.end_date
-															? new Date(exp.end_date).toLocaleDateString('en-US', {
-																	month: 'short',
-																	year: 'numeric',
-																})
-															: 'End'}
+													{formatDateRange(exp.start_date, exp.end_date, exp.is_current)}
 												</p>
 												{exp.description && (
 													<p className="text-xs text-muted-foreground mt-1 line-clamp-2">
@@ -1809,7 +1797,7 @@ function ResumeUpload({
 	showMessage,
 }: {
 	profile: Profile;
-	onUploaded: (url: string) => void;
+	onUploaded: (url: string, filename?: string) => void;
 	showMessage: (type: 'success' | 'error', text: React.ReactNode) => void;
 }) {
 	const fileRef = useRef<HTMLInputElement>(null);
@@ -1841,7 +1829,7 @@ function ResumeUpload({
 			const progressInterval = setInterval(() => {
 				setProgress((p) => Math.min(p + 10, 90));
 			}, 200);
-			const data = await apiCall<{ success: boolean; resume_url: string }>(
+			const data = await apiCall<{ success: boolean; resume_url: string; resume_filename?: string }>(
 				'/candidate/profile/resume',
 				{
 					method: 'POST',
@@ -1851,7 +1839,7 @@ function ResumeUpload({
 			);
 			clearInterval(progressInterval);
 			setProgress(100);
-			onUploaded(data.resume_url);
+			onUploaded(data.resume_url, data.resume_filename || file.name);
 			showMessage('success', 'Resume uploaded');
 			setTimeout(() => {
 				setUploading(false);
@@ -1869,14 +1857,27 @@ function ResumeUpload({
 	async function handleRemove() {
 		try {
 			await apiCall('/candidate/profile/resume', { method: 'DELETE' });
-			onUploaded('');
+			onUploaded('', '');
 			showMessage('success', 'Resume removed');
 		} catch {
 			showMessage('error', 'Failed to remove resume');
 		}
 	}
 
-	const fileName = profile.resume_url ? profile.resume_url.split('/').pop() : null;
+	// Prefer the stored original filename; fall back to decoding the storage
+	// key (format: <timestamp>-<rand>-<name>) for legacy uploads.
+	const fileName = (() => {
+		if (profile.resume_filename) return profile.resume_filename;
+		if (!profile.resume_url) return null;
+		try {
+			const decoded = decodeURIComponent(profile.resume_url.split('/').pop() || '');
+			const key = decoded.includes('/') ? decoded.split('/').pop()! : decoded;
+			const m = key.match(/^\d+-[a-z0-9]{6}-(.+)$/);
+			return m ? m[1] : key || null;
+		} catch {
+			return null;
+		}
+	})();
 
 	return (
 		<div className="space-y-3">
@@ -1963,8 +1964,19 @@ function PersonalInfoTab({
 	const [linkedinUrlError, setLinkedinUrlError] = useState('');
 
 	function isValidLinkedInUrl(url: string): boolean {
-		if (!url) return true;
-		return /^https:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+\/?$/.test(url);
+		const trimmed = url.trim();
+		if (!trimmed) return true;
+		try {
+			// Accept with or without protocol; tolerate trailing whitespace,
+			// query params, and fragments that real copy-pasted URLs carry.
+			const parsed = new URL(
+				trimmed.startsWith('http') ? trimmed : `https://${trimmed}`,
+			);
+			if (!parsed.hostname.match(/^(.+\.)?linkedin\.com$/i)) return false;
+			return /^\/in\/[^/]+/i.test(parsed.pathname);
+		} catch {
+			return false;
+		}
 	}
 
 	function updateField(key: string, value: string | number | string[]) {
@@ -1988,7 +2000,16 @@ function PersonalInfoTab({
 			);
 			throw new Error('Invalid LinkedIn URL');
 		}
-		await apiCall('/candidate/profile', { method: 'PUT', body: data });
+		// Normalize to a full URL before save: the backend's normalizeUrlField
+		// requires a protocol, and the validator above accepts protocol-less input.
+		const payload = { ...data };
+		if (payload.linkedin_url) {
+			const trimmed = payload.linkedin_url.trim();
+			payload.linkedin_url = trimmed.startsWith('http')
+				? trimmed
+				: `https://${trimmed}`;
+		}
+		await apiCall('/candidate/profile', { method: 'PUT', body: payload });
 		trackEvent('profile_edit');
 	}
 
@@ -2006,6 +2027,27 @@ function PersonalInfoTab({
 			}>('/candidate/linkedin/import', { method: 'POST' });
 
 			if (result.error) {
+				if (result.code === 'LINKEDIN_NOT_CONNECTED') {
+					showMessage(
+						'error',
+						<span>
+							Refresh needs your LinkedIn account connected.{' '}
+							<a
+								href="/api/auth/linkedin/url"
+								className="underline font-semibold"
+								onClick={(e) => {
+									e.preventDefault();
+									window.location.href = '/api/auth/linkedin/url';
+								}}
+							>
+								Connect LinkedIn
+							</a>{' '}
+							to enable it. Your profile URL above is saved
+							separately and does not require a connection.
+						</span>,
+					);
+					return;
+				}
 				if (result.code === 'TOKEN_EXPIRED') {
 					showMessage(
 						'error',
@@ -2129,7 +2171,9 @@ function PersonalInfoTab({
 						</div>
 						<ResumeUpload
 							profile={profile}
-							onUploaded={(url) => setProfile((p) => ({ ...p, resume_url: url }))}
+							onUploaded={(url, filename) =>
+							setProfile((p) => ({ ...p, resume_url: url, resume_filename: filename }))
+						}
 							showMessage={showMessage}
 						/>
 					</CardContent>
@@ -2508,21 +2552,7 @@ function ExperienceTab({
 													</p>
 													<p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
 														<Calendar className="h-3 w-3" />
-														{exp.start_date
-															? new Date(exp.start_date).toLocaleDateString('en-US', {
-																	month: 'short',
-																	year: 'numeric',
-																})
-															: 'Start'}{' '}
-														—{' '}
-														{exp.is_current
-															? 'Present'
-															: exp.end_date
-																? new Date(exp.end_date).toLocaleDateString('en-US', {
-																		month: 'short',
-																		year: 'numeric',
-																	})
-																: 'End'}
+														{formatDateRange(exp.start_date, exp.end_date, exp.is_current)}
 													</p>
 													{exp.description && (
 														<p className="text-sm mt-2 text-muted-foreground">{exp.description}</p>
@@ -2871,6 +2901,23 @@ function EducationTab({
 										placeholder="3.8"
 									/>
 								</div>
+								<div className="flex items-end">
+									<label className="flex items-center gap-2 cursor-pointer">
+										<input
+											type="checkbox"
+											checked={editing.is_current || false}
+											onChange={(e) =>
+												setEditing({
+													...editing,
+													is_current: e.target.checked,
+													end_date: e.target.checked ? undefined : editing.end_date,
+												})
+											}
+											className="rounded"
+										/>
+										<span className="text-sm">Currently studying here</span>
+									</label>
+								</div>
 								<div>
 									<Label>Start Date</Label>
 									<Input
@@ -2879,14 +2926,16 @@ function EducationTab({
 										onChange={(e) => setEditing({ ...editing, start_date: e.target.value })}
 									/>
 								</div>
-								<div>
-									<Label>End Date</Label>
-									<Input
-										type="date"
-										value={editing.end_date?.split('T')[0] || ''}
-										onChange={(e) => setEditing({ ...editing, end_date: e.target.value })}
-									/>
-								</div>
+								{!editing.is_current && (
+									<div>
+										<Label>End Date</Label>
+										<Input
+											type="date"
+											value={editing.end_date?.split('T')[0] || ''}
+											onChange={(e) => setEditing({ ...editing, end_date: e.target.value })}
+										/>
+									</div>
+								)}
 							</div>
 							<div className="flex justify-end gap-2 pt-2">
 								<Button variant="outline" onClick={() => setEditing(null)}>
@@ -3004,6 +3053,7 @@ function SkillsTab({
 			setNewLevel(3);
 			setSuggestions([]);
 			setShowSuggestions(false);
+			setAddingMode(false);
 			showMessage('success', 'Skill added');
 		} catch {
 			showMessage('error', 'Failed to add skill');
@@ -3065,6 +3115,7 @@ function SkillsTab({
 					title="Skills"
 					icon={Wrench}
 					count={skills.length}
+					collapsible={false}
 					action={
 						<Button size="sm" onClick={() => setAddingMode(!addingMode)} className="gap-1">
 							<Plus className="h-4 w-4" /> Add Skill

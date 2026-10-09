@@ -3100,7 +3100,7 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 router.get('/screening/my-sessions', authMiddleware, async (req, res) => {
 	try {
 		const result = await pool.query(
-			`SELECT s.id, s.status, s.type, s.invite_token, s.application_id, s.job_id,
+			`SELECT s.id, s.status, s.type, s.invite_token, s.invite_expires_at, s.application_id, s.job_id,
               s.started_at, s.completed_at, s.created_at,
               s.config->'job'->>'title' as job_title,
               s.config->'job'->>'company_name' as config_company_name,
@@ -3126,7 +3126,7 @@ router.get('/screening/my-sessions', authMiddleware, async (req, res) => {
 			invited_at: s.created_at,
 			started_at: s.started_at,
 			completed_at: s.completed_at,
-			expires_at: null,
+			expires_at: s.invite_expires_at || null,
 			invite_token: s.invite_token,
 			// Only expose the invite link for sessions the candidate can still act on
 			invite_url:

@@ -64,7 +64,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
 		// Get profile from candidate_profiles
 		const profileResult = await pool.query(
-			'SELECT bio, location, photo_url FROM candidate_profiles WHERE user_id = $1',
+			'SELECT bio, location, photo_url, linkedin_url FROM candidate_profiles WHERE user_id = $1',
 			[userId],
 		);
 
@@ -76,6 +76,7 @@ router.get('/', authMiddleware, async (req, res) => {
 			profile: {
 				bio: profileResult.rows[0]?.bio || '',
 				location: profileResult.rows[0]?.location || '',
+				linkedin_url: profileResult.rows[0]?.linkedin_url || '',
 			},
 			notifications: settings.notifications,
 			privacy: settings.privacy,
@@ -91,7 +92,7 @@ router.get('/', authMiddleware, async (req, res) => {
 router.patch('/profile', authMiddleware, async (req, res) => {
 	try {
 		const userId = req.user.id;
-		const { name, email, bio, location } = req.body;
+		const { name, email, bio, location, linkedin_url } = req.body;
 
 		// Update users table
 		if (name || email) {
@@ -103,14 +104,15 @@ router.patch('/profile', authMiddleware, async (req, res) => {
 
 		// Upsert candidate_profiles
 		await pool.query(
-			`INSERT INTO candidate_profiles (user_id, bio, location)
-       VALUES ($1, $2, $3)
+			`INSERT INTO candidate_profiles (user_id, bio, location, linkedin_url)
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT (user_id)
        DO UPDATE SET
          bio = COALESCE(NULLIF($2, ''), candidate_profiles.bio),
          location = COALESCE(NULLIF($3, ''), candidate_profiles.location),
+         linkedin_url = COALESCE(NULLIF($4, ''), candidate_profiles.linkedin_url),
          updated_at = NOW()`,
-			[userId, bio || '', location || ''],
+			[userId, bio || '', location || '', linkedin_url || ''],
 		);
 
 		res.json({ success: true, message: 'Profile updated' });

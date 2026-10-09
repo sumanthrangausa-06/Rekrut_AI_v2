@@ -14,6 +14,7 @@ import {
 	Search,
 	Settings,
 	Sparkles,
+	User,
 	Users,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -99,6 +100,7 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 	const isPremium = user?.subscriptionTier === 'pro';
 	const navLinks = isRecruiter ? recruiterLinks : candidateLinks;
 	const settingsPath = isRecruiter ? '/recruiter/settings' : '/candidate/settings';
+	const profilePath = isRecruiter ? '/recruiter/profile' : '/candidate/profile';
 	const jobsPath = isRecruiter ? '/recruiter/jobs' : '/candidate/jobs';
 
 	const handleSort = (value: string) => {
@@ -228,8 +230,14 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 							aria-label="User menu"
 							className="absolute right-0 mt-2 w-64 rounded-lg border bg-card shadow-lg"
 						>
-							{/* User info */}
-							<div className="border-b px-4 py-3">
+							{/* User info — click to open My Profile */}
+							<button
+								type="button"
+								role="menuitem"
+								onClick={() => handleNav(profilePath)}
+								className="block w-full border-b px-4 py-3 text-left transition-colors hover:bg-muted"
+								aria-label="Go to my profile"
+							>
 								<div className="flex items-center gap-3">
 									<Avatar
 										src={user?.avatar_url}
@@ -247,7 +255,7 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 										{isRecruiter ? 'Recruiter' : 'Candidate'}
 									</Badge>
 								</div>
-							</div>
+							</button>
 
 							{/* Role-based navigation */}
 							<div className="p-1">
@@ -284,6 +292,15 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 
 							{/* General links */}
 							<div className="p-1">
+								<button
+									type="button"
+									role="menuitem"
+									onClick={() => handleNav(profilePath)}
+									className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted"
+								>
+									<User className="h-4 w-4 text-muted-foreground" />
+									My Profile
+								</button>
 								<button
 									type="button"
 									role="menuitem"

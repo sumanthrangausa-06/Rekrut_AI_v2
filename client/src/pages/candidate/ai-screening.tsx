@@ -35,6 +35,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { apiCall } from '@/lib/api';
+import { expiryLabel } from '@/lib/invite-expiry';
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
@@ -125,6 +126,20 @@ type InterviewSession = {
 	expires_at: string | null;
 	invite_url: string | null;
 };
+
+function ExpiryText({ expiresAt }: { expiresAt: string | null }) {
+	const expiry = expiryLabel(expiresAt);
+	if (!expiry) return null;
+	return (
+		<span
+			className={`text-[11px] ${
+				expiry.urgent ? 'text-amber-600 font-medium' : 'text-muted-foreground'
+			}`}
+		>
+			{expiry.text}
+		</span>
+	);
+}
 
 /* ─── Candidate AI Screening Page ───────────────────────────────────────── */
 
@@ -320,9 +335,7 @@ export function CandidateAiScreeningPage() {
 															: s.status}
 											</Badge>
 											{s.expires_at && (s.status === 'invited' || s.status === 'in_progress') && (
-												<span className="text-[11px] text-muted-foreground">
-													Expires {new Date(s.expires_at).toLocaleDateString()}
-												</span>
+												<ExpiryText expiresAt={s.expires_at} />
 											)}
 										</div>
 									</div>
