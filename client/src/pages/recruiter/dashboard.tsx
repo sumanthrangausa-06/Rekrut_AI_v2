@@ -68,13 +68,23 @@ interface DashboardAction {
 
 interface DashboardActivity {
 	id: string;
-	type: 'applied' | 'status_change' | 'message' | 'interview_scheduled' | 'offer_sent' | 'hired';
+	type: 'applied' | 'status_change' | 'message' | 'interview_scheduled' | 'offer_sent' | 'hired' | 'endorsement';
 	actorName: string;
 	actorAvatar?: string;
 	description: string;
 	timestamp: string;
 	jobTitle: string;
 	meta?: string;
+}
+
+// Issue #529: shape of GET /api/recruiter/activity items
+interface FeedActivityItem {
+	id: string;
+	type: 'profile_view' | 'application_update' | 'interview_invite' | 'skill_endorsement' | 'job_alert';
+	title: string;
+	description: string;
+	timestamp: string;
+	read: boolean;
 }
 
 interface QuickStat {
@@ -689,6 +699,8 @@ export function RecruiterDashboard() {
 	const [showUpgradeBanner, setShowUpgradeBanner] = useState(true);
 	const [actionInterviews, setActionInterviews] = useState<UnifiedInterview[]>([]);
 	const [interviewApps, setInterviewApps] = useState<UnifiedApplication[]>([]);
+	// Issue #529: unified activity feed (richer than recent applications alone)
+	const [feedActivities, setFeedActivities] = useState<FeedActivityItem[] | null>(null);
 
 	useEffect(() => {
 		async function loadDashboard() {
@@ -699,6 +711,16 @@ export function RecruiterDashboard() {
 				// Best-effort
 			} finally {
 				setLoading(false);
+			}
+		}
+		async function loadActivityFeed() {
+			try {
+				const res = await apiCall<{ success: boolean; activities: FeedActivityItem[] }>(
+					'/api/recruiter/activity',
+				);
+				setFeedActivities(res.activities || []);
+			} catch {
+				// Best-effort — falls back to recent_applications below
 			}
 		}
 		async function loadInterviews() {
@@ -746,6 +768,7 @@ export function RecruiterDashboard() {
 		}
 		loadDashboard();
 		loadInterviews();
+		loadActivityFeed();
 	}, []);
 
 	// Resolve a candidate name / job title for a unified interview via the
@@ -851,8 +874,26 @@ export function RecruiterDashboard() {
 	// 30-day applicant data
 	const dailyAppData = useMemo(() => buildDailyAppData(data?.recent_applications, 30), [data]);
 
-	// Recent activity
+	// Recent activity — Issue #529: prefer the unified feed (applications +
+	// interviews + endorsements); fall back to applications-only if the feed fails.
 	const recentActivity: DashboardActivity[] = useMemo(() => {
+		const feedTypeToActivityType = (
+			t: FeedActivityItem['type'],
+		): DashboardActivity['type'] => {
+			if (t === 'interview_invite') return 'interview_scheduled';
+			if (t === 'skill_endorsement') return 'endorsement';
+			return 'applied';
+		};
+		if (feedActivities && feedActivities.length > 0) {
+			return feedActivities.slice(0, 8).map((item) => ({
+				id: item.id,
+				type: feedTypeToActivityType(item.type),
+				actorName: item.title,
+				description: item.description,
+				timestamp: item.timestamp,
+				jobTitle: '',
+			}));
+		}
 		if (!data?.recent_applications || data.recent_applications.length === 0) return [];
 		return data.recent_applications.slice(0, 8).map((app) => ({
 			id: String(app.id),
@@ -863,7 +904,7 @@ export function RecruiterDashboard() {
 			jobTitle: app.job_title,
 			meta: app.status,
 		}));
-	}, [data]);
+	}, [data, feedActivities]);
 
 	// Action items
 	const actionItems: DashboardAction[] = useMemo(
@@ -1298,7 +1339,11 @@ export function RecruiterDashboard() {
 										<ActivityItem
 											key={activity.id}
 											activity={activity}
-											onClick={() => navigate(`/recruiter/candidates?status=${activity.meta}`)}
+											onClick={
+												activity.meta
+													? () => navigate(`/recruiter/candidates?status=${activity.meta}`)
+													: undefined
+											}
 										/>
 									))}
 								</div>
