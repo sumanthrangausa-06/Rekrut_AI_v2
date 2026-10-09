@@ -358,6 +358,22 @@ router.post('/practice/submit-video', authMiddleware, async (req, res) => {
 				.json({ error: 'No video frames captured. Please allow camera access.' });
 		}
 
+		// ── vision-debug (Tasks 12-13): diagnose mobile frames producing no analysis ──
+		// Log per-frame size + format so we can compare mobile vs laptop submissions.
+		// A blank 320×240 JPEG (video not rendering yet) is ~2-5KB; a real frame is ~15-40KB.
+		try {
+			console.log(`[vision-debug] submit-video: ${frames.length} frame(s) received`);
+			frames.forEach((f, i) => {
+				const s = typeof f === 'string' ? f : '';
+				const prefix = s.substring(0, 40);
+				console.log(
+					`[vision-debug] frame ${i}: type=${typeof f}, base64_len=${s.length}, prefix=${prefix}`,
+				);
+			});
+		} catch (logErr) {
+			console.log('[vision-debug] frame logging failed:', logErr.message);
+		}
+
 		const keyPoints = resolved
 			? resolved.key_points
 			: ['Content quality', 'Structure', 'Clarity', 'Relevance'];
