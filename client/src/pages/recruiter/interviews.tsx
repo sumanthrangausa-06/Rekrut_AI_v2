@@ -181,7 +181,7 @@ export function RecruiterInterviewsPage() {
 		// Deep-link support: ?tab=screening opens the Screening tab directly
 		const params = new URLSearchParams(window.location.search);
 		const t = params.get('tab');
-		return t === 'screening' || t === 'upcoming' || t === 'calendar' || t === 'past'
+		return t === 'screening' || t === 'upcoming' || t === 'pending' || t === 'calendar' || t === 'past'
 			? t
 			: 'upcoming';
 	});
@@ -571,6 +571,11 @@ export function RecruiterInterviewsPage() {
 	);
 	const unifiedPast = unifiedB.filter((u) => ['completed', 'cancelled'].includes(u.status));
 
+	// Pending action: slot proposals awaiting the candidate's pick + screening
+	// invites sent but not started. Filtered from the already-loaded data.
+	const pendingProposals = unifiedB.filter((u) => u.status === 'proposed');
+	const pendingScreenings = applications.filter((a) => a.screening_status === 'invited');
+
 	// Resolve a candidate name / job title for a unified interview via the
 	// loaded applications (unified rows carry ids, not display fields).
 	function unifiedDisplay(u: UnifiedInterview): { name: string; job: string } {
@@ -788,6 +793,9 @@ export function RecruiterInterviewsPage() {
 					<TabsTrigger value="upcoming">
 						Upcoming ({upcoming.length + unifiedUpcoming.length})
 					</TabsTrigger>
+					<TabsTrigger value="pending">
+						Pending ({pendingProposals.length + pendingScreenings.length})
+					</TabsTrigger>
 					<TabsTrigger value="screening">Screening</TabsTrigger>
 					<TabsTrigger value="calendar">Calendar</TabsTrigger>
 					<TabsTrigger value="past">Past ({past.length + unifiedPast.length})</TabsTrigger>
@@ -831,6 +839,62 @@ export function RecruiterInterviewsPage() {
 										candidateName={d.name}
 										jobTitle={d.job}
 									/>
+								);
+							})}
+						</div>
+					)}
+				</TabsContent>
+
+				{/* Pending action — slot proposals awaiting candidate pick + unstarted screening invites */}
+				<TabsContent value="pending">
+					{pendingProposals.length + pendingScreenings.length === 0 ? (
+						<EmptyState
+							icon={Clock}
+							title="Nothing pending"
+							description="Slot proposals awaiting candidates and screening invites not yet started will appear here."
+						/>
+					) : (
+						<div className="space-y-3">
+							{pendingProposals.map((u) => {
+								const d = unifiedDisplay(u);
+								return (
+									<RecruiterSystemBCard
+										key={`pending-${u.id}`}
+										interview={u}
+										candidateName={d.name}
+										jobTitle={d.job}
+									/>
+								);
+							})}
+							{pendingScreenings.map((app) => {
+								const sessionId = app.screening_session_id;
+								return (
+									<Card key={`pending-screening-${app.id}`}>
+										<CardContent className="p-4 flex items-center justify-between gap-3">
+											<div className="min-w-0">
+												<p className="text-sm font-medium">
+													{app.candidate_name}{' '}
+													<span className="text-xs text-muted-foreground font-normal">
+														{app.job_title}
+													</span>
+												</p>
+												<Badge variant="warning" className="text-xs mt-1">
+													Screening invite sent — not started
+												</Badge>
+											</div>
+											{sessionId != null && (
+												<Button
+													size="sm"
+													variant="outline"
+													onClick={() => resendScreening(sessionId)}
+													className="min-h-[44px] text-xs"
+													title="Send a fresh invite link (new 7-week window)"
+												>
+													<RefreshCw className="h-3.5 w-3.5 mr-1" /> Resend
+												</Button>
+											)}
+										</CardContent>
+									</Card>
 								);
 							})}
 						</div>
