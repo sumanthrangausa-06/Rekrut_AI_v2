@@ -156,8 +156,8 @@ router.post('/interview-sessions', authMiddleware, async (req, res) => {
 		const token = invite_token || crypto.randomBytes(32).toString('hex');
 		const result = await pool.query(
 			`INSERT INTO interview_sessions
-			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, invite_expires_at, status, config, conversation)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW() + INTERVAL '7 weeks', 'invited', $8, $9)
 			 RETURNING *`,
 			[
 				type,
@@ -298,8 +298,8 @@ router.post('/interview-sessions/trigger', authMiddleware, async (req, res) => {
 		const token = crypto.randomBytes(32).toString('hex');
 		const result = await pool.query(
 			`INSERT INTO interview_sessions
-			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, invite_expires_at, status, config, conversation)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW() + INTERVAL '7 weeks', 'invited', $8, $9)
 			 RETURNING *`,
 			[
 				'ai_interview',
@@ -364,7 +364,7 @@ router.get('/interview-sessions/by-token/:token', async (req, res) => {
 	try {
 		const result = await pool.query(
 			`SELECT id, type, status, job_id, company_id, candidate_id, invite_token,
-			        config, created_at
+			        invite_expires_at, config, created_at
 			   FROM interview_sessions WHERE invite_token = $1`,
 			[req.params.token],
 		);
@@ -372,6 +372,17 @@ router.get('/interview-sessions/by-token/:token', async (req, res) => {
 			return res.status(404).json({ error: 'Interview not found' });
 		}
 		const s = result.rows[0];
+		// 7-week invite window: an un-started invite past its expiry is gone.
+		// Started/completed sessions keep working — the token already did its job.
+		if (
+			s.status === 'invited' &&
+			s.invite_expires_at &&
+			new Date(s.invite_expires_at).getTime() < Date.now()
+		) {
+			return res
+				.status(410)
+				.json({ success: false, error: 'Invite expired', code: 'INVITE_EXPIRED' });
+		}
 		const job = s.config?.job || null;
 		res.json({
 			success: true,
@@ -391,11 +402,93 @@ router.get('/interview-sessions/by-token/:token', async (req, res) => {
 						}
 					: null,
 				created_at: s.created_at,
+				invite_expires_at: s.invite_expires_at || null,
 			},
 		});
 	} catch (err) {
 		console.error('[interview-sessions] by-token error:', err.message);
 		res.status(500).json({ error: 'Failed to resolve interview' });
+	}
+});
+
+// POST /interview-sessions/:id/resend — recruiter re-sends an invite.
+//
+// Generates a fresh invite token (the old link stops resolving) and starts a
+// new 7-week window. Only the hiring team of the session's company may resend,
+// and only while the invite is still un-started (status='invited'). A new
+// in-app notification goes to the candidate with the fresh link.
+router.post('/interview-sessions/:id/resend', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		const user = req.user;
+		const isHiringTeam =
+			HIRING_ROLES.includes(user.role) &&
+			user.company_id != null &&
+			Number(user.company_id) === Number(session.company_id);
+		if (!isHiringTeam && user.role !== 'admin') {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+		if (session.status !== 'invited') {
+			return res.status(409).json({
+				error: 'Only un-started invites can be resent',
+				code: 'INVITE_NOT_RESENDABLE',
+			});
+		}
+
+		const newToken = crypto.randomBytes(32).toString('hex');
+		const updated = await pool.query(
+			`UPDATE interview_sessions
+			    SET invite_token = $1,
+			        invite_expires_at = NOW() + INTERVAL '7 weeks'
+			  WHERE id = $2
+			  RETURNING *`,
+			[newToken, session.id],
+		);
+		const fresh = updated.rows[0];
+
+		const inviteUrl = `/interview/session/${newToken}`;
+		const job = fresh.config?.job || {};
+		const notifType =
+			fresh.type === 'ai_interview' ? 'ai_interview_invited' : 'screening_invited';
+		await notifyUser(
+			fresh.candidate_id,
+			notifType,
+			notifType === 'ai_interview_invited'
+				? `AI interview invited: ${job.title || ''}`.trim()
+				: 'AI screening interview invited',
+			notifType === 'ai_interview_invited'
+				? `${job.company_name || 'The hiring team'} invited you to a personalized AI interview for the ${job.title || 'this'} role.`
+				: `You've been invited to complete an AI screening interview.`,
+			{
+				session_id: fresh.id,
+				job_id: fresh.job_id,
+				application_id: fresh.application_id,
+				invite_token: newToken,
+				invite_url: inviteUrl,
+				url: inviteUrl,
+				resent: true,
+			},
+		);
+
+		try {
+			await insertAuditLog({
+				company_id: fresh.company_id ?? null,
+				actor_id: user.id,
+				target_id: fresh.id,
+				action: 'session.resent',
+				metadata: { session_id: fresh.id, type: fresh.type },
+			});
+		} catch (auditErr) {
+			console.error('[interview-sessions] resend audit failed:', auditErr.message);
+		}
+
+		res.json({ success: true, session_id: fresh.id, invite_url: inviteUrl });
+	} catch (err) {
+		console.error('[interview-sessions] resend error:', err.message);
+		res.status(500).json({ error: 'Failed to resend invite' });
 	}
 });
 
