@@ -283,7 +283,18 @@ export function CandidateAiScreeningPage() {
 			{/* AI Interview Screenings (invited by recruiters) */}
 			{interviewSessions.length > 0 && (
 				<div>
-					<h2 className="font-heading text-lg font-semibold mb-3">Interview Invitations</h2>
+					<div className="flex items-center justify-between mb-3">
+						<h2 className="font-heading text-lg font-semibold">Interview Invitations</h2>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => navigate('/candidate/interviews')}
+							className="min-h-[44px] text-primary"
+						>
+							View all on Interviews page
+							<ArrowRight className="h-3.5 w-3.5 ml-1" />
+						</Button>
+					</div>
 					<div className="grid gap-3">
 						{interviewSessions.map((s) => (
 							<Card key={s.id} className="border-purple-200">
