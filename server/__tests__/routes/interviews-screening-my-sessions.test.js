@@ -60,6 +60,7 @@ db.query.mockImplementation(async (sql, params = []) => {
 				status: s.status,
 				type: s.type,
 				invite_token: s.invite_token,
+				invite_expires_at: s.invite_expires_at || null,
 				application_id: s.application_id,
 				job_id: s.job_id,
 				started_at: s.started_at,
@@ -116,6 +117,7 @@ describe('GET /api/interviews/screening/my-sessions', () => {
 			started_at: null,
 			completed_at: null,
 			created_at: new Date().toISOString(),
+			invite_expires_at: new Date(Date.now() + 49 * 24 * 60 * 60 * 1000).toISOString(),
 		};
 		sessions.set(session.id, session);
 
@@ -138,6 +140,7 @@ describe('GET /api/interviews/screening/my-sessions', () => {
 		expect(s.application_id).toBe(200);
 		expect(s.invited_at).toBeDefined();
 		expect(s.invite_url).toBe('/interview/session/tok_abc123');
+		expect(s.expires_at).toBe(session.invite_expires_at);
 	});
 
 	test('returns empty when candidate has no screenings', async () => {
