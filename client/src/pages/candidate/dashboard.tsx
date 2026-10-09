@@ -347,6 +347,12 @@ export function CandidateDashboard() {
 							<Badge variant="default" className="ml-2">
 								{screeningInvites.length} pending
 							</Badge>
+							<Link to="/candidate/interviews" className="ml-auto">
+								<Button variant="ghost" size="sm" className="gap-1 min-h-[44px] text-xs">
+									View all
+									<ArrowRight className="h-3 w-3" />
+								</Button>
+							</Link>
 						</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-3">

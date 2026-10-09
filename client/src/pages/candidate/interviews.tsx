@@ -147,6 +147,65 @@ const INTERVIEW_TIPS = [
 	},
 ];
 
+function sessionTypeLabel(s: any): string {
+	return s.type === 'ai_interview' ? 'AI Interview' : 'AI Screening';
+}
+
+function AISessionCard({ session: s }: { session: any }) {
+	const navigate = useNavigate();
+	return (
+		<Card key={s.id}>
+			<CardContent className="p-4">
+				<div className="flex items-start justify-between gap-3">
+					<div className="min-w-0 flex-1">
+						<div className="flex items-center gap-2 flex-wrap">
+							<Badge variant="secondary" className="bg-purple-100 text-purple-700">
+								{sessionTypeLabel(s)}
+							</Badge>
+							<Badge
+								variant={
+									s.status === 'completed'
+										? 'default'
+										: s.status === 'invited'
+											? 'warning'
+											: 'secondary'
+								}
+							>
+								{s.status === 'invited'
+									? 'Invited'
+									: s.status === 'in_progress'
+										? 'In Progress'
+										: s.status === 'completed'
+											? 'Completed'
+											: s.status}
+							</Badge>
+						</div>
+						<h3 className="font-semibold mt-2">{s.job_title}</h3>
+						<p className="text-sm text-muted-foreground">
+							{s.company_name}
+							{s.template_title ? ` · ${s.template_title}` : ''}
+						</p>
+						{s.overall_score != null && (
+							<p className="text-sm mt-1">
+								Score: <span className="font-semibold">{s.overall_score}/100</span>
+							</p>
+						)}
+					</div>
+					{s.invite_url && (s.status === 'invited' || s.status === 'in_progress') && (
+						<Button
+							size="sm"
+							onClick={() => navigate(s.invite_url)}
+							className="shrink-0 min-h-[44px]"
+						>
+							{s.status === 'invited' ? 'Start' : 'Continue'}
+						</Button>
+					)}
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
 export function CandidateInterviewsPage() {
 	const navigate = useNavigate();
 	const [interviews, setInterviews] = useState<Interview[]>([]);
@@ -258,6 +317,16 @@ export function CandidateInterviewsPage() {
 			['completed', 'cancelled', 'declined', 'no_show'].includes(i.status),
 	);
 
+	// AI sessions (screenings + AI interviews) split by status.
+	// Backend may not return `type` yet (Task 4); default badge to AI Screening.
+	const invitedSessions = screenings.filter((s) => s.status === 'invited');
+	const activeSessions = screenings.filter((s) =>
+		['invited', 'in_progress'].includes(s.status),
+	);
+	const completedSessions = screenings.filter((s) => s.status === 'completed');
+	const upcomingCount = upcoming.length + activeSessions.length;
+	const pastCount = past.length + completedSessions.length;
+
 	if (loading) {
 		return (
 			<div className="space-y-6 px-4 sm:px-6">
@@ -325,30 +394,33 @@ export function CandidateInterviewsPage() {
 			<Tabs value={tab} onValueChange={setTab}>
 				<TabsList className="min-h-[44px]">
 					<TabsTrigger value="upcoming" className="min-h-[44px]">
-						Upcoming ({upcoming.length})
+						Upcoming ({upcomingCount})
+					</TabsTrigger>
+					<TabsTrigger value="invitations" className="min-h-[44px]">
+						Invitations ({invitedSessions.length})
 					</TabsTrigger>
 					<TabsTrigger value="past" className="min-h-[44px]">
-						Past ({past.length})
-					</TabsTrigger>
-					<TabsTrigger value="screenings" className="min-h-[44px]">
-						AI Screenings ({screenings.length})
+						Past ({pastCount})
 					</TabsTrigger>
 					<TabsTrigger value="tips" className="min-h-[44px]">
 						Interview Tips
 					</TabsTrigger>
 				</TabsList>
 
-				{/* Upcoming */}
+				{/* Upcoming — human interviews + active AI sessions */}
 				<TabsContent value="upcoming">
-					{upcoming.length === 0 ? (
+					{upcomingCount === 0 ? (
 						<EmptyState
 							icon={Calendar}
 							title="No upcoming interviews"
-							description="When recruiters schedule interviews, they'll appear here."
+							description="When recruiters schedule interviews or send AI invites, they'll appear here."
 							image={UNSPLASH_IMAGES.emptyInterviews}
 						/>
 					) : (
 						<div className="space-y-3">
+							{activeSessions.map((s) => (
+								<AISessionCard key={`ai-${s.id}`} session={s} />
+							))}
 							{upcoming
 								.sort(
 									(a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime(),
@@ -378,9 +450,27 @@ export function CandidateInterviewsPage() {
 					)}
 				</TabsContent>
 
-				{/* Past */}
+				{/* Invitations — pending AI invites from companies */}
+				<TabsContent value="invitations">
+					{invitedSessions.length === 0 ? (
+						<EmptyState
+							icon={MessageSquare}
+							title="No pending invitations"
+							description="When companies invite you to AI interviews or screenings, they'll appear here."
+							image={UNSPLASH_IMAGES.emptyInterviews}
+						/>
+					) : (
+						<div className="space-y-3">
+							{invitedSessions.map((s) => (
+								<AISessionCard key={`inv-${s.id}`} session={s} />
+							))}
+						</div>
+					)}
+				</TabsContent>
+
+				{/* Past — human past interviews + completed AI sessions */}
 				<TabsContent value="past">
-					{past.length === 0 ? (
+					{pastCount === 0 ? (
 						<EmptyState
 							icon={Inbox}
 							title="No past interviews"
@@ -389,74 +479,11 @@ export function CandidateInterviewsPage() {
 						/>
 					) : (
 						<div className="space-y-3">
+							{completedSessions.map((s) => (
+								<AISessionCard key={`past-ai-${s.id}`} session={s} />
+							))}
 							{past.map((interview) => (
 								<InterviewCard key={interview.id} interview={interview} isPast />
-							))}
-						</div>
-					)}
-				</TabsContent>
-
-				{/* AI Screenings */}
-				<TabsContent value="screenings">
-					{screenings.length === 0 ? (
-						<EmptyState
-							icon={MessageSquare}
-							title="No AI screenings"
-							description="When recruiters send you AI screening invites, they'll appear here."
-							image={UNSPLASH_IMAGES.emptyInterviews}
-						/>
-					) : (
-						<div className="space-y-3">
-							{screenings.map((s) => (
-								<Card key={s.id}>
-									<CardContent className="p-4">
-										<div className="flex items-start justify-between gap-3">
-											<div className="min-w-0 flex-1">
-												<div className="flex items-center gap-2 flex-wrap">
-													<Badge variant="secondary" className="bg-purple-100 text-purple-700">
-														{s.type === 'ai_interview' ? 'AI Interview' : 'AI Screening'}
-													</Badge>
-													<Badge
-														variant={
-															s.status === 'completed'
-																? 'default'
-																: s.status === 'invited'
-																	? 'warning'
-																	: 'secondary'
-														}
-													>
-														{s.status === 'invited'
-															? 'Invited'
-															: s.status === 'in_progress'
-																? 'In Progress'
-																: s.status === 'completed'
-																	? 'Completed'
-																	: s.status}
-													</Badge>
-												</div>
-												<h3 className="font-semibold mt-2">{s.job_title}</h3>
-												<p className="text-sm text-muted-foreground">
-													{s.company_name}
-													{s.template_title ? ` · ${s.template_title}` : ''}
-												</p>
-												{s.overall_score != null && (
-													<p className="text-sm mt-1">
-														Score: <span className="font-semibold">{s.overall_score}/100</span>
-													</p>
-												)}
-											</div>
-											{s.invite_url && (s.status === 'invited' || s.status === 'in_progress') && (
-												<Button
-													size="sm"
-													onClick={() => navigate(s.invite_url)}
-													className="shrink-0 min-h-[44px]"
-												>
-													{s.status === 'invited' ? 'Start' : 'Continue'}
-												</Button>
-											)}
-										</div>
-									</CardContent>
-								</Card>
 							))}
 						</div>
 					)}
