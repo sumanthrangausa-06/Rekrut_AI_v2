@@ -28,7 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 import type { MockSession, SessionFeedback } from './coaching-types';
-import { ScoreBar, scoreBg, scoreColor, scoreLabel } from './coaching-utils';
+import { formatScore, ScoreBar, scoreBg, scoreBgSafe, scoreColor, scoreColorSafe, scoreLabel } from './coaching-utils';
 
 interface InterviewResultsPageProps {
 	mockSession: MockSession | null;
@@ -708,14 +708,14 @@ function PresentationDetail({ feedback }: { feedback: any }) {
 					return (
 						<div
 							key={item.key}
-							className={cn('p-2.5 rounded-xl border', scoreBg(data.score), 'dark:bg-opacity-10')}
+							className={cn('p-2.5 rounded-xl border', scoreBgSafe(data.score), 'dark:bg-opacity-10')}
 						>
 							<div className="flex items-center justify-between mb-1">
 								<span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
 									<ItemIcon className="h-3 w-3" /> {item.label}
 								</span>
-								<span className={cn('text-sm font-bold', scoreColor(data.score))}>
-									{data.score}/10
+								<span className={cn('text-sm font-bold', scoreColorSafe(data.score))}>
+									{formatScore(data.score)}
 								</span>
 							</div>
 							<p className="text-[10px] text-muted-foreground leading-relaxed">{data.feedback}</p>
