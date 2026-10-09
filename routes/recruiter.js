@@ -832,6 +832,14 @@ router.post(
 					analysis,
 					message: optimize ? 'Job created with AI optimization!' : 'Job created successfully',
 				});
+
+				// #528: Match new job against candidate job alerts (fire-and-forget)
+				try {
+					const { matchAndNotifyForJob } = require('../lib/job-alert-matcher');
+					matchAndNotifyForJob(job).catch(() => {});
+				} catch (_e) {
+					/* job alerts are best-effort; never fail job creation */
+				}
 			} catch (_e) {
 				// Issue #143: Invalidate analytics cache on new job
 				analyticsCache.invalidatePatterns([

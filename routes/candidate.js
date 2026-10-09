@@ -43,6 +43,26 @@ function badRequest(message) {
 	return err;
 }
 
+// ============= JOB ALERTS helpers (#528) =============
+// Defined here (before the /profile route) because GET /profile
+// includes job_alerts in its response.
+const { countMatchesForAlert } = require('../lib/job-alert-matcher');
+
+function toJobAlertRow(row, matchCount = 0) {
+	return {
+		id: row.id,
+		keywords: row.keywords,
+		location: row.location || '',
+		frequency: row.frequency || 'daily',
+		active: !!row.is_active,
+		match_count: matchCount,
+		job_type: row.job_type || null,
+		salary_min: row.salary_min,
+		created_at: row.created_at,
+		updated_at: row.updated_at,
+	};
+}
+
 function normalizeTextField(value, maxLength, fieldName) {
 	if (value === undefined || value === null) return value;
 	const normalized = String(value)
@@ -173,6 +193,16 @@ router.get('/profile', authMiddleware, async (req, res) => {
 		);
 
 		const profileRow = profile.rows[0] || {};
+		let jobAlerts = [];
+		try {
+			const alertsResult = await pool.query(
+				'SELECT * FROM job_alerts WHERE user_id = $1 ORDER BY created_at DESC',
+				[req.user.id],
+			);
+			jobAlerts = alertsResult.rows.map((row) => toJobAlertRow(row, 0));
+		} catch (_e) {
+			// job_alerts table may not exist yet on older DBs; don't fail profile load
+		}
 		res.json({
 			success: true,
 			profile: profileRow,
@@ -188,6 +218,8 @@ router.get('/profile', authMiddleware, async (req, res) => {
 			// Certifications live in candidate_profiles.certifications JSONB;
 			// frontend reads data.certifications (top-level)
 			certifications: profileRow.certifications || [],
+			// Job alerts for the JobAlertsTab (#528)
+			job_alerts: jobAlerts,
 		});
 	} catch (err) {
 		console.error('Get profile error:', err);
@@ -1655,6 +1687,143 @@ router.delete('/skills/:id', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Delete skill error:', err);
 		res.status(500).json({ error: 'Failed to delete skill' });
+	}
+});
+
+// ============= JOB ALERTS (#528) =============
+// Frontend: JobAlertsTab in client/src/pages/candidate/profile.tsx
+// The tab expects `active` (not is_active) and `match_count` on each alert.
+// Helpers (toJobAlertRow, countMatchesForAlert) are defined near the top
+// of this file so GET /profile can use them too.
+
+router.get('/job-alerts', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			'SELECT * FROM job_alerts WHERE user_id = $1 ORDER BY created_at DESC',
+			[req.user.id],
+		);
+		const alerts = [];
+		for (const row of result.rows) {
+			let matchCount = 0;
+			try {
+				matchCount = await countMatchesForAlert(row);
+			} catch (_e) {
+				// match_count is best-effort; don't fail the whole request
+			}
+			alerts.push(toJobAlertRow(row, matchCount));
+		}
+		res.json({ success: true, alerts });
+	} catch (err) {
+		console.error('Get job alerts error:', err);
+		res.status(500).json({ error: 'Failed to get job alerts' });
+	}
+});
+
+router.post('/job-alerts', authMiddleware, async (req, res) => {
+	try {
+		const { keywords, location, frequency, job_type, salary_min, active } = req.body || {};
+		if (!keywords || !String(keywords).trim()) {
+			return res.status(400).json({ error: 'keywords is required' });
+		}
+		const allowedFrequencies = ['daily', 'weekly', 'instant'];
+		const freq = allowedFrequencies.includes(frequency) ? frequency : 'daily';
+		const result = await pool.query(
+			`INSERT INTO job_alerts (user_id, keywords, location, job_type, salary_min, frequency, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+			[
+				req.user.id,
+				String(keywords).trim(),
+				location ? String(location).trim() : null,
+				job_type || null,
+				salary_min != null ? parseInt(salary_min, 10) : null,
+				freq,
+				active !== false,
+			],
+		);
+		res.json({ success: true, alert: toJobAlertRow(result.rows[0], 0) });
+	} catch (err) {
+		console.error('Create job alert error:', err);
+		res.status(500).json({ error: 'Failed to create job alert' });
+	}
+});
+
+router.put('/job-alerts/:id', authMiddleware, async (req, res) => {
+	try {
+		const alertId = parseInt(req.params.id, 10);
+		const { active, keywords, location, frequency, job_type, salary_min } = req.body || {};
+		// Ownership check
+		const existing = await pool.query(
+			'SELECT id FROM job_alerts WHERE id = $1 AND user_id = $2',
+			[alertId, req.user.id],
+		);
+		if (existing.rows.length === 0) {
+			return res.status(404).json({ error: 'Job alert not found' });
+		}
+		const updates = [];
+		const params = [];
+		let i = 1;
+		if (active !== undefined) {
+			updates.push(`is_active = $${i}`);
+			params.push(!!active);
+			i += 1;
+		}
+		if (keywords !== undefined) {
+			updates.push(`keywords = $${i}`);
+			params.push(String(keywords).trim());
+			i += 1;
+		}
+		if (location !== undefined) {
+			updates.push(`location = $${i}`);
+			params.push(location ? String(location).trim() : null);
+			i += 1;
+		}
+		if (frequency !== undefined) {
+			const allowedFrequencies = ['daily', 'weekly', 'instant'];
+			updates.push(`frequency = $${i}`);
+			params.push(allowedFrequencies.includes(frequency) ? frequency : 'daily');
+			i += 1;
+		}
+		if (job_type !== undefined) {
+			updates.push(`job_type = $${i}`);
+			params.push(job_type || null);
+			i += 1;
+		}
+		if (salary_min !== undefined) {
+			updates.push(`salary_min = $${i}`);
+			params.push(salary_min != null ? parseInt(salary_min, 10) : null);
+			i += 1;
+		}
+		if (updates.length === 0) {
+			return res.status(400).json({ error: 'Nothing to update' });
+		}
+		updates.push(`updated_at = NOW()`);
+		params.push(alertId, req.user.id);
+		const result = await pool.query(
+			`UPDATE job_alerts SET ${updates.join(', ')} WHERE id = $${i} AND user_id = $${i + 1} RETURNING *`,
+			params,
+		);
+		res.json({ success: true, alert: toJobAlertRow(result.rows[0], 0) });
+	} catch (err) {
+		console.error('Update job alert error:', err);
+		res.status(500).json({ error: 'Failed to update job alert' });
+	}
+});
+
+router.delete('/job-alerts/:id', authMiddleware, async (req, res) => {
+	try {
+		const alertId = parseInt(req.params.id, 10);
+		const result = await pool.query(
+			'DELETE FROM job_alerts WHERE id = $1 AND user_id = $2 RETURNING id',
+			[alertId, req.user.id],
+		);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Job alert not found' });
+		}
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Delete job alert error:', err);
+		res.status(500).json({ error: 'Failed to delete job alert' });
 	}
 });
 
