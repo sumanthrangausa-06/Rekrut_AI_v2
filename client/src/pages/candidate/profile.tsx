@@ -2871,6 +2871,23 @@ function EducationTab({
 										placeholder="3.8"
 									/>
 								</div>
+								<div className="flex items-end">
+									<label className="flex items-center gap-2 cursor-pointer">
+										<input
+											type="checkbox"
+											checked={editing.is_current || false}
+											onChange={(e) =>
+												setEditing({
+													...editing,
+													is_current: e.target.checked,
+													end_date: e.target.checked ? undefined : editing.end_date,
+												})
+											}
+											className="rounded"
+										/>
+										<span className="text-sm">Currently studying here</span>
+									</label>
+								</div>
 								<div>
 									<Label>Start Date</Label>
 									<Input
@@ -2879,14 +2896,16 @@ function EducationTab({
 										onChange={(e) => setEditing({ ...editing, start_date: e.target.value })}
 									/>
 								</div>
-								<div>
-									<Label>End Date</Label>
-									<Input
-										type="date"
-										value={editing.end_date?.split('T')[0] || ''}
-										onChange={(e) => setEditing({ ...editing, end_date: e.target.value })}
-									/>
-								</div>
+								{!editing.is_current && (
+									<div>
+										<Label>End Date</Label>
+										<Input
+											type="date"
+											value={editing.end_date?.split('T')[0] || ''}
+											onChange={(e) => setEditing({ ...editing, end_date: e.target.value })}
+										/>
+									</div>
+								)}
 							</div>
 							<div className="flex justify-end gap-2 pt-2">
 								<Button variant="outline" onClick={() => setEditing(null)}>
