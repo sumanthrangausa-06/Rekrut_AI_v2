@@ -3182,81 +3182,54 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 			return res.json({ success: true, cached: true, ...cached });
 		}
 
-		// Get OmniScore
-		const omniscore = await pool.query(
-			'SELECT total_score, score_tier FROM omni_scores WHERE user_id = $1',
+		// Query 1: identity + profile + omni score + counts from the unified view.
+		// Replaces 6 sequential queries: omni_scores, candidate_profiles, users,
+		// candidate_skills, work_experience, education. (#521)
+		const profileRes = await pool.query(
+			'SELECT * FROM v_candidate_full_profile WHERE id = $1',
 			[req.user.id],
 		);
+		const v = profileRes.rows[0] || {};
 
-		// Get profile completeness
-		const profile = await pool.query('SELECT * FROM candidate_profiles WHERE user_id = $1', [
-			req.user.id,
-		]);
+		// Query 2: remaining aggregates in a single round-trip.
+		// Replaces 4 sequential queries: interviews, job_applications,
+		// saved_jobs, skill_assessments. (#521)
+		const aggRes = await pool.query(
+			`SELECT
+				(SELECT COUNT(*)::integer FROM interviews WHERE user_id = $1 AND status = 'completed') AS interview_total,
+				(SELECT AVG(overall_score) FROM interviews WHERE user_id = $1 AND status = 'completed') AS interview_avg,
+				(SELECT COUNT(*)::integer FROM job_applications WHERE candidate_id = $1) AS application_count,
+				(SELECT COUNT(*)::integer FROM saved_jobs WHERE user_id = $1) AS saved_job_count,
+				(SELECT COUNT(*)::integer FROM skill_assessments WHERE user_id = $1 AND completed_at IS NOT NULL) AS assessment_total,
+				(SELECT COUNT(*)::integer FROM skill_assessments WHERE user_id = $1 AND completed_at IS NOT NULL AND passed) AS assessment_passed`,
+			[req.user.id],
+		);
+		const a = aggRes.rows[0] || {};
 
 		// name and avatar_url live on users, NOT candidate_profiles
 		// (candidate_profiles has no name column; photo_url is its legacy avatar field).
-		// The profile page (/candidate/profile) joins users for these — the dashboard must too.
-		const userRow = await pool.query('SELECT name, avatar_url FROM users WHERE id = $1', [
-			req.user.id,
-		]);
-		const u = userRow.rows[0] || {};
-
-		const skillCount = await pool.query(
-			'SELECT COUNT(*) as count, COUNT(*) FILTER (WHERE is_verified) as verified FROM candidate_skills WHERE user_id = $1',
-			[req.user.id],
-		);
-
-		const experienceCount = await pool.query(
-			'SELECT COUNT(*) as count FROM work_experience WHERE user_id = $1',
-			[req.user.id],
-		);
-
-		const educationCount = await pool.query(
-			'SELECT COUNT(*) as count FROM education WHERE user_id = $1',
-			[req.user.id],
-		);
-
-		const interviewCount = await pool.query(
-			"SELECT COUNT(*) as total, AVG(overall_score) as avg_score FROM interviews WHERE user_id = $1 AND status = 'completed'",
-			[req.user.id],
-		);
-
-		const applicationCount = await pool.query(
-			'SELECT COUNT(*) as count FROM job_applications WHERE candidate_id = $1',
-			[req.user.id],
-		);
-
-		const savedJobCount = await pool.query(
-			'SELECT COUNT(*) as count FROM saved_jobs WHERE user_id = $1',
-			[req.user.id],
-		);
-
-		const assessmentCount = await pool.query(
-			'SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE passed) as passed FROM skill_assessments WHERE user_id = $1 AND completed_at IS NOT NULL',
-			[req.user.id],
-		);
+		// The view resolves this join once, correctly — see v_candidate_full_profile.
+		const name = v.name;
+		const avatarUrl = v.avatar_url || v.photo_url;
+		const hasSkills = parseInt(v.skill_count, 10) > 0;
+		const hasExperience = parseInt(v.experience_count, 10) > 0;
+		const hasEducation = parseInt(v.education_count, 10) > 0;
 
 		// Calculate profile completeness — 12-field formula shared with the
 		// frontend (client/src/lib/profile-completion.ts). Both the Profile
 		// page and Dashboard must always show the same percentage.
-		const p = profile.rows[0] || {};
-		const name = u.name || p.name;
-		const avatarUrl = u.avatar_url || p.photo_url;
-		const hasSkills = parseInt(skillCount.rows[0]?.count, 10) > 0;
-		const hasExperience = parseInt(experienceCount.rows[0]?.count, 10) > 0;
-		const hasEducation = parseInt(educationCount.rows[0]?.count, 10) > 0;
 		const completenessFields = [
 			name,
-			p.headline,
-			p.bio,
-			p.location,
-			p.linkedin_url || p.github_url,
-			p.resume_url,
+			v.headline,
+			v.bio,
+			v.location,
+			v.linkedin_url || v.github_url,
+			v.resume_url,
 			hasSkills,
 			hasExperience,
 			hasEducation,
-			p.phone,
-			p.years_experience != null,
+			v.phone,
+			v.years_experience != null,
 			avatarUrl,
 		];
 		const completeness = Math.round(
@@ -3267,39 +3240,42 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 		// Labels mirror client/src/lib/profile-completion.ts getMissingProfileSections.
 		const missingSections = [
 			!name && 'Name',
-			!p.headline && 'Headline',
-			!p.bio && 'Bio',
-			!p.location && 'Location',
-			!(p.linkedin_url || p.github_url) && 'Social Links',
-			!p.resume_url && 'Resume',
+			!v.headline && 'Headline',
+			!v.bio && 'Bio',
+			!v.location && 'Location',
+			!(v.linkedin_url || v.github_url) && 'Social Links',
+			!v.resume_url && 'Resume',
 			!hasSkills && 'Skills',
 			!hasExperience && 'Experience',
 			!hasEducation && 'Education',
-			!p.phone && 'Phone',
-			p.years_experience == null && 'Years of Experience',
+			!v.phone && 'Phone',
+			v.years_experience == null && 'Years of Experience',
 			!avatarUrl && 'Profile Photo',
 		].filter(Boolean);
 
 		const response = {
 			stats: {
-				omniscore: omniscore.rows[0] || { total_score: 300, score_tier: 'new' },
+				omniscore:
+					v.omni_score != null
+						? { total_score: v.omni_score, score_tier: v.score_tier }
+						: { total_score: 300, score_tier: 'new' },
 				profile_completeness: completeness,
 				missing_sections: missingSections,
 				skills: {
-					total: parseInt(skillCount.rows[0]?.count, 10) || 0,
-					verified: parseInt(skillCount.rows[0]?.verified, 10) || 0,
+					total: parseInt(v.skill_count, 10) || 0,
+					verified: parseInt(v.skill_verified_count, 10) || 0,
 				},
-				experience_count: parseInt(experienceCount.rows[0]?.count, 10) || 0,
-				education_count: parseInt(educationCount.rows[0]?.count, 10) || 0,
+				experience_count: parseInt(v.experience_count, 10) || 0,
+				education_count: parseInt(v.education_count, 10) || 0,
 				interviews: {
-					total: parseInt(interviewCount.rows[0]?.total, 10) || 0,
-					avg_score: Math.round(interviewCount.rows[0]?.avg_score) || 0,
+					total: parseInt(a.interview_total, 10) || 0,
+					avg_score: Math.round(a.interview_avg) || 0,
 				},
-				applications: parseInt(applicationCount.rows[0]?.count, 10) || 0,
-				saved_jobs: parseInt(savedJobCount.rows[0]?.count, 10) || 0,
+				applications: parseInt(a.application_count, 10) || 0,
+				saved_jobs: parseInt(a.saved_job_count, 10) || 0,
 				assessments: {
-					total: parseInt(assessmentCount.rows[0]?.total, 10) || 0,
-					passed: parseInt(assessmentCount.rows[0]?.passed, 10) || 0,
+					total: parseInt(a.assessment_total, 10) || 0,
+					passed: parseInt(a.assessment_passed, 10) || 0,
 				},
 			},
 		};
