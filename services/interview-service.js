@@ -20,6 +20,7 @@
  *   'FORBIDDEN'     -> 403
  *   'INVALID_STATE' -> 400
  *   'VALIDATION'    -> 400
+ *   'LINK_EXPIRED'  -> 410
  *
  * No deletions, no migrations in this service. Fully reversible: routes can
  * stop calling it at any time.
@@ -30,6 +31,10 @@ const SOURCE_A = 'system_a';
 const SOURCE_B = 'system_b';
 
 const MAX_SLOTS = 10;
+
+// Meeting links stop working this many hours after the scheduled end of
+// the interview. Sumanth's rule: 24h grace, then the link is dead.
+const JOIN_LINK_TTL_AFTER_END_HOURS = 24;
 
 function serviceError(code, message) {
 	const err = new Error(message);
@@ -322,12 +327,95 @@ async function confirmSlot(event_id, slot_id, userId) {
 	return getInterview(eventId, SOURCE_B);
 }
 
+/**
+ * Resolve a joinable meeting link for one human interview (both systems).
+ *
+ * Only the interview's candidate or recruiter may resolve the link.
+ * The link is valid until JOIN_LINK_TTL_AFTER_END_HOURS after the scheduled
+ * end time; afterwards getJoinInfo throws LINK_EXPIRED (410). When the
+ * interview has no scheduled time yet (e.g. System B still negotiating
+ * slots), there is nothing to expire against, so the link does not expire.
+ *
+ * Returns { id, meeting_link, source_system, scheduled_at, expires_at }.
+ */
+async function getJoinInfo(id, userId) {
+	const interviewId = parseInt(id, 10);
+	if (!Number.isInteger(interviewId) || interviewId <= 0) {
+		throw serviceError('VALIDATION', 'Invalid interview id');
+	}
+	if (!Number.isInteger(userId) || userId <= 0) {
+		throw serviceError('VALIDATION', 'Invalid user');
+	}
+
+	// System A: scheduled_interviews (single fixed date/time).
+	let result = await pool.query(
+		`SELECT id, candidate_id, recruiter_id, scheduled_at,
+				COALESCE(duration_minutes, 60) AS duration_minutes,
+				meeting_link, $3 AS source_system
+		   FROM scheduled_interviews
+		  WHERE id = $1 AND (candidate_id = $2 OR recruiter_id = $2)`,
+		[interviewId, userId, SOURCE_A],
+	);
+
+	// System B: interview_events (slot negotiation). Prefer the Jitsi
+	// meeting_link; fall back to the LiveKit room URL.
+	if (result.rows.length === 0) {
+		result = await pool.query(
+			`SELECT id, candidate_id, recruiter_id, scheduled_at,
+					COALESCE(duration_minutes, 60) AS duration_minutes,
+					COALESCE(meeting_link, livekit_room_url) AS meeting_link,
+					$3 AS source_system
+			   FROM interview_events
+			  WHERE id = $1 AND (candidate_id = $2 OR recruiter_id = $2)`,
+			[interviewId, userId, SOURCE_B],
+		);
+	}
+
+	if (result.rows.length === 0) {
+		throw serviceError('NOT_FOUND', 'Interview not found');
+	}
+	const iv = result.rows[0];
+	if (!iv.meeting_link) {
+		throw serviceError('NOT_FOUND', 'No meeting link for this interview');
+	}
+
+	let expiresAt = null;
+	if (iv.scheduled_at) {
+		const startMs =
+			iv.scheduled_at instanceof Date
+				? iv.scheduled_at.getTime()
+				: new Date(iv.scheduled_at).getTime();
+		if (Number.isFinite(startMs)) {
+			expiresAt = new Date(
+				startMs +
+					Number(iv.duration_minutes) * 60 * 1000 +
+					JOIN_LINK_TTL_AFTER_END_HOURS * 3600 * 1000,
+			);
+			if (Date.now() > expiresAt.getTime()) {
+				const err = serviceError('LINK_EXPIRED', 'This interview link has expired.');
+				err.expiresAt = expiresAt.toISOString();
+				throw err;
+			}
+		}
+	}
+
+	return {
+		id: iv.id,
+		meeting_link: iv.meeting_link,
+		source_system: iv.source_system,
+		scheduled_at: iv.scheduled_at,
+		expires_at: expiresAt ? expiresAt.toISOString() : null,
+	};
+}
+
 module.exports = {
 	getMyInterviews,
 	createInterview,
 	getInterview,
 	confirmSlot,
+	getJoinInfo,
 	normalizeInterview,
 	SOURCE_A,
 	SOURCE_B,
+	JOIN_LINK_TTL_AFTER_END_HOURS,
 };

@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EmptyState } from '@/components/domain/empty-state';
 import { Skeleton } from '@/components/domain/skeleton';
+import { JoinInterviewButton } from '@/components/interview-join-button';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -730,11 +731,13 @@ function NextInterviewCard({ interview }: { interview: Interview }) {
 						)}
 					</div>
 					{interview.meeting_link && (
-						<a href={interview.meeting_link} target="_blank" rel="noopener noreferrer">
-							<Button size="lg" className="min-h-[44px]">
-								<Video className="h-4 w-4 mr-2" /> Join Call
-							</Button>
-						</a>
+						<JoinInterviewButton
+							interviewId={interview.id}
+							size="lg"
+							buttonClassName="min-h-[44px]"
+							label="Join Call"
+							iconClassName="h-4 w-4 mr-2"
+						/>
 					)}
 				</div>
 			</CardContent>
@@ -828,11 +831,7 @@ function InterviewCard({
 					{/* Actions */}
 					<div className="flex flex-wrap gap-2 sm:flex-col">
 						{interview.meeting_link && isUpcoming && (
-							<a href={interview.meeting_link} target="_blank" rel="noopener noreferrer">
-								<Button size="sm" className="w-full min-h-[44px]">
-									<Video className="h-3.5 w-3.5 mr-1" /> Join Call
-								</Button>
-							</a>
+							<JoinInterviewButton interviewId={interview.id} label="Join Call" />
 						)}
 						{canRespond && onAccept && (
 							<Button size="sm" variant="outline" onClick={onAccept} className="min-h-[44px]">
@@ -987,11 +986,7 @@ function SystemBInterviewCard({
 
 					<div className="flex flex-wrap gap-2 sm:flex-col">
 						{u.meeting_link && u.status === 'confirmed' && (
-							<a href={u.meeting_link} target="_blank" rel="noopener noreferrer">
-								<Button size="sm" className="w-full min-h-[44px]">
-									<Video className="h-3.5 w-3.5 mr-1" /> Join Call
-								</Button>
-							</a>
+							<JoinInterviewButton interviewId={u.id} label="Join Call" />
 						)}
 						{needsSlot && offeredSlots.length > 0 && (
 							<Button

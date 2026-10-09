@@ -87,4 +87,33 @@ router.post('/unified/:id/confirm-slot', authMiddleware, async (req, res) => {
 	}
 });
 
+// GET /api/interviews/:id/join — validate the meeting link hasn't expired
+// and return it. Meeting links die JOIN_LINK_TTL_AFTER_END_HOURS (24h) after
+// the scheduled end time; afterwards this returns 410 with
+// "This interview link has expired." Covers both scheduling systems
+// (System A: scheduled_interviews, System B: interview_events).
+router.get('/:id/join', authMiddleware, async (req, res) => {
+	try {
+		const info = await interviewService.getJoinInfo(req.params.id, req.user.id);
+		res.json({
+			success: true,
+			meeting_link: info.meeting_link,
+			source_system: info.source_system,
+			expires_at: info.expires_at,
+		});
+	} catch (err) {
+		if (err.code === 'LINK_EXPIRED') {
+			return res.status(410).json({
+				error: err.message,
+				code: err.code,
+				expired_at: err.expiresAt || null,
+			});
+		}
+		console.error('Get interview join link error:', err);
+		res
+			.status(interviewServiceErrorStatus(err.code))
+			.json({ error: err.message || 'Failed to join interview' });
+	}
+});
+
 module.exports = router;
