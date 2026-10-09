@@ -80,6 +80,7 @@ interface Profile {
 	github_url?: string;
 	portfolio_url?: string;
 	resume_url?: string;
+	resume_filename?: string;
 	availability?: string;
 	salary_min?: number;
 	salary_max?: number;
@@ -1800,7 +1801,7 @@ function ResumeUpload({
 	showMessage,
 }: {
 	profile: Profile;
-	onUploaded: (url: string) => void;
+	onUploaded: (url: string, filename?: string) => void;
 	showMessage: (type: 'success' | 'error', text: React.ReactNode) => void;
 }) {
 	const fileRef = useRef<HTMLInputElement>(null);
@@ -1832,7 +1833,7 @@ function ResumeUpload({
 			const progressInterval = setInterval(() => {
 				setProgress((p) => Math.min(p + 10, 90));
 			}, 200);
-			const data = await apiCall<{ success: boolean; resume_url: string }>(
+			const data = await apiCall<{ success: boolean; resume_url: string; resume_filename?: string }>(
 				'/candidate/profile/resume',
 				{
 					method: 'POST',
@@ -1842,7 +1843,7 @@ function ResumeUpload({
 			);
 			clearInterval(progressInterval);
 			setProgress(100);
-			onUploaded(data.resume_url);
+			onUploaded(data.resume_url, data.resume_filename || file.name);
 			showMessage('success', 'Resume uploaded');
 			setTimeout(() => {
 				setUploading(false);
@@ -1860,14 +1861,27 @@ function ResumeUpload({
 	async function handleRemove() {
 		try {
 			await apiCall('/candidate/profile/resume', { method: 'DELETE' });
-			onUploaded('');
+			onUploaded('', '');
 			showMessage('success', 'Resume removed');
 		} catch {
 			showMessage('error', 'Failed to remove resume');
 		}
 	}
 
-	const fileName = profile.resume_url ? profile.resume_url.split('/').pop() : null;
+	// Prefer the stored original filename; fall back to decoding the storage
+	// key (format: <timestamp>-<rand>-<name>) for legacy uploads.
+	const fileName = (() => {
+		if (profile.resume_filename) return profile.resume_filename;
+		if (!profile.resume_url) return null;
+		try {
+			const decoded = decodeURIComponent(profile.resume_url.split('/').pop() || '');
+			const key = decoded.includes('/') ? decoded.split('/').pop()! : decoded;
+			const m = key.match(/^\d+-[a-z0-9]{6}-(.+)$/);
+			return m ? m[1] : key || null;
+		} catch {
+			return null;
+		}
+	})();
 
 	return (
 		<div className="space-y-3">
@@ -2120,7 +2134,9 @@ function PersonalInfoTab({
 						</div>
 						<ResumeUpload
 							profile={profile}
-							onUploaded={(url) => setProfile((p) => ({ ...p, resume_url: url }))}
+							onUploaded={(url, filename) =>
+							setProfile((p) => ({ ...p, resume_url: url, resume_filename: filename }))
+						}
 							showMessage={showMessage}
 						/>
 					</CardContent>
