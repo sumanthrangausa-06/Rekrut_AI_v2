@@ -481,6 +481,7 @@ router.post('/login', rateLimits.strict, async (req, res) => {
 				name: user.name,
 				role: user.role,
 				is_paid: user.is_paid,
+				avatar_url: user.avatar_url,
 			},
 			token: accessToken,
 			accessToken,
@@ -547,6 +548,7 @@ router.get('/me', authMiddleware, async (req, res) => {
 			is_platform_admin: isPlatformAdmin,
 			google_id: req.user.google_id,
 			linkedin_id: req.user.linkedin_id,
+			avatar_url: req.user.avatar_url,
 			created_at: req.user.created_at,
 		},
 	});
