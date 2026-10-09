@@ -164,48 +164,59 @@ export function useInterviewerAudio(options: InterviewerAudioOptions) {
 					else optionsRef.current.startRecording?.();
 				}
 			};
-			const ctx = ensureAudioContext();
-			try {
-				const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-				if (audioSourceRef.current) {
-					// Phase 0 (#447): null onended before stopping the old source,
-					// otherwise its finish() fires and corrupts the new playback state.
-					audioSourceRef.current.onended = null;
-					try {
-						audioSourceRef.current.stop();
-					} catch {
-						/* already stopped */
+			// iOS: Web Audio API playback is blocked while the mic is active
+			// (getUserMedia holds the audio session), so TTS played through
+			// AudioContext only sounds after the mic is released. Route iOS
+			// straight to the HTMLAudio element instead.
+			const isIOS =
+				/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+				(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+			if (!isIOS) {
+				const ctx = ensureAudioContext();
+				try {
+					const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+					if (audioSourceRef.current) {
+						// Phase 0 (#447): null onended before stopping the old source,
+						// otherwise its finish() fires and corrupts the new playback state.
+						audioSourceRef.current.onended = null;
+						try {
+							audioSourceRef.current.stop();
+						} catch {
+							/* already stopped */
+						}
 					}
+					const source = ctx.createBufferSource();
+					source.buffer = audioBuffer;
+					source.connect(ctx.destination);
+					audioSourceRef.current = source;
+					source.onended = () => {
+						audioSourceRef.current = null;
+						finish();
+					};
+					source.start();
+					return;
+				} catch {
+					// Web Audio failed — fall through to the Audio element below
 				}
-				const source = ctx.createBufferSource();
-				source.buffer = audioBuffer;
-				source.connect(ctx.destination);
-				audioSourceRef.current = source;
-				source.onended = () => {
-					audioSourceRef.current = null;
-					finish();
-				};
-				source.start();
-			} catch {
-				// Web Audio decode failed — fall back to the Audio element
-				const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
-				const audioUrl = URL.createObjectURL(blob);
-				if (audioElRef.current) {
-					audioElRef.current.pause();
-					URL.revokeObjectURL(audioElRef.current.src);
-				}
-				const audio = new Audio(audioUrl);
-				audioElRef.current = audio;
-				audio.onended = () => {
-					URL.revokeObjectURL(audioUrl);
-					finish();
-				};
-				audio.onerror = () => {
-					URL.revokeObjectURL(audioUrl);
-					finish();
-				};
-				await audio.play();
 			}
+			// HTMLAudio path: fallback on desktop, primary path on iOS
+			const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+			const audioUrl = URL.createObjectURL(blob);
+			if (audioElRef.current) {
+				audioElRef.current.pause();
+				URL.revokeObjectURL(audioElRef.current.src);
+			}
+			const audio = new Audio(audioUrl);
+			audioElRef.current = audio;
+			audio.onended = () => {
+				URL.revokeObjectURL(audioUrl);
+				finish();
+			};
+			audio.onerror = () => {
+				URL.revokeObjectURL(audioUrl);
+				finish();
+			};
+			await audio.play();
 		},
 		[ensureAudioContext],
 	);
