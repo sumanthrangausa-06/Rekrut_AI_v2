@@ -136,6 +136,11 @@ const CandidatePayrollPage = lazy(() =>
 const AiCoachingPage = lazy(() =>
 	import('@/pages/candidate/ai-coaching').then((m) => ({ default: m.AiCoachingPage })),
 );
+const QuickPracticeSessionPage = lazy(() =>
+	import('@/pages/candidate/quick-practice-session').then((m) => ({
+		default: m.QuickPracticeSessionPage,
+	})),
+);
 const CareerCoachPage = lazy(() =>
 	import('@/pages/candidate/career-coach').then((m) => ({ default: m.CareerCoachPage })),
 );
@@ -691,6 +696,14 @@ function AppRoutes() {
 					element={
 						<Protected>
 							<AiCoachingPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path="quick-practice/:questionId"
+					element={
+						<Protected>
+							<QuickPracticeSessionPage />
 						</Protected>
 					}
 				/>
