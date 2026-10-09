@@ -274,11 +274,11 @@ export function InterviewActiveLayout({
 						<MoreHorizontal className="h-4 w-4" />
 					</Button>
 
-					{/* Mobile chat toggle */}
+					{/* Mobile chat toggle (hidden: chat panel is now inline on mobile, bottom-sheet is fallback) */}
 					<Button
 						variant="ghost"
 						size="sm"
-						className="lg:hidden h-8 w-8 p-0 text-white/60 hover:text-white hover:bg-white/10"
+						className="hidden lg:hidden h-8 w-8 p-0 text-white/60 hover:text-white hover:bg-white/10"
 						onClick={() => setChatPanelMobileOpen(true)}
 					>
 						<MessageSquare className="h-4 w-4" />
