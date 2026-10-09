@@ -50,10 +50,13 @@ import type {
 import {
 	categoryConfig,
 	difficultyColors,
+	formatScore,
 	formatTime,
 	ScoreBar,
 	scoreBg,
+	scoreBgSafe,
 	scoreColor,
+	scoreColorSafe,
 	scoreLabel,
 } from './coaching-utils';
 
@@ -1376,9 +1379,9 @@ export function QuickPracticeSessionPage() {
 											<Eye className="h-4 w-4 text-emerald-600" />
 											Body Language & Presentation
 											<span
-												className={`text-xs font-bold ${scoreColor(coaching.presentation.score)}`}
+												className={`text-xs font-bold ${scoreColorSafe(coaching.presentation.score)}`}
 											>
-												{coaching.presentation.score}/10
+												{formatScore(coaching.presentation.score)}
 											</span>
 										</span>
 										{expandedSection === 'presentation' ? (
@@ -1402,14 +1405,14 @@ export function QuickPracticeSessionPage() {
 													return (
 														<div
 															key={item.key}
-															className={`p-2.5 rounded-lg border ${scoreBg(data.score)}`}
+															className={`p-2.5 rounded-lg border ${scoreBgSafe(data.score)}`}
 														>
 															<div className="flex items-center justify-between mb-1">
 																<span className="text-[10px] font-medium text-muted-foreground">
 																	{item.label}
 																</span>
-																<span className={`text-sm font-bold ${scoreColor(data.score)}`}>
-																	{data.score}/10
+																<span className={`text-sm font-bold ${scoreColorSafe(data.score)}`}>
+																	{formatScore(data.score)}
 																</span>
 															</div>
 															<p className="text-[10px] text-muted-foreground leading-relaxed">
