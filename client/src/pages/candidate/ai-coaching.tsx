@@ -164,14 +164,6 @@ export function AiCoachingPage() {
 
 	// ==================== CALLBACKS FOR CHILDREN ====================
 
-	/** Called by QuickPractice after a practice session completes */
-	const refreshAfterPractice = useCallback(() => {
-		loadStats();
-		loadQuestions();
-		loadProgress();
-		loadHistory();
-	}, [loadStats, loadQuestions, loadProgress, loadHistory]);
-
 	/** Called by MockInterview after a mock interview completes */
 	const refreshAfterMock = useCallback(() => {
 		loadStats();
@@ -341,7 +333,6 @@ export function AiCoachingPage() {
 							questions={questions}
 							categoryFilter={categoryFilter}
 							setCategoryFilter={setCategoryFilter}
-							onSessionComplete={refreshAfterPractice}
 						/>
 					</Suspense>
 				</TabsContent>
