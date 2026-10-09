@@ -66,6 +66,7 @@ import {
 	calculateProfileCompletion,
 	getMissingProfileSections,
 } from '@/lib/profile-completion';
+import { formatDateRange } from '@/lib/utils';
 
 interface Profile {
 	user_id?: number;
@@ -1358,21 +1359,7 @@ function OverviewTab({
 												{exp.location && ` · ${exp.location}`}
 											</p>
 											<p className="text-xs text-muted-foreground mt-0.5">
-												{exp.start_date
-													? new Date(exp.start_date).toLocaleDateString('en-US', {
-															month: 'short',
-															year: 'numeric',
-														})
-													: 'Start'}{' '}
-												—{' '}
-												{exp.is_current
-													? 'Present'
-													: exp.end_date
-														? new Date(exp.end_date).toLocaleDateString('en-US', {
-																month: 'short',
-																year: 'numeric',
-															})
-														: 'End'}
+												{formatDateRange(exp.start_date, exp.end_date, exp.is_current)}
 											</p>
 											{exp.description && (
 												<p className="text-xs text-muted-foreground mt-1 line-clamp-2">
@@ -1423,21 +1410,7 @@ function OverviewTab({
 													{exp.location && ` · ${exp.location}`}
 												</p>
 												<p className="text-xs text-muted-foreground mt-0.5">
-													{exp.start_date
-														? new Date(exp.start_date).toLocaleDateString('en-US', {
-																month: 'short',
-																year: 'numeric',
-															})
-														: 'Start'}{' '}
-													—{' '}
-													{exp.is_current
-														? 'Present'
-														: exp.end_date
-															? new Date(exp.end_date).toLocaleDateString('en-US', {
-																	month: 'short',
-																	year: 'numeric',
-																})
-															: 'End'}
+													{formatDateRange(exp.start_date, exp.end_date, exp.is_current)}
 												</p>
 												{exp.description && (
 													<p className="text-xs text-muted-foreground mt-1 line-clamp-2">
@@ -2579,21 +2552,7 @@ function ExperienceTab({
 													</p>
 													<p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
 														<Calendar className="h-3 w-3" />
-														{exp.start_date
-															? new Date(exp.start_date).toLocaleDateString('en-US', {
-																	month: 'short',
-																	year: 'numeric',
-																})
-															: 'Start'}{' '}
-														—{' '}
-														{exp.is_current
-															? 'Present'
-															: exp.end_date
-																? new Date(exp.end_date).toLocaleDateString('en-US', {
-																		month: 'short',
-																		year: 'numeric',
-																	})
-																: 'End'}
+														{formatDateRange(exp.start_date, exp.end_date, exp.is_current)}
 													</p>
 													{exp.description && (
 														<p className="text-sm mt-2 text-muted-foreground">{exp.description}</p>
