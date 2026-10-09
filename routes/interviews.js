@@ -352,6 +352,12 @@ router.get('/history', authMiddleware, async (req, res) => {
 	}
 });
 
+// NOTE: unified human-interview endpoints (GET /my-interviews,
+// POST /unified, POST /unified/:id/confirm-slot) live in
+// routes/interviews-unified.js, mounted BEFORE interviewEventsRoutes in
+// server.js — interviewEventsRoutes' GET /:id isInt validator would
+// otherwise 400 on the fixed segment "my-interviews".
+
 // Get interview details
 router.get('/:id', authMiddleware, async (req, res) => {
 	try {

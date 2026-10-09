@@ -28,6 +28,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { EmptyState } from '@/components/domain/empty-state';
 import { Skeleton } from '@/components/domain/skeleton';
+import { JoinInterviewButton } from '@/components/interview-join-button';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -96,6 +97,33 @@ interface SlotSuggestion {
 	date: string;
 }
 
+// Unified human-interview shape from GET /api/interviews/my-interviews
+// (System B rows: interview_events + proposed_slots, normalized by
+// services/interview-service.js).
+interface UnifiedSlot {
+	id?: number;
+	slot_id?: number;
+	start: string;
+	end: string;
+	status: string;
+}
+
+interface UnifiedInterview {
+	id: number;
+	candidate_id: number;
+	recruiter_id: number;
+	company_id: number | null;
+	job_id: number | null;
+	scheduled_at: string | null;
+	duration_minutes: number;
+	status: string;
+	meeting_link: string | null;
+	interview_type: string;
+	notes: string | null;
+	source_system: 'system_a' | 'system_b';
+	proposed_slots: UnifiedSlot[] | null;
+}
+
 const statusConfig: Record<
 	string,
 	{
@@ -111,6 +139,9 @@ const statusConfig: Record<
 	declined: { label: 'Declined', variant: 'destructive', icon: XCircle },
 	reschedule_requested: { label: 'Reschedule Req.', variant: 'warning', icon: RefreshCw },
 	no_show: { label: 'No Show', variant: 'destructive', icon: AlertCircle },
+	// System B (slot negotiation) statuses
+	proposed: { label: 'Awaiting Pick', variant: 'warning', icon: Calendar },
+	rescheduled: { label: 'Rescheduled', variant: 'warning', icon: RefreshCw },
 };
 
 const typeIcons: Record<string, React.ElementType> = {
@@ -165,6 +196,16 @@ export function RecruiterInterviewsPage() {
 	const [duration, setDuration] = useState('60');
 	const [interviewType, setInterviewType] = useState('video');
 	const [schedNotes, setSchedNotes] = useState('');
+	// System B slot negotiation: 'single' = existing System A flow (one fixed
+	// time), 'multi' = propose up to 5 slots and let the candidate pick.
+	const [schedMode, setSchedMode] = useState<'single' | 'multi'>('single');
+	const [slotInputs, setSlotInputs] = useState<{ date: string; time: string }[]>([
+		{ date: '', time: '' },
+	]);
+
+	// System B human interviews (slot negotiation) from the unified endpoint.
+	// System A rows from /recruiter/interviews are unchanged.
+	const [unifiedB, setUnifiedB] = useState<UnifiedInterview[]>([]);
 
 	// AI Smart Scheduling
 	const [suggestedSlots, setSuggestedSlots] = useState<SlotSuggestion[]>([]);
@@ -209,18 +250,24 @@ export function RecruiterInterviewsPage() {
 	const loadData = useCallback(async () => {
 		setLoading(true);
 		try {
-			const [intRes, appRes, templRes, jobsRes] = await Promise.all([
+			const [intRes, appRes, templRes, jobsRes, uniRes] = await Promise.all([
 				apiCall<{ interviews: Interview[] }>('/recruiter/interviews?upcoming_only=false'),
 				apiCall<{ applications: Application[] }>('/recruiter/applications'),
 				apiCall<{ success: boolean; templates: ScreeningTemplate[] }>(
 					'/interviews/screening/templates',
 				).catch(() => ({ success: false, templates: [] })),
 				apiCall<{ jobs: any[] }>('/recruiter/jobs').catch(() => ({ jobs: [] })),
+				apiCall<{ success: boolean; interviews: UnifiedInterview[] }>(
+					'/interviews/my-interviews',
+				).catch(() => ({ success: false, interviews: [] })),
 			]);
 			setInterviews(intRes.interviews || []);
 			setApplications(appRes.applications || []);
 			setScreeningTemplates(templRes.templates || []);
 			setJobs(jobsRes.jobs || []);
+			setUnifiedB(
+				(uniRes.interviews || []).filter((u) => u.source_system === 'system_b'),
+			);
 		} catch (err) {
 			console.error('Load error:', err);
 		} finally {
@@ -254,26 +301,71 @@ export function RecruiterInterviewsPage() {
 
 	function selectSlot(slot: SlotSuggestion) {
 		const d = new Date(slot.start);
+		if (schedMode === 'multi') {
+			// Add the AI suggestion as another proposed slot instead of
+			// overwriting the single date/time fields.
+			setSlotInputs((prev) => {
+				if (prev.length >= 5) return prev;
+				const date = d.toISOString().split('T')[0];
+				const time = d.toTimeString().slice(0, 5);
+				if (prev.some((s) => s.date === date && s.time === time)) return prev;
+				return [...prev, { date, time }];
+			});
+			return;
+		}
 		setSchedDate(d.toISOString().split('T')[0]);
 		setSchedTime(d.toTimeString().slice(0, 5));
 		setSuggestedSlots([]);
 	}
 
 	async function scheduleInterview() {
-		if (!appId || !schedDate || !schedTime) return;
+		if (!appId) return;
+		const app = applications.find((a) => String(a.id) === appId);
 		setSaving(true);
 		try {
-			const scheduled_at = new Date(`${schedDate}T${schedTime}`).toISOString();
-			await apiCall('/recruiter/interviews', {
-				method: 'POST',
-				body: {
-					application_id: parseInt(appId, 10),
-					scheduled_at,
-					duration: parseInt(duration, 10),
-					interview_type: interviewType,
-					notes: schedNotes || undefined,
-				},
-			});
+			if (schedMode === 'multi') {
+				// System B: propose multiple slots; the candidate picks one.
+				const filled = slotInputs.filter((s) => s.date && s.time);
+				if (filled.length === 0 || !app) {
+					setSaving(false);
+					return;
+				}
+				const durMin = parseInt(duration, 10) || 60;
+				const proposed_slots = filled.map((s) => {
+					const start = new Date(`${s.date}T${s.time}`);
+					return {
+						start: start.toISOString(),
+						end: new Date(start.getTime() + durMin * 60000).toISOString(),
+					};
+				});
+				await apiCall('/interviews/unified', {
+					method: 'POST',
+					body: {
+						job_application_id: app.id,
+						candidate_id: app.candidate_id,
+						proposed_slots,
+						duration_minutes: durMin,
+						notes: schedNotes || undefined,
+					},
+				});
+				setMessage({
+					type: 'success',
+					text: `Proposed ${proposed_slots.length} slot${proposed_slots.length > 1 ? 's' : ''} — the candidate will pick a time.`,
+				});
+			} else {
+				if (!schedDate || !schedTime) return;
+				const scheduled_at = new Date(`${schedDate}T${schedTime}`).toISOString();
+				await apiCall('/recruiter/interviews', {
+					method: 'POST',
+					body: {
+						application_id: parseInt(appId, 10),
+						scheduled_at,
+						duration: parseInt(duration, 10),
+						interview_type: interviewType,
+						notes: schedNotes || undefined,
+					},
+				});
+			}
 			setShowSchedule(false);
 			resetScheduleForm();
 			await loadData();
@@ -292,6 +384,8 @@ export function RecruiterInterviewsPage() {
 		setInterviewType('video');
 		setSchedNotes('');
 		setSuggestedSlots([]);
+		setSchedMode('single');
+		setSlotInputs([{ date: '', time: '' }]);
 	}
 
 	// Screening template
@@ -467,6 +561,25 @@ export function RecruiterInterviewsPage() {
 			!isFuture(i.scheduled_at) ||
 			['completed', 'cancelled', 'declined', 'no_show'].includes(i.status),
 	);
+	// System B human interviews (slot negotiation) from the unified endpoint.
+	// 'proposed' interviews have no confirmed time yet — always upcoming.
+	const unifiedUpcoming = unifiedB.filter(
+		(u) =>
+			u.status === 'proposed' ||
+			(u.status === 'confirmed' && u.scheduled_at != null && isFuture(u.scheduled_at)) ||
+			(u.status === 'rescheduled' && u.scheduled_at != null && isFuture(u.scheduled_at)),
+	);
+	const unifiedPast = unifiedB.filter((u) => ['completed', 'cancelled'].includes(u.status));
+
+	// Resolve a candidate name / job title for a unified interview via the
+	// loaded applications (unified rows carry ids, not display fields).
+	function unifiedDisplay(u: UnifiedInterview): { name: string; job: string } {
+		const app = applications.find((a) => a.candidate_id === u.candidate_id);
+		return {
+			name: app?.candidate_name ?? `Candidate #${u.candidate_id}`,
+			job: app?.job_title ?? (u.job_id != null ? `Job #${u.job_id}` : 'Interview'),
+		};
+	}
 	const todayInterviews = interviews.filter(
 		(i) => isToday(i.scheduled_at) && ['scheduled', 'confirmed'].includes(i.status),
 	);
@@ -480,14 +593,25 @@ export function RecruiterInterviewsPage() {
 	}
 
 	function getInterviewsForDay(day: number) {
-		return interviews.filter((i) => {
-			const d = new Date(i.scheduled_at);
-			return (
-				d.getFullYear() === calMonth.getFullYear() &&
-				d.getMonth() === calMonth.getMonth() &&
-				d.getDate() === day
-			);
-		});
+		const matches = (d: Date) =>
+			d.getFullYear() === calMonth.getFullYear() &&
+			d.getMonth() === calMonth.getMonth() &&
+			d.getDate() === day;
+		// Confirmed System B interviews have a fixed time — map them to the
+		// same cell shape (unified rows carry ids, not display fields).
+		const unifiedDay = unifiedB
+			.filter((u) => u.scheduled_at != null && matches(new Date(u.scheduled_at!)))
+			.map((u) => {
+				const d = unifiedDisplay(u);
+				return {
+					id: `unified-${u.id}`,
+					scheduled_at: u.scheduled_at as string,
+					interview_type: u.interview_type,
+					candidate_name: d.name,
+					job_title: d.job,
+				};
+			});
+		return [...interviews.filter((i) => matches(new Date(i.scheduled_at))), ...unifiedDay];
 	}
 
 	if (loading) {
@@ -587,7 +711,9 @@ export function RecruiterInterviewsPage() {
 								<Calendar className="h-5 w-5" />
 							</div>
 							<div>
-								<p className="text-2xl font-bold">{upcoming.length}</p>
+								<p className="text-2xl font-bold">
+									{upcoming.length + unifiedUpcoming.length}
+								</p>
 								<p className="text-xs text-muted-foreground">Upcoming</p>
 							</div>
 						</div>
@@ -601,7 +727,8 @@ export function RecruiterInterviewsPage() {
 							</div>
 							<div>
 								<p className="text-2xl font-bold">
-									{interviews.filter((i) => i.status === 'completed').length}
+									{interviews.filter((i) => i.status === 'completed').length +
+										unifiedB.filter((u) => u.status === 'completed').length}
 								</p>
 								<p className="text-xs text-muted-foreground">Completed</p>
 							</div>
@@ -658,15 +785,17 @@ export function RecruiterInterviewsPage() {
 			{/* Main content */}
 			<Tabs value={tab} onValueChange={setTab}>
 				<TabsList className="flex-wrap h-auto">
-					<TabsTrigger value="upcoming">Upcoming ({upcoming.length})</TabsTrigger>
+					<TabsTrigger value="upcoming">
+						Upcoming ({upcoming.length + unifiedUpcoming.length})
+					</TabsTrigger>
 					<TabsTrigger value="screening">Screening</TabsTrigger>
 					<TabsTrigger value="calendar">Calendar</TabsTrigger>
-					<TabsTrigger value="past">Past ({past.length})</TabsTrigger>
+					<TabsTrigger value="past">Past ({past.length + unifiedPast.length})</TabsTrigger>
 				</TabsList>
 
 				{/* Upcoming list */}
 				<TabsContent value="upcoming">
-					{upcoming.length === 0 ? (
+					{upcoming.length + unifiedUpcoming.length === 0 ? (
 						<EmptyState
 							icon={Calendar}
 							title="No upcoming interviews"
@@ -693,6 +822,17 @@ export function RecruiterInterviewsPage() {
 									evaluating={evaluating === interview.id}
 								/>
 							))}
+							{unifiedUpcoming.map((u) => {
+								const d = unifiedDisplay(u);
+								return (
+									<RecruiterSystemBCard
+										key={`unified-${u.id}`}
+										interview={u}
+										candidateName={d.name}
+										jobTitle={d.job}
+									/>
+								);
+							})}
 						</div>
 					)}
 				</TabsContent>
@@ -954,7 +1094,7 @@ export function RecruiterInterviewsPage() {
 
 				{/* Past interviews */}
 				<TabsContent value="past">
-					{past.length === 0 ? (
+					{past.length + unifiedPast.length === 0 ? (
 						<EmptyState
 							icon={Inbox}
 							title="No past interviews yet"
@@ -980,6 +1120,18 @@ export function RecruiterInterviewsPage() {
 									isPast
 								/>
 							))}
+							{unifiedPast.map((u) => {
+								const d = unifiedDisplay(u);
+								return (
+									<RecruiterSystemBCard
+										key={`unified-past-${u.id}`}
+										interview={u}
+										candidateName={d.name}
+										jobTitle={d.job}
+										isPast
+									/>
+								);
+							})}
 						</div>
 					)}
 				</TabsContent>
@@ -1059,26 +1211,114 @@ export function RecruiterInterviewsPage() {
 						)}
 					</div>
 
-					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-						<div>
-							<Label>Date</Label>
-							<Input
-								type="date"
-								value={schedDate}
-								onChange={(e) => setSchedDate(e.target.value)}
-								className="min-h-[44px]"
-							/>
+					{/* Scheduling mode: single fixed time (System A) or multi-slot
+						proposal where the candidate picks a time (System B) */}
+					<div>
+						<Label>Scheduling</Label>
+						<div className="flex gap-2 mt-1">
+							<Button
+								type="button"
+								variant={schedMode === 'single' ? 'default' : 'outline'}
+								size="sm"
+								onClick={() => setSchedMode('single')}
+								className="min-h-[44px] flex-1"
+							>
+								Single time
+							</Button>
+							<Button
+								type="button"
+								variant={schedMode === 'multi' ? 'default' : 'outline'}
+								size="sm"
+								onClick={() => setSchedMode('multi')}
+								className="min-h-[44px] flex-1"
+							>
+								Propose slots
+							</Button>
 						</div>
-						<div>
-							<Label>Time</Label>
-							<Input
-								type="time"
-								value={schedTime}
-								onChange={(e) => setSchedTime(e.target.value)}
-								className="min-h-[44px]"
-							/>
-						</div>
+						<p className="text-xs text-muted-foreground mt-1">
+							{schedMode === 'single'
+								? 'Pick one fixed date and time for the interview.'
+								: 'Propose up to 5 times — the candidate picks the one that works.'}
+						</p>
 					</div>
+
+					{schedMode === 'single' ? (
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+							<div>
+								<Label>Date</Label>
+								<Input
+									type="date"
+									value={schedDate}
+									onChange={(e) => setSchedDate(e.target.value)}
+									className="min-h-[44px]"
+								/>
+							</div>
+							<div>
+								<Label>Time</Label>
+								<Input
+									type="time"
+									value={schedTime}
+									onChange={(e) => setSchedTime(e.target.value)}
+									className="min-h-[44px]"
+								/>
+							</div>
+						</div>
+					) : (
+						<div className="space-y-2">
+							<Label>Proposed slots ({slotInputs.filter((s) => s.date && s.time).length}/5)</Label>
+							{slotInputs.map((s, i) => (
+								<div key={`slot-${i}`} className="flex gap-2 items-center">
+									<Input
+										type="date"
+										value={s.date}
+										onChange={(e) =>
+											setSlotInputs((prev) =>
+												prev.map((p, j) => (j === i ? { ...p, date: e.target.value } : p)),
+											)
+										}
+										className="min-h-[44px]"
+										aria-label={`Slot ${i + 1} date`}
+									/>
+									<Input
+										type="time"
+										value={s.time}
+										onChange={(e) =>
+											setSlotInputs((prev) =>
+												prev.map((p, j) => (j === i ? { ...p, time: e.target.value } : p)),
+											)
+										}
+										className="min-h-[44px]"
+										aria-label={`Slot ${i + 1} time`}
+									/>
+									{slotInputs.length > 1 && (
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											onClick={() =>
+												setSlotInputs((prev) => prev.filter((_, j) => j !== i))
+											}
+											className="min-h-[44px] shrink-0"
+											aria-label={`Remove slot ${i + 1}`}
+										>
+											<XCircle className="h-4 w-4" />
+										</Button>
+									)}
+								</div>
+							))}
+							{slotInputs.length < 5 && (
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => setSlotInputs((prev) => [...prev, { date: '', time: '' }])}
+									className="min-h-[44px]"
+								>
+									<Plus className="h-3.5 w-3.5 mr-1" /> Add another slot
+								</Button>
+							)}
+						</div>
+					)}
 					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						<div>
 							<Label>Duration</Label>
@@ -1129,10 +1369,20 @@ export function RecruiterInterviewsPage() {
 						</Button>
 						<Button
 							onClick={scheduleInterview}
-							disabled={saving || !appId || !schedDate || !schedTime}
+							disabled={
+								saving ||
+								!appId ||
+								(schedMode === 'single'
+									? !schedDate || !schedTime
+									: !slotInputs.some((s) => s.date && s.time))
+							}
 							className="min-h-[44px]"
 						>
-							{saving ? 'Scheduling...' : 'Schedule Interview'}
+							{saving
+								? 'Scheduling...'
+								: schedMode === 'multi'
+									? 'Propose Slots'
+									: 'Schedule Interview'}
 						</Button>
 					</div>
 				</div>
@@ -1585,6 +1835,126 @@ export function RecruiterInterviewsPage() {
 	);
 }
 
+// Slot status badges for System B (recruiter view of the negotiation).
+const slotStatusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
+	offered: { label: 'Offered', variant: 'warning' },
+	accepted: { label: 'Picked', variant: 'success' },
+	rejected: { label: 'Rejected', variant: 'secondary' },
+	expired: { label: 'Expired', variant: 'destructive' },
+};
+
+// System B human interview card (multi-slot negotiation) for the recruiter.
+// Shows the proposed slots and their statuses; no candidate actions here —
+// picking a slot happens on the candidate side.
+function RecruiterSystemBCard({
+	interview: u,
+	candidateName,
+	jobTitle,
+	isPast,
+}: {
+	interview: UnifiedInterview;
+	candidateName: string;
+	jobTitle: string;
+	isPast?: boolean;
+}) {
+	const config = statusConfig[u.status] || statusConfig.scheduled;
+	const StatusIcon = config.icon;
+	const slots = u.proposed_slots || [];
+	const pickedSlot = slots.find((s) => s.status === 'accepted');
+	const needsPick = u.status === 'proposed' && !isPast;
+	const isUpcoming =
+		!isPast &&
+		(u.status === 'proposed' ||
+			(u.scheduled_at != null && isFuture(u.scheduled_at) && ['confirmed', 'rescheduled'].includes(u.status)));
+
+	return (
+		<Card>
+			<CardContent className="p-4">
+				<div className="flex flex-col sm:flex-row gap-4">
+					<div className="p-2.5 rounded-xl bg-blue-100 text-blue-700 h-fit">
+						<Video className="h-5 w-5" />
+					</div>
+
+					<div className="flex-1 min-w-0">
+						<div className="flex items-center gap-2 flex-wrap">
+							<h3 className="font-semibold">{candidateName}</h3>
+							<Badge variant="secondary" className="bg-blue-100 text-blue-700">
+								Multi-slot
+							</Badge>
+							<Badge variant={config.variant}>
+								<StatusIcon className="h-3 w-3 mr-1" /> {config.label}
+							</Badge>
+						</div>
+						<div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
+							<span className="flex items-center gap-1">
+								<Briefcase className="h-3.5 w-3.5" /> {jobTitle}
+							</span>
+							<span className="flex items-center gap-1">
+								<Clock className="h-3.5 w-3.5" /> {u.duration_minutes}min
+							</span>
+						</div>
+
+						{u.scheduled_at && (
+							<div className="flex items-center gap-3 mt-1 text-sm flex-wrap">
+								<span className="flex items-center gap-1 font-medium">
+									<Calendar className="h-3.5 w-3.5" /> {formatDate(u.scheduled_at)}
+								</span>
+								<span className="text-muted-foreground">{formatTime(u.scheduled_at)}</span>
+							</div>
+						)}
+
+						{/* Slot negotiation status */}
+						<div className="mt-3 space-y-1.5">
+							<p className="text-xs font-medium text-muted-foreground">
+								{needsPick
+									? 'Waiting for the candidate to pick a time:'
+									: pickedSlot
+										? 'Candidate picked:'
+										: 'Proposed slots:'}
+							</p>
+							{slots.length === 0 ? (
+								<p className="text-sm text-muted-foreground">No slots proposed.</p>
+							) : (
+								<div className="grid gap-1.5 sm:grid-cols-2">
+									{slots.map((s, i) => {
+										const sc = slotStatusConfig[s.status] || slotStatusConfig.offered;
+										return (
+											<div
+												key={s.id ?? s.slot_id ?? `slot-${i}`}
+												className="flex items-center justify-between gap-2 rounded-lg border border-border p-2 text-sm"
+											>
+												<span>
+													<span className="font-medium">{formatDate(s.start)}</span>
+													<span className="text-muted-foreground">
+														{' '}
+														{formatTime(s.start)} – {formatTime(s.end)}
+													</span>
+												</span>
+												<Badge variant={sc.variant}>{sc.label}</Badge>
+											</div>
+										);
+									})}
+								</div>
+							)}
+						</div>
+
+						{u.notes && (
+							<p className="text-sm text-muted-foreground mt-2 line-clamp-2">{u.notes}</p>
+						)}
+					</div>
+
+					{/* Actions */}
+					<div className="flex flex-wrap gap-2 sm:flex-col">
+						{u.meeting_link && isUpcoming && (
+							<JoinInterviewButton interviewId={u.id} label="Join" />
+						)}
+					</div>
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
 function InterviewCard({
 	interview,
 	onCancel,
@@ -1695,11 +2065,7 @@ function InterviewCard({
 					{/* Actions */}
 					<div className="flex flex-wrap gap-2 sm:flex-col">
 						{interview.meeting_link && isUpcoming && (
-							<a href={interview.meeting_link} target="_blank" rel="noopener noreferrer">
-								<Button size="sm" className="w-full min-h-[44px]">
-									<Video className="h-3.5 w-3.5 mr-1" /> Join
-								</Button>
-							</a>
+							<JoinInterviewButton interviewId={interview.id} label="Join" />
 						)}
 						{interview.livekit_room_id && interview.livekit_room_url && isUpcoming && (
 							<a href={`/candidate/livekit-room?roomId=${interview.livekit_room_id}`}>
