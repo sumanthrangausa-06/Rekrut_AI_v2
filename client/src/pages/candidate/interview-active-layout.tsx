@@ -274,11 +274,11 @@ export function InterviewActiveLayout({
 						<MoreHorizontal className="h-4 w-4" />
 					</Button>
 
-					{/* Mobile chat toggle */}
+					{/* Mobile chat toggle (hidden: chat panel is now inline on mobile, bottom-sheet is fallback) */}
 					<Button
 						variant="ghost"
 						size="sm"
-						className="lg:hidden h-8 w-8 p-0 text-white/60 hover:text-white hover:bg-white/10"
+						className="hidden lg:hidden h-8 w-8 p-0 text-white/60 hover:text-white hover:bg-white/10"
 						onClick={() => setChatPanelMobileOpen(true)}
 					>
 						<MessageSquare className="h-4 w-4" />
@@ -302,19 +302,25 @@ export function InterviewActiveLayout({
 			</header>
 
 			{/* ===== MAIN CONTENT ===== */}
-			<div className="flex flex-1 overflow-hidden relative">
+			<div className="flex flex-col lg:flex-row flex-1 overflow-hidden relative">
 				{/* Video Area */}
-				<div className="flex-1 flex flex-col relative min-w-0 bg-[#0a0a0a]">
+				<div className="flex flex-col relative min-w-0 bg-[#0a0a0a] w-full lg:flex-1 lg:w-auto">
 					{/* Primary Video Stage */}
-					<div ref={videoContainerRef} className="flex-1 relative min-h-0">
+					{/* Responsive: 40vh mobile, 50vh tablet, flex-1 desktop */}
+					<div ref={videoContainerRef} className="relative min-h-0 h-[40vh] sm:h-[50vh] lg:h-auto lg:flex-1">
 						{/* Active Speaker Video Feed */}
+						{/* Hidden (not unmounted) when AI speaks so mockVideoRef stays attached
+							for the parent stream, PiP srcObject copy, and frame capture. */}
 						<video
 							ref={mockVideoRef}
 							autoPlay
 							muted
 							playsInline
 							webkit-playsinline=""
-							className="absolute inset-0 w-full h-full object-cover"
+							className={cn(
+								'absolute inset-0 w-full h-full object-cover',
+								activeSpeaker === 'ai' && 'invisible',
+							)}
 							style={{ transform: 'scaleX(-1)' }}
 						/>
 
@@ -522,9 +528,9 @@ export function InterviewActiveLayout({
 					</div>
 				</div>
 
-				{/* ===== CHAT PANEL (Desktop) ===== */}
+				{/* ===== CHAT PANEL (responsive: inline below video on mobile/tablet, sidebar on desktop) ===== */}
 				{showChat && (
-					<div className="hidden lg:flex w-[30%] max-w-md flex-col border-l border-white/5 bg-[#111111]/80 backdrop-blur-xl shrink-0">
+					<div className="flex flex-1 lg:flex-none min-h-0 w-full lg:w-[30%] lg:max-w-md flex-col border-t lg:border-t-0 lg:border-l border-white/5 bg-[#111111]/80 backdrop-blur-xl">
 						<ChatPanelContent
 							conversation={mockSession.conversation}
 							candidateRecording={candidateRecording}
