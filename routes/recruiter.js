@@ -10,6 +10,7 @@ const calendarService = require('../server/services/calendar-service');
 const auditLogService = require('../services/auditLogService');
 const { AuditLogger } = auditLogService;
 const { dataAccessAudit } = require('../middleware/dataAccessAudit');
+const { buildRecruiterFeed } = require('../lib/activity-feed');
 const emailService = require('../lib/email-service');
 const { notifyUser } = require('../lib/notify');
 const DOMPurify = require('isomorphic-dompurify');
@@ -623,6 +624,24 @@ router.get(
 		} catch (err) {
 			console.error('Dashboard error:', err);
 			res.status(500).json({ error: 'Failed to load dashboard' });
+		}
+	},
+);
+
+// Issue #529: Recruiter activity feed — richer than recent applications alone.
+// Aggregates new applications, interviews, and endorsements given.
+router.get(
+	'/activity',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	async (req, res) => {
+		try {
+			const activities = await buildRecruiterFeed(req.user.id, req.user.company_id);
+			res.json({ success: true, activities });
+		} catch (err) {
+			console.error('[recruiter/activity] failed:', err.message);
+			res.status(500).json({ error: 'Failed to load activity feed' });
 		}
 	},
 );
