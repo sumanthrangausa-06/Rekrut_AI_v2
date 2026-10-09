@@ -2,7 +2,7 @@
 // Plays TTS audio from a backend endpoint (Web Audio API, HTMLAudio fallback,
 // browser speechSynthesis fallback), then optionally auto-starts voice recording.
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { getToken } from '@/lib/api';
 
 export interface InterviewerAudioOptions {
@@ -24,12 +24,71 @@ export interface PlayBufferOptions {
 	autoRecordDelayMs?: number;
 }
 
+// --- iOS audio session routing -------------------------------------------
+// While the mic is held open during an interview, iOS puts the audio
+// session in play-and-record mode and routes HTMLAudio output to the
+// earpiece (phone-call behavior), making the AI voice inaudible.
+// Spike test confirmed navigator.audioSession exists on iOS and accepts
+// type changes. Set "playback" before the AI speaks so the voice goes
+// through the speaker; restore "play-and-record" when done so the mic
+// keeps working. All iOS-gated — desktop behavior is untouched.
+
+type IOSAudioSessionType = 'playback' | 'play-and-record';
+
+const isIOSDevice = (): boolean =>
+	/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+	(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+interface NavigatorWithAudioSession extends Navigator {
+	audioSession?: { type: string };
+}
+
+function setAudioSessionType(type: IOSAudioSessionType): void {
+	if (!isIOSDevice()) return;
+	const nav = navigator as NavigatorWithAudioSession;
+	if (!nav.audioSession) return;
+	try {
+		nav.audioSession.type = type;
+	} catch {
+		/* audioSession unsupported — leave routing to iOS defaults */
+	}
+}
+
 export function useInterviewerAudio(options: InterviewerAudioOptions) {
 	const audioCtxRef = useRef<AudioContext | null>(null);
 	const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
 	const audioElRef = useRef<HTMLAudioElement | null>(null);
 	const optionsRef = useRef(options);
 	optionsRef.current = options;
+	/** Tracks the currently desired iOS session type (for devicechange re-assert). */
+	const sessionTypeRef = useRef<IOSAudioSessionType>('play-and-record');
+
+	const applySessionType = useCallback((type: IOSAudioSessionType) => {
+		sessionTypeRef.current = type;
+		setAudioSessionType(type);
+	}, []);
+
+	// Re-assert the current session type when the output route changes
+	// (e.g. AirPods disconnected mid-interview — iOS reroutes automatically
+	// but may reset the session type). iOS-only.
+	useEffect(() => {
+		if (!isIOSDevice()) return;
+		const onDeviceChange = () => {
+			setAudioSessionType(sessionTypeRef.current);
+		};
+		try {
+			navigator.mediaDevices?.addEventListener('devicechange', onDeviceChange);
+		} catch {
+			/* mediaDevices unavailable */
+		}
+		return () => {
+			try {
+				navigator.mediaDevices?.removeEventListener('devicechange', onDeviceChange);
+			} catch {
+				/* ignore */
+			}
+		};
+	}, []);
 
 
 	const ensureAudioContext = useCallback((): AudioContext => {
@@ -44,6 +103,8 @@ export function useInterviewerAudio(options: InterviewerAudioOptions) {
 	}, []);
 
 	const stopAudio = useCallback(() => {
+		// iOS: restore mic mode in case playback was interrupted mid-speech.
+		applySessionType('play-and-record');
 		if (audioSourceRef.current) {
 			// Phase 0 (#447): null the onended handler BEFORE stopping.
 			// Otherwise the old source's onended fires finish(), corrupting
@@ -70,7 +131,7 @@ export function useInterviewerAudio(options: InterviewerAudioOptions) {
 			audioElRef.current = null;
 		}
 		optionsRef.current.onSpeakingChange(false);
-	}, []);
+	}, [applySessionType]);
 
 	/** Close the AudioContext (call on unmount). */
 	const dispose = useCallback(() => {
@@ -87,8 +148,14 @@ export function useInterviewerAudio(options: InterviewerAudioOptions) {
 
 	const speakWithBrowserTTS = useCallback((text: string): Promise<void> => {
 		return new Promise((resolve) => {
-			if (!window.speechSynthesis) {
+			// iOS: route TTS voice to speaker, restore mic mode when done.
+			const done = () => {
+				applySessionType('play-and-record');
 				resolve();
+			};
+			applySessionType('playback');
+			if (!window.speechSynthesis) {
+				done();
 				return;
 			}
 			window.speechSynthesis.cancel();
@@ -123,7 +190,7 @@ export function useInterviewerAudio(options: InterviewerAudioOptions) {
 			}
 
 			const timeout = setTimeout(() => {
-				resolve();
+				done();
 			}, 30000);
 
 			const keepAlive = setInterval(() => {
@@ -137,24 +204,28 @@ export function useInterviewerAudio(options: InterviewerAudioOptions) {
 			utterance.onend = () => {
 				clearTimeout(timeout);
 				clearInterval(keepAlive);
-				resolve();
+				done();
 			};
 			utterance.onerror = () => {
 				clearTimeout(timeout);
 				clearInterval(keepAlive);
-				resolve();
+				done();
 			};
 
 			window.speechSynthesis.speak(utterance);
 		});
-	}, []);
+	}, [applySessionType]);
 
 	/** Decode raw audio bytes and play them (Web Audio, HTMLAudio fallback). */
 	const playAudioBuffer = useCallback(
 		async (arrayBuffer: ArrayBuffer, playOpts: PlayBufferOptions = {}) => {
 			const opts = optionsRef.current;
+			// iOS: route AI voice to speaker (not earpiece) while it plays.
+			applySessionType('playback');
 			opts.onSpeakingChange(true);
 			const finish = () => {
+				// iOS: restore mic mode so the next recording works.
+				applySessionType('play-and-record');
 				opts.onSpeakingChange(false);
 				if (playOpts.onEnded) {
 					playOpts.onEnded();
@@ -216,9 +287,16 @@ export function useInterviewerAudio(options: InterviewerAudioOptions) {
 				URL.revokeObjectURL(audioUrl);
 				finish();
 			};
-			await audio.play();
+			try {
+				await audio.play();
+			} catch (e) {
+				// play() rejected (e.g. autoplay blocked) — restore the
+				// session before propagating so the mic keeps working.
+				finish();
+				throw e;
+			}
 		},
-		[ensureAudioContext],
+		[ensureAudioContext, applySessionType],
 	);
 
 	const playInterviewerAudio = useCallback(
