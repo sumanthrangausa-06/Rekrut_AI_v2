@@ -1062,8 +1062,14 @@ function CandidateCoachingSection({ candidateId }: { candidateId: number }) {
 													{cd.presentation && (
 														<span className="text-muted-foreground">
 															Presentation:{' '}
-															<strong className={scoreColor(cd.presentation.score)}>
-																{cd.presentation.score}/10
+															<strong
+																className={
+																	cd.presentation.score == null
+																		? 'text-muted-foreground'
+																		: scoreColor(cd.presentation.score)
+																}
+															>
+																{cd.presentation.score == null ? 'N/A' : `${cd.presentation.score}/10`}
 															</strong>
 														</span>
 													)}

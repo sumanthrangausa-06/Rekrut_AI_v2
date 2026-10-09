@@ -1378,17 +1378,17 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
 				// BUG FIX (Feb 15, 2026 — Task #33076): Always set presentation data.
 				// Previously, when videoAnalysis was null (all providers failed), feedback.presentation
 				// was never set → UI showed "No video frames available" defaults (5/10 everywhere).
-				// Now we always save presentation data — real scores when vision works, meaningful
-				// fallback when it doesn't.
+				// Now we always save presentation data — real scores when vision works, null scores
+				// (rendered as N/A) when it doesn't, so missing data is never misread as average.
 				const hasFrames = frames && Array.isArray(frames) && frames.length > 0;
 				if (videoAnalysis) {
 					feedback.presentation = {
-						score: videoAnalysis.overall_presentation || 5,
-						eye_contact: videoAnalysis.eye_contact || { score: 5, feedback: '' },
-						facial_expressions: videoAnalysis.facial_expressions || { score: 5, feedback: '' },
-						body_language: videoAnalysis.body_language || { score: 5, feedback: '' },
-						professional_appearance: videoAnalysis.professional_appearance || {
-							score: 5,
+						score: videoAnalysis.overall_presentation ?? null,
+						eye_contact: videoAnalysis.eye_contact ?? { score: null, feedback: '' },
+						facial_expressions: videoAnalysis.facial_expressions ?? { score: null, feedback: '' },
+						body_language: videoAnalysis.body_language ?? { score: null, feedback: '' },
+						professional_appearance: videoAnalysis.professional_appearance ?? {
+							score: null,
 							feedback: '',
 						},
 						summary: videoAnalysis.summary || '',
@@ -1406,22 +1406,22 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
 								? 'Moderate response length'
 								: 'Responses could be more detailed';
 					feedback.presentation = {
-						score: 5,
+						score: null,
 						eye_contact: {
-							score: 5,
+							score: null,
 							feedback: `Video was recorded (${frames.length} frames captured). Vision analysis temporarily unavailable — practice maintaining steady eye contact with the camera.`,
 						},
 						facial_expressions: {
-							score: 5,
+							score: null,
 							feedback: `Based on ${turnCount} responses: ${paceNote}. Aim for engaged, confident expressions throughout.`,
 						},
 						body_language: {
-							score: 5,
+							score: null,
 							feedback:
 								'Sit upright with shoulders back. Use natural hand gestures to emphasize key points.',
 						},
 						professional_appearance: {
-							score: 5,
+							score: null,
 							feedback:
 								'Ensure good lighting, a clean background, and professional framing for your next session.',
 						},
@@ -1435,7 +1435,7 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
 				// Recalculate score with presentation/voice
 				if (videoAnalysis || voiceAnalysis) {
 					const textScore = feedback.overall_score || 5;
-					const presScore = videoAnalysis?.overall_presentation || textScore;
+					const presScore = videoAnalysis?.overall_presentation ?? textScore;
 					const voiceScore = voiceAnalysis?.overall_voice_score || textScore;
 					feedback.overall_score =
 						Math.round((textScore * 0.5 + presScore * 0.25 + voiceScore * 0.25) * 10) / 10;
