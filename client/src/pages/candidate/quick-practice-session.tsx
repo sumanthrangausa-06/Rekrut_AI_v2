@@ -527,14 +527,7 @@ export function QuickPracticeSessionPage() {
 										const catCfg =
 											categoryConfig[practiceQuestion.category] || categoryConfig.behavioral;
 										return (
-		<div className="container max-w-2xl mx-auto px-4 py-6 pb-16">
-			{/* Page header with back navigation */}
-			<div className="flex items-center gap-2 mb-6">
-				<Button variant="ghost" size="sm" onClick={closePractice}>
-					<ArrowLeft className="h-4 w-4 mr-1.5" /> Back to Practice
-				</Button>
-			</div>
-
+											<>
 												<Badge
 													variant="secondary"
 													className={`${catCfg.bg} ${catCfg.color} border-0`}
