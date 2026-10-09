@@ -697,14 +697,14 @@ export function SettingsPage() {
 									</p>
 								</div>
 
-								<div className="flex items-center justify-between">
+								<div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
 									<div className="flex items-center gap-2">
 										<Badge variant="outline" className="capitalize">
 											{user?.role}
 										</Badge>
 										<span className="text-sm text-muted-foreground">ID: {user?.id}</span>
 									</div>
-									<Button type="submit" disabled={saving}>
+									<Button type="submit" disabled={saving} className="w-full sm:w-auto">
 										{saving ? 'Saving...' : 'Save Profile'}
 									</Button>
 								</div>
