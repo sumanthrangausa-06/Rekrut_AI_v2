@@ -231,8 +231,8 @@ export function resolveNotificationUrl(
 		case 'screening_completed':
 		case 'screening_stalled': {
 			if (isRecruiter) return '/recruiter/screening';
-			// Note: /candidate/screening/:jobId does not exist; screening invites
-			// surface on /candidate/ai-screening ("Interview Invitations").
+			// Screening invites surface on /candidate/ai-screening ("Interview Invitations");
+			// the questionnaire page at /candidate/screening/:jobId is a different feature.
 			return '/candidate/ai-screening';
 		}
 		case 'assessment_assigned':
