@@ -62,6 +62,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/auth-context';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall } from '@/lib/api';
+import {
+	calculateProfileCompletion,
+	getMissingProfileSections,
+} from '@/lib/profile-completion';
 
 interface Profile {
 	user_id?: number;
@@ -726,38 +730,25 @@ export function CandidateProfilePage() {
 		}
 	}
 
-	// Profile completeness
-	const completenessFields = [
-		profile.name,
-		profile.headline,
-		profile.bio,
-		profile.location,
-		profile.linkedin_url || profile.github_url,
-		profile.resume_url,
-		skills.length > 0,
-		experience.length > 0,
-		education.length > 0,
-		profile.phone,
-		profile.years_experience != null,
-		profile.avatar_url,
-	];
-	const completeness = Math.round(
-		(completenessFields.filter(Boolean).length / completenessFields.length) * 100,
-	);
-	const missingSections = [
-		!profile.name && 'Name',
-		!profile.headline && 'Headline',
-		!profile.bio && 'Bio',
-		!profile.location && 'Location',
-		!(profile.linkedin_url || profile.github_url) && 'Social Links',
-		!profile.resume_url && 'Resume',
-		skills.length === 0 && 'Skills',
-		experience.length === 0 && 'Experience',
-		education.length === 0 && 'Education',
-		!profile.phone && 'Phone',
-		profile.years_experience == null && 'Years of Experience',
-		!profile.avatar_url && 'Profile Photo',
-	].filter(Boolean) as string[];
+	// Profile completeness — shared calculation (see @/lib/profile-completion).
+	// The Dashboard uses the same 12-field formula via the backend.
+	const completionInput = {
+		name: profile.name,
+		headline: profile.headline,
+		bio: profile.bio,
+		location: profile.location,
+		linkedin_url: profile.linkedin_url,
+		github_url: profile.github_url,
+		resume_url: profile.resume_url,
+		phone: profile.phone,
+		years_experience: profile.years_experience,
+		avatar_url: profile.avatar_url,
+		hasSkills: skills.length > 0,
+		hasExperience: experience.length > 0,
+		hasEducation: education.length > 0,
+	};
+	const completeness = calculateProfileCompletion(completionInput);
+	const missingSections = getMissingProfileSections(completionInput);
 
 	if (loading) {
 		return (
