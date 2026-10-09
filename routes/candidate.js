@@ -5,6 +5,7 @@ const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const { authMiddleware, requireRole } = require('../lib/auth');
 const pool = require('../lib/db');
+const { analyticsCache } = require('../lib/analytics-cache');
 const {
 	parseResume,
 	generateSkillAssessment,
@@ -15,6 +16,7 @@ const {
 
 const omniscoreService = require('../services/omniscore');
 const { decrypt } = require('../lib/crypto-utils');
+const { buildCandidateFeed } = require('../lib/activity-feed');
 const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-limiter');
 const marketBenchmarks = require('../lib/market-benchmarks');
 const { uploadToB2, checkB2Health } = require('../lib/file-storage');
@@ -40,6 +42,26 @@ function badRequest(message) {
 	const err = new Error(message);
 	err.statusCode = 400;
 	return err;
+}
+
+// ============= JOB ALERTS helpers (#528) =============
+// Defined here (before the /profile route) because GET /profile
+// includes job_alerts in its response.
+const { countMatchesForAlert } = require('../lib/job-alert-matcher');
+
+function toJobAlertRow(row, matchCount = 0) {
+	return {
+		id: row.id,
+		keywords: row.keywords,
+		location: row.location || '',
+		frequency: row.frequency || 'daily',
+		active: !!row.is_active,
+		match_count: matchCount,
+		job_type: row.job_type || null,
+		salary_min: row.salary_min,
+		created_at: row.created_at,
+		updated_at: row.updated_at,
+	};
 }
 
 function normalizeTextField(value, maxLength, fieldName) {
@@ -162,7 +184,16 @@ router.get('/profile', authMiddleware, async (req, res) => {
 		);
 
 		const skills = await pool.query(
-			'SELECT * FROM candidate_skills WHERE user_id = $1 ORDER BY level DESC, skill_name',
+			`SELECT cs.*,
+			        COALESCE(e.endorsement_count, 0)::int AS endorsements
+			 FROM candidate_skills cs
+			 LEFT JOIN (
+			   SELECT candidate_id, skill_name, COUNT(*) AS endorsement_count
+			   FROM skill_endorsements
+			   WHERE candidate_id = $1
+			   GROUP BY candidate_id, skill_name
+			 ) e ON e.skill_name = cs.skill_name
+			 WHERE cs.user_id = $1 ORDER BY cs.level DESC, cs.skill_name`,
 			[req.user.id],
 		);
 
@@ -172,6 +203,33 @@ router.get('/profile', authMiddleware, async (req, res) => {
 		);
 
 		const profileRow = profile.rows[0] || {};
+		let jobAlerts = [];
+		try {
+			const alertsResult = await pool.query(
+				'SELECT * FROM job_alerts WHERE user_id = $1 ORDER BY created_at DESC',
+				[req.user.id],
+			);
+			for (const row of alertsResult.rows) {
+				let matchCount = 0;
+				try {
+					matchCount = await countMatchesForAlert(row);
+				} catch (_e) {
+					// match_count is best-effort; don't fail profile load
+				}
+				jobAlerts.push(toJobAlertRow(row, matchCount));
+			}
+		} catch (_e) {
+			// job_alerts table may not exist yet on older DBs; don't fail profile load
+		}
+
+		// Issue #529: candidate activity feed (best-effort, never fails profile load)
+		let activities = [];
+		try {
+			activities = await buildCandidateFeed(req.user.id);
+		} catch (feedErr) {
+			console.error('[profile] activity feed failed:', feedErr.message);
+		}
+
 		res.json({
 			success: true,
 			profile: profileRow,
@@ -187,6 +245,10 @@ router.get('/profile', authMiddleware, async (req, res) => {
 			// Certifications live in candidate_profiles.certifications JSONB;
 			// frontend reads data.certifications (top-level)
 			certifications: profileRow.certifications || [],
+			// Job alerts for the JobAlertsTab (#528)
+			job_alerts: jobAlerts,
+			// Issue #529: unified activity feed (frontend ActivityTab)
+			activities,
 		});
 	} catch (err) {
 		console.error('Get profile error:', err);
@@ -351,6 +413,13 @@ router.put('/profile', authMiddleware, async (req, res) => {
 				req.user.id,
 			]);
 		}
+
+		// Issue #522: invalidate cached dashboard stats + recruiter previews for this candidate
+		analyticsCache.del(
+			analyticsCache.key('/api/candidate/dashboard/stats', { userId: req.user.id }),
+		);
+		// Preview keys are per-recruiter; the trailing & scopes the pattern to this candidate only
+		analyticsCache.invalidate(`/api/candidates/preview?candidateId=${req.user.id}&`);
 
 		res.json({ success: true, profile: result.rows[0] });
 	} catch (err) {
@@ -1546,7 +1615,16 @@ router.delete('/education/:id', authMiddleware, async (req, res) => {
 router.get('/skills', authMiddleware, async (req, res) => {
 	try {
 		const skills = await pool.query(
-			'SELECT * FROM candidate_skills WHERE user_id = $1 ORDER BY category, level DESC',
+			`SELECT cs.*,
+			        COALESCE(e.endorsement_count, 0)::int AS endorsements
+			 FROM candidate_skills cs
+			 LEFT JOIN (
+			   SELECT candidate_id, skill_name, COUNT(*) AS endorsement_count
+			   FROM skill_endorsements
+			   WHERE candidate_id = $1
+			   GROUP BY candidate_id, skill_name
+			 ) e ON e.skill_name = cs.skill_name
+			 WHERE cs.user_id = $1 ORDER BY cs.category, cs.level DESC`,
 			[req.user.id],
 		);
 		res.json({ success: true, skills: skills.rows });
@@ -1647,6 +1725,143 @@ router.delete('/skills/:id', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Delete skill error:', err);
 		res.status(500).json({ error: 'Failed to delete skill' });
+	}
+});
+
+// ============= JOB ALERTS (#528) =============
+// Frontend: JobAlertsTab in client/src/pages/candidate/profile.tsx
+// The tab expects `active` (not is_active) and `match_count` on each alert.
+// Helpers (toJobAlertRow, countMatchesForAlert) are defined near the top
+// of this file so GET /profile can use them too.
+
+router.get('/job-alerts', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			'SELECT * FROM job_alerts WHERE user_id = $1 ORDER BY created_at DESC',
+			[req.user.id],
+		);
+		const alerts = [];
+		for (const row of result.rows) {
+			let matchCount = 0;
+			try {
+				matchCount = await countMatchesForAlert(row);
+			} catch (_e) {
+				// match_count is best-effort; don't fail the whole request
+			}
+			alerts.push(toJobAlertRow(row, matchCount));
+		}
+		res.json({ success: true, alerts });
+	} catch (err) {
+		console.error('Get job alerts error:', err);
+		res.status(500).json({ error: 'Failed to get job alerts' });
+	}
+});
+
+router.post('/job-alerts', authMiddleware, async (req, res) => {
+	try {
+		const { keywords, location, frequency, job_type, salary_min, active } = req.body || {};
+		if (!keywords || !String(keywords).trim()) {
+			return res.status(400).json({ error: 'keywords is required' });
+		}
+		const allowedFrequencies = ['daily', 'weekly', 'instant'];
+		const freq = allowedFrequencies.includes(frequency) ? frequency : 'daily';
+		const result = await pool.query(
+			`INSERT INTO job_alerts (user_id, keywords, location, job_type, salary_min, frequency, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+			[
+				req.user.id,
+				String(keywords).trim(),
+				location ? String(location).trim() : null,
+				job_type || null,
+				salary_min != null ? parseInt(salary_min, 10) : null,
+				freq,
+				active !== false,
+			],
+		);
+		res.json({ success: true, alert: toJobAlertRow(result.rows[0], 0) });
+	} catch (err) {
+		console.error('Create job alert error:', err);
+		res.status(500).json({ error: 'Failed to create job alert' });
+	}
+});
+
+router.put('/job-alerts/:id', authMiddleware, async (req, res) => {
+	try {
+		const alertId = parseInt(req.params.id, 10);
+		const { active, keywords, location, frequency, job_type, salary_min } = req.body || {};
+		// Ownership check
+		const existing = await pool.query(
+			'SELECT id FROM job_alerts WHERE id = $1 AND user_id = $2',
+			[alertId, req.user.id],
+		);
+		if (existing.rows.length === 0) {
+			return res.status(404).json({ error: 'Job alert not found' });
+		}
+		const updates = [];
+		const params = [];
+		let i = 1;
+		if (active !== undefined) {
+			updates.push(`is_active = $${i}`);
+			params.push(!!active);
+			i += 1;
+		}
+		if (keywords !== undefined) {
+			updates.push(`keywords = $${i}`);
+			params.push(String(keywords).trim());
+			i += 1;
+		}
+		if (location !== undefined) {
+			updates.push(`location = $${i}`);
+			params.push(location ? String(location).trim() : null);
+			i += 1;
+		}
+		if (frequency !== undefined) {
+			const allowedFrequencies = ['daily', 'weekly', 'instant'];
+			updates.push(`frequency = $${i}`);
+			params.push(allowedFrequencies.includes(frequency) ? frequency : 'daily');
+			i += 1;
+		}
+		if (job_type !== undefined) {
+			updates.push(`job_type = $${i}`);
+			params.push(job_type || null);
+			i += 1;
+		}
+		if (salary_min !== undefined) {
+			updates.push(`salary_min = $${i}`);
+			params.push(salary_min != null ? parseInt(salary_min, 10) : null);
+			i += 1;
+		}
+		if (updates.length === 0) {
+			return res.status(400).json({ error: 'Nothing to update' });
+		}
+		updates.push(`updated_at = NOW()`);
+		params.push(alertId, req.user.id);
+		const result = await pool.query(
+			`UPDATE job_alerts SET ${updates.join(', ')} WHERE id = $${i} AND user_id = $${i + 1} RETURNING *`,
+			params,
+		);
+		res.json({ success: true, alert: toJobAlertRow(result.rows[0], 0) });
+	} catch (err) {
+		console.error('Update job alert error:', err);
+		res.status(500).json({ error: 'Failed to update job alert' });
+	}
+});
+
+router.delete('/job-alerts/:id', authMiddleware, async (req, res) => {
+	try {
+		const alertId = parseInt(req.params.id, 10);
+		const result = await pool.query(
+			'DELETE FROM job_alerts WHERE id = $1 AND user_id = $2 RETURNING id',
+			[alertId, req.user.id],
+		);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Job alert not found' });
+		}
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Delete job alert error:', err);
+		res.status(500).json({ error: 'Failed to delete job alert' });
 	}
 });
 
@@ -3165,81 +3380,63 @@ router.post('/coaching', authMiddleware, async (req, res) => {
 
 router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 	try {
-		// Get OmniScore
-		const omniscore = await pool.query(
-			'SELECT total_score, score_tier FROM omni_scores WHERE user_id = $1',
+		// Issue #522: Cache dashboard stats per candidate (5-min TTL, same class as recruiter dashboard)
+		const cacheKey = analyticsCache.key('/api/candidate/dashboard/stats', {
+			userId: req.user.id,
+		});
+		const cached = analyticsCache.get(cacheKey);
+		if (cached) {
+			return res.json({ success: true, cached: true, ...cached });
+		}
+
+		// Query 1: identity + profile + omni score + counts from the unified view.
+		// Replaces 6 sequential queries: omni_scores, candidate_profiles, users,
+		// candidate_skills, work_experience, education. (#521)
+		const profileRes = await pool.query(
+			'SELECT * FROM v_candidate_full_profile WHERE id = $1',
 			[req.user.id],
 		);
+		const v = profileRes.rows[0] || {};
 
-		// Get profile completeness
-		const profile = await pool.query('SELECT * FROM candidate_profiles WHERE user_id = $1', [
-			req.user.id,
-		]);
+		// Query 2: remaining aggregates in a single round-trip.
+		// Replaces 4 sequential queries: interviews, job_applications,
+		// saved_jobs, skill_assessments. (#521)
+		const aggRes = await pool.query(
+			`SELECT
+				(SELECT COUNT(*)::integer FROM interviews WHERE user_id = $1 AND status = 'completed') AS interview_total,
+				(SELECT AVG(overall_score) FROM interviews WHERE user_id = $1 AND status = 'completed') AS interview_avg,
+				(SELECT COUNT(*)::integer FROM job_applications WHERE candidate_id = $1) AS application_count,
+				(SELECT COUNT(*)::integer FROM saved_jobs WHERE user_id = $1) AS saved_job_count,
+				(SELECT COUNT(*)::integer FROM skill_assessments WHERE user_id = $1 AND completed_at IS NOT NULL) AS assessment_total,
+				(SELECT COUNT(*)::integer FROM skill_assessments WHERE user_id = $1 AND completed_at IS NOT NULL AND passed) AS assessment_passed`,
+			[req.user.id],
+		);
+		const a = aggRes.rows[0] || {};
 
 		// name and avatar_url live on users, NOT candidate_profiles
 		// (candidate_profiles has no name column; photo_url is its legacy avatar field).
-		// The profile page (/candidate/profile) joins users for these — the dashboard must too.
-		const userRow = await pool.query('SELECT name, avatar_url FROM users WHERE id = $1', [
-			req.user.id,
-		]);
-		const u = userRow.rows[0] || {};
-
-		const skillCount = await pool.query(
-			'SELECT COUNT(*) as count, COUNT(*) FILTER (WHERE is_verified) as verified FROM candidate_skills WHERE user_id = $1',
-			[req.user.id],
-		);
-
-		const experienceCount = await pool.query(
-			'SELECT COUNT(*) as count FROM work_experience WHERE user_id = $1',
-			[req.user.id],
-		);
-
-		const educationCount = await pool.query(
-			'SELECT COUNT(*) as count FROM education WHERE user_id = $1',
-			[req.user.id],
-		);
-
-		const interviewCount = await pool.query(
-			"SELECT COUNT(*) as total, AVG(overall_score) as avg_score FROM interviews WHERE user_id = $1 AND status = 'completed'",
-			[req.user.id],
-		);
-
-		const applicationCount = await pool.query(
-			'SELECT COUNT(*) as count FROM job_applications WHERE candidate_id = $1',
-			[req.user.id],
-		);
-
-		const savedJobCount = await pool.query(
-			'SELECT COUNT(*) as count FROM saved_jobs WHERE user_id = $1',
-			[req.user.id],
-		);
-
-		const assessmentCount = await pool.query(
-			'SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE passed) as passed FROM skill_assessments WHERE user_id = $1 AND completed_at IS NOT NULL',
-			[req.user.id],
-		);
+		// The view resolves this join once, correctly — see v_candidate_full_profile.
+		const name = v.name;
+		const avatarUrl = v.avatar_url || v.photo_url;
+		const hasSkills = parseInt(v.skill_count, 10) > 0;
+		const hasExperience = parseInt(v.experience_count, 10) > 0;
+		const hasEducation = parseInt(v.education_count, 10) > 0;
 
 		// Calculate profile completeness — 12-field formula shared with the
 		// frontend (client/src/lib/profile-completion.ts). Both the Profile
 		// page and Dashboard must always show the same percentage.
-		const p = profile.rows[0] || {};
-		const name = u.name || p.name;
-		const avatarUrl = u.avatar_url || p.photo_url;
-		const hasSkills = parseInt(skillCount.rows[0]?.count, 10) > 0;
-		const hasExperience = parseInt(experienceCount.rows[0]?.count, 10) > 0;
-		const hasEducation = parseInt(educationCount.rows[0]?.count, 10) > 0;
 		const completenessFields = [
 			name,
-			p.headline,
-			p.bio,
-			p.location,
-			p.linkedin_url || p.github_url,
-			p.resume_url,
+			v.headline,
+			v.bio,
+			v.location,
+			v.linkedin_url || v.github_url,
+			v.resume_url,
 			hasSkills,
 			hasExperience,
 			hasEducation,
-			p.phone,
-			p.years_experience != null,
+			v.phone,
+			v.years_experience != null,
 			avatarUrl,
 		];
 		const completeness = Math.round(
@@ -3250,42 +3447,52 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 		// Labels mirror client/src/lib/profile-completion.ts getMissingProfileSections.
 		const missingSections = [
 			!name && 'Name',
-			!p.headline && 'Headline',
-			!p.bio && 'Bio',
-			!p.location && 'Location',
-			!(p.linkedin_url || p.github_url) && 'Social Links',
-			!p.resume_url && 'Resume',
+			!v.headline && 'Headline',
+			!v.bio && 'Bio',
+			!v.location && 'Location',
+			!(v.linkedin_url || v.github_url) && 'Social Links',
+			!v.resume_url && 'Resume',
 			!hasSkills && 'Skills',
 			!hasExperience && 'Experience',
 			!hasEducation && 'Education',
-			!p.phone && 'Phone',
-			p.years_experience == null && 'Years of Experience',
+			!v.phone && 'Phone',
+			v.years_experience == null && 'Years of Experience',
 			!avatarUrl && 'Profile Photo',
 		].filter(Boolean);
 
-		res.json({
-			success: true,
+		const response = {
 			stats: {
-				omniscore: omniscore.rows[0] || { total_score: 300, score_tier: 'new' },
+				omniscore:
+					v.omni_score != null
+						? { total_score: v.omni_score, score_tier: v.score_tier }
+						: { total_score: 300, score_tier: 'new' },
 				profile_completeness: completeness,
 				missing_sections: missingSections,
 				skills: {
-					total: parseInt(skillCount.rows[0]?.count, 10) || 0,
-					verified: parseInt(skillCount.rows[0]?.verified, 10) || 0,
+					total: parseInt(v.skill_count, 10) || 0,
+					verified: parseInt(v.skill_verified_count, 10) || 0,
 				},
-				experience_count: parseInt(experienceCount.rows[0]?.count, 10) || 0,
-				education_count: parseInt(educationCount.rows[0]?.count, 10) || 0,
+				experience_count: parseInt(v.experience_count, 10) || 0,
+				education_count: parseInt(v.education_count, 10) || 0,
 				interviews: {
-					total: parseInt(interviewCount.rows[0]?.total, 10) || 0,
-					avg_score: Math.round(interviewCount.rows[0]?.avg_score) || 0,
+					total: parseInt(a.interview_total, 10) || 0,
+					avg_score: Math.round(a.interview_avg) || 0,
 				},
-				applications: parseInt(applicationCount.rows[0]?.count, 10) || 0,
-				saved_jobs: parseInt(savedJobCount.rows[0]?.count, 10) || 0,
+				applications: parseInt(a.application_count, 10) || 0,
+				saved_jobs: parseInt(a.saved_job_count, 10) || 0,
 				assessments: {
-					total: parseInt(assessmentCount.rows[0]?.total, 10) || 0,
-					passed: parseInt(assessmentCount.rows[0]?.passed, 10) || 0,
+					total: parseInt(a.assessment_total, 10) || 0,
+					passed: parseInt(a.assessment_passed, 10) || 0,
 				},
 			},
+		};
+
+		// Issue #522: populate cache
+		analyticsCache.set(cacheKey, response);
+
+		res.json({
+			success: true,
+			...response,
 		});
 	} catch (err) {
 		console.error('Get dashboard stats error:', err);

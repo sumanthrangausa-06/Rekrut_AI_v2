@@ -68,13 +68,23 @@ interface DashboardAction {
 
 interface DashboardActivity {
 	id: string;
-	type: 'applied' | 'status_change' | 'message' | 'interview_scheduled' | 'offer_sent' | 'hired';
+	type: 'applied' | 'status_change' | 'message' | 'interview_scheduled' | 'offer_sent' | 'hired' | 'endorsement';
 	actorName: string;
 	actorAvatar?: string;
 	description: string;
 	timestamp: string;
 	jobTitle: string;
 	meta?: string;
+}
+
+// Issue #529: shape of GET /api/recruiter/activity items
+interface FeedActivityItem {
+	id: string;
+	type: 'profile_view' | 'application_update' | 'interview_invite' | 'skill_endorsement' | 'job_alert';
+	title: string;
+	description: string;
+	timestamp: string;
+	read: boolean;
 }
 
 interface QuickStat {
@@ -107,12 +117,6 @@ interface RecruiterDashboardData {
 		offered: string;
 		hired: string;
 	};
-	upcoming_interviews: Array<{
-		id: number;
-		candidate_name: string;
-		job_title: string;
-		scheduled_at: string;
-	}>;
 	recent_applications: Array<{
 		id: number;
 		candidate_name: string;
@@ -121,6 +125,35 @@ interface RecruiterDashboardData {
 		applied_at: string;
 		match_score?: number;
 	}>;
+}
+
+// Unified human-interview shape from GET /api/interviews/my-interviews
+// (InterviewService over System A + System B). Rows carry ids, not display
+// fields — candidate names resolve via /recruiter/applications.
+interface UnifiedInterview {
+	id: number;
+	candidate_id: number;
+	recruiter_id: number;
+	company_id: number | null;
+	job_id: number | null;
+	scheduled_at: string | null;
+	duration_minutes: number;
+	status: string;
+	meeting_link: string | null;
+	interview_type: string;
+	notes: string | null;
+	source_system: 'system_a' | 'system_b';
+	proposed_slots:
+		| Array<{ id?: number; slot_id?: number; start: string; end: string; status: string }>
+		| null;
+}
+
+interface UnifiedApplication {
+	id: number;
+	candidate_id: number;
+	candidate_name: string;
+	job_id: number;
+	job_title: string;
 }
 
 // ─── Constants ──────────────────────────────────────────────
@@ -664,6 +697,10 @@ export function RecruiterDashboard() {
 	const [data, setData] = useState<RecruiterDashboardData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [showUpgradeBanner, setShowUpgradeBanner] = useState(true);
+	const [actionInterviews, setActionInterviews] = useState<UnifiedInterview[]>([]);
+	const [interviewApps, setInterviewApps] = useState<UnifiedApplication[]>([]);
+	// Issue #529: unified activity feed (richer than recent applications alone)
+	const [feedActivities, setFeedActivities] = useState<FeedActivityItem[] | null>(null);
 
 	useEffect(() => {
 		async function loadDashboard() {
@@ -676,8 +713,73 @@ export function RecruiterDashboard() {
 				setLoading(false);
 			}
 		}
+		async function loadActivityFeed() {
+			try {
+				const res = await apiCall<{ success: boolean; activities: FeedActivityItem[] }>(
+					'/api/recruiter/activity',
+				);
+				setFeedActivities(res.activities || []);
+			} catch {
+				// Best-effort — falls back to recent_applications below
+			}
+		}
+		async function loadInterviews() {
+			try {
+				const [uniRes, appRes] = await Promise.allSettled([
+					apiCall<{ success: boolean; interviews: UnifiedInterview[] }>(
+						'/interviews/my-interviews',
+					),
+					apiCall<{ applications: UnifiedApplication[] }>('/recruiter/applications'),
+				]);
+				if (appRes.status === 'fulfilled' && appRes.value.applications) {
+					setInterviewApps(appRes.value.applications);
+				}
+				if (uniRes.status === 'fulfilled' && uniRes.value.interviews) {
+					// Interviews needing action: unconfirmed slots, reschedule
+					// requests, or confirmed interviews in the next 7 days.
+					const now = Date.now();
+					const sevenDays = now + 7 * 24 * 60 * 60 * 1000;
+					const needsAction = uniRes.value.interviews
+						.filter(
+							(u) =>
+								u.status === 'proposed' ||
+								u.status === 'reschedule_requested' ||
+								(['confirmed', 'scheduled'].includes(u.status) &&
+									u.scheduled_at != null &&
+									new Date(u.scheduled_at).getTime() >= now &&
+									new Date(u.scheduled_at).getTime() <= sevenDays),
+						)
+						.sort((a, b) => {
+							// Proposed slots first (need candidate action), then by time.
+							if (a.status === 'proposed' && b.status !== 'proposed') return -1;
+							if (b.status === 'proposed' && a.status !== 'proposed') return 1;
+							if (!a.scheduled_at) return -1;
+							if (!b.scheduled_at) return 1;
+							return (
+								new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
+							);
+						})
+						.slice(0, 3);
+					setActionInterviews(needsAction);
+				}
+			} catch {
+				// Best-effort
+			}
+		}
 		loadDashboard();
+		loadInterviews();
+		loadActivityFeed();
 	}, []);
+
+	// Resolve a candidate name / job title for a unified interview via the
+	// loaded applications (unified rows carry ids, not display fields).
+	function interviewDisplay(u: UnifiedInterview): { name: string; job: string } {
+		const app = interviewApps.find((a) => a.candidate_id === u.candidate_id);
+		return {
+			name: app?.candidate_name ?? `Candidate #${u.candidate_id}`,
+			job: app?.job_title ?? (u.job_id != null ? `Job #${u.job_id}` : 'Interview'),
+		};
+	}
 
 	const stats = useMemo(
 		() =>
@@ -772,8 +874,26 @@ export function RecruiterDashboard() {
 	// 30-day applicant data
 	const dailyAppData = useMemo(() => buildDailyAppData(data?.recent_applications, 30), [data]);
 
-	// Recent activity
+	// Recent activity — Issue #529: prefer the unified feed (applications +
+	// interviews + endorsements); fall back to applications-only if the feed fails.
 	const recentActivity: DashboardActivity[] = useMemo(() => {
+		const feedTypeToActivityType = (
+			t: FeedActivityItem['type'],
+		): DashboardActivity['type'] => {
+			if (t === 'interview_invite') return 'interview_scheduled';
+			if (t === 'skill_endorsement') return 'endorsement';
+			return 'applied';
+		};
+		if (feedActivities && feedActivities.length > 0) {
+			return feedActivities.slice(0, 8).map((item) => ({
+				id: item.id,
+				type: feedTypeToActivityType(item.type),
+				actorName: item.title,
+				description: item.description,
+				timestamp: item.timestamp,
+				jobTitle: '',
+			}));
+		}
 		if (!data?.recent_applications || data.recent_applications.length === 0) return [];
 		return data.recent_applications.slice(0, 8).map((app) => ({
 			id: String(app.id),
@@ -784,7 +904,7 @@ export function RecruiterDashboard() {
 			jobTitle: app.job_title,
 			meta: app.status,
 		}));
-	}, [data]);
+	}, [data, feedActivities]);
 
 	// Action items
 	const actionItems: DashboardAction[] = useMemo(
@@ -1219,7 +1339,11 @@ export function RecruiterDashboard() {
 										<ActivityItem
 											key={activity.id}
 											activity={activity}
-											onClick={() => navigate(`/recruiter/candidates?status=${activity.meta}`)}
+											onClick={
+												activity.meta
+													? () => navigate(`/recruiter/candidates?status=${activity.meta}`)
+													: undefined
+											}
 										/>
 									))}
 								</div>
@@ -1291,8 +1415,8 @@ export function RecruiterDashboard() {
 				</CardContent>
 			</Card>
 
-			{/* ── Upcoming Interviews ── */}
-			{data?.upcoming_interviews && data.upcoming_interviews.length > 0 && (
+			{/* ── Upcoming Interviews (unified endpoint) ── */}
+			{actionInterviews.length > 0 && (
 				<Card className="border-0 shadow-sm">
 					<CardHeader className="flex flex-row items-center justify-between pb-3">
 						<CardTitle className="text-sm flex items-center gap-2 font-medium">
@@ -1307,32 +1431,64 @@ export function RecruiterDashboard() {
 					</CardHeader>
 					<CardContent className="pt-0">
 						<div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-							{data.upcoming_interviews.slice(0, 3).map((interview) => (
-								<div
-									key={interview.id}
-									className="flex items-center gap-3 rounded-lg border p-3 hover:bg-slate-50 transition-colors cursor-pointer"
-									onClick={() => navigate(`/recruiter/interviews/${interview.id}`)}
-								>
-									<div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 shrink-0">
-										<span className="text-sm font-medium text-purple-700">
-											{interview.candidate_name.slice(0, 2).toUpperCase()}
-										</span>
+							{actionInterviews.map((interview) => {
+								const display = interviewDisplay(interview);
+								const statusLabel =
+									interview.status === 'proposed'
+										? 'Awaiting candidate'
+										: interview.status === 'reschedule_requested'
+											? 'Reschedule requested'
+											: 'Scheduled';
+								return (
+									<div
+										key={interview.id}
+										className="flex items-center gap-3 rounded-lg border p-3 hover:bg-slate-50 transition-colors cursor-pointer"
+										onClick={() => navigate('/recruiter/interviews')}
+									>
+										<div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 shrink-0">
+											<span className="text-sm font-medium text-purple-700">
+												{display.name.slice(0, 2).toUpperCase()}
+											</span>
+										</div>
+										<div className="min-w-0 flex-1">
+											<p className="text-sm font-medium truncate">{display.name}</p>
+											<p className="text-xs text-muted-foreground truncate">
+												{display.job}
+											</p>
+											<div className="flex items-center gap-1.5 mt-1 flex-wrap">
+												<Badge
+													variant="secondary"
+													className="bg-blue-100 text-blue-700 text-xs"
+												>
+													Human
+												</Badge>
+												<Badge
+													variant={
+														interview.status === 'proposed' ||
+														interview.status === 'reschedule_requested'
+															? 'warning'
+															: 'success'
+													}
+													className="text-xs"
+												>
+													{statusLabel}
+												</Badge>
+											</div>
+											{interview.scheduled_at && (
+												<p className="text-xs text-purple-600 mt-0.5">
+													{new Date(interview.scheduled_at).toLocaleDateString('en-US', {
+														weekday: 'short',
+														month: 'short',
+														day: 'numeric',
+														hour: '2-digit',
+														minute: '2-digit',
+													})}
+												</p>
+											)}
+										</div>
 									</div>
-									<div className="min-w-0 flex-1">
-										<p className="text-sm font-medium">{interview.candidate_name}</p>
-										<p className="text-xs text-muted-foreground">{interview.job_title}</p>
-										<p className="text-xs text-purple-600">
-											{new Date(interview.scheduled_at).toLocaleDateString('en-US', {
-												weekday: 'short',
-												month: 'short',
-												day: 'numeric',
-												hour: '2-digit',
-												minute: '2-digit',
-											})}
-										</p>
-									</div>
-								</div>
-							))}
+								);
+							})}
 						</div>
 					</CardContent>
 				</Card>
