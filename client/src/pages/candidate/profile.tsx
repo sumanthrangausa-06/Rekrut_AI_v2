@@ -1968,8 +1968,19 @@ function PersonalInfoTab({
 	const [linkedinUrlError, setLinkedinUrlError] = useState('');
 
 	function isValidLinkedInUrl(url: string): boolean {
-		if (!url) return true;
-		return /^https:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+\/?$/.test(url);
+		const trimmed = url.trim();
+		if (!trimmed) return true;
+		try {
+			// Accept with or without protocol; tolerate trailing whitespace,
+			// query params, and fragments that real copy-pasted URLs carry.
+			const parsed = new URL(
+				trimmed.startsWith('http') ? trimmed : `https://${trimmed}`,
+			);
+			if (!parsed.hostname.match(/^(.+\.)?linkedin\.com$/i)) return false;
+			return /^\/in\/[^/]+/i.test(parsed.pathname);
+		} catch {
+			return false;
+		}
 	}
 
 	function updateField(key: string, value: string | number | string[]) {
@@ -1993,7 +2004,16 @@ function PersonalInfoTab({
 			);
 			throw new Error('Invalid LinkedIn URL');
 		}
-		await apiCall('/candidate/profile', { method: 'PUT', body: data });
+		// Normalize to a full URL before save: the backend's normalizeUrlField
+		// requires a protocol, and the validator above accepts protocol-less input.
+		const payload = { ...data };
+		if (payload.linkedin_url) {
+			const trimmed = payload.linkedin_url.trim();
+			payload.linkedin_url = trimmed.startsWith('http')
+				? trimmed
+				: `https://${trimmed}`;
+		}
+		await apiCall('/candidate/profile', { method: 'PUT', body: payload });
 		trackEvent('profile_edit');
 	}
 
@@ -2011,6 +2031,27 @@ function PersonalInfoTab({
 			}>('/candidate/linkedin/import', { method: 'POST' });
 
 			if (result.error) {
+				if (result.code === 'LINKEDIN_NOT_CONNECTED') {
+					showMessage(
+						'error',
+						<span>
+							Refresh needs your LinkedIn account connected.{' '}
+							<a
+								href="/api/auth/linkedin/url"
+								className="underline font-semibold"
+								onClick={(e) => {
+									e.preventDefault();
+									window.location.href = '/api/auth/linkedin/url';
+								}}
+							>
+								Connect LinkedIn
+							</a>{' '}
+							to enable it. Your profile URL above is saved
+							separately and does not require a connection.
+						</span>,
+					);
+					return;
+				}
 				if (result.code === 'TOKEN_EXPIRED') {
 					showMessage(
 						'error',
