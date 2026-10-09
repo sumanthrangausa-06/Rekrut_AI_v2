@@ -55,7 +55,7 @@ function normalizeInterview(row) {
 		interview_type: row.interview_type ?? 'video',
 		notes: row.notes ?? null,
 		source_system: row.source_system,
-		// System B: array of {start, end, status} (view) or slot rows; System A: null
+		// System B: array of {id, start, end, status} (view) or slot rows; System A: null
 		proposed_slots: row.proposed_slots ?? null,
 	};
 }
@@ -86,7 +86,7 @@ async function getMyInterviewsFallback(userId, role) {
 		        'video'::varchar(50) AS interview_type,
 		        e.notes, 'system_b'::text AS source_system,
 		        (SELECT jsonb_agg(
-		           jsonb_build_object('start', p.slot_start, 'end', p.slot_end, 'status', p.status)
+		           jsonb_build_object('id', p.id, 'start', p.slot_start, 'end', p.slot_end, 'status', p.status)
 		           ORDER BY p.slot_start)
 		           FROM proposed_slots p WHERE p.interview_event_id = e.id) AS proposed_slots
 		   FROM interview_events e

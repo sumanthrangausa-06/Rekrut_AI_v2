@@ -63,6 +63,33 @@ interface Interview {
 	recruiter_email: string;
 }
 
+// Unified human-interview shape from GET /api/interviews/my-interviews
+// (InterviewService over System A + System B). Only System B rows are
+// rendered from this shape — System A keeps its richer dedicated endpoint.
+interface UnifiedSlot {
+	id?: number;
+	slot_id?: number;
+	start: string;
+	end: string;
+	status: string;
+}
+
+interface UnifiedInterview {
+	id: number;
+	candidate_id: number;
+	recruiter_id: number;
+	company_id: number | null;
+	job_id: number | null;
+	scheduled_at: string | null;
+	duration_minutes: number;
+	status: string;
+	meeting_link: string | null;
+	interview_type: string;
+	notes: string | null;
+	source_system: 'system_a' | 'system_b';
+	proposed_slots: UnifiedSlot[] | null;
+}
+
 const statusConfig: Record<
 	string,
 	{
@@ -78,6 +105,9 @@ const statusConfig: Record<
 	declined: { label: 'Declined', variant: 'secondary', icon: XCircle },
 	reschedule_requested: { label: 'Reschedule Requested', variant: 'warning', icon: RefreshCw },
 	no_show: { label: 'No Show', variant: 'destructive', icon: AlertCircle },
+	// System B (slot negotiation) statuses
+	proposed: { label: 'Pick a time', variant: 'warning', icon: Calendar },
+	rescheduled: { label: 'Rescheduled', variant: 'warning', icon: RefreshCw },
 };
 
 const typeConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
@@ -222,6 +252,10 @@ export function CandidateInterviewsPage() {
 	const navigate = useNavigate();
 	const [interviews, setInterviews] = useState<Interview[]>([]);
 	const [screenings, setScreenings] = useState<any[]>([]);
+	// System B human interviews (slot negotiation) from the unified endpoint.
+	// System A rows are skipped here — the dedicated endpoint above already
+	// returns them with richer display fields (job title, company, recruiter).
+	const [unifiedB, setUnifiedB] = useState<UnifiedInterview[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [tab, setTab] = useState('upcoming');
 	const [showDecline, setShowDecline] = useState<Interview | null>(null);
@@ -253,6 +287,18 @@ export function CandidateInterviewsPage() {
 			setScreenings(sres.sessions || []);
 		} catch (err) {
 			console.error('Load screenings error:', err);
+		}
+		try {
+			const ures = await withTimeout(
+				apiCall<{ success: boolean; interviews: UnifiedInterview[] }>(
+					'/interviews/my-interviews',
+				),
+				FETCH_TIMEOUT,
+				'Unified interviews',
+			);
+			setUnifiedB((ures.interviews || []).filter((u) => u.source_system === 'system_b'));
+		} catch (err) {
+			console.error('Load unified interviews error:', err);
 		} finally {
 			setLoading(false);
 		}
@@ -329,6 +375,17 @@ export function CandidateInterviewsPage() {
 			['completed', 'cancelled', 'declined', 'no_show'].includes(i.status),
 	);
 
+	// System B human interviews (slot negotiation). `proposed` needs the
+	// candidate to pick a slot; `confirmed` with a future time behaves like a
+	// scheduled System A interview.
+	const unifiedUpcoming = unifiedB.filter(
+		(u) =>
+			u.status === 'proposed' ||
+			(u.status === 'confirmed' && u.scheduled_at != null && isFuture(u.scheduled_at)) ||
+			u.status === 'rescheduled',
+	);
+	const unifiedPast = unifiedB.filter((u) => ['completed', 'cancelled'].includes(u.status));
+
 	// AI sessions (screenings + AI interviews) split by status.
 	// Backend may not return `type` yet (Task 4); default badge to AI Screening.
 	const invitedSessions = screenings.filter((s) => s.status === 'invited');
@@ -336,8 +393,8 @@ export function CandidateInterviewsPage() {
 		['invited', 'in_progress'].includes(s.status),
 	);
 	const completedSessions = screenings.filter((s) => s.status === 'completed');
-	const upcomingCount = upcoming.length + activeSessions.length;
-	const pastCount = past.length + completedSessions.length;
+	const upcomingCount = upcoming.length + activeSessions.length + unifiedUpcoming.length;
+	const pastCount = past.length + completedSessions.length + unifiedPast.length;
 
 	if (loading) {
 		return (
@@ -433,6 +490,14 @@ export function CandidateInterviewsPage() {
 							{activeSessions.map((s) => (
 								<AISessionCard key={`ai-${s.id}`} session={s} />
 							))}
+							{unifiedUpcoming.map((u) => (
+								<SystemBInterviewCard
+									key={`unified-${u.id}`}
+									interview={u}
+									onChanged={loadInterviews}
+									notify={setMessage}
+								/>
+							))}
 							{upcoming
 								.sort(
 									(a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime(),
@@ -493,6 +558,15 @@ export function CandidateInterviewsPage() {
 						<div className="space-y-3">
 							{completedSessions.map((s) => (
 								<AISessionCard key={`past-ai-${s.id}`} session={s} />
+							))}
+							{unifiedPast.map((u) => (
+								<SystemBInterviewCard
+									key={`unified-past-${u.id}`}
+									interview={u}
+									onChanged={loadInterviews}
+									notify={setMessage}
+									isPast
+								/>
 							))}
 							{past.map((interview) => (
 								<InterviewCard key={interview.id} interview={interview} isPast />
@@ -788,6 +862,146 @@ function InterviewCard({
 								onClick={onPractice}
 							>
 								<Target className="h-3.5 w-3.5 mr-1" /> Practice
+							</Button>
+						)}
+					</div>
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
+// System B human interview card (multi-slot negotiation via the unified
+// endpoint). `proposed` → candidate picks a slot; `confirmed` → shows the
+// booked time like a System A interview.
+function SystemBInterviewCard({
+	interview: u,
+	onChanged,
+	notify,
+	isPast,
+}: {
+	interview: UnifiedInterview;
+	onChanged: () => void;
+	notify: (m: { type: 'success' | 'error'; text: string }) => void;
+	isPast?: boolean;
+}) {
+	const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null);
+	const [confirming, setConfirming] = useState(false);
+	const config = statusConfig[u.status] || statusConfig.scheduled;
+	const StatusIcon = config.icon;
+	const needsSlot = u.status === 'proposed' && !isPast;
+	const offeredSlots = (u.proposed_slots || []).filter((s) => s.status === 'offered');
+	const slotIdOf = (s: UnifiedSlot): number | null => s.id ?? s.slot_id ?? null;
+
+	async function confirmSlot() {
+		if (selectedSlotId == null) return;
+		setConfirming(true);
+		try {
+			await apiCall(`/interviews/unified/${u.id}/confirm-slot`, {
+				method: 'POST',
+				body: { slot_id: selectedSlotId },
+			});
+			notify({ type: 'success', text: 'Interview time confirmed!' });
+			setSelectedSlotId(null);
+			onChanged();
+		} catch (err: any) {
+			notify({ type: 'error', text: err.message || 'Failed to confirm slot' });
+		} finally {
+			setConfirming(false);
+		}
+	}
+
+	return (
+		<Card>
+			<CardContent className="p-4">
+				<div className="flex flex-col sm:flex-row gap-4">
+					<div className="p-2.5 rounded-xl bg-blue-100 text-blue-700 h-fit">
+						<Video className="h-5 w-5" />
+					</div>
+
+					<div className="flex-1 min-w-0">
+						<div className="flex items-center gap-2 flex-wrap">
+							<h3 className="font-semibold">Human Interview</h3>
+							<Badge variant="secondary" className="bg-blue-100 text-blue-700">
+								Human
+							</Badge>
+							<Badge variant={config.variant}>
+								<StatusIcon className="h-3 w-3 mr-1" /> {config.label}
+							</Badge>
+						</div>
+
+						{u.scheduled_at && (
+							<div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
+								<span className="flex items-center gap-1">
+									<Calendar className="h-3.5 w-3.5" /> {formatDate(u.scheduled_at)}
+								</span>
+								<span className="flex items-center gap-1">
+									<Clock className="h-3.5 w-3.5" /> {formatTime(u.scheduled_at)} (
+									{u.duration_minutes}min)
+								</span>
+							</div>
+						)}
+
+						{needsSlot && (
+							<div className="mt-3 space-y-2">
+								<p className="text-sm font-medium">Choose a time that works for you:</p>
+								{offeredSlots.length === 0 ? (
+									<p className="text-sm text-muted-foreground">
+										Waiting for the recruiter to propose time slots.
+									</p>
+								) : (
+									<div className="grid gap-2 sm:grid-cols-2">
+										{offeredSlots.map((s, i) => {
+											const sid = slotIdOf(s);
+											const selected = sid != null && sid === selectedSlotId;
+											return (
+												<button
+													key={sid ?? `slot-${i}`}
+													type="button"
+													disabled={sid == null}
+													onClick={() => sid != null && setSelectedSlotId(sid)}
+													className={`rounded-lg border p-3 text-left text-sm transition-colors min-h-[44px] ${
+														selected
+															? 'border-primary bg-primary/5 ring-1 ring-primary'
+															: 'border-border hover:border-primary/50'
+													}`}
+												>
+													<div className="font-medium">{formatDate(s.start)}</div>
+													<div className="text-muted-foreground">
+														{formatTime(s.start)} – {formatTime(s.end)}
+													</div>
+												</button>
+											);
+										})}
+									</div>
+								)}
+							</div>
+						)}
+
+						{u.notes && (
+							<p className="text-sm text-muted-foreground mt-2 bg-muted p-2 rounded">
+								{u.notes}
+							</p>
+						)}
+					</div>
+
+					<div className="flex flex-wrap gap-2 sm:flex-col">
+						{u.meeting_link && u.status === 'confirmed' && (
+							<a href={u.meeting_link} target="_blank" rel="noopener noreferrer">
+								<Button size="sm" className="w-full min-h-[44px]">
+									<Video className="h-3.5 w-3.5 mr-1" /> Join Call
+								</Button>
+							</a>
+						)}
+						{needsSlot && offeredSlots.length > 0 && (
+							<Button
+								size="sm"
+								onClick={confirmSlot}
+								disabled={selectedSlotId == null || confirming}
+								className="min-h-[44px]"
+							>
+								<CheckCircle className="h-3.5 w-3.5 mr-1" />
+								{confirming ? 'Confirming...' : 'Confirm Time'}
 							</Button>
 						)}
 					</div>
