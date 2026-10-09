@@ -498,7 +498,7 @@ export function QuickPracticeSessionPage() {
 	}
 
 	return (
-		<div className="container max-w-2xl mx-auto px-4 py-6 pb-16">
+		<div className="container max-w-2xl mx-auto px-4 py-6 pb-32">
 			{/* Page header with back navigation */}
 			<div className="flex items-center gap-2 mb-6">
 				<Button variant="ghost" size="sm" onClick={closePractice}>
