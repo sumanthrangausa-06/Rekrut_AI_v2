@@ -48,6 +48,7 @@ import { useVoiceRoom, type VoiceRoomTurn } from './useVoiceRoom';
 type Phase =
 	| 'loading'
 	| 'invalid'
+	| 'expired'
 	| 'invite'
 	| 'signin'
 	| 'consent'
@@ -69,6 +70,7 @@ interface TokenSession {
 		description: string | null;
 	} | null;
 	created_at: string;
+	invite_expires_at: string | null;
 }
 
 interface Turn {
@@ -237,8 +239,12 @@ export default function CandidateInterviewSessionPage() {
 				}
 				setTokenSession(s);
 				setPhase(getToken() ? 'invite' : 'signin');
-			} catch {
-				setPhase('invalid');
+			} catch (err) {
+				if ((err as Error & { code?: string }).code === 'INVITE_EXPIRED') {
+					setPhase('expired');
+				} else {
+					setPhase('invalid');
+				}
 			}
 		}
 		resolve();
@@ -678,6 +684,25 @@ export default function CandidateInterviewSessionPage() {
 		);
 	}
 
+	if (phase === 'expired') {
+		return (
+			<div className="min-h-screen flex items-center justify-center bg-background p-4">
+				<Card className="max-w-md w-full">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<Clock className="h-5 w-5 text-amber-500" />
+							Invite expired
+						</CardTitle>
+						<CardDescription>
+							This interview invitation has expired — invites are valid for 7 weeks. Please
+							contact the recruiter to request a new invitation.
+						</CardDescription>
+					</CardHeader>
+				</Card>
+			</div>
+		);
+	}
+
 	if (phase === 'signin') {
 		return (
 			<div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -739,6 +764,17 @@ export default function CandidateInterviewSessionPage() {
 								</li>
 							</ul>
 						</div>
+					{tokenSession?.invite_expires_at && (
+						<p className="text-xs text-muted-foreground flex items-center gap-1.5">
+							<Clock className="h-3.5 w-3.5 shrink-0" />
+							This invite expires on{' '}
+							{new Date(tokenSession.invite_expires_at).toLocaleDateString(undefined, {
+								year: 'numeric',
+								month: 'long',
+								day: 'numeric',
+							})}
+						</p>
+					)}
 						{tokenSession?.status === 'in_progress' && (
 							<p className="text-sm text-muted-foreground bg-muted rounded-md p-3">
 								You have an interview in progress — you can pick up where you left off.

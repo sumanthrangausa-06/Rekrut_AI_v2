@@ -359,6 +359,29 @@ export function RecruiterInterviewsPage() {
 		}
 	}
 
+	// Resend a screening invite (fresh token + new 7-week window).
+	async function resendScreening(sessionId: number) {
+		try {
+			const res = await apiCall<{ invite_url?: string }>(
+				`/interviews/interview-sessions/${sessionId}/resend`,
+				{ method: 'POST' },
+			);
+			if (res?.invite_url) {
+				const fullUrl = `${window.location.origin}${res.invite_url}`;
+				try {
+					await navigator.clipboard.writeText(fullUrl);
+					setMessage({ type: 'success', text: 'Invite resent — new link copied to clipboard.' });
+				} catch {
+					setMessage({ type: 'success', text: `Invite resent. New link: ${fullUrl}` });
+				}
+				setLastInviteUrl(fullUrl);
+			}
+			await loadData();
+		} catch (err: any) {
+			setMessage({ type: 'error', text: err.message || 'Failed to resend invite' });
+		}
+	}
+
 	// View screening report
 	async function viewScreeningReport(sessionId: number) {
 		try {
@@ -744,6 +767,17 @@ export function RecruiterInterviewsPage() {
 																		? `Score: ${app.screening_score}/100`
 																		: app.screening_status}
 																</Badge>
+															)}
+															{app.screening_status === 'invited' && app.screening_session_id && (
+																<Button
+																	size="sm"
+																	variant="ghost"
+																	onClick={() => resendScreening(app.screening_session_id)}
+																	className="min-h-[44px] text-xs"
+																	title="Send a fresh invite link (new 7-week window)"
+																>
+																	<RefreshCw className="h-3.5 w-3.5 mr-1" /> Resend
+																</Button>
 															)}
 															{matchingTemplate && !app.screening_status && (
 																<Button

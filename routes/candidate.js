@@ -2617,8 +2617,8 @@ async function submitApplication({
 
 						const autoSendResult = await pool.query(
 							`INSERT INTO interview_sessions
-							   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
-							 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+							   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, invite_expires_at, status, config, conversation)
+							 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW() + INTERVAL '7 weeks', 'invited', $8, $9)
 							 RETURNING id`,
 							[
 								'screening',
