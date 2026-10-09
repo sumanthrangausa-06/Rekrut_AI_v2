@@ -199,7 +199,15 @@ router.get('/profile', authMiddleware, async (req, res) => {
 				'SELECT * FROM job_alerts WHERE user_id = $1 ORDER BY created_at DESC',
 				[req.user.id],
 			);
-			jobAlerts = alertsResult.rows.map((row) => toJobAlertRow(row, 0));
+			for (const row of alertsResult.rows) {
+				let matchCount = 0;
+				try {
+					matchCount = await countMatchesForAlert(row);
+				} catch (_e) {
+					// match_count is best-effort; don't fail profile load
+				}
+				jobAlerts.push(toJobAlertRow(row, matchCount));
+			}
 		} catch (_e) {
 			// job_alerts table may not exist yet on older DBs; don't fail profile load
 		}
