@@ -1,5 +1,5 @@
 /**
- * Migration 238: Drop 5 dead analytics materialized views.
+ * Migration 239: Drop 5 dead analytics materialized views.
  *
  * Views dropped:
  *   - mv_daily_metrics
@@ -18,7 +18,7 @@
  * contained no live data worth restoring.
  */
 module.exports = {
-	name: '238_drop_dead_materialized_views',
+	name: '239_drop_dead_materialized_views',
 	up: async (client) => {
 		await client.query('DROP MATERIALIZED VIEW IF EXISTS mv_daily_metrics;');
 		await client.query('DROP MATERIALIZED VIEW IF EXISTS mv_candidate_funnel;');
