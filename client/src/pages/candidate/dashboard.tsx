@@ -51,6 +51,7 @@ export function CandidateDashboard() {
 			job_title: string;
 			company_name: string;
 			status: string;
+			type?: string;
 			invite_token: string;
 			invite_url: string | null;
 		}>
@@ -363,7 +364,11 @@ export function CandidateDashboard() {
 								</div>
 								<Link to={`/screening/${invite.invite_token}`}>
 									<Button size="sm">
-										{invite.status === 'in_progress' ? 'Resume' : 'Start Screening'}
+										{invite.status === 'in_progress'
+											? 'Resume'
+											: invite.type === 'ai_interview'
+												? 'Start Interview'
+												: 'Start Screening'}
 									</Button>
 								</Link>
 							</div>
