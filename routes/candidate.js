@@ -16,6 +16,7 @@ const {
 
 const omniscoreService = require('../services/omniscore');
 const { decrypt } = require('../lib/crypto-utils');
+const { buildCandidateFeed } = require('../lib/activity-feed');
 const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-limiter');
 const marketBenchmarks = require('../lib/market-benchmarks');
 const { uploadToB2, checkB2Health } = require('../lib/file-storage');
@@ -173,6 +174,15 @@ router.get('/profile', authMiddleware, async (req, res) => {
 		);
 
 		const profileRow = profile.rows[0] || {};
+
+		// Issue #529: candidate activity feed (best-effort, never fails profile load)
+		let activities = [];
+		try {
+			activities = await buildCandidateFeed(req.user.id);
+		} catch (feedErr) {
+			console.error('[profile] activity feed failed:', feedErr.message);
+		}
+
 		res.json({
 			success: true,
 			profile: profileRow,
@@ -188,6 +198,8 @@ router.get('/profile', authMiddleware, async (req, res) => {
 			// Certifications live in candidate_profiles.certifications JSONB;
 			// frontend reads data.certifications (top-level)
 			certifications: profileRow.certifications || [],
+			// Issue #529: unified activity feed (frontend ActivityTab)
+			activities,
 		});
 	} catch (err) {
 		console.error('Get profile error:', err);
