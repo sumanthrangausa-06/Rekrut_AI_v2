@@ -6,10 +6,12 @@
  *   - cp.linkedin_url, cp.github_url, cp.phone (profile completeness formula)
  *   - skill_verified_count (verified skills badge count)
  *
- * Per the view maintenance convention, the view is redefined here with the
- * new columns alongside the existing ones.
+ * IMPORTANT: New columns are APPENDED AT THE END, not inserted in the middle.
+ * PostgreSQL's CREATE OR REPLACE VIEW matches columns positionally — inserting
+ * in the middle causes error 42P16 ("cannot change name of view column").
+ * Appending is always safe.
  *
- * NON-DESTRUCTIVE: CREATE OR REPLACE VIEW only. No tables touched.
+ * NON-DESTRUCTIVE: CREATE OR REPLACE VIEW only. No tables touched. No downtime.
  */
 module.exports = {
 	name: '240_extend_candidate_full_profile_view',
@@ -30,17 +32,18 @@ module.exports = {
         cp.years_experience,
         cp.resume_url,
         cp.availability,
-        cp.linkedin_url,
-        cp.github_url,
-        cp.phone,
         -- From omni_scores
         os.total_score AS omni_score,
         os.score_tier,
         -- Aggregates (subqueries keep this a single-row-per-user view)
         (SELECT COUNT(*) FROM candidate_skills cs WHERE cs.user_id = u.id)::integer AS skill_count,
-        (SELECT COUNT(*) FILTER (WHERE cs.is_verified) FROM candidate_skills cs WHERE cs.user_id = u.id)::integer AS skill_verified_count,
         (SELECT COUNT(*) FROM work_experience we WHERE we.user_id = u.id)::integer AS experience_count,
-        (SELECT COUNT(*) FROM education e WHERE e.user_id = u.id)::integer AS education_count
+        (SELECT COUNT(*) FROM education e WHERE e.user_id = u.id)::integer AS education_count,
+        -- NEW columns appended at END (PostgreSQL positional matching — never insert in middle)
+        cp.linkedin_url,
+        cp.github_url,
+        cp.phone,
+        (SELECT COUNT(*) FILTER (WHERE cs.is_verified) FROM candidate_skills cs WHERE cs.user_id = u.id)::integer AS skill_verified_count
       FROM users u
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id
