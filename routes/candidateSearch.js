@@ -16,6 +16,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
+const { analyticsCache } = require('../lib/analytics-cache');
 const { DistributedRateLimiter } = require('../lib/distributed-rate-limiter');
 const { AuditLogger } = require('../services/auditLogService');
 const matchingEngine = require('../services/matching-engine');
@@ -515,6 +516,18 @@ router.get('/:id/preview', authMiddleware, requireRecruiter, async (req, res) =>
 			return res.status(404).json({ error: 'Not a candidate profile' });
 		}
 
+		// Issue #522: cache preview per candidate AND viewing recruiter.
+		// The visibility check above stays uncached (#416 privacy); the payload below
+		// includes recruiter-specific invite_status, so recruiterId is part of the key.
+		const previewCacheKey = analyticsCache.key('/api/candidates/preview', {
+			candidateId,
+			recruiterId: req.user.id,
+		});
+		const cachedPreview = analyticsCache.get(previewCacheKey);
+		if (cachedPreview) {
+			return res.json({ success: true, cached: true, ...cachedPreview });
+		}
+
 		const profileResult = await client.query(
 			`
         SELECT
@@ -587,7 +600,7 @@ router.get('/:id/preview', authMiddleware, requireRecruiter, async (req, res) =>
 			[candidateId, req.user.id],
 		);
 
-		res.json({
+		const previewResponse = {
 			candidate: {
 				...profile,
 				skills: skillsResult.rows,
@@ -595,7 +608,12 @@ router.get('/:id/preview', authMiddleware, requireRecruiter, async (req, res) =>
 				education: educationResult.rows,
 				invite_status: inviteResult.rows[0]?.status || null,
 			},
-		});
+		};
+
+		// Issue #522: populate cache
+		analyticsCache.set(previewCacheKey, previewResponse);
+
+		res.json(previewResponse);
 	} catch (err) {
 		console.error('[candidateSearch] Preview error:', err);
 		res.status(500).json({ error: 'Failed to load candidate preview' });

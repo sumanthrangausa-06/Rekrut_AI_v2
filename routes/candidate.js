@@ -5,6 +5,7 @@ const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const { authMiddleware, requireRole } = require('../lib/auth');
 const pool = require('../lib/db');
+const { analyticsCache } = require('../lib/analytics-cache');
 const {
 	parseResume,
 	generateSkillAssessment,
@@ -351,6 +352,13 @@ router.put('/profile', authMiddleware, async (req, res) => {
 				req.user.id,
 			]);
 		}
+
+		// Issue #522: invalidate cached dashboard stats + recruiter previews for this candidate
+		analyticsCache.del(
+			analyticsCache.key('/api/candidate/dashboard/stats', { userId: req.user.id }),
+		);
+		// Preview keys are per-recruiter; the trailing & scopes the pattern to this candidate only
+		analyticsCache.invalidate(`/api/candidates/preview?candidateId=${req.user.id}&`);
 
 		res.json({ success: true, profile: result.rows[0] });
 	} catch (err) {
@@ -3165,6 +3173,15 @@ router.post('/coaching', authMiddleware, async (req, res) => {
 
 router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 	try {
+		// Issue #522: Cache dashboard stats per candidate (5-min TTL, same class as recruiter dashboard)
+		const cacheKey = analyticsCache.key('/api/candidate/dashboard/stats', {
+			userId: req.user.id,
+		});
+		const cached = analyticsCache.get(cacheKey);
+		if (cached) {
+			return res.json({ success: true, cached: true, ...cached });
+		}
+
 		// Query 1: identity + profile + omni score + counts from the unified view.
 		// Replaces 6 sequential queries: omni_scores, candidate_profiles, users,
 		// candidate_skills, work_experience, education. (#521)
@@ -3236,8 +3253,7 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 			!avatarUrl && 'Profile Photo',
 		].filter(Boolean);
 
-		res.json({
-			success: true,
+		const response = {
 			stats: {
 				omniscore:
 					v.omni_score != null
@@ -3262,6 +3278,14 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 					passed: parseInt(a.assessment_passed, 10) || 0,
 				},
 			},
+		};
+
+		// Issue #522: populate cache
+		analyticsCache.set(cacheKey, response);
+
+		res.json({
+			success: true,
+			...response,
 		});
 	} catch (err) {
 		console.error('Get dashboard stats error:', err);
