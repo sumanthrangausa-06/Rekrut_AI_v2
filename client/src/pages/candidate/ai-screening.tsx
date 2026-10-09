@@ -113,6 +113,7 @@ const recommendationConfig: Record<
 type InterviewSession = {
 	id: number;
 	status: string;
+	type?: string;
 	overall_score: number | null;
 	job_title: string;
 	company_name: string;
@@ -289,7 +290,7 @@ export function CandidateAiScreeningPage() {
 								<CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
 									<div className="flex-1 min-w-0">
 										<p className="font-medium text-sm">
-											{s.template_title || 'AI Screening Interview'}
+											{s.template_title || (s.type === 'ai_interview' ? 'AI Interview' : 'AI Screening Interview')}
 										</p>
 										<p className="text-xs text-muted-foreground">
 											{s.job_title} · {s.company_name}

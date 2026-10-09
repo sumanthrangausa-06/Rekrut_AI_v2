@@ -54,10 +54,11 @@ db.query.mockImplementation(async (sql, params = []) => {
 	if (normalized.includes('from interview_sessions')) {
 		const candidateId = Number(params[0]);
 		const rows = [...sessions.values()]
-			.filter((s) => Number(s.candidate_id) === candidateId && s.type === 'screening')
+			.filter((s) => Number(s.candidate_id) === candidateId && ['screening', 'ai_interview'].includes(s.type))
 			.map((s) => ({
 				id: s.id,
 				status: s.status,
+				type: s.type,
 				invite_token: s.invite_token,
 				application_id: s.application_id,
 				job_id: s.job_id,
@@ -130,6 +131,7 @@ describe('GET /api/interviews/screening/my-sessions', () => {
 		const s = res.body.sessions[0];
 		expect(s.id).toBe(session.id);
 		expect(s.status).toBe('invited');
+		expect(s.type).toBe('screening');
 		expect(s.job_title).toBe('Data Analyst');
 		expect(s.company_name).toBe('Acme Corp');
 		expect(s.template_title).toBe('Screening Template');
@@ -166,6 +168,47 @@ describe('GET /api/interviews/screening/my-sessions', () => {
 
 		expect(res.status).toBe(200);
 		expect(res.body.sessions).toHaveLength(0);
+	});
+
+	test('returns ai_interview sessions alongside screenings', async () => {
+		sessions.set(1, {
+			id: 1,
+			type: 'screening',
+			job_id: 100,
+			application_id: 200,
+			candidate_id: 501,
+			company_id: 300,
+			status: 'invited',
+			config: { job: { title: 'Data Analyst', company_name: 'Acme' }, template: { title: 'T' } },
+			invite_token: 'tok_screen',
+			created_at: new Date().toISOString(),
+		});
+		sessions.set(2, {
+			id: 2,
+			type: 'ai_interview',
+			job_id: 101,
+			application_id: 201,
+			candidate_id: 501,
+			company_id: 300,
+			status: 'invited',
+			config: { job: { title: 'ML Engineer', company_name: 'Beta' } },
+			invite_token: 'tok_ai',
+			created_at: new Date().toISOString(),
+		});
+
+		const app = makeApp();
+		const res = await request(app)
+			.get('/api/interviews/screening/my-sessions')
+			.set('x-test-user-id', '501');
+
+		expect(res.status).toBe(200);
+		expect(res.body.sessions).toHaveLength(2);
+
+		const ai = res.body.sessions.find((s) => s.id === 2);
+		expect(ai).toBeDefined();
+		expect(ai.type).toBe('ai_interview');
+		expect(ai.job_title).toBe('ML Engineer');
+		expect(ai.invite_url).toBe('/interview/session/tok_ai');
 	});
 
 	test('requires authentication', async () => {

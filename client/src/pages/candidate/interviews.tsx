@@ -414,7 +414,7 @@ export function CandidateInterviewsPage() {
 											<div className="min-w-0 flex-1">
 												<div className="flex items-center gap-2 flex-wrap">
 													<Badge variant="secondary" className="bg-purple-100 text-purple-700">
-														AI Screening
+														{s.type === 'ai_interview' ? 'AI Interview' : 'AI Screening'}
 													</Badge>
 													<Badge
 														variant={

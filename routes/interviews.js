@@ -3116,7 +3116,7 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 router.get('/screening/my-sessions', authMiddleware, async (req, res) => {
 	try {
 		const result = await pool.query(
-			`SELECT s.id, s.status, s.invite_token, s.application_id, s.job_id,
+			`SELECT s.id, s.status, s.type, s.invite_token, s.application_id, s.job_id,
               s.started_at, s.completed_at, s.created_at,
               s.config->'job'->>'title' as job_title,
               s.config->'job'->>'company_name' as config_company_name,
@@ -3126,15 +3126,16 @@ router.get('/screening/my-sessions', authMiddleware, async (req, res) => {
        FROM interview_sessions s
        LEFT JOIN jobs j ON s.job_id = j.id
        LEFT JOIN companies c ON s.company_id = c.id
-       WHERE s.candidate_id = $1 AND s.type = 'screening'
+       WHERE s.candidate_id = $1 AND s.type IN ('screening', 'ai_interview')
        ORDER BY s.created_at DESC`,
 			[req.user.id],
 		);
 		const sessions = result.rows.map((s) => ({
 			id: s.id,
 			status: s.status,
+			type: s.type,
 			overall_score: s.overall_score ?? null,
-			job_title: s.job_title || s.db_job_title || 'Screening',
+			job_title: s.job_title || s.db_job_title || (s.type === 'ai_interview' ? 'AI Interview' : 'Screening'),
 			company_name: s.config_company_name || s.db_company_name || '',
 			template_title: s.template_title || null,
 			application_id: s.application_id,
