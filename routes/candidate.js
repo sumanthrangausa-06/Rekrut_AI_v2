@@ -3207,15 +3207,23 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 			[req.user.id],
 		);
 
-		// Calculate profile completeness
+		// Calculate profile completeness — 12-field formula shared with the
+		// frontend (client/src/lib/profile-completion.ts). Both the Profile
+		// page and Dashboard must always show the same percentage.
 		const p = profile.rows[0] || {};
 		const completenessFields = [
+			p.name,
 			p.headline,
 			p.bio,
 			p.location,
 			p.linkedin_url || p.github_url,
+			p.resume_url,
 			parseInt(skillCount.rows[0]?.count, 10) > 0,
 			parseInt(experienceCount.rows[0]?.count, 10) > 0,
+			parseInt(educationCount.rows[0]?.count, 10) > 0,
+			p.phone,
+			p.years_experience != null,
+			p.avatar_url,
 		];
 		const completeness = Math.round(
 			(completenessFields.filter(Boolean).length / completenessFields.length) * 100,
