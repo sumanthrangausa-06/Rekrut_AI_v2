@@ -231,7 +231,9 @@ export function resolveNotificationUrl(
 		case 'screening_completed':
 		case 'screening_stalled': {
 			if (isRecruiter) return '/recruiter/screening';
-			return jobId ? `/candidate/screening/${jobId}` : '/candidate/assessments';
+			// Note: /candidate/screening/:jobId does not exist; screening invites
+			// surface on /candidate/ai-screening ("Interview Invitations").
+			return '/candidate/ai-screening';
 		}
 		case 'assessment_assigned':
 		case 'assessment_completed':
@@ -240,8 +242,14 @@ export function resolveNotificationUrl(
 			return isRecruiter ? '/recruiter/assessments' : '/candidate/assessments';
 		}
 		case 'interview_scheduled':
-		case 'interview_confirmed':
+		case 'interview_confirmed': {
+			return isRecruiter ? '/recruiter/interviews' : '/candidate/interviews';
+		}
 		case 'ai_interview_invited': {
+			// Deep-link candidates straight to the invite; fall back to the
+			// generic interviews page when no token is present (or for recruiters).
+			const inviteToken = str(meta.invite_token);
+			if (inviteToken && !isRecruiter) return `/interview/session/${inviteToken}`;
 			return isRecruiter ? '/recruiter/interviews' : '/candidate/interviews';
 		}
 		case 'offer_received': {
