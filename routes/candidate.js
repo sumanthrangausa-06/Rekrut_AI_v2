@@ -3176,6 +3176,14 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 			req.user.id,
 		]);
 
+		// name and avatar_url live on users, NOT candidate_profiles
+		// (candidate_profiles has no name column; photo_url is its legacy avatar field).
+		// The profile page (/candidate/profile) joins users for these — the dashboard must too.
+		const userRow = await pool.query('SELECT name, avatar_url FROM users WHERE id = $1', [
+			req.user.id,
+		]);
+		const u = userRow.rows[0] || {};
+
 		const skillCount = await pool.query(
 			'SELECT COUNT(*) as count, COUNT(*) FILTER (WHERE is_verified) as verified FROM candidate_skills WHERE user_id = $1',
 			[req.user.id],
@@ -3215,29 +3223,52 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 		// frontend (client/src/lib/profile-completion.ts). Both the Profile
 		// page and Dashboard must always show the same percentage.
 		const p = profile.rows[0] || {};
+		const name = u.name || p.name;
+		const avatarUrl = u.avatar_url || p.photo_url;
+		const hasSkills = parseInt(skillCount.rows[0]?.count, 10) > 0;
+		const hasExperience = parseInt(experienceCount.rows[0]?.count, 10) > 0;
+		const hasEducation = parseInt(educationCount.rows[0]?.count, 10) > 0;
 		const completenessFields = [
-			p.name,
+			name,
 			p.headline,
 			p.bio,
 			p.location,
 			p.linkedin_url || p.github_url,
 			p.resume_url,
-			parseInt(skillCount.rows[0]?.count, 10) > 0,
-			parseInt(experienceCount.rows[0]?.count, 10) > 0,
-			parseInt(educationCount.rows[0]?.count, 10) > 0,
+			hasSkills,
+			hasExperience,
+			hasEducation,
 			p.phone,
 			p.years_experience != null,
-			p.avatar_url,
+			avatarUrl,
 		];
 		const completeness = Math.round(
 			(completenessFields.filter(Boolean).length / completenessFields.length) * 100,
 		);
+
+		// Missing sections for the dashboard "complete your profile" nudge.
+		// Labels mirror client/src/lib/profile-completion.ts getMissingProfileSections.
+		const missingSections = [
+			!name && 'Name',
+			!p.headline && 'Headline',
+			!p.bio && 'Bio',
+			!p.location && 'Location',
+			!(p.linkedin_url || p.github_url) && 'Social Links',
+			!p.resume_url && 'Resume',
+			!hasSkills && 'Skills',
+			!hasExperience && 'Experience',
+			!hasEducation && 'Education',
+			!p.phone && 'Phone',
+			p.years_experience == null && 'Years of Experience',
+			!avatarUrl && 'Profile Photo',
+		].filter(Boolean);
 
 		res.json({
 			success: true,
 			stats: {
 				omniscore: omniscore.rows[0] || { total_score: 300, score_tier: 'new' },
 				profile_completeness: completeness,
+				missing_sections: missingSections,
 				skills: {
 					total: parseInt(skillCount.rows[0]?.count, 10) || 0,
 					verified: parseInt(skillCount.rows[0]?.verified, 10) || 0,

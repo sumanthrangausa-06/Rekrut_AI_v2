@@ -22,6 +22,7 @@ import { apiCall } from '@/lib/api';
 interface DashboardStats {
 	omniscore: { total_score: number; score_tier: string };
 	profile_completeness: number;
+	missing_sections: string[];
 	skills: { total: number; verified: number };
 	experience_count: number;
 	education_count: number;
@@ -212,7 +213,7 @@ export function CandidateDashboard() {
 							<p className="mt-1 text-xs text-amber-700">
 								{stats.profile_completeness}% complete —{' '}
 								<Link to="/candidate/profile" className="underline">
-									add skills, experience, education
+									add {stats.missing_sections.join(', ').toLowerCase()}
 								</Link>
 							</p>
 						</div>
