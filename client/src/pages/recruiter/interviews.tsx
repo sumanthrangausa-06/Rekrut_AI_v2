@@ -28,6 +28,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { EmptyState } from '@/components/domain/empty-state';
 import { Skeleton } from '@/components/domain/skeleton';
+import { JoinInterviewButton } from '@/components/interview-join-button';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -1945,11 +1946,7 @@ function RecruiterSystemBCard({
 					{/* Actions */}
 					<div className="flex flex-wrap gap-2 sm:flex-col">
 						{u.meeting_link && isUpcoming && (
-							<a href={u.meeting_link} target="_blank" rel="noopener noreferrer">
-								<Button size="sm" className="w-full min-h-[44px]">
-									<Video className="h-3.5 w-3.5 mr-1" /> Join
-								</Button>
-							</a>
+							<JoinInterviewButton interviewId={u.id} label="Join" />
 						)}
 					</div>
 				</div>
@@ -2068,11 +2065,7 @@ function InterviewCard({
 					{/* Actions */}
 					<div className="flex flex-wrap gap-2 sm:flex-col">
 						{interview.meeting_link && isUpcoming && (
-							<a href={interview.meeting_link} target="_blank" rel="noopener noreferrer">
-								<Button size="sm" className="w-full min-h-[44px]">
-									<Video className="h-3.5 w-3.5 mr-1" /> Join
-								</Button>
-							</a>
+							<JoinInterviewButton interviewId={interview.id} label="Join" />
 						)}
 						{interview.livekit_room_id && interview.livekit_room_url && isUpcoming && (
 							<a href={`/candidate/livekit-room?roomId=${interview.livekit_room_id}`}>
