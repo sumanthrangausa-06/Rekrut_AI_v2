@@ -63,6 +63,64 @@ S-001 (create session, 5pts) ── requires S-011 ✅ ──┤
 
 ---
 
+## Specialist Decisions (Mandatory — Sumanth's Directive, 2026-10-10)
+
+*Per ~/AGENTS.md: at sprint planning, Lead MUST answer for each story: "Does this story need a specialist? Yes/No, and why." Specialists cover all domains, not just security. The question is: "Would ANY specialist make this better?"*
+
+### S-058 — Biometric/PII segregation (5pts, #582)
+
+**Decision: YES — 3 specialists.**
+
+| Specialist | Pool | Why |
+|------------|------|-----|
+| privacy-engineer | gensecai (security-compliance) | Segregation correctness against BIPA/GDPR requirements — is biometric data truly separated from identity data? |
+| penetration-tester | voltagent (04-quality-security) — *proven Tier 1 on S-011* | Adversarial: can they JOIN across the segregation boundary to re-identify a candidate? |
+| crypto-implementation-expert | gensecai (security-compliance) | Per-candidate DEK implementation (ADR-012) — crypto is easy to get subtly wrong (IV reuse, key derivation, storage) |
+
+**Why:** Highest security-risk story of the sprint. Segregation + per-candidate encryption is the foundation every later integrity/behavioral story depends on. A flaw here compromises the entire compliance posture.
+
+### S-001 — Create interview session, all 4 modes (5pts, #559)
+
+**Decision: YES — 2 specialists.**
+
+| Specialist | Pool | Why |
+|------------|------|-----|
+| database-reviewer | ecc | Proactive session-table schema review before migration. 4-mode config polymorphism in one schema is easy to get wrong (R1). |
+| architect | gensecai (development-programming) | 4-mode config shape review — are mode configs extensible without schema churn? Is the mode enum future-proof? |
+
+**Why:** Foundation of E-001 (Session Engine). Every subsequent story builds on this schema. Schema mistakes are the most expensive to fix later — review is cheap insurance.
+
+### S-003 — Session lifecycle state machine (5pts, #561)
+
+**Decision: YES — 1 specialist.**
+
+| Specialist | Pool | Why |
+|------------|------|-----|
+| event-driven-architect | gensecai (development-programming) | State machine transition review — are all transitions valid? Are terminal states reachable? Are pause/resume races handled? |
+
+**Why:** State machines are deceptively simple to design and easy to get wrong (invalid transitions, lost states, race conditions on pause/resume). A transition-table review catches logic bugs that unit tests often miss because the tests encode the same flawed assumptions as the implementation.
+
+### S-012 — Consent-decline → human interview path (3pts, #570)
+
+**Decision: YES — 1 specialist.**
+
+| Specialist | Pool | Why |
+|------------|------|-----|
+| design-ux-architect | agency-agents (design) | Candidate-facing decline flow review. Declining consent is a sensitive, high-anxiety moment — the flow must be humane, clear, and unambiguous. Also validates the BIPA "real alternative" requirement through a UX walkthrough. |
+
+**Why:** This is fundamentally a UX story — the backend wiring (recruiter notification, session creation) is straightforward, but the candidate experience of being offered an alternative after declining determines whether the consent system feels trustworthy or coercive. A UX lens here protects the product's integrity posture as much as any security review.
+
+### Specialist Tracking
+
+Per ~/AGENTS.md, Nova will document on each story's GitHub Issue:
+1. At STOP 1: her specialist decision (confirming or adjusting the above)
+2. After review: findings and fixes
+3. In the PR body: "Specialist Reviews" section
+
+**Estimate impact:** None. Specialist reviews run after Green (implementation complete), before PR creation. The 2pt sprint buffer absorbs review-fix cycles.
+
+---
+
 ## Definition of Done
 
 ### Per Story
@@ -124,10 +182,12 @@ Same as Sprint 1 (Red → Green → Refactor), plus:
 1. **Comprehend** (⏸️ STOP) — Read story ACs + architecture section. **Verify issue number** via `gh issue view`. Present plan to Suga.
 2. **Branch** (⏸️ STOP) — Create branch, confirm.
 3. **Red → Green → Refactor** — Tests first.
-4. **Specialist review** (for S-058 and S-001) — Sumanth's directive: use the specialist pools. Suggested:
-   - S-058: `gensecai/privacy-engineer` (segregation correctness) + `voltagent/penetration-tester` (can they JOIN across the segregation boundary?)
-   - S-001: `ecc/database-reviewer` (session table schema) — proactive before migration
-   - S-003, S-012: Nova's judgment on whether specialists add value
+4. **Specialist review** (per the Specialist Decisions section above — mandatory, not optional) — Nova confirms or adjusts at STOP 1, dispatches after Green:
+   - S-058: `gensecai/privacy-engineer` + `voltagent/penetration-tester` + `gensecai/crypto-implementation-expert`
+   - S-001: `ecc/database-reviewer` (proactive) + `gensecai/architect`
+   - S-003: `gensecai/event-driven-architect`
+   - S-012: `agency-agents/design-ux-architect`
+   - Nova documents decision + findings on each story's GitHub Issue per ~/AGENTS.md
 5. **Review** — Separate reviewer, Suga approves.
 6. **Merge** — Sumanth approves merge.
 
@@ -171,6 +231,7 @@ Before Sumanth approves this sprint plan:
 - [ ] Capacity check: 18/20 points with 2pt buffer (matches Sprint 1 velocity)
 - [ ] Risks identified with mitigations
 - [ ] Nova's starting point is unambiguous (story order, branch naming with verified issue #s, TDD cycle, files)
+- [ ] **Specialist decisions documented** for all 4 stories (Yes/No + which specialist + why) in the Specialist Decisions section
 - [ ] $0 infrastructure confirmed (no new services in Sprint 2)
 - [ ] TDD + separate reviewer + issue-verification enforced
 - [ ] S-006 scope discrepancy flagged (spec = device checks, not consent integration; 403 handler already covers recovery)
