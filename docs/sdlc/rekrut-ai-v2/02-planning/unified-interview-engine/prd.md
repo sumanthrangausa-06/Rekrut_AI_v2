@@ -1,22 +1,23 @@
 ---
 project: Unified Interview Engine
-version: 3
+version: 3.1
 status: approved
 created: 2026-10-10
 updated: 2026-10-10
 owner: Sumanth
 analyst: Aria (Business Analyst, smart-sdlc Phase 2)
-stepsCompleted: ["step-01-requirements", "step-02-draft", "step-02-fixes", "step-03-v3-update", "step-03-specialist-review"]
+stepsCompleted: ["step-01-requirements", "step-02-draft", "step-02-fixes", "step-03-v3-update", "step-03-specialist-review", "step-04-oq3-correction"]
 change_log:
+  v3.1: "OQ-3 contradiction fix (Rex Phase 3 review): §9.2 facial_expression → facial_landmark_displacement, voice_stress → vocal_pitch_variation; FR-37 'stress indicators' → 'vocal variation indicators'; FR-49 example rewritten in observational language; FR-36/39/40 conditional emotion-inference branches collapsed to non-affective path only; §9.7 'Fused integrity' → 'Fused observations' (OQ-2); definitions section scrubbed of emotion-inference language. All FRs now consistent with OQ-3 (observe, don't label) and FR-28/29."
   v3.0: "86 FRs, 21 CRs, 8 NFRs. Incorporated Phase 1 redo findings: 15 must-have compliance items, 8 integrity mitigation recommendations (R1-R8), problem playbook, pricing/packaging requirements, vocabulary appendix (14 event types, 8 signal categories, 5 challenge types, 6 session statuses), Sumanth's new decisions (observer=recruiter tool, warm-up mandatory, manual dismissal, two-sided pricing). Flagged emotion-inference FRs for legal review (EU AI Act Art. 5). Specialist-reviewed by PRD completeness reviewer + compliance requirements reviewer."
   v2.1: "Approved by Sumanth 2026-10-10. 55 FRs, 10 CRs, 8 NFRs."
 ---
 
 # Unified Interview Engine — Product Requirements Document
 
-> **Status:** Draft v3.0 | **Version:** 3 | **Owner:** Sumanth | **Analyst:** Aria
+> **Status:** Draft v3.1 | **Version:** 3.1 | **Owner:** Sumanth | **Analyst:** Aria
 > **Phase Gate:** ✅ APPROVED by Sumanth (2026-10-10). All 8 open questions resolved. Cleared for Phase 3.
-> **Change log:** v3.0 incorporates Phase 1 redo findings (compliance blueprint, mitigation brief, pricing, Sumanth's new decisions). See frontmatter.
+> **Change log:** v3.1 fixes OQ-3 contradictions (see frontmatter). v3.0 incorporates Phase 1 redo findings (compliance blueprint, mitigation brief, pricing, Sumanth's new decisions).
 
 ---
 
@@ -51,10 +52,10 @@ Concrete definitions for terms used throughout this PRD:
 | Term | Definition |
 |------|------------|
 | **Standard integrity** | Gaze tracking (off-screen detection), face presence monitoring, tab-switch detection. No deepfake or AI-assistance layers. |
-| **Advanced integrity** | Standard integrity PLUS: (1) Deepfake detection — screen-flash test, lip-sync verification (phoneme-viseme alignment), AV-sync check (<80ms); (2) AI-assistance detection — reading gaze pattern monitor, response latency tracker, WPM + filler analysis, transcript linguistic forensics; (3) Voice analysis — eGeMAPS 88-feature voice profiling, >2σ deviation flagging, vocal stress measurement; (4) Interactive probing — unscripted follow-up questions when 3+ signals fire in 30 seconds. |
-| **Basic behavioral analysis** | ⚠️ **UNDER LEGAL REVIEW** — Originally defined as per-answer emotion classification (7 emotions). **EU AI Act Article 5 prohibits emotion inference in workplace/education contexts** (in force Feb 2025). Pending counsel's reading before Phase 3. If prohibited for EU: behavioral analysis is scoped to non-affective signals (gaze, speech rate, pause patterns, linguistic specificity) for EU deployments. See Open Question OQ-3. |
-| **Standard behavioral analysis** | ⚠️ **UNDER LEGAL REVIEW** (see "Basic behavioral analysis" above) — Basic PLUS: voice prosody (pitch, pace, energy), linguistic scoring (specificity, depth). Per-turn scores. If emotion inference is prohibited: prosody limited to non-affective features (speech rate, pause patterns, intensity variation). |
-| **Full behavioral analysis** | ⚠️ **UNDER LEGAL REVIEW** (see above) — Standard PLUS: multimodal fusion with attention weighting, temporal behavior transition tracking, per-turn visual + vocal + linguistic signals stored in `behavioral_signals` table. |
+| **Advanced integrity** | Standard integrity PLUS: (1) Deepfake detection — screen-flash test, lip-sync verification (phoneme-viseme alignment), AV-sync check (<80ms); (2) AI-assistance detection — reading gaze pattern monitor, response latency tracker, WPM + filler analysis, transcript linguistic forensics; (3) Voice analysis — eGeMAPS 88-feature voice profiling, >2σ deviation flagging, vocal variation measurement (never labeled as stress); (4) Interactive probing — unscripted follow-up questions when 3+ signals fire in 30 seconds. |
+| **Basic behavioral analysis** | Per-answer non-affective behavioral signals: gaze direction, head pose, blink rate, facial landmark displacement, speech rate, pause patterns, linguistic specificity. **No emotion inference** (OQ-3 resolved: observe, don't label). See FR-36. |
+| **Standard behavioral analysis** | Basic PLUS: voice prosody limited to non-affective features (pitch, pace, energy variation, speech rate, pause patterns, intensity variation) — never labeled as stress or emotion. Linguistic scoring (specificity, depth). Per-turn scores. See FR-37, FR-28. |
+| **Full behavioral analysis** | Standard PLUS: multimodal fusion with attention weighting (non-affective signals only), temporal behavior transition tracking, per-turn visual + vocal + linguistic signals stored in `behavioral_signals` table. See FR-39, FR-40. |
 | **Passive integrity** | Monitoring without interrupting. Used in Human Interview mode — AI Observer watches and records but never issues challenges or speaks. |
 | **Conservative flagging** | Only flag when confidence ≥0.85 AND 3+ independent signals corroborate within a 30-second window. Target: <2% false positive rate. |
 | **Integrity evidence** | Timestamped records in `integrity_events` table: event type, severity, confidence score, supporting signal data. Presented to recruiter as **observations** in plain language with the footer "This is an observation, not evidence of cheating." Never presented as verdicts. |
@@ -216,7 +217,7 @@ Concrete definitions for terms used throughout this PRD:
 |----|-------------|---------------------|
 | FR-26 | System SHALL extract eGeMAPS 88-feature voice profile from first 60 seconds (baseline) | **Given** the start of an interview **When** the candidate speaks for 60 seconds **Then** 88 eGeMAPS acoustic features are extracted **And** stored as the baseline voice profile **And** extraction completes within 5 seconds of the 60-second mark |
 | FR-27 | System SHALL flag voice deviations >2 standard deviations from baseline (possible voice switch) | **Given** an established baseline **When** a subsequent answer's voice features deviate >2σ on 3+ features **Then** a voice-deviation integrity event is created **And** the event includes which features deviated and by how much |
-| FR-28 | System SHALL measure vocal effort indicators (F0 variation, intensity variation) for **cognitive load estimation only** — pending legal review on "stress" labeling | **Given** an active interview **When** vocal indicators are measured per answer **Then** F0, intensity, and speech rate variation are tracked **And** the output is labeled "speech variation" or "cognitive load estimate" — **NOT "stress level"** (per compliance blueprint gate: no model output labeled "stress level") **And** the words "deception," "lying," "dishonesty," or "stress" NEVER appear in any user-facing output **And** this FR is subject to the same EU AI Act Art. 5 legal review as FR-36 |
+| FR-28 | System SHALL measure vocal effort indicators (F0 variation, intensity variation) for **cognitive load estimation only** — pending legal review on "stress" labeling | **Given** an active interview **When** vocal indicators are measured per answer **Then** F0, intensity, and speech rate variation are tracked **And** the output is labeled "speech variation" or "cognitive load estimate" — **NOT "stress level"** (per compliance blueprint gate: no model output labeled "stress level") **And** the words "deception," "lying," "dishonesty," or "stress" NEVER appear in any user-facing output **And** per OQ-3 resolution: output is observational only ("cognitive load estimate" / "speech variation"), never an emotion label |
 | FR-29 | System SHALL NEVER present voice analysis as deception detection | **Given** any voice analysis output **When** reviewed for compliance **Then** no UI element, report, API response, or log contains deception-related claims about voice **And** automated tests verify this on every build |
 | FR-30 | System SHALL estimate heart rate via remote PPG (facial video) as supplementary signal only | **Given** an active interview with face visible **When** remote PPG runs **Then** heart rate is estimated from facial skin color changes **And** the estimate includes a confidence interval **And** it is labeled "supplementary" in all outputs **And** it NEVER triggers integrity events alone |
 
@@ -238,11 +239,11 @@ Concrete definitions for terms used throughout this PRD:
 
 | ID | Requirement | Acceptance Criteria |
 |----|-------------|---------------------|
-| FR-36 | ⚠️ **UNDER LEGAL REVIEW** — System SHALL analyze facial expressions per answer turn — **SCOPE PENDING COUNSEL** (EU AI Act Art. 5 may prohibit emotion inference in hiring). If cleared: 7 basic emotions scored 0-100 with dominant emotion identified. If prohibited for EU: system SHALL analyze only non-affective facial signals (gaze direction, head pose, blink rate) and SHALL NOT infer emotional states. | **Given** a completed answer with video **When** facial analysis runs **Then** [if legally cleared] the 7 emotions are scored 0-100 **And** processing completes within 2 seconds **And** [if EU-prohibited] only non-affective signals are extracted **And** no UI element labels any output as an emotion |
-| FR-37 | System SHALL analyze voice prosody (pitch, pace, energy, stress indicators) | **Given** a completed answer with audio **When** prosody analysis runs **Then** pitch range, speech rate, energy level, and stress indicators are computed **And** results are stored in `behavioral_signals` with modality=`vocal` |
+| FR-36 | System SHALL analyze facial behavior per answer turn using non-affective signals only (OQ-3 resolved: observe, don't label) | **Given** a completed answer with video **When** facial analysis runs **Then** only non-affective signals are extracted (gaze direction, head pose, blink rate, facial landmark displacement) **And** no output is labeled as an emotion **And** processing completes within 2 seconds **And** no UI element, report, or API response labels any output as an emotion |
+| FR-37 | System SHALL analyze voice prosody (pitch, pace, energy, vocal variation) | **Given** a completed answer with audio **When** prosody analysis runs **Then** pitch range, speech rate, energy level, and vocal variation indicators are computed **And** results are stored in `behavioral_signals` with modality=`vocal` **And** no output is labeled "stress," "stress level," or any emotion |
 | FR-38 | System SHALL analyze linguistic content (STAR structure, specificity, depth) | **Given** a completed answer transcript **When** linguistic analysis runs **Then** STAR components are identified (Situation, Task, Action, Result) **And** specificity is scored (0-100 based on named entities, numbers, concrete details) **And** depth is assessed (surface vs. substantive) |
-| FR-39 | ⚠️ **UNDER LEGAL REVIEW** (EU AI Act Art. 5 — see FR-36) — System SHALL fuse multimodal signals with attention weighting | **Given** visual, vocal, and linguistic signals for an answer **When** fusion runs **Then** [if emotion inference legally cleared] text/linguistic signals receive highest weight and speech-emotion receives lowest weight **And** [if EU-prohibited] fusion uses only non-affective signals (gaze, speech rate, pause patterns, linguistic specificity) **And** the fused score includes per-modality contributions for transparency |
-| FR-40 | ⚠️ **UNDER LEGAL REVIEW** (EU AI Act Art. 5 — see FR-36) — System SHALL track temporal behavior transitions | **Given** a completed interview **When** transition analysis runs **Then** [if emotion inference legally cleared] significant emotion/confidence shifts between consecutive answers are identified (shift threshold: >30 points on 0–100 scale) **And** [if EU-prohibited] only non-affective transitions are tracked (e.g., speech rate change >20%, gaze pattern shift) **And** transitions are listed in the recruiter report with timestamps |
+| FR-39 | System SHALL fuse multimodal signals using non-affective signals only | **Given** visual, vocal, and linguistic signals for an answer **When** fusion runs **Then** fusion uses only non-affective signals (gaze, speech rate, pause patterns, linguistic specificity) **And** text/linguistic signals receive highest weight **And** the fused output includes per-modality contributions for transparency |
+| FR-40 | System SHALL track temporal behavior transitions using non-affective signals only | **Given** a completed interview **When** transition analysis runs **Then** only non-affective transitions are tracked (e.g., speech rate change >20%, gaze pattern shift) **And** transitions are listed in the recruiter report with timestamps **And** no transition is described using emotion language |
 | FR-41 | Behavioral scores SHALL show "N/A" or "Insufficient data" when confidence is low — never fake scores | **Given** a behavioral signal with confidence <0.5 **When** the report is generated **Then** the score displays "Insufficient data" **And** no numerical score is shown **And** no placeholder (e.g., 50/100) is used |
 
 ### 6.9 Camera/Voice Failure Recovery
@@ -265,7 +266,7 @@ Concrete definitions for terms used throughout this PRD:
 |----|-------------|---------------------|
 | FR-47 | System SHALL generate recruiter report: full assessment scores + integrity evidence timeline + behavioral analysis + transcript | **Given** a completed interview **When** the recruiter opens the report **Then** they see: (1) Assessment scores by category, (2) Integrity timeline with all events and confidence levels, (3) Behavioral analysis per answer, (4) Full transcript with speaker labels and timestamps **And** the report loads within 3 seconds |
 | FR-48 | System SHALL generate candidate report: qualitative feedback only — except Mock (scores). AI Screening SHALL NOT share a formal report but MAY share qualitative feedback (no scores, no integrity details). | **Given** a completed AI Interview **When** the candidate views their report **Then** they see qualitative feedback (strengths, areas to improve) **And** no numerical scores are displayed **Given** a completed Mock Interview **When** the candidate views their report **Then** they see numerical scores + qualitative feedback **Given** a completed AI Screening **When** the candidate views feedback **Then** they see qualitative feedback only (e.g., strengths observed) **And** no formal report, no scores, and no integrity details are shared |
-| FR-49 | Human Interview report SHALL show human interviewer feedback + AI Observer analysis side by side | **Given** a completed human interview **When** the recruiter opens the report **Then** they see two columns: "Interviewer Assessment" (human scores, notes, hire/no-hire) and "AI Observer Analysis" (behavioral signals, integrity flags) **And** discrepancies are highlighted (e.g., "Interviewer rated confidence 8/10; AI measured stress indicators elevated") |
+| FR-49 | Human Interview report SHALL show human interviewer feedback + AI Observer analysis side by side | **Given** a completed human interview **When** the recruiter opens the report **Then** they see two columns: "Interviewer Assessment" (human scores, notes, hire/no-hire) and "AI Observer Analysis" (behavioral signals, integrity flags) **And** discrepancies are highlighted (e.g., "Interviewer rated confidence 8/10; AI measured vocal pitch variation outside baseline range") |
 | FR-50 | Reports SHALL disclose all integrity flags as evidence with timestamps and confidence levels | **Given** a report with integrity events **When** the recruiter views the integrity section **Then** each flag shows: timestamp, event type, severity, confidence score (0-100%), supporting signals **And** a disclaimer: "These are observations for your review, not determinations of misconduct" |
 
 ### 6.11 Admin / Operator
@@ -508,8 +509,8 @@ GDPR (EU), BIPA (Illinois), CCPA/CPRA (California), DPDP Act (India)
 
 | Modality | Signal Types |
 |----------|-------------|
-| `visual` | `facial_expression`, `gaze_direction`, `head_pose`, `blink_rate`, `face_presence` |
-| `vocal` | `pitch_f0`, `intensity`, `speech_rate_wpm`, `filler_count`, `pause_distribution`, `voice_stress`, `spectral_flux` |
+| `visual` | `facial_landmark_displacement`, `gaze_direction`, `head_pose`, `blink_rate`, `face_presence` |
+| `vocal` | `pitch_f0`, `intensity`, `speech_rate_wpm`, `filler_count`, `pause_distribution`, `vocal_pitch_variation`, `spectral_flux` |
 | `linguistic` | `star_structure`, `specificity_score`, `depth_score`, `formulaic_language`, `ai_likelihood` |
 | `fused` | `multimodal_confidence`, `temporal_transition` |
 
@@ -562,7 +563,7 @@ GDPR (EU), BIPA (Illinois), CCPA/CPRA (California), DPDP Act (India)
 | Behavioral signals | 0–100 | Per-signal; <50 confidence → "Insufficient data" |
 | AI-likelihood (linguistic) | 0–100 | Higher = more likely AI-assisted |
 | Specificity | 0–100 | Named entities, numbers, concrete details |
-| Fused integrity | 0–100 | Quality-weighted; ≥85 flag, 60–85 uncertain, <60 no flag |
+| Fused observations | 0–100 | Quality-weighted signal combination; ≥85 flag, 60–85 uncertain, <60 no flag. Never presented as a single "integrity score" (OQ-2) — recruiters see tiered observations. |
 
 **Never show fake scores.** Where confidence <0.5, display "N/A" or "Insufficient data" — never a placeholder number.
 
