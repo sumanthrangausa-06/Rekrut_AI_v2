@@ -81,6 +81,8 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 	const silenceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const analyserRef = useRef<AnalyserNode | null>(null);
 	const silenceCountRef = useRef<number>(0);
+	// Prevent greeting infinite loop: track which session already played it
+	const greetingPlayedRef = useRef<string | null>(null);
 
 	// Mock interview camera state
 	const [mockCameraReady, setMockCameraReady] = useState(false);
@@ -174,7 +176,11 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 				!voiceProcessing
 			) {
 				if (mockSession.conversation.length === 1) {
-					playInterviewerAudio(lastMsg.text);
+					// Prevent infinite loop: only play greeting once per session
+					if (greetingPlayedRef.current !== mockSession.id) {
+						greetingPlayedRef.current = mockSession.id;
+						playInterviewerAudio(lastMsg.text);
+					}
 				}
 			}
 		}
