@@ -889,6 +889,75 @@ async function downloadRecordingAudio(storagePath) {
 	}
 }
 
+/**
+ * Disconnect the voice agent from a session's LiveKit room.
+ * Phase 3 (#447): supports the observer disable path.
+ *
+ * Removes the agent participant (if connected) and deletes any active
+ * dispatch for the given mode. Idempotent — safe to call when the agent
+ * isn't present.
+ *
+ * @param {string|number} sessionId
+ * @param {string} mode 'observer' or 'interviewer'
+ * @returns {{ removed_participant: boolean, deleted_dispatches: number }}
+ */
+async function disconnectVoiceAgent(sessionId, mode = 'observer') {
+	const room = await findActiveRoomBySessionId(sessionId);
+	// Defensive: no room means no agent to disconnect. findOrCreateSessionRoom
+	// would create a real room + DB row as a side effect — never do that here.
+	if (!room) {
+		return { removed_participant: false, deleted_dispatches: 0 };
+	}
+	const { RoomServiceClient, AgentDispatchClient } = await getLivekitModule();
+	const { apiKey, apiSecret, livekitUrl } = getConfig();
+	const httpUrl = livekitUrl.replace(/^wss?:\/\//, 'https://').replace(/\/$/, '');
+
+	let deletedDispatches = 0;
+
+	// 1. Delete dispatches for this session+mode FIRST (mode-scoped via
+	// _isActiveDispatchForMode). This prevents the agent being re-dispatched.
+	try {
+		const dispatchClient = new AgentDispatchClient(httpUrl, apiKey, apiSecret);
+		const dispatches = await dispatchClient.listDispatch(room.room_name);
+		for (const d of dispatches) {
+			if (_isActiveDispatchForMode(d, mode, sessionId)) {
+				await dispatchClient.deleteDispatch(d.id, room.room_name);
+				deletedDispatches++;
+			}
+		}
+	} catch (err) {
+		console.error('[livekit] disconnect agent: deleteDispatch failed:', err.message);
+	}
+
+	// 2. Only remove the agent participant when no OTHER mode's dispatch
+	// remains active in this room. Both modes share the same agent name
+	// (getVoiceAgentName()), so a blind removal could kick a live interviewer
+	// when only the observer is being disabled.
+	let removedParticipant = false;
+	try {
+		const dispatchClient = new AgentDispatchClient(httpUrl, apiKey, apiSecret);
+		const remaining = await dispatchClient.listDispatch(room.room_name);
+		const otherModeActive = remaining.some(
+			(d) => _isActiveDispatchForMode(d, mode === 'observer' ? 'interviewer' : 'observer', sessionId)
+		);
+		if (!otherModeActive) {
+			const roomClient = new RoomServiceClient(httpUrl, apiKey, apiSecret);
+			const participants = await roomClient.listParticipants(room.room_name);
+			const agentName = getVoiceAgentName();
+			for (const p of participants) {
+				if (p.identity && p.identity.includes(agentName)) {
+					await roomClient.removeParticipant(room.room_name, p.identity);
+					removedParticipant = true;
+				}
+			}
+		}
+	} catch (err) {
+		console.error('[livekit] disconnect agent: removeParticipant failed:', err.message);
+	}
+
+	return { removed_participant: removedParticipant, deleted_dispatches: deletedDispatches };
+}
+
 module.exports = {
 	generateToken,
 	createRoom,
@@ -902,6 +971,7 @@ module.exports = {
 	findOrCreateSessionRoom,
 	dispatchVoiceAgent,
 	dispatchAgentToRoom,
+	disconnectVoiceAgent,
 	getVoiceAgentName,
 	findRoomById,
 	validateRoomAccess,

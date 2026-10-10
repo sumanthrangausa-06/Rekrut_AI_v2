@@ -2,6 +2,10 @@ const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const {
+	filterWhisperHallucination,
+	isValidTranscriptLength,
+} = require('../lib/transcription');
+const {
 	chat,
 	generateInterviewQuestions,
 	analyzeInterviewResponse,
@@ -347,6 +351,12 @@ router.get('/history', authMiddleware, async (req, res) => {
 		res.status(500).json({ error: 'Failed to fetch history' });
 	}
 });
+
+// NOTE: unified human-interview endpoints (GET /my-interviews,
+// POST /unified, POST /unified/:id/confirm-slot) live in
+// routes/interviews-unified.js, mounted BEFORE interviewEventsRoutes in
+// server.js — interviewEventsRoutes' GET /:id isInt validator would
+// otherwise 400 on the fixed segment "my-interviews".
 
 // Get interview details
 router.get('/:id', authMiddleware, async (req, res) => {
@@ -1374,17 +1384,17 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
 				// BUG FIX (Feb 15, 2026 — Task #33076): Always set presentation data.
 				// Previously, when videoAnalysis was null (all providers failed), feedback.presentation
 				// was never set → UI showed "No video frames available" defaults (5/10 everywhere).
-				// Now we always save presentation data — real scores when vision works, meaningful
-				// fallback when it doesn't.
+				// Now we always save presentation data — real scores when vision works, null scores
+				// (rendered as N/A) when it doesn't, so missing data is never misread as average.
 				const hasFrames = frames && Array.isArray(frames) && frames.length > 0;
 				if (videoAnalysis) {
 					feedback.presentation = {
-						score: videoAnalysis.overall_presentation || 5,
-						eye_contact: videoAnalysis.eye_contact || { score: 5, feedback: '' },
-						facial_expressions: videoAnalysis.facial_expressions || { score: 5, feedback: '' },
-						body_language: videoAnalysis.body_language || { score: 5, feedback: '' },
-						professional_appearance: videoAnalysis.professional_appearance || {
-							score: 5,
+						score: videoAnalysis.overall_presentation ?? null,
+						eye_contact: videoAnalysis.eye_contact ?? { score: null, feedback: '' },
+						facial_expressions: videoAnalysis.facial_expressions ?? { score: null, feedback: '' },
+						body_language: videoAnalysis.body_language ?? { score: null, feedback: '' },
+						professional_appearance: videoAnalysis.professional_appearance ?? {
+							score: null,
 							feedback: '',
 						},
 						summary: videoAnalysis.summary || '',
@@ -1402,22 +1412,22 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
 								? 'Moderate response length'
 								: 'Responses could be more detailed';
 					feedback.presentation = {
-						score: 5,
+						score: null,
 						eye_contact: {
-							score: 5,
+							score: null,
 							feedback: `Video was recorded (${frames.length} frames captured). Vision analysis temporarily unavailable — practice maintaining steady eye contact with the camera.`,
 						},
 						facial_expressions: {
-							score: 5,
+							score: null,
 							feedback: `Based on ${turnCount} responses: ${paceNote}. Aim for engaged, confident expressions throughout.`,
 						},
 						body_language: {
-							score: 5,
+							score: null,
 							feedback:
 								'Sit upright with shoulders back. Use natural hand gestures to emphasize key points.',
 						},
 						professional_appearance: {
-							score: 5,
+							score: null,
 							feedback:
 								'Ensure good lighting, a clean background, and professional framing for your next session.',
 						},
@@ -1431,7 +1441,7 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
 				// Recalculate score with presentation/voice
 				if (videoAnalysis || voiceAnalysis) {
 					const textScore = feedback.overall_score || 5;
-					const presScore = videoAnalysis?.overall_presentation || textScore;
+					const presScore = videoAnalysis?.overall_presentation ?? textScore;
 					const voiceScore = voiceAnalysis?.overall_voice_score || textScore;
 					feedback.overall_score =
 						Math.round((textScore * 0.5 + presScore * 0.25 + voiceScore * 0.25) * 10) / 10;
@@ -2140,31 +2150,11 @@ router.post(
 				usedFallback = true;
 			}
 
-			// BUG FIX: Whisper hallucinates known phrases on silent/near-silent audio
-			const WHISPER_HALLUCINATIONS = [
-				'ご視聴ありがとうございました',
-				'視聴ありがとうございました',
-				'あ���がとうございました',
-				'ご視聴ありがとうございます',
-				'字幕',
-				'サブスクライブ',
-				'チャンネル登録',
-				'谢谢观看',
-				'感谢观看',
-				'Sous-titres',
-				'Sottotitoli',
-				'Untertitel',
-				'Thanks for watching',
-				'Thank you for watching',
-				'Please subscribe',
-				'Like and subscribe',
-			];
-			const isHallucination =
-				!usedFallback &&
-				WHISPER_HALLUCINATIONS.some((phrase) =>
-					transcribedText.toLowerCase().includes(phrase.toLowerCase()),
-				);
-			if (isHallucination) {
+			// Phase 1 (#447): use shared transcription module.
+			// The !usedFallback guard is preserved — client SpeechRecognition
+			// transcripts are real speech, not Whisper hallucinations.
+			const { isHallucination } = filterWhisperHallucination(transcribedText);
+			if (isHallucination && !usedFallback) {
 				console.log(`[voice-respond] Filtered Whisper hallucination: "${transcribedText}"`);
 				// Try client transcript before rejecting
 				if (clientTranscript.length >= 10) {
@@ -2177,7 +2167,7 @@ router.post(
 				}
 			}
 
-			if (!transcribedText || transcribedText.length < 5) {
+			if (!isValidTranscriptLength(transcribedText)) {
 				return res.status(400).json({
 					error: 'Could not transcribe your response. Please try speaking louder and more clearly.',
 				});
@@ -3036,8 +3026,8 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 		const inviteToken = crypto.randomBytes(32).toString('hex');
 		const result = await pool.query(
 			`INSERT INTO interview_sessions
-			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, invite_expires_at, status, config, conversation)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW() + INTERVAL '7 weeks', 'invited', $8, $9)
 			 RETURNING *`,
 			[
 				'screening',
@@ -3116,7 +3106,7 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 router.get('/screening/my-sessions', authMiddleware, async (req, res) => {
 	try {
 		const result = await pool.query(
-			`SELECT s.id, s.status, s.invite_token, s.application_id, s.job_id,
+			`SELECT s.id, s.status, s.type, s.invite_token, s.invite_expires_at, s.application_id, s.job_id,
               s.started_at, s.completed_at, s.created_at,
               s.config->'job'->>'title' as job_title,
               s.config->'job'->>'company_name' as config_company_name,
@@ -3126,22 +3116,23 @@ router.get('/screening/my-sessions', authMiddleware, async (req, res) => {
        FROM interview_sessions s
        LEFT JOIN jobs j ON s.job_id = j.id
        LEFT JOIN companies c ON s.company_id = c.id
-       WHERE s.candidate_id = $1 AND s.type = 'screening'
+       WHERE s.candidate_id = $1 AND s.type IN ('screening', 'ai_interview')
        ORDER BY s.created_at DESC`,
 			[req.user.id],
 		);
 		const sessions = result.rows.map((s) => ({
 			id: s.id,
 			status: s.status,
+			type: s.type,
 			overall_score: s.overall_score ?? null,
-			job_title: s.job_title || s.db_job_title || 'Screening',
+			job_title: s.job_title || s.db_job_title || (s.type === 'ai_interview' ? 'AI Interview' : 'Screening'),
 			company_name: s.config_company_name || s.db_company_name || '',
 			template_title: s.template_title || null,
 			application_id: s.application_id,
 			invited_at: s.created_at,
 			started_at: s.started_at,
 			completed_at: s.completed_at,
-			expires_at: null,
+			expires_at: s.invite_expires_at || null,
 			invite_token: s.invite_token,
 			// Only expose the invite link for sessions the candidate can still act on
 			invite_url:
@@ -3427,9 +3418,16 @@ router.post(
 						error: "Couldn't transcribe your audio. Please try speaking again.",
 					});
 				}
+				// Phase 1 (#447): use shared transcription module.
+				const { isHallucination } = filterWhisperHallucination(transcribedText);
+				if (isHallucination) {
+					console.log(`[screening-voice] Filtered Whisper hallucination: "${transcribedText}"`);
+					transcribedText = '';
+				}
 			}
 
-			if (!transcribedText || transcribedText.length < 3) {
+			// Screening uses yes/no questions — "yes" (3 chars) is a legitimate answer.
+			if (!isValidTranscriptLength(transcribedText, 3)) {
 				return res.status(400).json({
 					error: "Didn't catch that. Could you please repeat your answer?",
 				});

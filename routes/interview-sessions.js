@@ -41,6 +41,11 @@ const { notifyUser } = require('../lib/notify');
 // insertAuditLog → audit_logs table). No new table, no new event schema.
 const { insertAuditLog } = require('./audit');
 const livekitService = require('../server/services/livekit');
+// Phase 1 (#447): shared transcription hygiene.
+const {
+	filterWhisperHallucination,
+	isValidTranscriptLength,
+} = require('../lib/transcription');
 const aiProvider = require('../lib/ai-provider');
 const { textToSpeech } = require('../lib/polsia-ai');
 
@@ -151,8 +156,8 @@ router.post('/interview-sessions', authMiddleware, async (req, res) => {
 		const token = invite_token || crypto.randomBytes(32).toString('hex');
 		const result = await pool.query(
 			`INSERT INTO interview_sessions
-			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, invite_expires_at, status, config, conversation)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW() + INTERVAL '7 weeks', 'invited', $8, $9)
 			 RETURNING *`,
 			[
 				type,
@@ -293,8 +298,8 @@ router.post('/interview-sessions/trigger', authMiddleware, async (req, res) => {
 		const token = crypto.randomBytes(32).toString('hex');
 		const result = await pool.query(
 			`INSERT INTO interview_sessions
-			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, invite_expires_at, status, config, conversation)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW() + INTERVAL '7 weeks', 'invited', $8, $9)
 			 RETURNING *`,
 			[
 				'ai_interview',
@@ -359,7 +364,7 @@ router.get('/interview-sessions/by-token/:token', async (req, res) => {
 	try {
 		const result = await pool.query(
 			`SELECT id, type, status, job_id, company_id, candidate_id, invite_token,
-			        config, created_at
+			        invite_expires_at, config, created_at
 			   FROM interview_sessions WHERE invite_token = $1`,
 			[req.params.token],
 		);
@@ -367,6 +372,17 @@ router.get('/interview-sessions/by-token/:token', async (req, res) => {
 			return res.status(404).json({ error: 'Interview not found' });
 		}
 		const s = result.rows[0];
+		// 7-week invite window: an un-started invite past its expiry is gone.
+		// Started/completed sessions keep working — the token already did its job.
+		if (
+			s.status === 'invited' &&
+			s.invite_expires_at &&
+			new Date(s.invite_expires_at).getTime() < Date.now()
+		) {
+			return res
+				.status(410)
+				.json({ success: false, error: 'Invite expired', code: 'INVITE_EXPIRED' });
+		}
 		const job = s.config?.job || null;
 		res.json({
 			success: true,
@@ -386,11 +402,93 @@ router.get('/interview-sessions/by-token/:token', async (req, res) => {
 						}
 					: null,
 				created_at: s.created_at,
+				invite_expires_at: s.invite_expires_at || null,
 			},
 		});
 	} catch (err) {
 		console.error('[interview-sessions] by-token error:', err.message);
 		res.status(500).json({ error: 'Failed to resolve interview' });
+	}
+});
+
+// POST /interview-sessions/:id/resend — recruiter re-sends an invite.
+//
+// Generates a fresh invite token (the old link stops resolving) and starts a
+// new 7-week window. Only the hiring team of the session's company may resend,
+// and only while the invite is still un-started (status='invited'). A new
+// in-app notification goes to the candidate with the fresh link.
+router.post('/interview-sessions/:id/resend', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		const user = req.user;
+		const isHiringTeam =
+			HIRING_ROLES.includes(user.role) &&
+			user.company_id != null &&
+			Number(user.company_id) === Number(session.company_id);
+		if (!isHiringTeam && user.role !== 'admin') {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+		if (session.status !== 'invited') {
+			return res.status(409).json({
+				error: 'Only un-started invites can be resent',
+				code: 'INVITE_NOT_RESENDABLE',
+			});
+		}
+
+		const newToken = crypto.randomBytes(32).toString('hex');
+		const updated = await pool.query(
+			`UPDATE interview_sessions
+			    SET invite_token = $1,
+			        invite_expires_at = NOW() + INTERVAL '7 weeks'
+			  WHERE id = $2
+			  RETURNING *`,
+			[newToken, session.id],
+		);
+		const fresh = updated.rows[0];
+
+		const inviteUrl = `/interview/session/${newToken}`;
+		const job = fresh.config?.job || {};
+		const notifType =
+			fresh.type === 'ai_interview' ? 'ai_interview_invited' : 'screening_invited';
+		await notifyUser(
+			fresh.candidate_id,
+			notifType,
+			notifType === 'ai_interview_invited'
+				? `AI interview invited: ${job.title || ''}`.trim()
+				: 'AI screening interview invited',
+			notifType === 'ai_interview_invited'
+				? `${job.company_name || 'The hiring team'} invited you to a personalized AI interview for the ${job.title || 'this'} role.`
+				: `You've been invited to complete an AI screening interview.`,
+			{
+				session_id: fresh.id,
+				job_id: fresh.job_id,
+				application_id: fresh.application_id,
+				invite_token: newToken,
+				invite_url: inviteUrl,
+				url: inviteUrl,
+				resent: true,
+			},
+		);
+
+		try {
+			await insertAuditLog({
+				company_id: fresh.company_id ?? null,
+				actor_id: user.id,
+				target_id: fresh.id,
+				action: 'session.resent',
+				metadata: { session_id: fresh.id, type: fresh.type },
+			});
+		} catch (auditErr) {
+			console.error('[interview-sessions] resend audit failed:', auditErr.message);
+		}
+
+		res.json({ success: true, session_id: fresh.id, invite_url: inviteUrl });
+	} catch (err) {
+		console.error('[interview-sessions] resend error:', err.message);
+		res.status(500).json({ error: 'Failed to resend invite' });
 	}
 });
 
@@ -538,13 +636,22 @@ router.post(
 				} catch (asrErr) {
 					console.error('[interview-sessions] transcription failed:', asrErr.message);
 				}
+				// Phase 1 (#447): use shared transcription module.
+				const { isHallucination } = filterWhisperHallucination(candidateText);
+				if (isHallucination) {
+					console.log(`[interview-sessions] Filtered Whisper hallucination: "${candidateText}"`);
+					candidateText = '';
+					hasAudio = false;
+				}
 				// Client SpeechRecognition fallback (mirrors the mock voice-respond path)
 				if (!candidateText && (req.body?.client_transcript || '').trim().length >= 10) {
 					candidateText = req.body.client_transcript.trim();
 				}
 			}
 
-			if (!candidateText || candidateText.length < 2) {
+			// AI interview is conversational — short acknowledgments like "OK" (2 chars)
+			// are legitimate (e.g., "Ready for the next question?" → "OK").
+			if (!isValidTranscriptLength(candidateText, 2)) {
 				return res.status(400).json({ error: 'Response too short. Please elaborate.' });
 			}
 
@@ -985,6 +1092,53 @@ router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (re
 	} catch (err) {
 		console.error('[interview-sessions] observer enable error:', err.message);
 		res.status(500).json({ error: 'Failed to enable observer' });
+	}
+});
+
+// POST /interview-sessions/:id/observer/disable — hiring team disables the AI
+// observer on a human interview. Phase 3 (#447): terminates the observer
+// agent (removes participant + deletes dispatch) and flips observer_enabled
+// to false. Idempotent — safe to call when already disabled.
+router.post('/interview-sessions/:id/observer/disable', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		if (!isHiringTeamForSession(session, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+
+		if (!session.config?.observer_enabled) {
+			return res.json({ success: true, observer_enabled: false, already_disabled: true });
+		}
+
+		// Terminate the observer agent. Non-blocking on failure — the flag
+		// flip is the source of truth; a stale agent is harmless (muted).
+		let disconnectResult = null;
+		try {
+			disconnectResult = await livekitService.disconnectVoiceAgent(session.id, 'observer');
+		} catch (err) {
+			console.error('[interview-sessions] observer disconnect failed:', err.message);
+		}
+
+		await pool.query('UPDATE interview_sessions SET config = config || $1::jsonb WHERE id = $2', [
+			JSON.stringify({ observer_enabled: false }),
+			session.id,
+		]);
+
+		await emitInterviewAudit({
+			company_id: session.company_id,
+			actor_id: req.user.id,
+			target_id: session.id,
+			action: 'session.observer_disabled',
+			metadata: { session_id: session.id },
+		});
+
+		res.json({ success: true, observer_enabled: false, disconnectResult });
+	} catch (err) {
+		console.error('[interview-sessions] observer disable error:', err.message);
+		res.status(500).json({ error: 'Failed to disable observer' });
 	}
 });
 

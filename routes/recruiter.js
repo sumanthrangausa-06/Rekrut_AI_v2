@@ -10,6 +10,7 @@ const calendarService = require('../server/services/calendar-service');
 const auditLogService = require('../services/auditLogService');
 const { AuditLogger } = auditLogService;
 const { dataAccessAudit } = require('../middleware/dataAccessAudit');
+const { buildRecruiterFeed } = require('../lib/activity-feed');
 const emailService = require('../lib/email-service');
 const { notifyUser } = require('../lib/notify');
 const DOMPurify = require('isomorphic-dompurify');
@@ -570,6 +571,27 @@ router.get(
 				[companyId, days],
 			);
 
+			// ─── DAILY APPLICATIONS TREND (graceful, for #524 charts) ───
+			let dailyApplications = [];
+			try {
+				const trendResult = await pool.query(
+					`
+        SELECT DATE(applied_at) as day, COUNT(*) as count
+        FROM job_applications
+        WHERE company_id = $1 ${dateFilter}
+        GROUP BY DATE(applied_at)
+        ORDER BY day
+      `,
+					[companyId, days],
+				);
+				dailyApplications = trendResult.rows.map((r) => ({
+					day: r.day instanceof Date ? r.day.toISOString().split('T')[0] : String(r.day),
+					count: parseInt(r.count, 10) || 0,
+				}));
+			} catch (_trendErr) {
+				console.log('[dashboard] daily applications trend not available');
+			}
+
 			const response = {
 				success: true,
 				trust_score: trustScore,
@@ -594,6 +616,7 @@ router.get(
 				offer_acceptance_rate: offerAcceptanceRate,
 				upcoming_interviews: upcomingInterviews.rows,
 				recent_applications: recentApps.rows,
+				daily_applications: dailyApplications,
 			};
 
 			analyticsCache.set(cacheKey, response);
@@ -601,6 +624,24 @@ router.get(
 		} catch (err) {
 			console.error('Dashboard error:', err);
 			res.status(500).json({ error: 'Failed to load dashboard' });
+		}
+	},
+);
+
+// Issue #529: Recruiter activity feed — richer than recent applications alone.
+// Aggregates new applications, interviews, and endorsements given.
+router.get(
+	'/activity',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	async (req, res) => {
+		try {
+			const activities = await buildRecruiterFeed(req.user.id, req.user.company_id);
+			res.json({ success: true, activities });
+		} catch (err) {
+			console.error('[recruiter/activity] failed:', err.message);
+			res.status(500).json({ error: 'Failed to load activity feed' });
 		}
 	},
 );
@@ -810,6 +851,14 @@ router.post(
 					analysis,
 					message: optimize ? 'Job created with AI optimization!' : 'Job created successfully',
 				});
+
+				// #528: Match new job against candidate job alerts (fire-and-forget)
+				try {
+					const { matchAndNotifyForJob } = require('../lib/job-alert-matcher');
+					matchAndNotifyForJob(job).catch(() => {});
+				} catch (_e) {
+					/* job alerts are best-effort; never fail job creation */
+				}
 			} catch (_e) {
 				// Issue #143: Invalidate analytics cache on new job
 				analyticsCache.invalidatePatterns([
@@ -1170,6 +1219,14 @@ router.put(
 				console.error('Screening template sync failed:', templateErr.message);
 			}
 
+			// Invalidate analytics cache on job update (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
+
 			res.json({ success: true, job: result.rows[0] });
 		} catch (err) {
 			if (err.statusCode === 400) {
@@ -1458,6 +1515,14 @@ router.post(
 				[application_id],
 			);
 
+			// Invalidate analytics cache on interview creation (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
+
 			res.json({ success: true, interview: result.rows[0] });
 
 			// ── Calendar auto-sync (non-blocking) ──
@@ -1505,6 +1570,14 @@ router.delete(
 			} catch (calErr) {
 				console.error('[calendar] Auto-sync delete failed (non-blocking):', calErr.message);
 			}
+
+			// Invalidate analytics cache on interview deletion (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
 
 			res.json({ success: true });
 		} catch (err) {
@@ -1743,43 +1816,6 @@ router.get(
 	},
 );
 
-router.post(
-	'/candidates/bulk-status',
-	authMiddleware,
-	requireNotSuspended,
-	requireApprovedRecruiter,
-	ensureCompany,
-	requirePermission('candidates:manage'),
-	async (req, res) => {
-		try {
-			const { candidateIds, status } = req.body;
-			const VALID = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'];
-			if (!candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {
-				return res.status(400).json({ error: 'candidateIds array required' });
-			}
-			if (!VALID.includes(status)) {
-				return res
-					.status(400)
-					.json({ error: `Invalid status. Must be one of: ${VALID.join(', ')}` });
-			}
-			const result = await pool.query(
-				'UPDATE candidates SET status = $1, updated_at = NOW() WHERE id = ANY($2) AND company_id = $3',
-				[status, candidateIds, req.user.company_id],
-			);
-			console.log('[AUDIT] Bulk status update', {
-				userId: req.user.id,
-				count: result.rowCount,
-				fromStatus: 'various',
-				toStatus: status,
-			});
-			res.json({ updated: result.rowCount, candidateIds });
-		} catch (err) {
-			console.error('Bulk status update error:', err);
-			res.status(500).json({ error: 'Failed to update candidate statuses' });
-		}
-	},
-);
-
 // Get pipeline stats (B-001)
 router.get(
 	'/pipeline-stats',
@@ -1979,6 +2015,27 @@ router.put(
 				} catch (_e) {
 					/* non-critical */
 				}
+
+				// Also log to hiring_activity so Team Activity feed shows status changes
+				try {
+					await pool.query(
+						`INSERT INTO hiring_activity (job_id, user_id, action_type, description, metadata)
+           VALUES ($1, $2, 'status_changed', $3, $4)`,
+						[
+							existing.rows[0].job_id,
+							req.user.id,
+							`Moved candidate to ${status}`,
+							JSON.stringify({
+								application_id: parseInt(req.params.id, 10),
+								candidate_id: existing.rows[0].candidate_id,
+								old_status: existing.rows[0].old_status,
+								new_status: status,
+							}),
+						],
+					);
+				} catch (_e) {
+					/* non-critical */
+				}
 			}
 
 			// Notify candidate of manual status change (non-blocking)
@@ -2119,6 +2176,14 @@ router.put(
 				});
 			}
 
+			// Invalidate analytics cache on application update (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
+
 			res.json({ success: true, application: result.rows[0] });
 		} catch (err) {
 			console.error('Update application error:', err);
@@ -2206,6 +2271,14 @@ router.post(
 				10,
 			);
 
+			// Invalidate analytics cache on interview schedule (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
+
 			res.json({ success: true, interview: result.rows[0] });
 		} catch (err) {
 			console.error('Schedule interview error:', err);
@@ -2292,6 +2365,14 @@ router.put(
 			if (result.rows.length === 0) {
 				return res.status(404).json({ error: 'Interview not found' });
 			}
+
+			// Invalidate analytics cache on interview update (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
 
 			res.json({ success: true, interview: result.rows[0] });
 
@@ -2725,6 +2806,14 @@ router.put(
 					/* non-critical */
 				}
 			}
+
+			// Invalidate analytics cache on batch status update (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
 
 			res.json({
 				success: true,
@@ -3169,6 +3258,14 @@ router.post(
 				],
 			);
 
+			// Invalidate analytics cache on offer creation (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
+
 			res.json({ success: true, offer: result.rows[0] });
 
 			// ── Send offer extended notification (non-blocking) ──
@@ -3281,6 +3378,14 @@ router.get(
 			if (result.rows.length === 0) {
 				return res.status(404).json({ error: 'Offer not found' });
 			}
+
+			// Invalidate analytics cache on offer update (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
 
 			res.json({ success: true, offer: result.rows[0] });
 		} catch (err) {
@@ -3542,6 +3647,14 @@ router.put(
 				req,
 			});
 
+			// Invalidate analytics cache on offer send (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
+
 			res.json({ success: true, offer: result.rows[0] });
 		} catch (err) {
 			console.error('Send offer error:', err);
@@ -3580,6 +3693,14 @@ router.put(
        WHERE id = $1 RETURNING *`,
 				[req.params.id, reason || 'Rescinded by recruiter'],
 			);
+
+			// Invalidate analytics cache on offer withdraw (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
 
 			res.json({ success: true, offer: result.rows[0] });
 		} catch (err) {

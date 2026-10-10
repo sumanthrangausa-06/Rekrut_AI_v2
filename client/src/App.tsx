@@ -4,6 +4,7 @@ import { AdminAuthGuard } from '@/components/admin-auth-guard';
 import { ErrorBoundary, RouteErrorBoundary } from '@/components/error-boundary';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { AuthProvider, getDashboardPath, useAuth } from '@/contexts/auth-context';
+import { isRecruiterRole } from '@/lib/api';
 
 // ─── Lazy page imports ───────────────────────────────────────────────────
 
@@ -134,6 +135,11 @@ const CandidatePayrollPage = lazy(() =>
 );
 const AiCoachingPage = lazy(() =>
 	import('@/pages/candidate/ai-coaching').then((m) => ({ default: m.AiCoachingPage })),
+);
+const QuickPracticeSessionPage = lazy(() =>
+	import('@/pages/candidate/quick-practice-session').then((m) => ({
+		default: m.QuickPracticeSessionPage,
+	})),
 );
 const CareerCoachPage = lazy(() =>
 	import('@/pages/candidate/career-coach').then((m) => ({ default: m.CareerCoachPage })),
@@ -497,7 +503,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 	return <>{children}</>;
 }
 
-// Recruiter route guard: redirects pending-approval recruiters to the holding screen
+// Recruiter route guard: redirects non-recruiter roles to the candidate dashboard,
+// and pending-approval recruiters to the holding screen
 function RecruiterGuard({ children }: { children: React.ReactNode }) {
 	const { user, isPendingApproval, loading } = useAuth();
 
@@ -514,6 +521,10 @@ function RecruiterGuard({ children }: { children: React.ReactNode }) {
 
 	if (!user) {
 		return <Navigate to="/login" replace />;
+	}
+
+	if (!isRecruiterRole(user.role)) {
+		return <Navigate to="/candidate" replace />;
 	}
 
 	if (isPendingApproval) {
@@ -685,6 +696,14 @@ function AppRoutes() {
 					element={
 						<Protected>
 							<AiCoachingPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path="quick-practice/:questionId"
+					element={
+						<Protected>
+							<QuickPracticeSessionPage />
 						</Protected>
 					}
 				/>
@@ -896,6 +915,9 @@ function AppRoutes() {
 						</Protected>
 					}
 				/>
+				{/* Redirects for dead routes (Issue #407) */}
+				<Route path="scores" element={<Navigate to="/candidate/assessments" replace />} />
+				<Route path="messages" element={<Navigate to="/candidate/chat" replace />} />
 				<Route
 					path="offers"
 					element={

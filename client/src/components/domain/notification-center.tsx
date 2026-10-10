@@ -15,6 +15,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/auth-context';
 import { apiCall } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -38,7 +39,14 @@ export type Notification = {
 		| 'assessment_assigned'
 		| 'assessment_completed'
 		| 'interview_scheduled'
-		| 'interview_confirmed';
+		| 'interview_confirmed'
+		| 'offer_received'
+		| 'screening_stalled'
+		| 'ai_interview_invited'
+		| 'assessment_scored'
+		| 'aptitude_test_assigned'
+		| 'application_shortlisted'
+		| 'application_rejected';
 	read: boolean;
 	timestamp: string;
 	action?: {
@@ -47,93 +55,215 @@ export type Notification = {
 	};
 };
 
-const typeConfig: Record<string, { icon: React.ReactNode; color: string; badge: string }> = {
+const typeConfig: Record<string, { icon: React.ReactNode; color: string; badge: string ; label: string }> = {
 	info: {
+		label: 'Info',
 		icon: <Info className="h-4 w-4" />,
 		color: 'text-blue-600',
 		badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
 	},
 	success: {
+		label: 'Success',
 		icon: <CheckCircle className="h-4 w-4" />,
 		color: 'text-green-600',
 		badge: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
 	},
 	warning: {
+		label: 'Warning',
 		icon: <AlertTriangle className="h-4 w-4" />,
 		color: 'text-amber-600',
 		badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
 	},
 	error: {
+		label: 'Alert',
 		icon: <X className="h-4 w-4" />,
 		color: 'text-red-600',
 		badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 	},
 	interview: {
+		label: 'Interview',
 		icon: <Clock className="h-4 w-4" />,
 		color: 'text-purple-600',
 		badge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 	},
 	offer: {
+		label: 'Offer',
 		icon: <CheckCircle className="h-4 w-4" />,
 		color: 'text-emerald-600',
 		badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
 	},
 	message: {
+		label: 'Message',
 		icon: <Info className="h-4 w-4" />,
 		color: 'text-indigo-600',
 		badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
 	},
 	// Pipeline notification types (hiring-pipeline-v1)
 	application_submitted: {
+		label: 'Application',
 		icon: <CheckCircle className="h-4 w-4" />,
 		color: 'text-green-600',
 		badge: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
 	},
 	application_received: {
+		label: 'Application',
 		icon: <Bell className="h-4 w-4" />,
 		color: 'text-blue-600',
 		badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
 	},
 	application_status_changed: {
+		label: 'Status Update',
 		icon: <ChevronRight className="h-4 w-4" />,
 		color: 'text-purple-600',
 		badge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 	},
 	screening_invited: {
+		label: 'Screening',
 		icon: <Sparkles className="h-4 w-4" />,
 		color: 'text-violet-600',
 		badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
 	},
 	screening_completed: {
+		label: 'Screening',
 		icon: <CheckCircle className="h-4 w-4" />,
 		color: 'text-emerald-600',
 		badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
 	},
 	assessment_assigned: {
+		label: 'Assessment',
 		icon: <ClipboardList className="h-4 w-4" />,
 		color: 'text-orange-600',
 		badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
 	},
 	assessment_completed: {
+		label: 'Assessment',
 		icon: <CheckCircle className="h-4 w-4" />,
 		color: 'text-emerald-600',
 		badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
 	},
 	interview_scheduled: {
+		label: 'Interview',
 		icon: <CalendarClock className="h-4 w-4" />,
 		color: 'text-sky-600',
 		badge: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
 	},
 	interview_confirmed: {
+		label: 'Interview',
 		icon: <CheckCircle className="h-4 w-4" />,
 		color: 'text-green-600',
 		badge: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
 	},
+	offer_received: {
+		label: 'Offer',
+		icon: <CheckCircle className="h-4 w-4" />,
+		color: 'text-emerald-600',
+		badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+	},
+	screening_stalled: {
+		label: 'Screening',
+		icon: <AlertTriangle className="h-4 w-4" />,
+		color: 'text-amber-600',
+		badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+	},
+	ai_interview_invited: {
+		label: 'Interview',
+		icon: <CalendarClock className="h-4 w-4" />,
+		color: 'text-sky-600',
+		badge: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
+	},
+	assessment_scored: {
+		label: 'Assessment',
+		icon: <CheckCircle className="h-4 w-4" />,
+		color: 'text-emerald-600',
+		badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+	},
+	aptitude_test_assigned: {
+		label: 'Assessment',
+		icon: <ClipboardList className="h-4 w-4" />,
+		color: 'text-orange-600',
+		badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+	},
+	application_shortlisted: {
+		label: 'Shortlisted',
+		icon: <CheckCircle className="h-4 w-4" />,
+		color: 'text-teal-600',
+		badge: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+	},
+	application_rejected: {
+		label: 'Update',
+		icon: <Info className="h-4 w-4" />,
+		color: 'text-slate-600',
+		badge: 'bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-400',
+	},
 };
+
+// Maps a notification type + metadata to a client route. Returns null when the
+// metadata lacks the IDs needed for a destination — the caller then renders no
+// "View" action rather than a broken link.
+export function resolveNotificationUrl(
+	type: string,
+	metadata: Record<string, unknown> | undefined,
+	isRecruiter: boolean,
+): string | null {
+	const meta = metadata ?? {};
+	const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : null);
+	const conversationId = str(meta.conversation_id);
+	const jobId = str(meta.job_id);
+
+	switch (type) {
+		case 'message': {
+			if (!conversationId) return null;
+			return isRecruiter
+				? `/recruiter/chat?conversation=${conversationId}`
+				: `/candidate/chat?conversation=${conversationId}`;
+		}
+		case 'application_submitted':
+		case 'application_received':
+		case 'application_status_changed':
+		case 'application_shortlisted':
+		case 'application_rejected': {
+			if (isRecruiter) {
+				return jobId ? `/recruiter/applications?job=${jobId}` : '/recruiter/applications';
+			}
+			return '/candidate/applications';
+		}
+		case 'screening_invited':
+		case 'screening_completed':
+		case 'screening_stalled': {
+			if (isRecruiter) return '/recruiter/screening';
+			// Screening invites surface on /candidate/ai-screening ("Interview Invitations");
+			// the questionnaire page at /candidate/screening/:jobId is a different feature.
+			return '/candidate/ai-screening';
+		}
+		case 'assessment_assigned':
+		case 'assessment_completed':
+		case 'assessment_scored':
+		case 'aptitude_test_assigned': {
+			return isRecruiter ? '/recruiter/assessments' : '/candidate/assessments';
+		}
+		case 'interview_scheduled':
+		case 'interview_confirmed': {
+			return isRecruiter ? '/recruiter/interviews' : '/candidate/interviews';
+		}
+		case 'ai_interview_invited': {
+			// Deep-link candidates straight to the invite; fall back to the
+			// generic interviews page when no token is present (or for recruiters).
+			const inviteToken = str(meta.invite_token);
+			if (inviteToken && !isRecruiter) return `/interview/session/${inviteToken}`;
+			return isRecruiter ? '/recruiter/interviews' : '/candidate/interviews';
+		}
+		case 'offer_received': {
+			return isRecruiter ? '/recruiter/offers' : '/candidate/offers';
+		}
+		default:
+			return null;
+	}
+}
 
 export function NotificationCenter({ className }: { className?: string }) {
 	const [open, setOpen] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
+	const { isRecruiter } = useAuth();
 
 	// Close on click outside
 	useEffect(() => {
@@ -169,15 +299,23 @@ export function NotificationCenter({ className }: { className?: string }) {
 				unread_count: number;
 			}>('/notifications/in-app?limit=50');
 
-			const mapped: Notification[] = (data.notifications || []).map((n) => ({
-				id: String(n.id),
-				title: n.title,
-				message: n.message,
-				type: (n.type as Notification['type']) || 'info',
-				read: n.read,
-				timestamp: n.created_at,
-				action: n.metadata?.url || n.metadata?.invite_url ? { label: 'View', url: String(n.metadata.url || n.metadata.invite_url) } : undefined,
-			}));
+			const mapped: Notification[] = (data.notifications || []).map((n) => {
+				// Prefer a server-provided URL; fall back to the type -> route resolver;
+				// no action at all when neither yields a destination (no broken links).
+				const serverUrl = n.metadata?.url || n.metadata?.invite_url;
+				const resolvedUrl = serverUrl
+					? String(serverUrl)
+					: resolveNotificationUrl(n.type, n.metadata, isRecruiter);
+				return {
+					id: String(n.id),
+					title: n.title,
+					message: n.message,
+					type: (n.type as Notification['type']) || 'info',
+					read: n.read,
+					timestamp: n.created_at,
+					action: resolvedUrl ? { label: 'View', url: resolvedUrl } : undefined,
+				};
+			});
 			setNotifications(mapped);
 		} catch (err) {
 			console.error('[NotificationCenter] Load error:', err);
@@ -396,7 +534,7 @@ export function NotificationCenter({ className }: { className?: string }) {
 													<p className={cn('text-sm font-medium', !n.read && 'text-primary')}>
 														{n.title}
 													</p>
-													<Badge className={cn('text-xs', config.badge)}>{n.type}</Badge>
+													<Badge className={cn('text-xs', config.badge)}>{config.label ?? n.type}</Badge>
 												</div>
 												<p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
 													{n.message}

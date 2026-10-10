@@ -3,25 +3,21 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '@/components/ui/select';
+import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 export type FilterOption = {
 	id: string;
 	label: string;
-	type: 'select' | 'multi' | 'range';
+	type: 'select' | 'multi' | 'range' | 'text';
+	placeholder?: string;
 	options?: { value: string; label: string }[];
 };
 
 export type FilterBarProps = {
 	searchPlaceholder?: string;
 	onSearch?: (query: string) => void;
+	onSearchSubmit?: (query: string) => void;
 	filters: FilterOption[];
 	activeFilters: Record<string, string | string[]>;
 	onFilterChange: (id: string, value: string | string[]) => void;
@@ -32,6 +28,7 @@ export type FilterBarProps = {
 export function FilterBar({
 	searchPlaceholder = 'Search...',
 	onSearch,
+	onSearchSubmit,
 	filters,
 	activeFilters,
 	onFilterChange,
@@ -59,6 +56,9 @@ export function FilterBar({
 						placeholder={searchPlaceholder}
 						value={search}
 						onChange={(e) => handleSearch(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === 'Enter') onSearchSubmit?.(search);
+						}}
 						className="pl-9"
 					/>
 				</div>
@@ -90,25 +90,35 @@ export function FilterBar({
 				<div className="flex flex-wrap gap-3 rounded-lg border bg-card p-3">
 					{filters.map((filter) => (
 						<div key={filter.id} className="min-w-[160px] flex-1">
-							<label className="text-xs font-medium text-muted-foreground mb-1 block">
+							<label
+								htmlFor={`filter-${filter.id}`}
+								className="text-xs font-medium text-muted-foreground mb-1 block"
+							>
 								{filter.label}
 							</label>
-							<Select
-								value={activeFilters[filter.id] as string}
-								onValueChange={(value) => onFilterChange(filter.id, value)}
-							>
-								<SelectTrigger className="w-full">
-									<SelectValue placeholder={`All ${filter.label}`} />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="">All {filter.label}</SelectItem>
+							{filter.type === 'text' ? (
+								<Input
+									id={`filter-${filter.id}`}
+									placeholder={filter.placeholder ?? `Enter ${filter.label.toLowerCase()}...`}
+									value={(activeFilters[filter.id] as string) ?? ''}
+									onChange={(e) => onFilterChange(filter.id, e.target.value)}
+									className="w-full"
+								/>
+							) : (
+								<Select
+									id={`filter-${filter.id}`}
+									value={(activeFilters[filter.id] as string) ?? ''}
+									onChange={(e) => onFilterChange(filter.id, e.target.value)}
+									className="w-full"
+								>
+									<option value="">All {filter.label}</option>
 									{filter.options?.map((opt) => (
-										<SelectItem key={opt.value} value={opt.value}>
+										<option key={opt.value} value={opt.value}>
 											{opt.label}
-										</SelectItem>
+										</option>
 									))}
-								</SelectContent>
-							</Select>
+								</Select>
+							)}
 						</div>
 					))}
 				</div>

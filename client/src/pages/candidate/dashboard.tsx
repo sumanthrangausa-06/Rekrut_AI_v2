@@ -1,6 +1,8 @@
 import {
 	ArrowRight,
 	Briefcase,
+	Calendar,
+	Clock,
 	FileText,
 	GraduationCap,
 	MessageSquare,
@@ -9,6 +11,7 @@ import {
 	Star,
 	Target,
 	User,
+	Video,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -22,6 +25,7 @@ import { apiCall } from '@/lib/api';
 interface DashboardStats {
 	omniscore: { total_score: number; score_tier: string };
 	profile_completeness: number;
+	missing_sections: string[];
 	skills: { total: number; verified: number };
 	experience_count: number;
 	education_count: number;
@@ -29,6 +33,42 @@ interface DashboardStats {
 	applications: number;
 	saved_jobs: number;
 	assessments: { total: number; passed: number };
+}
+
+// Unified human-interview shape from GET /api/interviews/my-interviews
+// (InterviewService over System A + System B).
+interface UnifiedInterview {
+	id: number;
+	candidate_id: number;
+	recruiter_id: number;
+	company_id: number | null;
+	job_id: number | null;
+	scheduled_at: string | null;
+	duration_minutes: number;
+	status: string;
+	meeting_link: string | null;
+	interview_type: string;
+	notes: string | null;
+	source_system: 'system_a' | 'system_b';
+	proposed_slots:
+		| Array<{ id?: number; slot_id?: number; start: string; end: string; status: string }>
+		| null;
+}
+
+function formatInterviewDateTime(d: string): string {
+	return new Date(d).toLocaleDateString('en-US', {
+		weekday: 'short',
+		month: 'short',
+		day: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit',
+	});
+}
+
+// Join is enabled from 15 minutes before the scheduled start.
+function isJoinable(scheduledAt: string | null): boolean {
+	if (!scheduledAt) return false;
+	return Date.now() >= new Date(scheduledAt).getTime() - 15 * 60 * 1000;
 }
 
 export function CandidateDashboard() {
@@ -51,17 +91,19 @@ export function CandidateDashboard() {
 			job_title: string;
 			company_name: string;
 			status: string;
+			type?: string;
 			invite_token: string;
 			invite_url: string | null;
 		}>
 	>([]);
+	const [upcomingInterviews, setUpcomingInterviews] = useState<UnifiedInterview[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [showLinkedInModal, setShowLinkedInModal] = useState(false);
 
 	useEffect(() => {
 		async function loadDashboard() {
 			try {
-				const [statsRes, jobsRes] = await Promise.allSettled([
+				const [statsRes, jobsRes, unifiedRes] = await Promise.allSettled([
 					apiCall<{ success: boolean; stats: DashboardStats }>('/candidate/dashboard/stats'),
 					apiCall<{
 						jobs: Array<{
@@ -72,6 +114,9 @@ export function CandidateDashboard() {
 							created_at: string;
 						}>;
 					}>('/jobs?limit=5'),
+					apiCall<{ success: boolean; interviews: UnifiedInterview[] }>(
+						'/interviews/my-interviews',
+					),
 				]);
 
 				if (statsRes.status === 'fulfilled' && statsRes.value.stats) {
@@ -79,6 +124,28 @@ export function CandidateDashboard() {
 				}
 				if (jobsRes.status === 'fulfilled') {
 					setRecentJobs(jobsRes.value.jobs?.slice(0, 5) || []);
+				}
+				if (unifiedRes.status === 'fulfilled' && unifiedRes.value.interviews) {
+					// Upcoming human interviews: `proposed` (candidate must pick a
+					// slot) or confirmed/scheduled/rescheduled with a future time.
+					const now = Date.now();
+					const upcoming = unifiedRes.value.interviews
+						.filter(
+							(u) =>
+								u.status === 'proposed' ||
+								(['confirmed', 'scheduled', 'rescheduled'].includes(u.status) &&
+									u.scheduled_at != null &&
+									new Date(u.scheduled_at).getTime() > now),
+						)
+						.sort((a, b) => {
+							if (!a.scheduled_at) return -1;
+							if (!b.scheduled_at) return 1;
+							return (
+								new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
+							);
+						})
+						.slice(0, 3);
+					setUpcomingInterviews(upcoming);
 				}
 
 				// Load screening invites
@@ -211,7 +278,7 @@ export function CandidateDashboard() {
 							<p className="mt-1 text-xs text-amber-700">
 								{stats.profile_completeness}% complete —{' '}
 								<Link to="/candidate/profile" className="underline">
-									add skills, experience, education
+									add {stats.missing_sections.join(', ').toLowerCase()}
 								</Link>
 							</p>
 						</div>
@@ -346,6 +413,12 @@ export function CandidateDashboard() {
 							<Badge variant="default" className="ml-2">
 								{screeningInvites.length} pending
 							</Badge>
+							<Link to="/candidate/interviews" className="ml-auto">
+								<Button variant="ghost" size="sm" className="gap-1 min-h-[44px] text-xs">
+									View all
+									<ArrowRight className="h-3 w-3" />
+								</Button>
+							</Link>
 						</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-3">
@@ -363,11 +436,81 @@ export function CandidateDashboard() {
 								</div>
 								<Link to={`/screening/${invite.invite_token}`}>
 									<Button size="sm">
-										{invite.status === 'in_progress' ? 'Resume' : 'Start Screening'}
+										{invite.status === 'in_progress'
+											? 'Resume'
+											: invite.type === 'ai_interview'
+												? 'Start Interview'
+												: 'Start Screening'}
 									</Button>
 								</Link>
 							</div>
 						))}
+					</CardContent>
+				</Card>
+			)}
+
+			{/* Upcoming interviews — human interviews needing attention */}
+			{upcomingInterviews.length > 0 && (
+				<Card>
+					<CardHeader className="flex flex-row items-center justify-between">
+						<CardTitle className="flex items-center gap-2">
+							<Calendar className="h-5 w-5 text-purple-600" />
+							Upcoming Interviews
+						</CardTitle>
+						<Link to="/candidate/interviews">
+							<Button variant="ghost" size="sm" className="gap-1 min-h-[44px]">
+								View all
+								<ArrowRight className="h-3 w-3" />
+							</Button>
+						</Link>
+					</CardHeader>
+					<CardContent className="space-y-3">
+						{upcomingInterviews.map((iv) => {
+							const needsSlot = iv.status === 'proposed';
+							const joinable =
+								!needsSlot && iv.meeting_link != null && isJoinable(iv.scheduled_at);
+							return (
+								<div
+									key={iv.id}
+									className="flex items-center justify-between rounded-lg border p-3"
+								>
+									<div className="min-w-0">
+										<div className="flex items-center gap-2 flex-wrap">
+											<p className="text-sm font-medium">Human Interview</p>
+											<Badge variant="secondary" className="bg-blue-100 text-blue-700">
+												Human
+											</Badge>
+											<Badge variant={needsSlot ? 'warning' : 'success'}>
+												{needsSlot ? 'Pick a time' : 'Scheduled'}
+											</Badge>
+										</div>
+										<p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+											<Clock className="h-3 w-3" />
+											{needsSlot || !iv.scheduled_at
+												? 'Waiting for you to pick a time'
+												: formatInterviewDateTime(iv.scheduled_at)}
+											{iv.job_id != null && ` · Job #${iv.job_id}`}
+										</p>
+									</div>
+									<div className="shrink-0">
+										{joinable && iv.meeting_link ? (
+											<a href={iv.meeting_link} target="_blank" rel="noreferrer">
+												<Button size="sm" className="gap-1 min-h-[44px]">
+													<Video className="h-3 w-3" />
+													Join
+												</Button>
+											</a>
+										) : needsSlot ? (
+											<Link to="/candidate/interviews">
+												<Button size="sm" variant="outline" className="min-h-[44px]">
+													Pick a time
+												</Button>
+											</Link>
+										) : null}
+									</div>
+								</div>
+							);
+						})}
 					</CardContent>
 				</Card>
 			)}

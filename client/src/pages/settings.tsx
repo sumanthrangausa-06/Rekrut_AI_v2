@@ -19,13 +19,10 @@ import {
 	Shield,
 	Sun,
 	Trash2,
-	Upload,
-	User,
 	X,
 } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,6 +50,7 @@ interface NotificationSettings {
 	push_jobs: boolean;
 	push_messages: boolean;
 	push_reminders: boolean;
+	important_only: boolean;
 }
 
 interface PrivacySettings {
@@ -62,9 +60,9 @@ interface PrivacySettings {
 }
 
 export function SettingsPage() {
-	const { user, logout } = useAuth();
+	const { logout } = useAuth();
 	const { theme, setTheme } = useTheme();
-	const [activeTab, setActiveTab] = useState('profile');
+	const [activeTab, setActiveTab] = useState('account');
 	const [saving, setSaving] = useState(false);
 	const [saved, setSaved] = useState(false);
 	const [error, setError] = useState('');
@@ -73,13 +71,6 @@ export function SettingsPage() {
 	useEffect(() => {
 		setError('');
 	}, []);
-	const [name, setName] = useState(user?.name || '');
-	const [email, setEmail] = useState(user?.email || '');
-	const [bio, setBio] = useState('');
-	const [location, setLocation] = useState('');
-	const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || '');
-	const [linkedinUrl, setLinkedinUrl] = useState('');
-	const [linkedinUrlError, setLinkedinUrlError] = useState('');
 	const [syncingLinkedin, setSyncingLinkedin] = useState(false);
 
 	// Password state
@@ -97,6 +88,7 @@ export function SettingsPage() {
 		push_jobs: true,
 		push_messages: true,
 		push_reminders: true,
+		important_only: false,
 	});
 
 	// Privacy state
@@ -255,15 +247,9 @@ export function SettingsPage() {
 	const loadSettings = useCallback(async () => {
 		try {
 			const data = await apiCall<{
-				profile?: { bio?: string; location?: string; linkedin_url?: string };
 				notifications?: NotificationSettings;
 				privacy?: PrivacySettings;
 			}>('/settings');
-			if (data.profile) {
-				setBio(data.profile.bio || '');
-				setLocation(data.profile.location || '');
-				setLinkedinUrl(data.profile.linkedin_url || '');
-			}
 			if (data.notifications) setNotifications(data.notifications);
 			if (data.privacy) setPrivacy(data.privacy);
 		} catch (_err) {
@@ -325,50 +311,6 @@ export function SettingsPage() {
 	function showSaved() {
 		setSaved(true);
 		setTimeout(() => setSaved(false), 2000);
-	}
-
-	async function handleProfileUpdate(e: FormEvent) {
-		e.preventDefault();
-		setError('');
-
-		// Validate LinkedIn URL
-		const linkedinError = validateLinkedinUrl(linkedinUrl);
-		if (linkedinError) {
-			setLinkedinUrlError(linkedinError);
-			setError(linkedinError);
-			return;
-		}
-		setLinkedinUrlError('');
-
-		setSaving(true);
-		try {
-			await apiCall('/settings/profile', {
-				method: 'PATCH',
-				body: { name, email, bio, location, linkedin_url: linkedinUrl },
-			});
-			showSaved();
-			trackEvent('settings_profile_update');
-		} catch (err) {
-			setError(err instanceof Error ? err.message : 'Update failed');
-		} finally {
-			setSaving(false);
-		}
-	}
-
-	function validateLinkedinUrl(url: string): string {
-		if (!url) return '';
-		try {
-			const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
-			if (!parsed.hostname.match(/^(.+\.)?linkedin\.com$/i)) {
-				return 'Must be a LinkedIn URL';
-			}
-			if (!parsed.pathname.match(/^\/in\/[^/]+/i)) {
-				return 'Invalid LinkedIn URL format. Expected: linkedin.com/in/username';
-			}
-			return '';
-		} catch {
-			return 'Invalid LinkedIn URL format. Expected: linkedin.com/in/username';
-		}
 	}
 
 	async function handleResyncLinkedin() {
@@ -449,27 +391,6 @@ export function SettingsPage() {
 			setError(err instanceof Error ? err.message : 'Update failed');
 		} finally {
 			setSaving(false);
-		}
-	}
-
-	async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
-		const file = e.target.files?.[0];
-		if (!file) return;
-
-		const formData = new FormData();
-		formData.append('avatar', file);
-
-		try {
-			const data = await apiCall<{ avatar_url: string }>('/settings/avatar', {
-				method: 'POST',
-				body: formData as unknown as Record<string, unknown>,
-				isFormData: true,
-			});
-			setAvatarUrl(data.avatar_url);
-			showSaved();
-			trackEvent('settings_avatar_upload');
-		} catch (_err) {
-			setError('Failed to upload avatar');
 		}
 	}
 
@@ -556,10 +477,6 @@ export function SettingsPage() {
 
 			<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
 				<TabsList className="flex-wrap h-auto">
-					<TabsTrigger value="profile" className="gap-1">
-						<User className="h-4 w-4" />
-						Profile
-					</TabsTrigger>
 					<TabsTrigger value="account" className="gap-1">
 						<Lock className="h-4 w-4" />
 						Account
@@ -581,135 +498,6 @@ export function SettingsPage() {
 						Billing
 					</TabsTrigger>
 				</TabsList>
-
-				{/* Profile Tab */}
-				<TabsContent value="profile" className="space-y-6">
-					<Card>
-						<CardHeader>
-							<CardTitle>Profile Information</CardTitle>
-							<CardDescription>Update your public profile and personal details</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<form onSubmit={handleProfileUpdate} className="space-y-6">
-								{/* Avatar */}
-								<div className="flex items-center gap-4">
-									<Avatar className="h-20 w-20">
-										<AvatarImage src={avatarUrl} alt={name} />
-										<AvatarFallback className="text-2xl">{name?.charAt(0) || '?'}</AvatarFallback>
-									</Avatar>
-									<div className="space-y-2">
-										<Label htmlFor="avatar-upload" className="cursor-pointer">
-											<Button type="button" variant="outline" size="sm" className="gap-1" asChild>
-												<span>
-													<Upload className="h-4 w-4" />
-													Change Avatar
-												</span>
-											</Button>
-										</Label>
-										<input
-											id="avatar-upload"
-											type="file"
-											accept="image/*"
-											className="hidden"
-											onChange={handleAvatarUpload}
-										/>
-										<p className="text-xs text-muted-foreground">JPG, PNG or GIF. Max 2MB.</p>
-									</div>
-								</div>
-
-								<div className="grid gap-4 sm:grid-cols-2">
-									<div className="space-y-2">
-										<Label htmlFor="name">Full Name</Label>
-										<Input
-											id="name"
-											value={name}
-											onChange={(e) => setName(e.target.value)}
-											placeholder="Your name"
-										/>
-									</div>
-									<div className="space-y-2">
-										<Label htmlFor="email">Email</Label>
-										<Input
-											id="email"
-											type="email"
-											value={email}
-											onChange={(e) => setEmail(e.target.value)}
-											placeholder="you@example.com"
-										/>
-									</div>
-								</div>
-
-								<div className="space-y-2">
-									<Label htmlFor="location">Location</Label>
-									<Input
-										id="location"
-										value={location}
-										onChange={(e) => setLocation(e.target.value)}
-										placeholder="City, Country"
-									/>
-								</div>
-
-								<div className="space-y-2">
-									<Label htmlFor="bio">Bio</Label>
-									<textarea
-										id="bio"
-										value={bio}
-										onChange={(e) => setBio(e.target.value)}
-										placeholder="Tell us about yourself..."
-										rows={4}
-										className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-									/>
-								</div>
-
-								{/* LinkedIn URL Field (#167) */}
-								<div className="space-y-2">
-									<Label htmlFor="linkedin-url">LinkedIn URL</Label>
-									<div className="flex gap-2">
-										<Input
-											id="linkedin-url"
-											value={linkedinUrl}
-											onChange={(e) => {
-												setLinkedinUrl(e.target.value);
-												setLinkedinUrlError(validateLinkedinUrl(e.target.value));
-											}}
-											placeholder="https://linkedin.com/in/username"
-											className={linkedinUrlError ? 'border-red-500' : ''}
-										/>
-										{linkedinUrl && !linkedinUrlError && (
-											<a
-												href={
-													linkedinUrl.startsWith('http') ? linkedinUrl : `https://${linkedinUrl}`
-												}
-												target="_blank"
-												rel="noopener noreferrer"
-												className="inline-flex items-center justify-center h-10 w-10 rounded-md border hover:bg-muted shrink-0"
-												aria-label="View LinkedIn profile"
-											>
-												<Linkedin className="h-4 w-4" />
-											</a>
-										)}
-									</div>
-									{linkedinUrlError && <p className="text-xs text-red-500">{linkedinUrlError}</p>}
-									<p className="text-xs text-muted-foreground">
-										Your LinkedIn profile URL will be displayed on your public profile.
-									</p>
-								</div>
-
-								<div className="flex items-center justify-between">
-									<div className="flex items-center gap-2">
-										<Badge variant="outline" className="capitalize">
-											{user?.role}
-										</Badge>
-										<span className="text-sm text-muted-foreground">ID: {user?.id}</span>
-									</div>
-									<Button type="submit" disabled={saving}>
-										{saving ? 'Saving...' : 'Save Profile'}
-									</Button>
-								</div>
-							</form>
-						</CardContent>
-					</Card>
-				</TabsContent>
 
 				{/* Account Tab */}
 				<TabsContent value="account" className="space-y-6">
@@ -1121,47 +909,34 @@ export function SettingsPage() {
 
 					<Card>
 						<CardHeader>
-							<CardTitle>Push Notifications</CardTitle>
-							<CardDescription>Real-time alerts in your browser</CardDescription>
+							<CardTitle>In-App Notifications</CardTitle>
+							<CardDescription>Control which notifications appear in the app</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">
-							{[
-								{
-									key: 'push_jobs' as const,
-									label: 'Job alerts',
-									desc: 'Instant alerts for new job matches',
-								},
-								{
-									key: 'push_messages' as const,
-									label: 'Messages',
-									desc: 'When someone messages you',
-								},
-								{
-									key: 'push_reminders' as const,
-									label: 'Reminders',
-									desc: 'Interview and deadline reminders',
-								},
-							].map((item) => (
-								<div key={item.key} className="flex items-center justify-between">
-									<div className="space-y-0.5">
-										<p className="font-medium">{item.label}</p>
-										<p className="text-sm text-muted-foreground">{item.desc}</p>
-									</div>
-									<button
-										type="button"
-										onClick={() => toggleNotification(item.key)}
-										className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-											notifications[item.key] ? 'bg-primary' : 'bg-muted-foreground/30'
-										}`}
-									>
-										<span
-											className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
-												notifications[item.key] ? 'translate-x-6' : 'translate-x-1'
-											}`}
-										/>
-									</button>
+							<div className="flex items-center justify-between">
+								<div className="space-y-0.5">
+									<p className="font-medium">Important notifications only</p>
+									<p className="text-sm text-muted-foreground">
+										Only show messages, interviews, offers, and application status changes.
+										Turn off to see all notifications.
+									</p>
 								</div>
-							))}
+								<button
+									type="button"
+									onClick={() => toggleNotification('important_only')}
+									aria-label="Important notifications only"
+									aria-pressed={notifications.important_only}
+									className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+										notifications.important_only ? 'bg-primary' : 'bg-muted-foreground/30'
+									}`}
+								>
+									<span
+										className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+											notifications.important_only ? 'translate-x-6' : 'translate-x-1'
+										}`}
+									/>
+								</button>
+							</div>
 						</CardContent>
 					</Card>
 
@@ -1205,6 +980,8 @@ export function SettingsPage() {
 									<button
 										type="button"
 										onClick={() => togglePrivacy(item.key)}
+										aria-label={item.label}
+										aria-pressed={privacy[item.key]}
 										className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
 											privacy[item.key] ? 'bg-primary' : 'bg-muted-foreground/30'
 										}`}

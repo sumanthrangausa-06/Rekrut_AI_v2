@@ -106,6 +106,7 @@ const candidateSections: NavSection[] = [
 		title: 'OTHER',
 		items: [
 			{ label: 'Interviews', href: '/candidate/interviews', icon: Video },
+			{ label: 'Messages', href: '/candidate/chat', icon: MessageSquare },
 			{ label: 'Offers', href: '/candidate/offers', icon: DollarSign },
 			{ label: 'Documents', href: '/candidate/documents', icon: File },
 			{ label: 'Pay & Compensation', href: '/candidate/payroll', icon: Wallet },
@@ -124,7 +125,8 @@ const recruiterNav: NavItem[] = [
 	{ label: 'Applications', href: '/recruiter/applications', icon: FileText },
 	{ label: 'Assessments', href: '/recruiter/assessments', icon: GraduationCap },
 	{ label: 'Candidates', href: '/recruiter/candidates', icon: Users },
-	{ label: 'Interviews', href: '/recruiter/interviews', icon: MessageSquare },
+	{ label: 'Interviews', href: '/recruiter/interviews', icon: Video },
+	{ label: 'Messages', href: '/recruiter/chat', icon: MessageSquare },
 	{ label: 'AI Screening', href: '/recruiter/screening-monitor', icon: Mic },
 	{ label: 'Recordings', href: '/recruiter/recordings', icon: Video },
 	{ label: 'Panels', href: '/recruiter/panels', icon: Users },
@@ -144,7 +146,10 @@ const recruiterNav: NavItem[] = [
 
 export function Sidebar({ open, onClose }: SidebarProps) {
 	const { isRecruiter, user, logout } = useAuth();
-	const _location = useLocation();
+	const location = useLocation();
+	// Show nav based on current route, not just user role (admins can visit both)
+	const isCandidateRoute = location.pathname.startsWith('/candidate');
+	const showRecruiterNav = !isCandidateRoute && isRecruiter;
 	const [joinRequestCount, setJoinRequestCount] = useState(0);
 
 	// Fetch pending join request count for company owners
@@ -215,7 +220,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
 				{/* Nav */}
 				<nav className="flex-1 overflow-y-auto p-3">
-					{isRecruiter ? (
+					{showRecruiterNav ? (
 						/* Recruiter: flat list */
 						<div className="space-y-1">
 							{recruiterNav.map((item) => (
