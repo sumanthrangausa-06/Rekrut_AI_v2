@@ -1,7 +1,7 @@
 ---
 project: Unified Interview Engine
 version: 2
-status: draft
+status: approved
 created: 2026-10-10
 owner: Sumanth
 stepsCompleted: ["step-01-requirements", "step-02-draft", "step-02-fixes"]
