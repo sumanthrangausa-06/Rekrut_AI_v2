@@ -43,6 +43,12 @@ export interface UseInterviewCameraOptions {
 	onCameraReady?: (ready: boolean) => void;
 	onCameraError?: (error: string | null) => void;
 	onMicActive?: (active: boolean) => void;
+	/**
+	 * Whether to acquire microphone audio with the camera.
+	 * Set to false for video-only mode (mic is managed separately).
+	 * Default: true (backward compatible).
+	 */
+	audio?: boolean;
 }
 
 export interface UseInterviewCameraReturn {
@@ -70,7 +76,7 @@ const CONSTRAINT_SETS: Array<{
 export function useInterviewCamera(
 	options: UseInterviewCameraOptions,
 ): UseInterviewCameraReturn {
-	const { videoRef, onCameraReady, onCameraError, onMicActive } = options;
+	const { videoRef, onCameraReady, onCameraError, onMicActive, audio = true } = options;
 	const streamRef = useRef<MediaStream | null>(null);
 	const [cameraReady, setCameraReady] = useState(false);
 	const [cameraError, setCameraError] = useState<CameraError>(null);
@@ -129,7 +135,10 @@ export function useInterviewCamera(
 
 			let videoStream: MediaStream | null = null;
 
-			for (const { video: vc, audio: ac, label } of CONSTRAINT_SETS) {
+			// When audio=false, only try video-only constraint sets.
+			// This keeps the mic free for separate lifecycle management (iOS).
+			const setsToTry = audio ? CONSTRAINT_SETS : CONSTRAINT_SETS.filter((s) => !s.audio);
+			for (const { video: vc, audio: ac, label } of setsToTry) {
 				try {
 					setCameraStatus(`Trying ${label}...`);
 					videoStream = await navigator.mediaDevices.getUserMedia({
@@ -237,7 +246,7 @@ export function useInterviewCamera(
 				setError('unknown');
 			}
 		}
-	}, [stopCamera, videoRef, setError, setReady, setMic]);
+	}, [stopCamera, videoRef, setError, setReady, setMic, audio]);
 
 	// Unmount-only teardown. Uses a ref to avoid the #447-class bug where
 	// listing stopCamera as a dep kills the camera on every re-render.

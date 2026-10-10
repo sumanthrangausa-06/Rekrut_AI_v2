@@ -83,7 +83,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 	const analyserRef = useRef<AnalyserNode | null>(null);
 	const silenceCountRef = useRef<number>(0);
 	// Prevent greeting infinite loop: track which session already played it
-	const greetingPlayedRef = useRef<string | null>(null);
+	const greetingPlayedRef = useRef<string | number | null>(null);
 	// Phase 0 (#447): captures the silence count at stop time for the async
 	// onstop handler to read (see stopVoiceRecording).
 	const finalSilenceCountRef = useRef<number>(0);
@@ -98,7 +98,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 		startCamera: startMockCamera,
 		stopCamera: stopMockCamera,
 		getStream: getMockStream,
-	} = useInterviewCamera({ videoRef: mockVideoRef });
+	} = useInterviewCamera({ videoRef: mockVideoRef, audio: false });
 	const [_showTranscript, setShowTranscript] = useState(false);
 
 	// Enhanced mock interview: frame capture, live transcript
@@ -378,24 +378,21 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 				voiceRecorderRef.current = null;
 			}
 
-			// Always verify audio track is still alive — tracks can die between questions
+			// iOS mic lifecycle: camera is video-only, so always acquire a fresh
+			// mic stream for recording. The mic is released after each recording
+			// so iOS doesn't force earpiece routing during AI speech.
 			const existingTracks = voiceStreamRef.current?.getAudioTracks() || [];
 			const hasLiveTrack = existingTracks.some((t) => t.readyState === 'live' && t.enabled);
 			if (!voiceStreamRef.current || !hasLiveTrack) {
 				if (voiceStreamRef.current) {
 					console.log('[voice] Audio track died between questions — re-acquiring fresh stream');
+					voiceStreamRef.current.getTracks().forEach((t) => {
+						try { t.stop(); } catch { /* already stopped */ }
+					});
 					voiceStreamRef.current = null;
 				}
-				const cameraLiveTrack = getMockStream()
-					?.getAudioTracks()
-					.find((t) => t.readyState === 'live');
-				if (cameraLiveTrack) {
-					voiceStreamRef.current = new MediaStream([cameraLiveTrack]);
-					console.log('[voice] Re-acquired audio from camera stream');
-				} else {
-					console.log('[voice] Camera has no live audio — requesting fresh mic');
-					voiceStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-				}
+				console.log('[voice] Acquiring fresh mic for recording');
+				voiceStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
 			}
 
 			voiceChunksRef.current = [];
@@ -691,10 +688,11 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 		stopAudio();
 		stopVoiceRecording();
 		stopMockSpeechRecognition();
-		if (voiceStreamRef.current && voiceStreamRef.current !== getMockStream()) {
-			const cameraAudioIds = getMockStream()?.getAudioTracks().map((t) => t.id) || [];
+		// iOS mic lifecycle: always stop mic tracks after recording so the
+		// audio session is released and AI speech plays through the speaker.
+		if (voiceStreamRef.current) {
 			voiceStreamRef.current.getTracks().forEach((t) => {
-				if (!cameraAudioIds.includes(t.id)) t.stop();
+				try { t.stop(); } catch { /* already stopped */ }
 			});
 		}
 		voiceStreamRef.current = null;

@@ -134,7 +134,7 @@ export default function CandidateInterviewSessionPage() {
 		startCamera: startCameraInternal,
 		stopCamera,
 		getStream,
-	} = useInterviewCamera({ videoRef });
+	} = useInterviewCamera({ videoRef, audio: false });
 	// Consent-gated wrapper: matches the original startCamera behavior.
 	const startCamera = useCallback(async () => {
 		if (!videoConsent) return;
