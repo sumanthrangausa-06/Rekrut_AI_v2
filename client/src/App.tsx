@@ -36,6 +36,9 @@ const PrivacyPage = lazy(() => import('@/pages/privacy').then((m) => ({ default:
 const BiometricPolicyPage = lazy(() =>
 	import('@/pages/biometric-policy').then((m) => ({ default: m.BiometricPolicyPage })),
 );
+const ConsentScreensPage = lazy(() =>
+	import('@/pages/consent-screens').then((m) => ({ default: m.ConsentScreensPage })),
+);
 const TermsPage = lazy(() => import('@/pages/terms').then((m) => ({ default: m.TermsPage })));
 const PaymentSuccessPage = lazy(() =>
 	import('@/pages/payment-success').then((m) => ({ default: m.PaymentSuccessPage })),
@@ -576,6 +579,7 @@ function AppRoutes() {
 			<Route path="/contact" element={<ContactPage />} />
 			<Route path="/privacy" element={<PrivacyPage />} />
 			<Route path="/privacy/biometric-policy" element={<BiometricPolicyPage />} />
+			<Route path="/interview/consent" element={<ConsentScreensPage />} />
 			<Route path="/terms" element={<TermsPage />} />
 
 			<Route path="/leaderboard" element={<LeaderboardPage />} />
