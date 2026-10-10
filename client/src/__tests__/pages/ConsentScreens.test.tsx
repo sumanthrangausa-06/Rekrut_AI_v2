@@ -105,4 +105,22 @@ describe('ConsentScreensPage (S-010)', () => {
 		renderAt('/interview/consent');
 		expect(await screen.findByText(/draft/i)).toBeInTheDocument();
 	});
+
+	it('shows "policy updated" banner when ?reason=stale', async () => {
+		render(
+			<MemoryRouter initialEntries={['/interview/consent?sessionId=123&reason=stale']}>
+				<Routes>
+					<Route path="/interview/consent" element={<ConsentScreensPage />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+		expect(await screen.findByRole('alert')).toBeInTheDocument();
+		expect(screen.getByText(/policy has been updated/i)).toBeInTheDocument();
+	});
+
+	it('does not show stale banner without ?reason=stale', async () => {
+		renderAt('/interview/consent');
+		await screen.findByRole('heading', { name: /interview recording/i });
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+	});
 });

@@ -91,6 +91,8 @@ export function ConsentScreensPage() {
 	const [searchParams] = useSearchParams();
 	const sessionId = searchParams.get('sessionId');
 	const initialLocale = searchParams.get('locale') === 'hi' ? 'hi' : 'en';
+	// ?reason=stale — consent text was updated since the candidate last consented
+	const isStaleReconsent = searchParams.get('reason') === 'stale';
 
 	const [step, setStep] = useState<WizardStep>('recording');
 	const [locale, setLocale] = useState<'en' | 'hi'>(initialLocale);
@@ -376,6 +378,19 @@ export function ConsentScreensPage() {
 				/>
 			<Header locale={locale} onLocaleChange={setLocale} />
 			<main className="mx-auto max-w-3xl px-4 py-12">
+				{isStaleReconsent && (
+					<div
+						role="alert"
+						className="mb-6 rounded-lg border border-amber-500/50 bg-amber-500/10 p-4 text-sm"
+					>
+						<p className="font-semibold text-amber-700 dark:text-amber-300">
+							The consent policy has been updated since you last reviewed it.
+						</p>
+						<p className="mt-1 text-muted-foreground">
+							Please read the updated terms below and confirm your consent to continue.
+						</p>
+					</div>
+				)}
 				<div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
 					<span className="font-medium">Step {stepNumber} of 4</span>
 					<span aria-hidden>·</span>
