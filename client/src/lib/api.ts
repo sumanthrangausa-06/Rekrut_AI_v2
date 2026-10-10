@@ -1,3 +1,10 @@
+import {
+	extractSessionIdFromRequest,
+	getConsentRedirect,
+	isConsentErrorCode,
+	shouldRedirectForConsentCode,
+} from './consentErrorHandler';
+
 const TOKEN_KEY = 'rekrutai_token';
 const REFRESH_KEY = 'rekrutai_refresh';
 const CSRF_TOKEN_KEY = 'rekrutai_csrf';
@@ -284,7 +291,27 @@ export async function apiCall<T = unknown>(url: string, options: ApiCallOptions 
 		const errorData = await res.json().catch(() => ({ error: 'Request failed' }));
 		const error = new Error(errorData.error || `Request failed: ${res.status}`);
 		// Attach error code for programmatic handling (e.g., BLOCKED_EMAIL_DOMAIN)
-		(error as Error & { code?: string }).code = errorData.code;
+		const code = errorData.code as string | undefined;
+		(error as Error & { code?: string }).code = code;
+
+		// Consent gate (S-011): redirect to consent screens on 403 consent errors.
+		// CONSENT_WITHDRAWN is excluded — the caller shows an inline message instead.
+		if (res.status === 403 && isConsentErrorCode(code) && shouldRedirectForConsentCode(code)) {
+			const sessionId = extractSessionIdFromRequest(url, body);
+			const redirect = getConsentRedirect(code, sessionId);
+			if (redirect && typeof window !== 'undefined') {
+				window.location.href = redirect;
+				// Throw to stop the promise chain; the redirect is already in flight.
+				throw error;
+			}
+		}
+
+		// Flag withdrawn consent so callers can show an inline re-consent message
+		// instead of redirecting (the withdrawal was intentional).
+		if (res.status === 403 && code === 'CONSENT_WITHDRAWN') {
+			(error as Error & { isConsentWithdrawn?: boolean }).isConsentWithdrawn = true;
+		}
+
 		throw error;
 	}
 
