@@ -1,6 +1,6 @@
 ---
 project: Unified Interview Engine
-version: 3.1
+version: 3.2
 status: approved
 created: 2026-10-10
 updated: 2026-10-10
@@ -576,6 +576,24 @@ GDPR (EU), BIPA (Illinois), CCPA/CPRA (California), DPDP Act (India)
 | 3 | ID verification | AI Screening, AI Interview | Cannot proceed with AI modes; human interview option |
 
 ---
+
+
+### OmniScore Visibility Model (Sumanth, 2026-10-10)
+
+The OmniScore engine is a separate feature. Interview results feed into OmniScore internally,
+but the **causal link is invisible to everyone**:
+
+| Visibility | Candidate | Recruiter |
+|------------|-----------|-----------|
+| OmniScore number | ✅ Visible | ✅ Visible |
+| Activity feed ("completed AI interview Oct 10") | ✅ Visible | ✅ Visible |
+| Score delta from this interview | ❌ Hidden | ❌ Hidden |
+| Interview-specific scores | ❌ Hidden | ✅ Visible |
+| Qualitative feedback | ✅ Visible | ✅ Visible |
+| Integrity flags/evidence | ❌ Hidden | ✅ Visible |
+
+**Rationale:** Prevents reverse-engineering ("my score dropped after the interview, I must have been flagged").
+Neither party sees "+2.3 from this interview" or "−1.5 from integrity flags."
 
 ## 10. Open Questions
 
