@@ -193,6 +193,152 @@ describe('consentService.isConsentValid', () => {
 	});
 });
 
+describe('consentService.checkConsentState', () => {
+	beforeEach(() => {
+		jest.clearAllMocks();
+	});
+
+	test('returns { state: "valid" } for granted receipt at current version', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ version: '1.0' }] });
+		db.query.mockResolvedValueOnce({
+			rows: [{ granted_at: '2026-10-10T00:00:00Z', withdrawn_at: null, consent_text_version: '1.0' }],
+		});
+
+		const state = await consentService.checkConsentState(10, 'biometric');
+		expect(state).toEqual({ state: 'valid', version: '1.0' });
+	});
+
+	test('returns { state: "missing" } when no receipt exists', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ version: '1.0' }] });
+		db.query.mockResolvedValueOnce({ rows: [] });
+
+		const state = await consentService.checkConsentState(10, 'biometric');
+		expect(state).toEqual({ state: 'missing' });
+	});
+
+	test('returns { state: "missing" } when receipt was never granted (declined)', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ version: '1.0' }] });
+		db.query.mockResolvedValueOnce({
+			rows: [{ granted_at: null, withdrawn_at: '2026-10-10T00:00:00Z', consent_text_version: '1.0' }],
+		});
+
+		const state = await consentService.checkConsentState(10, 'biometric');
+		expect(state).toEqual({ state: 'missing' });
+	});
+
+	test('returns { state: "withdrawn" } when consent was withdrawn', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ version: '1.0' }] });
+		db.query.mockResolvedValueOnce({
+			rows: [{
+				granted_at: '2026-10-10T00:00:00Z',
+				withdrawn_at: '2026-10-10T01:00:00Z',
+				consent_text_version: '1.0',
+			}],
+		});
+
+		const state = await consentService.checkConsentState(10, 'biometric');
+		expect(state.state).toBe('withdrawn');
+		expect(state.withdrawnAt).toBe('2026-10-10T01:00:00Z');
+	});
+
+	test('returns { state: "stale" } with versions when text changed', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ version: '2.0' }] }); // bumped
+		db.query.mockResolvedValueOnce({
+			rows: [{ granted_at: '2026-10-10T00:00:00Z', withdrawn_at: null, consent_text_version: '1.0' }],
+		});
+
+		const state = await consentService.checkConsentState(10, 'biometric');
+		expect(state).toEqual({ state: 'stale', receiptVersion: '1.0', currentVersion: '2.0' });
+	});
+
+	test('throws on invalid consent type', async () => {
+		await expect(consentService.checkConsentState(10, 'bogus')).rejects.toThrow('Invalid consent type');
+	});
+
+	test('throws when sessionId is missing', async () => {
+		await expect(consentService.checkConsentState(null, 'biometric')).rejects.toThrow('sessionId is required');
+	});
+
+	test('hits the DB live on every call (no cache)', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ version: '1.0' }] });
+		db.query.mockResolvedValueOnce({ rows: [] });
+		db.query.mockResolvedValueOnce({ rows: [{ version: '1.0' }] });
+		db.query.mockResolvedValueOnce({ rows: [] });
+
+		await consentService.checkConsentState(10, 'biometric');
+		await consentService.checkConsentState(10, 'biometric');
+
+		expect(db.query).toHaveBeenCalledTimes(4);
+	});
+
+	test('binds receipt to candidateId when provided (IDOR protection)', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ version: '1.0' }] });
+		db.query.mockResolvedValueOnce({
+			rows: [{ granted_at: '2026-10-10T00:00:00Z', withdrawn_at: null, consent_text_version: '1.0' }],
+		});
+
+		const state = await consentService.checkConsentState(10, 'biometric', 1001);
+		expect(state).toEqual({ state: 'valid', version: '1.0' });
+
+		// The receipt query must filter by candidate_id.
+		const receiptQuery = db.query.mock.calls[1][0];
+		expect(receiptQuery).toContain('AND candidate_id = $3');
+		expect(db.query.mock.calls[1][1]).toEqual([10, 'biometric', 1001]);
+	});
+
+	test('returns missing when receipt belongs to another candidate', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ version: '1.0' }] });
+		db.query.mockResolvedValueOnce({ rows: [] }); // no rows for this candidate
+
+		const state = await consentService.checkConsentState(10, 'biometric', 9999);
+		expect(state).toEqual({ state: 'missing' });
+	});
+});
+
+describe('consentService.assertSessionOwnership', () => {
+	beforeEach(() => {
+		jest.clearAllMocks();
+	});
+
+	test('passes when session belongs to the candidate (unified table)', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ owner_id: 1001 }] });
+
+		await expect(consentService.assertSessionOwnership(10, 1001)).resolves.toBeUndefined();
+	});
+
+	test('passes when session belongs to the candidate (legacy mock table)', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ owner_id: 1001 }, { owner_id: 9999 }] });
+
+		await expect(consentService.assertSessionOwnership(10, 1001)).resolves.toBeUndefined();
+	});
+
+	test('throws when session belongs to another candidate', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ owner_id: 2002 }] });
+
+		await expect(consentService.assertSessionOwnership(10, 1001)).rejects.toThrow(
+			'does not belong to this candidate',
+		);
+	});
+
+	test('throws when session does not exist', async () => {
+		db.query.mockResolvedValueOnce({ rows: [] });
+
+		await expect(consentService.assertSessionOwnership(999, 1001)).rejects.toThrow(
+			'session 999 not found',
+		);
+	});
+
+	test('queries both session tables', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ owner_id: 1001 }] });
+
+		await consentService.assertSessionOwnership(10, 1001);
+
+		const sql = db.query.mock.calls[0][0];
+		expect(sql).toContain('interview_sessions');
+		expect(sql).toContain('mock_interview_sessions');
+	});
+});
+
 describe('consentService.getCurrentTextVersion', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();

@@ -26,6 +26,7 @@ const omniscoreService = require('../services/omniscore');
 const multer = require('multer');
 
 const { rateLimits } = require('../lib/distributed-rate-limiter');
+const { requireBiometricConsent } = require('../server/middleware/requireBiometricConsent');
 const emailService = require('../lib/email-service');
 const calendarService = require('../server/services/calendar-service');
 const { notifyUser } = require('../lib/notify');
@@ -1153,7 +1154,7 @@ router.post('/mock/:sessionId/respond', authMiddleware, rateLimits.ai, async (re
 });
 
 // End a mock interview session and get comprehensive feedback
-router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
+router.post('/mock/:sessionId/end', authMiddleware, requireBiometricConsent('biometric'), async (req, res) => {
 	try {
 		const sessionId = req.params.sessionId;
 		const { frames } = req.body; // Video frames for body language analysis
@@ -1984,7 +1985,8 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 
 // Text-to-Speech endpoint — converts interviewer text to spoken audio
 // Real-time single-frame body language analysis (lightweight, called every ~20s during interview) — RATE LIMITED
-router.post('/mock/analyze-frame', authMiddleware, rateLimits.ai, async (req, res) => {
+// S-011: consent-gated — biometric frame analysis requires valid biometric consent for the session.
+router.post('/mock/analyze-frame', authMiddleware, rateLimits.ai, requireBiometricConsent('biometric'), async (req, res) => {
 	try {
 		const { frame } = req.body;
 		if (!frame) {
