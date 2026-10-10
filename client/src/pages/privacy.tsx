@@ -69,6 +69,13 @@ function Footer() {
 					>
 						Contact
 					</Link>
+					<Link
+						to="/privacy/biometric-policy"
+						className="hover:text-primary transition-colors"
+						onClick={() => trackEvent('privacy_footer_biometric_policy_click')}
+					>
+						Biometric Policy
+					</Link>
 				</div>
 			</div>
 		</footer>
