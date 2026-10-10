@@ -4,7 +4,7 @@ version: 1
 status: draft
 created: 2026-10-10
 owner: Sumanth
-stepsCompleted: ["section-01-overview", "section-02-pattern", "section-03-components"]
+stepsCompleted: ["section-01-overview", "section-02-pattern", "section-03-components", "section-04-data"]
 ---
 
 # Unified Interview Engine — Architecture
@@ -261,6 +261,155 @@ graph TD
 ```
 
 ---
+
+---
+
+## 4. Data Architecture
+
+### Primary Data Store
+
+**PostgreSQL (Neon)** — existing. All persistent data lives here.
+- **Rationale:** Already in use, team knows it, pgvector available for embeddings, JSONB for flexible signal storage.
+- **No new databases.** Biometric segregation is achieved via separate tables + encryption keys, not separate database instances ($0 constraint).
+
+### Core Data Model
+
+**Existing tables (reused):**
+| Table | Purpose | Key Fields |
+|-------|---------|------------|
+| `interview_sessions` | Unified session record | `id`, `type`, `candidate_id`, `job_id`, `status`, `config` JSONB, `conversation` JSONB |
+| `interview_recordings` | Media recordings | `id`, `interview_session_id` FK, `recording_url`, `duration` |
+| `interview_transcripts` | Word-level transcripts | `id`, `recording_id` FK, `speaker_identity`, `text`, `start_time_ms`, `end_time_ms` |
+| `interview_evaluations` | Human interviewer feedback | `id`, `interview_session_id`, scores, notes |
+| `interview_rooms` | LiveKit room mapping | `id`, `interview_session_id`, `room_name` |
+| `interview_flows` | Recruiter-defined configs | `id`, `company_id`, `job_id`, phases, rubric |
+
+**New tables:**
+
+```sql
+-- Integrity flag timeline
+CREATE TABLE integrity_events (
+  id SERIAL PRIMARY KEY,
+  interview_session_id INTEGER NOT NULL REFERENCES interview_sessions(id) ON DELETE CASCADE,
+  event_type VARCHAR(50) NOT NULL,
+  severity VARCHAR(20) NOT NULL DEFAULT 'info',
+  started_at_ms BIGINT NOT NULL,
+  ended_at_ms BIGINT,
+  confidence DECIMAL(4,3) CHECK (confidence >= 0 AND confidence <= 1),
+  details JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_integrity_session ON integrity_events(interview_session_id);
+CREATE INDEX idx_integrity_severity ON integrity_events(severity);
+
+-- Per-turn behavioral signals
+CREATE TABLE behavioral_signals (
+  id SERIAL PRIMARY KEY,
+  interview_session_id INTEGER NOT NULL REFERENCES interview_sessions(id) ON DELETE CASCADE,
+  turn_index INTEGER NOT NULL,
+  modality VARCHAR(20) NOT NULL,
+  signal_type VARCHAR(50) NOT NULL,
+  score DECIMAL(5,2),
+  label VARCHAR(100),
+  confidence DECIMAL(4,3),
+  details JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(interview_session_id, turn_index, modality, signal_type)
+);
+CREATE INDEX idx_behavioral_session ON behavioral_signals(interview_session_id);
+
+-- AI Observer reports for human interviews
+CREATE TABLE ai_observer_reports (
+  id SERIAL PRIMARY KEY,
+  interview_session_id INTEGER NOT NULL REFERENCES interview_sessions(id) ON DELETE CASCADE,
+  livekit_room_name VARCHAR(255),
+  observer_identity VARCHAR(255),
+  candidate_identity VARCHAR(255),
+  analysis JSONB NOT NULL DEFAULT '{}',
+  integrity_summary JSONB DEFAULT '{}',
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(interview_session_id)
+);
+
+-- Unified per-question analysis (replaces legacy interview_analysis)
+CREATE TABLE session_analysis (
+  id SERIAL PRIMARY KEY,
+  interview_session_id INTEGER NOT NULL REFERENCES interview_sessions(id) ON DELETE CASCADE,
+  question_index INTEGER NOT NULL,
+  analysis_data JSONB NOT NULL,
+  visual_score DECIMAL(5,2),
+  vocal_score DECIMAL(5,2),
+  linguistic_score DECIMAL(5,2),
+  fused_score DECIMAL(5,2),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(interview_session_id, question_index)
+);
+
+-- Biometric audit log (append-only)
+CREATE TABLE biometric_audit_log (
+  id SERIAL PRIMARY KEY,
+  accessed_at TIMESTAMPTZ DEFAULT NOW(),
+  user_id INTEGER NOT NULL,
+  user_role VARCHAR(50) NOT NULL,
+  action VARCHAR(20) NOT NULL,
+  data_type VARCHAR(50) NOT NULL,
+  candidate_id INTEGER NOT NULL,
+  ip_address INET
+);
+CREATE INDEX idx_audit_candidate ON biometric_audit_log(candidate_id);
+CREATE INDEX idx_audit_time ON biometric_audit_log(accessed_at);
+```
+
+### Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    interview_sessions ||--o{ interview_recordings : has
+    interview_sessions ||--o{ integrity_events : has
+    interview_sessions ||--o{ behavioral_signals : has
+    interview_sessions ||--o{ session_analysis : has
+    interview_sessions ||--|| ai_observer_reports : has
+    interview_sessions ||--o{ interview_evaluations : has
+    interview_sessions }|--|| interview_rooms : maps_to
+    interview_recordings ||--o{ interview_transcripts : has
+    interview_sessions }|--|| jobs : belongs_to
+    interview_sessions }|--|| users : candidate
+```
+
+### Data Flow
+
+```
+Candidate Browser                    Server                         Database
+     │                                  │                               │
+     │── VisualSignal (2fps) ───────────▶│                               │
+     │── VocalSignal (per answer) ──────▶│                               │
+     │── IntegrityEvent (on trigger) ──▶│                               │
+     │                                  │── INSERT behavioral_signals ─▶│
+     │                                  │── INSERT integrity_events ───▶│
+     │                                  │                               │
+     │◀── AI Response ──────────────────│◀── SELECT session + config ──│
+     │                                  │                               │
+     │── Transcript (per answer) ───────▶│── Linguistic forensics ──────▶│
+     │                                  │── INSERT session_analysis ──▶│
+     │                                  │                               │
+     │                                  │── Generate reports ──────────▶│
+     │                                  │── SELECT all tables ─────────▶│
+```
+
+### Caching
+
+**Redis** (already available via Render) for:
+- Session state (for future horizontal scaling — ADR-001)
+- Voice baseline profiles (60-second eGeMAPS, TTL = session duration)
+- Rate limiting counters
+
+**Not cached:** Integrity events, behavioral signals (must be persistent immediately for audit).
+
+### Partitioning Plan (Future)
+
+`integrity_events` and `behavioral_signals` designed with `created_at` for easy monthly partitioning when volume justifies it (see ADR-001).
 
 ---
 
