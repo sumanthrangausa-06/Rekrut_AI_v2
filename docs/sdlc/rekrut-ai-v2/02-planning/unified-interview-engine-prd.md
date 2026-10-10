@@ -106,7 +106,7 @@ Concrete definitions for terms used throughout this PRD:
 | **Identity verification** | Face match + liveness + government ID photo |
 | **Integrity** | Standard (gaze, face presence, tab switch) |
 | **Behavioral analysis** | Standard |
-| **Candidate sees** | No report shared with candidate |
+| **Candidate sees** | No formal report, but qualitative feedback may be shared (e.g., "Strong communication skills") |
 | **Recruiter sees** | Match score + full screening report + integrity flags + transcript |
 
 ### 5.3 AI Interview
@@ -257,7 +257,7 @@ Concrete definitions for terms used throughout this PRD:
 | ID | Requirement | Acceptance Criteria |
 |----|-------------|---------------------|
 | FR-47 | System SHALL generate recruiter report: full assessment scores + integrity evidence timeline + behavioral analysis + transcript | **Given** a completed interview **When** the recruiter opens the report **Then** they see: (1) Assessment scores by category, (2) Integrity timeline with all events and confidence levels, (3) Behavioral analysis per answer, (4) Full transcript with speaker labels and timestamps **And** the report loads within 3 seconds |
-| FR-48 | System SHALL generate candidate report: qualitative feedback only — except Mock (scores) and Screening (no report) | **Given** a completed AI Interview **When** the candidate views their report **Then** they see qualitative feedback (strengths, areas to improve) **And** no numerical scores are displayed **Given** a completed Mock Interview **When** the candidate views their report **Then** they see numerical scores + qualitative feedback **Given** a completed AI Screening **When** the candidate tries to view a report **Then** they see "Your screening is under review" (no report shared) |
+| FR-48 | System SHALL generate candidate report: qualitative feedback only — except Mock (scores). AI Screening SHALL NOT share a formal report but MAY share qualitative feedback (no scores, no integrity details). | **Given** a completed AI Interview **When** the candidate views their report **Then** they see qualitative feedback (strengths, areas to improve) **And** no numerical scores are displayed **Given** a completed Mock Interview **When** the candidate views their report **Then** they see numerical scores + qualitative feedback **Given** a completed AI Screening **When** the candidate views feedback **Then** they see qualitative feedback only (e.g., strengths observed) **And** no formal report, no scores, and no integrity details are shared |
 | FR-49 | Human Interview report SHALL show human interviewer feedback + AI Observer analysis side by side | **Given** a completed human interview **When** the recruiter opens the report **Then** they see two columns: "Interviewer Assessment" (human scores, notes, hire/no-hire) and "AI Observer Analysis" (behavioral signals, integrity flags) **And** discrepancies are highlighted (e.g., "Interviewer rated confidence 8/10; AI measured stress indicators elevated") |
 | FR-50 | Reports SHALL disclose all integrity flags as evidence with timestamps and confidence levels | **Given** a report with integrity events **When** the recruiter views the integrity section **Then** each flag shows: timestamp, event type, severity, confidence score (0-100%), supporting signals **And** a disclaimer: "These are observations for your review, not determinations of misconduct" |
 
