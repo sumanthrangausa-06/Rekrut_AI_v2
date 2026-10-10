@@ -1,6 +1,12 @@
 step: "step-05-document"
 status: "complete"
 phase_0_complete: true
+version: 2
+persona: "Scout"
+specialists:
+  - dependency-duplication-mapper (code-review-graph methodology, manual)
+  - execution-path-tracer (ecc/code-explorer methodology)
 knowledge_base: "docs/sdlc/rekrut-ai-v2/00-relearn/project-knowledge-base.md"
 date: "2026-10-10"
 next_phase: "1-analysis"
+notes: "v2 corrects v1: ai-screening.tsx is dashboard-only; useSpeechRecognition is availability-check only; discovered interview-sessions.js, conversation-engine.js, voice-interviewer worker with runObserver"
