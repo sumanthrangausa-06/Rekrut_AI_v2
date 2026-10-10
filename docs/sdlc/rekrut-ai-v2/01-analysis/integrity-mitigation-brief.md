@@ -365,3 +365,60 @@ Per §1.5: pre-interview self-declared accommodation step ("help us calibrate to
 ---
 
 *Research completed 2026-10-10. Two specialist subagents (false-positive reduction; automation-bias/recruiter UX) plus direct web research. Skills consulted: smart-sdlc technical-research (methodology), agency-agents design-ux-researcher, design-persona-walkthrough, product-behavioral-nudge-engine. Speculative items marked as such throughout.*
+
+---
+
+## Appendix: Operational Problem Playbook
+
+**Added:** 2026-10-10 per Sumanth's request ("how shall we do? if we have problems then?")
+**Status:** Operational procedures to be formalized as PRD requirements in Phase 2.
+
+### Problem 1: Candidate Disputes a Flag ("I Was Wrongly Flagged")
+
+1. Candidate clicks **"Request Review"** in their report → case enters recruiter review queue
+2. Recruiter sees flag + evidence + candidate's explanation side by side
+3. Recruiter decides: **uphold**, **dismiss** (with one-sentence reason), or **request re-interview**
+4. If dismissed: flag removed from candidate record; system logs dismissal for FP tracking
+5. **SLA:** 48 hours. No action → auto-escalates to platform admin
+6. Every dismissal feeds the false-positive dashboard; flag types dismissed >50% get retuned or removed
+
+### Problem 2: Recruiter Misuses Flags (Auto-Reject on Flag Count)
+
+1. **Judge-first workflow** enforced in UI — recruiter records own assessment before AI flags are revealed (cannot skip)
+2. If recruiter judgment differs from AI: "Your assessment was X, AI flagged Y. What changed?" — one sentence required
+3. **Pattern detection:** recruiter dismissing 90%+ or confirming 90%+ without evidence review → flagged for platform review
+4. **No bulk actions** on flagged candidates — each requires individual review
+
+### Problem 3: Systemic False Positive Pattern
+
+1. **Dashboard alerts trigger first:**
+   - Flag rate >15% for any signal type → investigate
+   - Dismissal rate >50% for a signal type → auto-quarantine that signal
+   - Subgroup flag ratio >2× → bias alert, immediate review
+2. **Quarantine, don't delete:** bad signal stops generating flags but keeps collecting data for retuning
+3. **Weekly review:** CTO reviews metrics dashboard every Monday; monthly report to founder
+
+### Problem 4: Legal/Compliance Challenge
+
+1. Every flag has full **audit trail:** observation, timestamp, confidence, signals, recruiter decision, candidate response
+2. **BIPA/GDPR data export:** candidate downloads everything via automated endpoint
+3. **Legal hold:** one-click complete case file export
+4. 10 legal questions from compliance blueprint go to counsel **before Phase 3**
+
+### Problem 5: Unanticipated Edge Cases
+
+1. **Accommodation mode:** candidate opts into "help us calibrate to you" → wider thresholds, same monitoring
+2. **Manual override always available:** recruiter can dismiss ANY flag with reason; no flag permanent without human confirmation
+3. **Feedback loop:** all overrides logged; monthly review asks "Is the AI wrong or are recruiters wrong?"
+
+### Design Principle
+
+**No single point of failure.** Every risk has ≥2 safety nets:
+
+| Risk | Safety Net 1 | Safety Net 2 |
+|------|-------------|-------------|
+| False positive | Calibration + conservative thresholds | Candidate appeal + recruiter dismissal |
+| Recruiter misuse | Judge-first workflow | Pattern detection + no bulk reject |
+| Systemic bias | Dashboard alerts | Signal quarantine |
+| Legal challenge | Audit trail | Counsel review before Phase 3 |
+| Unknown edge cases | Accommodation mode | Manual override |
