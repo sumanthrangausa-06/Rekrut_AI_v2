@@ -71,6 +71,8 @@ router.post(
 	handleValidationErrors,
 	async (req, res) => {
 		try {
+			// S-011: the session must belong to the caller (prevents receipt planting).
+			await consentService.assertSessionOwnership(req.body.sessionId, req.user.id);
 			const receipt = await consentService.recordConsent({
 				sessionId: req.body.sessionId,
 				candidateId: req.user.id,
@@ -98,6 +100,8 @@ router.post(
 	handleValidationErrors,
 	async (req, res) => {
 		try {
+			// S-011: the session must belong to the caller (prevents withdrawal lockout).
+			await consentService.assertSessionOwnership(req.body.sessionId, req.user.id);
 			const result = await consentService.withdrawConsent({
 				sessionId: req.body.sessionId,
 				candidateId: req.user.id,
@@ -119,6 +123,8 @@ router.get(
 	handleValidationErrors,
 	async (req, res) => {
 		try {
+			// S-011: status oracle scoped to the caller's own sessions.
+			await consentService.assertSessionOwnership(Number(req.params.sessionId), req.user.id);
 			const status = await consentService.getConsentStatus(Number(req.params.sessionId));
 			res.json(status);
 		} catch (err) {
