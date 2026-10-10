@@ -158,6 +158,7 @@ const codingSubmissionRoutes = require('./routes/coding-submissions');
 const livekitRoutes = require('./server/routes/livekit'); // Issue #124 — LiveKit video infrastructure
 const backgroundCheckRoutes = require('./routes/background-check'); // Issue #133 — Background check
 const recordingRoutes = require('./server/routes/recordings'); // Issue #126 — Interview recording, playback & AI transcript
+const consentRoutes = require('./server/routes/consent'); // S-010 (#568) — Consent lifecycle (texts, receipts, withdrawal)
 const collaborationRoutes = require('./routes/collaboration'); // Issue #128 — Real-time collaboration for hiring teams
 const apiKeyRoutes = require('./routes/api-keys'); // Issue #140 — Public API key management
 const publicApiRoutes = require('./routes/public-api'); // Issue #140 — Public API v1
@@ -668,6 +669,7 @@ app.use('/api/collaboration', collaborationRoutes);
 
 // API Routes - LiveKit Video Infrastructure (Issue #124)
 app.use('/api/livekit', livekitRoutes);
+app.use('/api/consent', consentRoutes); // S-010 (#568) — Consent lifecycle
 
 // API Routes - Interview Panels (Issue #125 — Multi-interviewer panel with scorecards and shared notes)
 app.use('/api/panels', panelRoutes);
