@@ -1330,6 +1330,16 @@ No EU-only code branches exist in v3 (OQ-3 resolved globally).
 
 ---
 
+
+## Sumanth's Phase 3 Gate Decisions (2026-10-10)
+
+| # | Question | Decision |
+|---|----------|----------|
+| 1 | Judgment scope | **Per-reviewer.** Each reviewer's independent pre-flag assessment is preserved. Supports divergence tracking. |
+| 2 | Appeal SLA | **Single appeal system, two tiers:** 48h for integrity appeals (blocks hiring), 5 business days for general (feedback disputes, tech issues, fairness, billing). |
+| 3 | Export auth | **Email OTP via Brevo.** Step-up authentication for biometric data exports. |
+
+---
 ## 9. Architecture Decision Records (ADRs)
 
 ### ADR-001: Scaling to 10,000 Concurrent Sessions
