@@ -48,7 +48,7 @@ describe('biometricAudit.logAccess', () => {
 		expect(row.action).toBe('view');
 	});
 
-	test('accepts all valid actions: view, export, delete, purge', async () => {
+	test('accepts all valid actions: view, export, delete, purge, consent_*', async () => {
 		for (const action of VALID_ACTIONS) {
 			db.query.mockResolvedValueOnce({ rows: [{ id: 1, action }] });
 			const row = await logAccess({
