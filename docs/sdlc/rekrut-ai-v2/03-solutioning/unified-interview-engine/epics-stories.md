@@ -511,6 +511,28 @@ E-009 (Metering, Billing & Admin) ── parallel from mid-plan (needs E-001 met
 
 ---
 
+### Story S-059: R2 frame encryption with per-candidate DEK (NEW — discovered Phase 4)
+
+**Epic:** E-002 | **PRD Ref:** FR-87 | **PRD Version:** 3.3 | **Priority:** Core (P0 launch-blocker) | **Points:** 5
+
+**User Story:** As the platform, I need face frames encrypted before upload to R2 so that the crypto-shredding design isn't bypassed by unencrypted object storage.
+
+**Context:** Discovered during S-058 specialist review (privacy engineer, 2026-10-10). Raw face frames uploaded to R2 bypass S-058's entire segregation design. GitHub issue #630 (created by Lead).
+
+**Acceptance Criteria:**
+- [ ] AC-1: Given a video frame captured during an interview, when uploaded to R2, then it is encrypted with the candidate's DEK (via `lib/biometricCrypto.js`) before leaving the server.
+- [ ] AC-2: Given an encrypted frame in R2, when accessed, then decryption requires proper authorization (session ownership check).
+- [ ] AC-3: Given DEK destruction (crypto-shredding), when executed, then stored R2 frames become unrecoverable.
+- [ ] AC-4: Given the upload path, when inspected, then no plaintext frames are written to R2 at any point.
+
+**Technical Notes:** Use `lib/biometricCrypto.js` from S-058 (`getOrCreateDEK`, `encryptWithDEK`). ADR-012 applies.
+
+**Dependencies:** Requires: S-058. Blocks: Launch.
+
+**Suggested Specialists:** crypto-implementation-expert, privacy-engineer, penetration-tester.
+
+---
+
 ## Epic E-003: Calibration & Fairness
 
 **Goal:** Every scored interview starts with a 60-second calibration that learns the candidate's baseline, with accommodation options that widen thresholds without disabling integrity.
