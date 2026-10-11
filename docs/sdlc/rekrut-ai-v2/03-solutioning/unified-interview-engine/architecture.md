@@ -223,7 +223,7 @@ The interview engine is a set of well-bounded modules inside the existing Rekrut
 - **Responsibility:** CRUD for interview sessions, lifecycle management, **authoritative turn state**.
 - **Owns:** `interview_sessions` table, invite tokens, state transitions, turn state + heartbeat.
 - **Does NOT own:** Consent records (that's ConsentService 3.20 — **ownership transferred in v3**). Media (LiveKit), analysis (AnalysisService), dialogue (ConversationService).
-- **Interface:** REST API (`POST /api/v1/interview-sessions`, `PATCH /:id/state`, `GET /:id/state`, etc.)
+- **Interface:** REST API (`POST /api/interviews/sessions`, `PATCH /:id/state`, `GET /:id/state`, etc.)
 - **Tech:** Express routes + pg. Follows existing route patterns.
 - **Session state machine (v3):** `invited → calibrating → in_progress → paused → completed / abandoned / expired`. The `calibrating` phase is new (FR-56).
 - **Rehydration:** `GET /:id/state` includes consent summary (read from ConsentService, never written here) and calibration phase.
@@ -1014,7 +1014,7 @@ Candidate Browser                    Server                         Database
 
 **Authentication:** Session-scoped JWT. Every signal/event POST carries a JWT with `session_id` claim; body `session_id` MUST match. Reuses existing `lib/auth` `authMiddleware`.
 
-**Versioning:** URL versioning (`/api/v1/...`). v1 is the initial interview engine API. (PRD's unversioned DSAR paths aligned to `/api/v1/`.)
+**Versioning:** No URL versioning. Unified-engine endpoints live under existing unversioned mounts (`/api/interviews`, `/api/consent`, `/api/admin`, `/api/billing`, `/api/candidate`, `/api/recruiter`), matching codebase conventions. (Corrected 2026-10-10: versioned URL paths never existed in the codebase; S-001 implemented `POST /api/interviews/sessions` per AC-1.)
 
 **Route organization (v3):** Hybrid scheme — **nested** for session-owned ops; **top-level** for cross-session resources.
 
@@ -1022,49 +1022,49 @@ Candidate Browser                    Server                         Database
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| POST | `/api/v1/interview-sessions` | Recruiter JWT | Create session (Zod-validated config; MeteringService gate; 402 if over limit) |
-| GET | `/api/v1/interview-sessions/:id` | Session/Recruiter JWT | Session details (**never** embeds integrity events) |
-| GET | `/api/v1/interview-sessions/:id/state` | Session JWT | Rehydration: turn state, question index, calibration phase, consent summary |
-| PATCH | `/api/v1/interview-sessions/:id/state` | Session JWT | Turn state heartbeat |
-| POST | `/api/v1/interview-sessions/:id/invite` | Recruiter JWT | Generate invite token (7-day expiry) |
-| POST | `/api/v1/interview-sessions/:id/signal-batches` | Session JWT + consent(biometric) | Ingest batched signals → 202 Accepted |
-| POST | `/api/v1/interview-sessions/:id/integrity-events` | Session JWT + consent(biometric) | Record advisory event |
-| POST | `/api/v1/interview-sessions/:id/transcript-chunks` | Session JWT + consent(recording) | Upload audio for transcription |
-| GET | `/api/v1/interview-sessions/:id/next-turn` | Session JWT | ConversationService next turn (409 `CALIBRATION_INCOMPLETE` until calibrated) |
-| POST | `/api/v1/interview-sessions/:id/challenge-response` | Session JWT | Challenge response for server verification |
-| POST | `/api/v1/interview-sessions/:id/calibration/start` | Session JWT | Begin calibration (idempotent state machine) |
-| POST | `/api/v1/interview-sessions/:id/calibration/complete` | Session JWT | Compute baseline from persisted signals |
-| GET | `/api/v1/interview-sessions/:id/calibration/baseline` | Session JWT | Baseline summary (quality floors, cohort ref) |
-| POST | `/api/v1/interview-sessions/:id/judgment` | Recruiter JWT | Record initial judgment (natural-key upsert) |
-| GET | `/api/v1/interview-sessions/:id/report/stage1` | Recruiter JWT + MFA | Scores + transcript, **zero integrity fields** |
-| GET | `/api/v1/interview-sessions/:id/report/integrity` | Recruiter JWT + MFA + judgment | Integrity panel (403 `JUDGMENT_REQUIRED` until judgment recorded; FR-68 shortcut when zero undismissed events) |
-| GET | `/api/v1/interview-sessions/:id/report/candidate` | Candidate JWT | Qualitative feedback (per-mode visibility rules) |
-| PATCH | `/api/v1/interview-sessions/:id/observer` | Recruiter JWT | Toggle AI Observer on/off |
-| POST | `/api/v1/interview-sessions/:id/appeals` | Candidate JWT | Create appeal case (409 `APPEAL_ALREADY_OPEN`) |
+| POST | `/api/interviews/sessions` | Recruiter JWT | Create session (Zod-validated config; MeteringService gate; 402 if over limit) |
+| GET | `/api/interviews/sessions/:id` | Session/Recruiter JWT | Session details (**never** embeds integrity events) |
+| GET | `/api/interviews/sessions/:id/state` | Session JWT | Rehydration: turn state, question index, calibration phase, consent summary |
+| PATCH | `/api/interviews/sessions/:id/state` | Session JWT | Turn state heartbeat |
+| POST | `/api/interviews/sessions/:id/invite` | Recruiter JWT | Generate invite token (7-day expiry) |
+| POST | `/api/interviews/sessions/:id/signal-batches` | Session JWT + consent(biometric) | Ingest batched signals → 202 Accepted |
+| POST | `/api/interviews/sessions/:id/integrity-events` | Session JWT + consent(biometric) | Record advisory event |
+| POST | `/api/interviews/sessions/:id/transcript-chunks` | Session JWT + consent(recording) | Upload audio for transcription |
+| GET | `/api/interviews/sessions/:id/next-turn` | Session JWT | ConversationService next turn (409 `CALIBRATION_INCOMPLETE` until calibrated) |
+| POST | `/api/interviews/sessions/:id/challenge-response` | Session JWT | Challenge response for server verification |
+| POST | `/api/interviews/sessions/:id/calibration/start` | Session JWT | Begin calibration (idempotent state machine) |
+| POST | `/api/interviews/sessions/:id/calibration/complete` | Session JWT | Compute baseline from persisted signals |
+| GET | `/api/interviews/sessions/:id/calibration/baseline` | Session JWT | Baseline summary (quality floors, cohort ref) |
+| POST | `/api/interviews/sessions/:id/judgment` | Recruiter JWT | Record initial judgment (natural-key upsert) |
+| GET | `/api/interviews/sessions/:id/report/stage1` | Recruiter JWT + MFA | Scores + transcript, **zero integrity fields** |
+| GET | `/api/interviews/sessions/:id/report/integrity` | Recruiter JWT + MFA + judgment | Integrity panel (403 `JUDGMENT_REQUIRED` until judgment recorded; FR-68 shortcut when zero undismissed events) |
+| GET | `/api/interviews/sessions/:id/report/candidate` | Candidate JWT | Qualitative feedback (per-mode visibility rules) |
+| PATCH | `/api/interviews/sessions/:id/observer` | Recruiter JWT | Toggle AI Observer on/off |
+| POST | `/api/interviews/sessions/:id/appeals` | Candidate JWT | Create appeal case (409 `APPEAL_ALREADY_OPEN`) |
 
 ### Top-Level Routes (cross-session resources)
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| POST | `/api/v1/consents` | Session JWT | Record consent receipt (natural-key idempotent) |
-| GET | `/api/v1/consents/status` | Session JWT | Consent status per type |
-| DELETE | `/api/v1/consents/:type` | Session JWT | Withdraw consent (idempotent; triggers `consent_revoked` push) |
-| GET | `/api/v1/appeals/queue` | Recruiter JWT | Appeal queue (SLA-breach first; paginated) |
-| GET | `/api/v1/appeals/:id` | Recruiter JWT | Appeal detail (flag + evidence + candidate explanation) |
-| PATCH | `/api/v1/appeals/:id` | Recruiter JWT | Resolve (uphold/dismiss/reinterview; reason required) |
-| POST | `/api/v1/integrity-events/:id/review` | Recruiter JWT + MFA + integrity access | Confirm/dismiss + reason (append-only) |
-| GET | `/api/v1/integrity/uncertain-queue` | Recruiter JWT + integrity access | 0.60–0.85 band review queue |
-| GET | `/api/v1/billing/usage` | Recruiter JWT | Tier usage, limits, reset date |
-| POST | `/api/v1/billing/overage/confirm` | Recruiter JWT + **Idempotency-Key** | Returns single-use overage token (15-min TTL) |
-| GET | `/api/v1/admin/integrity-metrics` | Admin JWT + MFA | Dashboard (5-min cache; n<5 suppression) |
-| GET | `/api/v1/admin/compliance/status` | Admin JWT + MFA | Retention status, pending deletions |
-| POST | `/api/v1/admin/compliance/purge` | Admin JWT + MFA | Manual purge trigger |
-| POST | `/api/v1/recruiters/me/onboarding/complete` | Recruiter JWT | Complete onboarding (server-validated) |
-| GET | `/api/v1/recruiters/me/readiness` | Recruiter JWT | Onboarding/readiness status |
-| GET | `/api/v1/candidates/me/export` | Candidate JWT | DSAR export → 202 `{job_id, sla_due_at}` |
-| GET | `/api/v1/candidates/me/export/:jobId` | Candidate JWT | Export status / signed download link |
-| DELETE | `/api/v1/candidates/me` | Candidate JWT | DSAR deletion → 202 `{job_id, sla_due_at}` (superset of biometric-only delete) |
-| GET | `/api/v1/candidates/me/deletion/:jobId` | Candidate JWT | Deletion status per target |
+| POST | `/api/consent` | Session JWT | Record consent receipt (natural-key idempotent) |
+| GET | `/api/consent/status` | Session JWT | Consent status per type |
+| DELETE | `/api/consent/:type` | Session JWT | Withdraw consent (idempotent; triggers `consent_revoked` push) |
+| GET | `/api/interviews/appeals/queue` | Recruiter JWT | Appeal queue (SLA-breach first; paginated) |
+| GET | `/api/interviews/appeals/:id` | Recruiter JWT | Appeal detail (flag + evidence + candidate explanation) |
+| PATCH | `/api/interviews/appeals/:id` | Recruiter JWT | Resolve (uphold/dismiss/reinterview; reason required) |
+| POST | `/api/interviews/integrity-events/:id/review` | Recruiter JWT + MFA + integrity access | Confirm/dismiss + reason (append-only) |
+| GET | `/api/interviews/integrity/uncertain-queue` | Recruiter JWT + integrity access | 0.60–0.85 band review queue |
+| GET | `/api/billing/usage` | Recruiter JWT | Tier usage, limits, reset date |
+| POST | `/api/billing/overage/confirm` | Recruiter JWT + **Idempotency-Key** | Returns single-use overage token (15-min TTL) |
+| GET | `/api/admin/integrity-metrics` | Admin JWT + MFA | Dashboard (5-min cache; n<5 suppression) |
+| GET | `/api/admin/compliance/status` | Admin JWT + MFA | Retention status, pending deletions |
+| POST | `/api/admin/compliance/purge` | Admin JWT + MFA | Manual purge trigger |
+| POST | `/api/recruiter/me/onboarding/complete` | Recruiter JWT | Complete onboarding (server-validated) |
+| GET | `/api/recruiter/me/readiness` | Recruiter JWT | Onboarding/readiness status |
+| GET | `/api/candidate/me/export` | Candidate JWT | DSAR export → 202 `{job_id, sla_due_at}` |
+| GET | `/api/candidate/me/export/:jobId` | Candidate JWT | Export status / signed download link |
+| DELETE | `/api/candidate/me` | Candidate JWT | DSAR deletion → 202 `{job_id, sla_due_at}` (superset of biometric-only delete) |
+| GET | `/api/candidate/me/deletion/:jobId` | Candidate JWT | Deletion status per target |
 
 ### Idempotency
 
