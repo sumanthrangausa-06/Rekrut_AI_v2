@@ -15,8 +15,10 @@ try {
 
 // Import JWT verification to bridge main-app admin users into admin panel
 let verifyToken;
+let authMiddleware;
+let requireRole;
 try {
-	verifyToken = require('../lib/auth').verifyToken;
+	({ verifyToken, authMiddleware, requireRole } = require('../lib/auth'));
 } catch (_e) {
 	verifyToken = () => null;
 }
@@ -501,6 +503,156 @@ router.get('/team-status', requireAdmin, async (_req, res) => {
 		res.status(500).json({ error: 'Failed to load team status' });
 	}
 });
+
+// ─── Biometric Audit Log Viewer (S-065, #715) ─────────────────────────────────
+// Read path for the S-014 append-only biometric audit trail.
+//
+// Access control (main-app pattern, per STOP 1): admin + hiring_manager via
+// main-app JWT (authMiddleware + requireRole). This is intentionally NOT the
+// admin-panel requireAdmin — hiring managers are main-app users, not admin-
+// panel users.
+//
+// Privacy: no JOIN to users in the read path (no PII). Candidate references
+// are display-level pseudonyms (S-057 follow-up will encrypt at rest).
+
+const { pseudonymizeCandidateId, VALID_ACTIONS: AUDIT_ACTIONS } = require('../lib/biometricAudit');
+
+// GET /api/admin/biometric-audit — paginated audit entries with filters
+router.get(
+	'/biometric-audit',
+	authMiddleware,
+	requireRole('admin', 'hiring_manager'),
+	rateLimits.admin,
+	async (req, res) => {
+		try {
+			const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+			const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+			const { candidate_id, action, data_type, start_date, end_date } = req.query;
+
+			if (action && !AUDIT_ACTIONS.includes(action)) {
+				return res.status(400).json({
+					error: `Invalid action filter. Must be one of: ${AUDIT_ACTIONS.join(', ')}`,
+				});
+			}
+
+			// Privacy review H2: reject non-numeric candidate_id (was NaN → 500).
+			let candidateIdFilter = null;
+			if (candidate_id) {
+				candidateIdFilter = parseInt(candidate_id, 10);
+				if (Number.isNaN(candidateIdFilter)) {
+					return res.status(400).json({ error: 'Invalid candidate_id filter' });
+				}
+			}
+
+			// Privacy review L2: validate date filters (was raw → 500 on bad input).
+			const dateRe = /^\d{4}-\d{2}-\d{2}(T.*)?$/;
+			for (const [label, value] of [
+				['start_date', start_date],
+				['end_date', end_date],
+			]) {
+				if (value && !dateRe.test(value)) {
+					return res.status(400).json({ error: `Invalid ${label} format (use YYYY-MM-DD)` });
+				}
+			}
+
+			const conditions = [];
+			const params = [];
+			let idx = 1;
+
+			if (candidateIdFilter !== null) {
+				conditions.push(`candidate_id = $${idx++}`);
+				params.push(candidateIdFilter);
+			}
+			if (action) {
+				conditions.push(`action = $${idx++}`);
+				params.push(action);
+			}
+			if (data_type) {
+				conditions.push(`data_type = $${idx++}`);
+				params.push(data_type);
+			}
+			if (start_date) {
+				conditions.push(`accessed_at >= $${idx++}`);
+				params.push(start_date);
+			}
+			if (end_date) {
+				conditions.push(`accessed_at <= $${idx++}`);
+				params.push(end_date);
+			}
+
+			const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+			// No JOIN to users — actor identity stays as user_id + user_role only.
+			const dataResult = await pool.query(
+				`SELECT id, accessed_at, user_id, user_role, action, data_type,
+				        candidate_id, ip_address
+				   FROM biometric_audit_log
+				   ${where}
+				   ORDER BY accessed_at DESC
+				   LIMIT $${idx++} OFFSET $${idx++}`,
+				[...params, limit, offset],
+			);
+
+			const countResult = await pool.query(
+				`SELECT COUNT(*) as total FROM biometric_audit_log ${where}`,
+				params,
+			);
+
+			const isAdmin = req.user.role === 'admin';
+			const entries = dataResult.rows.map((row) => ({
+				id: row.id,
+				accessed_at: row.accessed_at,
+				user_id: row.user_id,
+				user_role: row.user_role,
+				action: row.action,
+				data_type: row.data_type,
+				// Display-level pseudonym (S-065). Raw candidate_id is intentionally
+				// omitted — use the candidate_id filter to investigate a subject.
+				candidate_ref: pseudonymizeCandidateId(row.candidate_id),
+				// Privacy review M1: ip_address is personal data of the accessor;
+				// only admins need it for oversight.
+				...(isAdmin ? { ip_address: row.ip_address } : {}),
+			}));
+
+			// Privacy review M2: log the read itself (accountability). Fire-and-
+			// forget — a logging failure must not fail the read. Written to the
+			// general audit_logs table, NOT biometric_audit_log (avoid recursion).
+			pool
+				.query(
+					`INSERT INTO audit_logs (action_type, user_id, target_type, metadata, ip_address, created_at)
+					 VALUES ('biometric_audit_viewed', $1, 'biometric_audit_log', $2, $3, NOW())`,
+					[
+						req.user.id,
+						JSON.stringify({
+							viewer_role: req.user.role,
+							filters: { candidate_id, action, data_type, start_date, end_date },
+							result_count: dataResult.rows.length,
+						}),
+						req.ip || null,
+					],
+				)
+				.catch((logErr) => {
+					console.error('[admin/biometric-audit] read-audit log failed:', logErr.message);
+				});
+
+			res.json({
+				success: true,
+				entries,
+				total: parseInt(countResult.rows[0].total, 10),
+				limit,
+				offset,
+			});
+		} catch (error) {
+			const ref = require('node:crypto').randomUUID();
+			console.error(`[ERROR ref=${ref}] [admin/biometric-audit] Error:`, error);
+			if (process.env.NODE_ENV === 'production') {
+				res.status(500).json({ error: 'Internal server error', ref });
+			} else {
+				res.status(500).json({ error: 'Failed to load biometric audit log', ref });
+			}
+		}
+	},
+);
 
 // ─── Admin Compliance (EU AI Act) ───────────────────────────────────────────
 
