@@ -1523,6 +1523,7 @@ All decisions below confirmed. Cleared for epics/stories.
 - Replaces v2's HKDF-derived keys for shreddable data (derived keys are re-derivable — cannot shred).
 - Neon backup "tombstoning" is honest only with a tested restore-replay job (PITR restores everything).
 - Redis baselines explicitly DELeted; Sentry scrubbed via `beforeSend`; observer worker checks `deletion_pending` before flush.
+- **R2 frame encryption (added 2026-10-10, discovered during Phase 4 S-058 review):** Raw face frames uploaded to R2 MUST be encrypted with the candidate's DEK (via `lib/biometricCrypto.js`) before leaving the server. Unencrypted R2 uploads bypass the entire crypto-shredding design — the DEK protects database rows but not the video frames themselves. FR-87. P0 launch-blocker (issue #630).
 
 ### ADR-013: Regional Rollout (USA + India First, EU Phase 2)
 

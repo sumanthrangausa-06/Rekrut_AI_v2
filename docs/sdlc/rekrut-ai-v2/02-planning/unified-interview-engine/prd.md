@@ -1,6 +1,6 @@
 ---
 project: Unified Interview Engine
-version: 3.2
+version: 3.3
 status: approved
 created: 2026-10-10
 updated: 2026-10-10
@@ -8,6 +8,7 @@ owner: Sumanth
 analyst: Aria (Business Analyst, smart-sdlc Phase 2)
 stepsCompleted: ["step-01-requirements", "step-02-draft", "step-02-fixes", "step-03-v3-update", "step-03-specialist-review", "step-04-oq3-correction"]
 change_log:
+  v3.3: "FR-87 added (Rex): R2 frame encryption with per-candidate DEK. Discovered during Phase 4 S-058 specialist review (privacy engineer, 2026-10-10) — P0 launch-blocker. Raw face frames uploaded to R2 bypassed S-058's crypto-shredding design."
   v3.1: "OQ-3 contradiction fix (Rex Phase 3 review): §9.2 facial_expression → facial_landmark_displacement, voice_stress → vocal_pitch_variation; FR-37 'stress indicators' → 'vocal variation indicators'; FR-49 example rewritten in observational language; FR-36/39/40 conditional emotion-inference branches collapsed to non-affective path only; §9.7 'Fused integrity' → 'Fused observations' (OQ-2); definitions section scrubbed of emotion-inference language. All FRs now consistent with OQ-3 (observe, don't label) and FR-28/29."
   v3.0: "86 FRs, 21 CRs, 8 NFRs. Incorporated Phase 1 redo findings: 15 must-have compliance items, 8 integrity mitigation recommendations (R1-R8), problem playbook, pricing/packaging requirements, vocabulary appendix (14 event types, 8 signal categories, 5 challenge types, 6 session statuses), Sumanth's new decisions (observer=recruiter tool, warm-up mandatory, manual dismissal, two-sided pricing). Flagged emotion-inference FRs for legal review (EU AI Act Art. 5). Specialist-reviewed by PRD completeness reviewer + compliance requirements reviewer."
   v2.1: "Approved by Sumanth 2026-10-10. 55 FRs, 10 CRs, 8 NFRs."
@@ -388,6 +389,7 @@ Concrete definitions for terms used throughout this PRD:
 | FR-84 | System SHALL resolve participant roles via identity prefix + room metadata fallback | **Given** a human interview room **When** participants join **Then** `candidate-{userId}` is the analysis target (full behavioral + integrity) **And** `interviewer-{userId}` is tracked for diarization only **And** if identity prefix is missing or mismatched, room metadata (`candidate_id`, `interviewer_ids`) is the source of truth **And** mismatches are logged |
 | FR-85 | System SHALL disclose AI Observer in the general interview consent | **Given** a candidate joining a human interview with observer enabled **When** they reach consent **Then** they see: "This session may include AI-assisted analysis of the conversation to help the recruiter. [Learn more]" **And** this is part of the general consent flow, not a standalone observer consent screen |
 | FR-86 | AI Observer SHALL be passive-only (monitor, never interrupt) | **Given** an active human interview with observer **When** the observer detects integrity signals **Then** it records them silently **And** it never speaks, never issues challenges, never interrupts the human conversation **And** all observations appear only in the post-interview report |
+| FR-87 | Face frames SHALL be encrypted with the candidate's DEK before upload to R2 | **Given** a video frame captured during an interview **When** it is uploaded to R2 storage **Then** it is encrypted with the candidate's per-candidate DEK (via `lib/biometricCrypto.js`) before leaving the server **And** no plaintext frames are written to R2 at any point **And** DEK destruction renders stored frames unrecoverable |
 
 ---
 
