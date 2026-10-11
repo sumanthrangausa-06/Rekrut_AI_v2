@@ -76,6 +76,8 @@ describe('consentService.recordConsent', () => {
 		for (const type of VALID_TYPES) {
 			db.query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
 			db.query.mockResolvedValueOnce({ rows: [{ version: '1.0' }] });
+			// S-070 (H-1): biometric also propagates the observer gate flag.
+			if (type === 'biometric') db.query.mockResolvedValueOnce({ rows: [] });
 			await consentService.recordConsent({
 				sessionId: 10,
 				candidateId: 7,
@@ -83,7 +85,66 @@ describe('consentService.recordConsent', () => {
 				accepted: true,
 			});
 		}
-		expect(db.query).toHaveBeenCalledTimes(6); // 3 records × 2 queries each
+		// 3 records × 2 queries each + 1 flag propagation for biometric
+		expect(db.query).toHaveBeenCalledTimes(7);
+	});
+
+	test('S-070 (H-1): biometric grant propagates biometric_collection=true to the session (observer gate source of truth)', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ id: 1 }] }); // receipt insert
+		db.query.mockResolvedValueOnce({ rows: [] }); // audit log (best-effort)
+		db.query.mockResolvedValueOnce({ rows: [] }); // flag propagation
+
+		await consentService.recordConsent({
+			sessionId: 10,
+			candidateId: 7,
+			type: 'biometric',
+			accepted: true,
+			locale: 'en',
+		});
+
+		const flagCall = db.query.mock.calls.find(
+			(c) => /interview_sessions/i.test(c[0]) && /config/i.test(c[0]),
+		);
+		expect(flagCall).toBeDefined();
+		expect(JSON.stringify(flagCall[1])).toContain('true');
+	});
+
+	test('S-070 (H-1): biometric decline propagates biometric_collection=false', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ id: 2 }] });
+		db.query.mockResolvedValueOnce({ rows: [] });
+		db.query.mockResolvedValueOnce({ rows: [] }); // flag propagation
+
+		await consentService.recordConsent({
+			sessionId: 10,
+			candidateId: 7,
+			type: 'biometric',
+			accepted: false,
+			locale: 'en',
+		});
+
+		const updateCall = db.query.mock.calls.find(
+			(c) => /interview_sessions/i.test(c[0]) && /config/i.test(c[0]),
+		);
+		expect(updateCall).toBeDefined();
+		expect(JSON.stringify(updateCall[1])).toContain('false');
+	});
+
+	test('S-070 (H-1): non-biometric types do not touch the observer gate flag', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+		db.query.mockResolvedValueOnce({ rows: [] });
+
+		await consentService.recordConsent({
+			sessionId: 10,
+			candidateId: 7,
+			type: 'recording',
+			accepted: true,
+			locale: 'en',
+		});
+
+		const updateCall = db.query.mock.calls.find(
+			(c) => /interview_sessions/i.test(c[0]) && /config/i.test(c[0]),
+		);
+		expect(updateCall).toBeUndefined();
 	});
 });
 
@@ -132,6 +193,41 @@ describe('consentService.withdrawConsent', () => {
 		await expect(
 			consentService.withdrawConsent({ sessionId: 10, candidateId: 7, type: 'bogus' }),
 		).rejects.toThrow(/Invalid consent type/);
+	});
+
+	test('S-070 (H-1): biometric withdrawal propagates biometric_collection=false to the session', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 }); // withdraw UPDATE
+		db.query.mockResolvedValueOnce({ rows: [] }); // audit log (best-effort)
+		db.query.mockResolvedValueOnce({ rows: [] }); // flag propagation
+
+		await consentService.withdrawConsent({
+			sessionId: 10,
+			candidateId: 7,
+			type: 'biometric',
+			reason: 'candidate request',
+		});
+
+		const flagCall = db.query.mock.calls.find(
+			(c) => /interview_sessions/i.test(c[0]) && /config/i.test(c[0]),
+		);
+		expect(flagCall).toBeDefined();
+		expect(JSON.stringify(flagCall[1])).toContain('false');
+	});
+
+	test('S-070 (H-1): non-biometric withdrawal does not touch the observer gate flag', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 });
+		db.query.mockResolvedValueOnce({ rows: [] });
+
+		await consentService.withdrawConsent({
+			sessionId: 10,
+			candidateId: 7,
+			type: 'recording',
+		});
+
+		const flagCall = db.query.mock.calls.find(
+			(c) => /interview_sessions/i.test(c[0]) && /config/i.test(c[0]),
+		);
+		expect(flagCall).toBeUndefined();
 	});
 });
 
