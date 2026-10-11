@@ -95,251 +95,45 @@ const FALLBACK_QUESTIONS = [
 ];
 
 // Start a new interview - RATE LIMITED (AI call)
-router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
-	try {
-		const { job_id, job_title, job_description, interview_type = 'mock' } = req.body;
-
-		// Generate questions using AI with fallback
-		let questions;
-		try {
-			questions = await generateInterviewQuestions(
-				job_title || 'Software Developer',
-				job_description,
-				5,
-			);
-			console.log('AI generated', questions.length, 'interview questions');
-		} catch (aiErr) {
-			console.error('AI question generation failed, using fallback questions:', aiErr.message);
-			questions = FALLBACK_QUESTIONS;
-		}
-
-		// Validate questions array
-		if (!questions || !Array.isArray(questions) || questions.length === 0) {
-			console.warn('Invalid questions from AI, using fallback');
-			questions = FALLBACK_QUESTIONS;
-		}
-
-		// Create interview record
-		const result = await pool.query(
-			`INSERT INTO interviews (user_id, job_id, interview_type, questions, status)
-       VALUES ($1, $2, $3, $4, 'in_progress')
-       RETURNING *`,
-			[req.user.id, job_id, interview_type, JSON.stringify(questions)],
-		);
-
-		// Track mock interview start
-		try {
-			await pool.query('INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)', [
-				'mock_interview_start',
-				req.user.id,
-				JSON.stringify({ interview_type, job_id }),
-			]);
-		} catch (e) {
-			console.error('Failed to log interview start event:', e);
-		}
-
-		res.json({
-			success: true,
-			interview: result.rows[0],
-			questions: questions.map((q, i) => ({
-				index: i,
-				question: q.question,
-				category: q.category,
-				difficulty: q.difficulty,
-			})),
-		});
-	} catch (err) {
-		console.error('Start interview error:', err);
-		if (err.allProvidersFailed) {
-			return handleAIError(res, err, 'Interview question generation');
-		}
-		res.status(500).json({ error: 'Failed to start interview' });
-	}
+// S-074 (#751): RETIRED — legacy write endpoint. Returns 410 Gone + logs the hit
+// for one sprint. Reads on this router are unaffected. See #742 (resolved by deprecation).
+router.post('/start', authMiddleware, (req, res) => {
+	console.warn(
+		`[S-074 retired-hit] ${req.method} ${req.originalUrl} at ${new Date().toISOString()} ` +
+			`ip=${req.ip} ua=${req.get('user-agent') || 'unknown'}`,
+	);
+	return res.status(410).json({
+		error: 'This endpoint has been retired. Legacy interview write operations are no longer supported.',
+		code: 'ENDPOINT_RETIRED',
+	});
 });
 
 // Submit response to a question
-router.post('/:id/respond', authMiddleware, async (req, res) => {
-	try {
-		// S-069 (#722, crypto H1): video_key is NEVER accepted from the client —
-		// the upload route persists it server-side. A client-provided key
-		// would enable same-candidate answer replay across questions.
-		const { question_index, response_text, video_url } = req.body;
-
-		// Get interview
-		const interview = await pool.query('SELECT * FROM interviews WHERE id = $1 AND user_id = $2', [
-			req.params.id,
-			req.user.id,
-		]);
-
-		if (interview.rows.length === 0) {
-			return res.status(404).json({ error: 'Interview not found' });
-		}
-
-		const interviewData = interview.rows[0];
-		const questions = interviewData.questions;
-		const question = questions[question_index];
-
-		if (!question) {
-			return res.status(400).json({ error: 'Invalid question index' });
-		}
-
-		// Analyze response with AI
-		const analysis = await analyzeInterviewResponse(
-			question.question,
-			response_text,
-			question.key_points || [],
-			{ subscriptionId: req.user.stripe_subscription_id },
-		);
-
-		// Update responses array
-		const responses = interviewData.responses || [];
-		// Preserve the server-side video_key (set by /upload-video); merge,
-		// don't overwrite — the client never provides it (crypto H1).
-		const priorEntry = responses[question_index] || {};
-		responses[question_index] = {
-			question_index,
-			response_text,
-			video_url,
-			...(priorEntry.video_key ? { video_key: priorEntry.video_key } : {}),
-			analysis,
-			submitted_at: new Date().toISOString(),
-		};
-
-		// Update video URLs if provided
-		const videoUrls = interviewData.video_urls || [];
-		if (video_url) {
-			videoUrls[question_index] = video_url;
-		}
-
-		// Update responses - use updated_at if column exists, fallback gracefully
-		try {
-			await pool.query(
-				`UPDATE interviews SET responses = $1, video_urls = $2, updated_at = NOW()
-         WHERE id = $3`,
-				[JSON.stringify(responses), JSON.stringify(videoUrls), req.params.id],
-			);
-		} catch (updateErr) {
-			// Fallback if updated_at column doesn't exist yet (pre-migration)
-			if (updateErr.message?.includes('updated_at')) {
-				console.warn('updated_at column missing, updating without it');
-				await pool.query(
-					`UPDATE interviews SET responses = $1, video_urls = $2
-           WHERE id = $3`,
-					[JSON.stringify(responses), JSON.stringify(videoUrls), req.params.id],
-				);
-			} else {
-				throw updateErr;
-			}
-		}
-
-		res.json({
-			success: true,
-			analysis,
-			questions_remaining: questions.length - responses.filter((r) => r).length,
-		});
-	} catch (err) {
-		console.error('Submit response error:', err);
-		res.status(500).json({ error: 'Failed to submit response' });
-	}
+// S-074 (#751): RETIRED — legacy write endpoint. Returns 410 Gone + logs the hit
+// for one sprint. Reads on this router are unaffected. See #742 (resolved by deprecation).
+router.post('/:id/respond', authMiddleware, (req, res) => {
+	console.warn(
+		`[S-074 retired-hit] ${req.method} ${req.originalUrl} at ${new Date().toISOString()} ` +
+			`ip=${req.ip} ua=${req.get('user-agent') || 'unknown'}`,
+	);
+	return res.status(410).json({
+		error: 'This endpoint has been retired. Legacy interview write operations are no longer supported.',
+		code: 'ENDPOINT_RETIRED',
+	});
 });
 
 // Complete interview and get overall feedback
-router.post('/:id/complete', authMiddleware, async (req, res) => {
-	try {
-		const interview = await pool.query('SELECT * FROM interviews WHERE id = $1 AND user_id = $2', [
-			req.params.id,
-			req.user.id,
-		]);
-
-		if (interview.rows.length === 0) {
-			return res.status(404).json({ error: 'Interview not found' });
-		}
-
-		const interviewData = interview.rows[0];
-		const responses = interviewData.responses || [];
-		const validResponses = responses.filter((r) => r?.analysis);
-
-		if (validResponses.length === 0) {
-			return res.status(400).json({ error: 'No responses to evaluate' });
-		}
-
-		// Generate overall feedback
-		const overallFeedback = await generateOverallFeedback(
-			validResponses.map((r) => r.analysis),
-			{ subscriptionId: req.user.stripe_subscription_id },
-		);
-
-		// Audit log: AI explanation generated for interview feedback
-		await AuditLogger.log({
-			actionType: 'ai_explanation_generated',
-			userId: req.user.id,
-			targetType: 'interview',
-			targetId: req.params.id,
-			metadata: {
-				interview_id: req.params.id,
-				overall_score: overallFeedback.overall_score,
-				model_version: 'interview-feedback-v1',
-				explanation_type: 'interview_feedback',
-				confidence: overallFeedback.overall_score / 100,
-				response_count: validResponses.length,
-			},
-			req,
-		});
-
-		// Calculate duration
-		const startTime = new Date(interviewData.created_at);
-		const duration = Math.floor((Date.now() - startTime.getTime()) / 1000);
-
-		// Update interview record
-		await pool.query(
-			`UPDATE interviews SET
-        status = 'completed',
-        ai_feedback = $1,
-        overall_score = $2,
-        duration_seconds = $3,
-        completed_at = NOW()
-       WHERE id = $4`,
-			[JSON.stringify(overallFeedback), overallFeedback.overall_score, duration, req.params.id],
-		);
-
-		// Update OmniScore with interview results
-		let omniscoreUpdate = null;
-		try {
-			omniscoreUpdate = await omniscoreService.addInterviewComponent(
-				req.user.id,
-				req.params.id,
-				overallFeedback.overall_score,
-			);
-
-			// Update role-specific score if job title is available
-			if (interviewData.job_id) {
-				const job = await pool.query('SELECT title FROM jobs WHERE id = $1', [
-					interviewData.job_id,
-				]);
-				if (job.rows.length > 0) {
-					await omniscoreService.updateRoleScore(
-						req.user.id,
-						job.rows[0].title,
-						overallFeedback.overall_score,
-					);
-				}
-			}
-		} catch (scoreErr) {
-			console.error('OmniScore update error:', scoreErr);
-			// Don't fail the request if OmniScore update fails
-		}
-
-		res.json({
-			success: true,
-			overall_feedback: overallFeedback,
-			duration_seconds: duration,
-			response_count: validResponses.length,
-			omniscore: omniscoreUpdate,
-		});
-	} catch (err) {
-		console.error('Complete interview error:', err);
-		res.status(500).json({ error: 'Failed to complete interview' });
-	}
+// S-074 (#751): RETIRED — legacy write endpoint. Returns 410 Gone + logs the hit
+// for one sprint. Reads on this router are unaffected. See #742 (resolved by deprecation).
+router.post('/:id/complete', authMiddleware, (req, res) => {
+	console.warn(
+		`[S-074 retired-hit] ${req.method} ${req.originalUrl} at ${new Date().toISOString()} ` +
+			`ip=${req.ip} ua=${req.get('user-agent') || 'unknown'}`,
+	);
+	return res.status(410).json({
+		error: 'This endpoint has been retired. Legacy interview write operations are no longer supported.',
+		code: 'ENDPOINT_RETIRED',
+	});
 });
 
 // Get interview history
@@ -474,72 +268,18 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
 // Upload video for interview response
 // AI video analysis - RATE LIMITED
-router.post(
-	'/upload-video',
-	authMiddleware,
-	rateLimits.ai,
-	upload.single('video'),
-	async (req, res) => {
-		try {
-			if (!req.file) {
-				return res.status(400).json({ error: 'No video file provided' });
-			}
-
-			const { interview_id, question_index } = req.body;
-
-			if (!interview_id || question_index === undefined) {
-				return res.status(400).json({ error: 'Missing interview_id or question_index' });
-			}
-
-			// Verify interview belongs to user
-			const interview = await pool.query(
-				'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
-				[interview_id, req.user.id],
-			);
-
-			if (interview.rows.length === 0) {
-				return res.status(404).json({ error: 'Interview not found' });
-			}
-
-			// S-069 (#722): encrypt with the candidate's DEK BEFORE storage.
-			// Fail-closed: any crypto/storage failure → 500, plaintext never written.
-			let videoUrl;
-			try {
-				const { key: videoKey } = await uploadEncryptedRecording({
-					buffer: req.file.buffer,
-					candidateId: req.user.id,
-					interviewId: interview_id,
-					questionIndex: question_index,
-				});
-				// Crypto H1: persist the storage key server-side — the client
-				// never sees it, so /respond cannot be abused to replay one
-				// question's recording as another's.
-				const qi = parseInt(question_index, 10);
-				const existing = interview.rows[0].responses || [];
-				const merged = Array.isArray(existing) ? [...existing] : [];
-				merged[qi] = { ...(merged[qi] || {}), question_index: qi, video_key: videoKey };
-				await pool.query('UPDATE interviews SET responses = $1 WHERE id = $2', [
-					JSON.stringify(merged),
-					interview_id,
-				]);
-				// Session-auth decrypt-proxy URL (AC-2) — playback goes through
-				// the ownership-checked proxy below, which decrypts server-side.
-				videoUrl = `/api/interviews/video-playback/${interview_id}/${question_index}`;
-			} catch (uploadErr) {
-				console.error('Encrypted recording upload error:', uploadErr.code, uploadErr.message);
-				return res.status(500).json({ error: 'Failed to upload video' });
-			}
-
-			res.json({
-				success: true,
-				video_url: videoUrl,
-			});
-		} catch (err) {
-			console.error('Upload video error:', err);
-			res.status(500).json({ error: 'Failed to upload video' });
-		}
-	},
-);
+// S-074 (#751): RETIRED — legacy write endpoint. Returns 410 Gone + logs the hit
+// for one sprint. Reads on this router are unaffected. See #742 (resolved by deprecation).
+router.post('/upload-video', authMiddleware, (req, res) => {
+	console.warn(
+		`[S-074 retired-hit] ${req.method} ${req.originalUrl} at ${new Date().toISOString()} ` +
+			`ip=${req.ip} ua=${req.get('user-agent') || 'unknown'}`,
+	);
+	return res.status(410).json({
+		error: 'This endpoint has been retired. Legacy interview write operations are no longer supported.',
+		code: 'ENDPOINT_RETIRED',
+	});
+});
 
 // Get stats for dashboard
 router.get('/stats/summary', authMiddleware, async (req, res) => {
@@ -582,78 +322,17 @@ router.get('/stats/summary', authMiddleware, async (req, res) => {
 // =============== VIDEO ANALYSIS ===============
 
 // Save video analysis data
-router.post('/save-analysis', authMiddleware, async (req, res) => {
-	try {
-		const { interview_id, question_index, analysis_data, scores } = req.body;
-
-		// Verify interview belongs to user
-		const interview = await pool.query('SELECT * FROM interviews WHERE id = $1 AND user_id = $2', [
-			interview_id,
-			req.user.id,
-		]);
-
-		if (interview.rows.length === 0) {
-			return res.status(404).json({ error: 'Interview not found' });
-		}
-
-		// Insert or update analysis
-		await pool.query(
-			`INSERT INTO interview_analysis (
-        interview_id, question_index, analysis_data,
-        eye_contact_score, expression_score, body_language_score,
-        voice_score, presentation_score
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      ON CONFLICT (interview_id, question_index)
-      DO UPDATE SET
-        analysis_data = $3,
-        eye_contact_score = $4,
-        expression_score = $5,
-        body_language_score = $6,
-        voice_score = $7,
-        presentation_score = $8`,
-			[
-				interview_id,
-				question_index,
-				JSON.stringify(analysis_data),
-				scores.eyeContact || 0,
-				scores.expression || 0,
-				scores.bodyLanguage || 0,
-				scores.voice || 0,
-				scores.presentation || 0,
-			],
-		);
-
-		// Audit log: AI interview analysis
-		await AuditLogger.log({
-			actionType: 'interview_analysis',
-			userId: req.user.id,
-			targetType: 'interview',
-			targetId: interview_id,
-			metadata: {
-				question_index: question_index,
-				eye_contact_score: scores.eyeContact || 0,
-				expression_score: scores.expression || 0,
-				body_language_score: scores.bodyLanguage || 0,
-				voice_score: scores.voice || 0,
-				presentation_score: scores.presentation || 0,
-				model_version: 'video-analysis-v1',
-				confidence:
-					(scores.eyeContact ||
-						0 + scores.expression ||
-						0 + scores.bodyLanguage ||
-						0 + scores.voice ||
-						0 + scores.presentation ||
-						0) / 500,
-			},
-			req,
-		});
-
-		res.json({ success: true });
-	} catch (err) {
-		console.error('Save analysis error:', err);
-		res.status(500).json({ error: 'Failed to save analysis' });
-	}
+// S-074 (#751): RETIRED — legacy write endpoint. Returns 410 Gone + logs the hit
+// for one sprint. Reads on this router are unaffected. See #742 (resolved by deprecation).
+router.post('/save-analysis', authMiddleware, (req, res) => {
+	console.warn(
+		`[S-074 retired-hit] ${req.method} ${req.originalUrl} at ${new Date().toISOString()} ` +
+			`ip=${req.ip} ua=${req.get('user-agent') || 'unknown'}`,
+	);
+	return res.status(410).json({
+		error: 'This endpoint has been retired. Legacy interview write operations are no longer supported.',
+		code: 'ENDPOINT_RETIRED',
+	});
 });
 
 // Get video analysis for an interview
