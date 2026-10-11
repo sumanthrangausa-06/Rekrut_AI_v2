@@ -84,106 +84,11 @@ function makeApp() {
 	return app;
 }
 
-describe('S-069 video upload encryption', () => {
-	beforeEach(() => {
-		jest.clearAllMocks();
-	});
+// S-074 (#751): the 3 tests below were removed — POST /upload-video and
+// POST /:id/respond now return 410 Gone (legacy write endpoints retired).
+// Retirement behavior is covered in interviews-legacy-retirement.test.js.
+// The video-playback decrypt-proxy tests below are unaffected (read path preserved).
 
-	test('upload encrypts before storage, persists key server-side, returns proxy URL only (AC-1, crypto H1/M3)', async () => {
-		const app = makeApp();
-		db.query
-			.mockResolvedValueOnce({ rows: [{ id: 7, user_id: 42, responses: [] }] }) // interview lookup
-			.mockResolvedValueOnce({}); // server-side video_key persist
-		recordingStore.uploadEncryptedRecording.mockResolvedValueOnce({
-			key: 'r2/interviews/1-abc-interview-7-q0.webm.enc',
-		});
-
-		const res = await request(app)
-			.post('/api/interviews/upload-video')
-			.set('x-test-user-id', '42')
-			.field('interview_id', '7')
-			.field('question_index', '0')
-			.attach('video', Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x00, 0x01]), {
-				filename: 'recording.webm',
-				contentType: 'video/webm',
-			});
-
-		expect(res.status).toBe(200);
-		expect(res.body.success).toBe(true);
-		// Proxy URL, NOT a raw /api/files/... URL (AC-2: no direct ciphertext/plaintext path)
-		expect(res.body.video_url).toBe('/api/interviews/video-playback/7/0');
-		// Crypto M3: the raw storage key is NEVER exposed to the client
-		expect(res.body.video_key).toBeUndefined();
-		// Encryption called with the candidate's id (fail-closed ownership)
-		expect(recordingStore.uploadEncryptedRecording).toHaveBeenCalledWith(
-			expect.objectContaining({ candidateId: 42, interviewId: '7', questionIndex: '0' }),
-		);
-		// Crypto H1: video_key persisted server-side via UPDATE
-		const updateCall = db.query.mock.calls.find((c) =>
-			String(c[0]).includes('UPDATE interviews SET responses'),
-		);
-		expect(updateCall).toBeDefined();
-		const storedResponses = JSON.parse(updateCall[1][0]);
-		expect(storedResponses[0].video_key).toBe('r2/interviews/1-abc-interview-7-q0.webm.enc');
-	});
-
-	test('upload fails closed when encryption fails — no video_url returned', async () => {
-		const app = makeApp();
-		db.query.mockResolvedValueOnce({ rows: [{ id: 7, user_id: 42 }] });
-		recordingStore.uploadEncryptedRecording.mockRejectedValueOnce(
-			Object.assign(new Error('DEK destroyed'), { code: 'DEK_DESTROYED' }),
-		);
-
-		const res = await request(app)
-			.post('/api/interviews/upload-video')
-			.set('x-test-user-id', '42')
-			.field('interview_id', '7')
-			.field('question_index', '0')
-			.attach('video', Buffer.from([0x1a, 0x45]), {
-				filename: 'recording.webm',
-				contentType: 'video/webm',
-			});
-
-		expect(res.status).toBe(500);
-		expect(res.body.video_url).toBeUndefined();
-	});
-
-	test('respond ignores client video_key but preserves the server-side one (crypto H1)', async () => {
-		const app = makeApp();
-		const interview = {
-			id: 7,
-			user_id: 42,
-			questions: [{ question: 'Q?', key_points: [] }],
-			// Server-side video_key from a prior /upload-video (crypto H1)
-			responses: [{ question_index: 0, video_key: 'r2/interviews/real-key.webm.enc' }],
-			video_urls: [],
-		};
-		db.query
-			.mockResolvedValueOnce({ rows: [interview] }) // interview lookup
-			.mockResolvedValueOnce({}); // UPDATE
-		const polsia = require('../../../lib/polsia-ai');
-		polsia.analyzeInterviewResponse.mockResolvedValueOnce({ score: 8 });
-
-		const res = await request(app)
-			.post('/api/interviews/7/respond')
-			.set('x-test-user-id', '42')
-			.send({
-				question_index: 0,
-				response_text: 'My answer',
-				video_url: '/api/interviews/video-playback/7/0',
-				// Attacker tries to swap in Q1's key as Q0's
-				video_key: 'r2/interviews/attacker-key.webm.enc',
-			});
-
-		expect(res.status).toBe(200);
-		const updateCall = db.query.mock.calls.find((c) => String(c[0]).includes('UPDATE interviews'));
-		expect(updateCall).toBeDefined();
-		const storedResponses = JSON.parse(updateCall[1][0]);
-		// Client key ignored; server-side key preserved
-		expect(storedResponses[0].video_key).toBe('r2/interviews/real-key.webm.enc');
-		expect(storedResponses[0].video_url).toBe('/api/interviews/video-playback/7/0');
-	});
-});
 
 describe('S-069 video-playback decrypt-proxy (AC-2)', () => {
 	beforeEach(() => {
