@@ -34,6 +34,7 @@ jest.mock('../../../lib/db', () => ({
 }));
 jest.mock('../../../lib/erasureService', () => ({
 	erasePersonalData: jest.fn(),
+	deleteErasedStorageFiles: jest.fn().mockResolvedValue({ deleted: 0, failed: 0, failures: [] }),
 }));
 jest.mock('../../../services/auditLogService', () => ({
 	AuditLogger: { log: jest.fn() },

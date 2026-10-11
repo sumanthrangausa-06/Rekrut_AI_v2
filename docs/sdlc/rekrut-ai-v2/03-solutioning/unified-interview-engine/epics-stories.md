@@ -639,7 +639,7 @@ E-009 (Metering, Billing & Admin) ── parallel from mid-plan (needs E-001 met
 - [x] AC-2: DSAR erasure request → `destroyDEK` called as part of the erasure workflow (shared `erasureService`).
 - [x] AC-3: Every DEK destruction writes an audit log entry (who/when/why).
 
-**Technical Notes:** `lib/erasureService.js` — shared `erasePersonalData()` routine (renamed from `eraseBiometricData()` in S-075); called in-transaction from `DELETE /delete-account`; `DEKNotFound` → skip cleanly. S-075: also hard-deletes the `candidate_embeddings` row (GDPR Art. 17). Follow-ups: #746 (fulfillment endpoint), #745 (embeddings scope — resolved by S-075).
+**Technical Notes:** `lib/erasureService.js` — shared `erasePersonalData()` routine (renamed from `eraseBiometricData()` in S-075); called in-transaction from `DELETE /delete-account`; `DEKNotFound` → skip cleanly. S-075: also hard-deletes the `candidate_embeddings` row (GDPR Art. 17). S-076 (#759): hard-deletes the resume/profile family (cv_uploads, parsed_resumes, candidate_profiles, identity_verifications, cv_analyses, cv_reviews) + two-phase R2/B2 storage deletion via `deleteFile()`. Follow-ups: #746 (fulfillment endpoint), #745 (embeddings scope — resolved by S-075).
 
 **Dependencies:** Requires: S-058.
 
