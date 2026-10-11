@@ -100,6 +100,46 @@ export function ConsentScreensPage() {
 	const [loading, setLoading] = useState(true);
 	const [declineState, setDeclineState] = useState<DeclineState>(null);
 	const [decisions, setDecisions] = useState<Partial<Record<ConsentType, boolean>>>({});
+	// S-060 (#710): human-interview request lifecycle. idle → sending → sent | error.
+	const [hiRequestState, setHiRequestState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+	const [hiRequestError, setHiRequestError] = useState<string | null>(null);
+
+	/**
+	 * S-060 (#710): Submit the human-interview request to the S-012 backend.
+	 * 201 → sent. 409 REQUEST_ALREADY_EXISTS → treated as sent (idempotent UX:
+	 * the candidate already has a pending request; showing an error would be
+	 * confusing). Anything else → error with retry.
+	 */
+	const requestHumanInterview = useCallback(async () => {
+		if (!sessionId) {
+			setHiRequestError('We could not find your interview session. Please reopen the link from your invitation.');
+			setHiRequestState('error');
+			return;
+		}
+		setHiRequestState('sending');
+		setHiRequestError(null);
+		trackEvent('consent_human_interview_requested');
+		try {
+			const res = await fetch(`/api/interviews/sessions/${sessionId}/request-human-interview`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+			});
+			if (res.ok) {
+				setHiRequestState('sent');
+				return;
+			}
+			const body = (await res.json().catch(() => null)) as { code?: string } | null;
+			if (res.status === 409 && body?.code === 'REQUEST_ALREADY_EXISTS') {
+				// Idempotent: a request is already pending — show the confirmation.
+				setHiRequestState('sent');
+				return;
+			}
+			throw new Error(body?.code ?? `HTTP ${res.status}`);
+		} catch {
+			setHiRequestError('Something went wrong sending your request. Please try again.');
+			setHiRequestState('error');
+		}
+	}, [sessionId]);
 
 	// Fetch all three consent texts up front (versioned, server-side resolved).
 	useEffect(() => {
@@ -205,6 +245,40 @@ export function ConsentScreensPage() {
 	}
 
 	if (declineState === 'biometric_offer') {
+		// S-060 (#710): after the request is sent, replace the offer with a
+		// confirmation — the candidate's next step is to wait for the recruiter.
+		if (hiRequestState === 'sent') {
+			return (
+				<div className="min-h-dvh-safe bg-background">
+					<SEO
+						title="Request Sent | Rekrut AI"
+						description="Your human interview request has been sent."
+						canonical="/interview/consent"
+						noindex={true}
+					/>
+					<Header locale={locale} onLocaleChange={setLocale} />
+					<main className="mx-auto max-w-3xl px-4 py-12">
+						<Card>
+							<CardContent className="flex flex-col items-center gap-4 p-8 text-center">
+								<CheckCircle2 className="h-12 w-12 text-primary" />
+								<h1 className="font-heading text-2xl font-bold">Request sent</h1>
+								<p className="text-muted-foreground">
+									Your request for a human-led interview has been sent. The recruiter will
+									review it and decide whether to schedule a human-led interview. If approved,
+									the interview will be conducted by a human, with no AI biometric analysis
+									applied.
+								</p>
+								<p className="text-muted-foreground">
+									You don&apos;t need to do anything further — you can close this page. The
+									recruiter will follow up through your interview invitation if a human-led
+									interview is scheduled.
+								</p>
+							</CardContent>
+						</Card>
+					</main>
+				</div>
+			);
+		}
 		return (
 			<div className="min-h-dvh-safe bg-background">
 				<SEO
@@ -220,26 +294,33 @@ export function ConsentScreensPage() {
 							<CheckCircle2 className="h-12 w-12 text-primary" />
 							<h1 className="font-heading text-2xl font-bold">Human interview available</h1>
 							<p className="text-muted-foreground">
-								You declined biometric analysis. That&apos;s completely fine — it will not affect
-								your candidacy. You can request a human-led interview instead, where a recruiter
+								You declined biometric analysis. That&apos;s completely fine — your decision is
+								respected. You can request a human-led interview instead, where a recruiter
 								conducts the session without AI biometric analysis.
 							</p>
+							{hiRequestState === 'error' && hiRequestError && (
+								<p role="alert" className="text-sm text-destructive">
+									{hiRequestError}
+								</p>
+							)}
 							<div className="flex flex-col gap-2 sm:flex-row">
 								<Button
-									onClick={() => {
-										trackEvent('consent_human_interview_requested');
-										setStep('id_verification');
-										setDeclineState(null);
-									}}
+									onClick={requestHumanInterview}
+									disabled={hiRequestState === 'sending'}
+									className="gap-2"
 								>
-									Request human interview
+									{hiRequestState === 'sending'
+										? 'Sending request…'
+										: hiRequestState === 'error'
+											? 'Try again'
+											: 'Request human interview'}
 								</Button>
 								<Button variant="outline" onClick={() => setDeclineState(null)} className="gap-2">
 									<ArrowLeft className="h-4 w-4" /> Go back and review
 								</Button>
 							</div>
 							<p className="text-xs text-muted-foreground">
-								A recruiter will be notified of your request. (Full approval flow: S-012.)
+								A recruiter will be notified of your request.
 							</p>
 						</CardContent>
 					</Card>
