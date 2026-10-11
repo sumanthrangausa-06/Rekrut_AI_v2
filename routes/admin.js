@@ -2036,6 +2036,134 @@ router.get('/compliance/data-requests', requireAdmin, async (req, res) => {
 	}
 });
 
+// POST /api/admin/compliance/data-requests/:id/fulfill — fulfill a pending DSAR
+// deletion request (#746). Calls the shared erasureService.erasePersonalData()
+// (S-067/S-075) inside a transaction so admin fulfillment shreds identically to
+// self-serve account deletion. Terminal status is 'completed' (matches the
+// chk_data_requests_status constraint; export requests are fulfilled
+// synchronously at creation and are rejected here by the type gate).
+router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, res) => {
+	try {
+		const id = parseInt(req.params.id, 10);
+		if (!Number.isInteger(id) || id <= 0) {
+			return res.status(400).json({ error: 'Invalid request id' });
+		}
+
+		const found = await pool.query(
+			`SELECT dr.*, u.company_id
+       FROM data_requests dr
+       LEFT JOIN users u ON u.id = dr.user_id
+       WHERE dr.id = $1`,
+			[id],
+		);
+		if (found.rows.length === 0) {
+			return res.status(404).json({ error: 'Data request not found' });
+		}
+		const dr = found.rows[0];
+
+		// Type gate: only deletion requests go through erasure fulfillment.
+		if (dr.request_type !== 'deletion') {
+			return res.status(400).json({
+				error: `Cannot fulfill request of type '${dr.request_type}' via this endpoint`,
+			});
+		}
+
+		// Status gate: idempotent on completed, conflict on rejected.
+		if (dr.status === 'completed') {
+			return res.json({
+				success: true,
+				alreadyProcessed: true,
+				status: dr.status,
+				requestId: id,
+			});
+		}
+		if (dr.status === 'rejected') {
+			return res.status(409).json({ error: 'Request was rejected and cannot be fulfilled' });
+		}
+
+		const client = await pool.connect();
+		try {
+			await client.query('BEGIN');
+
+			// NULL user_id: the users row was hard-deleted out-of-band. The app
+			// itself never hard-deletes users (DELETE /delete-account soft-deletes
+			// and calls erasePersonalData itself), so this state is unreachable
+			// through any app path — treat it as an anomaly, not a normal case.
+			// candidate_data_keys has NO FK to users (migrations/246), so a manual
+			// hard delete would leave the DEK row (and recoverable ciphertext)
+			// behind — flag it loudly rather than claiming "nothing left".
+			let erasure = null;
+			if (dr.user_id != null) {
+				const { erasePersonalData } = require('../lib/erasureService');
+				erasure = await erasePersonalData(dr.user_id, {
+					client,
+					audit: {
+						userId: dr.user_id,
+						userRole: 'candidate',
+						ipAddress: req.ip,
+						companyId: dr.company_id,
+					},
+				});
+			} else {
+				console.warn(
+					`[ALERT][admin/compliance/data-requests/fulfill] data_request ${id} has NULL user_id — ` +
+						`users row hard-deleted out-of-band; DEK-store cleanup unverified for this path.`,
+				);
+			}
+
+			const note =
+				dr.user_id == null
+					? 'Fulfilled with anomaly: user row hard-deleted out-of-band (app never hard-deletes users); DEK-store cleanup unverified — manual review advised'
+					: `Fulfilled by admin: DEK shredded=${erasure.shredded}, embeddings=${erasure.embeddingsDeleted}, searchIndex=${erasure.searchIndexDeleted}`;
+			const notes = dr.notes ? `${dr.notes}\n${note}` : note;
+
+			await client.query(
+				`UPDATE data_requests
+         SET status = 'completed', processed_at = NOW(), processed_by = $1, notes = $2
+         WHERE id = $3`,
+				[req.user?.id || null, notes, id],
+			);
+
+			// Audit the fulfillment atomically inside the transaction (same
+			// audit_logs schema as AuditLogger.log). If this INSERT fails the
+			// whole tx rolls back — fail-closed: better to retry than to erase
+			// without an audit trail (Q2-1).
+			// fulfilledBy: session admins have no req.user; record the bridge
+			// identity (or panel session) so a regulator can see WHO executed
+			// this erasure (Q2-2).
+			await client.query(
+				`INSERT INTO audit_logs (action_type, user_id, target_type, target_id, metadata, ip_address, user_agent)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+				[
+					'gdpr_deletion_fulfilled',
+					req.user?.id || null,
+					'data_request',
+					id,
+					JSON.stringify({
+						target_user_id: dr.user_id,
+						erasure,
+						fulfilledBy: req.session?.adminBridgedFrom || 'admin-panel-session',
+					}),
+					req.ip || null,
+					req.get('user-agent') || null,
+				],
+			);
+
+			await client.query('COMMIT');
+
+			res.json({ success: true, requestId: id, status: 'completed', erasure });
+		} catch (txErr) {
+			await client.query('ROLLBACK');
+			throw txErr;
+		} finally {
+			client.release();
+		}
+	} catch (error) {
+		console.error('[admin/compliance/data-requests/fulfill] Error:', error.message);
+		res.status(500).json({ error: 'Failed to fulfill data request' });
+	}
+});
+
 // GET /api/admin/compliance/retention-policies — list all data retention policies
 router.get('/compliance/retention-policies', requireAdmin, async (_req, res) => {
 	try {
