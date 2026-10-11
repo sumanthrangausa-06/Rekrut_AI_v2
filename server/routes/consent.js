@@ -17,6 +17,8 @@ const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const { authMiddleware } = require('../../lib/auth');
 const consentService = require('../../lib/consentService');
+const db = require('../../lib/db');
+const livekitService = require('../services/livekit');
 
 const router = express.Router();
 
@@ -32,6 +34,39 @@ function handleValidationErrors(req, res, next) {
 		});
 	}
 	next();
+}
+
+/**
+ * S-070 (H-1): biometric withdrawal must terminate any active observer.
+ * Continued biometric processing after consent withdrawal is a BIPA/GDPR
+ * Art. 7(3) violation pattern — the observer agent must stop receiving
+ * the candidate's audio/video streams immediately.
+ *
+ * Best-effort: teardown failures are logged but never fail the withdrawal
+ * itself. The observer_enabled flag flip is the source of truth.
+ *
+ * @param {number} sessionId
+ * @returns {Promise<{ terminated: boolean }>}
+ */
+async function terminateObserverOnBiometricWithdraw(sessionId) {
+	const { rows } = await db.query('SELECT config FROM interview_sessions WHERE id = $1', [
+		sessionId,
+	]);
+	if (!rows[0]?.config?.observer_enabled) {
+		return { terminated: false };
+	}
+
+	try {
+		await livekitService.disconnectVoiceAgent(sessionId, 'observer');
+	} catch (err) {
+		console.error('[consent] observer disconnect on biometric withdraw failed:', err.message);
+	}
+
+	await db.query(
+		`UPDATE interview_sessions SET config = config || '{"observer_enabled": false}'::jsonb WHERE id = $1`,
+		[sessionId],
+	);
+	return { terminated: true };
 }
 
 // --- GET /api/consent/texts/:type — current consent text (public, no auth) ---
@@ -108,6 +143,15 @@ router.post(
 				type: req.body.type,
 				reason: req.body.reason,
 			});
+			// S-070 (H-1): biometric withdrawal terminates any active observer.
+			// Best-effort — teardown failure must not fail the withdrawal.
+			if (req.body.type === 'biometric' && !result.alreadyWithdrawn) {
+				try {
+					await terminateObserverOnBiometricWithdraw(req.body.sessionId);
+				} catch (err) {
+					console.error('[consent] observer teardown on withdraw failed:', err.message);
+				}
+			}
 			res.json({ withdrawn: true, alreadyWithdrawn: !!result.alreadyWithdrawn });
 		} catch (err) {
 			res.status(400).json({ error: err.message });

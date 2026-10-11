@@ -255,6 +255,51 @@ describe('POST /interview-sessions/:id/observer/enable', () => {
 	});
 });
 
+describe('POST /interview-sessions/:id/observer/enable — biometric consent gate (S-070, #724)', () => {
+	test('biometric_collection: false → 403 BIOMETRIC_CONSENT_DECLINED, agent never dispatched (AC-1, AC-2, AC-4)', async () => {
+		const s = seedSession({ config: { biometric_collection: false } });
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
+
+		expect(res.status).toBe(403);
+		expect(res.body.code).toBe('BIOMETRIC_CONSENT_DECLINED');
+		expect(typeof res.body.error).toBe('string');
+		expect(res.body.error).toMatch(/declined/i);
+		expect(mockDispatchVoiceAgent).not.toHaveBeenCalled();
+		expect(mockSessions.get(s.id).config.observer_enabled).not.toBe(true);
+	});
+
+	test('biometric decline blocks even with active recording consent (gate is independent)', async () => {
+		const s = seedSession({ config: { biometric_collection: false } });
+		mockHasActiveConsent.mockResolvedValue(true);
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
+
+		expect(res.status).toBe(403);
+		expect(res.body.code).toBe('BIOMETRIC_CONSENT_DECLINED');
+		expect(mockDispatchVoiceAgent).not.toHaveBeenCalled();
+	});
+
+	test('biometric_collection: true → observer enables normally (AC-3)', async () => {
+		const s = seedSession({ config: { biometric_collection: true } });
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(res.body.observer_enabled).toBe(true);
+		expect(mockDispatchVoiceAgent).toHaveBeenCalledWith(s.id, 'observer');
+	});
+
+	test('biometric_collection unset → observer enables normally (AC-3)', async () => {
+		const s = seedSession({ config: {} });
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(mockDispatchVoiceAgent).toHaveBeenCalledWith(s.id, 'observer');
+	});
+});
+
 describe('POST /interview-sessions/:id/observer/report', () => {
 	test('runs extraction + analysis over the observer transcript and stores the report', async () => {
 		const transcript = [{ speaker: 'recruiter-1', text: 'Tell me about yourself.', at: 'x' }];

@@ -31,6 +31,7 @@ const crypto = require('node:crypto');
 const multer = require('multer');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
+const { canEnableObserver } = require('../lib/observerConsentGate');
 const { conductTurn } = require('../services/conversation-engine');
 const { generateScreeningReport } = require('../services/interview-ai');
 // Task 5 (#323): Track B observer — Q&A extraction + analysis over the muted
@@ -1037,6 +1038,15 @@ router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (re
 
 		if (session.config?.observer_enabled) {
 			return res.json({ success: true, observer_enabled: true, already_enabled: true });
+		}
+
+		// S-070 (#724): biometric decline gate (Option A, Sumanth decision
+		// 2026-10-10). The candidate's explicit biometric decline overrides
+		// the recruiter toggle — the observer must never receive streams
+		// for a declined-biometric session.
+		const gate = canEnableObserver(session);
+		if (!gate.allowed) {
+			return res.status(403).json({ error: gate.message, code: gate.code });
 		}
 
 		// Review Focus #5: subscription blocked without candidate consent —

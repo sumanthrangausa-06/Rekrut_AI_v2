@@ -20,6 +20,7 @@ const { authMiddleware } = require('../../lib/auth');
 const { requirePermission } = require('../../middleware/rbac');
 const { rateLimits } = require('../../lib/distributed-rate-limiter');
 const livekitService = require('../services/livekit');
+const { canEnableObserver } = require('../../lib/observerConsentGate');
 
 const router = express.Router();
 
@@ -371,6 +372,17 @@ router.post(
 			const isOwnCandidate = Number(user.id) === Number(session.candidate_id);
 			if (!isHiringTeamForSession(session, user) && !(isOwnCandidate && mode === 'interviewer')) {
 				return res.status(403).json({ error: 'Not authorized to dispatch the voice agent' });
+			}
+
+			// S-070 (#724): biometric decline gate (Option A, Sumanth decision
+			// 2026-10-10). Same policy as the observer/enable route — the
+			// observer must never receive streams for a declined-biometric
+			// session, regardless of entry point.
+			if (mode === 'observer') {
+				const gate = canEnableObserver(session);
+				if (!gate.allowed) {
+					return res.status(403).json({ error: gate.message, code: gate.code });
+				}
 			}
 
 			// Full-branch review C1 (#323): the AI interviewer must never be

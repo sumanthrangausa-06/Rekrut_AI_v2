@@ -528,6 +528,37 @@ describe('POST /api/livekit/session-rooms/:sessionId/dispatch', () => {
 		expect(res.status).toBe(200);
 		expect(res.body.dispatched).toBe(true);
 	});
+
+	test('S-070 (#724): observer dispatch blocked when biometric_collection is false (AC-4)', async () => {
+		sessions.get(10).config = { biometric_collection: false };
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({ mode: 'observer' });
+		expect(res.status).toBe(403);
+		expect(res.body.code).toBe('BIOMETRIC_CONSENT_DECLINED');
+		expect(mockAgentDispatchClient.createDispatch).not.toHaveBeenCalled();
+	});
+
+	test('S-070 (#724): interviewer dispatch unaffected by biometric decline', async () => {
+		sessions.get(10).config = { biometric_collection: false };
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({ mode: 'interviewer' });
+		expect(res.status).toBe(200);
+		expect(res.body.dispatched).toBe(true);
+	});
+
+	test('S-070 (#724): observer dispatch allowed when biometric_collection is unset (AC-3)', async () => {
+		sessions.get(10).config = {};
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({ mode: 'observer' });
+		expect(res.status).toBe(200);
+		expect(res.body.dispatched).toBe(true);
+	});
 });
 
 describe('GET /api/livekit/session-rooms/:sessionId/transcript', () => {
