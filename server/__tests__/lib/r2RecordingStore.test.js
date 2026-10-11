@@ -122,6 +122,8 @@ describe('r2RecordingStore', () => {
 
 			expect(uploaded.filename.endsWith('.enc')).toBe(true);
 			expect(uploaded.filename).not.toMatch(/\.webm$/);
+			// Privacy M-1: opaque — random hex only, no interview ID/question/content-type
+			expect(uploaded.filename).toMatch(/^recording-[0-9a-f]{16}\.enc$/);
 		});
 
 		test('fail-closed: missing candidateId throws, nothing uploaded', async () => {
