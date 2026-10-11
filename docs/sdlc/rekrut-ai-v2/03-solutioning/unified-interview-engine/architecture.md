@@ -305,10 +305,11 @@ The interview engine is a set of well-bounded modules inside the existing Rekrut
 - **Does NOT own:** Report generation (that's ReportService). Analysis (that's AnalysisService).
 - **Interface:** Polls `observer_jobs` table. `joinRoom(roomName)`, `observe()`, `flushAndExit()`.
 - **Tech:** `@livekit/agents`. Separate Node.js process (`workers/ai-observer/`).
-- **Lifecycle:** SessionService enqueues job → worker polls → joins room → writes raw observations to DB → exits on session end or SIGTERM (graceful: leave room + flush state). Checks `deletion_pending` flag before each flush (DSAR).
+- **Lifecycle:** SessionService enqueues job (only if recruiter toggle is ON AND `biometric_collection !== false`) → worker polls → joins room → writes raw observations to DB → exits on session end or SIGTERM (graceful: leave room + flush state). Checks `deletion_pending` flag before each flush (DSAR).
 - **Failure mode:** Queue overflow → explicit "unobserved" marking on session, not silent drop.
 - **Recruiter toggle (FR-82):** Observer joins only when the session's observer toggle is ON (default ON). Toggle OFF → no job enqueued, no report.
-- **Disclosure (FR-85):** Observer disclosed in general interview consent, not a standalone screen.
+- **Biometric consent gate (Option A — Sumanth decision 2026-10-10):** SessionService MUST check `interview_sessions.config.biometric_collection` before enqueuing an observer job. When `biometric_collection === false` (candidate declined biometric consent, e.g., the human-interview path from S-012), NO job is enqueued — the observer never joins the room and never receives the candidate's audio/video streams. Rationale: structural guarantee — the observer cannot process data it never receives (per Nova's engineering assessment 2026-10-10). The gate is evaluated at enqueue time alongside the recruiter toggle: observer joins ⟺ (toggle ON) ∧ (`biometric_collection !== false`). A declined candidate's consent is never overridden by the recruiter's toggle.
+- **Disclosure (FR-85):** Observer disclosed in general interview consent, not a standalone screen. ⚠️ KNOWN GAP (2026-10-10): the current FR-85 disclosure text ("may include AI-assisted analysis") is misleading when the candidate explicitly declined biometrics. Flagged for copy revision — Lead to create a story.
 
 #### 3.20 ConsentService (NEW in v3)
 - **Responsibility:** Consent lifecycle — receipts, versioning, withdrawal, re-consent. **Sole owner** of consent records.
@@ -423,7 +424,7 @@ graph TD
     end
 
     subgraph Worker["Separate Process"]
-        AOW[AI Observer Worker]
+        AOW[AI Observer Worker<br/>enqueue gate: toggle ON ∧ biometric_collection ≠ false]
         AOW -->|polls| SES
     end
 
