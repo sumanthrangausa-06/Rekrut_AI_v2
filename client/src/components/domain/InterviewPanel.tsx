@@ -128,7 +128,9 @@ export function InterviewPanel({ candidateId, applicationId, onViewReport }: Int
 		setStartingHuman(true);
 		setHumanMsg(null);
 		try {
-			await apiCall('/interviews/interview-sessions', {
+			// S-062 (#712): session creation migrated to the S-001 unified endpoint.
+			// (Old /interviews/interview-sessions stays for its other callers.)
+			await apiCall('/interviews/sessions', {
 				method: 'POST',
 				body: { type: 'human', candidate_id: candidateId, application_id: applicationId },
 			});
