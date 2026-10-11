@@ -387,7 +387,12 @@ router.post('/practice/submit-video', authMiddleware, async (req, res) => {
 				frames,
 				duration_seconds || 60,
 				keyPoints,
-				{ subscriptionId: req.user.stripe_subscription_id, audioData: audio_data || null },
+				{
+					subscriptionId: req.user.stripe_subscription_id,
+					audioData: audio_data || null,
+					// S-059 (#630): candidateId required for DEK-encrypted frame upload
+					candidateId: req.user.id,
+				},
 			),
 			new Promise((_, reject) =>
 				setTimeout(() => {

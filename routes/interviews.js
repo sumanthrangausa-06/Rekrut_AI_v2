@@ -1356,6 +1356,8 @@ router.post('/mock/:sessionId/end', authMiddleware, requireBiometricConsent('bio
 						module: 'mock_interview',
 						transcription: candidateText,
 						durationSeconds,
+						// S-059 (#630): candidateId required for DEK-encrypted frame upload
+						candidateId: bgUserId,
 					};
 					bgPromises.push(
 						analyzeVideoPresentation(frames, videoOptions).catch((e) => {
@@ -1993,9 +1995,10 @@ router.post('/mock/analyze-frame', authMiddleware, rateLimits.ai, requireBiometr
 			return res.status(400).json({ error: 'No frame provided' });
 		}
 
-		// Upload single frame to R2
+		// Upload single frame to R2 — S-059 (#630): encrypted with the
+		// candidate's DEK before upload; returns a decrypt-proxy URL.
 		const { uploadFrameToR2 } = require('../lib/polsia-ai');
-		const frameUrl = await uploadFrameToR2(frame, 0);
+		const frameUrl = await uploadFrameToR2(frame, 0, { candidateId: req.user.id });
 		if (!frameUrl) {
 			return res.json({ success: false, error: 'Frame upload failed' });
 		}
