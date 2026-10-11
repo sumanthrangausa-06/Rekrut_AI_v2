@@ -39,12 +39,34 @@ const ERROR_MESSAGES = {
 };
 
 /**
+ * QP-surface message variants (S-066 H-2/M-1). The default messages were
+ * written for interviews ("interview session", "is blocked"); in Quick
+ * Practice — a low-stakes, self-improvement context — they read as punitive
+ * and use the wrong noun. The practice variants are non-punitive and route
+ * to text mode, which remains fully available.
+ */
+const PRACTICE_MESSAGES = {
+	CONSENT_REQUIRED:
+		'Video analysis is optional for practice. To enable it, please review and accept the biometric consent. You can also continue with a text response — no video needed.',
+	CONSENT_WITHDRAWN:
+		'No problem — video analysis is now off for this practice session. You can still practice with a text response.',
+	CONSENT_SESSION_REQUIRED: 'A valid practice session is required for video analysis.',
+};
+
+/**
  * Build the consent-gate middleware for a consent type.
  *
- * @param {string} consentType - 'recording' | 'biometric' | 'id_verification'
+ * @param {string} consentType - 'recording' | 'biometric' | 'id_verification' | 'biometric_practice'
+ * @param {object} [options] - Optional settings.
+ * @param {string} [options.surface] - 'practice' selects QP-appropriate,
+ *   non-punitive messaging. Default (omitted) keeps the interview messages.
  * @returns {Function} Express middleware
  */
-function requireBiometricConsent(consentType) {
+function requireBiometricConsent(consentType, options = {}) {
+	const MESSAGES =
+		options.surface === 'practice'
+			? { ...ERROR_MESSAGES, ...PRACTICE_MESSAGES }
+			: ERROR_MESSAGES;
 	return async function requireBiometricConsentMiddleware(req, res, next) {
 		// ─── 1. Resolve the session — fail closed if we cannot identify it ───
 		// NOTE: we deliberately read sessionId only from routing/body context,
@@ -60,7 +82,7 @@ function requireBiometricConsent(consentType) {
 			: rawSessionId;
 		if (!Number.isInteger(sessionId) || sessionId <= 0) {
 			return res.status(400).json({
-				error: ERROR_MESSAGES.CONSENT_SESSION_REQUIRED,
+				error: MESSAGES.CONSENT_SESSION_REQUIRED,
 				code: 'CONSENT_SESSION_REQUIRED',
 			});
 		}
@@ -72,7 +94,7 @@ function requireBiometricConsent(consentType) {
 		const callerId = req.user && req.user.id;
 		if (callerId == null) {
 			return res.status(403).json({
-				error: ERROR_MESSAGES.CONSENT_REQUIRED,
+				error: MESSAGES.CONSENT_REQUIRED,
 				code: 'CONSENT_REQUIRED',
 			});
 		}
@@ -85,7 +107,7 @@ function requireBiometricConsent(consentType) {
 			// Fail closed: if we cannot verify consent, block collection (AC-2).
 			console.error('[requireBiometricConsent] consent check failed:', err.message);
 			return res.status(503).json({
-				error: ERROR_MESSAGES.CONSENT_CHECK_UNAVAILABLE,
+				error: MESSAGES.CONSENT_CHECK_UNAVAILABLE,
 				code: 'CONSENT_CHECK_UNAVAILABLE',
 			});
 		}
@@ -99,7 +121,7 @@ function requireBiometricConsent(consentType) {
 
 		if (consentState.state === 'withdrawn') {
 			return res.status(403).json({
-				error: ERROR_MESSAGES.CONSENT_WITHDRAWN,
+				error: MESSAGES.CONSENT_WITHDRAWN,
 				code: 'CONSENT_WITHDRAWN',
 				type: consentType,
 			});
@@ -107,7 +129,7 @@ function requireBiometricConsent(consentType) {
 
 		if (consentState.state === 'stale') {
 			return res.status(403).json({
-				error: ERROR_MESSAGES.CONSENT_VERSION_STALE,
+				error: MESSAGES.CONSENT_VERSION_STALE,
 				code: 'CONSENT_VERSION_STALE',
 				receiptVersion: consentState.receiptVersion,
 				currentVersion: consentState.currentVersion,
@@ -116,7 +138,7 @@ function requireBiometricConsent(consentType) {
 
 		// 'missing' or any unknown state → block.
 		return res.status(403).json({
-			error: ERROR_MESSAGES.CONSENT_REQUIRED,
+			error: MESSAGES.CONSENT_REQUIRED,
 			code: 'CONSENT_REQUIRED',
 		});
 	};
