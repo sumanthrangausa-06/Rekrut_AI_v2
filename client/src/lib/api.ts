@@ -307,9 +307,23 @@ export async function apiCall<T = unknown>(url: string, options: ApiCallOptions 
 		}
 
 		// Flag withdrawn consent so callers can show an inline re-consent message
-		// instead of redirecting (the withdrawal was intentional).
+		// instead of redirecting (the withdrawal was intentional). S-064 (#714):
+		// attach the consent type and broadcast an event so any page can render
+		// the WithdrawnConsentRecovery UI without touching every catch block.
 		if (res.status === 403 && code === 'CONSENT_WITHDRAWN') {
+			const consentType = (errorData as { type?: string }).type ?? 'biometric';
 			(error as Error & { isConsentWithdrawn?: boolean }).isConsentWithdrawn = true;
+			(error as Error & { consentType?: string }).consentType = consentType;
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(
+					new CustomEvent('consent-withdrawn', {
+						detail: {
+							consentType,
+							sessionId: extractSessionIdFromRequest(url, body),
+						},
+					}),
+				);
+			}
 		}
 
 		throw error;

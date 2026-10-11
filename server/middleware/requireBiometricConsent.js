@@ -101,6 +101,7 @@ function requireBiometricConsent(consentType) {
 			return res.status(403).json({
 				error: ERROR_MESSAGES.CONSENT_WITHDRAWN,
 				code: 'CONSENT_WITHDRAWN',
+				type: consentType,
 			});
 		}
 
