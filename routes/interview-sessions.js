@@ -542,7 +542,7 @@ router.post('/interview-sessions/:id/start', authMiddleware, async (req, res) =>
 		}
 		const updated = await pool.query(
 			`UPDATE interview_sessions
-			    SET status = 'in_progress', started_at = NOW(), conversation = $1, config = $2
+			    SET status = 'in_progress', started_at = NOW(), last_heartbeat_at = NOW(), conversation = $1, config = $2
 			  WHERE id = $3 RETURNING *`,
 			[JSON.stringify(conversation), JSON.stringify(config), session.id],
 		);
