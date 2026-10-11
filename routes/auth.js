@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const pool = require('../lib/db');
 const { encrypt, decrypt } = require('../lib/crypto-utils');
+const { eraseBiometricData } = require('../lib/erasureService');
 const {
 	generateToken,
 	generateRefreshToken,
@@ -1734,6 +1735,9 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 		}
 
 		const client = await pool.connect();
+		// S-067 (#720): whether a DEK was shredded, for the account_deleted
+		// audit metadata (MEDIUM-2: the "why" trail for the biometric purge).
+		let dekShredded = false;
 		try {
 			await client.query('BEGIN');
 			await client.query('UPDATE refresh_tokens SET is_revoked = true WHERE user_id = $1', [user.id]);
@@ -1752,6 +1756,18 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 				WHERE id = $1`,
 				[user.id],
 			);
+			// S-067 (#720) AC-1/AC-2: crypto-shred the candidate's DEK as part of
+			// the erasure workflow (account deletion is the DSAR erasure path).
+			// Runs inside this transaction via the shared erasure routine.
+			const { shredded } = await eraseBiometricData(user.id, {
+				client,
+				audit: {
+					userId: user.id,
+					userRole: user.role || 'candidate',
+					ipAddress: req.ip,
+				},
+			});
+			dekShredded = shredded;
 			await client.query('COMMIT');
 		} catch (txErr) {
 			await client.query('ROLLBACK');
@@ -1766,7 +1782,7 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 				userId: user.id,
 				targetType: 'user',
 				targetId: user.id,
-				metadata: {},
+				metadata: { dek_shredded: dekShredded },
 				req,
 			});
 		} catch (auditErr) {

@@ -208,6 +208,16 @@ jest.mock('../../lib/db', () => {
 			return { rows: [{ count: '1' }], rowCount: 1 };
 		}
 
+		// S-067 (#720): DEK crypto-shredding on account deletion
+		if (normalized.includes('update candidate_data_keys')) {
+			return { rows: [], rowCount: 1 };
+		}
+
+		// S-067 (#720): biometric audit log INSERT (DEK destruction audit)
+		if (normalized.includes('insert into biometric_audit_log')) {
+			return { rows: [{ id: 1 }], rowCount: 1 };
+		}
+
 		// Fallback: empty result
 		return { rows: [], rowCount: 0 };
 	});
