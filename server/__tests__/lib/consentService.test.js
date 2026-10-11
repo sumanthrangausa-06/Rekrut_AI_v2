@@ -23,6 +23,7 @@ describe('consentService.recordConsent', () => {
 
 	test('inserts a granted receipt with all required fields', async () => {
 		db.query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+		db.query.mockResolvedValueOnce({ rows: [{ company_id: 55 }] }); // #748: company lookup
 		db.query.mockResolvedValueOnce({ rows: [{ version: '1.0' }] });
 
 		const result = await consentService.recordConsent({
@@ -41,6 +42,7 @@ describe('consentService.recordConsent', () => {
 
 	test('records a decline as withdrawn_at (not granted_at)', async () => {
 		db.query.mockResolvedValueOnce({ rows: [{ id: 2 }] });
+		db.query.mockResolvedValueOnce({ rows: [{ company_id: 55 }] }); // #748: company lookup
 		db.query.mockResolvedValueOnce({ rows: [{ version: '1.0' }] });
 
 		await consentService.recordConsent({
@@ -75,6 +77,7 @@ describe('consentService.recordConsent', () => {
 	test('accepts all 3 valid consent types independently', async () => {
 		for (const type of VALID_TYPES) {
 			db.query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+			db.query.mockResolvedValueOnce({ rows: [{ company_id: 55 }] }); // #748: company lookup
 			db.query.mockResolvedValueOnce({ rows: [{ version: '1.0' }] });
 			// S-070 (H-1): biometric also propagates the observer gate flag.
 			if (type === 'biometric') db.query.mockResolvedValueOnce({ rows: [] });
@@ -85,12 +88,13 @@ describe('consentService.recordConsent', () => {
 				accepted: true,
 			});
 		}
-		// 3 records × 2 queries each + 1 flag propagation for biometric
-		expect(db.query).toHaveBeenCalledTimes(7);
+		// 3 records × 3 queries each + 1 flag propagation for biometric
+		expect(db.query).toHaveBeenCalledTimes(10);
 	});
 
 	test('S-070 (H-1): biometric grant propagates biometric_collection=true to the session (observer gate source of truth)', async () => {
 		db.query.mockResolvedValueOnce({ rows: [{ id: 1 }] }); // receipt insert
+		db.query.mockResolvedValueOnce({ rows: [{ company_id: 55 }] }); // #748: company lookup
 		db.query.mockResolvedValueOnce({ rows: [] }); // audit log (best-effort)
 		db.query.mockResolvedValueOnce({ rows: [] }); // flag propagation
 
@@ -111,6 +115,7 @@ describe('consentService.recordConsent', () => {
 
 	test('S-070 (H-1): biometric decline propagates biometric_collection=false', async () => {
 		db.query.mockResolvedValueOnce({ rows: [{ id: 2 }] });
+		db.query.mockResolvedValueOnce({ rows: [{ company_id: 55 }] }); // #748: company lookup
 		db.query.mockResolvedValueOnce({ rows: [] });
 		db.query.mockResolvedValueOnce({ rows: [] }); // flag propagation
 
@@ -131,6 +136,7 @@ describe('consentService.recordConsent', () => {
 
 	test('S-070 (H-1): non-biometric types do not touch the observer gate flag', async () => {
 		db.query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+		db.query.mockResolvedValueOnce({ rows: [{ company_id: 55 }] }); // #748: company lookup
 		db.query.mockResolvedValueOnce({ rows: [] });
 
 		await consentService.recordConsent({
@@ -176,6 +182,8 @@ describe('consentService.withdrawConsent', () => {
 
 	test('sets withdrawn_at (idempotent — no error if already withdrawn)', async () => {
 		db.query.mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 });
+		db.query.mockResolvedValueOnce({ rows: [{ company_id: 55 }] }); // #748: company lookup
+		db.query.mockResolvedValueOnce({ rows: [{ id: 9 }] }); // audit log (best-effort)
 
 		const result = await consentService.withdrawConsent({
 			sessionId: 10,
@@ -197,6 +205,7 @@ describe('consentService.withdrawConsent', () => {
 
 	test('S-070 (H-1): biometric withdrawal propagates biometric_collection=false to the session', async () => {
 		db.query.mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 }); // withdraw UPDATE
+		db.query.mockResolvedValueOnce({ rows: [{ company_id: 55 }] }); // #748: company lookup
 		db.query.mockResolvedValueOnce({ rows: [] }); // audit log (best-effort)
 		db.query.mockResolvedValueOnce({ rows: [] }); // flag propagation
 
@@ -216,6 +225,7 @@ describe('consentService.withdrawConsent', () => {
 
 	test('S-070 (H-1): non-biometric withdrawal does not touch the observer gate flag', async () => {
 		db.query.mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 });
+		db.query.mockResolvedValueOnce({ rows: [{ company_id: 55 }] }); // #748: company lookup
 		db.query.mockResolvedValueOnce({ rows: [] });
 
 		await consentService.withdrawConsent({
