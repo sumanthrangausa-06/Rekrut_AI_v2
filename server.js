@@ -108,6 +108,7 @@ const interviewRoutes = require('./routes/interviews');
 const interviewSessionRoutes = require('./routes/interview-sessions'); // Phase 1 (#322) — unified interview sessions
 const interviewSessionsV2Routes = require('./server/routes/interview-sessions-v2'); // S-001 (#640) — Unified session creation (POST /sessions)
 const sessionLifecycleRoutes = require('./server/routes/session-lifecycle'); // S-003 (#642) — Lifecycle: state, heartbeat, resume
+const humanInterviewRequestRoutes = require('./server/routes/human-interview-requests'); // S-012 (#651) — Consent-decline → human interview path
 const interviewEventsRoutes = require('./routes/interview-events'); // Issue #127 — Calendar scheduling
 const interviewsUnifiedRoutes = require('./routes/interviews-unified'); // Unified human interviews (must mount BEFORE interviewEventsRoutes — see below)
 const quickPracticeRoutes = require('./routes/quick-practice'); // ISOLATED from Mock Interview (#32717)
@@ -657,6 +658,7 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/interviews', interviewSessionRoutes); // Phase 1 (#322) — unified sessions (mounted FIRST: the single-segment list GETs /interview-sessions and /interview-flows would otherwise die in interviewEventsRoutes' isInt(:id) validator with 400)
 app.use('/api/interviews', interviewSessionsV2Routes); // S-001 (#640) — POST /sessions (unified session creation)
 app.use('/api/interviews', sessionLifecycleRoutes); // S-003 (#642) — PATCH /sessions/:id/state, heartbeat, resume
+app.use('/api/interviews', humanInterviewRequestRoutes); // S-012 (#651) — POST /sessions/:id/request-human-interview, /human-requests/:id/approve|decline
 // Issue #244 — mount BEFORE interviewEventsRoutes: its GET /:id isInt validator
 // would otherwise 400 every /recordings request (same shadowing class as C1).
 app.use('/api/interviews/recordings', recordingRoutes); // Issue #126 — Interview recording, playback & AI transcript
