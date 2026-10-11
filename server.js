@@ -109,6 +109,7 @@ const interviewSessionRoutes = require('./routes/interview-sessions'); // Phase 
 const interviewSessionsV2Routes = require('./server/routes/interview-sessions-v2'); // S-001 (#640) — Unified session creation (POST /sessions)
 const sessionLifecycleRoutes = require('./server/routes/session-lifecycle'); // S-003 (#642) — Lifecycle: state, heartbeat, resume
 const humanInterviewRequestRoutes = require('./server/routes/human-interview-requests'); // S-012 (#651) — Consent-decline → human interview path
+const frameProxyRoutes = require('./server/routes/frame-proxy'); // S-059 (#630) — Encrypted frame decrypt-proxy for vision APIs
 const interviewEventsRoutes = require('./routes/interview-events'); // Issue #127 — Calendar scheduling
 const interviewsUnifiedRoutes = require('./routes/interviews-unified'); // Unified human interviews (must mount BEFORE interviewEventsRoutes — see below)
 const quickPracticeRoutes = require('./routes/quick-practice'); // ISOLATED from Mock Interview (#32717)
@@ -659,6 +660,10 @@ app.use('/api/interviews', interviewSessionRoutes); // Phase 1 (#322) — unifie
 app.use('/api/interviews', interviewSessionsV2Routes); // S-001 (#640) — POST /sessions (unified session creation)
 app.use('/api/interviews', sessionLifecycleRoutes); // S-003 (#642) — PATCH /sessions/:id/state, heartbeat, resume
 app.use('/api/interviews', humanInterviewRequestRoutes); // S-012 (#651) — POST /sessions/:id/request-human-interview, /human-requests/:id/approve|decline
+// S-059 (#630) — frame decrypt-proxy. NO auth middleware: the HMAC token in the
+// URL is the authorization (vision APIs can't present a session). Mounted at
+// /api (not /api/interviews) so proxy URLs stay short.
+app.use('/api', frameProxyRoutes);
 // Issue #244 — mount BEFORE interviewEventsRoutes: its GET /:id isInt validator
 // would otherwise 400 every /recordings request (same shadowing class as C1).
 app.use('/api/interviews/recordings', recordingRoutes); // Issue #126 — Interview recording, playback & AI transcript
