@@ -93,13 +93,45 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 		client.query
 			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
 			.mockResolvedValueOnce({ rowCount: 0 }) // embeddings DELETE: no row
-			.mockResolvedValueOnce({ rowCount: 0 }); // search-index DELETE: no row
+			.mockResolvedValueOnce({ rowCount: 0 }) // search-index DELETE: no row
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: parsed_resumes
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: candidate_profiles
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: identity_verifications
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: cv_analyses
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: cv_reviews
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: verification_requests
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: verification_documents
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: work_experience
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: education
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: candidate_skills
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: linkedin_profiles
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: career_diagnoses
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-076: avatar_url clear
 		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
 		const result = await erasePersonalData(7, {
 			client,
 			audit: { userId: 7, userRole: 'candidate', ipAddress: '10.0.0.1' },
 		});
-		expect(result).toEqual({ shredded: true, embeddingsDeleted: false, searchIndexDeleted: false });
+		expect(result).toEqual({
+			shredded: true,
+			embeddingsDeleted: false,
+			searchIndexDeleted: false,
+			cvUploadsDeleted: false,
+			parsedResumesDeleted: false,
+			candidateProfileDeleted: false,
+			identityVerificationsDeleted: false,
+			cvAnalysesDeleted: false,
+			cvReviewsDeleted: false,
+			verificationRequestsDeleted: false,
+			verificationDocumentsDeleted: false,
+			workExperienceDeleted: false,
+			educationDeleted: false,
+			candidateSkillsDeleted: false,
+			linkedinProfileDeleted: false,
+			careerDiagnosesDeleted: false,
+			storageKeys: [],
+		});
 		expect(biometricAudit.logAccess).toHaveBeenCalledTimes(1);
 	});
 
@@ -108,12 +140,44 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 		client.query
 			.mockResolvedValueOnce({ rowCount: 0 }) // destroyDEK: DEKNotFound
 			.mockResolvedValueOnce({ rowCount: 0 }) // embeddings DELETE: no row
-			.mockResolvedValueOnce({ rowCount: 0 }); // search-index DELETE: no row
+			.mockResolvedValueOnce({ rowCount: 0 }) // search-index DELETE: no row
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: parsed_resumes
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: candidate_profiles
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: identity_verifications
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: cv_analyses
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: cv_reviews
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: verification_requests
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: verification_documents
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: work_experience
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: education
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: candidate_skills
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: linkedin_profiles
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: career_diagnoses
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-076: avatar_url clear
 		const result = await erasePersonalData(7, {
 			client,
 			audit: { userId: 7, userRole: 'candidate' },
 		});
-		expect(result).toEqual({ shredded: false, embeddingsDeleted: false, searchIndexDeleted: false });
+		expect(result).toEqual({
+			shredded: false,
+			embeddingsDeleted: false,
+			searchIndexDeleted: false,
+			cvUploadsDeleted: false,
+			parsedResumesDeleted: false,
+			candidateProfileDeleted: false,
+			identityVerificationsDeleted: false,
+			cvAnalysesDeleted: false,
+			cvReviewsDeleted: false,
+			verificationRequestsDeleted: false,
+			verificationDocumentsDeleted: false,
+			workExperienceDeleted: false,
+			educationDeleted: false,
+			candidateSkillsDeleted: false,
+			linkedinProfileDeleted: false,
+			careerDiagnosesDeleted: false,
+			storageKeys: [],
+		});
 		expect(biometricAudit.logAccess).not.toHaveBeenCalled();
 	});
 

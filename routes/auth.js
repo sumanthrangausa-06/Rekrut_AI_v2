@@ -1740,6 +1740,7 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 		let dekShredded = false;
 		let embeddingsErased = false;
 		let searchIndexErased = false;
+		let storageErasure = { deleted: 0, failed: 0, failures: [] };
 		try {
 			await client.query('BEGIN');
 			await client.query('UPDATE refresh_tokens SET is_revoked = true WHERE user_id = $1', [user.id]);
@@ -1764,7 +1765,7 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 			// the candidate_search_index row (GDPR Art. 17 — plaintext personal
 			// data, not biometric).
 			// Runs inside this transaction via the shared erasure routine.
-			const { shredded, embeddingsDeleted, searchIndexDeleted } =
+			const erasureResult =
 				await erasePersonalData(user.id, {
 					client,
 					audit: {
@@ -1775,10 +1776,22 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 						companyId: user.company_id,
 					},
 				});
-			dekShredded = shredded;
-			embeddingsErased = embeddingsDeleted;
-			searchIndexErased = searchIndexDeleted;
+			dekShredded = erasureResult.shredded;
+			embeddingsErased = erasureResult.embeddingsDeleted;
+			searchIndexErased = erasureResult.searchIndexDeleted;
 			await client.query('COMMIT');
+
+			// S-076 (#759) Phase 2: delete storage objects AFTER commit, driven
+			// by the pending_storage_deletions ledger (crash-safe). R2 NEVER in-tx.
+			const { deleteErasedStorageFiles } = require('../lib/erasureService');
+			storageErasure = await deleteErasedStorageFiles(user.id, {
+				audit: {
+					userId: user.id,
+					userRole: user.role || 'candidate',
+					ipAddress: req.ip,
+					companyId: user.company_id,
+				},
+			});
 		} catch (txErr) {
 			await client.query('ROLLBACK');
 			throw txErr;
@@ -1792,7 +1805,7 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 				userId: user.id,
 				targetType: 'user',
 				targetId: user.id,
-				metadata: { dek_shredded: dekShredded, embeddings_erased: embeddingsErased, search_index_erased: searchIndexErased },
+				metadata: { dek_shredded: dekShredded, embeddings_erased: embeddingsErased, search_index_erased: searchIndexErased, storage_files_deleted: storageErasure.deleted, storage_files_failed: storageErasure.failed },
 				req,
 			});
 		} catch (auditErr) {

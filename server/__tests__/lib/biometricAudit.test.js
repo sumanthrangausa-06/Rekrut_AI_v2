@@ -43,9 +43,23 @@ describe('biometricAudit.logAccess', () => {
 		expect(db.query).toHaveBeenCalledTimes(1);
 		const [sql, params] = db.query.mock.calls[0];
 		expect(sql).toMatch(/INSERT INTO biometric_audit_log/);
-		expect(params).toEqual([42, 'recruiter', 'view', 'face_embedding', 7, '1.2.3.4', null]);
+		expect(params).toEqual([42, 'recruiter', 'view', 'face_embedding', 7, '1.2.3.4', null, '{}']);
 		expect(row.id).toBe(1);
 		expect(row.action).toBe('view');
+	});
+
+	test('stores metadata as JSONB when provided', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ id: 2 }] });
+		await logAccess({
+			userId: 42,
+			userRole: 'candidate',
+			action: 'delete',
+			dataType: 'storage_file',
+			candidateId: 7,
+			metadata: { file_url: '/api/files/r2/cv/x.pdf', outcome: 'deleted' },
+		});
+		const [, params] = db.query.mock.calls[0];
+		expect(params[7]).toBe(JSON.stringify({ file_url: '/api/files/r2/cv/x.pdf', outcome: 'deleted' }));
 	});
 
 	test('accepts all valid actions: view, export, delete, purge, consent_*', async () => {

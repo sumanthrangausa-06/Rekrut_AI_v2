@@ -2151,6 +2151,22 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 
 			await client.query('COMMIT');
 
+			// S-076 (#759) Phase 2: delete storage objects AFTER commit, driven
+			// by the pending_storage_deletions ledger (crash-safe). R2 NEVER in-tx.
+			if (erasure) {
+				const { deleteErasedStorageFiles } = require('../lib/erasureService');
+				const storageErasure = await deleteErasedStorageFiles(dr.user_id, {
+					audit: {
+						userId: dr.user_id,
+						userRole: 'candidate',
+						ipAddress: req.ip,
+						companyId: dr.company_id,
+					},
+				});
+				erasure.storageFilesDeleted = storageErasure.deleted;
+				erasure.storageFilesFailed = storageErasure.failed;
+			}
+
 			res.json({ success: true, requestId: id, status: 'completed', erasure });
 		} catch (txErr) {
 			await client.query('ROLLBACK');
