@@ -213,6 +213,44 @@ E-009 (Metering, Billing & Admin) ── parallel from mid-plan (needs E-001 met
 
 ---
 
+### Story S-062: Migrate InterviewPanel to new session endpoint (NEW — discovered Phase 4)
+
+**Epic:** E-001 | **PRD Ref:** FR-87 (frontend integration) | **PRD Version:** 3.3 | **Priority:** Core | **Points:** 3 | **Status:** ✅ Done (Sprint 3, PR #729, issue #712)
+
+**User Story:** As a recruiter, I need the InterviewPanel to create sessions via the new S-001 endpoint so that session creation flows through the unified engine.
+
+**Acceptance Criteria:**
+- [x] AC-1: `InterviewPanel.tsx` calls `POST /api/interviews/sessions` for session creation.
+- [x] AC-2: All 4 modes work from the UI.
+- [x] AC-3: Old endpoint calls removed from `InterviewPanel.tsx`.
+- [x] AC-4: Existing E2E flows still pass.
+
+**Technical Notes:** One-line URL migration (`/interviews/interview-sessions` → `/interviews/sessions`). Old endpoint retained for other callers per §10.2.
+
+**Dependencies:** Requires: S-001.
+
+---
+
+### Story S-063: Wire heartbeat and lifecycle to interview UI (NEW — discovered Phase 4)
+
+**Epic:** E-001 | **PRD Ref:** FR-87 (frontend integration) | **PRD Version:** 3.3 | **Priority:** Core | **Points:** 5 | **Status:** ✅ Done (Sprint 4, PR #737, issue #713)
+
+**User Story:** As a candidate, I need the interview UI to send heartbeats and handle pause/resume so that the S-003 lifecycle state machine actually functions.
+
+**Acceptance Criteria:**
+- [x] AC-1: `InterviewSession.tsx` sends heartbeat every ≤20s during active session.
+- [x] AC-2: Browser close/background → session auto-pauses within 60s (verified via heartbeat timeout).
+- [x] AC-3: Pause button → `PATCH /state {to_state: 'paused'}`; Resume → `POST /resume {invite_token}` with state restored.
+- [x] AC-4: Invalid transitions show user-friendly error (not raw 409).
+
+**Technical Notes:** `useSessionHeartbeat.ts` hook (20s interval). iOS Safari background tabs suspend timers → auto-pause is desired behavior. No final heartbeat on `pagehide`.
+
+**Dependencies:** Requires: S-003.
+
+**Suggested Specialists:** react-specialist.
+
+---
+
 ## Epic E-002: Consent & Compliance Foundation
 
 **Goal:** Every biometric data collection is gated by explicit, versioned, withdrawable consent — enforced at the API layer, auditable, and deletable on request.
@@ -530,6 +568,142 @@ E-009 (Metering, Billing & Admin) ── parallel from mid-plan (needs E-001 met
 **Dependencies:** Requires: S-058. Blocks: Launch.
 
 **Suggested Specialists:** crypto-implementation-expert, privacy-engineer, penetration-tester.
+
+---
+
+### Story S-064: Build withdrawn-consent recovery UI (NEW — discovered Phase 4)
+
+**Epic:** E-002 | **PRD Ref:** S-011 AC-4 | **PRD Version:** 3.3 | **Priority:** Core | **Points:** 3 | **Status:** ✅ Done (Sprint 3, PR #730, issue #714)
+
+**User Story:** As a candidate who withdrew biometric consent, I need a clear recovery screen (not a dead end) so I can re-consent or exit gracefully.
+
+**Acceptance Criteria:**
+- [x] AC-1: When `isConsentWithdrawn` is true, candidate sees re-consent screen with updated consent text.
+- [x] AC-2: Candidate can re-consent (resumes session) or exit (session abandoned).
+- [x] AC-3: Exit path shows confirmation, no data loss messaging.
+
+**Technical Notes:** `WithdrawnConsentRecovery.tsx` — inline (not redirect), event-based wiring via `consent-withdrawn` CustomEvent. Re-consent: `POST /api/consent/record`. Exit: `PATCH .../state {to_state: 'abandoned'}`.
+
+**Dependencies:** Requires: S-011.
+
+**Suggested Specialists:** ux-architect.
+
+---
+
+### Story S-065: Audit log read endpoint and viewer UI (NEW — discovered Phase 4)
+
+**Epic:** E-002 | **PRD Ref:** S-014 follow-up | **PRD Version:** 3.3 | **Priority:** Important | **Points:** 3 | **Status:** ⏳ In progress (Sprint 5, PR #747, issue #715)
+
+**User Story:** As an admin, I need to query and view the biometric audit log so that access to biometric data is itself auditable.
+
+**Acceptance Criteria:**
+- [ ] AC-1: `GET /api/admin/biometric-audit` returns paginated audit entries (admin/hiring_manager only).
+- [ ] AC-2: Admin UI page lists audit entries with filters (candidate, date range, event type).
+- [ ] AC-3: Audit entries show pseudonymized candidate refs (HMAC-SHA256, `CAND-<hex>`).
+
+**Technical Notes:** Tenant isolation via `company_id` (migration 251); hiring_manager scoped to own company, admin global. See ADR-016.
+
+**Dependencies:** Requires: S-014.
+
+**Suggested Specialists:** privacy-engineer.
+
+---
+
+### Story S-066: Add biometric consent gate to Quick Practice frame collection (NEW — discovered Phase 4)
+
+**Epic:** E-002 | **PRD Ref:** FR-87 | **PRD Version:** 3.3 | **Priority:** Core (P0 launch-blocker) | **Points:** 3 | **Status:** ✅ Done (Sprint 4, PR #732, issue #719)
+
+**User Story:** As the platform, I need Quick Practice frame collection gated by biometric consent so that face frames are never collected without a consent receipt.
+
+**Acceptance Criteria:**
+- [x] AC-1: QP frame collection requires a biometric consent receipt before any frame is uploaded. No consent → no frames.
+- [x] AC-2: Consent decline → no frames collected, user informed (respectful, non-punitive messaging).
+- [x] AC-3: Design decision documented: practice-session-bound receipts (ADR-014).
+
+**Technical Notes:** `POST /practice/session/start` creates lightweight `practice`-type session; `biometric_practice` consent type (migration 250, QP-specific text); `requireBiometricConsent` with `{surface: 'practice'}`. See ADR-014.
+
+**Dependencies:** Requires: S-059, S-001. Blocks: QP staging.
+
+**Suggested Specialists:** privacy-engineer, ux-architect.
+
+---
+
+### Story S-067: Wire destroyDEK into DSAR and account deletion (NEW — discovered Phase 4)
+
+**Epic:** E-002 | **PRD Ref:** ADR-012 | **PRD Version:** 3.3 | **Priority:** Core | **Points:** 3 | **Status:** ✅ Done (Sprint 5, PR #744, issue #720)
+
+**User Story:** As a candidate requesting deletion, I need my DEK destroyed so that all encrypted biometric data becomes unrecoverable.
+
+**Acceptance Criteria:**
+- [x] AC-1: Account deletion → `destroyDEK` called for the candidate, rendering all DEK-encrypted biometric data unrecoverable.
+- [x] AC-2: DSAR erasure request → `destroyDEK` called as part of the erasure workflow (shared `erasureService`).
+- [x] AC-3: Every DEK destruction writes an audit log entry (who/when/why).
+
+**Technical Notes:** `lib/erasureService.js` — shared `eraseBiometricData()` routine; called in-transaction from `DELETE /delete-account`; `DEKNotFound` → skip cleanly. Follow-ups: #746 (fulfillment endpoint), #745 (embeddings scope).
+
+**Dependencies:** Requires: S-058.
+
+**Suggested Specialists:** privacy-engineer.
+
+---
+
+### Story S-068: Cleanup sweep for legacy plaintext frames in R2 (NEW — discovered Phase 4)
+
+**Epic:** E-002 | **PRD Ref:** FR-87 | **PRD Version:** 3.3 | **Priority:** Core | **Points:** 3 | **Status:** ✅ Script merged (Sprint 4, PR #738); deletion pending (issue #721 open, follow-up #739)
+
+**User Story:** As the platform, I need legacy unencrypted R2 frames deleted so that no plaintext biometric data remains in object storage.
+
+**Acceptance Criteria:**
+- [x] AC-1: Script identifies all plaintext `.jpg` frames in R2 `frames/` prefix (3-signal discriminators).
+- [x] AC-2: Identified frames deleted (deletion-only; no candidate mapping recoverable).
+- [ ] AC-3: Verification pass confirms zero plaintext frames remain (pending deletion run).
+
+**Technical Notes:** `scripts/r2-plaintext-cleanup.js` — dry-run default, `--approved-by` gate, versioning fail-closed, JSON audit report. Actual deletion requires Sumanth's approval (#739, QA follow-up).
+
+**Dependencies:** Requires: S-059.
+
+**Suggested Specialists:** privacy-engineer.
+
+---
+
+### Story S-069: Encrypt full interview recordings (.webm) (NEW — discovered Phase 4)
+
+**Epic:** E-002 | **PRD Ref:** FR-87 | **PRD Version:** 3.3 | **Priority:** Core | **Points:** 3 | **Status:** ✅ Done (Sprint 5, PR #741, issue #722)
+
+**User Story:** As the platform, I need `.webm` interview recordings encrypted at rest so that the crypto-shredding design covers all biometric media.
+
+**Acceptance Criteria:**
+- [x] AC-1: `.webm` recordings encrypted with candidate's DEK before storage (same AES-256-GCM envelope as S-059).
+- [x] AC-2: Playback requires authorization (session ownership check) + server-side decryption — no plaintext at rest, no unauthenticated decrypt path.
+- [x] AC-3: DEK destruction renders recordings unrecoverable.
+
+**Technical Notes:** `lib/r2RecordingStore.js`; AAD namespace separation (`r2recording:` vs `r2frame:`) prevents cross-type replay; session-auth decrypt-proxy (`GET /video-playback/:id`); fail-closed. See ADR-015. Follow-ups: #742 (upload-video consent), #743 (retention lifecycle).
+
+**Dependencies:** Requires: S-059.
+
+**Suggested Specialists:** crypto-implementation-expert, privacy-engineer.
+
+---
+
+### Story S-073: QP biometric consent frontend flow (NEW — discovered Phase 4)
+
+**Epic:** E-002 | **PRD Ref:** FR-87 | **PRD Version:** 3.3 | **Priority:** Core (P0 launch-blocker) | **Points:** 3 | **Status:** ✅ Done (Sprint 4, PR #734, issue #733)
+
+**User Story:** As a Quick Practice user, I need a consent step before video recording so that I understand what biometric data is collected and can decline.
+
+**Acceptance Criteria:**
+- [x] AC-1: QP start → `POST /practice/session/start` → sessionId stored.
+- [x] AC-2: Before recording, biometric consent UI with QP-specific text.
+- [x] AC-3: Accept → `POST /api/consent/record` → recording enabled.
+- [x] AC-4: Decline → respectful messaging, text-mode offered, no recording.
+- [x] AC-5: All `submit-video` calls include sessionId.
+- [x] AC-6: Fail-closed — video unavailable without consent, never silent bypass.
+
+**Technical Notes:** `QPBiometricConsent.tsx`; text mode exempt (no frames); decline abandons session best-effort. Ships atomically with S-066 backend.
+
+**Dependencies:** Requires: S-066.
+
+**Suggested Specialists:** ux-architect, privacy-engineer.
 
 ---
 
@@ -1226,6 +1400,96 @@ E-009 (Metering, Billing & Admin) ── parallel from mid-plan (needs E-001 met
 **Technical Notes:** Observer worker writes to `ai_observer_reports` on session end. Reuses `AnalysisService` and `IntegrityService` with candidate-identity scoping.
 
 **Dependencies:** Requires: S-047, S-034 (behavioral fusion), S-027 (integrity fusion). Blocks: S-039 (side-by-side report needs this data — build S-049 before S-039 within the sprint).
+
+---
+
+### Story S-060: Candidate — Request Human Interview button (NEW — discovered Phase 4)
+
+**Epic:** E-008 | **PRD Ref:** FR-87 (frontend integration) | **PRD Version:** 3.3 | **Priority:** Core | **Points:** 3 | **Status:** ✅ Done (Sprint 3, PR #723, issue #710)
+
+**User Story:** As a candidate who declined biometric consent, I need a button to request a human interview so that I have an alternative path.
+
+**Acceptance Criteria:**
+- [x] AC-1: Button calls `POST /api/interviews/sessions/:id/request-human-interview`.
+- [x] AC-2: Copy uses "no AI biometric analysis" (not "no biometric data collected").
+- [x] AC-3: No internal jargon; accurate next-step guidance.
+
+**Dependencies:** Requires: S-012.
+
+**Suggested Specialists:** ux-architect.
+
+---
+
+### Story S-061: Recruiter — Pending human-interview requests dashboard (NEW — discovered Phase 4)
+
+**Epic:** E-008 | **PRD Ref:** FR-87 (frontend integration) | **PRD Version:** 3.3 | **Priority:** Core | **Points:** 5 | **Status:** ✅ Done (Sprint 3, PR #728, issue #711)
+
+**User Story:** As a recruiter, I need a dashboard of pending human-interview requests so that I can approve or decline them.
+
+**Acceptance Criteria:**
+- [x] AC-1: `GET /api/interviews/human-requests` lists pending requests.
+- [x] AC-2: Approve/decline actions wired to `POST .../:id/approve` / `.../:id/decline`.
+- [x] AC-3: Hiring-role access enforcement.
+
+**Dependencies:** Requires: S-060, S-012.
+
+**Suggested Specialists:** ux-architect.
+
+---
+
+### Story S-070: AI Observer skips declined-biometric sessions (NEW — discovered Phase 4)
+
+**Epic:** E-008 | **PRD Ref:** §3.19 (Option A) | **PRD Version:** 3.3 | **Priority:** Core (P0) | **Points:** 3 | **Status:** ✅ Done (Sprint 4, PR #735, issue #724)
+
+**User Story:** As a candidate who declined biometric consent, I need the AI Observer to never join my session so that no biometric analysis is performed.
+
+**Acceptance Criteria:**
+- [x] AC-1: Given `biometric_collection: false`, when session starts, then no observer job enqueued.
+- [x] AC-2: Given `biometric_collection: false`, when recruiter toggles Observer on, then toggle forced off with explanation.
+- [x] AC-3: Given `biometric_collection: true` (or unset), Observer works as currently specified.
+- [x] AC-4: No observer process ever receives audio/video streams for declined sessions.
+
+**Technical Notes:** `lib/observerConsentGate.js` — pure `canEnableObserver(session)` choke point; wired at both dispatch entry points (observer/enable + LiveKit dispatch); consent lifecycle sync; withdrawal teardown. See §3.19.
+
+**Dependencies:** Requires: S-012.
+
+**Suggested Specialists:** privacy-engineer.
+
+---
+
+### Story S-071: Observer report marks declined biometrics correctly (NEW — discovered Phase 4)
+
+**Epic:** E-008 | **PRD Ref:** §3.19 | **PRD Version:** 3.3 | **Priority:** Important | **Points:** 3 | **Status:** ✅ Done (Sprint 4, PR #736, issue #725)
+
+**User Story:** As a recruiter, I need declined-biometric sections to show "Declined by candidate" (not blank) so I understand why sections are empty.
+
+**Acceptance Criteria:**
+- [x] AC-1: Declined-biometric session report shows biometric sections as "Declined by candidate" (not blank, not "data missing").
+- [x] AC-2: Recruiter understands why sections are empty (clear messaging, not a bug report).
+
+**Technical Notes:** `lib/observerReportStates.js` — states `present`/`missing`/`declined`; declined derived from consent (not row absence); sections: vocal, visual, integrity. See §3.19.
+
+**Dependencies:** Requires: S-070.
+
+**Suggested Specialists:** ux-architect.
+
+---
+
+### Story S-072: Update AI Observer disclosure for declined biometrics (NEW — discovered Phase 4)
+
+**Epic:** E-008 | **PRD Ref:** FR-85 | **PRD Version:** 3.3 | **Priority:** Important | **Points:** 2 | **Status:** 📋 Planned (Sprint 5, issue #726)
+
+**User Story:** As a candidate, I need the observer disclosure text to accurately reflect the declined-biometrics path so I'm not misled.
+
+**Acceptance Criteria:**
+- [ ] AC-1: Disclosure text updated for the declined-biometrics case.
+- [ ] AC-2: No false promises about data collection.
+
+**Technical Notes:** Copy change; pairs with any Sprint 5 story.
+
+**Dependencies:** Requires: S-070.
+
+**Suggested Specialists:** ux-architect.
 
 ---
 

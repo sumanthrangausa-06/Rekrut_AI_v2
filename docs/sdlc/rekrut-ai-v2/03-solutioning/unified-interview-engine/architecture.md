@@ -11,9 +11,9 @@ specialist_reviews_v3: ["ecc/database-reviewer", "ecc/security-reviewer", "gstac
 
 # Unified Interview Engine — Architecture
 
-> **Status:** Draft v3 | **Version:** 3 | **Owner:** Sumanth | **Architect:** Rex
+> **Status:** Draft v3 (amended 2026-10-11) | **Version:** 3.1 | **Owner:** Sumanth | **Architect:** Rex
 > **PRD:** `docs/sdlc/rekrut-ai-v2/02-planning/unified-interview-engine/prd.md` (v3.0, approved — all 8 OQs resolved)
-> **Review:** v3 incorporates findings from 4 specialists (database, security, eng-review, backend-architect). See Changelog.
+> **Review:** v3 incorporates findings from 4 specialists (database, security, eng-review, backend-architect). §11 records Sprint 4–5 as-built amendments (Rex, 2026-10-11).
 
 ---
 
@@ -309,6 +309,8 @@ The interview engine is a set of well-bounded modules inside the existing Rekrut
 - **Failure mode:** Queue overflow → explicit "unobserved" marking on session, not silent drop.
 - **Recruiter toggle (FR-82):** Observer joins only when the session's observer toggle is ON (default ON). Toggle OFF → no job enqueued, no report.
 - **Biometric consent gate (Option A — Sumanth decision 2026-10-10):** SessionService MUST check `interview_sessions.config.biometric_collection` before enqueuing an observer job. When `biometric_collection === false` (candidate declined biometric consent, e.g., the human-interview path from S-012), NO job is enqueued — the observer never joins the room and never receives the candidate's audio/video streams. Rationale: structural guarantee — the observer cannot process data it never receives (per Nova's engineering assessment 2026-10-10). The gate is evaluated at enqueue time alongside the recruiter toggle: observer joins ⟺ (toggle ON) ∧ (`biometric_collection !== false`). A declined candidate's consent is never overridden by the recruiter's toggle.
+- **Gate implementation (S-070, built 2026-10-11):** The consent gate is implemented as `lib/observerConsentGate.js` — a pure function `canEnableObserver(session)` returning `{ allowed: boolean, code?, message? }`. It is the single choke point, called at every observer dispatch entry point: `POST /interview-sessions/:id/observer/enable` and `POST /session-rooms/:sessionId/dispatch` (mode=`observer`) — the LiveKit dispatch route was discovered as a second ungated path during S-070 implementation and gated. Blocked requests return 403 with code `BIOMETRIC_CONSENT_DECLINED`. **Consent lifecycle sync:** `recordConsent`/`withdrawConsent` propagate to `config.biometric_collection`, so the gate flag cannot drift from the consent system of record. Withdrawal tears down any active observer (disconnect agent + flip `observer_enabled`), best-effort — never fails the withdrawal.
+- **Report declined state (S-071, built 2026-10-11):** When the gate blocks the observer, no observer report rows exist. `lib/observerReportStates.js` defines the report-state convention: sections (`vocal`, `visual`, `integrity`) resolve to `present` | `missing` | `declined`. The `declined` state is **derived from consent** (`biometric_collection === false`), not from row absence — a declined session has no rows at all, and row absence alone would read as `missing`. Declined sections render "Declined by candidate" with the explanation "The candidate declined biometric collection for this session, so the AI observer was not enabled and no biometric analysis was performed for this section." (UX architect approved copy.) When the observer report subsystem (E-008) is built, it MUST resolve every biometric section through this module.
 - **Disclosure (FR-85):** Observer disclosed in general interview consent, not a standalone screen. ⚠️ KNOWN GAP (2026-10-10): the current FR-85 disclosure text ("may include AI-assisted analysis") is misleading when the candidate explicitly declined biometrics. Flagged for copy revision — Lead to create a story.
 
 #### 3.20 ConsentService (NEW in v3)
@@ -317,8 +319,9 @@ The interview engine is a set of well-bounded modules inside the existing Rekrut
 - **Does NOT own:** Retention purges (that's ComplianceService).
 - **Interface:** `recordConsent({sessionId, candidateId, type, accepted, textVersion, locale, ipAddress})`, `getConsentStatus(sessionId)`, `withdrawConsent({sessionId, candidateId, type, reason})` (idempotent; triggers `consent_revoked` data-channel push + FR-14a recruiter notification on biometric decline), `isConsentValid(sessionId, type)` (hot-path; single indexed live DB lookup, **no cache**), `getCurrentTextVersion(type)`, `bumpTextVersion(type, newVersion)`, `getConsentHistory(candidateId)` (DSAR source)
 - **Middleware:** `requireConsentFor(type)` → 403 `CONSENT_REQUIRED` / `CONSENT_VERSION_STALE` (`CONSENT_RENEWAL_REQUIRED`) / `CONSENT_WITHDRAWN`. Ordering: auth → ownership → rate limit → consent → validation → handler.
-- **Consent-type → endpoint mapping:** signal batches → `biometric`; transcript chunks → `recording`; ID verification → `id_verification`.
+- **Consent-type → endpoint mapping:** signal batches → `biometric`; transcript chunks → `recording`; ID verification → `id_verification`; Quick Practice frame collection → `biometric_practice` (QP-specific consent type, added S-066).
 - **Version policy:** Version bump never grandfathers in-flight sessions — biometric endpoints return `CONSENT_RENEWAL_REQUIRED`; client presents new text inline; session resumes without data loss.
+- **Quick Practice consent (S-066/S-073, built 2026-10-11):** Quick Practice has no interview sessions, so consent receipts cannot bind to one directly. Design decision (ADR-014): QP creates a lightweight `practice`-type session via the S-001 endpoint (`POST /practice/session/start`); consent is recorded against it using the existing `consentService` unchanged — zero schema changes, full receipt/audit/withdrawal support. New consent type `biometric_practice` with QP-specific text (migration 250, EN/HI, DRAFT pending legal). The `requireBiometricConsent` middleware factory accepts `{surface: 'practice'}` for QP-appropriate messaging. Frontend (`QPBiometricConsent.tsx`): session/start → consent step → accept/decline; decline offers text-mode alternative (fail-closed — video unavailable without consent, never silent bypass). **Known gap:** `/upload-video` (legacy `interviews` table, no sessions) has no consent gate — follow-up issue #742 (P0).
 
 #### 3.21 CalibrationService (NEW in v3)
 - **Responsibility:** 60-second calibration protocol (FR-56/58): device check → ice-breaker → baseline computation → quality floors → per-session baselines → accommodation adjustments.
@@ -1217,6 +1220,8 @@ Defense in depth, strongest control first:
 - Consent grant/withdraw/renew events logged (CR-05 extension).
 - Application role: INSERT/SELECT only. TRUNCATE revoked.
 - Retained 7 years (rows remain post-DSAR but unlinkable).
+- **Audit viewer (S-065, built 2026-10-11):** `GET /api/admin/biometric-audit` — paginated, filtered (candidate/action/data-type/date range); role-gated to `admin` + `hiring_manager`; rate-limited. Admin UI page (`client/src/pages/admin/biometric-audit.tsx`) with filter controls. **Tenant isolation (privacy C1 fix):** `company_id` column (migration 251, nullable, indexed); `hiring_manager` queries scoped to `WHERE company_id = req.user.company_id` (fail-closed: no company attribution → 403); `admin` retains global view. NULL `company_id` rows excluded from hiring_manager views.
+- **Pseudonymization:** `pseudonymizeCandidateId()` — HMAC-SHA256 with `AUDIT_PSEUDONYM_SECRET`, rendered as `CAND-<hex>`; viewer shows pseudonymized refs only, no raw candidate IDs, no PII joins. DB-level candidate_id encryption per ADR-012 remains a follow-up.
 
 ### Secrets Management
 - All secrets in environment variables. No hardcoding.
@@ -1525,6 +1530,7 @@ All decisions below confirmed. Cleared for epics/stories.
 - Neon backup "tombstoning" is honest only with a tested restore-replay job (PITR restores everything).
 - Redis baselines explicitly DELeted; Sentry scrubbed via `beforeSend`; observer worker checks `deletion_pending` before flush.
 - **R2 frame encryption (added 2026-10-10, discovered during Phase 4 S-058 review):** Raw face frames uploaded to R2 MUST be encrypted with the candidate's DEK (via `lib/biometricCrypto.js`) before leaving the server. Unencrypted R2 uploads bypass the entire crypto-shredding design — the DEK protects database rows but not the video frames themselves. FR-87. P0 launch-blocker (issue #630).
+- **Recording encryption (S-069, built 2026-10-11):** Full `.webm` interview recordings are encrypted with the candidate's DEK before storage via `lib/r2RecordingStore.js` (mirrors the S-059 frame envelope: `0x01 || iv(12) || tag(16) || ciphertext`, AES-256-GCM). **AAD namespace separation:** recordings use `r2recording:v1:candidate:<id>:interview:<iid>:q:<qidx>` — a separate namespace from frames (`r2frame:...`), so a frame envelope can never be replayed as a recording (cross-type substitution cryptographically impossible; interview/question binding also prevents same-candidate answer replay). Stored keys carry `.enc` suffix; mimetype `application/octet-stream`. Playback via session-auth decrypt-proxy (`GET /video-playback/:interviewId/:questionIndex`): verifies interview ownership, decrypts with DEK, streams `video/webm` with `Cache-Control: no-store`. Fail-closed: missing candidateId or any crypto/storage failure throws — plaintext is NEVER uploaded. DEK destruction renders recordings unrecoverable (proxy returns 403). **Known gap:** no retention/deletion lifecycle for R2 recording objects — follow-up issue #743 (P1).
 
 ### ADR-013: Regional Rollout (USA + India First, EU Phase 2)
 
@@ -1537,6 +1543,44 @@ All decisions below confirmed. Cleared for epics/stories.
 **Consequences:**
 - EU launch requires a conformity assessment workstream (phase 2), but no architectural rework for the interview engine itself.
 - India DPDP Phase 3 (May 2027, no grace period) is the binding near-term deadline — build for it now.
+
+### ADR-014: Quick Practice Consent via Practice-Session-Bound Receipts
+
+**Date:** 2026-10-11
+**Status:** Accepted (Nova STOP 1, Suga approved; S-066/S-073 built)
+**Context:** Quick Practice collects face frames (biometric data) but has no interview sessions — and `consent_receipts.interview_session_id` is NOT NULL. Three options: (A) create lightweight `practice`-type sessions and reuse the existing consent infrastructure; (B) build a parallel candidate-scoped consent model (schema change + service branches); (C) transient per-request consent flag (no durable receipt).
+
+**Decision:** Option A. QP creates a `practice`-type session via the S-001 endpoint; consent is recorded/checked against it with `consentService` unchanged. New consent type `biometric_practice` with QP-specific text (migration 250). Option C rejected: BIPA requires written consent records; a transient flag is legally insufficient. Option B rejected: two receipt models to maintain for zero benefit.
+
+**Consequences:**
+- Zero schema changes; receipts, versioned text, hashes, withdrawal, and audit trail all work as designed.
+- The `requireBiometricConsent` middleware factory accepts `{surface: 'practice'}` for QP-appropriate messaging.
+- The legacy `/upload-video` path (no sessions) still has no consent gate — follow-up #742 (P0).
+
+### ADR-015: Recording Encryption with AAD Namespace Separation
+
+**Date:** 2026-10-11
+**Status:** Accepted (S-069; crypto-implementation-expert + privacy-engineer reviewed)
+**Context:** Full `.webm` interview recordings were uploaded to R2/B2 unencrypted, bypassing the crypto-shredding design (same class as S-059's frame problem).
+
+**Decision:** `lib/r2RecordingStore.js` encrypts recordings with the candidate's DEK before storage, mirroring the S-059 frame envelope. **Critical:** recordings use a separate AAD namespace (`r2recording:v1:...`) from frames (`r2frame:...`) — a frame envelope can never be replayed as a recording, and interview/question binding in the AAD prevents same-candidate answer replay (crypto HIGH-1 finding, fixed). Buffer-based (50MB multer limit fits in memory); no streaming crypto needed.
+
+**Consequences:**
+- Playback requires the session-auth decrypt-proxy — no public URLs stored, no unauthenticated decrypt path.
+- DEK destruction crypto-shreds recordings (proxy returns 403).
+- No retention/deletion lifecycle yet — follow-up #743 (P1).
+
+### ADR-016: Audit Log Tenant Isolation
+
+**Date:** 2026-10-11
+**Status:** Accepted (S-065; privacy-engineer C1 fix, re-verified)
+**Context:** The audit viewer initially exposed the global `biometric_audit_log` to every `hiring_manager` — a cross-tenant privacy violation (privacy C1).
+
+**Decision:** `company_id` column on `biometric_audit_log` (migration 251, nullable, indexed). `hiring_manager` queries are scoped to their company (fail-closed: no company attribution → 403). `admin` retains global view. Pseudonymized candidate refs (HMAC-SHA256, `CAND-<hex>`) in the viewer — no raw IDs, no PII joins.
+
+**Consequences:**
+- Write path threads `companyId` through `logAccess`; `consentService` raw INSERTs bypass it (follow-up #748, P2 — completeness, not a leak).
+- DB-level candidate_id encryption per ADR-012 remains a follow-up.
 
 ---
 
@@ -1563,11 +1607,14 @@ greenfield client directory.
 | Existing page | Current endpoint(s) (verified) | Migrate to | Story |
 |---|---|---|---|
 | `components/domain/InterviewPanel.tsx` (recruiter) | `POST /interviews/interview-sessions` (`InterviewPanel.tsx:131`); `GET /interviews/interview-sessions?candidate_id=` (`:89`); `POST /interviews/interview-sessions/trigger` (`:107`); `POST …/observer/enable` (`:151`) | `POST /api/interviews/sessions` (S-001). List/trigger/observer endpoints: keep on old routes until S-002/S-004 scope them | **S-062** (proposed) |
-| `pages/candidate/InterviewSession.tsx` (candidate) | `GET /interviews/interview-sessions/by-token/:token` (`:225`); `POST …/:id/start` (`:300`); `POST …/:id/complete` (`:461`); `POST …/:id/respond` (`:521`); `GET /api/interviews/interview-sessions/:id/tts` (`:179`) | `PATCH /api/interviews/sessions/:id/state` (pause/complete); `POST …/heartbeat` (every ≤20s); `GET …/state` (rehydration); `POST …/resume` (S-003). `/respond` and `/tts` stay until ConversationService migration | **S-063** (proposed) |
-| `pages/consent-screens.tsx` (candidate) | "Request human interview" button (`:230-234`) fires `trackEvent('consent_human_interview_requested')` + `setStep('id_verification')` — **does not call any API** | `POST /api/interviews/sessions/:id/request-human-interview` (S-012) | **S-060** (#710, created) |
-| Recruiter dashboard (new view) | Does not exist | `GET` pending requests + `POST /api/interviews/human-requests/:id/approve` / `…/decline` (S-012) | **S-061** (#711, created) |
-| Withdrawn-consent recovery UI (new) | Does not exist. `lib/api.ts:311` sets `isConsentWithdrawn` on 403 `CONSENT_WITHDRAWN`, but **no page reads the flag** (verified via grep) | Inline re-consent / exit flow per S-011 AC-4 | **S-064** (proposed) |
-| Biometric audit log viewer (new) | Does not exist. `lib/biometricAudit.js` writes rows; **no GET endpoint, no UI** | `GET /api/admin/biometric-audit` (new, admin-only, MFA-gated per ADR-004) + admin UI | **S-065** (proposed) |
+| `pages/candidate/InterviewSession.tsx` (candidate) | `GET /interviews/interview-sessions/by-token/:token` (`:225`); `POST …/:id/start` (`:300`); `POST …/:id/complete` (`:461`); `POST …/:id/respond` (`:521`); `GET /api/interviews/interview-sessions/:id/tts` (`:179`) | `PATCH /api/interviews/sessions/:id/state` (pause/complete); `POST …/heartbeat` (every ≤20s); `GET …/state` (rehydration); `POST …/resume` (S-003). `/respond` and `/tts` stay until ConversationService migration | **S-063** (#713, ✅ merged PR #737 — `useSessionHeartbeat.ts` hook, pause/resume UI, 20s interval, iOS Safari background→auto-pause by design) |
+| `pages/consent-screens.tsx` (candidate) | "Request human interview" button (`:230-234`) fires `trackEvent('consent_human_interview_requested')` + `setStep('id_verification')` — **does not call any API** | `POST /api/interviews/sessions/:id/request-human-interview` (S-012) | **S-060** (#710, ✅ merged PR #723) |
+| Recruiter dashboard (new view) | Does not exist | `GET` pending requests + `POST /api/interviews/human-requests/:id/approve` / `…/decline` (S-012) | **S-061** (#711, ✅ merged PR #728) |
+| Withdrawn-consent recovery UI (new) | Does not exist. `lib/api.ts:311` sets `isConsentWithdrawn` on 403 `CONSENT_WITHDRAWN`, but **no page reads the flag** (verified via grep) | Inline re-consent / exit flow per S-011 AC-4 | **S-064** (#714, ✅ merged PR #730 — `WithdrawnConsentRecovery.tsx`, event-based wiring, fail-closed) |
+| Biometric audit log viewer (new) | Does not exist. `lib/biometricAudit.js` writes rows; **no GET endpoint, no UI** | `GET /api/admin/biometric-audit` (new, admin + hiring_manager, tenant-isolated) + admin UI | **S-065** (#715, ⏳ PR #747 — endpoint + viewer + `company_id` tenant isolation, awaiting merge) |
+| Quick Practice consent gate (new) | Does not exist. `POST /practice/submit-video` → frame extraction → R2 upload with **zero consent check** | Practice-session-bound receipts (`biometric_practice` type) + consent UI before recording | **S-066** (#719, ✅ merged PR #732) + **S-073** (#733, ✅ merged PR #734 — `QPBiometricConsent.tsx`, fail-closed) |
+| Observer consent gate (new) | Spec only (§3.19 Option A) | `lib/observerConsentGate.js` choke point + lifecycle sync + withdrawal teardown | **S-070** (#724, ✅ merged PR #735) |
+| Observer report declined state (new) | Spec only | `lib/observerReportStates.js` (present/missing/declined) | **S-071** (#725, ✅ merged PR #736) |
 
 **Story-number note:** S-060 (#710) and S-061 (#711) were created by Lead on 2026-10-10.
 S-062–S-065 are proposed numbers for Lead to confirm when creating the issues.
@@ -1654,5 +1701,47 @@ in parallel — that creates two clients to maintain.
 
 ---
 
-> **End of Architecture v3 (amended 2026-10-10: §10 Frontend Integration & Migration Plan added).**
+> **End of Architecture v3 (amended 2026-10-10: §10 Frontend Integration & Migration Plan added; amended 2026-10-11: §11 Sprint 4–5 Implementation Amendments added).**
 > Next: Suga (CTO) review → Sumanth approval → merge.
+
+---
+
+## 11. Sprint 4–5 Implementation Amendments (2026-10-11)
+
+**Author:** Rex. **Reason:** Sprints 4 and 5 implemented nine stories whose designs were not in the v3 architecture (or were spec-only). This section records the as-built designs; §3.19, §3.20, §4, §6, §9, and §10.1 are updated in place above.
+
+### 11.1 Consent Infrastructure Extensions
+
+| Story | Change | Design authority |
+|-------|--------|-----------------|
+| S-066/S-073 | QP consent gate: practice-session-bound receipts, `biometric_practice` type, `POST /practice/session/start`, fail-closed frontend | ADR-014; §3.20 |
+| S-070 | Observer consent gate: `lib/observerConsentGate.js` choke point, 2 dispatch entry points gated, consent lifecycle sync, withdrawal teardown | §3.19 |
+| S-071 | Report declined state: `lib/observerReportStates.js` (present/missing/declined), consent-derived not row-derived | §3.19 |
+| S-067 | Erasure service: `lib/erasureService.js` shared routine; `destroyDEK` wired into `DELETE /delete-account` (in-transaction); audit entry atomic | §4 Key Management |
+
+### 11.2 Storage Encryption Extensions
+
+| Story | Change | Design authority |
+|-------|--------|-----------------|
+| S-069 | Recording encryption: `lib/r2RecordingStore.js`, AAD namespace separation (`r2recording:` vs `r2frame:`), session-auth decrypt-proxy, fail-closed | §4 Key Management; ADR-015 |
+| S-068 | Cleanup script: `scripts/r2-plaintext-cleanup.js` — 3-signal discriminators (key regex + Content-Type + magic bytes), dry-run default, `--approved-by` gate, versioning fail-closed. Deletion tracked in #739 (QA follow-up, Sumanth approval required) | §4 Key Management |
+
+### 11.3 Observability Extensions
+
+| Story | Change | Design authority |
+|-------|--------|-----------------|
+| S-065 | Audit viewer: `GET /api/admin/biometric-audit`, tenant isolation via `company_id` (migration 251), HMAC pseudonymization (`CAND-<hex>`), role-gated UI | §6 Audit Logging; ADR-016 |
+| S-063 | Heartbeat: `useSessionHeartbeat.ts` (20s interval), pause/resume UI, 409→friendly copy, iOS Safari background→auto-pause by design | §10.1 |
+
+### 11.4 Open Follow-ups (as of 2026-10-11)
+
+| Issue | Priority | Description |
+|-------|----------|-------------|
+| #739 | P0 | R2 plaintext frame cleanup — dry-run + deletion during staging QA (Sumanth approval required for `--delete`) |
+| #742 | P0 | Consent gate on `/upload-video` (legacy path, no sessions) |
+| #743 | P1 | R2 recording retention/deletion lifecycle |
+| #745 | P2 | `candidate_embeddings` erasure scope (needs product/legal decision) |
+| #746 | P1 | `data_requests` fulfillment endpoint for DSAR erasure |
+| #748 | P2 | `consentService` raw INSERTs bypass `company_id` threading (completeness) |
+
+> **End of §11.** All Sprint 4–5 implementation designs are now recorded. The v3 greenfield client (§3.1–3.9) remains deferred per §10.4.
