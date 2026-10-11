@@ -1540,3 +1540,118 @@ All decisions below confirmed. Cleared for epics/stories.
 ---
 
 > **End of Architecture v3.** Next: Suga (CTO) review → Sumanth phase-gate approval → `create-epics-stories` (Rex) → Phase 4.
+
+---
+
+## 10. Frontend Integration & Migration Plan
+
+**Added:** 2026-10-10 (Rex). **Reason:** The v3 architecture specified a greenfield client
+(`client/src/engine/interview/`, §3.1–3.9) but never planned integration with the *existing*
+frontend. Phase 4 implementation built backend endpoints per story ACs, but the ACs tested
+APIs in isolation — the existing pages kept calling old endpoints, leaving new code
+unreachable. This section closes that gap: it maps every existing page to the new
+endpoints it must adopt, defines the migration order, and clarifies the status of the
+greenfield client directory.
+
+> **Verification note:** All "current endpoint" values below were verified against the
+> actual frontend code on 2026-10-10 (not inferred from docs). File:line references
+> are to `client/src/` at the time of writing.
+
+### 10.1 Existing Page → New Endpoint Map
+
+| Existing page | Current endpoint(s) (verified) | Migrate to | Story |
+|---|---|---|---|
+| `components/domain/InterviewPanel.tsx` (recruiter) | `POST /interviews/interview-sessions` (`InterviewPanel.tsx:131`); `GET /interviews/interview-sessions?candidate_id=` (`:89`); `POST /interviews/interview-sessions/trigger` (`:107`); `POST …/observer/enable` (`:151`) | `POST /api/interviews/sessions` (S-001). List/trigger/observer endpoints: keep on old routes until S-002/S-004 scope them | **S-062** (proposed) |
+| `pages/candidate/InterviewSession.tsx` (candidate) | `GET /interviews/interview-sessions/by-token/:token` (`:225`); `POST …/:id/start` (`:300`); `POST …/:id/complete` (`:461`); `POST …/:id/respond` (`:521`); `GET /api/interviews/interview-sessions/:id/tts` (`:179`) | `PATCH /api/interviews/sessions/:id/state` (pause/complete); `POST …/heartbeat` (every ≤20s); `GET …/state` (rehydration); `POST …/resume` (S-003). `/respond` and `/tts` stay until ConversationService migration | **S-063** (proposed) |
+| `pages/consent-screens.tsx` (candidate) | "Request human interview" button (`:230-234`) fires `trackEvent('consent_human_interview_requested')` + `setStep('id_verification')` — **does not call any API** | `POST /api/interviews/sessions/:id/request-human-interview` (S-012) | **S-060** (#710, created) |
+| Recruiter dashboard (new view) | Does not exist | `GET` pending requests + `POST /api/interviews/human-requests/:id/approve` / `…/decline` (S-012) | **S-061** (#711, created) |
+| Withdrawn-consent recovery UI (new) | Does not exist. `lib/api.ts:311` sets `isConsentWithdrawn` on 403 `CONSENT_WITHDRAWN`, but **no page reads the flag** (verified via grep) | Inline re-consent / exit flow per S-011 AC-4 | **S-064** (proposed) |
+| Biometric audit log viewer (new) | Does not exist. `lib/biometricAudit.js` writes rows; **no GET endpoint, no UI** | `GET /api/admin/biometric-audit` (new, admin-only, MFA-gated per ADR-004) + admin UI | **S-065** (proposed) |
+
+**Story-number note:** S-060 (#710) and S-061 (#711) were created by Lead on 2026-10-10.
+S-062–S-065 are proposed numbers for Lead to confirm when creating the issues.
+
+### 10.2 Migration Order & Dependencies
+
+```
+S-060 (candidate request button) ─┐
+                                   ├─→ S-061 (recruiter dashboard) ─→ S-059 (R2 encryption)
+S-012 backend (done, PR #709) ────┘         │
+                                            │  (dashboard must exist before
+S-062 (InterviewPanel → new create) ────────┤   encrypted frames flow through
+                                            │   the human-interview path)
+S-063 (InterviewSession → lifecycle) ───────┘
+
+S-064 (withdrawn-consent UI) ─── independent (only needs S-011 backend, done)
+S-065 (audit viewer) ─────────── independent (only needs S-014 backend, done)
+```
+
+**Ordering rules:**
+
+1. **S-060 before S-061.** The candidate button creates requests; the dashboard displays
+   them. Building the dashboard first means testing against an empty table.
+2. **S-062 and S-063 are independent of each other** (different pages, different users)
+   but **both must land before old-endpoint deprecation** (§10.3).
+3. **S-063 before any heartbeat-timeout tuning.** The 60s auto-pause (S-003 AC-1) never
+   triggers until `InterviewSession.tsx` sends heartbeats. Do not adjust
+   `SESSION_HEARTBEAT_TIMEOUT_SEC` based on production data until S-063 is live.
+4. **S-064 is independent** — it only needs the `isConsentWithdrawn` flag that `lib/api.ts`
+   already sets.
+5. **S-065 is independent** — it only needs the audit rows that S-014 already writes.
+6. **What breaks if done out of order:**
+   - Deprecating old endpoints before S-062/S-063 → recruiter panel and candidate
+     interview UI break completely (they have no fallback).
+   - S-061 before S-060 → dashboard works but shows zero requests; harmless but untestable.
+   - Skipping S-064 → candidates who withdraw consent see a dead error flag with no
+     recovery path (S-011's AC-4 unmet in practice).
+
+### 10.3 Old Endpoint Deprecation Plan
+
+**Old routes** (all in `routes/interview-sessions.js`, mounted at `/api/interviews`):
+
+| Old endpoint | Still used by | Deprecate after | Replacement |
+|---|---|---|---|
+| `POST /interview-sessions` | `InterviewPanel.tsx:131` | S-062 merged | `POST /api/interviews/sessions` (S-001) |
+| `GET /interview-sessions?candidate_id=` | `InterviewPanel.tsx:89` | S-062 merged (list migrates with panel) | TBD — S-002/S-004 scope |
+| `POST /interview-sessions/trigger` | `InterviewPanel.tsx:107` | S-062 merged | TBD — S-002/S-004 scope |
+| `POST /interview-sessions/:id/start` | `InterviewSession.tsx:300` | S-063 merged | `PATCH /api/interviews/sessions/:id/state` (S-003) |
+| `POST /interview-sessions/:id/complete` | `InterviewSession.tsx:461` | S-063 merged | `PATCH …/state` → `completed` (S-003) |
+| `POST /interview-sessions/:id/respond` | `InterviewSession.tsx:521,534,585,605` | **Not yet** — ConversationService migration (future epic) | — |
+| `GET /api/interviews/interview-sessions/:id/tts` | `InterviewSession.tsx:179` | **Not yet** — SpeechSynthesisService migration (future epic) | — |
+| `GET /interview-sessions/by-token/:token` | `InterviewSession.tsx:225` | **Not yet** — token flow is pre-session; S-002 (invite tokens) will subsume it | — |
+| `POST /interview-sessions/:id/observer/enable\|disable` | `InterviewPanel.tsx:151` | **Not yet** — AI Observer worker (E-005) | — |
+
+**Deprecation policy:**
+- Old endpoints are **not removed** until every frontend caller has migrated (verified via
+  `grep` on `client/src/`, not assumed).
+- When an old endpoint's last caller migrates, add a `Deprecated:` response header and
+  a 30-day removal notice in the engineering log. Do not break external integrations
+  without the notice period.
+- `POST /interview-sessions/:id/respond` and `/tts` have **no migration story yet** —
+  they belong to the ConversationService/SpeechSynthesisService work (future epics).
+  They stay indefinitely until those epics are scoped.
+
+### 10.4 Status of `client/src/engine/interview/`
+
+**Decision (2026-10-10):** The greenfield client directory (`client/src/engine/interview/`,
+§3.1–3.9) is **deferred, not cancelled**.
+
+- **It does not exist.** Verified: `client/src/engine/` is absent as of 2026-10-10.
+- **The migration approach (§10.1–10.3) takes precedence.** Existing pages adopt new
+  backend endpoints incrementally. This delivers working software per sprint; the
+  greenfield rewrite does not.
+- **When the greenfield client gets built** (post-launch, when the engine needs the
+  full SessionOrchestrator/CameraManager/IntegrityMonitor stack), §3.1–3.9 remain the
+  design authority. The migrated pages in §10.1 become the integration reference —
+  the new client must support every endpoint the migrated pages use.
+- **ModeAdapter (`shared/interview-modes/`) is the exception** — it was already built
+  as a shared module per ADR-006 (S-001) and is imported by both server and (future)
+  client. It is the first §3.8 component to exist in production.
+
+**In short:** migrate first (§10.1), greenfield later (§3.1–3.9). Do not build both
+in parallel — that creates two clients to maintain.
+
+---
+
+> **End of Architecture v3 (amended 2026-10-10: §10 Frontend Integration & Migration Plan added).**
+> Next: Suga (CTO) review → Sumanth approval → merge.
