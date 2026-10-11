@@ -43,7 +43,7 @@ describe('biometricAudit.logAccess', () => {
 		expect(db.query).toHaveBeenCalledTimes(1);
 		const [sql, params] = db.query.mock.calls[0];
 		expect(sql).toMatch(/INSERT INTO biometric_audit_log/);
-		expect(params).toEqual([42, 'recruiter', 'view', 'face_embedding', 7, '1.2.3.4']);
+		expect(params).toEqual([42, 'recruiter', 'view', 'face_embedding', 7, '1.2.3.4', null]);
 		expect(row.id).toBe(1);
 		expect(row.action).toBe('view');
 	});
@@ -94,5 +94,37 @@ describe('biometricAudit.logAccess', () => {
 		});
 		const [, params] = db.query.mock.calls[0];
 		expect(params[5]).toBeNull();
+	});
+
+	// ─── C1 (S-065 privacy review): tenant attribution ────────────────────────
+
+	test('C1: stores companyId when provided', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ id: 3, company_id: 7 }] });
+		await logAccess({
+			userId: 1,
+			userRole: 'hiring_manager',
+			action: 'view',
+			dataType: 'face_embedding',
+			candidateId: 9,
+			companyId: 7,
+		});
+		const [sql, params] = db.query.mock.calls[0];
+		expect(sql).toMatch(/company_id/);
+		expect(params).toContain(7);
+		expect(sql).toMatch(/RETURNING[\s\S]*company_id/);
+	});
+
+	test('C1: companyId is optional and NULL when omitted (backward compatible)', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ id: 4 }] });
+		await logAccess({
+			userId: 1,
+			userRole: 'admin',
+			action: 'view',
+			dataType: 'face_embedding',
+			candidateId: 9,
+		});
+		const [, params] = db.query.mock.calls[0];
+		// company_id is the 7th param (after ip_address)
+		expect(params[6]).toBeNull();
 	});
 });

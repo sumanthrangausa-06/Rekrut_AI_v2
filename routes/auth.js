@@ -1765,6 +1765,8 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 					userId: user.id,
 					userRole: user.role || 'candidate',
 					ipAddress: req.ip,
+					// S-065 C1: tenant attribution for the purge audit entry.
+					companyId: user.company_id,
 				},
 			});
 			dekShredded = shredded;

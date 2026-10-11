@@ -18,7 +18,13 @@ jest.mock('../../../lib/auth', () => {
 	const authMiddleware = jest.fn((req, res, next) => {
 		const role = req.headers['x-test-role'];
 		if (!role) return res.status(401).json({ error: 'Authentication required' });
-		req.user = { id: 1, role };
+		// C1 (S-065): tenant isolation tests set x-test-company-id.
+		const companyIdHeader = req.headers['x-test-company-id'];
+		req.user = {
+			id: 1,
+			role,
+			company_id: companyIdHeader ? parseInt(companyIdHeader, 10) : null,
+		};
 		return next();
 	});
 	const requireRole = (...roles) => (req, res, next) => {
@@ -104,7 +110,8 @@ describe('GET /api/admin/biometric-audit', () => {
 	test('200 for hiring_manager role (main-app pattern)', async () => {
 		const res = await request(makeApp())
 			.get('/api/admin/biometric-audit')
-			.set('x-test-role', 'hiring_manager');
+			.set('x-test-role', 'hiring_manager')
+			.set('x-test-company-id', '7');
 		expect(res.status).toBe(200);
 		expect(res.body.success).toBe(true);
 	});
@@ -221,7 +228,8 @@ describe('GET /api/admin/biometric-audit', () => {
 
 		const hmRes = await request(makeApp())
 			.get('/api/admin/biometric-audit')
-			.set('x-test-role', 'hiring_manager');
+			.set('x-test-role', 'hiring_manager')
+			.set('x-test-company-id', '7');
 		expect(hmRes.body.entries[0]).not.toHaveProperty('ip_address');
 	});
 
@@ -252,5 +260,52 @@ describe('GET /api/admin/biometric-audit', () => {
 		expect(entry).toHaveProperty('action');
 		expect(entry).toHaveProperty('data_type');
 		expect(entry).toHaveProperty('accessed_at');
+	});
+
+	// ─── C1 (S-065 privacy review): tenant isolation ──────────────────────────
+	// hiring_manager must only see their own company's audit entries;
+	// admin sees all. NULL company_id rows (pre-tenant-attribution) are
+	// excluded from hiring_manager views (fail-closed).
+
+	test('C1: hiring_manager query is scoped to their company_id', async () => {
+		await request(makeApp())
+			.get('/api/admin/biometric-audit')
+			.set('x-test-role', 'hiring_manager')
+			.set('x-test-company-id', '7');
+		const dataQuery = pool.query.mock.calls.find(
+			([sql]) => /biometric_audit_log/i.test(sql) && !/COUNT/i.test(sql),
+		);
+		expect(dataQuery[0]).toMatch(/company_id = \$/);
+		expect(dataQuery[1]).toContain(7);
+	});
+
+	test('C1: hiring_manager count query is also scoped to their company', async () => {
+		await request(makeApp())
+			.get('/api/admin/biometric-audit')
+			.set('x-test-role', 'hiring_manager')
+			.set('x-test-company-id', '7');
+		const countQuery = pool.query.mock.calls.find(([sql]) =>
+			/COUNT\(\*\).*biometric_audit_log/i.test(sql),
+		);
+		expect(countQuery[0]).toMatch(/company_id = \$/);
+		expect(countQuery[1]).toContain(7);
+	});
+
+	test('C1: admin query has no company_id filter (global view)', async () => {
+		await request(makeApp())
+			.get('/api/admin/biometric-audit')
+			.set('x-test-role', 'admin');
+		const dataQuery = pool.query.mock.calls.find(
+			([sql]) => /biometric_audit_log/i.test(sql) && !/COUNT/i.test(sql),
+		);
+		expect(dataQuery[0]).not.toMatch(/company_id = \$/);
+	});
+
+	test('C1: hiring_manager without company_id gets 403 (cannot scope)', async () => {
+		const res = await request(makeApp())
+			.get('/api/admin/biometric-audit')
+			.set('x-test-role', 'hiring_manager');
+		// No company attribution → cannot safely scope → deny, fail closed.
+		expect(res.status).toBe(403);
 	});
 });

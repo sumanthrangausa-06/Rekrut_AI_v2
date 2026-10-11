@@ -559,6 +559,22 @@ router.get(
 			const params = [];
 			let idx = 1;
 
+			// S-065 C1 (privacy review, CRITICAL): tenant isolation. A
+			// hiring_manager must only see their own company's audit entries.
+			// admin keeps the global view. NULL company_id rows (written before
+			// tenant attribution existed) are excluded from hiring_manager
+			// views — `company_id = $n` never matches NULL, fail-closed.
+			const isAdmin = req.user.role === 'admin';
+			if (!isAdmin) {
+				if (!req.user.company_id) {
+					return res.status(403).json({
+						error: 'Account has no company attribution; audit access denied.',
+					});
+				}
+				conditions.push(`company_id = $${idx++}`);
+				params.push(req.user.company_id);
+			}
+
 			if (candidateIdFilter !== null) {
 				conditions.push(`candidate_id = $${idx++}`);
 				params.push(candidateIdFilter);
@@ -598,7 +614,6 @@ router.get(
 				params,
 			);
 
-			const isAdmin = req.user.role === 'admin';
 			const entries = dataResult.rows.map((row) => ({
 				id: row.id,
 				accessed_at: row.accessed_at,
