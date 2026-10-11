@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { EmptyState } from '@/components/domain/empty-state';
+import { HumanRequestsTab } from '@/components/recruiter/human-requests-tab';
 import { Skeleton } from '@/components/domain/skeleton';
 import { JoinInterviewButton } from '@/components/interview-join-button';
 import { Badge } from '@/components/ui/badge';
@@ -181,7 +182,7 @@ export function RecruiterInterviewsPage() {
 		// Deep-link support: ?tab=screening opens the Screening tab directly
 		const params = new URLSearchParams(window.location.search);
 		const t = params.get('tab');
-		return t === 'screening' || t === 'upcoming' || t === 'pending' || t === 'calendar' || t === 'past'
+		return t === 'screening' || t === 'upcoming' || t === 'pending' || t === 'calendar' || t === 'past' || t === 'human-requests'
 			? t
 			: 'upcoming';
 	});
@@ -797,6 +798,7 @@ export function RecruiterInterviewsPage() {
 						Pending ({pendingProposals.length + pendingScreenings.length})
 					</TabsTrigger>
 					<TabsTrigger value="screening">Screening</TabsTrigger>
+					<TabsTrigger value="human-requests">Human Requests</TabsTrigger>
 					<TabsTrigger value="calendar">Calendar</TabsTrigger>
 					<TabsTrigger value="past">Past ({past.length + unifiedPast.length})</TabsTrigger>
 				</TabsList>
@@ -1198,6 +1200,10 @@ export function RecruiterInterviewsPage() {
 							})}
 						</div>
 					)}
+				</TabsContent>
+				{/* Human Requests tab — S-061 (#711): pending human-interview requests */}
+				<TabsContent value="human-requests">
+					<HumanRequestsTab />
 				</TabsContent>
 			</Tabs>
 
