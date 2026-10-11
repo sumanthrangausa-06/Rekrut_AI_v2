@@ -293,6 +293,9 @@ export async function apiCall<T = unknown>(url: string, options: ApiCallOptions 
 		// Attach error code for programmatic handling (e.g., BLOCKED_EMAIL_DOMAIN)
 		const code = errorData.code as string | undefined;
 		(error as Error & { code?: string }).code = code;
+		// Attach HTTP status for programmatic handling (e.g., S-073 graceful
+		// degradation on 404 when a backend endpoint is not yet deployed).
+		(error as Error & { status?: number }).status = res.status;
 
 		// Consent gate (S-011): redirect to consent screens on 403 consent errors.
 		// CONSENT_WITHDRAWN is excluded — the caller shows an inline message instead.

@@ -40,6 +40,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Textarea } from '@/components/ui/textarea';
 import { apiCall } from '@/lib/api';
+import { QPBiometricConsent } from '@/components/QPBiometricConsent';
 
 import type {
 	CategoryScoreDetail,
@@ -98,6 +99,15 @@ export function QuickPracticeSessionPage() {
 		};
 	}, [questionId]);
 	const [responseMode, setResponseMode] = useState<'select' | 'video' | 'text'>('select');
+	// S-073 (#733): QP biometric consent flow state.
+	// 'idle' → user hasn't chosen video yet; 'starting' → session/start in flight;
+	// 'consent' → showing the QPBiometricConsent UI; 'declined' → user declined,
+	// respectful messaging shown; 'error' → session/start failed (non-404).
+	const [consentFlow, setConsentFlow] = useState<
+		'idle' | 'starting' | 'consent' | 'declined' | 'error'
+	>('idle');
+	const [qpSessionId, setQpSessionId] = useState<number | null>(null);
+	const [consentStartError, setConsentStartError] = useState<string | null>(null);
 	const [responseText, setResponseText] = useState('');
 	const [submitting, setSubmitting] = useState(false);
 	const [coaching, setCoaching] = useState<VideoCoaching | null>(null);
@@ -344,6 +354,40 @@ export function QuickPracticeSessionPage() {
 		setRecordingDone(true);
 	}
 
+	// S-073 (#733): Video-mode entry with biometric consent gate.
+	// Text mode is exempt (no frames = no consent needed).
+	// Flow: session/start → consent UI → accept → video mode.
+	//
+	// HIGH-1 (privacy engineer): fail-CLOSED on 404. A silent fallback to
+	// video mode without consent would be a fail-open privacy bypass — for a
+	// P0 consent gate, "temporarily unavailable" is the only safe degradation.
+	// If the backend is not yet deployed, video mode is unavailable (with a
+	// clear message + text-mode alternative), never unconsented.
+	async function handleVideoModeSelect() {
+		setConsentStartError(null);
+		setConsentFlow('starting');
+		try {
+			const res = await apiCall<{ sessionId: number }>('/interviews/practice/session/start', {
+				method: 'POST',
+			});
+			if (!res.sessionId || !Number.isInteger(res.sessionId)) {
+				throw new Error('Invalid session response');
+			}
+			setQpSessionId(res.sessionId);
+			setConsentFlow('consent');
+		} catch (err: unknown) {
+			const status = (err as Error & { status?: number }).status;
+			if (status === 404) {
+				setConsentStartError(
+					'Video analysis is temporarily unavailable — the consent service could not be reached. You can still practice with a text response.',
+				);
+			} else {
+				setConsentStartError('Could not start the practice session. Please try again.');
+			}
+			setConsentFlow('error');
+		}
+	}
+
 	// Submit video response with auto-retry on 503 (temporary AI slowness)
 	// FIX (Feb 15, 2026 — Task #32681): Backend now has 25s master timeout + 38s route timeout.
 	// Total worst case: ~5s Whisper + 25s analysis + network = ~35s.
@@ -386,6 +430,10 @@ export function QuickPracticeSessionPage() {
 						frames: capturedFrames,
 						duration_seconds: recordingTime,
 						audio_data: audioDataRef.current || undefined,
+						// S-073 (#733): sessionId binds the submission to the QP
+						// practice session for the S-066 biometric consent gate.
+						// Omitted when the gate is unavailable (graceful degradation).
+						...(qpSessionId != null ? { sessionId: qpSessionId } : {}),
 					},
 				});
 
@@ -558,7 +606,7 @@ export function QuickPracticeSessionPage() {
 									</p>
 									<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 										<button type="button"
-											onClick={() => setResponseMode('video')}
+											onClick={handleVideoModeSelect}
 											className="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-primary/20 hover:border-primary/50 hover:bg-primary/5 transition-all group"
 										>
 											<div className="p-3 rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
@@ -589,6 +637,97 @@ export function QuickPracticeSessionPage() {
 											<Badge variant="outline" className="text-xs">
 												Text only
 											</Badge>
+										</button>
+									</div>
+								</div>
+							)}
+
+							{/* S-073 (#733): Biometric consent step — after mode select, before recording.
+							     Text mode is exempt (no frames). Shown only in the video path. */}
+							{responseMode === 'select' && consentFlow === 'starting' && (
+								<div className="mt-5 rounded-xl border p-6 text-center space-y-3">
+									<p className="text-sm text-muted-foreground">Starting practice session…</p>
+									<button
+										type="button"
+										onClick={() => setConsentFlow('idle')}
+										className="text-sm font-medium text-primary hover:underline"
+									>
+										Back to mode selection
+									</button>
+								</div>
+							)}
+							{responseMode === 'select' && consentFlow === 'consent' && qpSessionId != null && (
+								<QPBiometricConsent
+									sessionId={qpSessionId}
+									onAccepted={() => {
+										setConsentFlow('idle');
+										setResponseMode('video');
+									}}
+									onDeclined={() => {
+										// M1: abandon the dangling practice session (best-effort).
+										// The session was created to bind the consent receipt; with
+										// consent declined it serves no purpose. Failure is swallowed —
+										// the decline UX must not block on cleanup.
+										const sid = qpSessionId;
+										if (sid != null) {
+											apiCall(`/interviews/sessions/${sid}/state`, {
+												method: 'PATCH',
+												body: { to_state: 'abandoned' },
+											}).catch(() => {});
+											setQpSessionId(null);
+										}
+										setConsentFlow('declined');
+									}}
+									onBack={() => setConsentFlow('idle')}
+								/>
+							)}
+							{responseMode === 'select' && consentFlow === 'declined' && (
+								<div className="mt-5 space-y-3">
+									<div className="rounded-xl border p-6 text-center">
+										<p className="text-sm text-muted-foreground">
+											You can still get coaching feedback on your answer content with a
+											text response — no video needed.
+										</p>
+									</div>
+									<button
+										type="button"
+										onClick={() => {
+											setConsentFlow('idle');
+											setResponseMode('text');
+										}}
+										className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+									>
+										Switch to text mode
+									</button>
+									<button
+										type="button"
+										onClick={() => setConsentFlow('idle')}
+										className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium hover:bg-muted"
+									>
+										Back to mode selection
+									</button>
+								</div>
+							)}
+							{responseMode === 'select' && consentFlow === 'error' && (
+								<div className="mt-5 rounded-xl border p-6 text-center space-y-3">
+									<p className="text-sm text-muted-foreground">{consentStartError}</p>
+									<div className="flex flex-col sm:flex-row gap-3 justify-center">
+										<button
+											type="button"
+											onClick={handleVideoModeSelect}
+											className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
+										>
+											Try again
+										</button>
+										<button
+											type="button"
+											onClick={() => {
+												setConsentFlow('idle');
+												setResponseMode('text');
+											}}
+											className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+										>
+											Use text mode instead
 										</button>
 									</div>
 								</div>
