@@ -87,6 +87,9 @@ const modeSchemas = {
 		.object({
 			observer_enabled: z.boolean().default(false),
 			scheduled_at: z.string().datetime().optional(),
+			// S-012 (#651): consent-decline human interviews must never collect
+			// biometrics. Defaults false; the approval path sets it explicitly.
+			biometric_collection: z.boolean().default(false),
 		})
 		.strict(),
 };

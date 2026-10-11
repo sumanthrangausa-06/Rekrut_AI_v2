@@ -59,6 +59,15 @@ describe('ModeAdapter', () => {
 			expect(defaults.observer_enabled).toBe(false); // opt-in by recruiter
 		});
 
+		test('human defaults biometric_collection to false (S-012 #651)', () => {
+			const defaults = ModeAdapter.getDefaults('human');
+			expect(defaults.biometric_collection).toBe(false);
+			// Strict schema still rejects unknown keys
+			const result = ModeAdapter.validateConfig('human', { biometric_collection: true });
+			expect(result.success).toBe(true);
+			expect(result.data.biometric_collection).toBe(true);
+		});
+
 		test('throws INVALID_SESSION_TYPE for unknown type', () => {
 			try {
 				ModeAdapter.getDefaults('foo');
