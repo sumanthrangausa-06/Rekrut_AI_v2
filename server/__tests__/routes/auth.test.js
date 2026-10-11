@@ -275,5 +275,32 @@ password,
 				.send({ password: pw });
 			expect(badToken.status).toBe(401);
 		});
+
+		it('crypto-shreds the candidate DEK on account deletion (S-067)', async () => {
+			// The shared db mock (server/test/setup.js) returns rowCount 1 for
+			// UPDATE candidate_data_keys, so the shred path is exercised.
+			const db = require('../../../lib/db');
+			const email = 'deleteme-dek@example.com';
+			const token = await registerAndLogin(email);
+
+			const callsBefore = db.query.mock.calls.length;
+			const res = await request(app)
+				.delete('/api/auth/delete-account')
+				.set('Authorization', `Bearer ${token}`)
+				.send({ password: pw });
+
+			expect(res.status).toBe(200);
+			const newCalls = db.query.mock.calls.slice(callsBefore).map((c) => String(c[0]).toLowerCase());
+			// DEK destruction issued inside the deletion transaction…
+			expect(newCalls.some((q) => q.includes('update candidate_data_keys'))).toBe(true);
+			// …and the AC-3 audit entry written.
+			expect(newCalls.some((q) => q.includes('insert into biometric_audit_log'))).toBe(true);
+			const auditCall = db.query.mock.calls
+				.slice(callsBefore)
+				.find((c) => String(c[0]).toLowerCase().includes('insert into biometric_audit_log'));
+			expect(auditCall[1]).toEqual(
+				expect.arrayContaining([expect.anything(), expect.anything(), 'purge', 'dek']),
+			);
+		});
 	});
 });
