@@ -22,7 +22,9 @@ import {
 	Loader2,
 	Mic,
 	MicOff,
+	Pause,
 	PhoneOff,
+	Play,
 	Send,
 	ShieldCheck,
 	Video,
@@ -37,6 +39,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import { useInterviewerAudio } from '@/hooks/useInterviewerAudio';
 import { getCameraErrorMessage, useInterviewCamera } from '@/hooks/useInterviewCamera';
+import { useSessionHeartbeat } from '@/hooks/useSessionHeartbeat';
 import {
 	isSpeechRecognitionAvailable,
 	SPEECH_NOT_SUPPORTED_MESSAGE,
@@ -120,6 +123,35 @@ export default function CandidateInterviewSessionPage() {
 	const [turns, setTurns] = useState<Turn[]>([]);
 	const [error, setError] = useState<string | null>(null);
 	const [notice, setNotice] = useState<string | null>(null);
+
+	// S-063 (#713): session heartbeat + pause/resume. Sends a heartbeat every
+	// 20s while the session is active; detects backend auto-pause (stale
+	// heartbeat, e.g. after iOS Safari suspends background timers).
+	const {
+		heartbeatState,
+		error: lifecycleError,
+		clearError: clearLifecycleError,
+		pause: pauseSession,
+		resume: resumeSession,
+	} = useSessionHeartbeat({
+		sessionId: session?.id ?? null,
+		inviteToken: tokenSession?.invite_token ?? null,
+		enabled: phase === 'active',
+		onAutoPaused: () => {
+			setNotice(
+				'Your session was paused because the connection was lost. Nothing is lost \u2014 resume when you\u2019re ready.',
+			);
+		},
+		onSessionEnded: (status) => {
+			setNotice(
+				`This session has ended (${status}). Please refresh the page if you believe this is a mistake.`,
+			);
+		},
+		onResumed: () => {
+			// L5: clear any stale auto-pause notice.
+			setNotice(null);
+		},
+	});
 
 	// S-064 (#714): withdrawn-consent recovery. When a biometric-gated call
 	// fails with 403 CONSENT_WITHDRAWN, api.ts dispatches a 'consent-withdrawn'
@@ -260,14 +292,15 @@ export default function CandidateInterviewSessionPage() {
 	}, [token]);
 
 	// ---- elapsed timer ----
+	// M2: stop counting while the session is paused (heartbeatState from S-063).
 	useEffect(() => {
-		if (phase === 'active') {
+		if (phase === 'active' && heartbeatState !== 'paused') {
 			timerRef.current = setInterval(() => setElapsedSec((s) => s + 1), 1000);
 		}
 		return () => {
 			if (timerRef.current) clearInterval(timerRef.current);
 		};
-	}, [phase]);
+	}, [phase, heartbeatState]);
 
 	// ---- withdrawn-consent recovery (S-064 #714) ----
 	// api.ts dispatches 'consent-withdrawn' when a biometric-gated call fails
@@ -1105,6 +1138,18 @@ export default function CandidateInterviewSessionPage() {
 							End interview
 						</Button>
 					)}
+					{/* S-063 (#713): pause/resume — only during the active session */}
+					{heartbeatState === 'active' ? (
+						<Button size="sm" variant="outline" onClick={() => void pauseSession()}>
+							<Pause className="h-4 w-4 mr-1" />
+							Pause
+						</Button>
+					) : (
+						<Button size="sm" variant="outline" onClick={() => void resumeSession()}>
+							<Play className="h-4 w-4 mr-1" />
+							Resume
+						</Button>
+					)}
 				</div>
 			</header>
 
@@ -1125,6 +1170,59 @@ export default function CandidateInterviewSessionPage() {
 				</div>
 			)}
 
+			{/* S-063 (#713): lifecycle errors — friendly copy for invalid transitions (AC-4) */}
+			{lifecycleError && (
+				<div className="px-4 pt-3">
+					<div className="bg-red-50 border border-red-200 text-red-800 rounded-md px-3 py-2 text-sm flex items-start gap-2">
+						<AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+						<span>{lifecycleError}</span>
+						<button
+							type="button"
+							className="ml-auto text-red-600 hover:text-red-800"
+							onClick={clearLifecycleError}
+							aria-label="Dismiss"
+						>
+							×
+						</button>
+					</div>
+				</div>
+			)}
+
+			{/* S-063 (#713): paused overlay — session paused (explicitly or auto-paused) */}
+			{heartbeatState === 'paused' && (
+				<div className="px-4 pt-3">
+					<Card className="border-blue-200 bg-blue-50">
+						<CardContent className="py-6 flex flex-col items-center gap-3 text-center">
+							<Pause className="h-8 w-8 text-blue-600" />
+							<p className="font-medium">Interview paused</p>
+							<p className="text-sm text-muted-foreground max-w-md">
+								Your progress is saved and the timer is stopped. Resume when
+								you&apos;re ready to continue.
+							</p>
+							<Button onClick={() => void resumeSession()}>
+								<Play className="h-4 w-4 mr-1" />
+								Resume interview
+							</Button>
+						</CardContent>
+					</Card>
+				</div>
+			)}
+
+			{/* S-063 (#713): session ended server-side (e.g. completed) */}
+			{heartbeatState === 'ended' && (
+				<div className="px-4 pt-3">
+					<Card className="border-amber-200 bg-amber-50">
+						<CardContent className="py-6 flex flex-col items-center gap-3 text-center">
+							<AlertTriangle className="h-8 w-8 text-amber-600" />
+							<p className="font-medium">This session has ended</p>
+							<p className="text-sm text-muted-foreground max-w-md">
+								The session is no longer active on the server. Please refresh
+								the page if you believe this is a mistake.
+							</p>
+						</CardContent>
+					</Card>
+				</div>
+			)}
 			{/* S-064 (#714): withdrawn-consent recovery — inline, not a redirect */}
 			{withdrawnConsent && (
 				<div className="px-4 pt-3">
