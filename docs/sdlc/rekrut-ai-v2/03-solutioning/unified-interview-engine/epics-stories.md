@@ -1477,13 +1477,15 @@ E-009 (Metering, Billing & Admin) ── parallel from mid-plan (needs E-001 met
 
 ### Story S-072: Update AI Observer disclosure for declined biometrics (NEW — discovered Phase 4)
 
-**Epic:** E-008 | **PRD Ref:** FR-85 | **PRD Version:** 3.3 | **Priority:** Important | **Points:** 2 | **Status:** 📋 Planned (Sprint 5, issue #726)
+**Epic:** E-008 | **PRD Ref:** FR-85 | **PRD Version:** 3.3 | **Priority:** Important | **Points:** 2 | **Status:** ✅ Done (Sprint 5, issue #726, docs-only PR)
 
 **User Story:** As a candidate, I need the observer disclosure text to accurately reflect the declined-biometrics path so I'm not misled.
 
 **Acceptance Criteria:**
-- [ ] AC-1: Disclosure text updated for the declined-biometrics case.
-- [ ] AC-2: No false promises about data collection.
+- [x] AC-1: Disclosure text updated for the declined-biometrics case. FR-85 is now conditional: declined sessions show "You declined biometric collection for this session. The AI observer is disabled for this session — no biometric analysis will be performed. [Learn more]" (replaces the misleading "may include AI-assisted analysis" wording). PRD FR-85 and architecture §3.19 updated; KNOWN GAP flag removed.
+- [x] AC-2: No false promises about data collection. Copy promises "no biometric analysis will be performed" — never "no data collected" (video may still record for the human conversation). UX architect reviewed and approved.
+
+**Technical Notes:** Copy change; docs only — no UI renders FR-85 verbatim.
 
 **Technical Notes:** Copy change; pairs with any Sprint 5 story.
 
