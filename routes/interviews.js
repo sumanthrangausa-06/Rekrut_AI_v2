@@ -30,7 +30,11 @@ const { requireBiometricConsent } = require('../server/middleware/requireBiometr
 const emailService = require('../lib/email-service');
 const calendarService = require('../server/services/calendar-service');
 const { notifyUser } = require('../lib/notify');
-const { uploadToB2 } = require('../lib/file-storage');
+// S-069 (#722): encrypted .webm recording storage (per-candidate DEK).
+const {
+	uploadEncryptedRecording,
+	decryptRecording,
+} = require('../lib/r2RecordingStore');
 // Task 11 (#322): company audit log (#251 pattern) for session.sent on manual send.
 const { insertAuditLog } = require('./audit');
 
@@ -156,6 +160,9 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 // Submit response to a question
 router.post('/:id/respond', authMiddleware, async (req, res) => {
 	try {
+		// S-069 (#722, crypto H1): video_key is NEVER accepted from the client —
+		// the upload route persists it server-side. A client-provided key
+		// would enable same-candidate answer replay across questions.
 		const { question_index, response_text, video_url } = req.body;
 
 		// Get interview
@@ -186,10 +193,14 @@ router.post('/:id/respond', authMiddleware, async (req, res) => {
 
 		// Update responses array
 		const responses = interviewData.responses || [];
+		// Preserve the server-side video_key (set by /upload-video); merge,
+		// don't overwrite — the client never provides it (crypto H1).
+		const priorEntry = responses[question_index] || {};
 		responses[question_index] = {
 			question_index,
 			response_text,
 			video_url,
+			...(priorEntry.video_key ? { video_key: priorEntry.video_key } : {}),
 			analysis,
 			submitted_at: new Date().toISOString(),
 		};
@@ -359,6 +370,86 @@ router.get('/history', authMiddleware, async (req, res) => {
 // server.js — interviewEventsRoutes' GET /:id isInt validator would
 // otherwise 400 on the fixed segment "my-interviews".
 
+// S-069 (#722): session-auth decrypt-proxy for encrypted .webm recordings.
+// GET /api/interviews/video-playback/:interviewId/:questionIndex
+//
+// AC-2: playback requires authorization (the candidate owns the interview)
+// followed by server-side decryption. No plaintext at rest, no
+// unauthenticated decrypt path. Unlike S-059's frame proxy (capability
+// tokens for vision APIs), playback consumers present a session, so plain
+// authMiddleware is the right model — no token minting needed.
+//
+// AC-3: DEK destruction renders recordings unrecoverable — decryptRecording
+// throws when the DEK was destroyed, and the proxy returns 403 (no oracle:
+// decryption failures are indistinguishable from missing keys).
+// Crypto M2: rate-limit the proxy — each hit fetches and decrypts up to
+// ~50MB, cheap amplification against the shared VM without a limiter.
+router.get(
+	'/video-playback/:interviewId/:questionIndex',
+	authMiddleware,
+	rateLimits.standard,
+	async (req, res) => {
+	try {
+		// Crypto L1: strict param validation (parseInt is lenient: "7abc" → 7).
+		if (!/^\d+$/.test(req.params.interviewId) || !/^\d+$/.test(req.params.questionIndex)) {
+			return res.status(400).json({ error: 'Invalid interview or question index' });
+		}
+		const interviewId = parseInt(req.params.interviewId, 10);
+		const questionIndex = parseInt(req.params.questionIndex, 10);
+
+		const result = await pool.query('SELECT * FROM interviews WHERE id = $1', [interviewId]);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Interview not found' });
+		}
+		const interview = result.rows[0];
+
+		// Authorization: the candidate owns the interview. (Recruiters see
+		// aggregate scores from this table, never videos — matches the
+		// upload route's ownership check.)
+		if (Number(interview.user_id) !== Number(req.user.id)) {
+			return res.status(403).json({ error: 'Not authorized' });
+		}
+
+		const responses = interview.responses || [];
+		const entry = responses[questionIndex];
+		const videoKey = entry && entry.video_key;
+		if (!videoKey) {
+			// No encrypted recording for this question — legacy plaintext rows
+			// keep their /api/files/... URLs, which still serve them.
+			return res.status(404).json({ error: 'Recording not found' });
+		}
+
+		try {
+			// Crypto H1: interviewId + questionIndex reconstruct the upload-time
+			// AAD — a replayed key from another question fails GCM auth.
+			const plaintext = await decryptRecording(videoKey, interview.user_id, interviewId, questionIndex);
+			res.set('Content-Type', 'video/webm');
+			res.set('Content-Length', String(plaintext.length));
+			// Never cache plaintext biometric recordings at the edge
+			res.set('Cache-Control', 'no-store');
+			res.set('Content-Disposition', 'inline');
+			return res.send(plaintext);
+		} catch (decryptErr) {
+			if (decryptErr.code === 'NOT_FOUND') {
+				return res.status(404).json({ error: 'Recording not found' });
+			}
+			// Decryption failure (wrong DEK, tampered bytes, destroyed DEK) and
+			// storage outages all present as 403/503 WITHOUT distinguishing —
+			// no oracle for attackers probing key validity.
+			if (decryptErr.code === 'STORAGE_UNAVAILABLE') {
+				return res.status(503).json({ error: 'Recording temporarily unavailable' });
+			}
+			if (decryptErr.code === 'RECORDING_TOO_LARGE') {
+				return res.status(413).json({ error: 'Recording too large' });
+			}
+			return res.status(403).json({ error: 'Recording access denied' });
+		}
+	} catch (err) {
+		console.error('[interviews] video-playback error:', err.message);
+		res.status(500).json({ error: 'Failed to play recording' });
+	}
+});
+
 // Get interview details
 router.get('/:id', authMiddleware, async (req, res) => {
 	try {
@@ -410,18 +501,32 @@ router.post(
 				return res.status(404).json({ error: 'Interview not found' });
 			}
 
-			// Upload to Backblaze B2
+			// S-069 (#722): encrypt with the candidate's DEK BEFORE storage.
+			// Fail-closed: any crypto/storage failure → 500, plaintext never written.
 			let videoUrl;
 			try {
-				const uploadResult = await uploadToB2({
+				const { key: videoKey } = await uploadEncryptedRecording({
 					buffer: req.file.buffer,
-					mimetype: req.file.mimetype,
-					filename: `interview-${interview_id}-q${question_index}.webm`,
-					prefix: 'interviews',
+					candidateId: req.user.id,
+					interviewId: interview_id,
+					questionIndex: question_index,
 				});
-				videoUrl = uploadResult.url;
+				// Crypto H1: persist the storage key server-side — the client
+				// never sees it, so /respond cannot be abused to replay one
+				// question's recording as another's.
+				const qi = parseInt(question_index, 10);
+				const existing = interview.rows[0].responses || [];
+				const merged = Array.isArray(existing) ? [...existing] : [];
+				merged[qi] = { ...(merged[qi] || {}), question_index: qi, video_key: videoKey };
+				await pool.query('UPDATE interviews SET responses = $1 WHERE id = $2', [
+					JSON.stringify(merged),
+					interview_id,
+				]);
+				// Session-auth decrypt-proxy URL (AC-2) — playback goes through
+				// the ownership-checked proxy below, which decrypts server-side.
+				videoUrl = `/api/interviews/video-playback/${interview_id}/${question_index}`;
 			} catch (uploadErr) {
-				console.error('B2 upload error:', uploadErr.code, uploadErr.message);
+				console.error('Encrypted recording upload error:', uploadErr.code, uploadErr.message);
 				return res.status(500).json({ error: 'Failed to upload video' });
 			}
 
