@@ -101,6 +101,21 @@ describe('requireBiometricConsent middleware', () => {
 		);
 	});
 
+	test('withdrawn consent → 403 body includes consent type (S-064)', async () => {
+		consentService.checkConsentState.mockResolvedValue({
+			state: 'withdrawn',
+			withdrawnAt: '2026-10-10T00:00:00Z',
+		});
+		const req = mockReq({ body: { sessionId: 42 } });
+		const res = mockRes();
+
+		await middleware(req, res, jest.fn());
+
+		expect(res.json).toHaveBeenCalledWith(
+			expect.objectContaining({ code: 'CONSENT_WITHDRAWN', type: 'biometric' }),
+		);
+	});
+
 	test('no sessionId → 400 fail-closed', async () => {
 		const req = mockReq({ body: {} });
 		const res = mockRes();

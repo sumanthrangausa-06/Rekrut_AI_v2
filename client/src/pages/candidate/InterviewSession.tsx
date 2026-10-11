@@ -43,6 +43,7 @@ import {
 } from '@/hooks/useSpeechRecognition';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall, getToken } from '@/lib/api';
+import { WithdrawnConsentRecovery } from '@/components/WithdrawnConsentRecovery';
 import { useVoiceRoom, type VoiceRoomTurn } from './useVoiceRoom';
 
 type Phase =
@@ -119,6 +120,14 @@ export default function CandidateInterviewSessionPage() {
 	const [turns, setTurns] = useState<Turn[]>([]);
 	const [error, setError] = useState<string | null>(null);
 	const [notice, setNotice] = useState<string | null>(null);
+
+	// S-064 (#714): withdrawn-consent recovery. When a biometric-gated call
+	// fails with 403 CONSENT_WITHDRAWN, api.ts dispatches a 'consent-withdrawn'
+	// event — we show the inline recovery UI instead of a generic error.
+	const [withdrawnConsent, setWithdrawnConsent] = useState<{
+		consentType: string;
+		sessionId: number | null;
+	} | null>(null);
 
 	// Consent state
 	const [videoConsent, setVideoConsent] = useState(false);
@@ -260,6 +269,24 @@ export default function CandidateInterviewSessionPage() {
 		};
 	}, [phase]);
 
+	// ---- withdrawn-consent recovery (S-064 #714) ----
+	// api.ts dispatches 'consent-withdrawn' when a biometric-gated call fails
+	// with 403 CONSENT_WITHDRAWN. Show the inline recovery UI.
+	useEffect(() => {
+		const handler = (e: Event) => {
+			const detail = (e as CustomEvent).detail as {
+				consentType?: string;
+				sessionId?: number | null;
+			};
+			setWithdrawnConsent({
+				consentType: detail.consentType ?? 'biometric',
+				sessionId: detail.sessionId ?? null,
+			});
+		};
+		window.addEventListener('consent-withdrawn', handler);
+		return () => window.removeEventListener('consent-withdrawn', handler);
+	}, []);
+
 	// ---- auto-scroll transcript when new content arrives ----
 	const transcriptVersion = turns.length + (liveTranscript ? 1 : 0);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: re-scroll when transcript content changes
@@ -373,6 +400,42 @@ export default function CandidateInterviewSessionPage() {
 		stopFrameCapture();
 		frameIntervalRef.current = setInterval(captureFrame, FRAME_INTERVAL_MS);
 	}, [captureFrame, stopFrameCapture]);
+
+	// ---- withdrawn-consent recovery handlers (S-064 #714) ----
+	// Placed after stopFrameCapture/stopCamera declarations (declaration order).
+
+	// Exit path: abandon the session gracefully.
+	const handleWithdrawnExit = useCallback(async () => {
+		const id = session?.id ?? withdrawnConsent?.sessionId;
+		if (id) {
+			try {
+				await apiCall(`/interviews/sessions/${id}/state`, {
+					method: 'PATCH',
+					body: { to_state: 'abandoned' },
+				});
+			} catch {
+				// Best-effort — the candidate is leaving regardless.
+			}
+		}
+		setWithdrawnConsent(null);
+		setPhase('done');
+	}, [session, withdrawnConsent]);
+
+	// Continue-without path: stop the withdrawn collection at the source,
+	// dismiss the recovery UI, keep interviewing. The DB withdrawal already
+	// blocks biometric-gated calls server-side.
+	const handleWithdrawnContinue = useCallback(() => {
+		const type = withdrawnConsent?.consentType ?? 'biometric';
+		if (type === 'biometric') {
+			setVideoConsent(false);
+			stopFrameCapture();
+			stopCamera();
+		}
+		setWithdrawnConsent(null);
+		setNotice(
+			'Continuing without biometric collection — only the steps that need it will be skipped.',
+		);
+	}, [withdrawnConsent, stopFrameCapture, stopCamera]);
 
 	// ---- join: devices -> active ----
 	const handleJoin = useCallback(async () => {
@@ -1059,6 +1122,18 @@ export default function CandidateInterviewSessionPage() {
 							×
 						</button>
 					</div>
+				</div>
+			)}
+
+			{/* S-064 (#714): withdrawn-consent recovery — inline, not a redirect */}
+			{withdrawnConsent && (
+				<div className="px-4 pt-3">
+					<WithdrawnConsentRecovery
+						consentType={withdrawnConsent.consentType}
+						sessionId={withdrawnConsent.sessionId}
+						onContinue={handleWithdrawnContinue}
+						onExit={handleWithdrawnExit}
+					/>
 				</div>
 			)}
 
