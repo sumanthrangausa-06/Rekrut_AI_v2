@@ -22,7 +22,7 @@ process.env.BIOMETRIC_ENCRYPTION_KEY =
 const db = require('../../../lib/db');
 const biometricAudit = require('../../../lib/biometricAudit');
 const { destroyDEK } = require('../../../lib/biometricCrypto');
-const { eraseBiometricData } = require('../../../lib/erasureService');
+const { erasePersonalData } = require('../../../lib/erasureService');
 
 describe('S-067 destroyDEK options (DSAR wiring)', () => {
 	beforeEach(() => {
@@ -83,35 +83,43 @@ describe('S-067 destroyDEK options (DSAR wiring)', () => {
 	});
 });
 
-describe('S-067 eraseBiometricData (shared erasure routine)', () => {
+describe('S-067 erasePersonalData (shared erasure routine)', () => {
 	beforeEach(() => {
 		jest.resetAllMocks();
 	});
 
 	test('returns { shredded: true } and audits when a DEK is destroyed', async () => {
-		const client = { query: jest.fn().mockResolvedValue({ rowCount: 1 }) };
+		const client = { query: jest.fn() };
+		client.query
+			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
+			.mockResolvedValueOnce({ rowCount: 0 }) // embeddings DELETE: no row
+			.mockResolvedValueOnce({ rowCount: 0 }); // search-index DELETE: no row
 		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
-		const result = await eraseBiometricData(7, {
+		const result = await erasePersonalData(7, {
 			client,
 			audit: { userId: 7, userRole: 'candidate', ipAddress: '10.0.0.1' },
 		});
-		expect(result).toEqual({ shredded: true });
+		expect(result).toEqual({ shredded: true, embeddingsDeleted: false, searchIndexDeleted: false });
 		expect(biometricAudit.logAccess).toHaveBeenCalledTimes(1);
 	});
 
 	test('returns { shredded: false } on DEKNotFound (no DEK → not an error)', async () => {
-		const client = { query: jest.fn().mockResolvedValue({ rowCount: 0 }) };
-		const result = await eraseBiometricData(7, {
+		const client = { query: jest.fn() };
+		client.query
+			.mockResolvedValueOnce({ rowCount: 0 }) // destroyDEK: DEKNotFound
+			.mockResolvedValueOnce({ rowCount: 0 }) // embeddings DELETE: no row
+			.mockResolvedValueOnce({ rowCount: 0 }); // search-index DELETE: no row
+		const result = await erasePersonalData(7, {
 			client,
 			audit: { userId: 7, userRole: 'candidate' },
 		});
-		expect(result).toEqual({ shredded: false });
+		expect(result).toEqual({ shredded: false, embeddingsDeleted: false, searchIndexDeleted: false });
 		expect(biometricAudit.logAccess).not.toHaveBeenCalled();
 	});
 
 	test('rethrows non-DEKNotFound errors (caller rolls back)', async () => {
 		const client = { query: jest.fn().mockRejectedValue(new Error('db down')) };
-		await expect(eraseBiometricData(7, { client })).rejects.toThrow('db down');
+		await expect(erasePersonalData(7, { client })).rejects.toThrow('db down');
 		expect(biometricAudit.logAccess).not.toHaveBeenCalled();
 	});
 });
