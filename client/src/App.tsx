@@ -459,6 +459,11 @@ const AdminEmailQueuePage = lazy(() =>
 		default: m.AdminEmailQueuePage,
 	})),
 );
+const BiometricAuditPage = lazy(() =>
+	import('@/pages/admin/biometric-audit').then((m) => ({
+		default: m.BiometricAuditPage,
+	})),
+);
 
 const SignDocumentPage = lazy(() =>
 	import('@/pages/signature/SignDocument').then((m) => ({ default: m.SignDocumentPage })),
@@ -1594,6 +1599,14 @@ function AppRoutes() {
 				element={
 					<AdminAuthGuard>
 						<AdminEmailQueuePage />
+					</AdminAuthGuard>
+				}
+			/>
+			<Route
+				path="/admin/biometric-audit"
+				element={
+					<AdminAuthGuard allowedRoles={['admin', 'hiring_manager']}>
+						<BiometricAuditPage />
 					</AdminAuthGuard>
 				}
 			/>
