@@ -5,6 +5,7 @@
  *   POST /sessions/:id/request-human-interview  (candidate auth) → AC-1
  *   POST /human-requests/:id/approve             (recruiter auth) → AC-2 approve
  *   POST /human-requests/:id/decline             (recruiter auth) → AC-2 decline
+ *   GET  /human-requests                        (recruiter auth) → S-061 AC-1 list pending
  *
  * Business logic lives in lib/humanInterviewService.js; routes map
  * coded errors to HTTP status.
@@ -68,6 +69,25 @@ function requireHiringRole(req, res, next) {
 	}
 	return next();
 }
+
+// --- GET /human-requests (recruiter auth) — S-061 AC-1 list pending ---
+router.get(
+	'/human-requests',
+	authMiddleware,
+	requireHiringRole,
+	async (req, res) => {
+		try {
+			const requests = await humanInterviewService.listPendingRequests({
+				recruiterId: req.user.id,
+				recruiterRole: req.user.role,
+				recruiterCompanyId: req.user.company_id,
+			});
+			res.json({ requests });
+		} catch (err) {
+			toHttpError(err, res);
+		}
+	},
+);
 
 // --- POST /human-requests/:id/approve (recruiter auth) — AC-2 ---
 router.post(
