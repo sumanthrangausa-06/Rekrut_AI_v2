@@ -95,6 +95,8 @@ interface Session {
 		question_source?: string;
 		current_phase?: string;
 		observer_enabled?: boolean;
+		// S-048 (#696): biometric consent state for observer disclosure branching
+		biometric_collection?: boolean | null;
 	};
 }
 
@@ -924,17 +926,31 @@ export default function CandidateInterviewSessionPage() {
 								without video, or close this page — no recording was made.
 							</p>
 						)}
-						{/* Task 5 (#323) — Track B: the candidate is told the AI
-						    observer is present before joining (spec §5). */}
-						{session?.config?.observer_enabled && (
-							<p className="text-sm bg-blue-50 border border-blue-200 rounded-md p-3">
-								<strong className="text-blue-900">AI observer present:</strong>{' '}
-								<span className="text-blue-800">
-									an AI assistant will silently observe this interview to help the hiring
-									team evaluate it. It listens only — it won't speak or interrupt.
-								</span>
-							</p>
-						)}
+						{/* S-048 (#696): observer disclosure branched on default-deny
+						    gate state (privacy-engineer BLOCKER). The pre-existing
+						    notice claimed the observer "will" observe on intent
+						    alone — false under default-deny for declined/unknown.
+						    granted → affirmative; declined → reassurance; unknown
+						    or disabled → nothing. */}
+						{session?.config?.observer_enabled &&
+							session?.config?.biometric_collection === true && (
+								<p className="text-sm bg-blue-50 border border-blue-200 rounded-md p-3">
+									<strong className="text-blue-900">AI observer present:</strong>{' '}
+									<span className="text-blue-800">
+										an AI assistant will silently observe this interview to help the hiring
+										team evaluate it. It listens only — it won't speak or interrupt.
+									</span>
+								</p>
+							)}
+						{session?.config?.observer_enabled &&
+							session?.config?.biometric_collection === false && (
+								<p className="text-sm bg-emerald-50 border border-emerald-200 rounded-md p-3">
+									<span className="text-emerald-800">
+										AI-assisted analysis of this session is disabled — you declined
+										biometric analysis.
+									</span>
+								</p>
+							)}
 						{error && <p className="text-sm text-destructive">{error}</p>}
 						<div className="space-y-2">
 							<Button
