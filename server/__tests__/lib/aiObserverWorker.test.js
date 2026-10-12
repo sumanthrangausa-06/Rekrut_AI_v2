@@ -1,49 +1,42 @@
 /**
  * ai-observer worker tests — S-047 (#695)
- * Tests for role resolution (AC-2) and consent gate integration.
+ * Tests for role resolution (AC-2) using the REAL worker module.
  *
- * Note: The worker's LiveKit room operations are not unit-tested here
- * (they require a live LiveKit server). These tests cover the pure
- * logic: role resolution from identity prefixes and room metadata fallback.
+ * Privacy-engineer review (S-047): the previous version duplicated
+ * resolveRoles inline — it tested a copy, not the code. This version
+ * imports the real module (which no longer auto-starts on require).
  */
 
-// We test resolveRoles by requiring the worker module.
-// The worker starts polling on require, so we need to prevent that.
-// Instead, we test the logic via a minimal harness.
+// Mock @livekit/rtc-node before requiring the worker
+jest.mock('@livekit/rtc-node', () => ({
+	Room: jest.fn(),
+	RoomEvent: {
+		TrackSubscribed: 'trackSubscribed',
+		TrackPublished: 'trackPublished',
+	},
+}));
+
+// Mock dependencies to prevent side effects on import
+jest.mock('../../../lib/observerJobs', () => ({
+	enqueue: jest.fn(),
+	claim: jest.fn(),
+	heartbeat: jest.fn(),
+	markObserving: jest.fn(),
+	markFlushing: jest.fn(),
+	complete: jest.fn(),
+	cancel: jest.fn(),
+	fail: jest.fn(),
+	recoverStale: jest.fn(),
+	getStatus: jest.fn(),
+}));
+jest.mock('../../../lib/db', () => ({ query: jest.fn() }));
+jest.mock('../../../lib/observerConsentGate', () => ({
+	canEnableObserver: jest.fn(),
+}));
+
+const { resolveRoles } = require('../../../workers/ai-observer/index');
+
 describe('ai-observer role resolution (AC-2)', () => {
-	// Inline the resolveRoles logic for testing (mirrors workers/ai-observer/index.js)
-	function resolveRoles(participants, roomMetadata) {
-		const roles = { candidate: null, interviewers: [] };
-
-		for (const p of participants) {
-			const identity = p.identity || '';
-			if (identity.startsWith('candidate-')) {
-				roles.candidate = {
-					identity,
-					userId: identity.replace('candidate-', ''),
-					participant: p,
-				};
-			} else if (identity.startsWith('interviewer-')) {
-				roles.interviewers.push({
-					identity,
-					userId: identity.replace('interviewer-', ''),
-					participant: p,
-				});
-			}
-		}
-
-		if (!roles.candidate && roomMetadata?.candidateId) {
-			for (const p of participants) {
-				if (String(p.metadata?.userId) === String(roomMetadata.candidateId)) {
-					roles.candidate = { identity: p.identity, userId: roomMetadata.candidateId, participant: p };
-					break;
-				}
-			}
-		}
-
-		return roles;
-	}
-
 	test('resolves candidate-{userId} as analysis target', () => {
 		const participants = [
 			{ identity: 'candidate-123', metadata: {} },
@@ -90,7 +83,6 @@ describe('ai-observer role resolution (AC-2)', () => {
 		const roles = resolveRoles(participants, {});
 
 		expect(roles.candidate.identity).toBe('candidate-123');
-		// ai-observer-* should not appear in either role
 		const allIdentities = [
 			roles.candidate?.identity,
 			...roles.interviewers.map((i) => i.identity),

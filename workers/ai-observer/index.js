@@ -17,7 +17,7 @@
  * Identity: ai-observer-{sessionId} (spec §2.3).
  */
 
-const { Room, RoomEvent } = require('livekit-server-sdk');
+const { Room, RoomEvent } = require('@livekit/rtc-node');
 const observerJobs = require('../../lib/observerJobs');
 const { canEnableObserver } = require('../../lib/observerConsentGate');
 const db = require('../../lib/db');
@@ -120,8 +120,12 @@ async function processJob(job) {
 	const roomName = rows[0]?.config?.livekit_room || `session-${sessionId}`;
 	const identity = `ai-observer-${sessionId}`;
 
-	// Join the room with subscribe-only grants
-	const room = new Room();
+	// Join the room with subscribe-only grants.
+	// BLOCKER 3 fix (privacy-engineer): autoSubscribe MUST be false.
+	// The LiveKit SDK auto-subscribes during connect() by default — that would
+	// put collection BEFORE the gate. We subscribe explicitly per-track only
+	// after a passing gate check.
+	const room = new Room({ autoSubscribe: false });
 	const token = await createObserverToken(roomName, sessionId);
 
 	try {
@@ -134,7 +138,9 @@ async function processJob(job) {
 
 	await observerJobs.markObserving(job.id);
 
-	// Gate check #2: pre-subscribe — immediately before subscribing to tracks
+	// Gate check #2: pre-subscribe — runs BEFORE any subscription.
+	// With autoSubscribe: false, no tracks are subscribed yet. We explicitly
+	// subscribe per-track below only after this gate passes.
 	const preSubscribeGate = await checkConsent(sessionId);
 	if (!preSubscribeGate.allowed) {
 		console.log(`[ai-observer] consent blocked pre-subscribe for session ${sessionId}`);
@@ -147,17 +153,13 @@ async function processJob(job) {
 	const participants = [...room.remoteParticipants.values()];
 	const roles = resolveRoles(participants, rows[0]?.config?.roomMetadata);
 
-	// Subscribe to candidate tracks only (analysis target)
-	// Interviewer tracks: transcription for diarization context only
-	// NOTE: Full analysis pipeline (VAD, MediaPipe, fusion) is S-049 scope.
-	// S-047 establishes the join/subscribe lifecycle and invisibility guarantees.
-	const trackHandlers = new Map();
-
+	// Explicit subscription (autoSubscribe: false) — gate already passed.
+	// S-047: subscribe only. Analysis pipeline attaches in S-049.
 	const subscribeToParticipant = async (participant, isCandidate) => {
 		for (const [, pub] of participant.trackPublications) {
 			if (pub.track) {
-				// S-047: subscribe only. Analysis pipeline attaches in S-049.
-				// The subscription itself is the collection point (spec §3.1).
+				// Explicit subscribe — only reached after passing gate check #2
+				await pub.setSubscribed(true);
 				console.log(
 					`[ai-observer] subscribed to ${isCandidate ? 'candidate' : 'interviewer'} ` +
 					`track: ${pub.track.kind} from ${participant.identity}`,
@@ -173,16 +175,19 @@ async function processJob(job) {
 		await subscribeToParticipant(iv.participant, false);
 	}
 
-	// Track new participants joining mid-session
-	room.on(RoomEvent.TrackSubscribed, async (track, pub, participant) => {
-		// Re-check consent before subscribing to any new track
+	// BLOCKER 2+3 fix (privacy-engineer): gate on TrackPublished (not TrackSubscribed).
+	// TrackSubscribed fires AFTER the SDK subscribes — too late for the gate.
+	// TrackPublished fires when a track is announced but before subscription.
+	room.on(RoomEvent.TrackPublished, async (pub, participant) => {
+		// Gate check before subscribing to any new track
 		const g = await checkConsent(sessionId);
 		if (!g.allowed) {
-			console.log(`[ai-observer] consent revoked, skipping new track for session ${sessionId}`);
-			return;
+			console.log(`[ai-observer] consent blocked for new track from ${participant.identity}, NOT subscribing`);
+			return; // Do not subscribe — gate failed
 		}
 		const isCandidate = roles.candidate && participant.identity === roles.candidate.identity;
-		console.log(`[ai-observer] new track subscribed: ${track.kind} from ${participant.identity} (candidate=${isCandidate})`);
+		await pub.setSubscribed(true);
+		console.log(`[ai-observer] new track subscribed: ${pub.kind} from ${participant.identity} (candidate=${isCandidate})`);
 	});
 
 	// Heartbeat timer (30s)
@@ -195,9 +200,15 @@ async function processJob(job) {
 	}, HEARTBEAT_INTERVAL_MS);
 
 	// Consent re-check timer (5s) — mid-session revocation → disconnect <10s
+	// SHOULD-FIX 5 (privacy-engineer): fail-closed on DB errors. If the consent
+	// check fails N times consecutively (DB unreachable), disconnect rather than
+	// observe without verified consent.
+	let consecutiveCheckFailures = 0;
+	const MAX_CHECK_FAILURES = 3;
 	const consentTimer = setInterval(async () => {
 		try {
 			const g = await checkConsent(sessionId);
+			consecutiveCheckFailures = 0; // Reset on success
 			if (!g.allowed) {
 				console.log(`[ai-observer] consent withdrawn mid-session ${sessionId}, disconnecting`);
 				clearInterval(heartbeatTimer);
@@ -208,7 +219,25 @@ async function processJob(job) {
 				await observerJobs.cancel(job.id, `consent_withdrawn_mid_session:${g.code}`);
 			}
 		} catch (err) {
-			console.error(`[ai-observer] consent re-check failed for session ${sessionId}:`, err.message);
+			consecutiveCheckFailures++;
+			console.error(
+				`[ai-observer] consent re-check failed for session ${sessionId} ` +
+				`(${consecutiveCheckFailures}/${MAX_CHECK_FAILURES}):`,
+				err.message,
+			);
+			if (consecutiveCheckFailures >= MAX_CHECK_FAILURES) {
+				console.log(
+					`[ai-observer] consent unverifiable after ${MAX_CHECK_FAILURES} failures, ` +
+					`disconnecting session ${sessionId} (fail-closed)`,
+				);
+				clearInterval(heartbeatTimer);
+				clearInterval(consentTimer);
+				try {
+					await room.disconnect();
+				} catch (e) { /* best-effort */ }
+				activeJobs.delete(job.id);
+				await observerJobs.cancel(job.id, 'consent_unverifiable_db_failure').catch(() => {});
+			}
 		}
 	}, POLL_INTERVAL_MS);
 
@@ -269,12 +298,15 @@ async function shutdown() {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
-// Start the worker
-console.log(`[ai-observer] worker starting (id: ${WORKER_ID})`);
-setInterval(poll, POLL_INTERVAL_MS);
-setInterval(sweep, SWEEPER_INTERVAL_MS);
-// Initial sweep on startup (recover from previous crash)
-sweep().catch(() => {});
+// Only start the worker if this is the main module (not required by tests)
+// This allows tests to import resolveRoles without starting poll loops.
+if (require.main === module) {
+	console.log(`[ai-observer] worker starting (id: ${WORKER_ID})`);
+	setInterval(poll, POLL_INTERVAL_MS);
+	setInterval(sweep, SWEEPER_INTERVAL_MS);
+	// Initial sweep on startup (recover from previous crash)
+	sweep().catch(() => {});
+}
 
 module.exports = {
 	WORKER_ID,

@@ -1075,6 +1075,19 @@ router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (re
 			return res.status(502).json({ error: 'Failed to dispatch observer agent' });
 		}
 
+		// S-047 (E-008, #695): enqueue the observer job for the worker process.
+		// The gate already passed above (canEnableObserver) — this is the
+		// enqueue-time gate (spec §3.1 point 1). The worker re-checks at
+		// claim time and pre-subscribe.
+		try {
+			const observerJobs = require('../lib/observerJobs');
+			await observerJobs.enqueue(session.id);
+		} catch (err) {
+			console.error('[interview-sessions] observer job enqueue failed:', err.message);
+			// Non-blocking: the Track B voice agent is the fallback.
+			// The worker will pick up the job if/when the enqueue succeeds.
+		}
+
 		// Task 6 (#323): the human call is live — start room-composite egress
 		// (both humans' media) so the observer has a recording to analyze.
 		// Non-blocking, consent-gated on the candidate — same contract as the
