@@ -1735,11 +1735,7 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 		}
 
 		const client = await pool.connect();
-		// S-067 (#720): whether a DEK was shredded, for the account_deleted
-		// audit metadata (MEDIUM-2: the "why" trail for the biometric purge).
-		let dekShredded = false;
-		let embeddingsErased = false;
-		let searchIndexErased = false;
+		// S-067 (#720): erasure scope for the account_deleted audit metadata.
 		let storageErasure = { deleted: 0, failed: 0, failures: [] };
 		try {
 			await client.query('BEGIN');
@@ -1776,9 +1772,6 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 						companyId: user.company_id,
 					},
 				});
-			dekShredded = erasureResult.shredded;
-			embeddingsErased = erasureResult.embeddingsDeleted;
-			searchIndexErased = erasureResult.searchIndexDeleted;
 			await client.query('COMMIT');
 
 			// S-076 (#759) Phase 2: delete storage objects AFTER commit, driven
@@ -1805,7 +1798,15 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 				userId: user.id,
 				targetType: 'user',
 				targetId: user.id,
-				metadata: { dek_shredded: dekShredded, embeddings_erased: embeddingsErased, search_index_erased: searchIndexErased, storage_files_deleted: storageErasure.deleted, storage_files_failed: storageErasure.failed },
+				// Privacy-engineer S-078 (SHOULD-FIX): carry the full erasure
+				// scope, not just the S-067/S-075 flags — matches the
+				// compliance path (routes/admin.js gdpr_deletion_fulfilled).
+				metadata: {
+					...erasureResult,
+					storageKeys: undefined,
+					storage_files_deleted: storageErasure.deleted,
+					storage_files_failed: storageErasure.failed,
+				},
 				req,
 			});
 		} catch (auditErr) {

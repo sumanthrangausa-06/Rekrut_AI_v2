@@ -72,7 +72,15 @@ function mockPhase1WithMedium(overrides = {}) {
 		.mockResolvedValueOnce(q([], 0)) // screening_sessions
 		.mockResolvedValueOnce(q([], 0)) // interview_transcripts
 		.mockResolvedValueOnce(q([], 0)) // omni_scores
-		.mockResolvedValueOnce(q([], 0)); // role_scores
+		.mockResolvedValueOnce(q([], 0)) // role_scores
+		// Privacy-engineer S-078 SHOULD-FIX: 6 more leaf tables.
+		.mockResolvedValueOnce(q([], 0)) // screening_answers
+		.mockResolvedValueOnce(q([], 0)) // interview_evaluations
+		.mockResolvedValueOnce(q([], 0)) // interview_composite_scores
+		.mockResolvedValueOnce(q([], 0)) // score_components
+		.mockResolvedValueOnce(q([], 0)) // score_history
+		.mockResolvedValueOnce(q([], 0)) // job_recommendations
+		.mockResolvedValueOnce(q([], 0)); // recording_consent redaction
 	// Ledger INSERTs + any overflow.
 	client.query.mockResolvedValue({ rows: [], rowCount: 1 });
 	return client;
@@ -98,6 +106,12 @@ describe('S-078 erasePersonalData — MEDIUM tables (in-tx)', () => {
 			'interview_transcripts',
 			'omni_scores',
 			'role_scores',
+			'screening_answers',
+			'interview_evaluations',
+			'interview_composite_scores',
+			'score_components',
+			'score_history',
+			'job_recommendations',
 		]) {
 			const found = sqls.find((s) => new RegExp(`DELETE FROM ${table}`, 'i').test(s));
 			expect(found).toBeDefined();
@@ -178,8 +192,30 @@ describe('S-078 erasePersonalData — MEDIUM tables (in-tx)', () => {
 			'interviewTranscriptsDeleted',
 			'omniScoresDeleted',
 			'roleScoresDeleted',
+			'screeningAnswersDeleted',
+			'interviewEvaluationsDeleted',
+			'interviewCompositeScoresDeleted',
+			'scoreComponentsDeleted',
+			'scoreHistoryDeleted',
+			'jobRecommendationsDeleted',
+			'recordingConsentRedacted',
 		]) {
 			expect(flag in result).toBe(true);
 		}
+	});
+
+	test('recording_consent keeps the row, redacts ip/user_agent', async () => {
+		const client = mockPhase1WithMedium();
+
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		const rcCall = client.query.mock.calls.find(([sql]) =>
+			/UPDATE recording_consent/i.test(sql),
+		);
+		expect(rcCall).toBeDefined();
+		expect(rcCall[0]).toMatch(/ip_address = NULL/i);
+		expect(rcCall[0]).toMatch(/user_agent = NULL/i);
+		expect(rcCall[0]).not.toMatch(/DELETE/i);
+		expect(result.recordingConsentRedacted).toBe(false); // no rows in mock
 	});
 });

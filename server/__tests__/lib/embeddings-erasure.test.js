@@ -67,7 +67,14 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_sessions
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_transcripts
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
-			.mockResolvedValueOnce({ rowCount: 0 }); // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_evaluations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_composite_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_components
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-078: recording_consent
 		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
 
 		const result = await erasureService.erasePersonalData(7, {
@@ -110,6 +117,13 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			interviewTranscriptsDeleted: false,
 			omniScoresDeleted: false,
 			roleScoresDeleted: false,
+			screeningAnswersDeleted: false,
+			interviewEvaluationsDeleted: false,
+			interviewCompositeScoresDeleted: false,
+			scoreComponentsDeleted: false,
+			scoreHistoryDeleted: false,
+			jobRecommendationsDeleted: false,
+			recordingConsentRedacted: false,
 			storageKeys: [],
 		});
 	});
@@ -141,7 +155,14 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_sessions
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_transcripts
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
-			.mockResolvedValueOnce({ rowCount: 0 }); // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_evaluations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_composite_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_components
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-078: recording_consent
 		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
 
 		const result = await erasureService.erasePersonalData(7, { client });
@@ -175,6 +196,13 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			interviewTranscriptsDeleted: false,
 			omniScoresDeleted: false,
 			roleScoresDeleted: false,
+			screeningAnswersDeleted: false,
+			interviewEvaluationsDeleted: false,
+			interviewCompositeScoresDeleted: false,
+			scoreComponentsDeleted: false,
+			scoreHistoryDeleted: false,
+			jobRecommendationsDeleted: false,
+			recordingConsentRedacted: false,
 			storageKeys: [],
 		});
 		// No DEK destroyed → no purge audit entry, but embeddings still deleted.
@@ -208,7 +236,14 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_sessions
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_transcripts
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
-			.mockResolvedValueOnce({ rowCount: 0 }); // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_evaluations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_composite_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_components
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-078: recording_consent
 		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
 
 		const result = await erasureService.erasePersonalData(7, { client });
@@ -238,6 +273,13 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			interviewTranscriptsDeleted: false,
 			omniScoresDeleted: false,
 			roleScoresDeleted: false,
+			screeningAnswersDeleted: false,
+			interviewEvaluationsDeleted: false,
+			interviewCompositeScoresDeleted: false,
+			scoreComponentsDeleted: false,
+			scoreHistoryDeleted: false,
+			jobRecommendationsDeleted: false,
+			recordingConsentRedacted: false,
 			storageKeys: [],
 		});
 	});
@@ -281,7 +323,14 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_sessions
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_transcripts
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
-			.mockResolvedValueOnce({ rowCount: 0 }); // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_evaluations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_composite_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_components
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-078: recording_consent
 
 		const result = await erasureService.erasePersonalData(7, { client });
 
@@ -310,6 +359,13 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			interviewTranscriptsDeleted: false,
 			omniScoresDeleted: false,
 			roleScoresDeleted: false,
+			screeningAnswersDeleted: false,
+			interviewEvaluationsDeleted: false,
+			interviewCompositeScoresDeleted: false,
+			scoreComponentsDeleted: false,
+			scoreHistoryDeleted: false,
+			jobRecommendationsDeleted: false,
+			recordingConsentRedacted: false,
 			storageKeys: [],
 		});
 	});
@@ -342,7 +398,14 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_sessions
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_transcripts
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
-			.mockResolvedValueOnce({ rowCount: 0 }); // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_evaluations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_composite_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_components
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-078: recording_consent
 
 		await erasureService.erasePersonalData(7, { client });
 

@@ -74,7 +74,14 @@ function mockPhase1(overrides = {}) {
 		.mockResolvedValueOnce(q([], 0)) // screening_sessions
 		.mockResolvedValueOnce(q([], 0)) // interview_transcripts
 		.mockResolvedValueOnce(q([], 0)) // omni_scores
-		.mockResolvedValueOnce(q([], 0)); // role_scores
+		.mockResolvedValueOnce(q([], 0)) // role_scores
+		.mockResolvedValueOnce(q([], 0)) // screening_answers
+		.mockResolvedValueOnce(q([], 0)) // interview_evaluations
+		.mockResolvedValueOnce(q([], 0)) // interview_composite_scores
+		.mockResolvedValueOnce(q([], 0)) // score_components
+		.mockResolvedValueOnce(q([], 0)) // score_history
+		.mockResolvedValueOnce(q([], 0)) // job_recommendations
+		.mockResolvedValueOnce(q([], 0)); // recording_consent redaction
 	// Ledger INSERTs: one per storage key (mocked as needed per test).
 	return client;
 }
