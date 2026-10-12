@@ -997,16 +997,40 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 // ─── Recording Retention Cron: soft-delete expired recordings, daily ───────
 // Session-linked recordings expire 30 days after the hiring decision (#322);
 // the table default is 90 days. Follows the stall-check pattern above.
+// S-077 (#760): extended with storage-object deletion (purgeExpiredRecordings
+// now deletes R2/B2 files, not just DB rows), the recording_objects registry
+// sweep (purgeRecordingObjects), and biometric_templates expiry.
+// DRY-RUN FIRST: all purges default to dryRun=true. Live storage deletion
+// requires Sumanth's explicit approval per deletion-scope rules.
+// STAGING GUARD: staging shares the production database (standing rule).
+// The flag must NEVER be set on staging — live mode requires NODE_ENV=production.
 (function startRecordingRetention() {
 	const RETENTION_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+	// ponytail: env-gated live deletion — the cron ships dry-run; flip only
+	// with explicit approval. Never defaults to live.
+	const LIVE_PURGE =
+		process.env.RETENTION_PURGE_LIVE === 'true' && process.env.NODE_ENV === 'production';
+	if (process.env.RETENTION_PURGE_LIVE === 'true' && process.env.NODE_ENV !== 'production') {
+		console.warn(
+			'[retention] RETENTION_PURGE_LIVE=true ignored: NODE_ENV is not production. ' +
+			'Live purge is disabled to protect the shared database.',
+		);
+	}
 
 	setInterval(async () => {
 		try {
 			const EuComplianceService = require('./services/euComplianceService');
-			const { deletedCount } = await EuComplianceService.purgeExpiredRecordings();
-			if (deletedCount > 0) {
-				console.log(`[retention] Soft-deleted ${deletedCount} expired recording(s)`);
-			}
+			const opts = { dryRun: !LIVE_PURGE };
+
+			const rec = await EuComplianceService.purgeExpiredRecordings(opts);
+			const reg = await EuComplianceService.purgeRecordingObjects(opts);
+			const tpl = await EuComplianceService.purgeExpiredTemplates(opts);
+
+			const mode = opts.dryRun ? 'DRY-RUN' : 'LIVE';
+			console.log(
+				`[retention] ${mode}: recordings=${rec.deletedCount} (storage=${rec.storageDeleted}), ` +
+				`registry=${reg.purgedCount} (storage=${reg.storageDeleted}), templates=${tpl.deletedCount}`,
+			);
 		} catch (err) {
 			console.error('[retention] Failed:', err.message);
 		}

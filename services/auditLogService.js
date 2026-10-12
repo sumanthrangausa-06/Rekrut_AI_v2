@@ -29,6 +29,7 @@ const ENTITY_TYPES = Object.freeze({
 	JOB: 'job',
 	COMPANY: 'company',
 	USER: 'user',
+	RETENTION_PURGE: 'retention_purge', // S-077 (#760): system purge audit entries
 });
 
 const GENESIS_HASH = '0';
