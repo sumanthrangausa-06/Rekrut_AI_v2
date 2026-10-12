@@ -19,6 +19,11 @@
  * 2. Pre-subscribe — immediately before subscribing to candidate tracks
  * 3. Mid-session — every poll cycle; withdrawal → disconnect within <10s
  *
+ * Session end (S-049a, spec §4.4): the same 5s tick watches the session
+ * `status`; on 'completed' it disconnects and flushes the observer report
+ * via lib/observerReportWriter.js (granted sessions only — no row is ever
+ * written for declined/unknown consent).
+ *
  * The worker NEVER publishes tracks or sends data messages (AC-3).
  * Identity: ai-observer-{sessionId} (spec §2.3).
  */
@@ -26,6 +31,7 @@
 const { Room, RoomEvent } = require('@livekit/rtc-node');
 const observerJobs = require('../../lib/observerJobs');
 const { canEnableObserver } = require('../../lib/observerConsentGate');
+const { flushReport } = require('../../lib/observerReportWriter');
 const db = require('../../lib/db');
 
 const POLL_INTERVAL_MS = 5000;
@@ -90,17 +96,20 @@ function resolveRoles(participants, roomMetadata) {
 }
 
 /**
- * Check the consent gate for a session. Returns { allowed, code, message }.
+ * Check the consent gate for a session. Returns the gate result plus the
+ * session's lifecycle status (S-049a: the consent tick doubles as the
+ * session-completion watcher — see the consent timer in processJob).
+ * @returns {Promise<{ allowed: boolean, code?: string, message?: string, sessionStatus: string|null }>}
  */
 async function checkConsent(sessionId) {
 	const { rows } = await db.query(
-		`SELECT id, candidate_id, config FROM interview_sessions WHERE id = $1`,
+		`SELECT id, status, config FROM interview_sessions WHERE id = $1`,
 		[sessionId],
 	);
 	if (!rows[0]) {
-		return { allowed: false, code: 'SESSION_NOT_FOUND', message: 'Session not found' };
+		return { allowed: false, code: 'SESSION_NOT_FOUND', message: 'Session not found', sessionStatus: null };
 	}
-	return canEnableObserver(rows[0]);
+	return { ...canEnableObserver(rows[0]), sessionStatus: rows[0].status };
 }
 
 /**
@@ -215,6 +224,36 @@ async function processJob(job) {
 		try {
 			const g = await checkConsent(sessionId);
 			consecutiveCheckFailures = 0; // Reset on success
+
+			// S-049a (spec §4.4, AC-1): session-end path. There is no
+			// room-disconnect trigger — a transport drop is not a session
+			// end. This tick already polls the session every 5s, so it
+			// watches `status`: when the completion route flips it to
+			// 'completed', leave the room and flush the observer report.
+			// Consent is re-checked by this same tick (and again inside
+			// flushReport): a revocation landing before the flush means
+			// NO report row (AC-3/AC-6) — the job is cancelled instead.
+			if (g.sessionStatus === 'completed') {
+				clearInterval(heartbeatTimer);
+				clearInterval(consentTimer);
+				activeJobs.delete(job.id);
+				try {
+					await room.disconnect();
+				} catch (e) { /* best-effort — session already over */ }
+				if (g.allowed) {
+					const result = await flushReport({ jobId: job.id, sessionId });
+					console.log(
+						`[ai-observer] session ${sessionId} completed — report flush: ${JSON.stringify(result)}`,
+					);
+				} else {
+					console.log(
+						`[ai-observer] session ${sessionId} completed without granted consent (${g.code}) — no report written`,
+					);
+					await observerJobs.cancel(job.id, `session_completed_consent_not_granted:${g.code}`);
+				}
+				return;
+			}
+
 			if (!g.allowed) {
 				console.log(`[ai-observer] consent withdrawn mid-session ${sessionId}, disconnecting`);
 				clearInterval(heartbeatTimer);

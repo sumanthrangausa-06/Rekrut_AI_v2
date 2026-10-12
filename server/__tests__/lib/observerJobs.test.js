@@ -102,6 +102,44 @@ describe('observerJobs', () => {
 				[1],
 			);
 		});
+
+		// S-049a AC-4: status guard — a late flush must not "complete" a
+		// job that was cancelled (consent revoked) in the meantime.
+		it('is guarded to flushing jobs only (cannot complete a cancelled job)', async () => {
+			db.query.mockResolvedValueOnce({ rowCount: 0 });
+
+			const rowCount = await observerJobs.complete(1);
+
+			const query = db.query.mock.calls[0][0];
+			expect(query).toMatch(/status = 'flushing'/);
+			expect(rowCount).toBe(0);
+		});
+	});
+
+	describe('markFlushing (S-049a AC-4)', () => {
+		it('transitions an observing job to flushing', async () => {
+			db.query.mockResolvedValueOnce({ rowCount: 1 });
+
+			const rowCount = await observerJobs.markFlushing(1);
+
+			expect(db.query).toHaveBeenCalledWith(
+				expect.stringContaining("status = 'flushing'"),
+				[1],
+			);
+			expect(rowCount).toBe(1);
+		});
+
+		it('is guarded — terminal jobs (cancelled/complete) cannot re-enter flushing', async () => {
+			db.query.mockResolvedValueOnce({ rowCount: 0 });
+
+			const rowCount = await observerJobs.markFlushing(1);
+
+			const query = db.query.mock.calls[0][0];
+			// Guard admits only pre-flush lifecycle states, never terminal ones
+			expect(query).toMatch(/status IN \('observing', 'claimed'\)/);
+			expect(query).not.toMatch(/'cancelled'.*'complete'/);
+			expect(rowCount).toBe(0);
+		});
 	});
 
 	describe('cancel', () => {
