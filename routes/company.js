@@ -1304,15 +1304,35 @@ router.post(
 					company.id,
 				]);
 
-				// Update old owner's role to admin
-				await client.query("UPDATE users SET role = 'admin', updated_at = NOW() WHERE id = $1", [
+				// Update old owner's role to recruiter (Issue #768: never mint
+				// platform admins via ownership transfer)
+				await client.query("UPDATE users SET role = 'recruiter', updated_at = NOW() WHERE id = $1", [
 					req.user.id,
 				]);
+
+				// Revoke old owner's RBAC 'owner' role (company-scoped). The
+				// legacy users.role column is only a fallback — RBAC takes
+				// precedence, so without this the demotion is a no-op.
+				await client.query(
+					`DELETE FROM user_roles
+					  WHERE user_id = $1 AND company_id = $2
+					    AND role_id = (SELECT id FROM roles WHERE name = 'owner')`,
+					[req.user.id, company.id],
+				);
 
 				// Update new owner's role to owner
 				await client.query("UPDATE users SET role = 'owner', updated_at = NOW() WHERE id = $1", [
 					newOwnerId,
 				]);
+
+				// Grant new owner the RBAC 'owner' role (mirrors employer
+				// signup in routes/auth.js)
+				await client.query(
+					`INSERT INTO user_roles (user_id, role_id, company_id, assigned_by)
+					  SELECT $1, r.id, $2, $3 FROM roles r WHERE r.name = 'owner'
+					  ON CONFLICT DO NOTHING`,
+					[newOwnerId, company.id, req.user.id],
+				);
 
 				await client.query('COMMIT');
 			} catch (err) {
@@ -1338,6 +1358,8 @@ router.post(
 						new_owner_id: newOwnerId,
 						new_owner_email: target.email,
 						new_owner_name: target.name,
+						old_owner_role_change: { from: 'owner', to: 'recruiter' },
+						new_owner_role_change: { from: target.role, to: 'owner' },
 					},
 				});
 			} catch (auditErr) {
