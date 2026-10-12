@@ -33,6 +33,14 @@ jest.mock('../../../lib/db', () => ({ query: jest.fn() }));
 jest.mock('../../../lib/observerConsentGate', () => ({
 	canEnableObserver: jest.fn(),
 }));
+// S-049a: the report writer + token service are mocked so processJob's
+// session-end path can be tested without a DB or a LiveKit server.
+jest.mock('../../../lib/observerReportWriter', () => ({
+	flushReport: jest.fn(),
+}));
+jest.mock('../../../server/services/livekit', () => ({
+	createObserverToken: jest.fn().mockResolvedValue('test-token'),
+}));
 
 const { resolveRoles } = require('../../../workers/ai-observer/index');
 // let (not const): the lifecycle suite calls jest.resetModules() and must
@@ -148,5 +156,121 @@ describe('ai-observer worker lifecycle (in-process)', () => {
 	test('stopWorker is safe to call with no timers', () => {
 		expect(() => worker.stopWorker()).not.toThrow();
 		expect(() => worker.stopWorker(null)).not.toThrow();
+	});
+});
+
+/**
+ * Session-completion flush trigger — S-049a (#776, spec §4.4, AC-1).
+ *
+ * The worker has no room-disconnect session-end path (a transport drop is
+ * not a session end). Instead the existing 5s consent tick watches the
+ * session `status`: when it flips to 'completed', the tick leaves the room
+ * and flushes the observer report — but ONLY if consent is still granted
+ * (AC-3/AC-6: a revocation landing before the flush means no report).
+ */
+describe('ai-observer session-completion flush (S-049a AC-1)', () => {
+	let worker;
+	let db;
+	let gate;
+	let reportWriter;
+	let fakeRoom;
+	let sessionRow;
+
+	const GRANTED = { allowed: true };
+	const DECLINED = {
+		allowed: false,
+		code: 'BIOMETRIC_CONSENT_DECLINED',
+		message: 'declined',
+	};
+
+	beforeEach(() => {
+		jest.clearAllMocks();
+		jest.useFakeTimers();
+		jest.resetModules();
+
+		worker = require('../../../workers/ai-observer/index');
+		observerJobs = require('../../../lib/observerJobs');
+		db = require('../../../lib/db');
+		gate = require('../../../lib/observerConsentGate');
+		reportWriter = require('../../../lib/observerReportWriter');
+
+		fakeRoom = {
+			connect: jest.fn().mockResolvedValue(undefined),
+			disconnect: jest.fn().mockResolvedValue(undefined),
+			remoteParticipants: new Map(),
+			on: jest.fn(),
+		};
+		require('@livekit/rtc-node').Room.mockImplementation(() => fakeRoom);
+
+		// Gate double mirrors the real gate's semantics (explicit true only)
+		gate.canEnableObserver.mockImplementation((session) =>
+			session?.config?.biometric_collection === true ? GRANTED : DECLINED,
+		);
+
+		// One mutable session row drives every session SELECT in processJob
+		sessionRow = {
+			id: 42,
+			candidate_id: 7,
+			status: 'in_progress',
+			config: { biometric_collection: true, livekit_room: 'room-42' },
+		};
+		db.query.mockImplementation(async (sql) => {
+			if (sql.includes('FROM interview_sessions')) return { rows: [sessionRow] };
+			return { rows: [] };
+		});
+		observerJobs.markObserving.mockResolvedValue(undefined);
+		observerJobs.cancel.mockResolvedValue(undefined);
+		reportWriter.flushReport.mockResolvedValue({ written: true });
+	});
+
+	afterEach(() => {
+		jest.useRealTimers();
+	});
+
+	it('checkConsent surfaces the session status alongside the gate result', async () => {
+		sessionRow = { ...sessionRow, status: 'completed' };
+
+		const result = await worker.checkConsent(42);
+
+		expect(result.allowed).toBe(true);
+		expect(result.sessionStatus).toBe('completed');
+	});
+
+	it('session completes with consent granted → tick flushes the report, no cancel', async () => {
+		await worker.processJob({ id: 9, interview_session_id: 42 });
+		expect(reportWriter.flushReport).not.toHaveBeenCalled();
+
+		// Session ends (completion route flips status) before the next tick
+		sessionRow = { ...sessionRow, status: 'completed' };
+		await jest.advanceTimersByTimeAsync(worker.POLL_INTERVAL_MS);
+
+		expect(reportWriter.flushReport).toHaveBeenCalledWith({ jobId: 9, sessionId: 42 });
+		expect(observerJobs.cancel).not.toHaveBeenCalled();
+		expect(fakeRoom.disconnect).toHaveBeenCalled();
+	});
+
+	it('AC-6 RACE (worker arm): consent revoked before the flush tick → NO flush, job cancelled', async () => {
+		await worker.processJob({ id: 9, interview_session_id: 42 });
+
+		// Session ends AND the candidate revokes in the same window — the
+		// tick must not flush a report for a revoked session.
+		sessionRow = {
+			...sessionRow,
+			status: 'completed',
+			config: { biometric_collection: false, livekit_room: 'room-42' },
+		};
+		await jest.advanceTimersByTimeAsync(worker.POLL_INTERVAL_MS);
+
+		expect(reportWriter.flushReport).not.toHaveBeenCalled();
+		expect(observerJobs.cancel).toHaveBeenCalled();
+	});
+
+	it('session still in progress → tick does nothing (no flush, no cancel)', async () => {
+		await worker.processJob({ id: 9, interview_session_id: 42 });
+
+		await jest.advanceTimersByTimeAsync(worker.POLL_INTERVAL_MS);
+
+		expect(reportWriter.flushReport).not.toHaveBeenCalled();
+		expect(observerJobs.cancel).not.toHaveBeenCalled();
 	});
 });
