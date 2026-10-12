@@ -1173,6 +1173,11 @@ router.post('/retention/policies', authMiddleware, async (req, res) => {
 /**
  * POST /api/compliance/retention/purge
  * Execute automated data purge based on retention policies.
+ *
+ * S-077 (#760): live deletion (dryRun: false) is gated behind
+ * RETENTION_PURGE_LIVE — same gate as the scheduled cron. Per Sumanth's
+ * standing rule, live storage deletion needs his explicit approval.
+ * Dry-run is always available for preview.
  */
 router.post('/retention/purge', authMiddleware, async (req, res) => {
 	try {
@@ -1181,9 +1186,25 @@ router.post('/retention/purge', authMiddleware, async (req, res) => {
 		}
 
 		const { dryRun = true, companyId } = req.body;
+		const isLive = dryRun === false;
+
+		if (isLive && process.env.RETENTION_PURGE_LIVE !== 'true') {
+			return res.status(403).json({
+				error: 'Live purge is disabled. Run with dryRun: true for preview, or set RETENTION_PURGE_LIVE=true (requires Sumanth approval).',
+			});
+		}
+
+		// Staging guard: staging shares the production database. Live purge
+		// is only allowed in production, even with the flag set.
+		if (isLive && process.env.NODE_ENV !== 'production') {
+			return res.status(403).json({
+				error: 'Live purge is only allowed in production (staging shares the production database).',
+			});
+		}
+
 		const targetCompanyId = req.user.role === 'admin' ? companyId : req.user.company_id;
 		const summary = await EuComplianceService.executePurge({
-			dryRun: dryRun !== false,
+			dryRun: !isLive,
 			companyId: targetCompanyId,
 		});
 

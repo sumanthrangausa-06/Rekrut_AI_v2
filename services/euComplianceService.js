@@ -509,11 +509,12 @@ class EuComplianceService {
 					break;
 				}
 				case 'interview_recordings': {
+					// S-077 (#760): routed through the storage-aware purge —
+					// a bare DELETE would orphan R2/B2 objects (the #743 exposure).
+					// purgeExpiredRecordings soft-deletes + deletes storage objects.
 					if (!dryRun) {
-						const r = await pool.query(`DELETE FROM interview_recordings WHERE created_at < $1`, [
-							cutoff,
-						]);
-						deletedCount = r.rowCount;
+						const res = await EuComplianceService.purgeExpiredRecordings({ dryRun: false });
+						deletedCount = res.deletedCount;
 					} else {
 						const r = await pool.query(
 							`SELECT COUNT(*)::int as c FROM interview_recordings WHERE created_at < $1`,
@@ -625,23 +626,38 @@ class EuComplianceService {
 
 		for (const row of rows) {
 			try {
+				let storageOk = true;
 				if (!dryRun && row.storage_path) {
 					// storage_path is encrypted BYTEA — decrypt to get the key.
 					const objectKey = livekitService.decryptStoragePath(row);
 					if (objectKey) {
 						const r = await deleteStorageObject(objectKey);
-						if (r.deleted) storageDeleted++;
+						if (r.deleted) {
+							storageDeleted++;
+						} else {
+							// Q2 fix: don't mark deleted if storage delete soft-failed
+							storageOk = false;
+							errors++;
+							console.warn(`[retention] storage delete soft-failed for recording ${row.id}: ${r.reason} — leaving for retry`);
+						}
 					}
 				}
-				if (!dryRun) {
+				if (!dryRun && storageOk) {
 					await pool.query(
 						`UPDATE interview_recordings
 						 SET status = 'deleted', updated_at = NOW()
 						 WHERE id = $1`,
 						[row.id],
 					);
+					// Q1 fix: transcripts cascade only on hard DELETE, not soft-delete.
+					// Anonymize transcripts of purged recordings — plaintext candidate
+					// speech must not survive indefinitely on the scheduled path.
+					await pool.query(
+						`UPDATE interview_transcripts SET text = '[purged]' WHERE recording_id = $1`,
+						[row.id],
+					);
 				}
-				deletedCount++;
+				if (storageOk) deletedCount++;
 			} catch (err) {
 				// ponytail: best-effort per row — one bad row must not stop the sweep.
 				console.error(`[retention] purgeExpiredRecordings row ${row.id} failed:`, err.message);
@@ -655,6 +671,7 @@ class EuComplianceService {
 			storageDeleted,
 			dryRun,
 			errorCount: errors,
+			periodCovered: null, // per-row retention_expires_at; batch range not tracked
 		});
 
 		return { deletedCount, storageDeleted, dryRun, errors };
@@ -680,7 +697,7 @@ class EuComplianceService {
 		const { deleteStorageObject } = require('../lib/file-storage');
 
 		const { rows } = await pool.query(
-			`SELECT object_key, object_type FROM recording_objects
+			`SELECT object_key, object_type, expires_at FROM recording_objects
 			 WHERE expires_at < NOW() AND deleted_at IS NULL
 			 ORDER BY expires_at ASC
 			 LIMIT $1
@@ -691,16 +708,30 @@ class EuComplianceService {
 		let purgedCount = 0;
 		let storageDeleted = 0;
 		let errors = 0;
+		let minExpiresAt = null;
+		let maxExpiresAt = null;
 
 		for (const row of rows) {
 			try {
+				// Track period covered for the audit entry
+				if (!minExpiresAt || row.expires_at < minExpiresAt) minExpiresAt = row.expires_at;
+				if (!maxExpiresAt || row.expires_at > maxExpiresAt) maxExpiresAt = row.expires_at;
+
 				if (!dryRun) {
 					const r = await deleteStorageObject(row.object_key);
-					if (r.deleted) storageDeleted++;
-					await pool.query(
-						`UPDATE recording_objects SET deleted_at = NOW() WHERE object_key = $1`,
-						[row.object_key],
-					);
+					// Q2 fix: only stamp deleted_at on CONFIRMED storage delete.
+					// A soft-failed delete (r.deleted === false) leaves the row
+					// for retry — never mark purged what wasn't deleted.
+					if (r.deleted) {
+						storageDeleted++;
+						await pool.query(
+							`UPDATE recording_objects SET deleted_at = NOW() WHERE object_key = $1`,
+							[row.object_key],
+						);
+					} else {
+						errors++;
+						console.warn(`[retention] storage delete soft-failed for ${row.object_key}: ${r.reason} — leaving for retry`);
+					}
 				}
 				purgedCount++;
 			} catch (err) {
@@ -715,6 +746,7 @@ class EuComplianceService {
 			storageDeleted,
 			dryRun,
 			errorCount: errors,
+			periodCovered: minExpiresAt ? { minExpiresAt, maxExpiresAt } : null,
 		});
 
 		return { purgedCount, storageDeleted, dryRun, errors };
@@ -761,31 +793,33 @@ class EuComplianceService {
 	}
 
 	/**
-	 * Write a per-batch 'purge' audit entry (compliance-auditor finding:
-	 * run id, object count, period, dry-run flag, error count).
-	 * 'purge' is already in biometricAudit VALID_ACTIONS — no allowlist change.
-	 * Best-effort: audit failure must not break the purge.
+	 * Write a per-batch purge audit entry (compliance-auditor finding:
+	 * run id, object count, period covered, dry-run flag, error count).
+	 *
+	 * Uses auditLogService.logEvent (not biometricAudit.logAccess) because
+	 * purge runs are system actions with no userId/candidateId — logAccess
+	 * requires both and would throw, making the audit a silent no-op.
+	 * Failure here is LOUD (not best-effort-silent): the audit entry IS the
+	 * Art. 5(2) compliance artifact.
 	 */
-	static async _auditPurge({ runType, objectCount, storageDeleted, dryRun, errorCount }) {
-		try {
-			const biometricAudit = require('../lib/biometricAudit');
-			await biometricAudit.logAccess({
-				userId: null,
-				userRole: 'system',
-				action: 'purge',
-				dataType: `retention_${runType}`,
-				ipAddress: null,
-				metadata: {
-					runId: `${runType}-${Date.now()}`,
-					objectCount,
-					storageDeleted,
-					dryRun: !!dryRun,
-					errorCount,
-				},
-			});
-		} catch (err) {
-			console.warn('[retention] purge audit write failed (best-effort):', err.message);
-		}
+	static async _auditPurge({ runType, objectCount, storageDeleted, dryRun, errorCount, periodCovered = null }) {
+		const auditLogService = require('./auditLogService');
+		await auditLogService.logEvent({
+			eventType: auditLogService.EVENT_TYPES.STATUS_CHANGE,
+			entityType: 'retention_purge',
+			entityId: 0,
+			actorId: null, // system cron, not a user action
+			actorRole: 'system',
+			payload: {
+				runId: `${runType}-${Date.now()}`,
+				runType,
+				objectCount,
+				storageDeleted,
+				dryRun: !!dryRun,
+				errorCount,
+				periodCovered, // { minExpiresAt, maxExpiresAt } per batch
+			},
+		});
 	}
 
 	// ── Consent Management ───────────────────────────────────────────────

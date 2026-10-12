@@ -1002,11 +1002,20 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 // sweep (purgeRecordingObjects), and biometric_templates expiry.
 // DRY-RUN FIRST: all purges default to dryRun=true. Live storage deletion
 // requires Sumanth's explicit approval per deletion-scope rules.
+// STAGING GUARD: staging shares the production database (standing rule).
+// The flag must NEVER be set on staging — live mode requires NODE_ENV=production.
 (function startRecordingRetention() {
 	const RETENTION_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 	// ponytail: env-gated live deletion — the cron ships dry-run; flip only
 	// with explicit approval. Never defaults to live.
-	const LIVE_PURGE = process.env.RETENTION_PURGE_LIVE === 'true';
+	const LIVE_PURGE =
+		process.env.RETENTION_PURGE_LIVE === 'true' && process.env.NODE_ENV === 'production';
+	if (process.env.RETENTION_PURGE_LIVE === 'true' && process.env.NODE_ENV !== 'production') {
+		console.warn(
+			'[retention] RETENTION_PURGE_LIVE=true ignored: NODE_ENV is not production. ' +
+			'Live purge is disabled to protect the shared database.',
+		);
+	}
 
 	setInterval(async () => {
 		try {
