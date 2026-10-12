@@ -107,7 +107,22 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: candidate_skills
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: linkedin_profiles
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: career_diagnoses
-			.mockResolvedValueOnce({ rowCount: 0 }); // S-076: avatar_url clear
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: avatar_url clear
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // S-078: messages
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: user_memory
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: match_results
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: practice_sessions
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_sessions
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_transcripts
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_evaluations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_composite_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_components
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-078: recording_consent
 		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
 		const result = await erasePersonalData(7, {
 			client,
@@ -130,6 +145,21 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			candidateSkillsDeleted: false,
 			linkedinProfileDeleted: false,
 			careerDiagnosesDeleted: false,
+			messagesDeleted: false,
+			userMemoryDeleted: false,
+			matchResultsDeleted: false,
+			practiceSessionsDeleted: false,
+			screeningSessionsDeleted: false,
+			interviewTranscriptsDeleted: false,
+			omniScoresDeleted: false,
+			roleScoresDeleted: false,
+			screeningAnswersDeleted: false,
+			interviewEvaluationsDeleted: false,
+			interviewCompositeScoresDeleted: false,
+			scoreComponentsDeleted: false,
+			scoreHistoryDeleted: false,
+			jobRecommendationsDeleted: false,
+			recordingConsentRedacted: false,
 			storageKeys: [],
 		});
 		expect(biometricAudit.logAccess).toHaveBeenCalledTimes(1);
@@ -154,7 +184,22 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: candidate_skills
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: linkedin_profiles
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: career_diagnoses
-			.mockResolvedValueOnce({ rowCount: 0 }); // S-076: avatar_url clear
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: avatar_url clear
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // S-078: messages
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: user_memory
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: match_results
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: practice_sessions
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_sessions
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_transcripts
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_evaluations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_composite_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_components
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-078: recording_consent
 		const result = await erasePersonalData(7, {
 			client,
 			audit: { userId: 7, userRole: 'candidate' },
@@ -176,6 +221,21 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			candidateSkillsDeleted: false,
 			linkedinProfileDeleted: false,
 			careerDiagnosesDeleted: false,
+			messagesDeleted: false,
+			userMemoryDeleted: false,
+			matchResultsDeleted: false,
+			practiceSessionsDeleted: false,
+			screeningSessionsDeleted: false,
+			interviewTranscriptsDeleted: false,
+			omniScoresDeleted: false,
+			roleScoresDeleted: false,
+			screeningAnswersDeleted: false,
+			interviewEvaluationsDeleted: false,
+			interviewCompositeScoresDeleted: false,
+			scoreComponentsDeleted: false,
+			scoreHistoryDeleted: false,
+			jobRecommendationsDeleted: false,
+			recordingConsentRedacted: false,
 			storageKeys: [],
 		});
 		expect(biometricAudit.logAccess).not.toHaveBeenCalled();

@@ -65,7 +65,23 @@ function mockPhase1(overrides = {}) {
 		.mockResolvedValueOnce(q([], 0)) // candidate_skills
 		.mockResolvedValueOnce(q([], 0)) // linkedin_profiles
 		.mockResolvedValueOnce(q([], 0)) // career_diagnoses
-		.mockResolvedValueOnce(q([], 1)); // users avatar_url UPDATE
+		.mockResolvedValueOnce(q([], 1)) // users avatar_url UPDATE
+		// S-078 (#756) MEDIUM tables — same order as erasureService.js.
+		.mockResolvedValueOnce(q([], 0)) // messages
+		.mockResolvedValueOnce(q([], 0)) // user_memory
+		.mockResolvedValueOnce(q([], 0)) // match_results
+		.mockResolvedValueOnce(q([], 0)) // practice_sessions
+		.mockResolvedValueOnce(q([], 0)) // screening_sessions
+		.mockResolvedValueOnce(q([], 0)) // interview_transcripts
+		.mockResolvedValueOnce(q([], 0)) // omni_scores
+		.mockResolvedValueOnce(q([], 0)) // role_scores
+		.mockResolvedValueOnce(q([], 0)) // screening_answers
+		.mockResolvedValueOnce(q([], 0)) // interview_evaluations
+		.mockResolvedValueOnce(q([], 0)) // interview_composite_scores
+		.mockResolvedValueOnce(q([], 0)) // score_components
+		.mockResolvedValueOnce(q([], 0)) // score_history
+		.mockResolvedValueOnce(q([], 0)) // job_recommendations
+		.mockResolvedValueOnce(q([], 0)); // recording_consent redaction
 	// Ledger INSERTs: one per storage key (mocked as needed per test).
 	return client;
 }
