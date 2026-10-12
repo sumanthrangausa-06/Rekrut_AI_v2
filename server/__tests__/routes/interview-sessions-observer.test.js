@@ -156,7 +156,7 @@ beforeEach(() => {
 
 describe('POST /interview-sessions/:id/observer/enable', () => {
 	test('hiring team with candidate consent enables the observer and dispatches the agent', async () => {
-		const s = seedSession();
+		const s = seedSession({ config: { biometric_collection: true } });
 
 		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
 
@@ -167,7 +167,8 @@ describe('POST /interview-sessions/:id/observer/enable', () => {
 	});
 
 	test('no candidate consent → 403 CONSENT_REQUIRED and the agent is never dispatched', async () => {
-		const s = seedSession();
+		// S-046: biometric gate passes (explicit consent), recording consent fails.
+		const s = seedSession({ config: { biometric_collection: true } });
 		mockHasActiveConsent.mockResolvedValue(false);
 
 		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
@@ -207,7 +208,7 @@ describe('POST /interview-sessions/:id/observer/enable', () => {
 	});
 
 	test('observer can be enabled on an invited session (before the candidate starts)', async () => {
-		const s = seedSession({ status: 'invited' });
+		const s = seedSession({ status: 'invited', config: { biometric_collection: true } });
 
 		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
 
@@ -225,7 +226,7 @@ describe('POST /interview-sessions/:id/observer/enable', () => {
 	});
 
 	test('dispatch failure → 502 and the flag stays unset', async () => {
-		const s = seedSession();
+		const s = seedSession({ config: { biometric_collection: true } });
 		mockDispatchVoiceAgent.mockRejectedValue(new Error('LiveKit down'));
 
 		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
@@ -235,7 +236,7 @@ describe('POST /interview-sessions/:id/observer/enable', () => {
 	});
 
 	test('starts session egress after enabling, consent-gated on the candidate (Task 6)', async () => {
-		const s = seedSession(); // candidate_id 4
+		const s = seedSession({ config: { biometric_collection: true } }); // candidate_id 4
 
 		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
 
@@ -245,7 +246,7 @@ describe('POST /interview-sessions/:id/observer/enable', () => {
 	});
 
 	test('an egress start failure does not fail observer enable (human call is primary)', async () => {
-		const s = seedSession();
+		const s = seedSession({ config: { biometric_collection: true } });
 		mockStartSessionEgress.mockRejectedValueOnce(new Error('storage not configured'));
 
 		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
@@ -290,13 +291,59 @@ describe('POST /interview-sessions/:id/observer/enable — biometric consent gat
 		expect(mockDispatchVoiceAgent).toHaveBeenCalledWith(s.id, 'observer');
 	});
 
-	test('biometric_collection unset → observer enables normally (AC-3)', async () => {
+	test('biometric_collection unset → 403 BIOMETRIC_CONSENT_UNKNOWN (S-046 default-deny)', async () => {
 		const s = seedSession({ config: {} });
 
 		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
 
+		expect(res.status).toBe(403);
+		expect(res.body.code).toBe('BIOMETRIC_CONSENT_UNKNOWN');
+		expect(mockDispatchVoiceAgent).not.toHaveBeenCalled();
+	});
+
+	test('S-046 BLOCKER 1: default-created human session (observer_enabled=true, consent null) → 403 UNKNOWN, gate not bypassed', async () => {
+		// Production-default shape via ModeAdapter: observer_enabled defaults
+		// true (recruiter intent), biometric_collection defaults null (unknown).
+		// The enable route must run the gate BEFORE the already_enabled
+		// short-circuit — otherwise the schema default bypasses consent.
+		const { ModeAdapter } = require('../../../shared/interview-modes/modes');
+		const defaultConfig = ModeAdapter.buildConfig('human', {});
+		expect(defaultConfig.observer_enabled).toBe(true);
+		expect(defaultConfig.biometric_collection).toBe(null);
+		const s = seedSession({ config: defaultConfig });
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
+
+		expect(res.status).toBe(403);
+		expect(res.body.code).toBe('BIOMETRIC_CONSENT_UNKNOWN');
+		expect(mockDispatchVoiceAgent).not.toHaveBeenCalled();
+	});
+
+	test('S-046: explicit grant on default-created session → already_enabled (intent recorded, no redundant dispatch)', async () => {
+		const { ModeAdapter } = require('../../../shared/interview-modes/modes');
+		const defaultConfig = ModeAdapter.buildConfig('human', {});
+		const s = seedSession({ config: { ...defaultConfig, biometric_collection: true } });
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
+
 		expect(res.status).toBe(200);
-		expect(mockDispatchVoiceAgent).toHaveBeenCalledWith(s.id, 'observer');
+		expect(res.body.observer_enabled).toBe(true);
+		expect(res.body.already_enabled).toBe(true);
+		// Intent already recorded by schema default. The enable route is
+		// idempotent on the flag; actual observer dispatch is gated
+		// separately (livekit dispatch route, S-047 worker when built).
+		expect(mockDispatchVoiceAgent).not.toHaveBeenCalled();
+	});
+
+	test('S-046: already_enabled + granted consent → allowed without re-dispatch', async () => {
+		const s = seedSession({ config: { observer_enabled: true, biometric_collection: true } });
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/observer/enable`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(res.body.already_enabled).toBe(true);
+		// Gate passed, flag already set — no redundant dispatch.
+		expect(mockDispatchVoiceAgent).not.toHaveBeenCalled();
 	});
 });
 

@@ -85,11 +85,18 @@ const modeSchemas = {
 		.strict(),
 	human: z
 		.object({
-			observer_enabled: z.boolean().default(false),
+			// S-046 (#694 AC-1): observer toggle defaults ON in interview setup.
+			// This is the recruiter's intent; the consent gate
+			// (lib/observerConsentGate.js) independently enforces the
+			// candidate's explicit biometric consent before any dispatch.
+			observer_enabled: z.boolean().default(true),
 			scheduled_at: z.string().datetime().optional(),
-			// S-012 (#651): consent-decline human interviews must never collect
-			// biometrics. Defaults false; the approval path sets it explicitly.
-			biometric_collection: z.boolean().default(false),
+			// S-046 (#694): nullable default — distinguishes "consent never
+			// presented" (null → gate blocks with BIOMETRIC_CONSENT_UNKNOWN)
+			// from explicit decline (false → BIOMETRIC_CONSENT_DECLINED).
+			// S-012 (#651) path still passes false explicitly for
+			// consent-decline sessions; the approval path sets true explicitly.
+			biometric_collection: z.boolean().nullish().default(null),
 		})
 		.strict(),
 };

@@ -1019,10 +1019,14 @@ function isHiringTeamForSession(session, user) {
 }
 
 // POST /interview-sessions/:id/observer/enable — hiring team enables the AI
-// observer on a human interview. Consent-gated: without the candidate's
-// active recording consent the observer may not subscribe (403
-// CONSENT_REQUIRED, and the agent is never dispatched). Dispatch failure
-// leaves the flag unset — enabling the observer IS the dispatch.
+// observer on a human interview. Consent-gated: the default-deny biometric
+// gate (lib/observerConsentGate.js) runs before anything else — without the
+// candidate's explicit biometric consent the observer may not subscribe (403
+// BIOMETRIC_CONSENT_DECLINED / BIOMETRIC_CONSENT_UNKNOWN, and the agent is
+// never dispatched). Recording consent is checked separately (403
+// CONSENT_REQUIRED). On success the route dispatches the agent and records
+// the intent in config.observer_enabled; dispatch failure leaves the flag
+// unset.
 router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (req, res) => {
 	try {
 		const session = await loadSession(req.params.id);
@@ -1036,17 +1040,18 @@ router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (re
 			return res.status(409).json({ error: 'Observer cannot be enabled on a completed session' });
 		}
 
-		if (session.config?.observer_enabled) {
-			return res.json({ success: true, observer_enabled: true, already_enabled: true });
-		}
-
-		// S-070 (#724): biometric decline gate (Option A, Sumanth decision
-		// 2026-10-10). The candidate's explicit biometric decline overrides
-		// the recruiter toggle — the observer must never receive streams
-		// for a declined-biometric session.
+		// S-046 (#694): default-deny gate runs BEFORE the already_enabled
+		// short-circuit. The schema defaults observer_enabled to true
+		// (recruiter intent, AC-1), so the flag alone cannot prove the
+		// observer was consent-cleared. The gate must pass on every enable
+		// call — otherwise a default-created session would bypass consent.
 		const gate = canEnableObserver(session);
 		if (!gate.allowed) {
 			return res.status(403).json({ error: gate.message, code: gate.code });
+		}
+
+		if (session.config?.observer_enabled) {
+			return res.json({ success: true, observer_enabled: true, already_enabled: true });
 		}
 
 		// Review Focus #5: subscription blocked without candidate consent —

@@ -56,16 +56,24 @@ describe('ModeAdapter', () => {
 
 		test('human returns observer config', () => {
 			const defaults = ModeAdapter.getDefaults('human');
-			expect(defaults.observer_enabled).toBe(false); // opt-in by recruiter
+			expect(defaults.observer_enabled).toBe(true); // S-046 AC-1: default ON in setup
 		});
 
-		test('human defaults biometric_collection to false (S-012 #651)', () => {
+		test('human defaults biometric_collection to null (S-046 #694)', () => {
 			const defaults = ModeAdapter.getDefaults('human');
-			expect(defaults.biometric_collection).toBe(false);
+			// Null = "consent never presented" → gate blocks with
+			// BIOMETRIC_CONSENT_UNKNOWN (distinct from explicit decline).
+			expect(defaults.biometric_collection).toBe(null);
 			// Strict schema still rejects unknown keys
 			const result = ModeAdapter.validateConfig('human', { biometric_collection: true });
 			expect(result.success).toBe(true);
 			expect(result.data.biometric_collection).toBe(true);
+		});
+
+		test('human accepts explicit biometric decline (S-012 #651)', () => {
+			const result = ModeAdapter.validateConfig('human', { biometric_collection: false });
+			expect(result.success).toBe(true);
+			expect(result.data.biometric_collection).toBe(false);
 		});
 
 		test('throws INVALID_SESSION_TYPE for unknown type', () => {

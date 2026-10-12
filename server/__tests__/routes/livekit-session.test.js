@@ -343,6 +343,7 @@ describe('POST /api/livekit/session-rooms/:sessionId/dispatch', () => {
 	});
 
 	test('observer mode passes mode through to dispatch metadata', async () => {
+		sessions.get(10).config = { biometric_collection: true };
 		const res = await request(app)
 			.post('/api/livekit/session-rooms/10/dispatch')
 			.set(as(2))
@@ -359,6 +360,7 @@ describe('POST /api/livekit/session-rooms/:sessionId/dispatch', () => {
 	});
 
 	test('a different mode is not treated as already dispatched', async () => {
+		sessions.get(10).config = { biometric_collection: true };
 		mockAgentDispatchClient.listDispatch.mockResolvedValue([existingDispatch('interviewer')]);
 		const res = await request(app)
 			.post('/api/livekit/session-rooms/10/dispatch')
@@ -521,6 +523,7 @@ describe('POST /api/livekit/session-rooms/:sessionId/dispatch', () => {
 	});
 
 	test("observer dispatch on a 'human' session still works → 200", async () => {
+		sessions.get(11).config = { biometric_collection: true };
 		const res = await request(app)
 			.post('/api/livekit/session-rooms/11/dispatch')
 			.set(as(2))
@@ -550,14 +553,15 @@ describe('POST /api/livekit/session-rooms/:sessionId/dispatch', () => {
 		expect(res.body.dispatched).toBe(true);
 	});
 
-	test('S-070 (#724): observer dispatch allowed when biometric_collection is unset (AC-3)', async () => {
+	test('S-046 (#694): observer dispatch blocked when biometric_collection is unset (default-deny)', async () => {
 		sessions.get(10).config = {};
 		const res = await request(app)
 			.post('/api/livekit/session-rooms/10/dispatch')
 			.set(as(2))
 			.send({ mode: 'observer' });
-		expect(res.status).toBe(200);
-		expect(res.body.dispatched).toBe(true);
+		expect(res.status).toBe(403);
+		expect(res.body.code).toBe('BIOMETRIC_CONSENT_UNKNOWN');
+		expect(mockAgentDispatchClient.createDispatch).not.toHaveBeenCalled();
 	});
 });
 
