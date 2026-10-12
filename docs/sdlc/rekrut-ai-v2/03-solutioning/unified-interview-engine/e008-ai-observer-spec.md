@@ -106,9 +106,27 @@ The worker NEVER starts without passing the consent gate. The gate is evaluated 
 
 2. **Claim time** (Worker): Before joining the room, the worker re-checks `canEnableObserver(session)`. If the candidate withdrew consent between enqueue and claim → job marked `cancelled`, worker does not join.
 
-3. **Mid-session** (Worker): If `broadcastConsentRevoked(sessionId)` fires during observation → worker disconnects immediately, marks job `cancelled`, discards in-memory buffers without writing a report.
+3. **Pre-subscribe re-check** (Worker): Immediately before subscribing to candidate tracks (not just at claim), the worker re-checks the gate. Handles revocation in the claim→join window.
 
-**This is the structural guarantee (Option A):** the observer cannot process data it never receives.
+4. **Mid-session** (Worker): If consent is withdrawn during observation → worker disconnects immediately (max revocation-to-disconnect latency: **<10 seconds**), marks job `cancelled`, discards in-memory buffers without writing a report.
+
+**Consent gate semantics (privacy-engineer BLOCKER — amended from S-070):**
+
+The built gate (`lib/observerConsentGate.js`) currently blocks only on `biometric_collection === false`. For biometric processing, "not declined" is NOT consent — BIPA requires a written release *before* collection; GDPR Art. 9 requires *explicit* opt-in.
+
+**The gate MUST be amended to default-deny:** `canEnableObserver` returns `allowed: true` ONLY when `biometric_collection === true`. `undefined`/`null` (consent never presented, legacy session, config drift) → blocked with code `BIOMETRIC_CONSENT_UNKNOWN`.
+
+This requires an S-070 amendment (already-built code) and architecture §3.19 update. **Flagged for Sumanth's decision** — this changes the `!== false` semantics baked into the architecture doc.
+
+**Report `consent_state` enum** gains `unknown`: `granted | declined | withdrawn | unknown`. Unknown consent blocks the observer and renders honestly ("Consent status unknown — observer disabled").
+
+**Revocation transport:** The worker polls `interview_sessions.config` every poll cycle (≤5s) and re-evaluates `canEnableObserver` independently of any broadcast. `broadcastConsentRevoked(sessionId)` is a best-effort fast path (in-process event); the poll-based re-check is the guarantee. Max revocation-to-disconnect: <10s (two poll cycles).
+
+**DSAR `deletion_pending` flag:** Per architecture §3.19, the worker checks a `deletion_pending` flag on the session before each report flush. If set (mid-session erasure request), the report write is suppressed.
+
+**Sweeper exclusion:** Stale-claim recovery resets jobs with `last_heartbeat < NOW() - 5min` to `pending`, but MUST explicitly exclude `cancelled`, `failed`, and `complete` statuses. A consent-cancelled job must never be resurrected.
+
+**This is the structural guarantee (Option A):** the observer cannot process data it never receives. In-memory processing (1fps MediaPipe analysis) IS collection under BIPA/GDPR Art. 9 — the consent gate (not the in-memory pipeline) is the legal protection. The in-memory design reduces breach/exposure surface but does not reduce the consent obligation.
 
 ### 3.2 Report States (S-071 contract)
 
@@ -176,15 +194,18 @@ Video Stream → Frame Sample (1fps) → MediaPipe → Visual Signals
 
 ```sql
 -- Migration: create ai_observer_reports (from architecture doc §5)
+-- FK uses ON DELETE CASCADE per architecture doc §5 convention (verified
+-- against lines 516, 549, 579, 598, 615, 678 — all interview_session_id FKs).
 CREATE TABLE ai_observer_reports (
   id SERIAL PRIMARY KEY,
-  interview_session_id INTEGER NOT NULL UNIQUE REFERENCES interview_sessions(id),
+  interview_session_id INTEGER NOT NULL UNIQUE
+    REFERENCES interview_sessions(id) ON DELETE CASCADE,
   livekit_room_name VARCHAR(255),
   observer_identity VARCHAR(255) NOT NULL,  -- ai-observer-{sessionId}
   analysis JSONB NOT NULL DEFAULT '{}',
   integrity_summary JSONB NOT NULL DEFAULT '{}',
-  consent_state VARCHAR(20) NOT NULL DEFAULT 'granted'
-    CHECK (consent_state IN ('granted', 'declined', 'withdrawn')),
+  consent_state VARCHAR(20) NOT NULL DEFAULT 'unknown'
+    CHECK (consent_state IN ('granted', 'declined', 'withdrawn', 'unknown')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -254,6 +275,7 @@ CREATE INDEX idx_observer_room ON ai_observer_reports(livekit_room_name);
 ### 5.1 Erasure Coverage
 
 Add to `lib/erasureService.js` `erasePersonalData()`:
+
 ```js
 // S-080 (E-008): AI Observer reports. Scoped by interview_session_id → candidate.
 // The observer never stores biometric templates (frames analyzed in-memory),
@@ -265,7 +287,22 @@ const { rowCount: observerReportRows } = await queryable.query(
    )`,
   [userId],
 );
+// Observer job queue rows reveal the candidate was under biometric observation
+// (session linkage + timing metadata). Erase alongside reports.
+const { rowCount: observerJobRows } = await queryable.query(
+  `DELETE FROM observer_jobs
+   WHERE interview_session_id IN (
+     SELECT id FROM interview_sessions WHERE candidate_id = $1
+   )`,
+  [userId],
+);
 ```
+
+Include both row counts in the erasure result object for the audit trail.
+
+**FK consistency:** Both migrations use `ON DELETE CASCADE` on `interview_session_id` (aligned with architecture doc §5 convention). The explicit DELETEs above are belt-and-suspenders — session deletes cascade, but erasure runs before session deletion in the DSAR flow.
+
+**Fusion-engine side effects:** Before implementation, trace `AnalysisService` and `IntegrityService` write paths. If the 14-event taxonomy materializes as rows outside `ai_observer_reports`, extend §5.1. Current assumption (to be verified): JSONB-only output, no side-effect rows.
 
 ### 5.2 What Does NOT Need Erasure
 
@@ -275,7 +312,23 @@ const { rowCount: observerReportRows } = await queryable.query(
 
 ### 5.3 Retention Interplay (S-077)
 
-The S-077 retention registry (`recording_objects`) tracks encrypted frames from the vision pipeline. The observer's in-memory frame analysis does not create registry entries — nothing to purge. If a future version persists observer frames, they MUST be registered in `recording_objects` with `object_type='observer_frame'` and the 30-day expiry.
+**Observer reports: 30-day retention** (aligned with vision-frame precedent in migration 253, not the 90-day session default).
+
+Rationale (GDPR Art. 5(1)(c),(e) storage limitation): the report's purpose is human recruiter review of observations. Gaze/voice/expression analytics are biometric-derived — the 30-day vision-frame precedent in this codebase is the closer analog than the 90-day general session retention. Once events are reviewed, continued retention needs justification it doesn't have.
+
+**Purge mechanism:** Extend the S-077 retention sweep to cover `ai_observer_reports`:
+```sql
+-- In the retention cron, alongside recording_objects sweep:
+DELETE FROM ai_observer_reports
+WHERE created_at < NOW() - INTERVAL '30 days';
+```
+Scope, schedule (daily, same cron), and audit logging follow the existing S-077 pattern.
+
+**BIPA §15(a) schedule:** The 30-day retention period IS the written retention schedule for observer-derived biometric information. It MUST be published in the privacy/BIPA policy before launch (pre-launch gate).
+
+**S-077 registry note:** The S-077 `recording_objects` registry tracks encrypted storage blobs. Observer in-memory analysis creates no registry entries. If a future version persists observer frames, they MUST be registered with `object_type='observer_frame'` and 30-day expiry.
+
+**Open for Sumanth/legal (Phase 3 review):** Delete-on-hiring-decision vs. blanket 30d — for rejected candidates, the review purpose is fulfilled at decision time.
 
 ---
 
@@ -283,9 +336,11 @@ The S-077 retention registry (`recording_objects`) tracks encrypted frames from 
 
 ### Migration 1: `observer_jobs` table
 ```sql
+-- FK uses ON DELETE CASCADE per architecture doc §5 convention.
 CREATE TABLE observer_jobs (
   id SERIAL PRIMARY KEY,
-  interview_session_id INTEGER NOT NULL UNIQUE REFERENCES interview_sessions(id),
+  interview_session_id INTEGER NOT NULL UNIQUE
+    REFERENCES interview_sessions(id) ON DELETE CASCADE,
   status VARCHAR(20) NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending','claimed','observing','flushing','complete','cancelled','failed')),
   worker_id VARCHAR(255),
@@ -343,13 +398,16 @@ CREATE INDEX idx_observer_jobs_heartbeat ON observer_jobs(last_heartbeat)
 
 | Concern | Mitigation |
 |---------|------------|
-| Biometric data collection | Gated by Option A consent — observer never receives streams if declined |
+| Biometric data collection | Gated by Option A consent (default-deny) — observer never receives streams without explicit `biometric_collection === true` |
+| In-memory processing | IS collection under BIPA/GDPR Art. 9 — consent gate (not the pipeline) is the legal protection |
 | Data minimization | 1fps video sampling (not full stream); frames analyzed in-memory, never persisted |
 | No biometric templates | Observer does not create face embeddings or voiceprints |
-| Retention | Reports follow session retention (90d per S-077); no separate observer retention |
-| Erasure | `ai_observer_reports` in `erasePersonalData()` from day one (§5) |
+| Retention | 30 days for observer reports (BIPA §15(a) schedule — must be published pre-launch) |
+| Erasure | `ai_observer_reports` + `observer_jobs` in `erasePersonalData()` from day one (§5.1) |
 | Transparency | S-072 disclosure copy; candidate knows AI analysis may occur |
 | Human review | All observations are `unreviewed` by default; no autonomous decisions |
+| Interviewer DSAR | Interviewer speech transcribed for context lands in candidate-scoped reports. Interviewer erasure requests: recruiter-as-employee data policy applies (to be defined — do not leave undefined at implementation) |
+| Phase 3 legal review | Recorded decision (MEMORY.md): counsel must review consent flow + retention before Phase 3 — this spec is in scope for that review |
 
 ---
 
