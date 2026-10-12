@@ -122,7 +122,9 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_components
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
-			.mockResolvedValueOnce({ rowCount: 0 }); // S-078: recording_consent
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
 		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
 		const result = await erasePersonalData(7, {
 			client,
@@ -160,6 +162,8 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			scoreHistoryDeleted: false,
 			jobRecommendationsDeleted: false,
 			recordingConsentRedacted: false,
+			observerReportsDeleted: false,
+			observerJobsDeleted: false,
 			storageKeys: [],
 		});
 		expect(biometricAudit.logAccess).toHaveBeenCalledTimes(1);
@@ -199,7 +203,9 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_components
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
-			.mockResolvedValueOnce({ rowCount: 0 }); // S-078: recording_consent
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
 		const result = await erasePersonalData(7, {
 			client,
 			audit: { userId: 7, userRole: 'candidate' },
@@ -236,6 +242,8 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			scoreHistoryDeleted: false,
 			jobRecommendationsDeleted: false,
 			recordingConsentRedacted: false,
+			observerReportsDeleted: false,
+			observerJobsDeleted: false,
 			storageKeys: [],
 		});
 		expect(biometricAudit.logAccess).not.toHaveBeenCalled();

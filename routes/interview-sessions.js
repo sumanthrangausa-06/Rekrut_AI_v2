@@ -1157,6 +1157,53 @@ router.post('/interview-sessions/:id/observer/disable', authMiddleware, async (r
 	}
 });
 
+// GET /interview-sessions/:id/observer/status — S-047 (#695)
+// Returns the observer job status + report state for a session.
+// Job queue (observer_jobs) is the source of truth; config.observer_enabled
+// is intent only.
+router.get('/interview-sessions/:id/observer/status', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		if (!isHiringTeamForSession(session, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+
+		const observerJobs = require('../lib/observerJobs');
+		const job = await observerJobs.getStatus(session.id);
+
+		// Check if a report exists
+		const { rows } = await pool.query(
+			`SELECT id, consent_state, created_at FROM ai_observer_reports
+			 WHERE interview_session_id = $1`,
+			[session.id],
+		);
+
+		res.json({
+			success: true,
+			session_id: session.id,
+			observer_enabled: !!session.config?.observer_enabled,
+			job: job ? {
+				id: job.id,
+				status: job.status,
+				worker_id: job.worker_id,
+				attempt_count: job.attempt_count,
+				error_message: job.error_message,
+			} : null,
+			report: rows[0] ? {
+				id: rows[0].id,
+				consent_state: rows[0].consent_state,
+				created_at: rows[0].created_at,
+			} : null,
+		});
+	} catch (err) {
+		console.error('[interview-sessions] observer status error:', err.message);
+		res.status(500).json({ error: 'Failed to get observer status' });
+	}
+});
+
 // POST /interview-sessions/:id/observer/report — generate the observer
 // analysis report on demand: Q&A extraction over the observer transcript,
 // then the mock-interview analysis stack with the job's rubric weights

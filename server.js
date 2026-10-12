@@ -1025,11 +1025,14 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 			const rec = await EuComplianceService.purgeExpiredRecordings(opts);
 			const reg = await EuComplianceService.purgeRecordingObjects(opts);
 			const tpl = await EuComplianceService.purgeExpiredTemplates(opts);
+			// S-047 (E-008, #695): 30-day observer report retention (spec §5.3)
+			const obs = await EuComplianceService.purgeExpiredObserverReports(opts);
 
 			const mode = opts.dryRun ? 'DRY-RUN' : 'LIVE';
 			console.log(
 				`[retention] ${mode}: recordings=${rec.deletedCount} (storage=${rec.storageDeleted}), ` +
-				`registry=${reg.purgedCount} (storage=${reg.storageDeleted}), templates=${tpl.deletedCount}`,
+				`registry=${reg.purgedCount} (storage=${reg.storageDeleted}), templates=${tpl.deletedCount}, ` +
+				`observer_reports=${obs.deletedCount}`,
 			);
 		} catch (err) {
 			console.error('[retention] Failed:', err.message);
