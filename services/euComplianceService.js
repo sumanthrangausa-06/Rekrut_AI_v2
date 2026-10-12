@@ -793,6 +793,45 @@ class EuComplianceService {
 	}
 
 	/**
+	 * S-047 (E-008, #695): Purge expired AI Observer reports.
+	 * 30-day retention per spec §5.3 (aligned with vision-frame precedent,
+	 * not the 90-day session default). Observer reports contain biometric-derived
+	 * analytics (gaze, voice, expression) — storage limitation (GDPR Art. 5(1)(e))
+	 * requires the shorter period.
+	 *
+	 * DRY-RUN FIRST: defaults to dryRun=true. Live deletion requires the
+	 * RETENTION_PURGE_LIVE gate (same as S-077).
+	 */
+	static async purgeExpiredObserverReports({ dryRun = true, retentionDays = 30 } = {}) {
+		const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+
+		let deletedCount;
+		if (!dryRun) {
+			const r = await pool.query(
+				`DELETE FROM ai_observer_reports WHERE created_at < $1`,
+				[cutoff],
+			);
+			deletedCount = r.rowCount;
+		} else {
+			const r = await pool.query(
+				`SELECT COUNT(*)::int AS c FROM ai_observer_reports WHERE created_at < $1`,
+				[cutoff],
+			);
+			deletedCount = r.rows[0].c;
+		}
+
+		await EuComplianceService._auditPurge({
+			runType: 'ai_observer_reports',
+			objectCount: deletedCount,
+			storageDeleted: 0,
+			dryRun,
+			errorCount: 0,
+		});
+
+		return { deletedCount, dryRun };
+	}
+
+	/**
 	 * Write a per-batch purge audit entry (compliance-auditor finding:
 	 * run id, object count, period covered, dry-run flag, error count).
 	 *

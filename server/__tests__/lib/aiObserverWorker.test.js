@@ -1,0 +1,152 @@
+/**
+ * ai-observer worker tests — S-047 (#695)
+ * Tests for role resolution (AC-2) using the REAL worker module.
+ *
+ * Privacy-engineer review (S-047): the previous version duplicated
+ * resolveRoles inline — it tested a copy, not the code. This version
+ * imports the real module (which no longer auto-starts on require).
+ */
+
+// Mock @livekit/rtc-node before requiring the worker
+jest.mock('@livekit/rtc-node', () => ({
+	Room: jest.fn(),
+	RoomEvent: {
+		TrackSubscribed: 'trackSubscribed',
+		TrackPublished: 'trackPublished',
+	},
+}));
+
+// Mock dependencies to prevent side effects on import
+jest.mock('../../../lib/observerJobs', () => ({
+	enqueue: jest.fn(),
+	claim: jest.fn(),
+	heartbeat: jest.fn(),
+	markObserving: jest.fn(),
+	markFlushing: jest.fn(),
+	complete: jest.fn(),
+	cancel: jest.fn(),
+	fail: jest.fn(),
+	recoverStale: jest.fn(),
+	getStatus: jest.fn(),
+}));
+jest.mock('../../../lib/db', () => ({ query: jest.fn() }));
+jest.mock('../../../lib/observerConsentGate', () => ({
+	canEnableObserver: jest.fn(),
+}));
+
+const { resolveRoles } = require('../../../workers/ai-observer/index');
+// let (not const): the lifecycle suite calls jest.resetModules() and must
+// re-grab the fresh mock instance afterwards.
+let observerJobs = require('../../../lib/observerJobs');
+
+describe('ai-observer role resolution (AC-2)', () => {
+	test('resolves candidate-{userId} as analysis target', () => {
+		const participants = [
+			{ identity: 'candidate-123', metadata: {} },
+			{ identity: 'interviewer-456', metadata: {} },
+		];
+
+		const roles = resolveRoles(participants, {});
+
+		expect(roles.candidate.identity).toBe('candidate-123');
+		expect(roles.candidate.userId).toBe('123');
+		expect(roles.interviewers).toHaveLength(1);
+		expect(roles.interviewers[0].userId).toBe('456');
+	});
+
+	test('falls back to room metadata on prefix mismatch', () => {
+		const participants = [
+			{ identity: 'user-abc', metadata: { userId: '789' } },
+			{ identity: 'interviewer-456', metadata: {} },
+		];
+
+		const roles = resolveRoles(participants, { candidateId: '789' });
+
+		expect(roles.candidate.identity).toBe('user-abc');
+		expect(roles.candidate.userId).toBe('789');
+	});
+
+	test('returns null candidate when no match and no metadata', () => {
+		const participants = [
+			{ identity: 'interviewer-456', metadata: {} },
+		];
+
+		const roles = resolveRoles(participants, {});
+
+		expect(roles.candidate).toBeNull();
+		expect(roles.interviewers).toHaveLength(1);
+	});
+
+	test('observer identity (ai-observer-*) is never classified as candidate', () => {
+		const participants = [
+			{ identity: 'ai-observer-42', metadata: {} },
+			{ identity: 'candidate-123', metadata: {} },
+		];
+
+		const roles = resolveRoles(participants, {});
+
+		expect(roles.candidate.identity).toBe('candidate-123');
+		const allIdentities = [
+			roles.candidate?.identity,
+			...roles.interviewers.map((i) => i.identity),
+		];
+		expect(allIdentities).not.toContain('ai-observer-42');
+	});
+});
+
+/**
+ * Worker lifecycle — S-047 in-process change (Rex + Sumanth, 2026-10-12).
+ * The worker runs inside the web process: server.js calls startWorker() at
+ * boot. These tests verify the module does NOT auto-start on require and
+ * that startWorker/stopWorker control the poll loop + sweeper.
+ */
+describe('ai-observer worker lifecycle (in-process)', () => {
+	let worker;
+
+	beforeEach(() => {
+		jest.clearAllMocks();
+		jest.useFakeTimers();
+		// Fresh require so timer state is isolated per test. resetModules also
+		// creates fresh mock instances — re-grab observerJobs afterwards.
+		jest.resetModules();
+		worker = require('../../../workers/ai-observer/index');
+		observerJobs = require('../../../lib/observerJobs');
+	});
+
+	afterEach(() => {
+		jest.useRealTimers();
+	});
+
+	test('does not start the poll loop on require', () => {
+		expect(observerJobs.claim).not.toHaveBeenCalled();
+		expect(observerJobs.recoverStale).not.toHaveBeenCalled();
+	});
+
+	test('startWorker runs the initial sweep and starts poll + sweep intervals', () => {
+		const timers = worker.startWorker();
+
+		// Initial sweep runs immediately on startup
+		expect(observerJobs.recoverStale).toHaveBeenCalledTimes(1);
+
+		// Advance past one poll interval -> claim called
+		jest.advanceTimersByTime(worker.POLL_INTERVAL_MS);
+		expect(observerJobs.claim).toHaveBeenCalled();
+
+		worker.stopWorker(timers);
+	});
+
+	test('stopWorker clears the intervals — polling stops', () => {
+		const timers = worker.startWorker();
+		const claimsBeforeStop = observerJobs.claim.mock.calls.length;
+
+		worker.stopWorker(timers);
+
+		jest.advanceTimersByTime(worker.POLL_INTERVAL_MS * 3 + 60000 * 3);
+		expect(observerJobs.claim.mock.calls.length).toBe(claimsBeforeStop);
+	});
+
+	test('stopWorker is safe to call with no timers', () => {
+		expect(() => worker.stopWorker()).not.toThrow();
+		expect(() => worker.stopWorker(null)).not.toThrow();
+	});
+});

@@ -80,7 +80,10 @@ function mockPhase1WithMedium(overrides = {}) {
 		.mockResolvedValueOnce(q([], 0)) // score_components
 		.mockResolvedValueOnce(q([], 0)) // score_history
 		.mockResolvedValueOnce(q([], 0)) // job_recommendations
-		.mockResolvedValueOnce(q([], 0)); // recording_consent redaction
+		.mockResolvedValueOnce(q([], 0)) // recording_consent redaction
+		// S-047 (E-008): observer tables.
+		.mockResolvedValueOnce(q([], 0)) // ai_observer_reports
+		.mockResolvedValueOnce(q([], 0)); // observer_jobs
 	// Ledger INSERTs + any overflow.
 	client.query.mockResolvedValue({ rows: [], rowCount: 1 });
 	return client;
@@ -199,6 +202,8 @@ describe('S-078 erasePersonalData — MEDIUM tables (in-tx)', () => {
 			'scoreHistoryDeleted',
 			'jobRecommendationsDeleted',
 			'recordingConsentRedacted',
+			'observerReportsDeleted',
+			'observerJobsDeleted',
 		]) {
 			expect(flag in result).toBe(true);
 		}

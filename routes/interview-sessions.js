@@ -1075,6 +1075,19 @@ router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (re
 			return res.status(502).json({ error: 'Failed to dispatch observer agent' });
 		}
 
+		// S-047 (E-008, #695): enqueue the observer job for the worker process.
+		// The gate already passed above (canEnableObserver) — this is the
+		// enqueue-time gate (spec §3.1 point 1). The worker re-checks at
+		// claim time and pre-subscribe.
+		try {
+			const observerJobs = require('../lib/observerJobs');
+			await observerJobs.enqueue(session.id);
+		} catch (err) {
+			console.error('[interview-sessions] observer job enqueue failed:', err.message);
+			// Non-blocking: the Track B voice agent is the fallback.
+			// The worker will pick up the job if/when the enqueue succeeds.
+		}
+
 		// Task 6 (#323): the human call is live — start room-composite egress
 		// (both humans' media) so the observer has a recording to analyze.
 		// Non-blocking, consent-gated on the candidate — same contract as the
@@ -1154,6 +1167,53 @@ router.post('/interview-sessions/:id/observer/disable', authMiddleware, async (r
 	} catch (err) {
 		console.error('[interview-sessions] observer disable error:', err.message);
 		res.status(500).json({ error: 'Failed to disable observer' });
+	}
+});
+
+// GET /interview-sessions/:id/observer/status — S-047 (#695)
+// Returns the observer job status + report state for a session.
+// Job queue (observer_jobs) is the source of truth; config.observer_enabled
+// is intent only.
+router.get('/interview-sessions/:id/observer/status', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		if (!isHiringTeamForSession(session, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+
+		const observerJobs = require('../lib/observerJobs');
+		const job = await observerJobs.getStatus(session.id);
+
+		// Check if a report exists
+		const { rows } = await pool.query(
+			`SELECT id, consent_state, created_at FROM ai_observer_reports
+			 WHERE interview_session_id = $1`,
+			[session.id],
+		);
+
+		res.json({
+			success: true,
+			session_id: session.id,
+			observer_enabled: !!session.config?.observer_enabled,
+			job: job ? {
+				id: job.id,
+				status: job.status,
+				worker_id: job.worker_id,
+				attempt_count: job.attempt_count,
+				error_message: job.error_message,
+			} : null,
+			report: rows[0] ? {
+				id: rows[0].id,
+				consent_state: rows[0].consent_state,
+				created_at: rows[0].created_at,
+			} : null,
+		});
+	} catch (err) {
+		console.error('[interview-sessions] observer status error:', err.message);
+		res.status(500).json({ error: 'Failed to get observer status' });
 	}
 });
 

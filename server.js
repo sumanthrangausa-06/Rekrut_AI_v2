@@ -1025,11 +1025,14 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 			const rec = await EuComplianceService.purgeExpiredRecordings(opts);
 			const reg = await EuComplianceService.purgeRecordingObjects(opts);
 			const tpl = await EuComplianceService.purgeExpiredTemplates(opts);
+			// S-047 (E-008, #695): 30-day observer report retention (spec §5.3)
+			const obs = await EuComplianceService.purgeExpiredObserverReports(opts);
 
 			const mode = opts.dryRun ? 'DRY-RUN' : 'LIVE';
 			console.log(
 				`[retention] ${mode}: recordings=${rec.deletedCount} (storage=${rec.storageDeleted}), ` +
-				`registry=${reg.purgedCount} (storage=${reg.storageDeleted}), templates=${tpl.deletedCount}`,
+				`registry=${reg.purgedCount} (storage=${reg.storageDeleted}), templates=${tpl.deletedCount}, ` +
+				`observer_reports=${obs.deletedCount}`,
 			);
 		} catch (err) {
 			console.error('[retention] Failed:', err.message);
@@ -1037,6 +1040,28 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 	}, RETENTION_INTERVAL);
 
 	console.log('[retention] Recording retention purger started (24h interval)');
+})();
+
+// ─── AI Observer worker (E-008, #695) — IN-PROCESS ──────────────────────────
+// Rex + Sumanth's $0 decision (2026-10-12): the observer worker runs inside
+// the web process, not as a separate Render worker. The job queue
+// (observer_jobs, SKIP LOCKED, heartbeats, stale-claim sweeper) is
+// process-agnostic by design — starting the poll loop at boot is a few lines.
+// To go back to a separate worker later: run workers/ai-observer/index.js
+// directly (its require.main block still supports standalone mode) and set
+// AI_OBSERVER_IN_PROCESS=false here.
+(function startAiObserverWorker() {
+	if (process.env.AI_OBSERVER_IN_PROCESS === 'false') {
+		console.log('[ai-observer] in-process worker disabled (AI_OBSERVER_IN_PROCESS=false)');
+		return;
+	}
+	try {
+		require('./workers/ai-observer/index').startWorker();
+	} catch (err) {
+		// Fail-open for the API: the observer is supplementary — a worker
+		// startup failure must never take down the web server.
+		console.error('[ai-observer] in-process worker failed to start:', err.message);
+	}
 })();
 
 // ─── AI Health Monitoring Endpoints ──────────────────────────────────────────

@@ -76,6 +76,32 @@ async function generateToken({ identity, name, roomName, ttlMs = 60 * 60 * 1000,
 	return token.toJwt();
 }
 
+/**
+ * Create a subscribe-only LiveKit token for the AI Observer (S-047, #695).
+ * Least privilege: roomJoin + canSubscribe only. Zero publish, zero data.
+ * Identity: ai-observer-{sessionId} (spec §2.3).
+ *
+ * @param {string} roomName - LiveKit room name
+ * @param {number|string} sessionId - interview session ID
+ * @returns {Promise<string>} JWT token
+ */
+async function createObserverToken(roomName, sessionId) {
+	const identity = `ai-observer-${sessionId}`;
+	return generateToken({
+		identity,
+		name: identity,
+		roomName,
+		ttlMs: 60 * 60 * 1000, // 1 hour (refreshed on heartbeat if session exceeds)
+		grants: {
+			roomJoin: true,
+			room: roomName,
+			canPublish: false,
+			canSubscribe: true,
+			canPublishData: false,
+		},
+	});
+}
+
 // ─── Room Management ────────────────────────────────────────────────────────
 
 function _getRoomClient() {
@@ -995,4 +1021,5 @@ module.exports = {
 	listRecordingsByEventId,
 	decryptStoragePath,
 	downloadRecordingAudio,
+	createObserverToken,
 };
