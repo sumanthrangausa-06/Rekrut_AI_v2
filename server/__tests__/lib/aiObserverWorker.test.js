@@ -35,6 +35,9 @@ jest.mock('../../../lib/observerConsentGate', () => ({
 }));
 
 const { resolveRoles } = require('../../../workers/ai-observer/index');
+// let (not const): the lifecycle suite calls jest.resetModules() and must
+// re-grab the fresh mock instance afterwards.
+let observerJobs = require('../../../lib/observerJobs');
 
 describe('ai-observer role resolution (AC-2)', () => {
 	test('resolves candidate-{userId} as analysis target', () => {
@@ -88,5 +91,62 @@ describe('ai-observer role resolution (AC-2)', () => {
 			...roles.interviewers.map((i) => i.identity),
 		];
 		expect(allIdentities).not.toContain('ai-observer-42');
+	});
+});
+
+/**
+ * Worker lifecycle — S-047 in-process change (Rex + Sumanth, 2026-10-12).
+ * The worker runs inside the web process: server.js calls startWorker() at
+ * boot. These tests verify the module does NOT auto-start on require and
+ * that startWorker/stopWorker control the poll loop + sweeper.
+ */
+describe('ai-observer worker lifecycle (in-process)', () => {
+	let worker;
+
+	beforeEach(() => {
+		jest.clearAllMocks();
+		jest.useFakeTimers();
+		// Fresh require so timer state is isolated per test. resetModules also
+		// creates fresh mock instances — re-grab observerJobs afterwards.
+		jest.resetModules();
+		worker = require('../../../workers/ai-observer/index');
+		observerJobs = require('../../../lib/observerJobs');
+	});
+
+	afterEach(() => {
+		jest.useRealTimers();
+	});
+
+	test('does not start the poll loop on require', () => {
+		expect(observerJobs.claim).not.toHaveBeenCalled();
+		expect(observerJobs.recoverStale).not.toHaveBeenCalled();
+	});
+
+	test('startWorker runs the initial sweep and starts poll + sweep intervals', () => {
+		const timers = worker.startWorker();
+
+		// Initial sweep runs immediately on startup
+		expect(observerJobs.recoverStale).toHaveBeenCalledTimes(1);
+
+		// Advance past one poll interval -> claim called
+		jest.advanceTimersByTime(worker.POLL_INTERVAL_MS);
+		expect(observerJobs.claim).toHaveBeenCalled();
+
+		worker.stopWorker(timers);
+	});
+
+	test('stopWorker clears the intervals — polling stops', () => {
+		const timers = worker.startWorker();
+		const claimsBeforeStop = observerJobs.claim.mock.calls.length;
+
+		worker.stopWorker(timers);
+
+		jest.advanceTimersByTime(worker.POLL_INTERVAL_MS * 3 + 60000 * 3);
+		expect(observerJobs.claim.mock.calls.length).toBe(claimsBeforeStop);
+	});
+
+	test('stopWorker is safe to call with no timers', () => {
+		expect(() => worker.stopWorker()).not.toThrow();
+		expect(() => worker.stopWorker(null)).not.toThrow();
 	});
 });

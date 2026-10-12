@@ -1042,6 +1042,28 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 	console.log('[retention] Recording retention purger started (24h interval)');
 })();
 
+// ─── AI Observer worker (E-008, #695) — IN-PROCESS ──────────────────────────
+// Rex + Sumanth's $0 decision (2026-10-12): the observer worker runs inside
+// the web process, not as a separate Render worker. The job queue
+// (observer_jobs, SKIP LOCKED, heartbeats, stale-claim sweeper) is
+// process-agnostic by design — starting the poll loop at boot is a few lines.
+// To go back to a separate worker later: run workers/ai-observer/index.js
+// directly (its require.main block still supports standalone mode) and set
+// AI_OBSERVER_IN_PROCESS=false here.
+(function startAiObserverWorker() {
+	if (process.env.AI_OBSERVER_IN_PROCESS === 'false') {
+		console.log('[ai-observer] in-process worker disabled (AI_OBSERVER_IN_PROCESS=false)');
+		return;
+	}
+	try {
+		require('./workers/ai-observer/index').startWorker();
+	} catch (err) {
+		// Fail-open for the API: the observer is supplementary — a worker
+		// startup failure must never take down the web server.
+		console.error('[ai-observer] in-process worker failed to start:', err.message);
+	}
+})();
+
 // ─── AI Health Monitoring Endpoints ──────────────────────────────────────────
 // Comprehensive AI call logs, model metrics, budget predictions, prompt management
 

@@ -1,12 +1,18 @@
 /**
  * AI Observer Worker — E-008 (S-047, #695)
  *
- * Separate Node.js process that polls the observer_jobs table, claims pending
- * jobs, and joins LiveKit rooms as an invisible, subscribe-only participant.
+ * Polls the observer_jobs table, claims pending jobs, and joins LiveKit rooms
+ * as an invisible, subscribe-only participant.
  *
- * Process model (spec §2.1): Separate from the Express web dyno so it survives
- * deploys mid-interview (AC-4). Polls every 5s. Heartbeat every 30s.
- * Stale-claim recovery runs every 60s (5min threshold).
+ * Process model (spec §2.1, revised 2026-10-12 per Rex + Sumanth's $0 decision):
+ * runs IN-PROCESS — server.js starts the poll loop at web boot. The job queue
+ * (observer_jobs, SKIP LOCKED, heartbeats, stale-claim sweeper) is
+ * process-agnostic by design, so this is a few lines at startup. Switch to a
+ * separate Render worker later by running this module directly
+ * (require.main === module already supports standalone mode).
+ *
+ * Polls every 5s. Heartbeat every 30s. Stale-claim recovery every 60s
+ * (5min threshold).
  *
  * Consent enforcement (spec §3.1): The gate is checked at THREE points:
  * 1. Claim time — before joining the room
@@ -295,17 +301,37 @@ async function shutdown() {
 	process.exit(0);
 }
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
-
-// Only start the worker if this is the main module (not required by tests)
-// This allows tests to import resolveRoles without starting poll loops.
-if (require.main === module) {
+/**
+ * Start the worker poll loop + stale-claim sweeper. Safe to call once at
+ * process boot (server.js in-process mode) or from the standalone entry
+ * point below. Returns the timer handles for stopWorker().
+ */
+function startWorker() {
 	console.log(`[ai-observer] worker starting (id: ${WORKER_ID})`);
-	setInterval(poll, POLL_INTERVAL_MS);
-	setInterval(sweep, SWEEPER_INTERVAL_MS);
+	const pollTimer = setInterval(poll, POLL_INTERVAL_MS);
+	const sweepTimer = setInterval(sweep, SWEEPER_INTERVAL_MS);
 	// Initial sweep on startup (recover from previous crash)
 	sweep().catch(() => {});
+	return { pollTimer, sweepTimer };
+}
+
+/**
+ * Stop the poll loop + sweeper (tests, graceful shutdown).
+ */
+function stopWorker(timers) {
+	if (!timers) return;
+	clearInterval(timers.pollTimer);
+	clearInterval(timers.sweepTimer);
+}
+
+// Only register signal handlers and start the worker when this is the main
+// module (standalone separate-process mode). In-process mode (server.js)
+// manages its own lifecycle; stale claims recover via the 5min heartbeat
+// timeout sweeper.
+if (require.main === module) {
+	process.on('SIGTERM', shutdown);
+	process.on('SIGINT', shutdown);
+	startWorker();
 }
 
 module.exports = {
@@ -313,6 +339,8 @@ module.exports = {
 	resolveRoles,
 	checkConsent,
 	processJob,
+	startWorker,
+	stopWorker,
 	// exported for tests
 	POLL_INTERVAL_MS,
 	HEARTBEAT_INTERVAL_MS,
