@@ -601,13 +601,191 @@ class EuComplianceService {
 	 * follow-up). Runs daily via the server.js retention cron.
 	 * @returns {Promise<{ deletedCount: number }>}
 	 */
-	static async purgeExpiredRecordings() {
-		const r = await pool.query(
-			`UPDATE interview_recordings
-			 SET status = 'deleted', updated_at = NOW()
-			 WHERE retention_expires_at < NOW() AND status != 'deleted'`,
+	static async purgeExpiredRecordings({ dryRun = true } = {}) {
+		// S-077 (#760): storage-object deletion added. The old version only
+		// soft-deleted DB rows; storage files accumulated indefinitely.
+		// Per-row processing (not bulk UPDATE) so each storage object can be
+		// deleted before its row is marked — storage-before-DB ordering is
+		// crash-safe: a failed DB update leaves a row pointing at a missing
+		// object (playback 404s, next run retries), never an orphaned file.
+		const { rows } = await pool.query(
+			`SELECT id, storage_path FROM interview_recordings
+			 WHERE retention_expires_at < NOW() AND status != 'deleted'
+			 ORDER BY retention_expires_at ASC
+			 LIMIT 500`,
 		);
-		return { deletedCount: r.rowCount };
+
+		let deletedCount = 0;
+		let storageDeleted = 0;
+		let errors = 0;
+
+		// ponytail: lazy-require to avoid hard deps at module load.
+		const { deleteStorageObject } = require('../lib/file-storage');
+		const livekitService = require('../server/services/livekit');
+
+		for (const row of rows) {
+			try {
+				if (!dryRun && row.storage_path) {
+					// storage_path is encrypted BYTEA — decrypt to get the key.
+					const objectKey = livekitService.decryptStoragePath(row);
+					if (objectKey) {
+						const r = await deleteStorageObject(objectKey);
+						if (r.deleted) storageDeleted++;
+					}
+				}
+				if (!dryRun) {
+					await pool.query(
+						`UPDATE interview_recordings
+						 SET status = 'deleted', updated_at = NOW()
+						 WHERE id = $1`,
+						[row.id],
+					);
+				}
+				deletedCount++;
+			} catch (err) {
+				// ponytail: best-effort per row — one bad row must not stop the sweep.
+				console.error(`[retention] purgeExpiredRecordings row ${row.id} failed:`, err.message);
+				errors++;
+			}
+		}
+
+		await EuComplianceService._auditPurge({
+			runType: 'interview_recordings',
+			objectCount: deletedCount,
+			storageDeleted,
+			dryRun,
+			errorCount: errors,
+		});
+
+		return { deletedCount, storageDeleted, dryRun, errors };
+	}
+
+	/**
+	 * Sweep the recording_objects registry (S-077 #760): delete expired
+	 * storage objects from R2/B2, then stamp deleted_at.
+	 *
+	 * Crash-safe: storage object deleted BEFORE the DB stamp. Idempotent:
+	 * deleteStorageObject treats NoSuchKey as success. Batched with
+	 * LIMIT + SKIP LOCKED so concurrent cron runs don't double-process.
+	 *
+	 * DRY-RUN FIRST: defaults to dryRun=true. Live deletion requires an
+	 * explicit { dryRun: false } — Sumanth's deletion-scope rule.
+	 *
+	 * @param {object} [opts]
+	 * @param {boolean} [opts.dryRun=true]
+	 * @param {number} [opts.batchSize=100]
+	 * @returns {Promise<{purgedCount, storageDeleted, dryRun, errors}>}
+	 */
+	static async purgeRecordingObjects({ dryRun = true, batchSize = 100 } = {}) {
+		const { deleteStorageObject } = require('../lib/file-storage');
+
+		const { rows } = await pool.query(
+			`SELECT object_key, object_type FROM recording_objects
+			 WHERE expires_at < NOW() AND deleted_at IS NULL
+			 ORDER BY expires_at ASC
+			 LIMIT $1
+			 FOR UPDATE SKIP LOCKED`,
+			[batchSize],
+		);
+
+		let purgedCount = 0;
+		let storageDeleted = 0;
+		let errors = 0;
+
+		for (const row of rows) {
+			try {
+				if (!dryRun) {
+					const r = await deleteStorageObject(row.object_key);
+					if (r.deleted) storageDeleted++;
+					await pool.query(
+						`UPDATE recording_objects SET deleted_at = NOW() WHERE object_key = $1`,
+						[row.object_key],
+					);
+				}
+				purgedCount++;
+			} catch (err) {
+				console.error(`[retention] purgeRecordingObjects ${row.object_key} failed:`, err.message);
+				errors++;
+			}
+		}
+
+		await EuComplianceService._auditPurge({
+			runType: 'recording_objects',
+			objectCount: purgedCount,
+			storageDeleted,
+			dryRun,
+			errorCount: errors,
+		});
+
+		return { purgedCount, storageDeleted, dryRun, errors };
+	}
+
+	/**
+	 * Purge expired biometric_templates (S-077 #760, Delta 4).
+	 * The S-015 deletion jobs referenced in migration 246 were verified
+	 * ABSENT (zero code hits) — this folds template expiry into the purge cron.
+	 * DB-row delete only: DEK crypto-shredding is the hard guarantee, and
+	 * templates have no separate storage objects.
+	 *
+	 * @param {object} [opts]
+	 * @param {boolean} [opts.dryRun=true]
+	 * @param {number} [opts.retentionDays=90]
+	 */
+	static async purgeExpiredTemplates({ dryRun = true, retentionDays = 90 } = {}) {
+		const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+
+		let deletedCount;
+		if (!dryRun) {
+			const r = await pool.query(
+				`DELETE FROM biometric_templates WHERE created_at < $1`,
+				[cutoff],
+			);
+			deletedCount = r.rowCount;
+		} else {
+			const r = await pool.query(
+				`SELECT COUNT(*)::int AS c FROM biometric_templates WHERE created_at < $1`,
+				[cutoff],
+			);
+			deletedCount = r.rows[0].c;
+		}
+
+		await EuComplianceService._auditPurge({
+			runType: 'biometric_templates',
+			objectCount: deletedCount,
+			storageDeleted: 0,
+			dryRun,
+			errorCount: 0,
+		});
+
+		return { deletedCount, dryRun };
+	}
+
+	/**
+	 * Write a per-batch 'purge' audit entry (compliance-auditor finding:
+	 * run id, object count, period, dry-run flag, error count).
+	 * 'purge' is already in biometricAudit VALID_ACTIONS — no allowlist change.
+	 * Best-effort: audit failure must not break the purge.
+	 */
+	static async _auditPurge({ runType, objectCount, storageDeleted, dryRun, errorCount }) {
+		try {
+			const biometricAudit = require('../lib/biometricAudit');
+			await biometricAudit.logAccess({
+				userId: null,
+				userRole: 'system',
+				action: 'purge',
+				dataType: `retention_${runType}`,
+				ipAddress: null,
+				metadata: {
+					runId: `${runType}-${Date.now()}`,
+					objectCount,
+					storageDeleted,
+					dryRun: !!dryRun,
+					errorCount,
+				},
+			});
+		} catch (err) {
+			console.warn('[retention] purge audit write failed (best-effort):', err.message);
+		}
 	}
 
 	// ── Consent Management ───────────────────────────────────────────────
