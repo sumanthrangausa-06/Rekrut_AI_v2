@@ -69,16 +69,19 @@ export interface ObserverSectionState {
 /** The only integrity projection version this renderer understands (§4.4). */
 const KNOWN_INTEGRITY_VERSION = 1;
 
-/** §4.1: a `missing` section renders "Insufficient data / N/A". */
-export const INSUFFICIENT_DATA_COPY = 'Insufficient data';
+/** §4.1: a `missing` section renders the insufficient-data sentence / N/A.
+ *  Wording: #796 adopted CE subset (client-only presentational copy —
+ *  this constant is NOT a canonical lib/observerReportStates.js string). */
+export const INSUFFICIENT_DATA_COPY = 'Insufficient data to report this section.';
 export const NO_INTEGRITY_EVENTS_COPY = 'No integrity events recorded.';
-export const TRANSCRIPT_AVAILABLE_COPY = 'Observer transcript available';
+export const TRANSCRIPT_AVAILABLE_COPY =
+	'A transcript of the interview conversation is available.';
 
 const SECTION_TITLES: Record<string, string> = {
-	vocal: 'Vocal',
-	visual: 'Visual',
+	vocal: 'Voice observations',
+	visual: 'Video observations',
 	conversation: 'Conversation',
-	integrity: 'Integrity',
+	integrity: 'Integrity events',
 };
 
 function humanize(key: string): string {
