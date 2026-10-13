@@ -61,7 +61,7 @@ let userCompany;
 let candidateSessionCompanies;
 let holdCheckError;
 
-function activeHoldMatches(uid, cids) {
+function activeHoldMatches(uid, cids, anySessionBranch = true) {
 	const cidList = (Array.isArray(cids) ? cids : [cids]).filter((c) => c != null);
 	return holds.filter(
 		(h) =>
@@ -69,7 +69,8 @@ function activeHoldMatches(uid, cids) {
 			((uid != null && h.user_id === uid) ||
 				(h.company_id != null && cidList.includes(h.company_id)) ||
 				(uid != null && h.company_id != null && userCompany[uid] === h.company_id) ||
-				(uid != null &&
+				(anySessionBranch &&
+					uid != null &&
 					h.company_id != null &&
 					(candidateSessionCompanies[uid] || []).includes(h.company_id))),
 	);
@@ -104,7 +105,14 @@ function routeLegalHolds(sql, params = []) {
 		// any-active-hold query carries no subject params
 		if (!params.length) return { rows: holds.filter((h) => !h.released_at), rowCount: holds.filter((h) => !h.released_at).length };
 		// isHeld params: [uid, explicitCompanyId, sessionCompanyId]
-		const matched = activeHoldMatches(params[0], [params[1], params[2]]);
+		// D-1: the any-session attribution branch applies ONLY when the
+		// query text actually carries it — findActiveHold omits it when
+		// a sessionId was supplied. The fake keys off the SQL it is
+		// handed instead of assuming the branch is always present; the
+		// old assumption masked D-1 in exactly the negative seam cases
+		// (delta review note (a): candidateSessionCompanies left unset).
+		const anySessionBranch = sql.includes('IN (SELECT company_id FROM interview_sessions');
+		const matched = activeHoldMatches(params[0], [params[1], params[2]], anySessionBranch);
 		return { rows: matched, rowCount: matched.length };
 	}
 	return null;
@@ -200,6 +208,51 @@ describe('legalHold.isHeld', () => {
 		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
 		await expect(isHeld({ userId: 7 })).resolves.toBe(true);
 		await expect(isHeld({ userId: 8 })).resolves.toBe(false);
+	});
+
+	// ── D-1 precision fix (delta re-review residual, PR #915) ─────────────
+	test('D-1: with a sessionId, the row is judged by THAT session’s company only — a hold on ANOTHER of the candidate’s companies does not retain it', async () => {
+		// Candidate 7 has session 42 in HELD company 99 AND session 43 in
+		// non-held company 55. candidateSessionCompanies is SET here —
+		// the pre-D-1 negative seam tests left it unset, which is exactly
+		// how the fake masked this over-retention (reviewer note (a)).
+		const { findActiveHold } = require('../../../lib/legalHold');
+		holds.push({ id: 1, user_id: null, company_id: 99, released_at: null });
+		candidateSessionCompanies = { 7: [99, 55] };
+		db.query.mockImplementation(async (sql, p) => {
+			if (sql.includes('SELECT candidate_id, company_id FROM interview_sessions WHERE id')) {
+				return p[0] === 42
+					? { rows: [{ candidate_id: 7, company_id: 99 }], rowCount: 1 }
+					: { rows: [{ candidate_id: 7, company_id: 55 }], rowCount: 1 };
+			}
+			return routeLegalHolds(sql, p);
+		});
+		// The non-held session's row PURGES (both-ids shape and session-only shape).
+		await expect(isHeld({ userId: 7, sessionId: 43 })).resolves.toBe(false);
+		await expect(isHeld({ sessionId: 43 })).resolves.toBe(false);
+		await expect(findActiveHold({ userId: 7, sessionId: 43 })).resolves.toBeNull();
+		// The held session's row still SPARES.
+		await expect(isHeld({ userId: 7, sessionId: 42 })).resolves.toBe(true);
+		await expect(isHeld({ sessionId: 42 })).resolves.toBe(true);
+		// Session-less (candidate-erasure shape): UNCHANGED — any-session
+		// attribution still blocks, all-or-nothing.
+		await expect(isHeld({ userId: 7 })).resolves.toBe(true);
+	});
+
+	test('D-1: direct user hold and the subject’s own users.company_id hold still fire when a sessionId is present', async () => {
+		candidateSessionCompanies = { 7: [99, 55] };
+		db.query.mockImplementation(async (sql, p) => {
+			if (sql.includes('SELECT candidate_id, company_id FROM interview_sessions WHERE id')) {
+				return { rows: [{ candidate_id: 7, company_id: 55 }], rowCount: 1 };
+			}
+			return routeLegalHolds(sql, p);
+		});
+		holds.push({ id: 1, user_id: 7, company_id: null, released_at: null });
+		await expect(isHeld({ userId: 7, sessionId: 43 })).resolves.toBe(true); // direct user hold
+		holds.length = 0;
+		userCompany = { 7: 3 }; // employer member — the subject's OWN company
+		holds.push({ id: 2, user_id: null, company_id: 3, released_at: null });
+		await expect(isHeld({ userId: 7, sessionId: 43 })).resolves.toBe(true);
 	});
 
 	test('F-6: session-resolution MISS fails closed (held), with and without a userId', async () => {
@@ -334,6 +387,24 @@ describe('observerCapture.isLegalHoldActive (existing seam, real body)', () => {
 		db.query.mockImplementation(async (sql, p) => {
 			if (sql.includes('SELECT candidate_id, company_id FROM interview_sessions WHERE id')) {
 				// session 42 → held company 99; session 43 → non-held 55
+				return p[0] === 42
+					? { rows: [{ candidate_id: 7, company_id: 99 }] }
+					: { rows: [{ candidate_id: 7, company_id: 55 }] };
+			}
+			return routeLegalHolds(sql, p);
+		});
+		await expect(cap.isLegalHoldActive({ candidateId: 7, sessionId: 42 })).resolves.toBe(true);
+		await expect(cap.isLegalHoldActive({ candidateId: 7, sessionId: 43 })).resolves.toBe(false);
+	});
+
+	test('D-1 (seam): cross-company candidate — the OTHER company’s hold does not retain this session’s row', async () => {
+		const cap = require('../../../lib/observerCapture');
+		holds.push({ id: 1, user_id: null, company_id: 99, released_at: null });
+		// Candidate 7 genuinely has sessions in BOTH companies — set the
+		// map the pre-D-1 seam test left unset (the masking gap).
+		candidateSessionCompanies = { 7: [99, 55] };
+		db.query.mockImplementation(async (sql, p) => {
+			if (sql.includes('SELECT candidate_id, company_id FROM interview_sessions WHERE id')) {
 				return p[0] === 42
 					? { rows: [{ candidate_id: 7, company_id: 99 }] }
 					: { rows: [{ candidate_id: 7, company_id: 55 }] };
@@ -607,6 +678,26 @@ describe('euComplianceService purges under hold', () => {
 		const predicate = heldPredicate('some_table.user_id');
 		expect(predicate).toMatch(/interview_sessions/);
 		expect(predicate).toMatch(/candidate_id\s*=\s*some_table\.user_id/);
+	});
+
+	test('D-1 (bulk predicate): the session-scoped predicate keys on the row’s OWN session company and drops the any-session branch; the default is unchanged', async () => {
+		const { heldPredicate, notHeldPredicate } = require('../../../lib/legalHold');
+		const scoped = heldPredicate('some_table.user_id', {
+			sessionIdExpr: 'some_table.interview_session_id',
+		});
+		expect(scoped).toMatch(/interview_sessions/);
+		expect(scoped).toMatch(/s_lh\.id\s*=\s*some_table\.interview_session_id/);
+		expect(scoped).not.toMatch(/candidate_id\s*=\s*some_table\.user_id/);
+		// User hold + subject's-own-company branches survive the scoping.
+		expect(scoped).toMatch(/lh\.user_id\s*=\s*some_table\.user_id/);
+		expect(scoped).toMatch(/u_lh\.company_id/);
+		expect(notHeldPredicate('some_table.user_id', { sessionIdExpr: 'some_table.interview_session_id' })).toBe(
+			`NOT ${scoped}`,
+		);
+		// Session-less default: byte-identical shape to before D-1.
+		const plain = heldPredicate('some_table.user_id');
+		expect(plain).toMatch(/candidate_id\s*=\s*some_table\.user_id/);
+		expect(notHeldPredicate('some_table.user_id')).toBe(`NOT ${plain}`);
 	});
 
 	test('executePurge: attributable branches carry a NOT EXISTS hold predicate + held count in summary', async () => {

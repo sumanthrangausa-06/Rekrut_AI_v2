@@ -536,10 +536,15 @@ class EuComplianceService {
 						deletedCount = res.deletedCount;
 						heldSkips = res.heldSkips || 0;
 					} else {
+						// D-1 (PR #915): recordings rows carry their own
+						// session — count held with the session-scoped
+						// predicate so the dry-run count matches the
+						// per-row live path (purgeExpiredRecordings)
+						// instead of over-retaining cross-company rows.
 						const heldRes = await pool.query(
 							`SELECT COUNT(*)::int as c FROM interview_recordings ir
 							 JOIN interview_events ie ON ie.id = ir.interview_event_id
-							 WHERE ir.created_at < $1 AND ${heldPredicate('ie.candidate_id')}`,
+							 WHERE ir.created_at < $1 AND ${heldPredicate('ie.candidate_id', { sessionIdExpr: 'ir.interview_session_id' })}`,
 							[cutoff],
 						);
 						heldSkips = heldRes.rows[0].c;

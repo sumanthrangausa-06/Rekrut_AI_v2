@@ -60,7 +60,7 @@ describeIfDb('legal hold (real DB, migration 258)', () => {
 
 	afterAll(async () => {
 		await pool.query('DELETE FROM legal_holds');
-		await pool.query('DELETE FROM interview_sessions WHERE id IN (1, 2)');
+		await pool.query('DELETE FROM interview_sessions WHERE id IN (1, 2, 3)');
 		await pool.query('DELETE FROM users WHERE id IN (515152, 515153)');
 		await pool.query('DELETE FROM companies WHERE id IN (777, 888)');
 		await pool.end();
@@ -140,6 +140,56 @@ describeIfDb('legal hold (real DB, migration 258)', () => {
 
 		await legalHold.releaseHold({ holdId: hold.id, releasedBy: 'it-admin' }, pool);
 		await expect(legalHold.isHeld({ userId: 515152, sessionId: 1 }, pool)).resolves.toBe(false);
+	});
+
+	// ── D-1 precision fix (delta re-review residual, PR #915) ───────────────
+	test('D-1 (real SQL): cross-company candidate — non-held session rows purge, held session rows spare, erasure (no sessionId) stays blocked', async () => {
+		// Candidate 515152 (users.company_id NULL) already has session 1
+		// in company 888 (F-1 test above); session 3 puts the SAME
+		// candidate in NON-held company 889.
+		await pool.query(
+			'INSERT INTO interview_sessions (id, candidate_id, company_id) VALUES (3, 515152, 889) ON CONFLICT (id) DO NOTHING',
+		);
+		const hold = await legalHold.placeHold(
+			{ companyId: 888, reason: 'integration D-1 company hold', setBy: 'it-admin' },
+			pool,
+		);
+
+		// Per-row shapes (recordings #6 / observer reports #8 consult
+		// with candidate + session): judged by THAT session's company.
+		await expect(legalHold.isHeld({ userId: 515152, sessionId: 3 }, pool)).resolves.toBe(false); // company-B row purges
+		await expect(legalHold.isHeld({ sessionId: 3 }, pool)).resolves.toBe(false); // session-only shape
+		await expect(legalHold.findActiveHold({ userId: 515152, sessionId: 3 }, pool)).resolves.toBeNull();
+		await expect(legalHold.isHeld({ userId: 515152, sessionId: 1 }, pool)).resolves.toBe(true); // company-A row spares
+
+		// Erasure shape (no sessionId): UNCHANGED — any-session
+		// attribution still blocks the whole-person erasure.
+		await expect(legalHold.isHeld({ userId: 515152 }, pool)).resolves.toBe(true);
+		const found = await legalHold.findActiveHold({ userId: 515152 }, pool);
+		expect(found.id).toBe(hold.id);
+
+		// Bulk parity: the session-scoped predicate over per-session
+		// rows (recording/report shape: candidate + interview_session_id)
+		// deletes the non-held company's row and spares the held one.
+		await pool.query(
+			'CREATE TABLE IF NOT EXISTS _lh_rows (candidate_id INTEGER, interview_session_id INTEGER)',
+		);
+		await pool.query('DELETE FROM _lh_rows');
+		await pool.query(
+			'INSERT INTO _lh_rows (candidate_id, interview_session_id) VALUES (515152, 1), (515152, 3)',
+		);
+		await pool.query(
+			`DELETE FROM _lh_rows WHERE ${legalHold.notHeldPredicate('_lh_rows.candidate_id', { sessionIdExpr: '_lh_rows.interview_session_id' })}`,
+		);
+		const { rows: survivors } = await pool.query(
+			'SELECT interview_session_id FROM _lh_rows ORDER BY interview_session_id',
+		);
+		expect(survivors).toEqual([{ interview_session_id: 1 }]);
+		await pool.query('DROP TABLE _lh_rows');
+
+		await legalHold.releaseHold({ holdId: hold.id, releasedBy: 'it-admin' }, pool);
+		await expect(legalHold.isHeld({ userId: 515152, sessionId: 1 }, pool)).resolves.toBe(false);
+		await expect(legalHold.isHeld({ userId: 515152 }, pool)).resolves.toBe(false);
 	});
 
 	test('F-6 (real SQL): a session-resolution miss fails closed', async () => {
