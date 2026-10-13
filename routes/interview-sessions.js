@@ -14,8 +14,11 @@
  *   POST   /interview-sessions/:id/observer/qa-report  observer Q&A report
  *                                              (Q&A extraction + analysis stack;
  *                                              /observer/report = deprecated alias, S-083)
+ *   GET    /interview-sessions/:id             single-session full read
+ *                                              (canAccess-gated, S-087)
  *   GET    /interview-sessions                 unified list (unified sessions +
- *                                              read-linked human-scheduled interviews)
+ *                                              read-linked human-scheduled interviews;
+ *                                              projected rows only, S-087)
  *   POST   /interview-flows                    create an interview flow (Task 7)
  *   GET    /interview-flows                    list active flows
  *   GET    /interview-flows/:id                read one flow
@@ -33,6 +36,7 @@ const multer = require('multer');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { canEnableObserver } = require('../lib/observerConsentGate');
+const { getReportSectionStates } = require('../lib/observerReportStates');
 const { conductTurn } = require('../services/conversation-engine');
 const { generateScreeningReport } = require('../services/interview-ai');
 // Task 5 (#323): Track B observer — Q&A extraction + analysis over the muted
@@ -85,6 +89,106 @@ function canAccess(session, user) {
 		user.company_id != null &&
 		Number(user.company_id) === Number(session.company_id)
 	);
+}
+
+// The candidate-safe report composition, shared by GET /:id/report and the
+// candidate-self view of GET /:id (S-087 privacy review F2, #790): candidates
+// never receive raw AI internals or internal metadata from a report.
+function toCandidateSafeReport(report) {
+	if (!report) return null;
+	return {
+		overall_score: report.overall_score ?? null,
+		recommendation: report.recommendation ?? null,
+		recommendation_reasoning: report.recommendation_reasoning ?? null,
+		strengths: report.strengths || [],
+		red_flags: report.red_flags || [],
+		dimension_scores: report.dimension_scores || {},
+		question_scores: report.question_scores || [],
+		key_moments: report.key_moments || [],
+		communication_clarity: report.communication_clarity || null,
+		technical_depth: report.technical_depth || null,
+		confidence_enthusiasm: report.confidence_enthusiasm || null,
+	};
+}
+
+// Recursively remove question-bank scoring points (key_points) from a config
+// copy served to candidate-self (F2): they are the answer rubric for the
+// candidate's own pending session — an integrity exposure, not their data.
+function stripKeyPoints(value) {
+	if (Array.isArray(value)) {
+		for (const item of value) stripKeyPoints(item);
+	} else if (value && typeof value === 'object') {
+		delete value.key_points;
+		for (const v of Object.values(value)) stripKeyPoints(v);
+	}
+	return value;
+}
+
+// ─── List projections (S-087, #790) ────────────────────────────────────────
+// The sessions list serialises ONLY what the list view renders. Full config
+// (consent state, observer transcript, report), the conversation transcript,
+// frame analysis, and the invite_token bearer credential never leave the
+// server in a list payload; full session data is served by the gated
+// single-session GET below. The two config-derived values the panel needs
+// are projected in SQL as scalars (see the list handler's SELECT lists);
+// the config fallbacks here keep the shape identical if a row ever arrives
+// unprojected — config itself is never serialised.
+function toUnifiedListRow(s) {
+	return {
+		id: s.id,
+		type: s.type,
+		job_id: s.job_id,
+		application_id: s.application_id,
+		candidate_id: s.candidate_id,
+		company_id: s.company_id,
+		status: s.status,
+		started_at: s.started_at,
+		completed_at: s.completed_at,
+		created_at: s.created_at,
+		// F4 (privacy review, #790): the extraction must guarantee a
+		// number-or-null scalar — any non-numeric JSON ever stored in
+		// config.report.overall_score is dropped, never serialised.
+		overall_score: (() => {
+			const v = s.overall_score ?? s.config?.report?.overall_score;
+			return typeof v === 'number' ? v : null;
+		})(),
+		observer_enabled: Boolean(s.observer_enabled ?? s.config?.observer_enabled ?? false),
+		source: 'interview_session',
+	};
+}
+
+function toScheduledListRow(s) {
+	return {
+		id: s.id,
+		company_id: s.company_id,
+		job_id: s.job_id,
+		candidate_id: s.candidate_id,
+		scheduled_at: s.scheduled_at,
+		duration_minutes: s.duration_minutes,
+		interview_type: s.interview_type,
+		status: s.status,
+		created_at: s.created_at,
+		updated_at: s.updated_at,
+		source: 'scheduled_interviews',
+		type: 'human_scheduled',
+	};
+}
+
+function toEventListRow(s) {
+	return {
+		id: s.id,
+		job_application_id: s.job_application_id,
+		candidate_id: s.candidate_id,
+		job_id: s.job_id,
+		scheduled_at: s.scheduled_at,
+		duration_minutes: s.duration_minutes,
+		timezone: s.timezone,
+		status: s.status,
+		created_at: s.created_at,
+		updated_at: s.updated_at,
+		source: 'interview_events',
+		type: 'human_scheduled',
+	};
 }
 
 function newTimestamp() {
@@ -946,22 +1050,7 @@ router.get('/interview-sessions/:id/report', authMiddleware, async (req, res) =>
 			return res.status(404).json({ error: 'Report not available yet' });
 		}
 		// Whitelist candidate-safe fields.
-		res.json({
-			success: true,
-			report: {
-				overall_score: report.overall_score ?? null,
-				recommendation: report.recommendation ?? null,
-				recommendation_reasoning: report.recommendation_reasoning ?? null,
-				strengths: report.strengths || [],
-				red_flags: report.red_flags || [],
-				dimension_scores: report.dimension_scores || {},
-				question_scores: report.question_scores || [],
-				key_moments: report.key_moments || [],
-				communication_clarity: report.communication_clarity || null,
-				technical_depth: report.technical_depth || null,
-				confidence_enthusiasm: report.confidence_enthusiasm || null,
-			},
-		});
+		res.json({ success: true, report: toCandidateSafeReport(report) });
 	} catch (err) {
 		console.error('[interview-sessions] report error:', err.message);
 		res.status(500).json({ error: 'Failed to load report' });
@@ -1174,7 +1263,9 @@ router.post('/interview-sessions/:id/observer/disable', authMiddleware, async (r
 // GET /interview-sessions/:id/observer/status — S-047 (#695)
 // Returns the observer job status + report state for a session.
 // Job queue (observer_jobs) is the source of truth; config.observer_enabled
-// is intent only.
+// is intent only. S-087 (#790): also returns section_states resolved
+// server-side via lib/observerReportStates (the raw consent flag is never
+// sent).
 router.get('/interview-sessions/:id/observer/status', authMiddleware, async (req, res) => {
 	try {
 		const session = await loadSession(req.params.id);
@@ -1190,10 +1281,27 @@ router.get('/interview-sessions/:id/observer/status', authMiddleware, async (req
 
 		// Check if a report exists
 		const { rows } = await pool.query(
-			`SELECT id, consent_state, created_at FROM ai_observer_reports
+			`SELECT id, consent_state, created_at, analysis, integrity_summary FROM ai_observer_reports
 			 WHERE interview_session_id = $1`,
 			[session.id],
 		);
+		const reportRow = rows[0] || null;
+
+		// S-087 (#790): section states resolved on the SERVER through the
+		// canonical observerReportStates module — clients receive the
+		// resolved state (+ canonical copy), never the raw config or the
+		// biometric_collection flag. A section counts as having data only
+		// when the stored report marks it present; report rows exist only
+		// for granted sessions (S-049a), so declined/withdrawn/unknown
+		// resolve from consent alone.
+		const section_states = getReportSectionStates({
+			session,
+			dataBySection: {
+				vocal: reportRow?.analysis?.vocal?.state === 'present',
+				visual: reportRow?.analysis?.visual?.state === 'present',
+				integrity: reportRow?.integrity_summary?.state === 'present',
+			},
+		});
 
 		res.json({
 			success: true,
@@ -1206,11 +1314,12 @@ router.get('/interview-sessions/:id/observer/status', authMiddleware, async (req
 				attempt_count: job.attempt_count,
 				error_message: job.error_message,
 			} : null,
-			report: rows[0] ? {
-				id: rows[0].id,
-				consent_state: rows[0].consent_state,
-				created_at: rows[0].created_at,
+			report: reportRow ? {
+				id: reportRow.id,
+				consent_state: reportRow.consent_state,
+				created_at: reportRow.created_at,
 			} : null,
+			section_states,
 		});
 	} catch (err) {
 		console.error('[interview-sessions] observer status error:', err.message);
@@ -1314,10 +1423,65 @@ router.post('/interview-sessions/:id/tts', authMiddleware, async (req, res) => {
 	}
 });
 
+// GET /interview-sessions/:id — single-session read (S-087, #790).
+// The gated channel for FULL session data (config, transcript, frame
+// analysis): candidate-self / admin / same-company hiring team via
+// canAccess — the same gate as /:id/report and /:id/recording. The list
+// endpoint below no longer serves full rows, so single-session consumers
+// (the recruiter report page) read here. Two fields are withheld even
+// here (privacy-engineer design review, #790): invite_token — a bearer
+// credential whose only legitimate read channel is the by-token
+// resolution path — and triggered_by, an internal actor id no
+// single-session consumer renders.
+router.get('/interview-sessions/:id', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		if (!canAccess(session, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+		// Audit consistency with the recording read (privacy review F3,
+		// #790): this is the highest-sensitivity read in the subsystem, so
+		// it emits the same non-blocking audit trail.
+		await emitInterviewAudit({
+			company_id: session.company_id,
+			actor_id: req.user.id,
+			target_id: session.id,
+			action: 'session.full_read',
+			metadata: { session_id: session.id },
+		});
+		const { invite_token: _inviteToken, triggered_by: _triggeredBy, ...fullSession } = session;
+		// Audience shaping (privacy review F2, #790): the hiring team gets
+		// the full shape (its consumer is InterviewReport); candidate-self
+		// gets a copy with the question-bank scoring points removed and the
+		// report reduced to the candidate-safe composition. No
+		// candidate-facing consumer exists, so this costs no regressions.
+		let view = fullSession;
+		if (Number(req.user.id) === Number(session.candidate_id) && fullSession.config) {
+			const config = JSON.parse(JSON.stringify(fullSession.config));
+			stripKeyPoints(config);
+			if (config.report) config.report = toCandidateSafeReport(config.report);
+			view = { ...fullSession, config };
+		}
+		// Defence in depth (privacy review F9, #790): no caching of full
+		// session payloads.
+		res.set('Cache-Control', 'no-store');
+		res.json({ success: true, session: view });
+	} catch (err) {
+		console.error('[interview-sessions] get session error:', err.message);
+		res.status(500).json({ error: 'Failed to load interview session' });
+	}
+});
+
 // GET /interview-sessions?candidate_id=|job_id= — unified list.
 // interview_sessions rows plus read-linked human-scheduled interviews
 // (scheduled_interviews / interview_events), which Task 1 deliberately did not
 // backfill. Each entry carries `source` so consumers can distinguish them.
+// S-087 (#790): rows are projected (explicit column lists + the to*ListRow
+// shaping above) — full config/transcripts/credentials are never serialised
+// here; see GET /interview-sessions/:id for the gated full read.
 router.get('/interview-sessions', authMiddleware, async (req, res) => {
 	try {
 		const { candidate_id, job_id } = req.query;
@@ -1347,67 +1511,68 @@ router.get('/interview-sessions', authMiddleware, async (req, res) => {
 		const withCompany = (column) => (scopedToCompany ? ` AND ${column}company_id = $2` : '');
 		const withParams = (id) => (scopedToCompany ? [id, scopeCompanyId] : [id]);
 
+		// S-087 (#790): explicit projections — no SELECT *. interview_sessions
+		// projects the two list scalars out of config in SQL; scheduled /
+		// events project only display columns (meeting links, notes,
+		// feedback/outcome, calendar/LiveKit URLs and panel lists stay
+		// server-side). Rows are additionally whitelist-shaped by the
+		// to*ListRow helpers before serialising.
+		const UNIFIED_LIST_COLUMNS = `id, type, job_id, application_id, candidate_id, company_id,
+			status, started_at, completed_at, created_at,
+			CASE WHEN jsonb_typeof(config->'report'->'overall_score') = 'number'
+				THEN config->'report'->'overall_score' END AS overall_score,
+			config->'observer_enabled' AS observer_enabled`;
+		const SCHEDULED_LIST_COLUMNS = `id, company_id, job_id, candidate_id,
+			scheduled_at, duration_minutes, interview_type, status, created_at, updated_at`;
+		const EVENT_LIST_COLUMNS = `e.id, e.job_application_id, e.candidate_id,
+			e.scheduled_at, e.duration_minutes, e.timezone, e.status, e.created_at, e.updated_at,
+			ja.job_id`;
+
 		const sessions = [];
 		if (candidate_id) {
 			const unified = await pool.query(
-				`SELECT * FROM interview_sessions WHERE candidate_id = $1${withCompany('')} ORDER BY created_at DESC`,
+				`SELECT ${UNIFIED_LIST_COLUMNS} FROM interview_sessions WHERE candidate_id = $1${withCompany('')} ORDER BY created_at DESC`,
 				withParams(candidate_id),
 			);
-			sessions.push(...unified.rows.map((s) => ({ ...s, source: 'interview_session' })));
+			sessions.push(...unified.rows.map(toUnifiedListRow));
 
 			const scheduled = await pool.query(
-				`SELECT * FROM scheduled_interviews WHERE candidate_id = $1${withCompany('')} ORDER BY scheduled_at DESC`,
+				`SELECT ${SCHEDULED_LIST_COLUMNS} FROM scheduled_interviews WHERE candidate_id = $1${withCompany('')} ORDER BY scheduled_at DESC`,
 				withParams(candidate_id),
 			);
-			sessions.push(
-				...scheduled.rows.map((s) => ({
-					...s,
-					source: 'scheduled_interviews',
-					type: 'human_scheduled',
-				})),
-			);
+			sessions.push(...scheduled.rows.map(toScheduledListRow));
 
 			const events = await pool.query(
-				`SELECT e.*, ja.job_id FROM interview_events e
+				`SELECT ${EVENT_LIST_COLUMNS} FROM interview_events e
 				   JOIN job_applications ja ON ja.id = e.job_application_id
 				 WHERE e.candidate_id = $1 AND e.status <> 'cancelled'${withCompany('ja.')}
 				 ORDER BY e.scheduled_at DESC`,
 				withParams(candidate_id),
 			);
-			sessions.push(
-				...events.rows.map((s) => ({ ...s, source: 'interview_events', type: 'human_scheduled' })),
-			);
+			sessions.push(...events.rows.map(toEventListRow));
 		} else {
 			const unified = await pool.query(
-				`SELECT * FROM interview_sessions WHERE job_id = $1${withCompany('')} ORDER BY created_at DESC`,
+				`SELECT ${UNIFIED_LIST_COLUMNS} FROM interview_sessions WHERE job_id = $1${withCompany('')} ORDER BY created_at DESC`,
 				withParams(job_id),
 			);
-			sessions.push(...unified.rows.map((s) => ({ ...s, source: 'interview_session' })));
+			sessions.push(...unified.rows.map(toUnifiedListRow));
 
 			// Read-link human-scheduled interviews for the recruiter's job view
 			// too (mirrors the candidate_id branch above).
 			const scheduled = await pool.query(
-				`SELECT * FROM scheduled_interviews WHERE job_id = $1${withCompany('')} ORDER BY scheduled_at DESC`,
+				`SELECT ${SCHEDULED_LIST_COLUMNS} FROM scheduled_interviews WHERE job_id = $1${withCompany('')} ORDER BY scheduled_at DESC`,
 				withParams(job_id),
 			);
-			sessions.push(
-				...scheduled.rows.map((s) => ({
-					...s,
-					source: 'scheduled_interviews',
-					type: 'human_scheduled',
-				})),
-			);
+			sessions.push(...scheduled.rows.map(toScheduledListRow));
 
 			const events = await pool.query(
-				`SELECT e.*, ja.job_id FROM interview_events e
+				`SELECT ${EVENT_LIST_COLUMNS} FROM interview_events e
 				   JOIN job_applications ja ON ja.id = e.job_application_id
 				 WHERE ja.job_id = $1 AND e.status <> 'cancelled'${withCompany('ja.')}
 				 ORDER BY e.scheduled_at DESC`,
 				withParams(job_id),
 			);
-			sessions.push(
-				...events.rows.map((s) => ({ ...s, source: 'interview_events', type: 'human_scheduled' })),
-			);
+			sessions.push(...events.rows.map(toEventListRow));
 		}
 
 		sessions.sort(
