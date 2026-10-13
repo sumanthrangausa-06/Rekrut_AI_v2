@@ -86,3 +86,5 @@
 | 2026-10-10 | AI Observer = recruiter's toggle (no standalone candidate consent) | Sumanth |
 | 2026-10-10 | Warm-up calibration mandatory at launch | Sumanth |
 | 2026-10-10 | Legal reviews consent + retention before Phase 3 | Sumanth |
+| 2026-10-13 | Gate A ruled **B, amended**: Observer ships presence-only for a controlled cohort in January (no public consent ask, no analysis claimed); dormant audio-capture built as one complete unit after design approval; re-entry contract — counsel + design cleared by 2026-11-01 opens cohort pilot path, after 2026-12-01 nothing activates pre-launch (full ruling on #634) | Sumanth |
+| 2026-10-13 | Gate A dormant-capture design package delivered for approval (Rex v2 + Quinn validation protocol + Lex consent/retention review; privacy review BLOCK on v1 cleared with conditions on v2) — `04-implementation/unified-interview-engine/gate-a-dormant-capture-design.md` | Lead |
