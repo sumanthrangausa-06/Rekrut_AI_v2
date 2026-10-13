@@ -30,6 +30,7 @@ class FakeAudioStream {
 				return { done: true, value: undefined };
 			},
 			releaseLock: () => {},
+				cancel: async () => { track.deliverIndex = track.deliverQueue.length; },
 		};
 	}
 }
@@ -101,6 +102,10 @@ function route(st, sql, params = []) {
 		const r = st.dekRows.get(params[0]); return { rows: r ? [{ destroyed_at: r.destroyed_at }] : [] };
 	}
 	if (sql.includes('FROM data_retention_policies')) return { rows: [{ retention_days: 30 }] };
+		if (sql.includes('SELECT registration_state, deleted_at FROM recording_objects')) {
+		const row = st.recordingObjects.get(params[0]);
+		return { rows: row ? [{ registration_state: row.registration_state, deleted_at: row.deleted_at }] : [] };
+	}
 	if (sql.includes('INSERT INTO recording_objects')) {
 		st.registryInserts++;
 		st.recordingObjects.set(params[0], { object_key: params[0], interview_id: params[1], candidate_id: params[2], object_type: 'observer_audio', registration_state: 'pending', created_at: new Date(), deleted_at: null });
@@ -395,6 +400,8 @@ describe('CAPTURING (test scope)', () => {
 		await waitFor(() => mockState.outcomes.has(104), 4000, 'flag_off outcome');
 		expect(Date.now() - flipAt).toBeLessThanOrEqual(2000);
 		expect(mockState.outcomes.get(104).stop_reason).toBe('flag_off');
+		// B-2: the kill stops COLLECTION — the publication is unsubscribed
+		expect(parts.candAudio.setSubscribedCalls).toContain(false);
 		const meas = await decryptMeasurements(104);
 		expect(meas.speaking_time_sec.reason).toBe('CAPTURE_INCOMPLETE');
 		expect(worker._getActiveCapture()).toBeNull();
@@ -414,6 +421,28 @@ describe('CAPTURING (test scope)', () => {
 		expect(sweep.chunksQueued).toBeGreaterThanOrEqual(1);
 		expect(mockState.chunks.filter((c) => c.interview_session_id === 105)).toHaveLength(0);
 		expect(mockState.dekRows.get(7).destroyed_at).toBeNull();
+	});
+
+	test('B-1: interviewer publishing FIRST is never bound or subscribed; the bound candidate is', async () => {
+		process.env.OBSERVER_AUDIO_CAPTURE_ENABLED = 'true';
+		const job = seedSession(114, { testMarker: true });
+		const interviewer = new FakeParticipant('interviewer-9', []);
+		const room = await runJob(job, [interviewer], []);
+		expect(worker._getActiveCapture()?.sessionId).toBe(114);
+		const intTrack = new FakeTrack(1, { offered: 10 });
+		const intPub = new FakePublication(1, intTrack, interviewer);
+		intPub.room = room;
+		await room.emitPublished(intPub, interviewer);
+		await sleep(200);
+		expect(intPub.setSubscribedCalls).toEqual([]);
+		const candidate = new FakeParticipant('candidate-7', []);
+		const candPub = new FakePublication(1, new FakeTrack(1, { offered: 0 }), candidate);
+		candPub.room = room;
+		await room.emitPublished(candPub, candidate);
+		await sleep(200);
+		expect(candPub.setSubscribedCalls).toContain(true);
+		mockState.sessions.get(114).status = 'completed';
+		await waitFor(() => mockState.outcomes.has(114), 'session_end outcome');
 	});
 
 	test('T13: a second candidate identity publishing mid-capture ⇒ role_flip teardown', async () => {

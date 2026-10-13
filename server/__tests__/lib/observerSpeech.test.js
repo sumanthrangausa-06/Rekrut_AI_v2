@@ -109,6 +109,45 @@ describe('synthetic corpus (known ground truth)', () => {
 		expect(seg.pauses[0].long).toBe(false);
 	});
 
+	test('§7.5 schema: measured entries carry numeric uncertainty, enumerated kind, flags, reason null', async () => {
+		const r = await S.computeSpeechMeasurements(tone(120, 4), SR, {});
+		expect(typeof r.pitch_median_hz.uncertainty).toBe('number');
+		expect(r.pitch_median_hz.uncertainty_kind).toBe('f0_confident_frame_ratio');
+		expect(r.pitch_median_hz.quality_flags).toEqual([]);
+		expect(r.pitch_median_hz.reason).toBeNull();
+		expect(r.speaking_time_sec.uncertainty_kind).toBe('segment_count');
+		expect(r.method_version).toBe(1);
+		for (const k of Object.keys(r)) {
+			const m = r[k];
+			if (m && typeof m === 'object' && 'status' in m) {
+				expect(S.UNCERTAINTY_KINDS).toContain(m.uncertainty_kind);
+				if (m.status === 'missing') expect(m.uncertainty).toBeNull();
+				else expect(typeof m.uncertainty).toBe('number');
+			}
+		}
+	});
+
+	test('A-8: transcript WITHOUT confidence ⇒ M8/M9 degraded with ASR_CONFIDENCE_UNAVAILABLE', async () => {
+		const fixture = cat(tone(120, 5), silence(1), tone(120, 5));
+		const text = 'um i think the answer is uh basically the system works well and you know it handles the load right';
+		const r = await S.computeSpeechMeasurements(fixture, SR, { transcript: { text } });
+		expect(r.speech_rate_wpm.status).toBe('degraded');
+		expect(r.speech_rate_wpm.quality_flags).toContain('ASR_CONFIDENCE_UNAVAILABLE');
+		expect(r.speech_rate_wpm.uncertainty).toBe(r.speech_rate_wpm.value);
+		const withConf = await S.computeSpeechMeasurements(fixture, SR, { transcript: { text, confidence: 0.95 } });
+		expect(withConf.speech_rate_wpm.status).toBe('measured');
+	});
+
+	test('A-9: zero pauses ⇒ mean/max null (never fabricated 0); gap degrades measured entries', async () => {
+		const r = await S.computeSpeechMeasurements(tone(120, 3), SR, {});
+		expect(r.pause_stats.value.count).toBe(0);
+		expect(r.pause_stats.value.mean_sec).toBeNull();
+		expect(r.pause_stats.value.max_sec).toBeNull();
+		const gapped = await S.computeSpeechMeasurements(tone(120, 3), SR, { captureGapRatio: 0.2 });
+		expect(gapped.speaking_time_sec.status).toBe('degraded');
+		expect(gapped.speaking_time_sec.quality_flags).toContain('GAP_IN_CAPTURE');
+	});
+
 	test('provenance + frozen filler lexicon', async () => {
 		expect(Object.isFrozen(S.FILLER_LEXICON_V1)).toBe(true);
 		expect([...S.FILLER_LEXICON_V1]).toEqual(['um', 'uh', 'er', 'erm', 'like', 'you know', 'actually', 'basically', 'literally', 'right']);

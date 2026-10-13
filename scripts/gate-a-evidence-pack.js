@@ -69,6 +69,10 @@ function route(st, sql, params = []) {
 		const r = st.dekRows.get(params[0]); return { rows: r ? [{ destroyed_at: r.destroyed_at }] : [], rowCount: r ? 1 : 0 };
 	}
 	if (sql.includes('FROM data_retention_policies')) return { rows: [{ retention_days: 30 }] };
+		if (sql.includes('SELECT registration_state, deleted_at FROM recording_objects')) {
+		const row = st.recordingObjects.get(params[0]);
+		return { rows: row ? [{ registration_state: row.registration_state, deleted_at: row.deleted_at }] : [] };
+	}
 	if (sql.includes('INSERT INTO recording_objects')) {
 		st.registryInserts++;
 		st.recordingObjects.set(params[0], { object_key: params[0], interview_id: params[1], candidate_id: params[2], object_type: 'observer_audio', registration_state: 'pending', created_at: new Date(), deleted_at: null });
@@ -287,6 +291,7 @@ class FakeAudioStream {
 				return { done: true, value: undefined };
 			},
 			releaseLock: () => {},
+				cancel: async () => { track.deliverIndex = track.deliverQueue.length; },
 		};
 	}
 }
@@ -576,7 +581,9 @@ async function scenarioFlagOffKill() {
 		outcome_stop_reason: outcome.stop_reason,
 		measurements_reason: meas.speaking_time_sec.reason,
 		active_capture_after: worker._getActiveCapture(),
+		unsubscribed_on_teardown: parts.candAudio.setSubscribedCalls.includes(false),
 	};
+	assert(results.flagOffKill.unsubscribed_on_teardown === true, 'B-2: teardown did not unsubscribe the candidate audio publication');
 	assert(outcome.stop_reason === 'flag_off', 'stop reason not flag_off');
 	assert(teardownMs <= 2000, `teardown ${teardownMs} ms exceeds 2 s bound`);
 	assert(meas.speaking_time_sec.reason === 'CAPTURE_INCOMPLETE', 'interrupted measurements must be CAPTURE_INCOMPLETE');
@@ -632,6 +639,39 @@ async function scenarioRoleFlip() {
 	results.roleFlip = { test: 'T13 role flip mid-capture', outcome_stop_reason: holder.current.outcomes.get(106).stop_reason };
 	assert(results.roleFlip.outcome_stop_reason === 'role_flip', 'not role_flip');
 	console.log('S6 role flip (T13): PASS');
+}
+
+async function scenarioInterviewerFirst() {
+	process.env.OBSERVER_AUDIO_CAPTURE_ENABLED = 'true';
+	const job = seedSession(110, { testMarker: true });
+	// The room starts with ONLY the interviewer present.
+	const interviewer = new FakeParticipant('interviewer-9', []);
+	const room = await runJob(job, [interviewer], []);
+	assert(worker._getActiveCapture()?.sessionId === 110, 'capture not active');
+	const intTrack = new FakeTrack(1, { offered: 10 });
+	const intPub = new FakePublication(1, intTrack, interviewer);
+	intPub.room = room;
+	await room.emitPublished(intPub, interviewer);
+	await sleep(200);
+	// B-1: the interviewer was never subscribed and never bound.
+	assert(intPub.setSubscribedCalls.length === 0, 'interviewer audio got subscribed');
+	// The real candidate publishes later: subscribed under the binding.
+	const candidate = new FakeParticipant('candidate-7', []);
+	const candTrack = new FakeTrack(1, { offered: 0 });
+	const candPub = new FakePublication(1, candTrack, candidate);
+	candPub.room = room;
+	await room.emitPublished(candPub, candidate);
+	await sleep(200);
+	assert(candPub.setSubscribedCalls.includes(true), 'bound candidate audio not subscribed');
+	holder.current.sessions.get(110).status = 'completed';
+	await waitFor(() => holder.current.outcomes.has(110), 9000, 'session_end outcome');
+	await waitFor(() => worker._getActiveCapture() === null, 4000, 'capture slot released');
+	results.interviewerFirst = {
+		test: 'B-1 interviewer publishes first',
+		interviewer_subscribed: intPub.setSubscribedCalls.length > 0,
+		candidate_subscribed_after: true,
+	};
+	console.log('S10 interviewer-first binding (B-1): PASS');
 }
 
 async function scenarioOriginMismatch() {
@@ -706,6 +746,7 @@ async function main() {
 	await scenarioFlagOffKill();
 	await scenarioWithdrawal();
 	await scenarioRoleFlip();
+	await scenarioInterviewerFirst();
 	await scenarioOriginMismatch();
 	await scenarioConcurrencyCap();
 	await scenarioRestartConsistency();

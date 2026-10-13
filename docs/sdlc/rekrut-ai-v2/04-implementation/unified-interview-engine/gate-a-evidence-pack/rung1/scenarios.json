@@ -52,7 +52,8 @@
     "test": "T3 flag ON, test scope, synthetic session (120 Hz tone, 35 s)",
     "subscriptions": {
       "candidate_audio": [
-        true
+        true,
+        false
       ],
       "candidate_video": [],
       "interviewer_audio": []
@@ -80,10 +81,11 @@
   },
   "flagOffKill": {
     "test": "T5 flag OFF mid-capture",
-    "teardown_ms": 350,
+    "teardown_ms": 362,
     "outcome_stop_reason": "flag_off",
     "measurements_reason": "CAPTURE_INCOMPLETE",
-    "active_capture_after": null
+    "active_capture_after": null,
+    "unsubscribed_on_teardown": true
   },
   "withdrawal": {
     "test": "T6 withdrawal mid-capture",
@@ -92,7 +94,8 @@
     "sweeper": {
       "sessions": 1,
       "chunksQueued": 1,
-      "measurementsDeleted": 0
+      "measurementsDeleted": 0,
+      "heldSkips": 0
     },
     "chunk_rows_after_sweep": 0,
     "ledger_rows": 1,
@@ -102,6 +105,11 @@
   "roleFlip": {
     "test": "T13 role flip mid-capture",
     "outcome_stop_reason": "role_flip"
+  },
+  "interviewerFirst": {
+    "test": "B-1 interviewer publishes first",
+    "interviewer_subscribed": false,
+    "candidate_subscribed_after": true
   },
   "originMismatch": {
     "test": "T14 production-stamped job, staging worker",

@@ -43,7 +43,7 @@ describe('erasePersonalData — observer_audio composition (§5.2)', () => {
 	});
 
 	test('T8: registry + chunk keys reach the ledger deduped with source_family, rows dropped, registry stamped', async () => {
-		const result = await erasePersonalData({ candidateId: 7, userId: 9 });
+		const result = await erasePersonalData(7, { client: { query: mockPool.query } });
 		expect(result.observerAudioChunksDeleted).toBe(true);
 		expect(result.observerSpeechMeasurementsDeleted).toBe(true);
 		expect(result.observerCaptureOutcomesDeleted).toBe(true);
@@ -58,20 +58,21 @@ describe('erasePersonalData — observer_audio composition (§5.2)', () => {
 		expect(mockErasure.calls.some((s) => s.includes('DELETE FROM observer_capture_outcomes'))).toBe(true);
 		expect(mockErasure.calls.some((s) => s.includes('DELETE FROM recording_objects'))).toBe(false);
 		expect(mockErasure.calls.some((s) => s.includes('UPDATE recording_objects SET deleted_at'))).toBe(true);
-		// Captured under the per-candidate advisory lock (§5.2 lock order)
-		expect(mockPool.connect).toHaveBeenCalled();
+		// The observer block runs on the caller's transaction client
+		// under the per-candidate advisory lock (§5.2 lock order)
+		expect(mockErasure.calls.some((s) => s.includes('pg_advisory_xact_lock'))).toBe(true);
 	});
 
 	test('erasure with no observer artefacts ⇒ flags false, no ledger writes for them', async () => {
 		mockErasure.regRows = [];
 		mockErasure.chunkKeyRows = [];
-		const result = await erasePersonalData({ candidateId: 7, userId: 9 });
+		const result = await erasePersonalData(7, { client: { query: mockPool.query } });
 		expect(result.observerAudioChunksDeleted).toBe(false);
 		expect(result.storageKeys.filter((k) => k.includes('observer-audio'))).toHaveLength(0);
 	});
 
 	test('T9: Phase 2 deletes the ledger URLs (objects actually removed)', async () => {
-		const result = await erasePersonalData({ candidateId: 7, userId: 9 });
+		const result = await erasePersonalData(7, { client: { query: mockPool.query } });
 		const phase2 = await deleteErasedStorageFiles(result.storageKeys);
 		expect(phase2.failed).toBe(0);
 		expect(phase2.deleted).toBe(result.storageKeys.length);

@@ -1032,7 +1032,9 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 			// the observer worker's 60 s sweeper).
 			const speechMeas = await EuComplianceService.purgeExpiredSpeechMeasurements(opts);
 			const { reconcileObserverAudioIntents, purgeTestObserverAudio } = require('./lib/observerCapture');
-			const recon = await reconcileObserverAudioIntents({});
+			// The reconciler DELETES objects and rows — it must not run
+			// live inside a dry-run retention pass (privacy review A-6).
+			const recon = opts.dryRun ? { rowsRetired: 0 } : await reconcileObserverAudioIntents({});
 			// Gate A §5.5: test-scope artefacts have a 7-day max lifetime
 			// (DB review m6 — this purge previously had no caller).
 			const testPurge = await purgeTestObserverAudio({ dryRun: opts.dryRun });

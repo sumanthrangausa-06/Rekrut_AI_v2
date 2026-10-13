@@ -24,7 +24,7 @@ function makeDb(state) {
 				return { rows: state.biometricReceipt ? [state.biometricReceipt] : [] };
 			}
 			if (sql.includes('FROM observer_activation_enablements')) return { rows: state.enablement && (params[0] == null || state.enablement.company_id === params[0]) ? [state.enablement] : [] };
-			if (sql.includes('FROM observer_cohort_membership')) return { rows: state.membership ? [state.membership] : [] };
+			if (sql.includes('FROM observer_cohort_membership')) return { rows: state.membership && state.membership.source !== 'test_harness' ? [state.membership] : [] };
 			if (sql.includes('FROM observer_cohort_allowlist')) return { rows: state.allowlisted ? [{ allowlist_version: state.allowlisted }] : [] };
 			if (sql.includes('INSERT INTO observer_cohort_membership')) { state.snapshotInserted = params; return { rows: [], rowCount: 1 }; }
 			if (sql.includes('FROM interview_sessions')) return { rows: state.sessionRow ? [state.sessionRow] : [] };

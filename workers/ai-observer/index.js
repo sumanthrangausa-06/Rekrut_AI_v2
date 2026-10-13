@@ -102,11 +102,10 @@ function resolveRoles(participants, roomMetadata) {
 		}
 	}
 
-	// Fallback: room metadata on prefix mismatch (AC-2)
+	// Fallback: room metadata on prefix mismatch (AC-2). The candidate
+	// ID itself is never logged (§6.4 log discipline).
 	if (!roles.candidate && roomMetadata?.candidateId) {
-		console.log(
-			`[ai-observer] role fallback: using room metadata for candidate ${roomMetadata.candidateId}`,
-		);
+		console.log('[ai-observer] role fallback: using room metadata for the candidate role');
 		// Find participant by metadata user ID
 		for (const p of participants) {
 			if (String(p.metadata?.userId) === String(roomMetadata.candidateId)) {
@@ -230,6 +229,12 @@ async function processJob(job) {
 	let captureSession = null;
 	let watchdogTimer = null;
 	let captureStopped = false;
+	// Live media handles for teardown (security review B-2): the kill
+	// switch must stop COLLECTION, not just persistence — every
+	// subscribed publication is unsubscribed and every stream reader
+	// cancelled inside stopCapture, within the same ≤2 s bound.
+	const capturePubs = new Set();
+	const captureReaders = new Set();
 	const stopCapture = async (reason, { fromWatchdog = false } = {}) => {
 		if (!captureSession || captureStopped) return;
 		captureStopped = true;
@@ -242,6 +247,13 @@ async function processJob(job) {
 				stop_reason: reason,
 			});
 		}
+		// Unsubscribe + close streams FIRST (B-2), then finalize.
+		await Promise.allSettled([...capturePubs].map((pub) => pub.setSubscribed(false)));
+		capturePubs.clear();
+		for (const reader of captureReaders) {
+			try { await reader.cancel(); } catch { /* already closed */ }
+		}
+		captureReaders.clear();
 		try {
 			await captureSession.finalize(reason);
 		} catch (err) {
@@ -276,20 +288,47 @@ async function processJob(job) {
 			})
 			.catch(() => {});
 	} else if (captureDecision.decision === 'capturing') {
-		const counters = observerCapture.createCaptureCounters();
-		captureSession = new observerCapture.CaptureSession({
-			sessionId,
-			candidateId: rows[0]?.candidate_id,
-			jobId: job.id,
-			scope: captureDecision.scope,
-			isTest: captureDecision.scope === 'test',
-			cohortAllowlistVersion: captureDecision.cohortAllowlistVersion ?? null,
-			jobOriginEnv: job.origin_env,
-			counters,
-			pool: db,
-		});
-		activeCapture = { jobId: job.id, sessionId };
-		if (roles.candidate) captureSession.bindIdentity(roles.candidate.identity);
+		// Role binding (§3.5, security review B-1): the ONLY identity
+		// capture may ever consume is the one derived from THIS session's
+		// candidate_id — the platform convention candidate-<userId>, or
+		// the participant resolveRoles matched to that userId by room
+		// metadata. A resolved candidate whose userId disagrees with the
+		// session row is a mismatch: stay dormant (fail closed), never
+		// capture the wrong person under the candidate's DEK/consent.
+		const sessionCandidateId = rows[0]?.candidate_id;
+		let expectedIdentity = sessionCandidateId != null ? `candidate-${sessionCandidateId}` : null;
+		if (roles.candidate) {
+			if (String(roles.candidate.userId) !== String(sessionCandidateId)) {
+				observerCapture.emitLog('capture_decision', {
+					flag_state: true,
+					scope: captureDecision.scope,
+					env: captureDecision.envIdentity,
+					session_id: sessionId,
+					gate_code: 'CAPTURE_ROLE_IDENTITY_MISMATCH',
+				});
+				expectedIdentity = null; // fail closed: no capture this session
+			} else {
+				expectedIdentity = roles.candidate.identity;
+			}
+		}
+		if (!captureSession && expectedIdentity) {
+			const counters = observerCapture.createCaptureCounters();
+			captureSession = new observerCapture.CaptureSession({
+				sessionId,
+				candidateId: sessionCandidateId,
+				jobId: job.id,
+				scope: captureDecision.scope,
+				isTest: captureDecision.scope === 'test',
+				cohortAllowlistVersion: captureDecision.cohortAllowlistVersion ?? null,
+				jobOriginEnv: job.origin_env,
+				counters,
+				pool: db,
+			});
+			activeCapture = { jobId: job.id, sessionId };
+			captureSession.bindIdentity(expectedIdentity);
+		}
+	}
+	if (captureSession) {
 		observerCapture.emitLog('capture_started', {
 			flag_state: true,
 			scope: captureDecision.scope,
@@ -304,9 +343,10 @@ async function processJob(job) {
 		// mono by sample averaging (§3.4). The loop exits the moment the
 		// session leaves CAPTURING (kill bound).
 		const consumeAudioTrack = (track) => {
-			counters.streamsOpened++;
+			captureSession.counters.streamsOpened++;
 			const stream = new AudioStream(track);
 			const reader = stream.getReader();
+			captureReaders.add(reader);
 			(async () => {
 				try {
 					while (captureSession.state === 'capturing') {
@@ -342,6 +382,12 @@ async function processJob(job) {
 
 		room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
 			if (!captureSession || captureStopped) return;
+			// §3.2 checkpoint at TrackSubscribed entry (privacy review
+			// RL-03): the flag is re-read HERE, not only on the watchdog.
+			if (!readCaptureFlag()) {
+				void stopCapture('flag_off', { fromWatchdog: true });
+				return;
+			}
 			if (!track || track.kind !== KIND_AUDIO) return; // video is never consumed
 			if (participant.identity !== captureSession.boundIdentity) return;
 			consumeAudioTrack(track);
@@ -350,6 +396,7 @@ async function processJob(job) {
 		const subscribeCandidateAudio = async (participant) => {
 			for (const [, pub] of participant.trackPublications) {
 				if (isAudioPub(pub)) {
+					capturePubs.add(pub);
 					await pub.setSubscribed(true);
 				}
 			}
@@ -359,27 +406,31 @@ async function processJob(job) {
 			await subscribeCandidateAudio(roles.candidate.participant);
 		}
 
-		// Late publications: candidate audio only; a NEW candidate identity
-		// mid-capture is a role flip (§3.5).
+		// Late publications (§3.5, security review B-1): ONLY the bound
+		// candidate identity is ever subscribed. A candidate-prefixed
+		// identity that is NOT the bound one is a role flip. Every other
+		// identity (interviewers included) is simply ignored — never
+		// bound, never subscribed, never fatal.
 		room.on(RoomEvent.TrackPublished, async (pub, participant) => {
 			if (!captureSession || captureStopped) return;
 			if (!isAudioPub(pub)) return;
-			if (!captureSession.verifyIdentity(participant.identity)) {
-				await stopCapture('role_flip', { fromWatchdog: true });
+			if (captureSession.verifyIdentity(participant.identity)) {
+				capturePubs.add(pub);
+				await pub.setSubscribed(true);
 				return;
 			}
-			if (captureSession.boundIdentity && participant.identity === captureSession.boundIdentity) {
-				await pub.setSubscribed(true);
-			} else if (!captureSession.boundIdentity && String(participant.identity).startsWith('candidate-')) {
-				captureSession.bindIdentity(participant.identity);
-				await pub.setSubscribed(true);
+			if (String(participant.identity).startsWith('candidate-')) {
+				await stopCapture('role_flip', { fromWatchdog: true });
 			}
 			// Interviewer tracks are never subscribed for capture.
 		});
 
-		// 1 s watchdog (§3.4): flag + consent + env re-checked; teardown
-		// completes within the same tick (≤2 s kill bound end-to-end).
-		let watchdogFailures = 0;
+		// 1 s watchdog (§3.4/§6.3): flag + consent + env re-checked;
+		// teardown completes within the same tick (≤2 s kill bound
+		// end-to-end). §6.3 is explicit: capture stops at the FIRST
+		// failed check — no multi-tick grace (privacy review RL-03).
+		// Persist-time gate re-checks independently block every write,
+		// so a transient failure costs the capture, never the data.
 		watchdogTimer = setInterval(async () => {
 			if (!captureSession || captureStopped) return;
 			const t = consumeFlagTransition();
@@ -399,20 +450,12 @@ async function processJob(job) {
 					jobOriginEnv: job.origin_env,
 					queryable: db,
 				});
-				if (rc.ok) {
-					watchdogFailures = 0;
-					return;
-				}
+				if (rc.ok) return;
 				if (rc.kind === 'flag_off') return stopCapture('flag_off', { fromWatchdog: true });
 				if (rc.kind === 'withdrawn') return stopCapture('consent_withdrawn', { fromWatchdog: true });
-				if (rc.kind === 'env') return stopCapture('consent_check_failed', { fromWatchdog: true });
-				// check_failed: fail-closed after 3 consecutive failures,
-				// mirroring the presence tick's policy.
-				watchdogFailures++;
-				if (watchdogFailures >= 3) return stopCapture('consent_check_failed', { fromWatchdog: true });
+				return stopCapture('consent_check_failed', { fromWatchdog: true });
 			} catch (err) {
-				watchdogFailures++;
-				if (watchdogFailures >= 3) return stopCapture('consent_check_failed', { fromWatchdog: true });
+				return stopCapture('consent_check_failed', { fromWatchdog: true });
 			}
 		}, WATCHDOG_INTERVAL_MS);
 	}

@@ -44,6 +44,10 @@ function route(st, sql, params = []) {
 		const r = st.dekRows.get(params[0]); return { rows: r ? [{ destroyed_at: r.destroyed_at }] : [] };
 	}
 	if (sql.includes('FROM data_retention_policies')) return { rows: [{ retention_days: 30 }] };
+		if (sql.includes('SELECT registration_state, deleted_at FROM recording_objects')) {
+		const row = st.recordingObjects.get(params[0]);
+		return { rows: row ? [{ registration_state: row.registration_state, deleted_at: row.deleted_at }] : [] };
+	}
 	if (sql.includes('INSERT INTO recording_objects')) {
 		st.recordingObjects.set(params[0], { object_key: params[0], interview_id: params[1], candidate_id: params[2], object_type: 'observer_audio', registration_state: 'pending', created_at: new Date(), deleted_at: null });
 		return { rows: [], rowCount: 1 };
@@ -132,6 +136,18 @@ function route(st, sql, params = []) {
 	if (sql.includes('UPDATE recording_objects SET deleted_at') && sql.includes('WHERE interview_id')) {
 		let n = 0; for (const row of st.recordingObjects.values()) { if (row.interview_id === params[0] && !row.deleted_at) { row.deleted_at = new Date(); n++; } }
 		return { rows: [], rowCount: n };
+	}
+	if (sql.includes('SELECT id, interview_session_id, candidate_id FROM observer_speech_measurements')) {
+		return { rows: [...st.measurements.entries()].filter(([, v]) => v.is_test && v.created_at < params[0]).map(([k, v]) => ({ id: k, interview_session_id: v.interview_session_id, candidate_id: v.candidate_id })) };
+	}
+	if (sql.includes('DELETE FROM observer_speech_measurements WHERE id =')) {
+		return { rows: [], rowCount: st.measurements.delete(params[0]) ? 1 : 0 };
+	}
+	if (sql.includes('SELECT interview_session_id, candidate_id FROM observer_capture_outcomes')) {
+		return { rows: [...st.outcomes.values()].filter((v) => v.is_test && v.started_at < params[0]).map((v) => ({ interview_session_id: v.interview_session_id, candidate_id: v.candidate_id })) };
+	}
+	if (sql.includes('DELETE FROM observer_capture_outcomes WHERE interview_session_id')) {
+		return { rows: [], rowCount: st.outcomes.delete(params[0]) ? 1 : 0 };
 	}
 	throw new Error('unstubbed SQL: ' + sql.slice(0, 80));
 }
