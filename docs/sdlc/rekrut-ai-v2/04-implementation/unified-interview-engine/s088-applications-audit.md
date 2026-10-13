@@ -151,21 +151,21 @@ Legend: ✅ verified-good · 🔴 broken-as-coded (live-proven where marked) ·
 
 | Story | Issue | Root cause (checklist IDs) | Pts | Tranche |
 |-------|-------|----------------------------|-----|---------|
-| S-096 | (filed with this register) | Candidate application endpoints: self-advance + payload leak (S2, S3, W4, S9-residual) | 5 | **Reserve (tranche-1)** |
-| S-097 | | Compliance router object-level authorization (S4 + siblings) | 3 | Reserve-overflow / fast-path per plan |
-| S-098 | | Screening-send cross-company mutation (S5) | 2 | Sequenced (audit priority #1) |
-| S-099 | | Application creation funnel — phantom applications (W1, D1, W6) | 3 | Sequenced |
-| S-100 | | Referral `applied_via` CHECK violation (D2) | 2 | Sequenced |
-| S-101 | | Duplicate recruiter status endpoints converge (W2) | 3 | Sequenced |
-| S-102 | | Status vocabulary drift in aggregations + stage_config (W3, D4) | 2 | Sequenced |
-| S-103 | | Application state machine: transition rules + audit consistency (D3, C5, D7) | 5 | Sprint 12 candidate |
-| S-104 | | Visibility filtering on application-derived surfaces (S8) | 3 | Sequenced |
-| S-105 | | Erasure C2 extension tables (C2-extension) — **entry: #799 merged + hold verified at every purge site** | 3 | Sequenced after #813 |
-| S-106 | | Applications retention policy + purge path (C4) — **entry: #799 merged + verified** | 5 | Sprint 12 candidate |
-| S-107 | | Consent/notice for application-data reuse (C7) | 3 | Sprint 12 candidate |
-| S-108 | | Batch status shortfall reporting (D6) | 2 | Sequenced |
-| S-109 | | Questionnaire response access check — dead clause (S6) | 1 | Sequenced |
-| S-110 | | `hired_at` — record time-to-hire truthfully (D5) | 2 | Sequenced (after S-101/S-103) |
+| S-096 | #820 | Candidate application endpoints: self-advance + payload leak (S2, S3, W4, S9-residual) | 5 | **Reserve (tranche-1)** |
+| S-097 | #821 | Compliance router object-level authorization (S4 + siblings) | 3 | Reserve-overflow / fast-path per plan |
+| S-098 | #822 | Screening-send cross-company mutation (S5) | 2 | Sequenced (audit priority #1) |
+| S-099 | #823 | Application creation funnel — phantom applications (W1, D1, W6) | 3 | Sequenced |
+| S-100 | #824 | Referral `applied_via` CHECK violation (D2) | 2 | Sequenced |
+| S-101 | #825 | Duplicate recruiter status endpoints converge (W2) | 3 | Sequenced |
+| S-102 | #826 | Status vocabulary drift in aggregations + stage_config (W3, D4) | 2 | Sequenced |
+| S-103 | #827 | Application state machine: transition rules + audit consistency (D3, C5, D7) | 5 | Sprint 12 candidate |
+| S-104 | #828 | Visibility filtering on application-derived surfaces (S8) | 3 | Sequenced |
+| S-105 | #829 | Erasure C2 extension tables (C2-extension) — **entry: #799 merged + hold verified at every purge site** | 3 | Sequenced after #813 |
+| S-106 | #830 | Applications retention policy + purge path (C4) — **entry: #799 merged + verified** | 5 | Sprint 12 candidate |
+| S-107 | #831 | Consent/notice for application-data reuse (C7) | 3 | Sprint 12 candidate |
+| S-108 | #832 | Batch status shortfall reporting (D6) | 2 | Sequenced |
+| S-109 | #833 | Questionnaire response access check — dead clause (S6) | 1 | Sequenced |
+| S-110 | #834 | `hired_at` — record time-to-hire truthfully (D5) | 2 | Sequenced (after S-101/S-103) |
 
 Already filed (not re-filed): #780 (C1, 5 pts, entry #799), #813 S-094
 (C2 core, 3 pts, entry #799), #657 (C3 evidence added), #136 (C5 evidence
