@@ -80,7 +80,7 @@
   },
   "flagOffKill": {
     "test": "T5 flag OFF mid-capture",
-    "teardown_ms": 358,
+    "teardown_ms": 350,
     "outcome_stop_reason": "flag_off",
     "measurements_reason": "CAPTURE_INCOMPLETE",
     "active_capture_after": null

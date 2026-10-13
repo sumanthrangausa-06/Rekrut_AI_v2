@@ -68,6 +68,7 @@ function route(st, sql, params = []) {
 	if (sql.includes('SELECT destroyed_at FROM candidate_data_keys')) {
 		const r = st.dekRows.get(params[0]); return { rows: r ? [{ destroyed_at: r.destroyed_at }] : [], rowCount: r ? 1 : 0 };
 	}
+	if (sql.includes('FROM data_retention_policies')) return { rows: [{ retention_days: 30 }] };
 	if (sql.includes('INSERT INTO recording_objects')) {
 		st.registryInserts++;
 		st.recordingObjects.set(params[0], { object_key: params[0], interview_id: params[1], candidate_id: params[2], object_type: 'observer_audio', registration_state: 'pending', created_at: new Date(), deleted_at: null });
@@ -138,7 +139,7 @@ function route(st, sql, params = []) {
 		return { rows: [], rowCount: 1 };
 	}
 	if (sql.includes('INSERT INTO observer_capture_outcomes')) {
-		st.outcomes.set(params[0], { interview_session_id: params[0], candidate_id: params[1], scope: params[2], chunks_persisted: params[3], chunks_dropped: params[4], audio_seconds_captured: params[5], stop_reason: params[6], started_at: params[7] });
+		st.outcomes.set(params[0], { interview_session_id: params[0], candidate_id: params[1], scope: params[2], is_test: params[3], cohort_allowlist_version: params[4], chunks_persisted: params[5], chunks_dropped: params[6], audio_seconds_captured: params[7], capture_gap_ratio: params[8], stop_reason: params[9], started_at: params[10] });
 		return { rows: [], rowCount: 1 };
 	}
 	if (sql.includes("registration_state = 'pending'") && sql.includes('SELECT object_key, candidate_id')) {

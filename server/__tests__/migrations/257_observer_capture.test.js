@@ -68,7 +68,8 @@ describe('257_observer_capture migration', () => {
 		expect(src).toMatch(/CREATE TABLE IF NOT EXISTS observer_speech_measurements/);
 		expect(src).toMatch(/measurements_envelope BYTEA NOT NULL/);
 		expect(src).toMatch(/interview_session_id INTEGER NOT NULL UNIQUE/);
-		expect(src).toMatch(/method_version TEXT NOT NULL/);
+		expect(src).toMatch(/method_version INTEGER NOT NULL DEFAULT 1/);
+		expect(src).toMatch(/state TEXT NOT NULL DEFAULT 'recorded'/);
 	});
 
 	test('creates observer_capture_outcomes with the frozen stop_reason enum', () => {
@@ -99,19 +100,32 @@ describe('257_observer_capture migration', () => {
 		expect(src).toMatch(/\(interview_session_id, recorded_at DESC\)/);
 	});
 
-	test('creates observer_activation_enablements with all six evidence refs NOT NULL and inserts NO rows', () => {
+	test('creates observer_activation_enablements PER EMPLOYER (§9/M1) with the six L-ACT-04 refs NOT NULL and inserts NO rows', () => {
 		expect(src).toMatch(/CREATE TABLE IF NOT EXISTS observer_activation_enablements/);
+		expect(src).toMatch(/company_id INTEGER PRIMARY KEY/);
 		for (const col of [
-			'counsel_signoff_ref',
-			'policy_publication_ref',
-			'cohort_ref',
-			'evidence_pack_ref',
-			'kill_drill_ref',
-			'pitr_window_ref',
+			'counsel_ref',
+			'lex_activation_ref',
+			'quinn_validation_ref',
+			'policy777_ref',
+			'bipa_schedule_ref',
+			'sumanth_activation_ref',
 		]) {
 			expect(src).toMatch(new RegExp(`${col} TEXT NOT NULL`));
 		}
 		expect(src).not.toMatch(/INSERT INTO observer_activation_enablements/);
+	});
+
+	test('outcomes carry the §8.5 accountability fields (M2) + candidate index', () => {
+		expect(src).toMatch(/is_test BOOLEAN NOT NULL DEFAULT false/);
+		expect(src).toMatch(/cohort_allowlist_version INTEGER/);
+		expect(src).toMatch(/capture_gap_ratio NUMERIC/);
+		expect(src).toMatch(/idx_observer_capture_outcomes_candidate/);
+	});
+
+	test('reconciler pending-intent scan has a partial index (M4)', () => {
+		expect(src).toMatch(/idx_recording_objects_observer_pending/);
+		expect(src).toMatch(/WHERE object_type = 'observer_audio' AND registration_state = 'pending'/);
 	});
 
 	test('stamps observer_jobs.origin_env with unknown default', () => {
@@ -148,7 +162,7 @@ describe('257_observer_capture migration', () => {
 		expect(all).toContain('source_family');
 	});
 
-	test('down() drops the new tables and added columns, leaves widened CHECKs (254 precedent)', async () => {
+	test('down() drops the new tables but LEAVES the additive columns + widened CHECKs (§9 down note, M3)', async () => {
 		const queries = [];
 		const client = {
 			query: jest.fn(async (sql) => {
@@ -160,9 +174,11 @@ describe('257_observer_capture migration', () => {
 		const all = queries.join('\n');
 		expect(all).toMatch(/DROP TABLE IF EXISTS observer_audio_chunks/);
 		expect(all).toMatch(/DROP TABLE IF EXISTS observer_activation_enablements/);
-		expect(all).toMatch(/DROP COLUMN IF EXISTS origin_env/);
-		expect(all).toMatch(/DROP COLUMN IF EXISTS source_family/);
-		expect(all).toMatch(/DROP COLUMN IF EXISTS registration_state/);
+		expect(all).toMatch(/DROP INDEX IF EXISTS idx_recording_objects_observer_pending/);
+		// §9: registration_state / source_family / origin_env stay.
+		expect(all).not.toMatch(/DROP COLUMN IF EXISTS origin_env/);
+		expect(all).not.toMatch(/DROP COLUMN IF EXISTS source_family/);
+		expect(all).not.toMatch(/DROP COLUMN IF EXISTS registration_state/);
 		expect(all).not.toMatch(/DROP CONSTRAINT[^;]*consent_type/);
 	});
 });

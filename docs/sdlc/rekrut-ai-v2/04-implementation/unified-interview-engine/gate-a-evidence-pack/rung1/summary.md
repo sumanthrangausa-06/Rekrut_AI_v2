@@ -1,6 +1,6 @@
 # Gate A Dormancy Evidence Pack — Rung 1
 
-Generated: 2026-10-13T09:02:21.676Z by `scripts/gate-a-evidence-pack.js` (mock SFU + in-memory PG/storage fakes, synthetic PCM).
+Generated: 2026-10-13T09:07:03.141Z by `scripts/gate-a-evidence-pack.js` (mock SFU + in-memory PG/storage fakes, synthetic PCM).
 
 ## What this pack proves (Rung 1)
 

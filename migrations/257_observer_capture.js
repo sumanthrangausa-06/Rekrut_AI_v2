@@ -113,10 +113,8 @@ async function up(client) {
 		CREATE INDEX IF NOT EXISTS idx_observer_audio_chunks_candidate
 		ON observer_audio_chunks(candidate_id)
 	`);
-	await client.query(`
-		CREATE INDEX IF NOT EXISTS idx_observer_audio_chunks_session
-		ON observer_audio_chunks(interview_session_id)
-	`);
+	// (No session index: UNIQUE (interview_session_id, chunk_index) already
+	// serves session-ordered reads via its left prefix — DB review m3.)
 
 	// ── 4. observer_speech_measurements (envelope-only) ───────────────────
 	await client.query(`
@@ -126,9 +124,8 @@ async function up(client) {
 				REFERENCES interview_sessions(id) ON DELETE CASCADE,
 			candidate_id INTEGER NOT NULL,
 			measurements_envelope BYTEA NOT NULL,
-			method_version TEXT NOT NULL,
-			state TEXT NOT NULL DEFAULT 'final'
-				CHECK (state IN ('interim', 'final')),
+			method_version INTEGER NOT NULL DEFAULT 1,
+			state TEXT NOT NULL DEFAULT 'recorded',
 			is_test BOOLEAN NOT NULL DEFAULT false,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -146,9 +143,12 @@ async function up(client) {
 				REFERENCES interview_sessions(id) ON DELETE CASCADE,
 			candidate_id INTEGER NOT NULL,
 			scope TEXT NOT NULL CHECK (scope IN ('test', 'activation')),
+			is_test BOOLEAN NOT NULL DEFAULT false,
+			cohort_allowlist_version INTEGER,
 			chunks_persisted INTEGER NOT NULL DEFAULT 0,
 			chunks_dropped INTEGER NOT NULL DEFAULT 0,
 			audio_seconds_captured NUMERIC NOT NULL DEFAULT 0,
+			capture_gap_ratio NUMERIC,
 			stop_reason TEXT NOT NULL CHECK (stop_reason IN (
 				'session_end', 'flag_off', 'consent_withdrawn',
 				'consent_check_failed', 'storage_failed', 'dek_unavailable',
@@ -157,6 +157,10 @@ async function up(client) {
 			started_at TIMESTAMPTZ NOT NULL,
 			stopped_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)
+	`);
+	await client.query(`
+		CREATE INDEX IF NOT EXISTS idx_observer_capture_outcomes_candidate
+		ON observer_capture_outcomes(candidate_id)
 	`);
 
 	// ── 6. observer_cohort_allowlist (D-2: the list IS the cap) ──────────
@@ -192,17 +196,22 @@ async function up(client) {
 	`);
 
 	// ── 8. observer_activation_enablements (NO rows inserted) ─────────────
+	// §9 shape (DB review M1): ONE current row PER EMPLOYER (company_id is
+	// the PK) carrying the six L-ACT-04 evidence refs. The gate's
+	// post-enablement consent rule (§3.2(d)) is evaluated per employer —
+	// a global-latest row would make that check unimplementable.
 	await client.query(`
 		CREATE TABLE IF NOT EXISTS observer_activation_enablements (
-			id SERIAL PRIMARY KEY,
-			enabled_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			company_id INTEGER PRIMARY KEY,
+			enabled_at TIMESTAMPTZ NOT NULL,
 			enabled_by TEXT NOT NULL,
-			counsel_signoff_ref TEXT NOT NULL,
-			policy_publication_ref TEXT NOT NULL,
-			cohort_ref TEXT NOT NULL,
-			evidence_pack_ref TEXT NOT NULL,
-			kill_drill_ref TEXT NOT NULL,
-			pitr_window_ref TEXT NOT NULL
+			counsel_ref TEXT NOT NULL,
+			lex_activation_ref TEXT NOT NULL,
+			quinn_validation_ref TEXT NOT NULL,
+			policy777_ref TEXT NOT NULL,
+			bipa_schedule_ref TEXT NOT NULL,
+			sumanth_activation_ref TEXT NOT NULL,
+			created_at TIMESTAMPTZ DEFAULT NOW()
 		)
 	`);
 
@@ -236,6 +245,16 @@ async function up(client) {
 		CHECK (consent_type IN ('recording', 'biometric', 'id_verification', 'biometric_practice', 'observer_capture'))
 	`);
 
+	// ── 12. Reconciler scan index (DB review M4) ──────────────────────────
+	// The 60 s reconciler scans recording_objects for pending observer
+	// intents; without this partial index that is a seq scan of a registry
+	// that also accumulates frame/recording rows.
+	await client.query(`
+		CREATE INDEX IF NOT EXISTS idx_recording_objects_observer_pending
+		ON recording_objects(created_at)
+		WHERE object_type = 'observer_audio' AND registration_state = 'pending' AND deleted_at IS NULL
+	`);
+
 	console.log('Migration 257: Gate A dormant-capture substrate done');
 }
 
@@ -246,13 +265,15 @@ async function down(client) {
 	await client.query(`DROP TABLE IF EXISTS observer_cohort_allowlist`);
 	await client.query(`DROP TABLE IF EXISTS observer_cohort_membership`);
 	await client.query(`DROP TABLE IF EXISTS observer_activation_enablements`);
-	await client.query(`ALTER TABLE observer_jobs DROP COLUMN IF EXISTS origin_env`);
-	await client.query(`DROP INDEX IF EXISTS idx_pending_storage_deletions_family`);
-	await client.query(`ALTER TABLE pending_storage_deletions DROP COLUMN IF EXISTS source_family`);
-	await client.query(`ALTER TABLE recording_objects DROP COLUMN IF EXISTS registration_state`);
-	// Widened CHECK constraints (recording_objects.object_type, consent
-	// types) are left in place on rollback — narrowing would fail if rows
-	// of the new types existed (migration-250/254 precedent).
+	await client.query(`DROP INDEX IF EXISTS idx_recording_objects_observer_pending`);
+	// Per design §9's down() note (DB review M3): the widened CHECK
+	// constraints AND the additive columns registration_state /
+	// source_family / origin_env are LEFT IN PLACE on rollback —
+	// narrowing a widened CHECK or dropping a defaulted column while
+	// rows use the new values would fail, and the additions are harmless
+	// dormant (migration-254 precedent). The ('observer_audio', 30)
+	// policy row is likewise left behind; re-running up() is
+	// ON CONFLICT DO NOTHING.
 }
 
 module.exports = { up, down };

@@ -781,27 +781,42 @@ class EuComplianceService {
 	 * other purges (wired in the server.js retention cron). The legal-hold
 	 * seam (P-10) is consulted per row; held rows are skipped and counted.
 	 */
-	static async purgeExpiredSpeechMeasurements({ dryRun = true, retentionDays = 30 } = {}) {
+	static async purgeExpiredSpeechMeasurements({ dryRun = true, retentionDays = null } = {}) {
 		const { isLegalHoldActive } = require('../lib/observerCapture');
+		// Retention comes from the policy row when not explicitly passed
+		// (§5.1, DB review M6); 30 is only the fallback.
+		if (retentionDays == null) {
+			const { rows: policyRows } = await pool.query(
+				`SELECT retention_days FROM data_retention_policies WHERE data_type = 'observer_audio'`,
+			);
+			retentionDays = policyRows[0]?.retention_days ?? 30;
+		}
 		const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-
-		const { rows } = await pool.query(
-			`SELECT id, candidate_id, interview_session_id FROM observer_speech_measurements
-			 WHERE created_at < $1`,
-			[cutoff],
-		);
 
 		let deletedCount = 0;
 		let heldSkips = 0;
-		for (const row of rows) {
-			if (await isLegalHoldActive({ candidateId: row.candidate_id, sessionId: row.interview_session_id })) {
-				heldSkips++;
-				continue;
+		// Batched with an id cursor (DB review m5): never load the whole
+		// expired set at once; the cursor keeps dry-run counts exact too.
+		let lastId = 0;
+		for (;;) {
+			const { rows } = await pool.query(
+				`SELECT id, candidate_id, interview_session_id FROM observer_speech_measurements
+				 WHERE created_at < $1 AND id > $2 ORDER BY id LIMIT 500`,
+				[cutoff, lastId],
+			);
+			if (rows.length === 0) break;
+			for (const row of rows) {
+				lastId = row.id;
+				if (await isLegalHoldActive({ candidateId: row.candidate_id, sessionId: row.interview_session_id })) {
+					heldSkips++;
+					continue;
+				}
+				if (!dryRun) {
+					await pool.query(`DELETE FROM observer_speech_measurements WHERE id = $1`, [row.id]);
+				}
+				deletedCount++;
 			}
-			if (!dryRun) {
-				await pool.query(`DELETE FROM observer_speech_measurements WHERE id = $1`, [row.id]);
-			}
-			deletedCount++;
+			if (rows.length < 500) break;
 		}
 
 		await EuComplianceService._auditPurge({

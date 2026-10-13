@@ -3,7 +3,7 @@
   "story": "S-085 (#787)",
   "rung": 1,
   "rung_description": "Mocked/local: mock SFU (rtc-node fakes), in-memory PG fake, in-memory object storage, synthetic PCM. NO real LiveKit room, Neon DB, or R2/B2 bucket was touched.",
-  "generated_at": "2026-10-13T09:02:21.676Z",
+  "generated_at": "2026-10-13T09:07:03.141Z",
   "generator": "scripts/gate-a-evidence-pack.js",
   "node": "v24.20.0",
   "env_identity": "staging (via RENDER_SERVICE_NAME=rekrutai-staging)",

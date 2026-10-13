@@ -1031,15 +1031,18 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 			// (design §5.1) + intent reconciler backstop (primary cadence is
 			// the observer worker's 60 s sweeper).
 			const speechMeas = await EuComplianceService.purgeExpiredSpeechMeasurements(opts);
-			const { reconcileObserverAudioIntents } = require('./lib/observerCapture');
+			const { reconcileObserverAudioIntents, purgeTestObserverAudio } = require('./lib/observerCapture');
 			const recon = await reconcileObserverAudioIntents({});
+			// Gate A §5.5: test-scope artefacts have a 7-day max lifetime
+			// (DB review m6 — this purge previously had no caller).
+			const testPurge = await purgeTestObserverAudio({ dryRun: opts.dryRun });
 
 			const mode = opts.dryRun ? 'DRY-RUN' : 'LIVE';
 			console.log(
 				`[retention] ${mode}: recordings=${rec.deletedCount} (storage=${rec.storageDeleted}), ` +
 				`registry=${reg.purgedCount} (storage=${reg.storageDeleted}), templates=${tpl.deletedCount}, ` +
 				`observer_reports=${obs.deletedCount}, speech_measurements=${speechMeas.deletedCount}, ` +
-				`capture_intents_reconciled=${recon.rowsRetired}`,
+				`capture_intents_reconciled=${recon.rowsRetired}, test_capture_purged=${testPurge.objectsDeleted}`,
 			);
 		} catch (err) {
 			console.error('[retention] Failed:', err.message);

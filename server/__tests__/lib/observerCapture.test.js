@@ -43,6 +43,7 @@ function route(st, sql, params = []) {
 	if (sql.includes('SELECT destroyed_at FROM candidate_data_keys')) {
 		const r = st.dekRows.get(params[0]); return { rows: r ? [{ destroyed_at: r.destroyed_at }] : [] };
 	}
+	if (sql.includes('FROM data_retention_policies')) return { rows: [{ retention_days: 30 }] };
 	if (sql.includes('INSERT INTO recording_objects')) {
 		st.recordingObjects.set(params[0], { object_key: params[0], interview_id: params[1], candidate_id: params[2], object_type: 'observer_audio', registration_state: 'pending', created_at: new Date(), deleted_at: null });
 		return { rows: [], rowCount: 1 };
@@ -85,7 +86,7 @@ function route(st, sql, params = []) {
 		return { rows: [], rowCount: 1 };
 	}
 	if (sql.includes('INSERT INTO observer_capture_outcomes')) {
-		st.outcomes.set(params[0], { interview_session_id: params[0], candidate_id: params[1], scope: params[2], chunks_persisted: params[3], chunks_dropped: params[4], audio_seconds_captured: params[5], stop_reason: params[6], started_at: params[7] });
+		st.outcomes.set(params[0], { interview_session_id: params[0], candidate_id: params[1], scope: params[2], is_test: params[3], cohort_allowlist_version: params[4], chunks_persisted: params[5], chunks_dropped: params[6], audio_seconds_captured: params[7], capture_gap_ratio: params[8], stop_reason: params[9], started_at: params[10] });
 		return { rows: [], rowCount: 1 };
 	}
 	if (sql.includes("registration_state = 'pending'") && sql.includes('SELECT object_key, candidate_id')) {
@@ -420,5 +421,15 @@ describe('log schema (§6.4 + D-3)', () => {
 
 	test('outcome writer enforces the frozen stop_reason enum', async () => {
 		await expect(cap.writeCaptureOutcome({ sessionId: 1, candidateId: 1, scope: 'test', counters: cap.createCaptureCounters(), stopReason: 'made_up', startedAt: new Date(), queryable: mockPool })).rejects.toThrow(/unknown stop_reason/);
+	});
+
+	test('M5: outcome write takes the §5.2 lock and never resurrects an erased candidate', async () => {
+		seed();
+		const biometricCrypto = require('../../../lib/biometricCrypto');
+		await biometricCrypto.getOrCreateDEK(7);
+		await biometricCrypto.destroyDEK(7);
+		const res = await cap.writeCaptureOutcome({ sessionId: 42, candidateId: 7, scope: 'test', isTest: true, counters: cap.createCaptureCounters(), stopReason: 'session_end', startedAt: new Date(), queryable: mockPool });
+		expect(res).toMatchObject({ written: false, reason: 'candidate_erased' });
+		expect(mockState.outcomes.has(42)).toBe(false);
 	});
 });

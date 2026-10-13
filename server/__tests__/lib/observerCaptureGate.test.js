@@ -23,7 +23,7 @@ function makeDb(state) {
 				if (params[1] === 'observer_capture') return { rows: state.captureReceipt ? [state.captureReceipt] : [] };
 				return { rows: state.biometricReceipt ? [state.biometricReceipt] : [] };
 			}
-			if (sql.includes('FROM observer_activation_enablements')) return { rows: state.enablement ? [state.enablement] : [] };
+			if (sql.includes('FROM observer_activation_enablements')) return { rows: state.enablement && (params[0] == null || state.enablement.company_id === params[0]) ? [state.enablement] : [] };
 			if (sql.includes('FROM observer_cohort_membership')) return { rows: state.membership ? [state.membership] : [] };
 			if (sql.includes('FROM observer_cohort_allowlist')) return { rows: state.allowlisted ? [{ allowlist_version: state.allowlisted }] : [] };
 			if (sql.includes('INSERT INTO observer_cohort_membership')) { state.snapshotInserted = params; return { rows: [], rowCount: 1 }; }
@@ -38,7 +38,7 @@ const job = (origin = 'staging') => ({ id: 9, origin_env: origin });
 const VALID_ACTIVATION = {
 	artefactVersion: '1.0',
 	captureReceipt: { granted_at: new Date('2026-10-01'), withdrawn_at: null, consent_text_version: '1.0' },
-	enablement: { enabled_at: new Date('2026-09-01') },
+	enablement: { company_id: 99, enabled_at: new Date('2026-09-01') },
 	membership: { is_member: true, allowlist_version: 3 },
 };
 
@@ -131,6 +131,13 @@ describe('evaluateCaptureDecision', () => {
 		const db = makeDb({ ...VALID_ACTIVATION, captureReceipt: { granted_at: new Date('2026-10-01'), withdrawn_at: new Date('2026-10-05'), consent_text_version: '1.0' } });
 		const d = await gate.evaluateCaptureDecision({ session: session(), job: job(), presence: GRANTED, queryable: db, env: STAGING });
 		expect(d.gateCode).toBe('CAPTURE_CONSENT_WITHDRAWN');
+	});
+
+	test('M1: an enablement belonging to a DIFFERENT employer does not count', async () => {
+		const db = makeDb({ ...VALID_ACTIVATION, enablement: { company_id: 55, enabled_at: new Date('2026-09-01') } });
+		const d = await gate.evaluateCaptureDecision({ session: session(), job: job(), presence: GRANTED, queryable: db, env: STAGING });
+		expect(d.decision).toBe('dormant');
+		expect(d.gateCode).toBe('CAPTURE_CONSENT_BEFORE_ENABLEMENT');
 	});
 
 	test('activation happy path: artefact + fresh consent + cohort member ⇒ capturing/activation', async () => {
