@@ -220,4 +220,17 @@ Lifecycle: `invited → in_progress → completed`; `conversation` persisted **b
 
 ---
 
+## 7. Applications Module — Verified State (S-088 audit, 2026-10-13, Scout)
+
+Full register: `docs/sdlc/rekrut-ai-v2/04-implementation/unified-interview-engine/s088-applications-audit.md` (#812). Verified on `origin/dev` @ `48454fea` with three legs: static trace, schema truth on a locally migrated PG, and a live authz matrix + erasure dry-run.
+
+- **Schema truth:** `job_applications` has 19 columns (id, job_id, candidate_id, company_id, status, resume_url, cover_letter, omniscore_at_apply, recruiter_notes, applied_at, updated_at, match_score, screening_answers JSONB, screening_status, screening_score, is_auto_applied, applied_via, assessment_score, assessment_result). Status CHECK = 9 canonical stages (= `PIPELINE_STAGES`, routes/recruiter.js:2601). `applied_via` CHECK = `manual|auto_apply` only. **Absent:** `hired_at`, `user_id`, `deleted_at`, test marker, IP, threat/fraud columns.
+- **Creation paths (3):** only `submitApplication` (routes/candidate.js:2702) honours all invariants; ai-screener inserts NULL-company `reviewing` phantoms (routes/ai-screener.js:114); referral claim inserts `applied_via='referral'` which the CHECK rejects (DB-proven 23514, routes/assessments.js:1476).
+- **Runtime-proven P0s:** candidate self-advance to any status incl. `hired`/`offered` + rejection reversal (routes/candidate.js:3314; the candidate Kanban drag sends `offered`); candidate list leaks `recruiter_notes` via `SELECT ja.*` (routes/candidate.js:3059); explain-decision IDOR for any authenticated user (routes/compliance.js:577); screening-send mutates foreign companies' applications (routes/interviews.js:2729).
+- **Verified good:** main recruiter surface is company-scoped end-to-end; no threat-intel/fraud signal exists in any application view (#788 gate holds).
+- **Erasure (dry-run proven):** `erasePersonalData` never touches `job_applications` or 10 application-keyed tables — #780 (C1) + #813/S-094 (C2 core) + S-105 (C2 extension: aptitude_test_attempts, coding_submissions, ai_decision_explanations, human_overrides, proctoring_sessions). No retention path exists for applications; DSAR export omits them (#657).
+- **Filed story set:** S-096…S-110 (see the register for the root-cause map and tranches). Adjacent observation: fresh-DB `migrate.js` halts at migration 238 (`candidate_profiles.bio` never created on a fresh path) — routed to Lead.
+
+---
+
 *End of Phase 0 knowledge base v2. Next: Phase 1 (Analysis) → Aria (Product) owns Phase 2 (PRD).*
