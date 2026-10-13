@@ -1027,12 +1027,19 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 			const tpl = await EuComplianceService.purgeExpiredTemplates(opts);
 			// S-047 (E-008, #695): 30-day observer report retention (spec §5.3)
 			const obs = await EuComplianceService.purgeExpiredObserverReports(opts);
+			// Gate A (S-085, #787): 30-day observer speech-measurement purge
+			// (design §5.1) + intent reconciler backstop (primary cadence is
+			// the observer worker's 60 s sweeper).
+			const speechMeas = await EuComplianceService.purgeExpiredSpeechMeasurements(opts);
+			const { reconcileObserverAudioIntents } = require('./lib/observerCapture');
+			const recon = await reconcileObserverAudioIntents({});
 
 			const mode = opts.dryRun ? 'DRY-RUN' : 'LIVE';
 			console.log(
 				`[retention] ${mode}: recordings=${rec.deletedCount} (storage=${rec.storageDeleted}), ` +
 				`registry=${reg.purgedCount} (storage=${reg.storageDeleted}), templates=${tpl.deletedCount}, ` +
-				`observer_reports=${obs.deletedCount}`,
+				`observer_reports=${obs.deletedCount}, speech_measurements=${speechMeas.deletedCount}, ` +
+				`capture_intents_reconciled=${recon.rowsRetired}`,
 			);
 		} catch (err) {
 			console.error('[retention] Failed:', err.message);
