@@ -1,14 +1,18 @@
 /**
  * Task 9 (#322) — unified interview session report (recruiter view).
  *
- * Route: /recruiter/interviews/report/:sessionId?candidateId=<id>
+ * Route: /recruiter/interviews/report/:sessionId
  * Shows the AI evaluation report, full transcript, frame-analysis timeline,
  * and a link to the session's recording playback (the existing full-featured
  * playback page — not duplicated here).
+ *
+ * S-087 (#790): the session is loaded from the gated single-session
+ * endpoint (GET /interview-sessions/:id), not by fetching the whole
+ * candidate session list — the list no longer carries full session data.
  */
 import { ArrowLeft, CalendarClock, Clapperboard, Loader2, MessageSquare } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { EmptyState } from '@/components/domain/empty-state';
 import type { UnifiedSession } from '@/components/domain/InterviewPanel';
 import { type SessionReport, SessionReportBody } from '@/components/domain/SessionReport';
@@ -34,8 +38,6 @@ function formatDuration(sec: number | null): string {
 
 export function InterviewReportPage() {
 	const { sessionId } = useParams<{ sessionId: string }>();
-	const [searchParams] = useSearchParams();
-	const candidateId = searchParams.get('candidateId');
 	const navigate = useNavigate();
 
 	const [session, setSession] = useState<UnifiedSession | null>(null);
@@ -44,18 +46,18 @@ export function InterviewReportPage() {
 	const [error, setError] = useState<string | null>(null);
 
 	const load = useCallback(async () => {
-		if (!sessionId || !candidateId) {
-			setError('Missing session or candidate reference.');
+		if (!sessionId) {
+			setError('Missing session reference.');
 			setLoading(false);
 			return;
 		}
 		setLoading(true);
 		setError(null);
 		try {
-			const res = await apiCall<{ success: boolean; sessions: UnifiedSession[] }>(
-				`/interviews/interview-sessions?candidate_id=${candidateId}`,
+			const res = await apiCall<{ success: boolean; session: UnifiedSession }>(
+				`/interviews/interview-sessions/${encodeURIComponent(sessionId)}`,
 			);
-			const found = (res.sessions || []).find((s) => Number(s.id) === Number(sessionId));
+			const found = res.session;
 			if (!found) {
 				setError('Interview session not found.');
 				return;
@@ -75,7 +77,7 @@ export function InterviewReportPage() {
 		} finally {
 			setLoading(false);
 		}
-	}, [sessionId, candidateId]);
+	}, [sessionId]);
 
 	useEffect(() => {
 		load();

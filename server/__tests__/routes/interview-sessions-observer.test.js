@@ -524,3 +524,49 @@ describe('POST /interview-sessions/:id/complete — egress backfill (I2, #323)',
 		expect(mockCompleteRecordingRecord).not.toHaveBeenCalled();
 	});
 });
+
+describe('GET /interview-sessions/:id/observer/status — server-resolved section_states (S-087, #790)', () => {
+	test('declined session → section_states declined with canonical copy, and the raw consent flag never leaves the server', async () => {
+		const s = seedSession({ type: 'human', config: { biometric_collection: false } });
+
+		const res = await request(app).get(`/interview-sessions/${s.id}/observer/status`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(res.body.section_states).toBeDefined();
+		for (const section of ['vocal', 'visual', 'integrity']) {
+			expect(res.body.section_states[section].state).toBe('declined');
+			expect(res.body.section_states[section].label).toBe('Declined by candidate');
+			expect(res.body.section_states[section].explanation).toContain('declined biometric collection');
+		}
+		expect(JSON.stringify(res.body)).not.toContain('biometric_collection');
+		expect(res.body).not.toHaveProperty('config');
+	});
+
+	test('granted session with no analysis → section_states missing', async () => {
+		const s = seedSession({ type: 'human', config: { biometric_collection: true } });
+
+		const res = await request(app).get(`/interview-sessions/${s.id}/observer/status`).set(as(1));
+
+		expect(res.status).toBe(200);
+		for (const section of ['vocal', 'visual', 'integrity']) {
+			expect(res.body.section_states[section].state).toBe('missing');
+		}
+	});
+
+	test('unknown consent (flag unset) → section_states missing, never declined', async () => {
+		const s = seedSession({ type: 'human', config: {} });
+
+		const res = await request(app).get(`/interview-sessions/${s.id}/observer/status`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(res.body.section_states.vocal.state).toBe('missing');
+	});
+
+	test('non-hiring-team caller (the candidate) → 403', async () => {
+		const s = seedSession({ type: 'human', config: { biometric_collection: false } });
+
+		const res = await request(app).get(`/interview-sessions/${s.id}/observer/status`).set(as(4));
+
+		expect(res.status).toBe(403);
+	});
+});

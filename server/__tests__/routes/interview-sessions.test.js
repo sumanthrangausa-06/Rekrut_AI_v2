@@ -81,6 +81,13 @@ jest.mock('../../../lib/notify', () => ({
 	notifyUser: (...args) => mockNotifyUser(...args),
 }));
 
+// Audit boundary (S-087, #790): the router's emitInterviewAudit delegates to
+// routes/audit insertAuditLog; mock it to pin the session.full_read emission.
+const mockInsertAuditLog = jest.fn(async () => ({}));
+jest.mock('../../../routes/audit', () => ({
+	insertAuditLog: (...args) => mockInsertAuditLog(...args),
+}));
+
 // ─── In-memory interview-domain store (extends the global mocked lib/db) ────
 const db = require('../../../lib/db');
 const baseQueryImpl = db.query.getMockImplementation();
@@ -668,6 +675,7 @@ describe('GET /api/interviews/interview-sessions', () => {
 			status: 'confirmed',
 			job_id: 10,
 			candidate_id: 1,
+			recruiter_id: 2,
 			job_application_id: 20,
 			scheduled_at: new Date().toISOString(),
 		});
@@ -693,6 +701,329 @@ describe('GET /api/interviews/interview-sessions', () => {
 			.set('x-test-user-id', '1');
 
 		expect(res.status).toBe(400);
+	});
+});
+
+describe('S-087 (#790): list payload minimisation + single-session path', () => {
+	const secretConfig = () => ({
+		question_source: 'template',
+		biometric_collection: false,
+		observer_enabled: true,
+		observer_transcript: [{ role: 'candidate', text: 'secret observer transcript' }],
+		report: { overall_score: 91, recommendation: 'advance' },
+	});
+
+	async function createSecretSession(app) {
+		const created = await createSession(app, { config: secretConfig() });
+		const id = created.body.session.id;
+		const row = sessions.get(id);
+		// Model a fully-populated stored row (the mocked store returns rows
+		// verbatim, so the handler's shaping is what these tests exercise).
+		row.invite_token = 'tok_secret_bearer';
+		row.triggered_by = 2;
+		row.conversation = [{ role: 'candidate', text: 'secret candidate answer' }];
+		row.frame_analysis = { per_turn: [{ attention: 0.9 }], turn_count: 1 };
+		return id;
+	}
+
+	function pushLoadedLinkedRows() {
+		scheduledInterviews.push({
+			id: 77,
+			status: 'scheduled',
+			job_id: 10,
+			candidate_id: 1,
+			company_id: 5,
+			scheduled_at: new Date().toISOString(),
+			meeting_link: 'https://meet.example/secret',
+			notes: 'panel notes secret',
+			outcome: 'hired',
+			feedback: { verdict: 'strong' },
+			recruiter_id: 2,
+			ai_evaluation: { composite: 88 },
+			ai_composite_score: 88,
+			calendar_event_id: 'cal_secret',
+		});
+		interviewEvents.push({
+			id: 88,
+			status: 'confirmed',
+			job_id: 10,
+			candidate_id: 1,
+			recruiter_id: 2,
+			job_application_id: 20,
+			scheduled_at: new Date().toISOString(),
+			calendar_event_ids: { google: 'evt_secret' },
+			livekit_room_url: 'wss://livekit.example/secret',
+			meeting_link: 'https://meet.example/secret2',
+			notes: 'event notes secret',
+			panel_member_ids: [2, 3],
+		});
+	}
+
+	it('omits config, conversation, frame_analysis and invite_token from every list row (candidate_id variant, all three sources)', async () => {
+		const app = buildApp();
+		await createSecretSession(app);
+		pushLoadedLinkedRows();
+
+		const res = await request(app)
+			.get('/api/interviews/interview-sessions')
+			.set('x-test-user-id', '1')
+			.query({ candidate_id: 1 });
+
+		expect(res.status).toBe(200);
+		expect(res.body.sessions).toHaveLength(3);
+		for (const row of res.body.sessions) {
+			expect(row).not.toHaveProperty('config');
+			expect(row).not.toHaveProperty('conversation');
+			expect(row).not.toHaveProperty('frame_analysis');
+			expect(row).not.toHaveProperty('invite_token');
+			expect(row).not.toHaveProperty('meeting_link');
+			expect(row).not.toHaveProperty('notes');
+			// Staff identifiers never ride in list rows (privacy review F1).
+			expect(row).not.toHaveProperty('recruiter_id');
+		}
+		const scheduled = res.body.sessions.find((s) => s.source === 'scheduled_interviews');
+		expect(scheduled).not.toHaveProperty('outcome');
+		expect(scheduled).not.toHaveProperty('feedback');
+		// Scheduled-source evaluative/calendar internals (privacy review F8).
+		expect(scheduled).not.toHaveProperty('ai_evaluation');
+		expect(scheduled).not.toHaveProperty('ai_composite_score');
+		expect(scheduled).not.toHaveProperty('calendar_event_id');
+		const event = res.body.sessions.find((s) => s.source === 'interview_events');
+		expect(event).not.toHaveProperty('calendar_event_ids');
+		expect(event).not.toHaveProperty('livekit_room_url');
+		expect(event).not.toHaveProperty('panel_member_ids');
+		// No nested consent/transcript content anywhere in the payload.
+		const wire = JSON.stringify(res.body);
+		expect(wire).not.toContain('biometric_collection');
+		expect(wire).not.toContain('observer_transcript');
+		expect(wire).not.toContain('secret candidate answer');
+		expect(wire).not.toContain('tok_secret_bearer');
+	});
+
+	it('omits the banned fields in the job_id variant and issues projected SQL (no SELECT *)', async () => {
+		const app = buildApp();
+		await createSecretSession(app);
+		pushLoadedLinkedRows();
+
+		const callsBefore = db.query.mock.calls.length;
+		const res = await request(app)
+			.get('/api/interviews/interview-sessions')
+			.set('x-test-user-id', '2')
+			.query({ job_id: 10 });
+		const listSql = db.query.mock.calls
+			.slice(callsBefore)
+			.map((c) => String(c[0]).toLowerCase().replace(/\s+/g, ' '));
+
+		expect(res.status).toBe(200);
+		expect(res.body.sessions.length).toBeGreaterThanOrEqual(3);
+		for (const row of res.body.sessions) {
+			expect(row).not.toHaveProperty('config');
+			expect(row).not.toHaveProperty('conversation');
+			expect(row).not.toHaveProperty('frame_analysis');
+			expect(row).not.toHaveProperty('invite_token');
+		}
+		expect(listSql.length).toBeGreaterThanOrEqual(3);
+		for (const sql of listSql) {
+			expect(sql).not.toContain('select *');
+			expect(sql).not.toContain('select e.*');
+		}
+		const unifiedSql = listSql.find((s) => s.includes('from interview_sessions'));
+		expect(unifiedSql).toContain("config->'report'->'overall_score'");
+		expect(unifiedSql).toContain("config->'observer_enabled'");
+	});
+
+	it('returns the derived list scalars consumers need (overall_score, observer_enabled)', async () => {
+		const app = buildApp();
+		await createSecretSession(app);
+
+		const res = await request(app)
+			.get('/api/interviews/interview-sessions')
+			.set('x-test-user-id', '1')
+			.query({ candidate_id: 1 });
+
+		expect(res.status).toBe(200);
+		const row = res.body.sessions.find((s) => s.source === 'interview_session');
+		expect(row.overall_score).toBe(91);
+		expect(row.observer_enabled).toBe(true);
+		expect(row).toMatchObject({ type: 'screening', status: 'invited' });
+		expect(row.created_at).toBeTruthy();
+	});
+
+	it('list rows are indistinguishable across consent states (privacy review F5 guard, #790)', async () => {
+		const app = buildApp();
+		const base = { observer_enabled: true, report: { overall_score: 64 } };
+		await createSession(app, { config: { ...base, biometric_collection: false } }); // declined
+		await createSession(app, { config: { ...base } }); // unknown (never asked)
+		await createSession(app, { config: { ...base, biometric_collection: true } }); // granted
+
+		const res = await request(app)
+			.get('/api/interviews/interview-sessions')
+			.set('x-test-user-id', '1')
+			.query({ candidate_id: 1 });
+
+		expect(res.status).toBe(200);
+		const rows = res.body.sessions
+			.filter((s) => s.source === 'interview_session')
+			.map(({ id, created_at, ...rest }) => rest);
+		expect(rows).toHaveLength(3);
+		expect(rows[1]).toEqual(rows[0]);
+		expect(rows[2]).toEqual(rows[0]);
+	});
+
+	it('candidate-self single-session GET strips key_points and report internals; hiring team keeps the full shape (privacy review F2, #790)', async () => {
+		const app = buildApp();
+		const created = await createSession(app, {
+			config: {
+				base_questions: [{ question_text: 'Why this role?', key_points: ['rubric secret point'] }],
+				report: { overall_score: 71, strengths: ['clear communicator'], internal_notes: 'INTERNAL-ONLY' },
+			},
+		});
+		const id = created.body.session.id;
+
+		const candRes = await request(app)
+			.get(`/api/interviews/interview-sessions/${id}`)
+			.set('x-test-user-id', '1');
+		expect(candRes.status).toBe(200);
+		const candWire = JSON.stringify(candRes.body);
+		expect(candWire).not.toContain('key_points');
+		expect(candWire).not.toContain('rubric secret point');
+		expect(candWire).not.toContain('INTERNAL-ONLY');
+		expect(candRes.body.session.config.report.overall_score).toBe(71);
+		expect(candRes.body.session.config.report.strengths).toEqual(['clear communicator']);
+		expect(candRes.headers['cache-control']).toContain('no-store');
+
+		const recRes = await request(app)
+			.get(`/api/interviews/interview-sessions/${id}`)
+			.set('x-test-user-id', '2');
+		expect(recRes.status).toBe(200);
+		expect(recRes.body.session.config.base_questions[0].key_points).toEqual(['rubric secret point']);
+		expect(recRes.body.session.config.report.internal_notes).toBe('INTERNAL-ONLY');
+	});
+
+	it('single-session GET emits the session.full_read audit on success and none on a denied read (privacy pre-PR SHOULD-FIX, #790)', async () => {
+		const app = buildApp();
+		const id = await createSecretSession(app);
+		mockInsertAuditLog.mockClear();
+
+		const okRes = await request(app)
+			.get(`/api/interviews/interview-sessions/${id}`)
+			.set('x-test-user-id', '2');
+		expect(okRes.status).toBe(200);
+		const fullReads = mockInsertAuditLog.mock.calls
+			.map((c) => c[0])
+			.filter((e) => e.action === 'session.full_read');
+		expect(fullReads).toHaveLength(1);
+		expect(fullReads[0]).toMatchObject({
+			actor_id: 2,
+			target_id: id,
+			metadata: { session_id: id },
+		});
+
+		mockInsertAuditLog.mockClear();
+		global.__testUsers[3] = { id: 3, email: 'other@test.com', role: 'recruiter', company_id: 99 };
+		const deniedRes = await request(app)
+			.get(`/api/interviews/interview-sessions/${id}`)
+			.set('x-test-user-id', '3');
+		expect(deniedRes.status).toBe(403);
+		expect(
+			mockInsertAuditLog.mock.calls.filter((c) => c[0].action === 'session.full_read'),
+		).toHaveLength(0);
+	});
+
+	it('single-session GET principal matrix: other candidate 403, unauthenticated 401, hiring_manager 200 (security review NOTE, #790)', async () => {
+		const app = buildApp();
+		const id = await createSecretSession(app);
+
+		global.__testUsers[3] = { id: 3, email: 'othercand@test.com', role: 'candidate' };
+		const otherCand = await request(app)
+			.get(`/api/interviews/interview-sessions/${id}`)
+			.set('x-test-user-id', '3');
+		expect(otherCand.status).toBe(403);
+
+		const anon = await request(app).get(`/api/interviews/interview-sessions/${id}`);
+		expect(anon.status).toBe(401);
+
+		global.__testUsers[5] = { id: 5, email: 'hm@test.com', role: 'hiring_manager', company_id: 5 };
+		const hm = await request(app)
+			.get(`/api/interviews/interview-sessions/${id}`)
+			.set('x-test-user-id', '5');
+		expect(hm.status).toBe(200);
+	});
+
+	it('GET /interview-sessions/:id returns the full session to the candidate-self', async () => {
+		const app = buildApp();
+		const id = await createSecretSession(app);
+
+		const res = await request(app)
+			.get(`/api/interviews/interview-sessions/${id}`)
+			.set('x-test-user-id', '1');
+
+		expect(res.status).toBe(200);
+		expect(res.body.session.id).toBe(id);
+		expect(res.body.session.config.report.overall_score).toBe(91);
+		expect(res.body.session.conversation).toEqual([
+			{ role: 'candidate', text: 'secret candidate answer' },
+		]);
+	});
+
+	it('GET /interview-sessions/:id returns the full session to a same-company recruiter', async () => {
+		const app = buildApp();
+		const id = await createSecretSession(app);
+
+		const res = await request(app)
+			.get(`/api/interviews/interview-sessions/${id}`)
+			.set('x-test-user-id', '2');
+
+		expect(res.status).toBe(200);
+		expect(res.body.session.config.observer_transcript).toHaveLength(1);
+	});
+
+	it('GET /interview-sessions/:id never returns the invite_token bearer credential or the internal triggered_by actor id', async () => {
+		const app = buildApp();
+		const id = await createSecretSession(app);
+
+		const res = await request(app)
+			.get(`/api/interviews/interview-sessions/${id}`)
+			.set('x-test-user-id', '1');
+
+		expect(res.status).toBe(200);
+		expect(res.body.session).not.toHaveProperty('invite_token');
+		expect(res.body.session).not.toHaveProperty('triggered_by');
+		expect(JSON.stringify(res.body)).not.toContain('tok_secret_bearer');
+	});
+
+	it('GET /interview-sessions/:id returns 403 to another company recruiter', async () => {
+		const app = buildApp();
+		const id = await createSecretSession(app);
+		global.__testUsers[3] = { id: 3, email: 'other@test.com', role: 'recruiter', company_id: 99 };
+
+		const res = await request(app)
+			.get(`/api/interviews/interview-sessions/${id}`)
+			.set('x-test-user-id', '3');
+
+		expect(res.status).toBe(403);
+	});
+
+	it('GET /interview-sessions/:id returns 403 to an employer-role user of the same company', async () => {
+		const app = buildApp();
+		const id = await createSecretSession(app);
+		global.__testUsers[4] = { id: 4, email: 'emp@test.com', role: 'employer', company_id: 5 };
+
+		const res = await request(app)
+			.get(`/api/interviews/interview-sessions/${id}`)
+			.set('x-test-user-id', '4');
+
+		expect(res.status).toBe(403);
+	});
+
+	it('GET /interview-sessions/:id returns 404 for an unknown id', async () => {
+		const app = buildApp();
+
+		const res = await request(app)
+			.get('/api/interviews/interview-sessions/424242')
+			.set('x-test-user-id', '1');
+
+		expect(res.status).toBe(404);
 	});
 });
 
