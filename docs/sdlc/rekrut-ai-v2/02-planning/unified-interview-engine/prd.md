@@ -1,13 +1,14 @@
 ---
 project: Unified Interview Engine
-version: 3.3
+version: 3.4
 status: approved
 created: 2026-10-10
-updated: 2026-10-10
+updated: 2026-10-13
 owner: Sumanth
 analyst: Aria (Business Analyst, smart-sdlc Phase 2)
 stepsCompleted: ["step-01-requirements", "step-02-draft", "step-02-fixes", "step-03-v3-update", "step-03-specialist-review", "step-04-oq3-correction"]
 change_log:
+  v3.4: "Scope Amendment 2026-10-13 (Aria, Sprint 11 — Gate A ruling on #634 + mock-scores ruling on #113): (1) Gate A = B AMENDED — for the January launch, AI Observer analysis is explicitly OUT of scope (presence-only, controlled cohort of design partners only; no public biometric-consent ask; no analysis claimed anywhere; vision unchanged, analysis deferred under the dated re-entry contract). (2) §5.1 Recruiter-sees row reconciled to the 2026-10-12 mock-scores ruling (practice scores out of OmniScore, labelled readiness panel, opt-in practice-fact marker — #791/#792); the superseded text is quoted in the amendment section, not silently rewritten. See § Scope Amendments — 2026-10-13 below."
   v3.3: "FR-87 added (Rex): R2 frame encryption with per-candidate DEK. Discovered during Phase 4 S-058 specialist review (privacy engineer, 2026-10-10) — P0 launch-blocker. Raw face frames uploaded to R2 bypassed S-058's crypto-shredding design."
   v3.1: "OQ-3 contradiction fix (Rex Phase 3 review): §9.2 facial_expression → facial_landmark_displacement, voice_stress → vocal_pitch_variation; FR-37 'stress indicators' → 'vocal variation indicators'; FR-49 example rewritten in observational language; FR-36/39/40 conditional emotion-inference branches collapsed to non-affective path only; §9.7 'Fused integrity' → 'Fused observations' (OQ-2); definitions section scrubbed of emotion-inference language. All FRs now consistent with OQ-3 (observe, don't label) and FR-28/29."
   v3.0: "86 FRs, 21 CRs, 8 NFRs. Incorporated Phase 1 redo findings: 15 must-have compliance items, 8 integrity mitigation recommendations (R1-R8), problem playbook, pricing/packaging requirements, vocabulary appendix (14 event types, 8 signal categories, 5 challenge types, 6 session statuses), Sumanth's new decisions (observer=recruiter tool, warm-up mandatory, manual dismissal, two-sided pricing). Flagged emotion-inference FRs for legal review (EU AI Act Art. 5). Specialist-reviewed by PRD completeness reviewer + compliance requirements reviewer."
@@ -21,6 +22,125 @@ change_log:
 > **Change log:** v3.1 fixes OQ-3 contradictions (see frontmatter). v3.0 incorporates Phase 1 redo findings (compliance blueprint, mitigation brief, pricing, Sumanth's new decisions).
 
 ---
+
+## 0. Scope Amendments — 2026-10-13
+
+> **Amendment convention:** amendments are dated entries added here and logged in the
+> frontmatter `change_log`. Superseded text is quoted, never silently rewritten.
+> Where an amendment and an earlier section conflict **for the January launch**, the
+> amendment governs January scope; the earlier section remains the product vision
+> unless the amendment says otherwise.
+
+### 0.1 Gate A — AI Observer analysis is OUT of scope for the January launch (Sumanth, 2026-10-13; ruling recorded on #634)
+
+**Ruling: Gate A = B, AMENDED.** This amendment is the written PRD scope amendment
+the ruling requires. No silent de-scoping: what January does not include is stated
+with the same precision as what it does.
+
+**January scope — what ships:**
+
+- The AI Observer ships **presence-only**, for a **controlled cohort of design
+  partners only**.
+- For every cohort session, a **mandatory audit record**: consent state + timestamp,
+  attendance, and `analysis_provided: false` — recorded as the words
+  "analysis: not provided in this release". Without all three, presence ships
+  quiet-beta or not at all. The January audit spine is **L-JAN-01…07** in the Gate A
+  design package (`docs/sdlc/rekrut-ai-v2/04-implementation/unified-interview-engine/gate-a-dormant-capture-design.md`),
+  owned per that package's ownership table.
+- Sprint 11 funds **dormant-capture pre-work only** (design → Sumanth's approval →
+  dormant build): **audio-only, flag default-off, ZERO collection**, with the
+  speech-pattern slice validated on synthetic/test media only. It does **not**
+  displace the Applications module sprint.
+
+**January scope — what January does NOT include (the L-JAN gap record):**
+
+- **No Observer analysis of any kind** — no integrity analysis, no behavioural
+  analysis, no fused observations from the Observer in any January report.
+  Observer sections render honestly `missing`.
+- **No public biometric-consent ask** in the January flow. A consent ask with no
+  benefit trains candidates to decline and poisons consent rates for when
+  analysis actually ships.
+- **No analysis claimed anywhere** — no marketing, no UI copy, no deck.
+- **No banked consent:** January consent is never banked. Any future analysis
+  activation requires **fresh consent**; the dormant build collects nothing, so
+  there is nothing to retro-consent.
+- **#777 is launch-blocking before any Observer enablement:** the biometric
+  policy page's unbuilt calibration-baseline promise must be fixed before any
+  cohort session runs with the Observer on.
+
+**Vision — unchanged:**
+
+- The product vision is **unchanged**. Observer analysis (integrity +
+  behavioural signals in human-interview reports) remains the vision, and the
+  sections describing it (notably §1, §2, §5.4, §6.8, §6.10/FR-49, §6.22, and
+  the `ai_observer_reports` row in §7.1) remain vision requirements. They are
+  **not January commitments**. Analysis is deferred, not cancelled.
+
+**Incorporated by reference (not paraphrased):**
+
+- **Lex's 61 design requirements / 12 red lines** in
+  `gate-a-consent-retention-review.md` (same design-package folder) are
+  incorporated into this amendment **by reference**. This amendment does not
+  paraphrase them into weaker language.
+- **Quinn's validation protocol** (`gate-a-validation-protocol.md`, same folder)
+  is cited **as contract**: the re-entry checkpoints below reference the
+  protocol's pass criteria, not a narrative summary of them.
+
+**Re-entry contract (owner: Lead):**
+
+- Counsel (#788) timeline is demanded **in writing, with a date** — Lex owns
+  chasing it.
+- Counsel + capture design **cleared by 2026-11-01** → the validated
+  speech-pattern slice **may** activate for the cohort pilot, where "validated"
+  means the pass criteria in Quinn's validation protocol.
+- Cleared **after 2026-12-01** → **nothing activates pre-launch**.
+- Any trigger still open at the launch gate **escalates to Sumanth** — nothing
+  expires silently. Re-decision at the first post-launch planning; standing
+  item at every planning thereafter until closed. #674 (S-027) and #697
+  (S-049b) stay open and parked; they re-enter only via this contract.
+- Measurement returns **slice-by-slice, never as a bundle** — the 40–48 pt
+  bundle figure is retired as an approval unit. **Body language is OUT of the
+  programme** until a validation path exists. **Voice stress ships only as a
+  meter with uncertainty shown; deception claims are banned outright.** No
+  heuristic fallback scores — ever.
+
+**Evidence gates (owner: Atlas) — a condition of this amendment, not a footnote:**
+
+- **15–20 discovery calls + 3–5 paid-pilot commitments** for the January
+  product as described here, pre-launch. **If workflow alone doesn't sell,
+  Gate A REOPENS.**
+- The Observer contributes **$0 willingness-to-pay** in January; revenue is
+  planned at **$0** until paid pilots convert (the $14–20/interview January
+  pricing assumption is withdrawn).
+
+### 0.2 Mock-scores reconciliation — §5.1 superseded line (Sumanth, 2026-10-12; ruling recorded on #113; stories #791/#792)
+
+**Superseded text** (§5.1, Mock Interview table, as written before this amendment):
+
+> | **Recruiter sees** | N/A (practice only, not shared unless candidate opts in) |
+
+That line stated the old posture — practice is invisible to recruiters except on
+opt-in. It is **superseded** by Sumanth's 2026-10-12 ruling and the §5.1 row now
+reads as amended above. The current, single posture is:
+
+- **Practice scores come OUT of OmniScore** (Option (b), #791). Practice is
+  shown beside OmniScore as a separate, clearly labelled **readiness panel**:
+  role, completed-session count, latest result, direction of travel, date —
+  labelled **"practice — self-directed, not proctored, not part of OmniScore."**
+  The removal is real, not a label; the panel never feeds ranking, filtering,
+  matching, or auto-reject; full mock interviews and Quick Practice drills are
+  never averaged together; fallback-scored sessions are marked and excluded
+  from anything recruiter-facing; the candidate sees exactly what the
+  recruiter sees.
+- **Practice-fact marker, adopted with six guardrails** (#792): candidate
+  **opt-in, default OFF, fail-closed**; **counts and dates only** — never
+  scores, never coaching content; **absence renders as nothing** (no marker,
+  no "hasn't practised" label); never a filter/sort/rank/match input;
+  **role-tied**; and the existing recruiter endpoint exposing full practice
+  history + scores + coaching is narrowed to match this ruling.
+- **Timing:** the OmniScore removal is scheduled **separately** (Lead slots
+  it); the one-time score drop for practised candidates is a correction,
+  announced with a **version note**, not shipped silently.
 
 ## 1. Overview
 
@@ -103,7 +223,7 @@ Concrete definitions for terms used throughout this PRD:
 | **Integrity** | Minimal (practice mode — no identity verification) |
 | **Behavioral analysis** | Basic (for practice feedback) |
 | **Candidate sees** | Numerical scores (feeds OmniScore) + qualitative feedback |
-| **Recruiter sees** | N/A (practice only, not shared unless candidate opts in) |
+| **Recruiter sees** | A labelled readiness panel beside OmniScore (role, completed-session count, latest result, trend, date — labelled "practice — self-directed, not proctored, not part of OmniScore"; practice scores never feed OmniScore), plus — only if the candidate opts in (default OFF, fail-closed) — a practice-fact marker showing counts and dates only, never scores or coaching. Amended 2026-10-13 — see Scope Amendments (§0.2) |
 
 ### 5.2 AI Screening
 
