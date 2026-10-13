@@ -36,7 +36,10 @@ const multer = require('multer');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { canEnableObserver } = require('../lib/observerConsentGate');
-const { getReportSectionStates } = require('../lib/observerReportStates');
+const {
+	getReportSectionStates,
+	getRecruiterObserverNotice,
+} = require('../lib/observerReportStates');
 const { conductTurn } = require('../services/conversation-engine');
 const { generateScreeningReport } = require('../services/interview-ai');
 // Task 5 (#323): Track B observer — Q&A extraction + analysis over the muted
@@ -1301,8 +1304,36 @@ router.get('/interview-sessions/:id/observer/status', authMiddleware, async (req
 				visual: reportRow?.analysis?.visual?.state === 'present',
 				integrity: reportRow?.integrity_summary?.state === 'present',
 			},
+			// This channel is hiring-team-gated (the audit record) — full
+			// disclosure scope, opted into explicitly (the resolver's
+			// scope flag is fail-closed by default).
+			inDisclosureScope: true,
 		});
 
+		// S-039 (#686): the recruiter-surface metadata notice, resolved
+		// through the same canonical module. The audience split lives in
+		// the resolver: this gated channel keeps the named section_states
+		// (audit record), while the recruiter report renders ONLY this
+		// notice — candidate-side non-consent arrives there as one
+		// neutral, indistinguishable sentence.
+		const recruiter_notice = getRecruiterObserverNotice({
+			observerEnabled: !!session.config?.observer_enabled,
+			// Current consent vetoes history (privacy B-1): withdrawal
+			// flips biometric_collection to false but a granted report
+			// row persists — the stale row must never resurrect a
+			// "granted" signal, or withdrawn sessions become
+			// distinguishable from declined/unknown ones.
+			consentGranted:
+				session.config?.biometric_collection === false
+					? false
+					: session.config?.biometric_collection === true ||
+						reportRow?.consent_state === 'granted',
+			anySectionPresent: Object.values(section_states).some((s) => s.state === 'present'),
+		});
+
+		// Consent-state material is never cached (mirrors the F9
+		// defence-in-depth on the gated single-session read).
+		res.set('Cache-Control', 'no-store');
 		res.json({
 			success: true,
 			session_id: session.id,
@@ -1318,8 +1349,13 @@ router.get('/interview-sessions/:id/observer/status', authMiddleware, async (req
 				id: reportRow.id,
 				consent_state: reportRow.consent_state,
 				created_at: reportRow.created_at,
+				// Projection shape version (spec §4.3) for the report
+				// page's view metadata — version + rendered-at only,
+				// never persisted from the client (S-039 panel record).
+				version: reportRow.integrity_summary?.version ?? null,
 			} : null,
 			section_states,
+			recruiter_notice,
 		});
 	} catch (err) {
 		console.error('[interview-sessions] observer status error:', err.message);

@@ -113,6 +113,12 @@ jest.mock('../../../lib/db', () => ({
 			}
 			return { rows: row ? [{ ...row }] : [] };
 		}
+		if (n.includes('from ai_observer_reports')) {
+			// S-039: report rows are seeded per-test via a global map
+			// (keyed by interview_session_id); default is no row.
+			const row = global.__mockObserverReports?.get(Number(params[0]));
+			return { rows: row ? [{ ...row }] : [] };
+		}
 		if (n.includes('from interview_flows')) {
 			return { rows: [{ rubric_weights: { can_do_the_work: 60, communication_quality: 40 } }] };
 		}
@@ -568,5 +574,147 @@ describe('GET /interview-sessions/:id/observer/status — server-resolved sectio
 		const res = await request(app).get(`/interview-sessions/${s.id}/observer/status`).set(as(4));
 
 		expect(res.status).toBe(403);
+	});
+});
+
+describe('GET /interview-sessions/:id/observer/status — recruiter_notice + report version (S-039, #686)', () => {
+	// Audience split (panel ruling, Sumanth-approved): the recruiter-facing
+	// notice collapses candidate-side non-consent (declined / withdrawn /
+	// unknown) into ONE neutral sentence; the named section_states stay on
+	// this hiring-team-gated channel only. Copy is canonical — imported
+	// from lib/observerReportStates, never re-typed here (provenance).
+	const {
+		RECRUITER_NEUTRAL_COPY,
+		OBSERVER_DISABLED_COPY,
+		OBSERVER_PRESENCE_COPY,
+	} = require('../../../lib/observerReportStates');
+
+	beforeEach(() => {
+		global.__mockObserverReports = new Map();
+	});
+
+	test('declined session → neutral recruiter_notice (kind + canonical copy)', async () => {
+		const s = seedSession({
+			type: 'human',
+			config: { observer_enabled: true, biometric_collection: false },
+		});
+
+		const res = await request(app).get(`/interview-sessions/${s.id}/observer/status`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(res.body.recruiter_notice).toEqual({ kind: 'neutral', copy: RECRUITER_NEUTRAL_COPY });
+	});
+
+	test('unknown consent → recruiter_notice IDENTICAL to the declined case (T-16 indistinguishability)', async () => {
+		const declined = seedSession({
+			type: 'human',
+			config: { observer_enabled: true, biometric_collection: false },
+		});
+		const unknown = seedSession({ type: 'human', config: { observer_enabled: true } });
+
+		const resDeclined = await request(app)
+			.get(`/interview-sessions/${declined.id}/observer/status`)
+			.set(as(1));
+		const resUnknown = await request(app)
+			.get(`/interview-sessions/${unknown.id}/observer/status`)
+			.set(as(1));
+
+		expect(resUnknown.body.recruiter_notice).toEqual(resDeclined.body.recruiter_notice);
+		expect(resUnknown.body.recruiter_notice.copy).toBe(RECRUITER_NEUTRAL_COPY);
+	});
+
+	test('employer-disabled → named disabled notice (AC-3 copy)', async () => {
+		const s = seedSession({
+			type: 'human',
+			config: { observer_enabled: false, biometric_collection: true },
+		});
+
+		const res = await request(app).get(`/interview-sessions/${s.id}/observer/status`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(res.body.recruiter_notice).toEqual({ kind: 'disabled', copy: OBSERVER_DISABLED_COPY });
+		expect(res.body.recruiter_notice.copy).toBe('AI Observer was not enabled for this session.');
+	});
+
+	test('granted session, scaffold report row → presence notice + report version surfaced', async () => {
+		const s = seedSession({
+			type: 'human',
+			config: { observer_enabled: true, biometric_collection: true },
+		});
+		global.__mockObserverReports.set(s.id, {
+			id: 900,
+			consent_state: 'granted',
+			created_at: '2026-10-12T00:00:00.000Z',
+			analysis: {
+				vocal: { state: 'missing' },
+				visual: { state: 'missing' },
+				conversation: { state: 'missing', transcript_available: false },
+			},
+			integrity_summary: { version: 1, state: 'missing', events: [] },
+		});
+
+		const res = await request(app).get(`/interview-sessions/${s.id}/observer/status`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(res.body.report.version).toBe(1);
+		expect(res.body.recruiter_notice).toEqual({ kind: 'presence', copy: OBSERVER_PRESENCE_COPY });
+	});
+
+	test('withdrawn after grant (declined flag + stale granted row) → notice IDENTICAL to unknown (privacy B-1)', async () => {
+		// Withdrawal flips config.biometric_collection to false
+		// (lib/consentService withdrawConsent) but the granted report row
+		// persists. Current consent must veto the historical row: the
+		// recruiter must NOT learn the candidate once consented.
+		const s = seedSession({
+			type: 'human',
+			config: { observer_enabled: true, biometric_collection: false },
+		});
+		global.__mockObserverReports.set(s.id, {
+			id: 902,
+			consent_state: 'granted',
+			created_at: '2026-10-12T00:00:00.000Z',
+			analysis: {
+				vocal: { state: 'present' },
+				visual: { state: 'present' },
+				conversation: { state: 'missing', transcript_available: false },
+			},
+			integrity_summary: { version: 1, state: 'present', events: [] },
+		});
+
+		const res = await request(app).get(`/interview-sessions/${s.id}/observer/status`).set(as(1));
+
+		expect(res.status).toBe(200);
+		// Section data is suppressed behind the decline…
+		expect(res.body.section_states.vocal.state).toBe('declined');
+		// …and the notice collapses to the SAME neutral sentence as the
+		// declined and unknown cases — never the presence copy.
+		expect(res.body.recruiter_notice).toEqual({ kind: 'neutral', copy: RECRUITER_NEUTRAL_COPY });
+		// Consent-state material is never cached (mirrors the F9 defence
+		// on the single-session read).
+		expect(res.headers['cache-control']).toContain('no-store');
+	});
+
+	test('granted session with a present section → no notice (kind none)', async () => {
+		const s = seedSession({
+			type: 'human',
+			config: { observer_enabled: true, biometric_collection: true },
+		});
+		global.__mockObserverReports.set(s.id, {
+			id: 901,
+			consent_state: 'granted',
+			created_at: '2026-10-12T00:00:00.000Z',
+			analysis: {
+				vocal: { state: 'present' },
+				visual: { state: 'missing' },
+				conversation: { state: 'missing', transcript_available: false },
+			},
+			integrity_summary: { version: 1, state: 'missing', events: [] },
+		});
+
+		const res = await request(app).get(`/interview-sessions/${s.id}/observer/status`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(res.body.section_states.vocal.state).toBe('present');
+		expect(res.body.recruiter_notice).toEqual({ kind: 'none', copy: null });
 	});
 });
