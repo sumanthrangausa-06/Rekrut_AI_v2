@@ -153,6 +153,56 @@ describe('observerJobs', () => {
 				expect.arrayContaining([1]),
 			);
 		});
+
+		it('returns rowCount like the other guarded transitions', async () => {
+			db.query.mockResolvedValueOnce({ rowCount: 1 });
+
+			const rowCount = await observerJobs.cancel(1, 'consent_withdrawn');
+
+			expect(rowCount).toBe(1);
+		});
+
+		// #779 (F4): status guard — a late cancel racing a completed flush
+		// must not overwrite the terminal 'complete' state.
+		it('is guarded to non-terminal states only (cancel-after-complete is a no-op)', async () => {
+			db.query.mockResolvedValueOnce({ rowCount: 0 });
+
+			const rowCount = await observerJobs.cancel(1, 'consent_withdrawn');
+
+			const query = db.query.mock.calls[0][0];
+			expect(query).toMatch(
+				/status IN \('pending', 'claimed', 'observing', 'flushing'\)/,
+			);
+			expect(rowCount).toBe(0);
+		});
+	});
+
+	describe('fail', () => {
+		it('marks job failed with the error message', async () => {
+			db.query.mockResolvedValueOnce({ rowCount: 1 });
+
+			const rowCount = await observerJobs.fail(1, 'room_connect_failed:boom');
+
+			expect(db.query).toHaveBeenCalledWith(
+				expect.stringContaining("status = 'failed'"),
+				[1, 'room_connect_failed:boom'],
+			);
+			expect(rowCount).toBe(1);
+		});
+
+		// #779 (F4): status guard — a late fail racing a completed flush
+		// must not overwrite the terminal 'complete' state.
+		it('is guarded to non-terminal states only (fail-after-complete is a no-op)', async () => {
+			db.query.mockResolvedValueOnce({ rowCount: 0 });
+
+			const rowCount = await observerJobs.fail(1, 'late_error');
+
+			const query = db.query.mock.calls[0][0];
+			expect(query).toMatch(
+				/status IN \('pending', 'claimed', 'observing', 'flushing'\)/,
+			);
+			expect(rowCount).toBe(0);
+		});
 	});
 
 	describe('recoverStale', () => {
