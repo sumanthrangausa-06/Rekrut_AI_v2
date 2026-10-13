@@ -43,6 +43,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 		const client = { query: jest.fn() };
 		// DEK destroy succeeds, then embeddings DELETE.
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
 			.mockResolvedValueOnce({ rowCount: 1 }) // embeddings DELETE
 			.mockResolvedValueOnce({ rowCount: 1 }) // search-index DELETE
@@ -138,7 +139,9 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 	test('embeddings DELETE runs even when no DEK exists (independent)', async () => {
 		const client = { query: jest.fn() };
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 0 }) // destroyDEK: DEKNotFound
+			.mockResolvedValueOnce({ rowCount: 1 }) // Gate A: DEK tombstone INSERT (pre-existing chain gap, repaired #799)
 			.mockResolvedValueOnce({ rowCount: 1 }) // embeddings DELETE
 			.mockResolvedValueOnce({ rowCount: 1 }) // search-index DELETE
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
@@ -226,6 +229,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 	test('embeddingsDeleted=false when no embeddings row existed', async () => {
 		const client = { query: jest.fn() };
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
 			.mockResolvedValueOnce({ rowCount: 0 }) // embeddings DELETE: no row
 			.mockResolvedValueOnce({ rowCount: 0 }) // search-index DELETE: no row
@@ -308,6 +312,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 	test('embeddings DELETE failure propagates (caller rolls back)', async () => {
 		const client = { query: jest.fn() };
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
 			.mockRejectedValueOnce(new Error('embeddings delete failed')); // embeddings DELETE fails
 		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
@@ -320,7 +325,9 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 	test('search-index DELETE runs even when no embeddings row existed (twin-copy gap)', async () => {
 		const client = { query: jest.fn() };
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 0 }) // destroyDEK: DEKNotFound
+			.mockResolvedValueOnce({ rowCount: 1 }) // Gate A: DEK tombstone INSERT (pre-existing chain gap, repaired #799)
 			.mockResolvedValueOnce({ rowCount: 0 }) // embeddings DELETE: no row
 			.mockResolvedValueOnce({ rowCount: 1 }) // search-index DELETE
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
@@ -402,7 +409,9 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 		const db = require('../../../lib/db');
 		const client = { query: jest.fn() };
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 0 }) // DEKNotFound
+			.mockResolvedValueOnce({ rowCount: 1 }) // Gate A: DEK tombstone INSERT (pre-existing chain gap, repaired #799)
 			.mockResolvedValueOnce({ rowCount: 1 }) // embeddings DELETE
 			.mockResolvedValueOnce({ rowCount: 1 }) // search-index DELETE
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads

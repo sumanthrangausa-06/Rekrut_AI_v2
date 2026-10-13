@@ -26,7 +26,7 @@ jest.mock('../../../lib/file-storage', () => ({
 	deleteStorageObject: jest.fn(async () => ({ deleted: true })),
 	storageKeysToFileUrls: (keys) => keys.map((key) => `/api/files/${encodeURIComponent(key)}`),
 }));
-jest.mock('../../../lib/notificationScheduler', () => ({ cancelNotificationsForUser: jest.fn(async () => {}) }));
+jest.mock('../../../lib/notificationScheduler', () => ({ cancelNotificationsForUser: jest.fn(async () => {}) }), { virtual: true });
 process.env.BIOMETRIC_ENCRYPTION_KEY = process.env.BIOMETRIC_ENCRYPTION_KEY || 'c'.repeat(64);
 
 const { erasePersonalData, deleteErasedStorageFiles } = require('../../../lib/erasureService');

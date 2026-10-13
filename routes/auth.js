@@ -1815,6 +1815,17 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 
 		res.json({ success: true, message: 'Account deleted successfully.' });
 	} catch (err) {
+		// #799 (G-1): an active legal hold blocks erasure (the transaction
+		// rolled back — the account is NOT deleted and the DEK is NOT
+		// destroyed). Surface the conflict as 409, GDPR Art. 17(3)(e).
+		if (err.code === 'LEGAL_HOLD') {
+			return res.status(409).json({
+				error:
+					'Legal hold active: this account cannot be erased while it is under a legal hold ' +
+					'(GDPR Art. 17(3)(e)). Nothing was deleted.',
+				legalHold: true,
+			});
+		}
 		console.error('Delete account error:', err.message, err.code, err.stack);
 		res.status(500).json({ error: 'Failed to delete account' });
 	}

@@ -16,7 +16,7 @@ const { Readable } = require('node:stream');
 
 // ── Mock SFU ────────────────────────────────────────────────────────────────
 const mockSfu = { streamsConstructed: 0, framesDelivered: 0 };
-class FakeAudioStream {
+class mockFakeAudioStream {
 	constructor(track) { mockSfu.streamsConstructed++; this.track = track; }
 	getReader() {
 		const track = this.track;
@@ -54,11 +54,11 @@ class FakeParticipant {
 		for (const p of pubs) p.participant = this;
 	}
 }
-class FakeRoom {
+class mockFakeRoom {
 	constructor(opts) {
 		this.opts = opts; this.remoteParticipants = new Map(); this.handlers = {}; this.disconnected = false;
 		this._connectGate = new Promise((res) => { this._releaseConnect = res; });
-		FakeRoom.instances.push(this);
+		mockFakeRoom.instances.push(this);
 	}
 	async connect() { await this._connectGate; }
 	async disconnect() { this.disconnected = true; }
@@ -66,12 +66,12 @@ class FakeRoom {
 	_emitSubscribed(track, pub, participant) { for (const fn of this.handlers.trackSubscribed || []) fn(track, pub, participant); }
 	async emitPublished(pub, participant) { for (const fn of this.handlers.trackPublished || []) await fn(pub, participant); }
 }
-FakeRoom.instances = [];
+mockFakeRoom.instances = [];
 
 jest.mock('@livekit/rtc-node', () => ({
-	Room: FakeRoom,
+	Room: mockFakeRoom,
 	RoomEvent: { TrackSubscribed: 'trackSubscribed', TrackPublished: 'trackPublished' },
-	AudioStream: FakeAudioStream,
+	AudioStream: mockFakeAudioStream,
 	TrackKind: { KIND_AUDIO: 1, KIND_VIDEO: 2 },
 }));
 
@@ -86,6 +86,9 @@ function revive(st) {
 	return st;
 }
 function route(st, sql, params = []) {
+	// #799: legal-hold check (lib/legalHold.js) — this suite seeds no
+	// holds; held behaviour is covered by legal-hold.test.js.
+	if (sql.includes('FROM legal_holds')) return { rows: [], rowCount: 0 };
 	if (sql.includes('pg_advisory_xact_lock')) return { rows: [{}] };
 	if (sql.includes('INSERT INTO candidate_data_keys')) {
 		if (!st.dekRows.has(params[0])) st.dekRows.set(params[0], { dek_encrypted: params[1], destroyed_at: null });
@@ -215,7 +218,7 @@ jest.mock('../../../lib/file-storage', () => ({
 	getFile: jest.fn(async (key) => {
 		mockStorageCalls.get++;
 		if (!mockObjects.has(key)) { const e = new Error('nf'); e.code = 'NOT_FOUND'; throw e; }
-		return { stream: Readable.from([mockObjects.get(key)]) };
+		return { stream: require('node:stream').Readable.from([mockObjects.get(key)]) };
 	}),
 	deleteStorageObject: jest.fn(async (key) => { mockStorageCalls.delete++; mockObjects.delete(key); return { deleted: true }; }),
 	deleteFile: jest.fn(async () => ({ deleted: true })),
@@ -275,10 +278,10 @@ function standardParticipants({ audioFrames = [], audioDelayMs = 0 } = {}) {
 	return { candidate, interviewer, candAudio, candVideo, intAudio };
 }
 async function runJob(job, participants, pubs) {
-	const before = FakeRoom.instances.length;
+	const before = mockFakeRoom.instances.length;
 	const p = worker.processJob(job);
-	await waitFor(() => FakeRoom.instances.length > before, 3000, 'room created');
-	const room = FakeRoom.instances[FakeRoom.instances.length - 1];
+	await waitFor(() => mockFakeRoom.instances.length > before, 3000, 'room created');
+	const room = mockFakeRoom.instances[mockFakeRoom.instances.length - 1];
 	for (const part of participants) room.remoteParticipants.set(part.identity, part);
 	for (const pub of pubs) pub.room = room;
 	room._releaseConnect();
@@ -303,7 +306,7 @@ beforeEach(() => {
 	mockStorageCalls.put = 0; mockStorageCalls.get = 0; mockStorageCalls.delete = 0;
 	mockSfu.streamsConstructed = 0; mockSfu.framesDelivered = 0;
 	mockJobCalls.cancel = []; mockJobCalls.flush = 0;
-	FakeRoom.instances = [];
+	mockFakeRoom.instances = [];
 	delete process.env.OBSERVER_AUDIO_CAPTURE_ENABLED;
 });
 
@@ -442,7 +445,7 @@ describe('CAPTURING (test scope)', () => {
 		await sleep(200);
 		expect(candPub.setSubscribedCalls).toContain(true);
 		mockState.sessions.get(114).status = 'completed';
-		await waitFor(() => mockState.outcomes.has(114), 'session_end outcome');
+		await waitFor(() => mockState.outcomes.has(114), 20000, 'session_end outcome');
 	});
 
 	test('T13: a second candidate identity publishing mid-capture ⇒ role_flip teardown', async () => {

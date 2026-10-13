@@ -29,6 +29,9 @@ function revive(st) {
 
 function route(st, sql, params = []) {
 	if (sql.includes('pg_advisory_xact_lock')) return { rows: [{}], rowCount: 1 };
+	// #799: legal-hold check (lib/legalHold.js) — this suite seeds no
+	// holds; held behaviour is covered by legal-hold.test.js.
+	if (sql.includes('FROM legal_holds')) return { rows: [], rowCount: 0 };
 	if (sql.includes('INSERT INTO candidate_data_keys')) {
 		if (!st.dekRows.has(params[0])) st.dekRows.set(params[0], { dek_encrypted: params[1], destroyed_at: null });
 		return { rows: [], rowCount: 1 };
@@ -149,6 +152,14 @@ function route(st, sql, params = []) {
 	if (sql.includes('DELETE FROM observer_capture_outcomes WHERE interview_session_id')) {
 		return { rows: [], rowCount: st.outcomes.delete(params[0]) ? 1 : 0 };
 	}
+	if (sql.includes('UPDATE recording_objects SET deleted_at') && sql.includes('WHERE object_key')) {
+		// purgeTestObserverAudio stamps the registry row by key (fake gap
+		// repaired #799 — the branch was missing, so the live purge test
+		// could never complete a cold run).
+		const row = st.recordingObjects.get(params[0]);
+		if (row) row.deleted_at = new Date();
+		return { rows: [], rowCount: row ? 1 : 0 };
+	}
 	throw new Error('unstubbed SQL: ' + sql.slice(0, 80));
 }
 
@@ -191,7 +202,7 @@ jest.mock('../../../lib/file-storage', () => ({
 	}),
 	getFile: jest.fn(async (key) => {
 		if (!mockObjects.has(key)) { const e = new Error('nf'); e.code = 'NOT_FOUND'; throw e; }
-		return { stream: Readable.from([mockObjects.get(key)]) };
+		return { stream: require('node:stream').Readable.from([mockObjects.get(key)]) };
 	}),
 	deleteStorageObject: jest.fn(async (key) => {
 		if (mockFaults.deleteThrows) throw new Error('storage unreachable');

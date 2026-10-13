@@ -49,6 +49,7 @@ function mockPhase1(overrides = {}) {
 	const client = { query: jest.fn() };
 	const q = (rows = [], rowCount = 0) => ({ rows, rowCount });
 	client.query
+		.mockResolvedValueOnce(q([], 0)) // #799: legal-hold check (no hold)
 		.mockResolvedValueOnce(q([], 1)) // destroyDEK UPDATE
 		.mockResolvedValueOnce(q([], 1)) // embeddings DELETE
 		.mockResolvedValueOnce(q([], 1)) // search-index DELETE
@@ -191,6 +192,7 @@ describe('S-076 deleteErasedStorageFiles — Phase 2 (ledger-driven)', () => {
 			.mockResolvedValueOnce({
 				rows: [{ id: 1, file_url: '/api/files/r2/cv/a.pdf', storage_type: 'r2' }],
 			}) // SELECT pending
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 1 }); // UPDATE status
 		fileStorage.deleteFile.mockResolvedValue({ deleted: true });
 		biometricAudit.logAccess.mockResolvedValue({ id: 1 });
@@ -215,6 +217,7 @@ describe('S-076 deleteErasedStorageFiles — Phase 2 (ledger-driven)', () => {
 			.mockResolvedValueOnce({
 				rows: [{ id: 2, file_url: 'ab/cd1234.enc', storage_type: 'local' }],
 			})
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 1 });
 		biometricAudit.logAccess.mockResolvedValue({ id: 1 });
 
@@ -230,7 +233,7 @@ describe('S-076 deleteErasedStorageFiles — Phase 2 (ledger-driven)', () => {
 
 		const result = await erasureService.deleteErasedStorageFiles(7, {});
 
-		expect(result).toEqual({ deleted: 0, failed: 0, failures: [] });
+		expect(result).toEqual({ deleted: 0, failed: 0, failures: [], heldSkips: 0 });
 		expect(fileStorage.deleteFile).not.toHaveBeenCalled();
 	});
 
@@ -240,6 +243,7 @@ describe('S-076 deleteErasedStorageFiles — Phase 2 (ledger-driven)', () => {
 			.mockResolvedValueOnce({
 				rows: [{ id: 3, file_url: '/api/files/r2/cv/dead.pdf', storage_type: 'r2' }],
 			})
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 1 }); // UPDATE status=failed
 		fileStorage.deleteFile.mockRejectedValue(new Error('storage down'));
 		biometricAudit.logAccess.mockResolvedValue({ id: 1 });
