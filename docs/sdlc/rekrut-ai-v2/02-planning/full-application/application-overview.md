@@ -25,7 +25,7 @@ Rekrut AI is a two-sided hiring platform (candidates free; employers/recruiters 
 | M9 | AI Interview & Screening | Works; analysis hand-rolled inline per feature |
 | M10 | Human Interviews, Panels & Recordings | Works (presence path); two parallel scorecard systems |
 | M11 | AI Observer & Integrity | Presence-only works; capture built DORMANT; analysis chain spec-only (Gate A) |
-| M12 | Scoring — OmniScore, Fit, Trust | Two verified defects against rulings (#791 practice-in, #793 eval pipe) |
+| M12 | Scoring — OmniScore (two-sided), Fit, Trust | Documented model is two-sided + per-pairing; code = one global candidate score on wrong inputs (#791/#793) + fragments (role_scores, TrustScore, mutual fit) |
 | M13 | Assessments & Coding | Built; Feb-2026 breakage cluster partially stale — verification debt |
 | M14 | Verification & Background Checks | Built; erasure-wired |
 | M15 | Threat-Intel | ABSENT — zero code; spec + dark-chassis stories only |
@@ -43,7 +43,7 @@ Per-module detail, journeys, requirements, and decisions: `prds/`.
 ## 3. Cross-module flows
 
 ### 3.1 Candidate journey (end-to-end)
-Register (M1, email/OAuth — job-seekers only for OAuth) → profile + documents, encrypted at rest (M4) → discover jobs (M3) / get matched & alerted (M7) → apply (M4 writes → M6 pipeline; **three separate INSERT paths exist**, M6) → assessments (M13) → AI screening / mock practice (M9) → human interview with panels (M8/M10, Observer presence per M11 consent) → score surfaces (M12) → offer & post-hire (M17, scope-undecided) — with consent receipts, DSAR and erasure spanning every step (M19), notifications throughout (M18), and optional career-coach tools alongside (M5). Practice (M9) currently feeds the score (M12) **against** the 2026-10-12 ruling — the single most visible code-vs-decision gap in the product (ADR-R1).
+Register (M1, email/OAuth — job-seekers only for OAuth) → profile + documents, encrypted at rest (M4) → discover jobs (M3) / get matched & alerted (M7) → apply (M4 writes → M6 pipeline; **three separate INSERT paths exist**, M6) → assessments (M13) → AI screening / mock practice (M9) → human interview with panels (M8/M10, Observer presence per M11 consent) → score surfaces (M12 — two-sided by design: the candidate sees their own OmniScore and, on company/job surfaces, the **company's OmniScore** as a trust signal, plus per-pairing mutual fit) → offer & post-hire (M17, scope-undecided) — with consent receipts, DSAR and erasure spanning every step (M19), notifications throughout (M18), and optional career-coach tools alongside (M5). Practice (M9) currently feeds the score (M12) **against** the 2026-10-12 ruling — the single most visible code-vs-decision gap in the product (ADR-R1).
 
 ### 3.2 Recruiter journey (end-to-end)
 Register + company creation with domain enforcement (M1/M2) → invite team (M2) → post jobs (M3) → pipeline & screening sends (M6) → candidate search/preview/invite (M7) → schedule + run interviews, panels score with submit-and-lock (M8/M10) → read reports incl. Observer sections in honest states (M10/M11 via S-039 renderer) → analytics (M21) → billing (M16). The journey **works today except where M6's proven authorisation holes sit inside it** — cross-company mutation (#822) is a recruiter-journey defect, not an edge case.
@@ -65,6 +65,7 @@ Create: forms/uploads across M3/M4/M6/M9/M10/M14/M17. Store: Postgres (~230 tabl
 | R8 | PRD promised Observer analysis; Gate A deferred it | **Decided** (Gate A amended) — closing in writing via Aria's PRD amendment (PR #816, at Sumanth's gate); M11 PRD encodes the amended scope; #777 owns the public-page promise |
 | R9 | Post-Hire exists in code; no launch ruling scopes it (~4,000+ lines) | **Open decision — forced by this set** — M17 PRD boxes in / defer / out with consequences of each |
 | R10 | Test data: "remove before launch" AND "needed until launch" | **Decided as pre-launch track** — #151/#336/#721 reconcile on the pre-launch checklist (M20 PRD + release requirements); no early deletion |
+| R11 | OmniScore is two-sided + per-pairing (documented design: candidate score with role/company-specific context + company score + mutual fit) vs code computes one global candidate score, with the pairing pieces as disconnected fragments (role_scores unconnected, company score under a separate "TrustScore" name, global-not-per-role percentile) | **Open decisions** — Sumanth confirmed the two-sided per-pairing definition 2026-10-13; naming (D-M12-3) and the completion scope (D-M12-4) are boxed in PRD-M12; #791/#792/#793 fix the candidate composite's inputs only and do **not** cover the pairing remainder |
 
 ## 5. Cross-cutting findings (load-bearing for Lead's planning)
 

@@ -18,6 +18,7 @@ For January: analytics correctness on top of the Sprint 11 spine (stats computed
 - FR-M21-1: Every displayed aggregate traces to a defined population (the #405 lesson); analytics queries are company-scoped under the object-authorisation convention — a recruiter's analytics can never include another company's rows.
 - FR-M21-2: No integrity metric, trend, or dashboard ships before the M11 measurement it summarises exists and is validated (slice-by-slice rule) — an empty integrity page is preferable to a fabricated one, and no page is preferable to an empty one at launch.
 - FR-M21-3: Candidate-facing analytics (if any) show the candidate only their own data, consistent with the M12 panel's candidate-sees-what-recruiter-sees symmetry where the ruling requires it.
+- FR-M21-4 (two-sided): analytics is two-sided like the scores it reports (PRD-M12): company-side reporting (trust-score distribution, component trends, hiring-ratio health) is a first-class analytics citizen alongside candidate/pipeline reporting, company-scoped so a company sees its own trend and platform aggregates — never another company's identified components. Candidate-rating inputs (the company score's Feedback component) are reported only in aggregate (M12's anonymity requirement).
 
 ## 6. Non-functional
 - Performance: materialized views + cache are the pattern; new aggregates follow it rather than scanning hot tables per request.

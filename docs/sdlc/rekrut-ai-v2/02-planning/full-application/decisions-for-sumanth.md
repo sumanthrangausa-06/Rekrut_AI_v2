@@ -20,6 +20,11 @@ Every question the documentation + PRD set needs answered, consolidated. Each ca
 | D-M10-1 | **Scorecard split-brain end-state** — panels vs migration-125 tables; who owns reconciliation | **Panels canonical**; 125 deprecated in writing now, dropped post-launch (Sage); S-093 stays gate+resolver; Lead files the follow-up | PRD-M10 |
 | D-M11-1 | **Toggle split (#334)** — Phase 2 decided separate Record/Observer toggles; code ships one | **Formally revoke the split for launch**; single toggle + consent gate stands | PRD-M11 |
 | D-M12-1 | Trust-score duplication (#175) — delete `trustscore-standalone.js`? | **Delete after a one-pass caller check** | PRD-M12 |
+| D-M12-3 | **OmniScore naming** — docs/code call the company side "TrustScore"; Sumanth's definition (2026-10-13) names **both** sides OmniScore. Unify the brand, or keep TrustScore as the company side's name? | **Unify as OmniScore** (candidate / company), "trust" kept as the company score's descriptor | PRD-M12 §11 |
+| D-M12-4 | **Two-sided completion scope** — documented per-pairing intent (company-specific candidate scores, role-connected composite, per-role peer percentile) is fragmentary in code and NOT covered by #791/#792/#793. In as a workstream / defer as named post-launch scope / drop? | **Defer as named, decided post-launch scope** — recorded as committed direction, not rushed into the launch window | PRD-M12 §4, §11 |
+| D-M12-5 | Peer-percentile cohort — global today, design says per-role | **Fold into D-M12-4** (no separate half-decision) | PRD-M12 §11 |
+| D-M06-2 | Candidate sees mutual fit / company score **on their application view** per application? (docs silent) | **Show it, once #791/#793 correct the inputs** | PRD-M06 |
+| D-M07-1 | Company OmniScore in candidate-facing **ranking**, or display-only? (docs silent) | **Display-only at launch** (badges/company page), no ranking weight until the Feedback input's data supply is verified | PRD-M07 |
 | D-M04-1 | `candidate.js` god-file extraction — schedule post-launch (Sage) or leave indefinitely? | **Post-launch, Sage-led**, after Applications stabilises | PRD-M04 |
 
 ## C. Risk & gate decisions (what protects the launch)

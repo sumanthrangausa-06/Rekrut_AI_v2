@@ -25,6 +25,7 @@ The Sprint 11 spine: P0 trio fixes, legal hold (#799) merged and verified at eve
 - FR-M06-3: `recruiter_notes` and equivalent internal fields are never serialised to candidates or to out-of-company recruiters (extends the S-087 payload-minimisation pattern to application payloads).
 - FR-M06-4: Erasure covers the full application family (job_applications + the #813/#829 tables) inside the transaction, with storage objects queued via the migration-252 ledger — gated on #799's hold check at every purge site.
 - FR-M06-5: One creation path for applications (funnel consolidation per #823), with `applied_via` values validated against the CHECK constraint before insert (with M22, #824).
+- FR-M06-6 (two-sided scores in pipeline context): an application is a candidate–company pairing, and the scores displayed on it obey the M12 visibility model — the recruiter sees the candidate's OmniScore and interview-specific scores for *this* application; the candidate never sees interview-specific scores or deltas. The company's own OmniScore (TrustScore) is candidate-facing on company/job surfaces per its documented candidate-protection purpose (PRD-M12 §2); pipeline surfaces must not accidentally expose it to the *recruiting* side as a weaponised metric against their own company, nor hide from a candidate what the public company surface shows.
 
 ## 6. Non-functional
 - Security: this module is the authorisation convention's reference implementation (API-design lens); new endpoints must name their object check in review.
@@ -42,3 +43,4 @@ Whether sibling routers repeat the auth-only pattern beyond the three proven + t
 
 ## 10. ▣ DECISIONS FOR SUMANTH
 - **D-M06-1:** None new — the Sprint 11 spine decisions are already made (approved 2026-10-13, P0 trio admitted to the committed set on your call at sprint review). Post-spine convention adoption (FR-M06-2 remainder) is Lead's sequencing, not a new ruling.
+- **D-M06-2 (two-sided silence):** the docs define a candidate-facing *mutual fit* per pairing (PRD-M12 §2) but do not state whether a candidate sees mutual fit / the company's score **on their own application view** (per application), or only on company/job surfaces. **Rex's recommendation: show it on the application view too, once #791/#793 have corrected the inputs** — a candidate deciding whether to proceed deserves the pairing number where the decision happens; showing it only on marketing surfaces makes it a lure, not a tool.
