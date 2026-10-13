@@ -1009,7 +1009,7 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 				skillName,
 				score: assessment.score || session.score || 0,
 				passed: assessment.passed || false,
-				antiCheatScore: assessment.anti_cheat_score || 100,
+				antiCheatScore: assessment.anti_cheat_score ?? null,
 				durationSeconds: assessment.duration_seconds || 0,
 				maxDifficultyReached: session.max_difficulty_reached || 0,
 			});
