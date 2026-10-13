@@ -27,6 +27,7 @@ import {
 	INSUFFICIENT_DATA_COPY,
 	NO_INTEGRITY_EVENTS_COPY,
 	ObserverAnalysis,
+	TRANSCRIPT_AVAILABLE_COPY,
 } from '@/components/domain/ObserverAnalysis';
 
 // Canonical recruiter-neutral sentence (lib/observerReportStates.js) —
@@ -53,6 +54,42 @@ const presentReport = {
 		info_count: 999,
 	},
 };
+
+describe('ObserverAnalysis — S-039 copy polish (#796, adopted CE subset)', () => {
+	it('client-only copy constants carry the adopted wording (literal pins)', () => {
+		expect(INSUFFICIENT_DATA_COPY).toBe('Insufficient data to report this section.');
+		expect(TRANSCRIPT_AVAILABLE_COPY).toBe(
+			'A transcript of the interview conversation is available.',
+		);
+	});
+
+	it('section titles render as Voice observations / Video observations / Integrity events', () => {
+		render(<ObserverAnalysis sectionStates={null} report={presentReport} />);
+		expect(screen.getByTestId('observer-section-vocal').textContent).toContain(
+			'Voice observations',
+		);
+		expect(screen.getByTestId('observer-section-visual').textContent).toContain(
+			'Video observations',
+		);
+		expect(screen.getByTestId('observer-section-integrity').textContent).toContain(
+			'Integrity events',
+		);
+	});
+
+	it('transcript affordance renders the adopted availability sentence', () => {
+		const withTranscript = {
+			...presentReport,
+			analysis: {
+				...presentReport.analysis,
+				conversation: { state: 'present', transcript_available: true },
+			},
+		};
+		render(<ObserverAnalysis sectionStates={null} report={withTranscript} />);
+		expect(screen.getByTestId('observer-transcript-affordance').textContent).toContain(
+			'A transcript of the interview conversation is available.',
+		);
+	});
+});
 
 describe('ObserverAnalysis — §4 projection contract', () => {
 	it('branches on state: present renders its metrics, missing renders Insufficient data with no digits', () => {
