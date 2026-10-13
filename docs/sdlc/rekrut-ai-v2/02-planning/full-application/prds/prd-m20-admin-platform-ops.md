@@ -12,7 +12,7 @@ Admin logs in (separate admin login, M1) → console pages call admin routes →
 Console exists and mostly works. Open items: **#254** (admin endpoint path mismatches — pages calling paths that don't resolve as expected), **MFA absent** for admin accounts (#660/S-055), and the P0 #336 residue: the self-registration mint path was closed in code 2026-10-06 (`f1bca66d`); the remaining exposure is two QA test-admin accounts (205/206) in the shared production DB — cleanup **deferred to pre-launch by Sumanth's ruling**.
 
 ## 4. Gap to launch-ready
-#254 disposition (per-item verify-then-fix, Feb-cluster discipline); the MFA decision (below); the pre-launch cleanup execution (#336 accounts + #151 test-data purge + #721 R2 plaintext run — one reconciled pre-launch checklist, executed from a networked environment, with the #721 JSON report saved as BIPA §15(a) evidence).
+#254 disposition (per-item verify-then-fix, Feb-cluster discipline); the MFA ruling (below — agreed, deferred by Sumanth); the pre-launch cleanup execution (#336 accounts + #151 test-data purge + #721 R2 plaintext run — one reconciled pre-launch checklist, executed from a networked environment, with the #721 JSON report saved as BIPA §15(a) evidence).
 
 ## 5. Functional requirements
 - FR-M20-1: Admin surfaces are platform-admin-only, enforced server-side per route (the M6 lesson: auth-only is not authorisation — the `/audit/export` sibling found in #821's family is this module's own instance and closes under M6's convention work).
@@ -34,5 +34,5 @@ None filed; the promotion track (D2) is Relay-owned post-sprint and consumes FR-
 #254's true live item count; public-API usage (any live keys/consumers?); admin page-by-page health on staging.
 
 ## 10. ▣ DECISIONS FOR SUMANTH
-- **D-M20-1: admin MFA (#660/S-055) — required before launch, or accepted risk?**
-  **Rex's recommendation: required before launch.** Admin access reaches the production database's entire contents through a shared-DB architecture; a single phished password is the whole company. TOTP-based MFA on admin login only is a small, bounded build — the cheapest catastrophic-risk reduction left on the board.
+- **D-M20-1: admin MFA (#660/S-055) — ✅ RULED by Sumanth 2026-10-13: agreed, to be integrated, deferred to later — "not the priority now."** This is his explicit scheduling call, against both Rex's recommendation below and the panel's hard-blocker hardening; the panel's warning (a single phished admin password reaches the entire shared production DB; no recovery story in January) stands on the record alongside the ruling. Integration needs almost nothing from Sumanth: TOTP via authenticator app ($0, no vendor); when scheduled, he enrolls his own admin account and approves which roles it covers first.
+  **Rex's recommendation (required before launch) is recorded as NOT ADOPTED on timing.**

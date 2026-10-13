@@ -10,15 +10,15 @@ Money: plans, checkout, subscription state, and (designed, unbuilt) usage meteri
 Pricing page → Stripe checkout (hand-rolled `stripePost`, `routes/billing.js:77`) → webhook (raw mount, `server.js:472`) → subscription tier applied → gated features obey tier. Candidate Pro follows the same spine.
 
 ## 3. Current state (verified)
-Checkout + webhook + tier matrix exist and are wired. **Metering does not exist** — S-050/S-051/S-052 (#698/#699/#700) are open stories presupposing the pricing decision. Risks on record: **#98 staging is wired to LIVE Stripe keys**; #6 (P0) Stripe live-mode validation; #193 E2E payment flow failing.
+Checkout + webhook + tier matrix exist and are wired. **Metering does not exist** — S-050/S-051/S-052 (#698/#699/#700) are open stories presupposing the pricing decision. Risks on record: #6 (P0) Stripe live-mode validation; #193 E2E payment flow failing; and #98 — **corrected 2026-10-13:** staging's Stripe secret is **TEST class today** (verified via Render API, class-only). #98's live claim was true on 2026-08-08 (`cs_live_` evidence), but the test keys Sumanth provided were applied Oct 3 and Oct 7, 2026, and the issue was never closed; its remaining scope is **behavioural verification only** (a staging checkout proving a `cs_test_` session + test card end-to-end; the publishable key's class, which lives in code/config). Separately: **production's Stripe secret is also TEST class** — production cannot take real payments as configured; live keys are required at launch (#837).
 
 ## 4. Gap to launch-ready
-(1) The pricing decision (below) — metering cannot be built sanely before it. (2) #98's staging-on-live-keys must be resolved before any staging payment test (test-mode keys on staging; live keys only on prod, verified by config read at promotion). (3) #6/#193 validation of the real checkout→webhook→tier path on staging (test mode) as launch evidence.
+(1) The pricing decision (below) — metering cannot be built sanely before it. (2) #98's remaining behavioural verification (test-mode checkout on staging, publishable-key class) before staging payment tests count as evidence — and production's live keys at launch (#837, provided by Sumanth via the Secure Vault flow), with a keys-mode verification line at promotion (Relay owns). (3) #6/#193 validation of the real checkout→webhook→tier path on staging (test mode) as launch evidence.
 
 ## 5. Functional requirements
 - FR-M16-1: Metering (when built per the ruled model) counts the ruled unit (interview / seat / hire) at the source of truth — the session/application record — never by client-side counters; the meter is auditable per company per period.
 - FR-M16-2: Webhook handling is idempotent and signature-verified; tier changes apply only from verified webhook events or the Stripe dashboard state, never from client success-page claims.
-- FR-M16-3: Staging runs Stripe **test mode only** (closes #98's risk); promotion checklist includes a keys-mode verification line (Relay owns).
+- FR-M16-3: Staging runs Stripe **test mode only** (secret verified TEST class 2026-10-13 — #98's configuration risk is closed; behavioural checkout verification remains); promotion checklist includes a keys-mode verification line (Relay owns), and production receives LIVE keys only at launch (#837).
 - FR-M16-4: Candidate Free/Pro and employer plans share one subscription model (`lib/subscription.js` matrix) — no parallel tier logic in routes.
 
 ## 6. Non-functional
@@ -26,7 +26,7 @@ Checkout + webhook + tier matrix exist and are wired. **Metering does not exist*
 - Finance hygiene (Ledger's gates from the memo): never price below the per-interview cost floor; COGS must be measured before any public price is published.
 
 ## 7. Dependencies (verified states)
-Stripe account/keys (exist; mode risk #98) · M2 company identity (exists) · Atlas evidence gates (discovery calls + paid pilots — the pricing decision's evidence input, business track, no issue filed — Scout §3.4 gap 4).
+Stripe account/keys (exist; staging secret TEST class verified 2026-10-13; production secret also TEST class — live keys at launch, #837) · M2 company identity (exists) · Atlas evidence gates (discovery calls + paid pilots — the pricing decision's evidence input, business track, no issue filed — Scout §3.4 gap 4).
 
 ## 8. Sprint 11 overlap
 None.

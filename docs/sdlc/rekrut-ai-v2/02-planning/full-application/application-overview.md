@@ -23,14 +23,14 @@ Rekrut AI is a two-sided hiring platform (candidates free; employers/recruiters 
 | M7 | Matching & Discovery | Works; open P1 bug cluster (#405/#414/#416) |
 | M8 | Interviews — Session Engine | Works; the unified core |
 | M9 | AI Interview & Screening | Works; analysis hand-rolled inline per feature |
-| M10 | Human Interviews, Panels & Recordings | Works (presence path); two parallel scorecard systems |
+| M10 | Human Interviews, Panels & Recordings | Works (presence path); ONE scorecard system (panels serves the migration-125 tables); report doesn't consume it yet — S-093 |
 | M11 | AI Observer & Integrity | Presence-only works; capture built DORMANT; analysis chain spec-only (Gate A) |
 | M12 | Scoring — OmniScore (two-sided), Fit, Trust | Documented model is two-sided + per-pairing; code = one global candidate score on wrong inputs (#791/#793) + fragments (role_scores, TrustScore, mutual fit) |
 | M13 | Assessments & Coding | Built; Feb-2026 breakage cluster partially stale — verification debt |
 | M14 | Verification & Background Checks | Built; erasure-wired |
 | M15 | Threat-Intel | ABSENT — zero code; spec + dark-chassis stories only |
 | M16 | Billing & Subscriptions | Checkout wired; metering absent; pricing undecided |
-| M17 | Post-Hire (Offers/Onboarding/Payroll/E-Sign) | Built and wired; **never ruled in or out of launch scope** |
+| M17 | Post-Hire (Offers/Onboarding/Payroll/E-Sign) | Built and wired; **ruled 2026-10-13: stays in product — unfinished parts shown as "releasing soon"** |
 | M18 | Notifications, Email & Comms | Works; staging email behaviourally unverified |
 | M19 | Consent, Privacy & Compliance | Strongest module; purge cannot arm (#805) + Applications erasure gap (#780) |
 | M20 | Admin & Platform Ops | Console exists; path mismatches open; MFA absent (#660) |
@@ -43,7 +43,7 @@ Per-module detail, journeys, requirements, and decisions: `prds/`.
 ## 3. Cross-module flows
 
 ### 3.1 Candidate journey (end-to-end)
-Register (M1, email/OAuth — job-seekers only for OAuth) → profile + documents, encrypted at rest (M4) → discover jobs (M3) / get matched & alerted (M7) → apply (M4 writes → M6 pipeline; **three separate INSERT paths exist**, M6) → assessments (M13) → AI screening / mock practice (M9) → human interview with panels (M8/M10, Observer presence per M11 consent) → score surfaces (M12 — two-sided by design: the candidate sees their own OmniScore and, on company/job surfaces, the **company's OmniScore** as a trust signal, plus per-pairing mutual fit) → offer & post-hire (M17, scope-undecided) — with consent receipts, DSAR and erasure spanning every step (M19), notifications throughout (M18), and optional career-coach tools alongside (M5). Practice (M9) currently feeds the score (M12) **against** the 2026-10-12 ruling — the single most visible code-vs-decision gap in the product (ADR-R1).
+Register (M1, email/OAuth — job-seekers only for OAuth) → profile + documents, encrypted at rest (M4) → discover jobs (M3) / get matched & alerted (M7) → apply (M4 writes → M6 pipeline; **three separate INSERT paths exist**, M6) → assessments (M13) → AI screening / mock practice (M9) → human interview with panels (M8/M10, Observer presence per M11 consent) → score surfaces (M12 — two-sided by design: the candidate sees their own OmniScore and, on company/job surfaces, the company's **Trust Score** as a trust signal, plus per-pairing mutual fit) → offer & post-hire (M17 — ruled in-product 2026-10-13; unfinished parts surface as "releasing soon") — with consent receipts, DSAR and erasure spanning every step (M19), notifications throughout (M18), and optional career-coach tools alongside (M5). Practice (M9) currently feeds the score (M12) **against** the 2026-10-12 ruling — the single most visible code-vs-decision gap in the product (ADR-R1).
 
 ### 3.2 Recruiter journey (end-to-end)
 Register + company creation with domain enforcement (M1/M2) → invite team (M2) → post jobs (M3) → pipeline & screening sends (M6) → candidate search/preview/invite (M7) → schedule + run interviews, panels score with submit-and-lock (M8/M10) → read reports incl. Observer sections in honest states (M10/M11 via S-039 renderer) → analytics (M21) → billing (M16). The journey **works today except where M6's proven authorisation holes sit inside it** — cross-company mutation (#822) is a recruiter-journey defect, not an edge case.
@@ -58,14 +58,14 @@ Create: forms/uploads across M3/M4/M6/M9/M10/M14/M17. Store: Postgres (~230 tabl
 | R1 | Practice feeds OmniScore vs ruled OUT (2026-10-12) | **Decided** (Sumanth) — requirement in M12 PRD (#791/#792); code gap tracked there |
 | R2 | Evaluation pipe reads a table the engine never reads (#793) | **Decided as defect** — fix requirement in M12 PRD; sequencing is Lead's (Sprint 11 D1 placed it inside Sprint 11) |
 | R3 | Retention purge can never arm (`NODE_ENV` gate, #805) | **Requirement** in M19 PRD (DB-identity check replaces env gate, per Rex's S-077 follow-up); the `RETENTION_PURGE_LIVE` flip stays Sumanth's separate decision |
-| R4 | Two scorecard systems; panel premise corrected (panels had submit-and-lock all along) | **Open ownership question** — M10 PRD boxes it; S-093 (#810) owns the AI-gate + resolver layer in Sprint 11 sequencing |
+| R4 | Scorecard "two systems" premise | **Resolved 2026-10-13 — premise falsified on verification:** ONE system (panels serves the migration-125 tables, submit-and-lock included); nothing to deprecate. The real gap is report consumption — S-093 (#810), re-scoped at STOP 1 (M10 PRD) |
 | R5 | `employer` role with no RBAC entry; recruiter holds owner powers (#766) | **Open decision** — M2 PRD boxes Rex's 2026-10-11 recommendations for Sumanth's ruling |
 | R6 | Phase-2 decision: separate Record / Observer toggles (#334) vs shipped single `observer_enabled` | **Open decision** — M11 PRD boxes it (implement the split, or formally revoke #334) |
 | R7 | Staging = production DB + migrations at boot | **Decided** (2026-10-13, Sprint 11 D2): promotion is a gated production event — frozen `dev`, Relay checklist, Sumanth's gate; carried as an M20/release requirement |
 | R8 | PRD promised Observer analysis; Gate A deferred it | **Decided** (Gate A amended) — closing in writing via Aria's PRD amendment (PR #816, at Sumanth's gate); M11 PRD encodes the amended scope; #777 owns the public-page promise. **Further amended 2026-10-13:** Sumanth adopted the tiered Observer model (Tier 3 consented assessment / Tier 1+2 no-media presence + combined human feedback / Tier 0 human-only) — the S-046 position is amended for Tier 1 presence only; analysis/capture stay default-deny under the re-entry contract; counsel C-04/C-05 open (PRD-M11 §8) |
-| R9 | Post-Hire exists in code; no launch ruling scopes it (~4,000+ lines) | **Open decision — forced by this set** — M17 PRD boxes in / defer / out with consequences of each |
+| R9 | Post-Hire exists in code; no launch ruling scopes it (~4,000+ lines) | **Ruled by Sumanth 2026-10-13** — stays in the product, work continues; unfinished parts shown as "releasing soon" (not defer-and-hide); the panel's data-inventory-first amendment applies (M17 PRD) |
 | R10 | Test data: "remove before launch" AND "needed until launch" | **Decided as pre-launch track** — #151/#336/#721 reconcile on the pre-launch checklist (M20 PRD + release requirements); no early deletion |
-| R11 | OmniScore is two-sided + per-pairing (documented design: candidate score with role/company-specific context + company score + mutual fit) vs code computes one global candidate score, with the pairing pieces as disconnected fragments (role_scores unconnected, company score under a separate "TrustScore" name, global-not-per-role percentile) | **Open decisions** — Sumanth confirmed the two-sided per-pairing definition 2026-10-13; naming (D-M12-3) and the completion scope (D-M12-4) are boxed in PRD-M12; #791/#792/#793 fix the candidate composite's inputs only and do **not** cover the pairing remainder |
+| R11 | OmniScore is two-sided + per-pairing (documented design: candidate score with role/company-specific context + company score + mutual fit) vs code computes one global candidate score, with the pairing pieces as disconnected fragments (role_scores unconnected, company Trust Score disconnected from the composite, global-not-per-role percentile) | **Naming RULED 2026-10-13** — candidate score = OmniScore, company/recruiter score = Trust Score; unification rejected (D-M12-3). The completion scope (D-M12-4) remains an **open decision** boxed in PRD-M12; #791/#792/#793 fix the candidate composite's inputs only and do **not** cover the pairing remainder |
 
 ## 5. Cross-cutting findings (load-bearing for Lead's planning)
 
