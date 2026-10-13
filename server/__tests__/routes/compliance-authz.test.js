@@ -17,12 +17,20 @@
  * - Audience shaping: a candidate-self caller never receives
  *   decision.recruiter_notes (S-087 toCandidateSafeReport precedent —
  *   shape at the route boundary); recruiter-of-record / admin keep the
- *   full record unchanged.
+ *   full record unchanged. Fix round (privacy F1 / security F-3, Lead's
+ *   ruling): shaping keys on the authorisation identity
+ *   (`isCandidateSelf && !isAdmin`), not on `role === 'candidate'` — a
+ *   self-applicant whose account role is no longer `candidate` is still
+ *   the candidate audience; an admin (even if self) keeps the full record.
  * - GET /explain/omniscore/:userId — user-record shape, so the file's own
  *   canAccessUserRecord (self-or-admin) governs, extended only for hiring
  *   roles with a job_applications linkage to the caller's company.
  * - GET /explain/job/:jobId/candidate/:candidateId — candidate-self, admin,
  *   or a hiring role whose company owns the job; foreign jobs 404.
+ *   Fix round (security F-1, Lead ruling option (a)): hiring roles must
+ *   additionally have a job_applications candidate×company linkage —
+ *   owning a job alone no longer suffices for an unlinked candidate;
+ *   the denial is the endpoint's existing non-subject-candidate 403.
  * - GET /audit/logs + POST /audit/export — admin-only (Lead's ruling:
  *   audit_logs has no company_id, so company-scoping is not implementable;
  *   the company-scoped regulator export already exists at
@@ -120,9 +128,15 @@ const COMPANY_B = 6;
 
 // application 100: candidate A applied to a company-A job (job 50).
 // application 101: candidate B applied to a company-A job (job 50).
+// application 102: the admin user (id 1) is the applicant (admin-even-if-self).
+// application 103: user 23 is the applicant — their account role is now
+// `recruiter` (converted account), so they are authorised as candidate-self
+// by identity, not by role.
 const applications = new Map([
 	[100, { id: 100, candidate_id: 21, company_id: COMPANY_A, job_id: 50 }],
 	[101, { id: 101, candidate_id: 22, company_id: COMPANY_A, job_id: 50 }],
+	[102, { id: 102, candidate_id: 1, company_id: COMPANY_A, job_id: 50 }],
+	[103, { id: 103, candidate_id: 23, company_id: COMPANY_A, job_id: 50 }],
 ]);
 const jobs = new Map([[50, { id: 50, company_id: COMPANY_A }]]);
 
@@ -174,6 +188,26 @@ const EMPLOYER_A = { id: 12, email: 'ea@test.com', role: 'employer', company_id:
 const EMPLOYER_B = { id: 13, email: 'eb@test.com', role: 'employer', company_id: COMPANY_B };
 const CANDIDATE_A = { id: 21, email: 'ca@test.com', role: 'candidate', company_id: null };
 const CANDIDATE_B = { id: 22, email: 'cb@test.com', role: 'candidate', company_id: null };
+const HIRING_MANAGER_A = {
+	id: 14,
+	email: 'hma@test.com',
+	role: 'hiring_manager',
+	company_id: COMPANY_A,
+};
+const HIRING_MANAGER_B = {
+	id: 15,
+	email: 'hmb@test.com',
+	role: 'hiring_manager',
+	company_id: COMPANY_B,
+};
+// Converted account: applied as a candidate (application 103), account
+// role is now `recruiter` at a different company — self by identity only.
+const CONVERTED_RECRUITER = {
+	id: 23,
+	email: 'conv@test.com',
+	role: 'recruiter',
+	company_id: COMPANY_B,
+};
 
 const FULL_EXPLANATION = {
 	application_id: 100,
@@ -194,8 +228,11 @@ beforeEach(() => {
 		11: RECRUITER_B,
 		12: EMPLOYER_A,
 		13: EMPLOYER_B,
+		14: HIRING_MANAGER_A,
+		15: HIRING_MANAGER_B,
 		21: CANDIDATE_A,
 		22: CANDIDATE_B,
+		23: CONVERTED_RECRUITER,
 	};
 	jest.clearAllMocks();
 	mockExplainDecision.mockResolvedValue(JSON.parse(JSON.stringify(FULL_EXPLANATION)));
@@ -244,6 +281,46 @@ describe('GET /explain/decision/:applicationId — object-level authz', () => {
 		// The rest of the candidate's own explanation is intact.
 		expect(res.body.explanation.decision.status).toBe('rejected');
 		expect(res.body.explanation.candidate.name).toBe('Candidate A');
+	});
+
+	test('self-applicant whose account role is recruiter (converted account) → 200 WITHOUT recruiter_notes (shaping keys on identity, not role)', async () => {
+		const res = await request(app).get('/api/compliance/explain/decision/103').set(as(23));
+		expect(res.status).toBe(200);
+		expect(mockExplainDecision).toHaveBeenCalledWith(103);
+		const body = JSON.stringify(res.body);
+		expect(body).not.toContain('SECRET_RECRUITER_NOTES');
+		expect(body).not.toContain('recruiter_notes');
+		expect(res.body.explanation.decision.status).toBe('rejected');
+	});
+
+	test('admin who is also the applicant (admin-even-if-self) → 200 with the full record incl. recruiter_notes', async () => {
+		const res = await request(app).get('/api/compliance/explain/decision/102').set(as(1));
+		expect(res.status).toBe(200);
+		expect(res.body.explanation.decision.recruiter_notes).toBe('SECRET_RECRUITER_NOTES');
+	});
+
+	test('shaping does not mutate the service result object — same object then serves a recruiter-of-record the full record', async () => {
+		const shared = JSON.parse(JSON.stringify(FULL_EXPLANATION));
+		mockExplainDecision.mockResolvedValue(shared);
+
+		const shaped = await request(app).get('/api/compliance/explain/decision/100').set(as(21));
+		expect(shaped.status).toBe(200);
+		expect(JSON.stringify(shaped.body)).not.toContain('recruiter_notes');
+		// The service's own object is untouched by the shaped response.
+		expect(shared.decision.recruiter_notes).toBe('SECRET_RECRUITER_NOTES');
+
+		const full = await request(app).get('/api/compliance/explain/decision/100').set(as(10));
+		expect(full.status).toBe(200);
+		expect(full.body.explanation.decision.recruiter_notes).toBe('SECRET_RECRUITER_NOTES');
+		expect(shared.decision.recruiter_notes).toBe('SECRET_RECRUITER_NOTES');
+	});
+
+	test('hiring_manager of the owning company → 200 full record; foreign hiring_manager → 404', async () => {
+		const own = await request(app).get('/api/compliance/explain/decision/100').set(as(14));
+		expect(own.status).toBe(200);
+		expect(own.body.explanation.decision.recruiter_notes).toBe('SECRET_RECRUITER_NOTES');
+		const foreign = await request(app).get('/api/compliance/explain/decision/100').set(as(15));
+		expect(foreign.status).toBe(404);
 	});
 
 	test('recruiter-of-record (owning company) → 200 with the full record incl. recruiter_notes', async () => {
@@ -297,6 +374,16 @@ describe('GET /explain/omniscore/:userId — canAccessUserRecord + company linka
 		expect(res.status).toBe(200);
 	});
 
+	test('hiring_manager-of-record (candidate applied to their company) → 200; unlinked hiring_manager → 403, service never reached', async () => {
+		const own = await request(app).get('/api/compliance/explain/omniscore/21').set(as(14));
+		expect(own.status).toBe(200);
+		expect(mockExplainOmniScore).toHaveBeenCalledWith(21);
+		jest.clearAllMocks();
+		const foreign = await request(app).get('/api/compliance/explain/omniscore/21').set(as(15));
+		expect(foreign.status).toBe(403);
+		expect(mockExplainOmniScore).not.toHaveBeenCalled();
+	});
+
 	test('invalid user ID → 400 (helper shape), service never reached', async () => {
 		const res = await request(app).get('/api/compliance/explain/omniscore/abc').set(as(1));
 		expect(res.status).toBe(400);
@@ -331,6 +418,35 @@ describe('GET /explain/job/:jobId/candidate/:candidateId — job ownership', () 
 	test('admin → 200', async () => {
 		const res = await request(app).get('/api/compliance/explain/job/50/candidate/21').set(as(1));
 		expect(res.status).toBe(200);
+	});
+
+	test('hiring user + own job + candidate who never applied to their company → 403, service never reached (F-1 linkage)', async () => {
+		// Candidate 99 has no job_applications row at all.
+		const res = await request(app).get('/api/compliance/explain/job/50/candidate/99').set(as(10));
+		expect(res.status).toBe(403);
+		expect(res.body).toEqual({ error: 'Access denied' });
+		expect(mockExplainDecisionForJob).not.toHaveBeenCalled();
+	});
+
+	test('hiring user + own job + candidate who applied to their company → 200 unchanged (F-1 linkage)', async () => {
+		const res = await request(app).get('/api/compliance/explain/job/50/candidate/21').set(as(10));
+		expect(res.status).toBe(200);
+		expect(mockExplainDecisionForJob).toHaveBeenCalledWith({ userId: 21, jobId: 50 });
+	});
+
+	test('hiring_manager of the owning company + applied candidate → 200; foreign hiring_manager → 404; owning hiring_manager + unlinked candidate → 403', async () => {
+		const own = await request(app).get('/api/compliance/explain/job/50/candidate/21').set(as(14));
+		expect(own.status).toBe(200);
+		const foreign = await request(app)
+			.get('/api/compliance/explain/job/50/candidate/21')
+			.set(as(15));
+		expect(foreign.status).toBe(404);
+		jest.clearAllMocks();
+		const unlinked = await request(app)
+			.get('/api/compliance/explain/job/50/candidate/99')
+			.set(as(14));
+		expect(unlinked.status).toBe(403);
+		expect(mockExplainDecisionForJob).not.toHaveBeenCalled();
 	});
 
 	test('owning-company recruiter on a non-existent job → 404', async () => {

@@ -651,11 +651,15 @@ router.get('/explain/decision/:applicationId', authMiddleware, async (req, res) 
 		// Audience shaping (S-097, privacy seat; S-087 toCandidateSafeReport
 		// precedent — shape at the route boundary): a candidate audience
 		// never receives recruiter_notes, an internal hiring-team field.
-		// The candidate-self path is the only candidate-role path that can
-		// reach this point; recruiter/employer-of-record and admin callers
+		// Fix round (privacy F1 / security F-3, Lead's ruling): shape on
+		// the authorisation identity, not the role string — a self-applicant
+		// whose account role is no longer `candidate` (e.g. converted to
+		// recruiter) is still the candidate audience for their own
+		// application. Recruiter/employer-of-record and admin callers
+		// (an admin keeps the full record even when they are the applicant)
 		// keep the full record unchanged.
 		let explanation = rawExplanation;
-		if (req.user?.role === 'candidate' && rawExplanation?.decision) {
+		if (isCandidateSelf && !isAdmin && rawExplanation?.decision) {
 			const candidateDecision = { ...rawExplanation.decision };
 			delete candidateDecision.recruiter_notes;
 			explanation = { ...rawExplanation, decision: candidateDecision };
@@ -1101,6 +1105,22 @@ router.get('/explain/job/:jobId/candidate/:candidateId', authMiddleware, async (
 				Number(req.user.company_id) !== Number(job.company_id)
 			) {
 				return res.status(404).json({ error: 'Job not found' });
+			}
+
+			// Fix round (security F-1, Lead ruling option (a)): owning a job
+			// alone does not link the candidate to the caller's company, and
+			// the service returns the candidate's global score data — so a
+			// hiring role additionally needs a job_applications
+			// candidate×company linkage, mirroring the read-only SELECT 1
+			// linkage on /explain/omniscore above. Denial is this endpoint's
+			// existing non-subject-candidate 403, before the service call.
+			// Candidate-self and admin paths above are unchanged.
+			const linkage = await pool.query(
+				'SELECT 1 FROM job_applications WHERE candidate_id = $1 AND company_id = $2 LIMIT 1',
+				[candidateId, req.user.company_id],
+			);
+			if (linkage.rows.length === 0) {
+				return res.status(403).json({ error: 'Access denied' });
 			}
 		}
 
