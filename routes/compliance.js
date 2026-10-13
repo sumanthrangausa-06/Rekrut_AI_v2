@@ -428,6 +428,14 @@ router.get('/appeal/:userId', authMiddleware, async (req, res) => {
 // Query audit logs
 router.get('/audit/logs', authMiddleware, async (req, res) => {
 	try {
+		// S-097 (#821): admin-only. The legacy audit_logs table has no
+		// company_id, so company-scoping is not implementable here — the
+		// company-scoped regulator path already exists at /audit-trail/export.
+		// Any non-admin audience for the unscoped log is precisely the leak.
+		if (req.user?.role !== 'admin') {
+			return res.status(403).json({ error: 'Admin access required' });
+		}
+
 		const { userId, actionType, startDate, endDate, limit, offset } = req.query;
 
 		const logs = await AuditLogger.query({
@@ -452,6 +460,12 @@ router.get('/audit/logs', authMiddleware, async (req, res) => {
 // Export audit logs
 router.post('/audit/export', authMiddleware, async (req, res) => {
 	try {
+		// S-097 (#821): admin-only, same ruling as GET /audit/logs above —
+		// audit_logs cannot be company-scoped (no company_id column).
+		if (req.user?.role !== 'admin') {
+			return res.status(403).json({ error: 'Admin access required' });
+		}
+
 		const { startDate, endDate, format } = req.body;
 
 		if (!startDate || !endDate) {
@@ -552,6 +566,31 @@ router.get('/explain/omniscore/:userId', authMiddleware, async (req, res) => {
 	try {
 		const { userId } = req.params;
 
+		// S-097 (#821): this is a user-record endpoint, so the file's own
+		// canAccessUserRecord guard (self-or-admin, used by 8 siblings) is
+		// the right shape — not a company-scoped query. One extension: a
+		// hiring-side caller may read the score of a candidate who has an
+		// application with their company (recruiter-of-record), proven by a
+		// job_applications linkage row. Guard runs before the service call.
+		const access = canAccessUserRecord(req, userId);
+		if (!access.ok) {
+			if (access.status !== 403) {
+				return res.status(access.status).json({ error: access.error });
+			}
+			const isHiringRole = ['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role);
+			let linked = false;
+			if (isHiringRole && req.user?.company_id != null) {
+				const linkage = await pool.query(
+					'SELECT 1 FROM job_applications WHERE candidate_id = $1 AND company_id = $2 LIMIT 1',
+					[parseInt(userId, 10), req.user.company_id],
+				);
+				linked = linkage.rows.length > 0;
+			}
+			if (!linked) {
+				return res.status(access.status).json({ error: access.error });
+			}
+		}
+
 		const explanation = await explainOmniScore(parseInt(userId, 10));
 
 		await AuditLogger.log({
@@ -577,8 +616,50 @@ router.get('/explain/omniscore/:userId', authMiddleware, async (req, res) => {
 router.get('/explain/decision/:applicationId', authMiddleware, async (req, res) => {
 	try {
 		const { applicationId } = req.params;
+		const applicationIdInt = parseInt(applicationId, 10);
 
-		const explanation = await explainDecision(parseInt(applicationId, 10));
+		// S-097 (#821): object-level authorisation BEFORE the service call.
+		// The guard must live in the route: explainDecision re-throws on
+		// error (it depends on the phantom candidate_job_matches table), so
+		// a denied caller must never reach it. The resource is an
+		// application, not a user record, so canAccessUserRecord does not
+		// fit — load the application's own candidate/company anchors and
+		// compare here (the scoped-load shape used across this codebase).
+		// Allow: admin; the candidate themself; a hiring role whose
+		// company owns the application (fail-closed on null company_id).
+		// Everything else — including a non-existent ID — is the same 404,
+		// so foreign IDs cannot be distinguished from missing ones.
+		const appResult = Number.isInteger(applicationIdInt)
+			? await pool.query('SELECT candidate_id, company_id FROM job_applications WHERE id = $1', [
+					applicationIdInt,
+				])
+			: { rows: [] };
+		const application = appResult.rows[0];
+		const isAdmin = req.user?.role === 'admin';
+		const isCandidateSelf = !!application && req.user?.id === application.candidate_id;
+		const isOwningHiring =
+			!!application &&
+			['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) &&
+			req.user?.company_id != null &&
+			Number(req.user.company_id) === Number(application.company_id);
+		if (!application || (!isAdmin && !isCandidateSelf && !isOwningHiring)) {
+			return res.status(404).json({ error: 'Application not found' });
+		}
+
+		const rawExplanation = await explainDecision(applicationIdInt);
+
+		// Audience shaping (S-097, privacy seat; S-087 toCandidateSafeReport
+		// precedent — shape at the route boundary): a candidate audience
+		// never receives recruiter_notes, an internal hiring-team field.
+		// The candidate-self path is the only candidate-role path that can
+		// reach this point; recruiter/employer-of-record and admin callers
+		// keep the full record unchanged.
+		let explanation = rawExplanation;
+		if (req.user?.role === 'candidate' && rawExplanation?.decision) {
+			const candidateDecision = { ...rawExplanation.decision };
+			delete candidateDecision.recruiter_notes;
+			explanation = { ...rawExplanation, decision: candidateDecision };
+		}
 
 		await AuditLogger.log({
 			actionType: 'decision_explanation_viewed',
@@ -999,11 +1080,28 @@ router.get('/explain/job/:jobId/candidate/:candidateId', authMiddleware, async (
 
 		// Candidate can view their own explanation
 		const isOwn = req.user?.role === 'candidate' && req.user?.id === candidateId;
-		const isCompanyUser = ['employer', 'recruiter', 'hiring_manager', 'admin'].includes(
-			req.user?.role,
-		);
-		if (!isOwn && !isCompanyUser) {
+		const isAdmin = req.user?.role === 'admin';
+		const isHiringRole = ['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role);
+		if (!isOwn && !isAdmin && !isHiringRole) {
 			return res.status(403).json({ error: 'Access denied' });
+		}
+
+		// S-097 (#821): a hiring role may only explain decisions for jobs
+		// their own company owns. The resource here is the job, so the
+		// job-company ownership check is the right shape (contrast the
+		// user-record guard on /explain/omniscore above). Foreign and
+		// non-existent jobs are the same 404, and the check runs before
+		// the service call. Candidate-self and admin are not job-scoped.
+		if (!isOwn && !isAdmin) {
+			const jobResult = await pool.query('SELECT company_id FROM jobs WHERE id = $1', [jobId]);
+			const job = jobResult.rows[0];
+			if (
+				!job ||
+				req.user?.company_id == null ||
+				Number(req.user.company_id) !== Number(job.company_id)
+			) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
 		}
 
 		const explanation = await EuComplianceService.explainDecisionForJob({
