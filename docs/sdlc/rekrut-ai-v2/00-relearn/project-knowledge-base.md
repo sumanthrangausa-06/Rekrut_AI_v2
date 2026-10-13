@@ -8,6 +8,7 @@
 **Status:** Complete — v2 replaces v1 (deeper verification, corrected findings)
 **Branch verified:** `dev` @ `e92aed69`
 **Read-only:** no source files modified.
+**Update (2026-10-12):** §7 added — Sumanth's mock-scores/OmniScore ruling + Rex's verified current-code findings (briefing to Scout; Rex co-authored the evaluation). Local doc edit only; not yet committed.
 
 > **Corrections vs v1:** (1) `ai-screening.tsx` is a dashboard/list page, not a competing interview runtime — the "fragmentation" framing was wrong. (2) `useSpeechRecognition` is not a recognition driver, only availability-check helpers. (3) Newly discovered in v2: `routes/interview-sessions.js` (unified lifecycle), `services/conversation-engine.js` (turn engine), `agents/voice-interviewer/worker.mjs` (existing observer Track B).
 
@@ -217,6 +218,34 @@ Lifecycle: `invited → in_progress → completed`; `conversation` persisted **b
 | Add `candidate-`/`interviewer-` prefixes + token metadata (target) | Clean role detection for observer | §5 gaps |
 | New tables follow existing migration pattern | Numbered, `IF NOT EXISTS`, non-destructive | §4 |
 | Resolve 128/129 double-definition before new tables | Avoid confusion in the recordings area | §3 flag |
+
+---
+
+## 7. Update — 2026-10-12: Mock Scores & OmniScore (Sumanth's ruling)
+
+**Source:** Sumanth's ruling 2026-10-12, on Aria + Rex's joint evaluation (Rex verified the code findings in-repo). Recorded in full on **#113**; follow-ups **#791** (practice removal + readiness panel), **#792** (practice-fact marker + recruiter-endpoint narrowing), **#793** (BUG: `interview_evaluations` no-op pipe — independent of the ruling). Briefed to Scout 2026-10-12 (Rex was co-author, not a recipient).
+
+### The ruling — REPLACES the old "mock is practice-only, never feeds OmniScore" posture
+
+1. **Option (b) — practice comes OUT of OmniScore.** Mock/practice scores are removed from the OmniScore factors and shown **beside** the score as a separate, clearly labelled **readiness panel**. Guardrails: the removal is real (not a label/re-skin); mock and Quick Practice are **never averaged together**; fallback-scored sessions (flat-5 / word-count estimates) are **excluded from anything recruiter-facing**; the panel **never feeds ranking / filtering / matching / auto-reject**; the candidate sees exactly what the recruiter sees; **no practice = zero numeric effect**; practice may enter OmniScore in the future **only** on evidence it predicts real outcomes (a separate decision).
+2. **Practice-fact marker — adopted, six guardrails:** candidate **opt-in, default OFF** (fail-closed); **counts and dates only** — never scores, never coaching content; **absence renders as nothing** (no marker, no empty state, no "hasn't practised" label); never a filter/sort/rank/match input; **role-tied** to the application; the existing recruiter endpoint that exposes **full practice history + scores + coaching** is **narrowed to match** this ruling.
+3. **Timing:** the OmniScore removal is **scheduled separately** (Lead's backlog; Sprint 11+ candidacy, not committed). The resulting **one-time score drop for practised candidates is a correction**, announced via a version note — not hidden.
+
+### Verified current-code findings (Rex, in code — state BEFORE the removal ships)
+
+| Finding | Detail |
+|---|---|
+| Practice already feeds OmniScore | Mock/practice scores feed **up to ~half of the 20% interview-performance factor** plus **part of the 10% soft-skills factor** — this was live behaviour, never a decided policy |
+| Every-attempt averaging defect | The engine averages **every practice attempt ever** — a candidate who starts weak and improves is dragged down by their own early attempts (improvement is punished) |
+| Fallback scores | On AI failure the code substitutes scores (flat **5/10**, or estimates from answer **word count**) — these are not measurements |
+| Hidden non-practiser penalty | Factor cards honestly render "Insufficient data", but the **total still counts the missing factor low** without rebalancing — non-practisers score lower today |
+| **`interview_evaluations` no-op pipe** | Real interview evaluation scores **effectively do not reach OmniScore**: the pipe reads a table the score engine never reads. Looks wired; isn't. Tracked as **#793** (correctness bug, independent of this ruling) |
+
+### Reconciliation with existing records
+
+- **This KB (v2):** contained **no** OmniScore or scoring-posture coverage (scope was the interview-engine relearn) — a gap, not a contradiction. This section fills it. Do not cite the KB's silence as the old posture.
+- **PRD (`02-planning/unified-interview-engine/prd.md:106`):** still states the old posture — *"Recruiter sees: N/A (practice only, not shared unless candidate opts in)"*. **Superseded by this ruling.** The PRD itself is Aria's artefact and is amended **at its Phase 2 gate** (recording obligation noted on #113) — Scout flags it here, does not edit it.
+- **README decisions log (2026-10-10):** "No single integrity score — observations only" and "OmniScore visibility: no causal link shown to anyone" are **consistent with, not contradicted by**, this ruling (the readiness panel is separate and labelled, and never feeds ranking) — no change needed beyond the ruling's own log entry (added 2026-10-12).
 
 ---
 
