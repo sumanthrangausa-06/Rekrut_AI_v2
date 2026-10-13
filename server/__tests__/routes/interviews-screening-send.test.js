@@ -43,6 +43,7 @@ const db = require('../../../lib/db');
 
 const templates = new Map();
 const jobs = new Map();
+const applications = new Map();
 const sessions = new Map();
 let nextSessionId = 1;
 const auditRows = [];
@@ -99,6 +100,12 @@ db.query.mockImplementation(async (sql, params = []) => {
 		);
 		return { rows: rows.map((r) => ({ ...r })), rowCount: rows.length };
 	}
+	if (normalized.includes('from job_applications where id =')) {
+		// S-098 (#822): application lookup is company-scoped.
+		const row = applications.get(Number(params[0]));
+		const ok = row && Number(row.company_id) === Number(params[1]);
+		return { rows: ok ? [{ ...row }] : [], rowCount: ok ? 1 : 0 };
+	}
 	if (normalized.includes('from screening_templates where id =')) {
 		const row = templates.get(Number(params[0]));
 		const ok = row && Number(row.company_id) === Number(params[1]);
@@ -143,6 +150,7 @@ const RECRUITER = { id: 2, email: 'rec@test.com', role: 'recruiter', company_id:
 beforeEach(() => {
 	templates.clear();
 	jobs.clear();
+	applications.clear();
 	sessions.clear();
 	auditRows.length = 0;
 	nextSessionId = 1;
@@ -165,6 +173,8 @@ beforeEach(() => {
 		company_name: 'Acme',
 		description: 'Node.js APIs',
 	});
+	// Application 20 belongs to candidate 1 in the recruiter's company (5).
+	applications.set(20, { id: 20, candidate_id: 1, job_id: 10, company_id: 5 });
 });
 
 async function sendScreening(app, body = {}) {
