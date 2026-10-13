@@ -164,6 +164,9 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
+			observerAudioChunksDeleted: false,
+			observerSpeechMeasurementsDeleted: false,
+			observerCaptureOutcomesDeleted: false,
 			storageKeys: [],
 		});
 		expect(biometricAudit.logAccess).toHaveBeenCalledTimes(1);
@@ -244,6 +247,9 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
+			observerAudioChunksDeleted: false,
+			observerSpeechMeasurementsDeleted: false,
+			observerCaptureOutcomesDeleted: false,
 			storageKeys: [],
 		});
 		expect(biometricAudit.logAccess).not.toHaveBeenCalled();

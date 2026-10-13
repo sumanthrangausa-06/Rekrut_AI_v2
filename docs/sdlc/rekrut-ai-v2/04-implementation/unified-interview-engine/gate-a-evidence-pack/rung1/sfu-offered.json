@@ -1,0 +1,6 @@
+{
+  "candidate_audio_frames_offered": 120,
+  "candidate_video_frames_offered": 120,
+  "interviewer_audio_frames_offered": 60,
+  "non_vacuous": true
+}

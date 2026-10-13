@@ -1,0 +1,27 @@
+{
+  "pack": "gate-a-dormancy-evidence",
+  "story": "S-085 (#787)",
+  "rung": 1,
+  "rung_description": "Mocked/local: mock SFU (rtc-node fakes), in-memory PG fake, in-memory object storage, synthetic PCM. NO real LiveKit room, Neon DB, or R2/B2 bucket was touched.",
+  "generated_at": "2026-10-13T09:16:09.568Z",
+  "generator": "scripts/gate-a-evidence-pack.js",
+  "node": "v24.20.0",
+  "env_identity": "staging (via RENDER_SERVICE_NAME=rekrutai-staging)",
+  "scenarios": [
+    "dormancy",
+    "malformedFlag",
+    "capture",
+    "flagOffKill",
+    "withdrawal",
+    "roleFlip",
+    "interviewerFirst",
+    "originMismatch",
+    "concurrencyCap",
+    "restartConsistency"
+  ],
+  "unverified_from_this_vm": [
+    "Neon PITR window — NOT recorded (Neon API unreachable from the build VM; carried condition, Lex acceptance owed if > 30 days)",
+    "R2/B2 bucket versioning state for observer-audio prefixes — NOT verified (storage APIs unreachable from the build VM)",
+    "Rung 2 staging live-room run — NOT performed (required for protocol exit)"
+  ]
+}

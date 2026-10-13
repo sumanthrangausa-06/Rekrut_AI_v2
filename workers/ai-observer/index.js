@@ -26,21 +26,45 @@
  *
  * The worker NEVER publishes tracks or sends data messages (AC-3).
  * Identity: ai-observer-{sessionId} (spec §2.3).
+ *
+ * Gate A dormant capture (S-085, #787; design gate-a-dormant-capture):
+ * presence is NOT capture. A capture decision is evaluated once at Gate 2
+ * (lib/observerCaptureGate.js). While DORMANT — the default, flag off —
+ * the worker subscribes to NO media tracks at all and registers NO
+ * TrackSubscribed handler: it receives nothing (§2.3 behaviour change;
+ * previously it subscribed to every track for presence, which was
+ * collection without a gate). While CAPTURING (test scope in this build;
+ * activation is unreachable — no consent artefact ships), only the
+ * candidate's AUDIO track is subscribed, frames feed
+ * lib/observerCapture.js, and a 1 s watchdog enforces the ≤2 s kill
+ * bound. The SDK's audio-level / speaking-indicator surfaces are never
+ * sampled, logged, or stored in any mode.
  */
 
-const { Room, RoomEvent } = require('@livekit/rtc-node');
+const { Room, RoomEvent, AudioStream, TrackKind } = require('@livekit/rtc-node');
 const observerJobs = require('../../lib/observerJobs');
 const { canEnableObserver } = require('../../lib/observerConsentGate');
 const { flushReport } = require('../../lib/observerReportWriter');
 const db = require('../../lib/db');
+const { readCaptureFlag, consumeFlagTransition } = require('../../lib/observerCaptureFlag');
+const { resolveEnvIdentity } = require('../../lib/observerEnvIdentity');
+const { evaluateCaptureDecision, recheckCaptureGate } = require('../../lib/observerCaptureGate');
+const observerCapture = require('../../lib/observerCapture');
+const observerSpeech = require('../../lib/observerSpeech');
 
 const POLL_INTERVAL_MS = 5000;
 const HEARTBEAT_INTERVAL_MS = 30000;
 const SWEEPER_INTERVAL_MS = 60000;
+const WATCHDOG_INTERVAL_MS = 1000;
 const WORKER_ID = `observer-worker-${process.pid}-${Date.now()}`;
 
-// Active jobs: jobId -> { room, sessionId, heartbeatTimer, consentTimer }
+// Active jobs: jobId -> { room, sessionId, heartbeatTimer, consentTimer, stopCapture }
 const activeJobs = new Map();
+
+// One capturing session per process (design §3.6 step 2). A second
+// would-be-capturing session stays dormant with a concurrency_cap
+// outcome row; leaving CAPTURING is one-way per session.
+let activeCapture = null; // { jobId, sessionId } | null
 
 /**
  * Generate a LiveKit token for the observer with subscribe-only grants.
@@ -78,11 +102,10 @@ function resolveRoles(participants, roomMetadata) {
 		}
 	}
 
-	// Fallback: room metadata on prefix mismatch (AC-2)
+	// Fallback: room metadata on prefix mismatch (AC-2). The candidate
+	// ID itself is never logged (§6.4 log discipline).
 	if (!roles.candidate && roomMetadata?.candidateId) {
-		console.log(
-			`[ai-observer] role fallback: using room metadata for candidate ${roomMetadata.candidateId}`,
-		);
+		console.log('[ai-observer] role fallback: using room metadata for the candidate role');
 		// Find participant by metadata user ID
 		for (const p of participants) {
 			if (String(p.metadata?.userId) === String(roomMetadata.candidateId)) {
@@ -127,9 +150,10 @@ async function processJob(job) {
 		return;
 	}
 
-	// Get the LiveKit room name for this session
+	// Get the LiveKit room name for this session (+ the session row the
+	// Gate A capture decision needs: candidate, company, config)
 	const { rows } = await db.query(
-		`SELECT config FROM interview_sessions WHERE id = $1`,
+		`SELECT id, candidate_id, company_id, config FROM interview_sessions WHERE id = $1`,
 		[sessionId],
 	);
 	const roomName = rows[0]?.config?.livekit_room || `session-${sessionId}`;
@@ -168,42 +192,273 @@ async function processJob(job) {
 	const participants = [...room.remoteParticipants.values()];
 	const roles = resolveRoles(participants, rows[0]?.config?.roomMetadata);
 
-	// Explicit subscription (autoSubscribe: false) — gate already passed.
-	// S-047: subscribe only. Analysis pipeline attaches in S-049.
-	const subscribeToParticipant = async (participant, isCandidate) => {
-		for (const [, pub] of participant.trackPublications) {
-			if (pub.track) {
-				// Explicit subscribe — only reached after passing gate check #2
-				await pub.setSubscribed(true);
-				console.log(
-					`[ai-observer] subscribed to ${isCandidate ? 'candidate' : 'interviewer'} ` +
-					`track: ${pub.track.kind} from ${participant.identity}`,
-				);
-			}
+	// ── Gate A capture decision (design §3.6) ────────────────────────────
+	// Evaluated ONCE, here at Gate 2, after presence passes and before any
+	// subscription. A flag flipped ON later does nothing to a session that
+	// decided dormant. Fail-closed: any evaluation error ⇒ dormant.
+	let captureDecision = { decision: 'dormant', scope: 'none', gateCode: null, envIdentity: resolveEnvIdentity() };
+	try {
+		captureDecision = await evaluateCaptureDecision({
+			session: rows[0],
+			job,
+			presence: preSubscribeGate,
+			queryable: db,
+		});
+	} catch (err) {
+		console.error(`[ai-observer] capture decision failed for session ${sessionId} (fail-closed dormant):`, err.message);
+	}
+	const flagTransition = consumeFlagTransition();
+	if (flagTransition) {
+		observerCapture.emitLog('flag_transition', {
+			flag_state: flagTransition.to,
+			scope: captureDecision.scope,
+			env: captureDecision.envIdentity,
+		});
+	}
+	observerCapture.emitLog('capture_decision', {
+		flag_state: readCaptureFlag(),
+		scope: captureDecision.scope,
+		env: captureDecision.envIdentity,
+		session_id: sessionId,
+		gate_code: captureDecision.gateCode || undefined,
+	});
+
+	// Capture runtime for THIS session (null while dormant). While dormant
+	// the worker subscribes to nothing and registers no track handlers —
+	// presence (join, heartbeat, attendance/audit) is unaffected.
+	let captureSession = null;
+	let watchdogTimer = null;
+	let captureStopped = false;
+	// Live media handles for teardown (security review B-2): the kill
+	// switch must stop COLLECTION, not just persistence — every
+	// subscribed publication is unsubscribed and every stream reader
+	// cancelled inside stopCapture, within the same ≤2 s bound.
+	const capturePubs = new Set();
+	const captureReaders = new Set();
+	const stopCapture = async (reason, { fromWatchdog = false } = {}) => {
+		if (!captureSession || captureStopped) return;
+		captureStopped = true;
+		if (watchdogTimer) clearInterval(watchdogTimer);
+		if (fromWatchdog) {
+			observerCapture.emitLog('watchdog_teardown', {
+				scope: captureSession.scope,
+				env: captureDecision.envIdentity,
+				session_id: sessionId,
+				stop_reason: reason,
+			});
 		}
+		// Unsubscribe + close streams FIRST (B-2), then finalize.
+		await Promise.allSettled([...capturePubs].map((pub) => pub.setSubscribed(false)));
+		capturePubs.clear();
+		for (const reader of captureReaders) {
+			try { await reader.cancel(); } catch { /* already closed */ }
+		}
+		captureReaders.clear();
+		try {
+			await captureSession.finalize(reason);
+		} catch (err) {
+			console.error(`[ai-observer] capture finalize failed for session ${sessionId}:`, err.message);
+		}
+		if (activeCapture && activeCapture.jobId === job.id) activeCapture = null;
 	};
 
-	if (roles.candidate) {
-		await subscribeToParticipant(roles.candidate.participant, true);
-	}
-	for (const iv of roles.interviewers) {
-		await subscribeToParticipant(iv.participant, false);
-	}
-
-	// BLOCKER 2+3 fix (privacy-engineer): gate on TrackPublished (not TrackSubscribed).
-	// TrackSubscribed fires AFTER the SDK subscribes — too late for the gate.
-	// TrackPublished fires when a track is announced but before subscription.
-	room.on(RoomEvent.TrackPublished, async (pub, participant) => {
-		// Gate check before subscribing to any new track
-		const g = await checkConsent(sessionId);
-		if (!g.allowed) {
-			console.log(`[ai-observer] consent blocked for new track from ${participant.identity}, NOT subscribing`);
-			return; // Do not subscribe — gate failed
+	if (captureDecision.decision === 'capturing' && activeCapture) {
+		// Concurrency cap (§3.6 step 2): one capturing session per process.
+		// This session stays DORMANT; the cap is recorded as its outcome.
+		observerCapture.emitLog('capture_decision', {
+			flag_state: true,
+			scope: captureDecision.scope,
+			env: captureDecision.envIdentity,
+			session_id: sessionId,
+			gate_code: 'CAPTURE_CONCURRENCY_CAP',
+		});
+		const capCounters = observerCapture.createCaptureCounters();
+		await observerCapture
+			.writeCaptureOutcome({
+				sessionId,
+				candidateId: rows[0]?.candidate_id,
+				scope: captureDecision.scope,
+				isTest: captureDecision.scope === 'test',
+				cohortAllowlistVersion: captureDecision.cohortAllowlistVersion ?? null,
+				counters: capCounters,
+				audioSecondsCaptured: 0,
+				stopReason: 'concurrency_cap',
+				startedAt: new Date(),
+				queryable: db,
+			})
+			.catch(() => {});
+	} else if (captureDecision.decision === 'capturing') {
+		// Role binding (§3.5, security review B-1): the ONLY identity
+		// capture may ever consume is the one derived from THIS session's
+		// candidate_id — the platform convention candidate-<userId>, or
+		// the participant resolveRoles matched to that userId by room
+		// metadata. A resolved candidate whose userId disagrees with the
+		// session row is a mismatch: stay dormant (fail closed), never
+		// capture the wrong person under the candidate's DEK/consent.
+		const sessionCandidateId = rows[0]?.candidate_id;
+		let expectedIdentity = sessionCandidateId != null ? `candidate-${sessionCandidateId}` : null;
+		if (roles.candidate) {
+			if (String(roles.candidate.userId) !== String(sessionCandidateId)) {
+				observerCapture.emitLog('capture_decision', {
+					flag_state: true,
+					scope: captureDecision.scope,
+					env: captureDecision.envIdentity,
+					session_id: sessionId,
+					gate_code: 'CAPTURE_ROLE_IDENTITY_MISMATCH',
+				});
+				expectedIdentity = null; // fail closed: no capture this session
+			} else {
+				expectedIdentity = roles.candidate.identity;
+			}
 		}
-		const isCandidate = roles.candidate && participant.identity === roles.candidate.identity;
-		await pub.setSubscribed(true);
-		console.log(`[ai-observer] new track subscribed: ${pub.kind} from ${participant.identity} (candidate=${isCandidate})`);
-	});
+		if (!captureSession && expectedIdentity) {
+			const counters = observerCapture.createCaptureCounters();
+			captureSession = new observerCapture.CaptureSession({
+				sessionId,
+				candidateId: sessionCandidateId,
+				jobId: job.id,
+				scope: captureDecision.scope,
+				isTest: captureDecision.scope === 'test',
+				cohortAllowlistVersion: captureDecision.cohortAllowlistVersion ?? null,
+				jobOriginEnv: job.origin_env,
+				counters,
+				pool: db,
+			});
+			activeCapture = { jobId: job.id, sessionId };
+			captureSession.bindIdentity(expectedIdentity);
+		}
+	}
+	if (captureSession) {
+		observerCapture.emitLog('capture_started', {
+			flag_state: true,
+			scope: captureDecision.scope,
+			env: captureDecision.envIdentity,
+			session_id: sessionId,
+		});
+
+		const KIND_AUDIO = TrackKind?.KIND_AUDIO ?? 1;
+		const isAudioPub = (pub) => pub?.kind === KIND_AUDIO || pub?.track?.kind === KIND_AUDIO;
+
+		// Frame consumption: candidate audio only. Stereo is downmixed to
+		// mono by sample averaging (§3.4). The loop exits the moment the
+		// session leaves CAPTURING (kill bound).
+		const consumeAudioTrack = (track) => {
+			captureSession.counters.streamsOpened++;
+			const stream = new AudioStream(track);
+			const reader = stream.getReader();
+			captureReaders.add(reader);
+			(async () => {
+				try {
+					while (captureSession.state === 'capturing') {
+						const { done, value: frame } = await reader.read();
+						if (done) break;
+						if (!frame) continue;
+						let pcm;
+						if (frame.channels === 2) {
+							const data = frame.data;
+							const mono = new Int16Array(frame.samplesPerChannel);
+							for (let i = 0; i < frame.samplesPerChannel; i++) {
+								mono[i] = Math.round((data[i * 2] + data[i * 2 + 1]) / 2);
+							}
+							pcm = Buffer.from(mono.buffer, mono.byteOffset, mono.byteLength);
+						} else {
+							pcm = Buffer.from(frame.data.buffer, frame.data.byteOffset, frame.data.byteLength);
+						}
+						// Copy — the SDK reuses frame buffers.
+						pcm = Buffer.from(pcm);
+						const r = await captureSession.onFrame(pcm, frame.sampleRate);
+						if (r?.stop) {
+							await stopCapture(r.stop);
+							break;
+						}
+					}
+				} catch (err) {
+					console.error(`[ai-observer] audio stream error for session ${sessionId}:`, err.message);
+				} finally {
+					try { reader.releaseLock(); } catch { /* already closed */ }
+				}
+			})();
+		};
+
+		room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
+			if (!captureSession || captureStopped) return;
+			// §3.2 checkpoint at TrackSubscribed entry (privacy review
+			// RL-03): the flag is re-read HERE, not only on the watchdog.
+			if (!readCaptureFlag()) {
+				void stopCapture('flag_off', { fromWatchdog: true });
+				return;
+			}
+			if (!track || track.kind !== KIND_AUDIO) return; // video is never consumed
+			if (participant.identity !== captureSession.boundIdentity) return;
+			consumeAudioTrack(track);
+		});
+
+		const subscribeCandidateAudio = async (participant) => {
+			for (const [, pub] of participant.trackPublications) {
+				if (isAudioPub(pub)) {
+					capturePubs.add(pub);
+					await pub.setSubscribed(true);
+				}
+			}
+		};
+
+		if (roles.candidate) {
+			await subscribeCandidateAudio(roles.candidate.participant);
+		}
+
+		// Late publications (§3.5, security review B-1): ONLY the bound
+		// candidate identity is ever subscribed. A candidate-prefixed
+		// identity that is NOT the bound one is a role flip. Every other
+		// identity (interviewers included) is simply ignored — never
+		// bound, never subscribed, never fatal.
+		room.on(RoomEvent.TrackPublished, async (pub, participant) => {
+			if (!captureSession || captureStopped) return;
+			if (!isAudioPub(pub)) return;
+			if (captureSession.verifyIdentity(participant.identity)) {
+				capturePubs.add(pub);
+				await pub.setSubscribed(true);
+				return;
+			}
+			if (String(participant.identity).startsWith('candidate-')) {
+				await stopCapture('role_flip', { fromWatchdog: true });
+			}
+			// Interviewer tracks are never subscribed for capture.
+		});
+
+		// 1 s watchdog (§3.4/§6.3): flag + consent + env re-checked;
+		// teardown completes within the same tick (≤2 s kill bound
+		// end-to-end). §6.3 is explicit: capture stops at the FIRST
+		// failed check — no multi-tick grace (privacy review RL-03).
+		// Persist-time gate re-checks independently block every write,
+		// so a transient failure costs the capture, never the data.
+		watchdogTimer = setInterval(async () => {
+			if (!captureSession || captureStopped) return;
+			const t = consumeFlagTransition();
+			if (t) {
+				observerCapture.emitLog('flag_transition', {
+					flag_state: t.to,
+					scope: captureSession.scope,
+					env: captureDecision.envIdentity,
+					session_id: sessionId,
+				});
+			}
+			try {
+				const rc = await recheckCaptureGate({
+					sessionId,
+					candidateId: rows[0]?.candidate_id,
+					scope: captureSession.scope,
+					jobOriginEnv: job.origin_env,
+					queryable: db,
+				});
+				if (rc.ok) return;
+				if (rc.kind === 'flag_off') return stopCapture('flag_off', { fromWatchdog: true });
+				if (rc.kind === 'withdrawn') return stopCapture('consent_withdrawn', { fromWatchdog: true });
+				return stopCapture('consent_check_failed', { fromWatchdog: true });
+			} catch (err) {
+				return stopCapture('consent_check_failed', { fromWatchdog: true });
+			}
+		}, WATCHDOG_INTERVAL_MS);
+	}
 
 	// Heartbeat timer (30s)
 	const heartbeatTimer = setInterval(async () => {
@@ -237,6 +492,10 @@ async function processJob(job) {
 				clearInterval(heartbeatTimer);
 				clearInterval(consentTimer);
 				activeJobs.delete(job.id);
+				// Gate A: capture teardown runs FIRST (session_end) so the
+				// measurements + outcome are written while the job row and
+				// room are still intact.
+				await stopCapture('session_end');
 				try {
 					await room.disconnect();
 				} catch (e) { /* best-effort — session already over */ }
@@ -258,6 +517,10 @@ async function processJob(job) {
 				console.log(`[ai-observer] consent withdrawn mid-session ${sessionId}, disconnecting`);
 				clearInterval(heartbeatTimer);
 				clearInterval(consentTimer);
+				// Gate A §5.4: capture stops FIRST (≤2 s bound), buffers
+				// discarded, persisted artefacts queued for deletion by
+				// the withdrawal sweeper.
+				await stopCapture('consent_withdrawn');
 				await room.disconnect();
 				// Discard in-memory buffers without writing a report (spec §3.1)
 				activeJobs.delete(job.id);
@@ -277,6 +540,7 @@ async function processJob(job) {
 				);
 				clearInterval(heartbeatTimer);
 				clearInterval(consentTimer);
+				await stopCapture('consent_check_failed');
 				try {
 					await room.disconnect();
 				} catch (e) { /* best-effort */ }
@@ -286,7 +550,7 @@ async function processJob(job) {
 		}
 	}, POLL_INTERVAL_MS);
 
-	activeJobs.set(job.id, { room, sessionId, heartbeatTimer, consentTimer });
+	activeJobs.set(job.id, { room, sessionId, heartbeatTimer, consentTimer, stopCapture });
 	console.log(`[ai-observer] observing session ${sessionId} as ${identity} (subscribe-only)`);
 }
 
@@ -309,7 +573,10 @@ async function poll() {
 }
 
 /**
- * Sweeper: recover stale claims (dead workers).
+ * Sweeper: recover stale claims (dead workers) + Gate A maintenance on
+ * the same 60 s cadence (design §4.4/§5.4): retire stale capture intents,
+ * queue withdrawn sessions' artefacts for deletion. Each step is
+ * isolated — one failing sweep must not block the others.
  */
 async function sweep() {
 	try {
@@ -320,6 +587,16 @@ async function sweep() {
 	} catch (err) {
 		console.error('[ai-observer] sweep error:', err.message);
 	}
+	try {
+		await observerCapture.reconcileObserverAudioIntents({});
+	} catch (err) {
+		console.error('[ai-observer] capture intent reconcile error:', err.message);
+	}
+	try {
+		await observerCapture.sweepWithdrawnCaptureArtefacts({});
+	} catch (err) {
+		console.error('[ai-observer] withdrawn-artefact sweep error:', err.message);
+	}
 }
 
 /**
@@ -327,9 +604,14 @@ async function sweep() {
  */
 async function shutdown() {
 	console.log('[ai-observer] shutting down...');
-	for (const [jobId, { room, heartbeatTimer, consentTimer }] of activeJobs) {
+	for (const [jobId, { room, heartbeatTimer, consentTimer, stopCapture }] of activeJobs) {
 		clearInterval(heartbeatTimer);
 		clearInterval(consentTimer);
+		// Gate A: an in-flight capture finalizes as worker_shutdown so its
+		// outcome row records why it stopped (§8.5).
+		if (stopCapture) {
+			try { await stopCapture('worker_shutdown'); } catch { /* best-effort */ }
+		}
 		try {
 			await room.disconnect();
 		} catch (err) {
@@ -347,6 +629,15 @@ async function shutdown() {
  */
 function startWorker() {
 	console.log(`[ai-observer] worker starting (id: ${WORKER_ID})`);
+	// Gate A §7.4: crash sweep of the capture workdir BEFORE any job is
+	// claimed — zero + delete anything a crashed process left behind
+	// (counts only in the log).
+	try {
+		const swept = observerSpeech.sweepCaptureWorkdir();
+		if (swept > 0) {
+			console.log(`[ai-observer] capture workdir crash sweep removed ${swept} leftover file(s)`);
+		}
+	} catch { /* hygiene must never block startup */ }
 	const pollTimer = setInterval(poll, POLL_INTERVAL_MS);
 	const sweepTimer = setInterval(sweep, SWEEPER_INTERVAL_MS);
 	// Initial sweep on startup (recover from previous crash)
@@ -383,4 +674,6 @@ module.exports = {
 	// exported for tests
 	POLL_INTERVAL_MS,
 	HEARTBEAT_INTERVAL_MS,
+	WATCHDOG_INTERVAL_MS,
+	_getActiveCapture: () => activeCapture,
 };

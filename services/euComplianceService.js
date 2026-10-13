@@ -695,10 +695,18 @@ class EuComplianceService {
 	 */
 	static async purgeRecordingObjects({ dryRun = true, batchSize = 100 } = {}) {
 		const { deleteStorageObject } = require('../lib/file-storage');
+		// Gate A (S-085 #787, design §5.1): only CONFIRMED registrations are
+		// purge-eligible — 'pending' intent rows belong to the reconciler
+		// (lib/observerCapture.js). Legacy frame/recording rows are born
+		// 'confirmed' (migration 257 default), so their behaviour is
+		// unchanged. Observer-audio rows additionally pass the legal-hold
+		// seam (P-10) and delete their observer_audio_chunks row with the
+		// object (design §5.1 step 3).
+		const { isLegalHoldActive } = require('../lib/observerCapture');
 
 		const { rows } = await pool.query(
-			`SELECT object_key, object_type, expires_at FROM recording_objects
-			 WHERE expires_at < NOW() AND deleted_at IS NULL
+			`SELECT object_key, object_type, expires_at, candidate_id, interview_id FROM recording_objects
+			 WHERE expires_at < NOW() AND deleted_at IS NULL AND registration_state = 'confirmed'
 			 ORDER BY expires_at ASC
 			 LIMIT $1
 			 FOR UPDATE SKIP LOCKED`,
@@ -708,6 +716,7 @@ class EuComplianceService {
 		let purgedCount = 0;
 		let storageDeleted = 0;
 		let errors = 0;
+		let heldSkips = 0;
 		let minExpiresAt = null;
 		let maxExpiresAt = null;
 
@@ -716,6 +725,12 @@ class EuComplianceService {
 				// Track period covered for the audit entry
 				if (!minExpiresAt || row.expires_at < minExpiresAt) minExpiresAt = row.expires_at;
 				if (!maxExpiresAt || row.expires_at > maxExpiresAt) maxExpiresAt = row.expires_at;
+
+				if (row.object_type === 'observer_audio' &&
+					await isLegalHoldActive({ candidateId: row.candidate_id, sessionId: row.interview_id })) {
+					heldSkips++;
+					continue;
+				}
 
 				if (!dryRun) {
 					const r = await deleteStorageObject(row.object_key);
@@ -728,6 +743,12 @@ class EuComplianceService {
 							`UPDATE recording_objects SET deleted_at = NOW() WHERE object_key = $1`,
 							[row.object_key],
 						);
+						if (row.object_type === 'observer_audio') {
+							await pool.query(
+								`DELETE FROM observer_audio_chunks WHERE object_key = $1`,
+								[row.object_key],
+							);
+						}
 					} else {
 						errors++;
 						console.warn(`[retention] storage delete soft-failed for ${row.object_key}: ${r.reason} — leaving for retry`);
@@ -749,7 +770,64 @@ class EuComplianceService {
 			periodCovered: minExpiresAt ? { minExpiresAt, maxExpiresAt } : null,
 		});
 
-		return { purgedCount, storageDeleted, dryRun, errors };
+		return { purgedCount, storageDeleted, dryRun, errors, heldSkips };
+	}
+
+	/**
+	 * Gate A (S-085 #787, design §5.1): purge expired observer speech
+	 * measurements. The measurements envelope is DEK-encrypted per session
+	 * (no storage object) — row deletion is the whole purge. 30-day
+	 * retention, same RETENTION_PURGE_LIVE dry-run-default gate as the
+	 * other purges (wired in the server.js retention cron). The legal-hold
+	 * seam (P-10) is consulted per row; held rows are skipped and counted.
+	 */
+	static async purgeExpiredSpeechMeasurements({ dryRun = true, retentionDays = null } = {}) {
+		const { isLegalHoldActive } = require('../lib/observerCapture');
+		// Retention comes from the policy row when not explicitly passed
+		// (§5.1, DB review M6); 30 is only the fallback.
+		if (retentionDays == null) {
+			const { rows: policyRows } = await pool.query(
+				`SELECT retention_days FROM data_retention_policies WHERE data_type = 'observer_audio'`,
+			);
+			retentionDays = policyRows[0]?.retention_days ?? 30;
+		}
+		const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+
+		let deletedCount = 0;
+		let heldSkips = 0;
+		// Batched with an id cursor (DB review m5): never load the whole
+		// expired set at once; the cursor keeps dry-run counts exact too.
+		let lastId = 0;
+		for (;;) {
+			const { rows } = await pool.query(
+				`SELECT id, candidate_id, interview_session_id FROM observer_speech_measurements
+				 WHERE created_at < $1 AND id > $2 ORDER BY id LIMIT 500`,
+				[cutoff, lastId],
+			);
+			if (rows.length === 0) break;
+			for (const row of rows) {
+				lastId = row.id;
+				if (await isLegalHoldActive({ candidateId: row.candidate_id, sessionId: row.interview_session_id })) {
+					heldSkips++;
+					continue;
+				}
+				if (!dryRun) {
+					await pool.query(`DELETE FROM observer_speech_measurements WHERE id = $1`, [row.id]);
+				}
+				deletedCount++;
+			}
+			if (rows.length < 500) break;
+		}
+
+		await EuComplianceService._auditPurge({
+			runType: 'observer_speech_measurements',
+			objectCount: deletedCount,
+			storageDeleted: 0,
+			dryRun,
+			errorCount: 0,
+		});
+
+		return { deletedCount, heldSkips, dryRun };
 	}
 
 	/**

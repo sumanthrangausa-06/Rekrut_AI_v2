@@ -128,6 +128,9 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
+			observerAudioChunksDeleted: false,
+			observerSpeechMeasurementsDeleted: false,
+			observerCaptureOutcomesDeleted: false,
 			storageKeys: [],
 		});
 	});
@@ -211,6 +214,9 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
+			observerAudioChunksDeleted: false,
+			observerSpeechMeasurementsDeleted: false,
+			observerCaptureOutcomesDeleted: false,
 			storageKeys: [],
 		});
 		// No DEK destroyed → no purge audit entry, but embeddings still deleted.
@@ -292,6 +298,9 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
+			observerAudioChunksDeleted: false,
+			observerSpeechMeasurementsDeleted: false,
+			observerCaptureOutcomesDeleted: false,
 			storageKeys: [],
 		});
 	});
@@ -382,6 +391,9 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
+			observerAudioChunksDeleted: false,
+			observerSpeechMeasurementsDeleted: false,
+			observerCaptureOutcomesDeleted: false,
 			storageKeys: [],
 		});
 	});

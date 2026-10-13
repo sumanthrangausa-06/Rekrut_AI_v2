@@ -204,6 +204,9 @@ describe('S-078 erasePersonalData — MEDIUM tables (in-tx)', () => {
 			'recordingConsentRedacted',
 			'observerReportsDeleted',
 			'observerJobsDeleted',
+			'observerAudioChunksDeleted',
+			'observerSpeechMeasurementsDeleted',
+			'observerCaptureOutcomesDeleted',
 		]) {
 			expect(flag in result).toBe(true);
 		}
