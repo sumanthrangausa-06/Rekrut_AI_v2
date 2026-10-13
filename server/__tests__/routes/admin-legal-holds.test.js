@@ -43,6 +43,7 @@ jest.mock('../../../lib/legalHold', () => {
 		placeHold: jest.fn(),
 		releaseHold: jest.fn(),
 		listHolds: jest.fn().mockResolvedValue([]),
+		recordLegalHoldConflict: jest.fn().mockResolvedValue({}),
 	};
 });
 jest.mock('../../../services/auditLogService', () => ({
@@ -84,6 +85,7 @@ function makeApp({ admin = true } = {}) {
 beforeEach(() => {
 	jest.clearAllMocks();
 	legalHold.listHolds.mockResolvedValue([]);
+	legalHold.recordLegalHoldConflict.mockResolvedValue({});
 });
 
 describe('legal-hold admin API', () => {
@@ -173,5 +175,56 @@ describe('DSAR fulfilment vs legal hold → 409', () => {
 			(c) => /data_requests|audit_logs/.test(c[0]) && /legal hold/i.test(JSON.stringify(c[1] || [])),
 		);
 		expect(recorded).toBe(true);
+	});
+
+	test('Lex F-1: the conflict is written to the compliance audit trail with hold id, actor, and request/subject identifiers', async () => {
+		pool.query
+			.mockResolvedValueOnce({ rows: [PENDING_DELETION] })
+			.mockResolvedValue({ rows: [], rowCount: 1 });
+		const client = { query: jest.fn().mockResolvedValue({ rowCount: 1 }), release: jest.fn() };
+		pool.connect.mockResolvedValue(client);
+		erasePersonalData.mockRejectedValue(
+			new legalHold.LegalHoldError('held', { userId: 7, holdId: 5 }),
+		);
+
+		const res = await request(makeApp())
+			.post('/api/admin/compliance/data-requests/10/fulfill')
+			.send({});
+
+		expect(res.status).toBe(409);
+		expect(res.body.error).toMatch(/has been recorded/);
+		expect(legalHold.recordLegalHoldConflict).toHaveBeenCalledTimes(1);
+		expect(legalHold.recordLegalHoldConflict).toHaveBeenCalledWith(
+			expect.objectContaining({
+				holdId: 5,
+				requestId: 10,
+				subjectUserId: 7,
+				source: 'dsar_fulfillment',
+			}),
+		);
+		const arg = legalHold.recordLegalHoldConflict.mock.calls[0][0];
+		expect(arg.actor).toBeTruthy(); // the admin who attempted fulfilment
+	});
+
+	test('Lex F-1: if the audit-trail write FAILS, the response must not claim recording (fail closed, no 409)', async () => {
+		pool.query
+			.mockResolvedValueOnce({ rows: [PENDING_DELETION] })
+			.mockResolvedValue({ rows: [], rowCount: 1 });
+		const client = { query: jest.fn().mockResolvedValue({ rowCount: 1 }), release: jest.fn() };
+		pool.connect.mockResolvedValue(client);
+		erasePersonalData.mockRejectedValue(
+			new legalHold.LegalHoldError('held', { userId: 7, holdId: 5 }),
+		);
+		legalHold.recordLegalHoldConflict.mockRejectedValue(new Error('audit trail down'));
+
+		const res = await request(makeApp())
+			.post('/api/admin/compliance/data-requests/10/fulfill')
+			.send({});
+
+		expect(res.status).toBe(500);
+		expect(res.body.error).not.toMatch(/has been recorded/);
+		expect(res.body.error).toMatch(/could not be recorded/i);
+		const clientSql = client.query.mock.calls.map((c) => c[0]);
+		expect(clientSql).toContain('ROLLBACK'); // erasure still did not proceed
 	});
 });

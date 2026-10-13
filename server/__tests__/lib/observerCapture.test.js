@@ -62,6 +62,14 @@ function route(st, sql, params = []) {
 	if (sql.includes('FROM observer_jobs')) {
 		const j = st.jobs.get(params[0]); return { rows: j ? [j] : [] };
 	}
+	if (sql.includes('SELECT candidate_id, company_id FROM interview_sessions')) {
+		// #799 PR-gate fix round: legalHold session resolution (privacy
+		// F-1/F-6) — sessions in this suite carry no candidate/company
+		// attribution, so resolution yields NULLs and the hold check
+		// falls through to the legal_holds query as before.
+		const s = st.sessions.get(params[0]);
+		return { rows: s ? [{ candidate_id: s.candidate_id ?? null, company_id: s.company_id ?? null }] : [] };
+	}
 	if (sql.includes('SELECT id, config FROM interview_sessions')) {
 		const s = st.sessions.get(params[0]); return { rows: s ? [s] : [] };
 	}

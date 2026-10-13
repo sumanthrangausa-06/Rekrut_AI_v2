@@ -1818,12 +1818,39 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 		// #799 (G-1): an active legal hold blocks erasure (the transaction
 		// rolled back — the account is NOT deleted and the DEK is NOT
 		// destroyed). Surface the conflict as 409, GDPR Art. 17(3)(e).
+		// Lex F-1 (#915 PR-gate fix round): this path previously left NO
+		// durable record of the refused erasure. Write the conflict to
+		// compliance_audit_trail (hold id, actor, subject) BEFORE
+		// answering; if that write fails, fail closed with a 500 that
+		// surfaces the failure (nothing was deleted either way, so the
+		// user can simply retry).
 		if (err.code === 'LEGAL_HOLD') {
+			try {
+				const { recordLegalHoldConflict } = require('../lib/legalHold');
+				await recordLegalHoldConflict({
+					holdId: err.details?.holdId ?? null,
+					actor: req.user?.id ?? null,
+					actorRole: 'user',
+					subjectUserId: req.user?.id ?? null,
+					companyId: req.user?.company_id ?? null,
+					source: 'self_serve_delete_account',
+				});
+			} catch (recErr) {
+				console.error('[auth/delete-account] legal-hold conflict AUDIT record failed:', recErr.message);
+				return res.status(500).json({
+					error:
+						'Legal hold active: nothing was deleted, but the conflict could not be recorded ' +
+						'in the compliance audit trail. Please retry so the conflict can be recorded.',
+					legalHold: true,
+					conflictRecorded: false,
+				});
+			}
 			return res.status(409).json({
 				error:
 					'Legal hold active: this account cannot be erased while it is under a legal hold ' +
 					'(GDPR Art. 17(3)(e)). Nothing was deleted.',
 				legalHold: true,
+				conflictRecorded: true,
 			});
 		}
 		console.error('Delete account error:', err.message, err.code, err.stack);

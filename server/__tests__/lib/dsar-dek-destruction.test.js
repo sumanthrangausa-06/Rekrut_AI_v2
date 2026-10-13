@@ -268,4 +268,21 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 		expect(err.code).toBe('LEGAL_HOLD');
 		expect(biometricAudit.logAccess).not.toHaveBeenCalled();
 	});
+
+	test('F-8 (PR-gate fix round): a destroyDEK-stage error still propagates RAW once the hold check has passed', async () => {
+		// Privacy F-8: the test above now asserts the hold-check stage's
+		// fail-closed semantics, which removed coverage that an error at
+		// the destroyDEK stage itself (hold check passed, DEK UPDATE
+		// fails) propagates unchanged — not wrapped as LEGAL_HOLD.
+		const client = {
+			query: jest
+				.fn()
+				.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799 legal-hold check: no hold
+				.mockRejectedValueOnce(new Error('dek db down')), // destroyDEK UPDATE fails
+		};
+		const err = await erasePersonalData(7, { client }).catch((e) => e);
+		expect(err.message).toBe('dek db down');
+		expect(err.code).not.toBe('LEGAL_HOLD');
+		expect(biometricAudit.logAccess).not.toHaveBeenCalled();
+	});
 });

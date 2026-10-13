@@ -654,7 +654,7 @@ class EuComplianceService {
 		// crash-safe: a failed DB update leaves a row pointing at a missing
 		// object (playback 404s, next run retries), never an orphaned file.
 		const { rows } = await pool.query(
-			`SELECT ir.id, ir.storage_path, ie.candidate_id FROM interview_recordings ir
+			`SELECT ir.id, ir.storage_path, ie.candidate_id, ir.interview_session_id FROM interview_recordings ir
 			 LEFT JOIN interview_events ie ON ie.id = ir.interview_event_id
 			 WHERE ir.retention_expires_at < NOW() AND ir.status != 'deleted'
 			 ORDER BY ir.retention_expires_at ASC
@@ -675,14 +675,21 @@ class EuComplianceService {
 		// (the join pattern at lib/erasureService.js). Unattributable rows
 		// (no interview_event) fall back to the any-active-hold skip.
 		// isLegalHoldActive / anyHoldActive are fail-closed.
+		// #915 PR-gate fix round (privacy F-1): the recording's
+		// interview_session_id is ALSO passed — candidates carry no
+		// users.company_id, so a company-only hold reaches this row only
+		// via its session's company (isHeld now always merges it).
 		const { isLegalHoldActive } = require('../lib/observerCapture');
 		const { anyHoldActive } = require('../lib/legalHold');
 
 		for (const row of rows) {
 			try {
 				const held =
-					row.candidate_id != null
-						? await isLegalHoldActive({ candidateId: row.candidate_id })
+					row.candidate_id != null || row.interview_session_id != null
+						? await isLegalHoldActive({
+								candidateId: row.candidate_id ?? undefined,
+								sessionId: row.interview_session_id ?? undefined,
+							})
 						: await anyHoldActive();
 				if (held) {
 					heldSkips++;
@@ -990,7 +997,7 @@ class EuComplianceService {
 		const { isLegalHoldActive } = require('../lib/observerCapture');
 		const { anyHoldActive } = require('../lib/legalHold');
 		const { rows } = await pool.query(
-			`SELECT r.id, s.candidate_id FROM ai_observer_reports r
+			`SELECT r.id, s.candidate_id, r.interview_session_id FROM ai_observer_reports r
 			 LEFT JOIN interview_sessions s ON s.id = r.interview_session_id
 			 WHERE r.created_at < $1`,
 			[cutoff],
@@ -999,9 +1006,16 @@ class EuComplianceService {
 		let deletedCount = 0;
 		let heldSkips = 0;
 		for (const row of rows) {
+			// #915 PR-gate fix round (privacy F-1): pass the report's
+			// session id as well as the candidate — the session's company
+			// is the only path by which a company-only hold protects a
+			// candidate's reports (candidates have no users.company_id).
 			const held =
-				row.candidate_id != null
-					? await isLegalHoldActive({ candidateId: row.candidate_id })
+				row.candidate_id != null || row.interview_session_id != null
+					? await isLegalHoldActive({
+							candidateId: row.candidate_id ?? undefined,
+							sessionId: row.interview_session_id ?? undefined,
+						})
 					: await anyHoldActive();
 			if (held) {
 				heldSkips++;

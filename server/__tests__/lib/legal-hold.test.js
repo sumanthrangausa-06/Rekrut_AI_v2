@@ -41,17 +41,37 @@ const auditLogService = require('../../../services/auditLogService');
 const { deleteFile, deleteStorageObject } = require('../../../lib/file-storage');
 
 // ─── In-memory legal_holds state + SQL router ───────────────────────────────
+// PR-gate fix round (privacy F-1): the fake must model production reality —
+// CANDIDATES have users.company_id = NULL (only employer signup sets it,
+// routes/auth.js). The old fake modelled candidate 7 as a company member
+// (userCompany {7: 3}), which masked the company-hold blocker: a company
+// hold appeared to protect candidates via users.company_id when in reality
+// their company attribution arrives ONLY via interview_sessions. So:
+//   - userCompany defaults EMPTY; employer-member tests set it explicitly.
+//   - candidateSessionCompanies maps candidate_id → [company_id, …] from
+//     that candidate's interview_sessions (the IN-subquery in isHeld and
+//     the EXISTS branch of heldPredicate).
+//   - session resolution is simulated by per-test mocks matching the
+//     precise resolution query ('SELECT candidate_id, company_id FROM
+//     interview_sessions WHERE id') — NOT a generic FROM interview_sessions
+//     match, which would also intercept the legal_holds query (it now
+//     contains an interview_sessions subquery).
 let holds;
 let userCompany;
+let candidateSessionCompanies;
 let holdCheckError;
 
-function activeHoldMatches(uid, cid) {
+function activeHoldMatches(uid, cids) {
+	const cidList = (Array.isArray(cids) ? cids : [cids]).filter((c) => c != null);
 	return holds.filter(
 		(h) =>
 			!h.released_at &&
 			((uid != null && h.user_id === uid) ||
-				(cid != null && h.company_id === cid) ||
-				(uid != null && h.company_id != null && userCompany[uid] === h.company_id)),
+				(h.company_id != null && cidList.includes(h.company_id)) ||
+				(uid != null && h.company_id != null && userCompany[uid] === h.company_id) ||
+				(uid != null &&
+					h.company_id != null &&
+					(candidateSessionCompanies[uid] || []).includes(h.company_id))),
 	);
 }
 
@@ -83,7 +103,9 @@ function routeLegalHolds(sql, params = []) {
 		if (holdCheckError) throw holdCheckError;
 		// any-active-hold query carries no subject params
 		if (!params.length) return { rows: holds.filter((h) => !h.released_at), rowCount: holds.filter((h) => !h.released_at).length };
-		return { rows: activeHoldMatches(params[0], params[1]), rowCount: activeHoldMatches(params[0], params[1]).length };
+		// isHeld params: [uid, explicitCompanyId, sessionCompanyId]
+		const matched = activeHoldMatches(params[0], [params[1], params[2]]);
+		return { rows: matched, rowCount: matched.length };
 	}
 	return null;
 }
@@ -91,7 +113,8 @@ function routeLegalHolds(sql, params = []) {
 beforeEach(() => {
 	jest.clearAllMocks();
 	holds = [];
-	userCompany = { 7: 3, 8: 4 };
+	userCompany = {}; // candidates: users.company_id IS NULL (see header)
+	candidateSessionCompanies = {};
 	holdCheckError = null;
 	auditLogService.logEvent.mockResolvedValue({ id: 'audit-1' });
 });
@@ -113,6 +136,9 @@ describe('legalHold.isHeld', () => {
 	});
 
 	test("true for a company hold matching the subject's company (users.company_id)", async () => {
+		// EMPLOYER users carry users.company_id (set at employer signup) —
+		// modelled explicitly here; candidates do not (see fake header).
+		userCompany = { 7: 3, 8: 4 };
 		holds.push({ id: 1, user_id: null, company_id: 3, released_at: null });
 		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
 		await expect(isHeld({ userId: 7 })).resolves.toBe(true); // user 7 ∈ company 3
@@ -129,12 +155,62 @@ describe('legalHold.isHeld', () => {
 	test('sessionId resolves the session candidate + company', async () => {
 		holds.push({ id: 1, user_id: 7, company_id: null, released_at: null });
 		db.query.mockImplementation(async (sql, p) => {
-			if (sql.includes('FROM interview_sessions')) {
+			if (sql.includes('SELECT candidate_id, company_id FROM interview_sessions WHERE id')) {
 				return { rows: [{ candidate_id: 7, company_id: 3 }], rowCount: 1 };
 			}
 			return routeLegalHolds(sql, p);
 		});
 		await expect(isHeld({ sessionId: 42 })).resolves.toBe(true);
+	});
+
+	// ── PR-gate fix round: privacy F-1 (BLOCKER) + F-6 ─────────────────────
+	test('F-1 REGRESSION: company hold protects a candidate via the SESSION when BOTH ids are passed (users.company_id NULL)', async () => {
+		// The exact seam shape every session-attributed call site uses:
+		// {userId: 7, sessionId: 42}. Candidate 7 has NO users.company_id;
+		// session 42 sits in held company 99. Before the fix, isHeld only
+		// resolved the session when NO userId was given → false.
+		holds.push({ id: 1, user_id: null, company_id: 99, released_at: null });
+		let sessionQueried = false;
+		db.query.mockImplementation(async (sql, p) => {
+			if (sql.includes('SELECT candidate_id, company_id FROM interview_sessions WHERE id')) {
+				sessionQueried = true;
+				expect(p).toEqual([42]);
+				return { rows: [{ candidate_id: 7, company_id: 99 }], rowCount: 1 };
+			}
+			return routeLegalHolds(sql, p);
+		});
+		await expect(isHeld({ userId: 7, sessionId: 42 })).resolves.toBe(true);
+		expect(sessionQueried).toBe(true);
+	});
+
+	test('F-1: candidate whose session is in a NON-held company is not held', async () => {
+		holds.push({ id: 1, user_id: null, company_id: 99, released_at: null });
+		db.query.mockImplementation(async (sql, p) => {
+			if (sql.includes('SELECT candidate_id, company_id FROM interview_sessions WHERE id')) {
+				return { rows: [{ candidate_id: 7, company_id: 55 }], rowCount: 1 };
+			}
+			return routeLegalHolds(sql, p);
+		});
+		await expect(isHeld({ userId: 7, sessionId: 43 })).resolves.toBe(false);
+	});
+
+	test('F-1: candidate is held via ANY of their sessions’ companies (no sessionId — the erasure attribution)', async () => {
+		holds.push({ id: 1, user_id: null, company_id: 99, released_at: null });
+		candidateSessionCompanies = { 7: [55, 99], 8: [55] };
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		await expect(isHeld({ userId: 7 })).resolves.toBe(true);
+		await expect(isHeld({ userId: 8 })).resolves.toBe(false);
+	});
+
+	test('F-6: session-resolution MISS fails closed (held), with and without a userId', async () => {
+		db.query.mockImplementation(async (sql, p) => {
+			if (sql.includes('SELECT candidate_id, company_id FROM interview_sessions WHERE id')) {
+				return { rows: [], rowCount: 0 }; // session row is gone
+			}
+			return routeLegalHolds(sql, p);
+		});
+		await expect(isHeld({ sessionId: 999 })).resolves.toBe(true);
+		await expect(isHeld({ userId: 7, sessionId: 999 })).resolves.toBe(true);
 	});
 
 	test('FAIL-CLOSED: a hold-check error resolves true (treat as held)', async () => {
@@ -186,17 +262,86 @@ describe('legalHold place/release + audit', () => {
 	});
 });
 
+// ─── Lex F-1: DSAR / self-serve conflict record (compliance_audit_trail) ───
+describe('legalHold.recordLegalHoldConflict', () => {
+	const legalHold = require('../../../lib/legalHold');
+
+	afterEach(() => {
+		legalHold._setAuditWriter(null);
+	});
+
+	test('writes the conflict to the compliance audit trail with hold id, actor, and request/subject identifiers', async () => {
+		const entries = [];
+		legalHold._setAuditWriter(async (e) => {
+			entries.push(e);
+			return { id: 'audit-9' };
+		});
+		await legalHold.recordLegalHoldConflict({
+			holdId: 5,
+			actor: 'admin@example.com',
+			actorRole: 'admin',
+			requestId: 10,
+			subjectUserId: 7,
+			companyId: 3,
+			source: 'dsar_fulfillment',
+		});
+		expect(entries).toHaveLength(1);
+		expect(entries[0].payload).toMatchObject({
+			action: 'legal_hold_conflict',
+			holdId: 5,
+			actor: 'admin@example.com',
+			requestId: 10,
+			subjectUserId: 7,
+			source: 'dsar_fulfillment',
+		});
+		expect(entries[0].entityId).toBe(7);
+	});
+
+	test('THROWS when the audit write fails — callers must not claim the conflict was recorded', async () => {
+		legalHold._setAuditWriter(async () => {
+			throw new Error('audit trail down');
+		});
+		await expect(
+			legalHold.recordLegalHoldConflict({
+				holdId: 5,
+				actor: 7,
+				actorRole: 'user',
+				subjectUserId: 7,
+				source: 'self_serve_delete_account',
+			}),
+		).rejects.toThrow(/audit trail down/);
+	});
+});
+
 // ─── observerCapture seam (stub replaced, signature preserved) ─────────────
 describe('observerCapture.isLegalHoldActive (existing seam, real body)', () => {
 	test('delegates to legalHold for {candidateId, sessionId}', async () => {
 		const cap = require('../../../lib/observerCapture');
 		holds.push({ id: 1, user_id: 7, company_id: null, released_at: null });
 		db.query.mockImplementation(async (sql, p) => {
-			if (sql.includes('FROM interview_sessions')) return { rows: [{ candidate_id: 7, company_id: 3 }] };
+			if (sql.includes('SELECT candidate_id, company_id FROM interview_sessions WHERE id')) {
+				return { rows: [{ candidate_id: 7, company_id: 3 }] };
+			}
 			return routeLegalHolds(sql, p);
 		});
 		await expect(cap.isLegalHoldActive({ candidateId: 7, sessionId: 42 })).resolves.toBe(true);
 		await expect(cap.isLegalHoldActive({ candidateId: 8, sessionId: 43 })).resolves.toBe(false);
+	});
+
+	test('F-1 REGRESSION (seam): company-only hold protects the candidate of a session in that company (candidate company NULL)', async () => {
+		const cap = require('../../../lib/observerCapture');
+		holds.push({ id: 1, user_id: null, company_id: 99, released_at: null });
+		db.query.mockImplementation(async (sql, p) => {
+			if (sql.includes('SELECT candidate_id, company_id FROM interview_sessions WHERE id')) {
+				// session 42 → held company 99; session 43 → non-held 55
+				return p[0] === 42
+					? { rows: [{ candidate_id: 7, company_id: 99 }] }
+					: { rows: [{ candidate_id: 7, company_id: 55 }] };
+			}
+			return routeLegalHolds(sql, p);
+		});
+		await expect(cap.isLegalHoldActive({ candidateId: 7, sessionId: 42 })).resolves.toBe(true);
+		await expect(cap.isLegalHoldActive({ candidateId: 7, sessionId: 43 })).resolves.toBe(false);
 	});
 });
 
@@ -228,9 +373,31 @@ describe('erasePersonalData under hold', () => {
 	});
 
 	test('company hold also blocks erasure of a company member', async () => {
+		userCompany = { 7: 3 }; // employer member (users.company_id set)
 		holds.push({ id: 1, user_id: null, company_id: 3, released_at: null });
 		const client = makeClient();
 		await expect(erasePersonalData(7, { client })).rejects.toMatchObject({ code: 'LEGAL_HOLD' });
+	});
+
+	test('F-1 REGRESSION (erasure): company hold blocks erasure of a CANDIDATE whose sessions sit in that company (users.company_id NULL), and the error carries the hold id', async () => {
+		holds.push({ id: 9, user_id: null, company_id: 99, released_at: null });
+		candidateSessionCompanies = { 7: [99] };
+		const client = makeClient();
+		const err = await erasePersonalData(7, { client }).catch((e) => e);
+		expect(err).toBeInstanceOf(LegalHoldError);
+		expect(err.code).toBe('LEGAL_HOLD');
+		expect(err.details.holdId).toBe(9); // Lex F-1: the DSAR conflict record needs the hold id
+		const sqls = client.query.mock.calls.map((c) => c[0]);
+		expect(sqls.some((s) => s.includes('candidate_data_keys'))).toBe(false); // DEK untouched
+		expect(sqls.some((s) => s.includes('DELETE FROM'))).toBe(false);
+	});
+
+	test('F-1 (erasure): candidate whose sessions are only in NON-held companies is NOT blocked', async () => {
+		holds.push({ id: 9, user_id: null, company_id: 99, released_at: null });
+		candidateSessionCompanies = { 7: [55] };
+		const client = makeClient();
+		const result = await erasePersonalData(7, { client });
+		expect(result.shredded).toBe(false); // erasure ran (DEKNotFound on the empty fake)
 	});
 
 	test('released hold unblocks erasure (proceeds to DEK step)', async () => {
@@ -352,6 +519,31 @@ describe('euComplianceService purges under hold', () => {
 		expect(writes).toHaveLength(0);
 	});
 
+	test('F-1 REGRESSION (#6 recordings): company hold via the recording’s SESSION protects a candidate with company NULL', async () => {
+		holds.push({ id: 1, user_id: null, company_id: 99, released_at: null });
+		db.query.mockImplementation(async (sql, p) => {
+			if (sql.includes('SELECT candidate_id, company_id FROM interview_sessions WHERE id')) {
+				return { rows: [{ candidate_id: 7, company_id: 99 }], rowCount: 1 };
+			}
+			const held = routeLegalHolds(sql, p);
+			if (held) return held;
+			if (sql.includes('FROM interview_recordings')) {
+				return { rows: [{ id: 5, storage_path: null, candidate_id: 7, interview_session_id: 42 }], rowCount: 1 };
+			}
+			return { rows: [], rowCount: 0 };
+		});
+		const res = await EuComplianceService.purgeExpiredRecordings({ dryRun: false });
+		expect(res.deletedCount).toBe(0);
+		expect(res.heldSkips).toBe(1);
+		const writes = db.query.mock.calls.filter(
+			(c) => c[0].includes('UPDATE interview_recordings') || c[0].includes('UPDATE interview_transcripts'),
+		);
+		expect(writes).toHaveLength(0);
+		// The purge SELECT must carry the session link for attribution
+		const select = db.query.mock.calls.find((c) => c[0].includes('FROM interview_recordings'));
+		expect(select[0]).toMatch(/interview_session_id/);
+	});
+
 	test('purgeExpiredTemplates: ANY active hold skips the run (templates are unattributable by design)', async () => {
 		holds.push({ id: 1, user_id: null, company_id: 9, released_at: null });
 		db.query.mockImplementation(async (sql, p) => {
@@ -388,6 +580,33 @@ describe('euComplianceService purges under hold', () => {
 		const freeRes = await run();
 		expect(freeRes.deletedCount).toBe(1);
 		expect(freeRes.heldSkips).toBe(0);
+	});
+
+	test('F-1 REGRESSION (#8 observer reports): company hold via the report’s SESSION protects a candidate with company NULL', async () => {
+		holds.push({ id: 1, user_id: null, company_id: 99, released_at: null });
+		db.query.mockImplementation(async (sql, p) => {
+			if (sql.includes('SELECT candidate_id, company_id FROM interview_sessions WHERE id')) {
+				return { rows: [{ candidate_id: 7, company_id: 99 }], rowCount: 1 };
+			}
+			const held = routeLegalHolds(sql, p);
+			if (held) return held;
+			if (sql.includes('FROM ai_observer_reports')) {
+				return { rows: [{ id: 11, candidate_id: 7, interview_session_id: 42 }], rowCount: 1 };
+			}
+			return { rows: [], rowCount: 1 };
+		});
+		const res = await EuComplianceService.purgeExpiredObserverReports({ dryRun: false });
+		expect(res.deletedCount).toBe(0);
+		expect(res.heldSkips).toBe(1);
+		const select = db.query.mock.calls.find((c) => c[0].includes('FROM ai_observer_reports'));
+		expect(select[0]).toMatch(/interview_session_id/);
+	});
+
+	test('F-1 (bulk predicate): heldPredicate carries session-company attribution for candidates', async () => {
+		const { heldPredicate } = require('../../../lib/legalHold');
+		const predicate = heldPredicate('some_table.user_id');
+		expect(predicate).toMatch(/interview_sessions/);
+		expect(predicate).toMatch(/candidate_id\s*=\s*some_table\.user_id/);
 	});
 
 	test('executePurge: attributable branches carry a NOT EXISTS hold predicate + held count in summary', async () => {

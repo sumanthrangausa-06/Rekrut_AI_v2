@@ -2177,16 +2177,50 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 			// and answer 409 so the admin can release the hold and
 			// re-fulfil.
 			if (txErr.code === 'LEGAL_HOLD') {
+				// Lex F-1 (#915 PR-gate fix round): the durable conflict
+				// record is the compliance_audit_trail entry (hold id,
+				// actor, request/subject identifiers) — the data_requests
+				// note below is a secondary, human-readable copy. The 409
+				// may claim "recorded" ONLY when the audit write succeeded;
+				// if it fails, fail closed: surface the failure with a 500
+				// (the erasure did NOT run — the tx rolled back — so a
+				// retry after the trail recovers loses nothing).
+				let conflictRecorded = false;
+				try {
+					const { recordLegalHoldConflict } = require('../lib/legalHold');
+					await recordLegalHoldConflict({
+						holdId: txErr.details?.holdId ?? null,
+						actor: legalHoldActor(req),
+						actorRole: 'admin',
+						requestId: id,
+						subjectUserId: dr.user_id ?? null,
+						companyId: dr.company_id ?? null,
+						source: 'dsar_fulfillment',
+					});
+					conflictRecorded = true;
+				} catch (recErr) {
+					console.error('[admin/compliance/data-requests/fulfill] legal-hold conflict AUDIT record failed:', recErr.message);
+				}
+				if (!conflictRecorded) {
+					return res.status(500).json({
+						error:
+							'Legal hold active: erasure was NOT performed, but the conflict could not be recorded ' +
+							'in the compliance audit trail. Retry the fulfilment so the conflict can be recorded.',
+						legalHold: true,
+						requestId: id,
+						conflictRecorded: false,
+					});
+				}
 				try {
 					const conflictNote =
 						`Fulfilment blocked ${new Date().toISOString()}: active legal hold on the subject ` +
-						'(GDPR Art. 17(3)(e)) — erasure NOT performed; conflict recorded.';
+						'(GDPR Art. 17(3)(e)) — erasure NOT performed; conflict recorded in the compliance audit trail.';
 					await pool.query(
 						`UPDATE data_requests SET notes = $1 WHERE id = $2`,
 						[dr.notes ? `${dr.notes}\n${conflictNote}` : conflictNote, id],
 					);
 				} catch (recErr) {
-					console.error('[admin/compliance/data-requests/fulfill] legal-hold conflict record failed:', recErr.message);
+					console.error('[admin/compliance/data-requests/fulfill] legal-hold conflict note write failed:', recErr.message);
 				}
 				return res.status(409).json({
 					error:
@@ -2194,6 +2228,7 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 						'(GDPR Art. 17(3)(e)). The conflict has been recorded; release the hold and re-fulfil.',
 					legalHold: true,
 					requestId: id,
+					conflictRecorded: true,
 				});
 			}
 			throw txErr;
@@ -2208,9 +2243,10 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 
 // ─── Legal holds (#799, G-1) ────────────────────────────────────────────────
 // Admin-only set/release for the platform legal-hold mechanism
-// (lib/legalHold.js, migration 258). While a hold is active, every
-// retention/erasure deletion path skips the held subject (counted +
-// audited). No admin UI in this story (explicitly out of scope).
+// (lib/legalHold.js, migration 258). While a hold is active, the
+// automated retention purges and erasure paths wired in #799 skip the
+// held subject (counted + audited). No admin UI in this story
+// (explicitly out of scope).
 
 function legalHoldActor(req) {
 	return req.session?.adminBridgedFrom || req.user?.id || 'admin-panel';
