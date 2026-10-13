@@ -11,8 +11,9 @@
  *   POST   /interview-sessions/:id/tts         synthesize a turn's text to audio
  *   POST   /interview-sessions/:id/observer/enable  hiring team enables the AI
  *                                              observer (Track B, consent-gated)
- *   POST   /interview-sessions/:id/observer/report  observer analysis report
- *                                              (Q&A extraction + analysis stack)
+ *   POST   /interview-sessions/:id/observer/qa-report  observer Q&A report
+ *                                              (Q&A extraction + analysis stack;
+ *                                              /observer/report = deprecated alias, S-083)
  *   GET    /interview-sessions                 unified list (unified sessions +
  *                                              read-linked human-scheduled interviews)
  *   POST   /interview-flows                    create an interview flow (Task 7)
@@ -1217,11 +1218,14 @@ router.get('/interview-sessions/:id/observer/status', authMiddleware, async (req
 	}
 });
 
-// POST /interview-sessions/:id/observer/report — generate the observer
-// analysis report on demand: Q&A extraction over the observer transcript,
+// POST /interview-sessions/:id/observer/qa-report — generate the observer
+// Q&A report on demand: Q&A extraction over the observer transcript,
 // then the mock-interview analysis stack with the job's rubric weights
 // (recruiter-defined when present, default otherwise).
-router.post('/interview-sessions/:id/observer/report', authMiddleware, async (req, res) => {
+// S-083 (#783): canonical path is /observer/qa-report; the original
+// /observer/report path is kept as a deprecated alias for one sprint
+// (Decision D1, Option A) — both registrations serve this same handler.
+const observerReportHandler = async (req, res) => {
 	try {
 		const session = await loadSession(req.params.id);
 		if (!session) {
@@ -1266,7 +1270,11 @@ router.post('/interview-sessions/:id/observer/report', authMiddleware, async (re
 		console.error('[interview-sessions] observer report error:', err.message);
 		res.status(500).json({ error: 'Failed to generate observer report' });
 	}
-});
+};
+
+router.post('/interview-sessions/:id/observer/qa-report', authMiddleware, observerReportHandler);
+// Deprecated alias (S-083) — removal follow-up owned by Lead after one sprint.
+router.post('/interview-sessions/:id/observer/report', authMiddleware, observerReportHandler);
 
 // POST /interview-sessions/:id/tts — synthesize text to audio (mirrors /mock/tts).
 router.post('/interview-sessions/:id/tts', authMiddleware, async (req, res) => {

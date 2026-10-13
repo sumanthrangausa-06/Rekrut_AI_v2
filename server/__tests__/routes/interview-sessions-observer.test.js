@@ -398,6 +398,76 @@ describe('POST /interview-sessions/:id/observer/report', () => {
 	});
 });
 
+// S-083 (#783): canonical path is .../observer/qa-report; the old
+// .../observer/report path stays as a deprecated alias for one sprint
+// (Decision D1, Option A). Both paths serve the identical handler.
+describe('POST /interview-sessions/:id/observer/qa-report (S-083 canonical path)', () => {
+	const transcript = [{ speaker: 'recruiter-1', text: 'Tell me about yourself.', at: 'x' }];
+	const pairs = [
+		{
+			question: 'Tell me about yourself.',
+			answer: 'I am a data analyst.',
+			asker: 'recruiter-1',
+			answerer: 'candidate-4',
+		},
+	];
+	const report = {
+		overall_score: 82,
+		recommendation: 'advance',
+		rubric_source: 'recruiter',
+	};
+
+	test('runs extraction + analysis over the observer transcript and stores the report', async () => {
+		const s = seedSession({ config: { observer_transcript: transcript } });
+		mockExtractQAPairs.mockResolvedValue(pairs);
+		mockAnalyzeObserverSession.mockResolvedValue(report);
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/observer/qa-report`).set(as(1));
+
+		expect(res.status).toBe(200);
+		expect(mockExtractQAPairs).toHaveBeenCalledWith(transcript);
+		expect(mockAnalyzeObserverSession).toHaveBeenCalledWith({
+			session: expect.objectContaining({ id: s.id }),
+			qaPairs: pairs,
+			rubricWeights: { can_do_the_work: 60, communication_quality: 40 },
+			job: { title: 'Data Analyst', description: 'SQL dashboards' },
+		});
+		expect(res.body).toEqual({ success: true, report, qa_pair_count: 1 });
+		expect(mockSessions.get(s.id).config.report.overall_score).toBe(82);
+	});
+
+	test('no observer transcript → 422', async () => {
+		const s = seedSession({ config: {} });
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/observer/qa-report`).set(as(1));
+
+		expect(res.status).toBe(422);
+		expect(mockExtractQAPairs).not.toHaveBeenCalled();
+	});
+
+	test('cross-company recruiter cannot generate the report', async () => {
+		const s = seedSession({ config: { observer_transcript: [{ speaker: 'a', text: 'b' }] } });
+
+		const res = await request(app).post(`/interview-sessions/${s.id}/observer/qa-report`).set(as(9));
+
+		expect(res.status).toBe(403);
+	});
+
+	test('canonical and deprecated-alias paths return identical responses', async () => {
+		mockExtractQAPairs.mockResolvedValue(pairs);
+		mockAnalyzeObserverSession.mockResolvedValue(report);
+		const sNew = seedSession({ config: { observer_transcript: transcript } });
+		const sOld = seedSession({ config: { observer_transcript: transcript } });
+
+		const resNew = await request(app).post(`/interview-sessions/${sNew.id}/observer/qa-report`).set(as(1));
+		const resOld = await request(app).post(`/interview-sessions/${sOld.id}/observer/report`).set(as(1));
+
+		expect(resNew.status).toBe(200);
+		expect(resOld.status).toBe(200);
+		expect(resNew.body).toEqual(resOld.body);
+	});
+});
+
 describe("POST /interview-sessions/:id/complete — 'human' without observer data (I1, #323)", () => {
 	test('human session with no observer transcript → no-data report, LLM never called', async () => {
 		const s = seedSession({ type: 'human', config: {} });
