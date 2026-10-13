@@ -46,6 +46,7 @@ Every question the documentation + PRD set needs answered, consolidated. Each ca
 ## Already ruled — recorded here so the set visibly does not reopen them
 
 - Gate A = B amended (cohort-only presence-only Observer; dormant capture built; re-entry contract with 2026-11-01 / 2026-12-01 checkpoints; slice-by-slice measurement; body language out; deception claims banned) — #634.
+- **Tiered Observer model (Sumanth, 2026-10-13, "i want all three")** — ONE system, three tiers by candidate consent state: Tier 3 = consented AI assessment (per-input-class artefact; voice/face under the Gate A contract + C-05); Tier 1+2 = no-media presence (notice + objection path) + post-lock composer producing one combined qualitative candidate report from HUMAN materials; Tier 0 = presence objected → human-only. This **amends the S-046 default-deny position for Tier 1 presence only**; analysis/capture remain default-deny; objection is never a signal; human interviewer blind until scorecard lock; recruiter sees both components + discrepancies (defaults in PRD-M11 §10). Counsel C-04/C-05 remain open — PRD-M11 §8, #788.
 - Mock scores: practice OUT of OmniScore + readiness panel (#791); practice-fact marker with six guardrails (#792); removal scheduled separately (Sprint 12 lead pair per Sprint 11 D1; #793 inside Sprint 11).
 - Module order: Interview → Applications (Sprint 11, building) → then per Sumanth's direction from this set.
 - Threat-intel narrowed v1 approved; signal dark until #788; **no outreach to anyone** (counsel track paused by Sumanth, 2026-10-13).

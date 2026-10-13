@@ -12,6 +12,7 @@
 | [decisions-for-sumanth.md](decisions-for-sumanth.md) | **Every decision this set needs from Sumanth, consolidated** — grouped, with Rex's recommendation on each |
 | `prds/prd-m01…m22` | One PRD per module — full end-to-end: purpose, users, journeys, verified current state, gap to launch-ready, functional + non-functional requirements, dependencies, Sprint 11 overlap, unverified box, and that module's boxed decisions |
 | `prds/prd-s1-landing-legal.md` | Supplementary PRD for Scout's unnumbered surface (landing/marketing/legal pages) |
+| [gate-note-m11-tiered-observer.md](gate-note-m11-tiered-observer.md) | Gate note for Lead (2026-10-13): the stories to file for Sumanth's tiered Observer ruling (PRD-M11), the evidence Tier 1+2 must produce before enablement, and what stays parked under the Gate A contract |
 
 ## Specialist decision (Rex's planning gate — stated per the standing rule)
 
