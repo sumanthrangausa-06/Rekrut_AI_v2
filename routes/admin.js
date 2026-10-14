@@ -2170,6 +2170,67 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 			res.json({ success: true, requestId: id, status: 'completed', erasure });
 		} catch (txErr) {
 			await client.query('ROLLBACK');
+			// #799 (G-1): a legal hold vs a DSAR request is a CONFLICT,
+			// surfaced and recorded under GDPR Art. 17(3)(e) — never a
+			// silent proceed and never a silent refusal. The erasure did
+			// not run (rolled back); record the conflict on the request
+			// and answer 409 so the admin can release the hold and
+			// re-fulfil.
+			if (txErr.code === 'LEGAL_HOLD') {
+				// Lex F-1 (#915 PR-gate fix round): the durable conflict
+				// record is the compliance_audit_trail entry (hold id,
+				// actor, request/subject identifiers) — the data_requests
+				// note below is a secondary, human-readable copy. The 409
+				// may claim "recorded" ONLY when the audit write succeeded;
+				// if it fails, fail closed: surface the failure with a 500
+				// (the erasure did NOT run — the tx rolled back — so a
+				// retry after the trail recovers loses nothing).
+				let conflictRecorded = false;
+				try {
+					const { recordLegalHoldConflict } = require('../lib/legalHold');
+					await recordLegalHoldConflict({
+						holdId: txErr.details?.holdId ?? null,
+						actor: legalHoldActor(req),
+						actorRole: 'admin',
+						requestId: id,
+						subjectUserId: dr.user_id ?? null,
+						companyId: dr.company_id ?? null,
+						source: 'dsar_fulfillment',
+					});
+					conflictRecorded = true;
+				} catch (recErr) {
+					console.error('[admin/compliance/data-requests/fulfill] legal-hold conflict AUDIT record failed:', recErr.message);
+				}
+				if (!conflictRecorded) {
+					return res.status(500).json({
+						error:
+							'Legal hold active: erasure was NOT performed, but the conflict could not be recorded ' +
+							'in the compliance audit trail. Retry the fulfilment so the conflict can be recorded.',
+						legalHold: true,
+						requestId: id,
+						conflictRecorded: false,
+					});
+				}
+				try {
+					const conflictNote =
+						`Fulfilment blocked ${new Date().toISOString()}: active legal hold on the subject ` +
+						'(GDPR Art. 17(3)(e)) — erasure NOT performed; conflict recorded in the compliance audit trail.';
+					await pool.query(
+						`UPDATE data_requests SET notes = $1 WHERE id = $2`,
+						[dr.notes ? `${dr.notes}\n${conflictNote}` : conflictNote, id],
+					);
+				} catch (recErr) {
+					console.error('[admin/compliance/data-requests/fulfill] legal-hold conflict note write failed:', recErr.message);
+				}
+				return res.status(409).json({
+					error:
+						'Legal hold active: this erasure cannot proceed while the subject is under a legal hold ' +
+						'(GDPR Art. 17(3)(e)). The conflict has been recorded; release the hold and re-fulfil.',
+					legalHold: true,
+					requestId: id,
+					conflictRecorded: true,
+				});
+			}
 			throw txErr;
 		} finally {
 			client.release();
@@ -2177,6 +2238,68 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 	} catch (error) {
 		console.error('[admin/compliance/data-requests/fulfill] Error:', error.message);
 		res.status(500).json({ error: 'Failed to fulfill data request' });
+	}
+});
+
+// ─── Legal holds (#799, G-1) ────────────────────────────────────────────────
+// Admin-only set/release for the platform legal-hold mechanism
+// (lib/legalHold.js, migration 258). While a hold is active, the
+// automated retention purges and erasure paths wired in #799 skip the
+// held subject (counted + audited). No admin UI in this story
+// (explicitly out of scope).
+
+function legalHoldActor(req) {
+	return req.session?.adminBridgedFrom || req.user?.id || 'admin-panel';
+}
+
+router.get('/legal-holds', requireAdmin, async (req, res) => {
+	try {
+		const { listHolds } = require('../lib/legalHold');
+		const holds = await listHolds({ activeOnly: req.query.active === 'true' });
+		res.json({ success: true, holds });
+	} catch (error) {
+		console.error('[admin/legal-holds] list error:', error.message);
+		res.status(500).json({ error: 'Failed to list legal holds' });
+	}
+});
+
+router.post('/legal-holds', requireAdmin, async (req, res) => {
+	try {
+		const { userId, companyId, reason } = req.body || {};
+		if ((userId == null && companyId == null) || !reason || !String(reason).trim()) {
+			return res.status(400).json({
+				error: 'A subject (userId and/or companyId) and a reason are required',
+			});
+		}
+		const { placeHold } = require('../lib/legalHold');
+		const hold = await placeHold({
+			userId: userId ?? null,
+			companyId: companyId ?? null,
+			reason: String(reason),
+			setBy: legalHoldActor(req),
+		});
+		res.status(201).json({ success: true, hold });
+	} catch (error) {
+		console.error('[admin/legal-holds] place error:', error.message);
+		res.status(500).json({ error: 'Failed to place legal hold' });
+	}
+});
+
+router.post('/legal-holds/:id/release', requireAdmin, async (req, res) => {
+	try {
+		const holdId = parseInt(req.params.id, 10);
+		if (!Number.isInteger(holdId) || holdId <= 0) {
+			return res.status(400).json({ error: 'Invalid hold id' });
+		}
+		const { releaseHold } = require('../lib/legalHold');
+		const hold = await releaseHold({ holdId, releasedBy: legalHoldActor(req) });
+		if (!hold) {
+			return res.status(404).json({ error: 'Active legal hold not found' });
+		}
+		res.json({ success: true, hold });
+	} catch (error) {
+		console.error('[admin/legal-holds] release error:', error.message);
+		res.status(500).json({ error: 'Failed to release legal hold' });
 	}
 });
 

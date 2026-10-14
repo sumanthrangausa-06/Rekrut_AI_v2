@@ -487,21 +487,40 @@ class EuComplianceService {
 	static async executePurge({ dryRun = true, companyId } = {}) {
 		const policies = await EuComplianceService.getRetentionPolicies({ companyId });
 		const summary = [];
+		// #799 (G-1): every attributable branch carries a legal-hold SQL
+		// predicate (NOT EXISTS against active legal_holds) and reports
+		// how many eligible rows were held back (held_skips) — held items
+		// are visibly skipped, never silently retained. Attribution:
+		// audit_logs.user_id, assessment_results.user_id (verified at
+		// routes/compliance.js — the table has no CREATE TABLE in
+		// migrations), candidate_profiles.user_id,
+		// ai_decision_explanations.user_id. interview_recordings delegates
+		// to purgeExpiredRecordings, which consults per row.
+		const { heldPredicate, notHeldPredicate } = require('../lib/legalHold');
 
 		for (const policy of policies.filter((p) => p.auto_delete)) {
 			const cutoff = new Date();
 			cutoff.setDate(cutoff.getDate() - policy.retention_days);
 
 			let deletedCount = 0;
+			let heldSkips = 0;
 
 			switch (policy.data_type) {
 				case 'audit_logs': {
+					const heldRes = await pool.query(
+						`SELECT COUNT(*)::int as c FROM audit_logs WHERE created_at < $1 AND ${heldPredicate('audit_logs.user_id')}`,
+						[cutoff],
+					);
+					heldSkips = heldRes.rows[0].c;
 					if (!dryRun) {
-						const r = await pool.query(`DELETE FROM audit_logs WHERE created_at < $1`, [cutoff]);
+						const r = await pool.query(
+							`DELETE FROM audit_logs WHERE created_at < $1 AND ${notHeldPredicate('audit_logs.user_id')}`,
+							[cutoff],
+						);
 						deletedCount = r.rowCount;
 					} else {
 						const r = await pool.query(
-							`SELECT COUNT(*)::int as c FROM audit_logs WHERE created_at < $1`,
+							`SELECT COUNT(*)::int as c FROM audit_logs WHERE created_at < $1 AND ${notHeldPredicate('audit_logs.user_id')}`,
 							[cutoff],
 						);
 						deletedCount = r.rows[0].c;
@@ -515,24 +534,43 @@ class EuComplianceService {
 					if (!dryRun) {
 						const res = await EuComplianceService.purgeExpiredRecordings({ dryRun: false });
 						deletedCount = res.deletedCount;
+						heldSkips = res.heldSkips || 0;
 					} else {
+						// D-1 (PR #915): recordings rows carry their own
+						// session — count held with the session-scoped
+						// predicate so the dry-run count matches the
+						// per-row live path (purgeExpiredRecordings)
+						// instead of over-retaining cross-company rows.
+						const heldRes = await pool.query(
+							`SELECT COUNT(*)::int as c FROM interview_recordings ir
+							 JOIN interview_events ie ON ie.id = ir.interview_event_id
+							 WHERE ir.created_at < $1 AND ${heldPredicate('ie.candidate_id', { sessionIdExpr: 'ir.interview_session_id' })}`,
+							[cutoff],
+						);
+						heldSkips = heldRes.rows[0].c;
 						const r = await pool.query(
 							`SELECT COUNT(*)::int as c FROM interview_recordings WHERE created_at < $1`,
 							[cutoff],
 						);
-						deletedCount = r.rows[0].c;
+						deletedCount = r.rows[0].c - heldSkips;
 					}
 					break;
 				}
 				case 'assessment_results': {
+					const heldRes = await pool.query(
+						`SELECT COUNT(*)::int as c FROM assessment_results WHERE created_at < $1 AND ${heldPredicate('assessment_results.user_id')}`,
+						[cutoff],
+					);
+					heldSkips = heldRes.rows[0].c;
 					if (!dryRun) {
-						const r = await pool.query(`DELETE FROM assessment_results WHERE created_at < $1`, [
-							cutoff,
-						]);
+						const r = await pool.query(
+							`DELETE FROM assessment_results WHERE created_at < $1 AND ${notHeldPredicate('assessment_results.user_id')}`,
+							[cutoff],
+						);
 						deletedCount = r.rowCount;
 					} else {
 						const r = await pool.query(
-							`SELECT COUNT(*)::int as c FROM assessment_results WHERE created_at < $1`,
+							`SELECT COUNT(*)::int as c FROM assessment_results WHERE created_at < $1 AND ${notHeldPredicate('assessment_results.user_id')}`,
 							[cutoff],
 						);
 						deletedCount = r.rows[0].c;
@@ -541,6 +579,11 @@ class EuComplianceService {
 				}
 				case 'candidate_data': {
 					// Anonymize rather than hard-delete for compliance
+					const heldRes = await pool.query(
+						`SELECT COUNT(*)::int as c FROM candidate_profiles WHERE updated_at < $1 AND ${heldPredicate('candidate_profiles.user_id')}`,
+						[cutoff],
+					);
+					heldSkips = heldRes.rows[0].c;
 					if (!dryRun) {
 						const r = await pool.query(
 							`UPDATE candidate_profiles
@@ -548,13 +591,13 @@ class EuComplianceService {
                    linkedin_url = NULL, github_url = NULL, portfolio_url = NULL,
                    resume_url = NULL, photo_url = NULL, location = NULL,
                    updated_at = NOW()
-               WHERE updated_at < $1`,
+               WHERE updated_at < $1 AND ${notHeldPredicate('candidate_profiles.user_id')}`,
 							[cutoff],
 						);
 						deletedCount = r.rowCount;
 					} else {
 						const r = await pool.query(
-							`SELECT COUNT(*)::int as c FROM candidate_profiles WHERE updated_at < $1`,
+							`SELECT COUNT(*)::int as c FROM candidate_profiles WHERE updated_at < $1 AND ${notHeldPredicate('candidate_profiles.user_id')}`,
 							[cutoff],
 						);
 						deletedCount = r.rows[0].c;
@@ -562,15 +605,20 @@ class EuComplianceService {
 					break;
 				}
 				case 'ai_decision_explanations': {
+					const heldRes = await pool.query(
+						`SELECT COUNT(*)::int as c FROM ai_decision_explanations WHERE generated_at < $1 AND ${heldPredicate('ai_decision_explanations.user_id')}`,
+						[cutoff],
+					);
+					heldSkips = heldRes.rows[0].c;
 					if (!dryRun) {
 						const r = await pool.query(
-							`DELETE FROM ai_decision_explanations WHERE generated_at < $1`,
+							`DELETE FROM ai_decision_explanations WHERE generated_at < $1 AND ${notHeldPredicate('ai_decision_explanations.user_id')}`,
 							[cutoff],
 						);
 						deletedCount = r.rowCount;
 					} else {
 						const r = await pool.query(
-							`SELECT COUNT(*)::int as c FROM ai_decision_explanations WHERE generated_at < $1`,
+							`SELECT COUNT(*)::int as c FROM ai_decision_explanations WHERE generated_at < $1 AND ${notHeldPredicate('ai_decision_explanations.user_id')}`,
 							[cutoff],
 						);
 						deletedCount = r.rows[0].c;
@@ -586,6 +634,7 @@ class EuComplianceService {
 				retention_days: policy.retention_days,
 				cutoff: cutoff.toISOString(),
 				affected_count: deletedCount,
+				held_skips: heldSkips,
 				dry_run: dryRun,
 			});
 		}
@@ -610,22 +659,47 @@ class EuComplianceService {
 		// crash-safe: a failed DB update leaves a row pointing at a missing
 		// object (playback 404s, next run retries), never an orphaned file.
 		const { rows } = await pool.query(
-			`SELECT id, storage_path FROM interview_recordings
-			 WHERE retention_expires_at < NOW() AND status != 'deleted'
-			 ORDER BY retention_expires_at ASC
+			`SELECT ir.id, ir.storage_path, ie.candidate_id, ir.interview_session_id FROM interview_recordings ir
+			 LEFT JOIN interview_events ie ON ie.id = ir.interview_event_id
+			 WHERE ir.retention_expires_at < NOW() AND ir.status != 'deleted'
+			 ORDER BY ir.retention_expires_at ASC
 			 LIMIT 500`,
 		);
 
 		let deletedCount = 0;
 		let storageDeleted = 0;
 		let errors = 0;
+		let heldSkips = 0;
 
 		// ponytail: lazy-require to avoid hard deps at module load.
 		const { deleteStorageObject } = require('../lib/file-storage');
 		const livekitService = require('../server/services/livekit');
+		// #799 (G-1): per-row legal-hold consult BEFORE the storage delete
+		// and BEFORE the transcript anonymisation below (both are part of
+		// the purge). Candidate attribution via interview_events.candidate_id
+		// (the join pattern at lib/erasureService.js). Unattributable rows
+		// (no interview_event) fall back to the any-active-hold skip.
+		// isLegalHoldActive / anyHoldActive are fail-closed.
+		// #915 PR-gate fix round (privacy F-1): the recording's
+		// interview_session_id is ALSO passed — candidates carry no
+		// users.company_id, so a company-only hold reaches this row only
+		// via its session's company (isHeld now always merges it).
+		const { isLegalHoldActive } = require('../lib/observerCapture');
+		const { anyHoldActive } = require('../lib/legalHold');
 
 		for (const row of rows) {
 			try {
+				const held =
+					row.candidate_id != null || row.interview_session_id != null
+						? await isLegalHoldActive({
+								candidateId: row.candidate_id ?? undefined,
+								sessionId: row.interview_session_id ?? undefined,
+							})
+						: await anyHoldActive();
+				if (held) {
+					heldSkips++;
+					continue;
+				}
 				let storageOk = true;
 				if (!dryRun && row.storage_path) {
 					// storage_path is encrypted BYTEA — decrypt to get the key.
@@ -671,10 +745,11 @@ class EuComplianceService {
 			storageDeleted,
 			dryRun,
 			errorCount: errors,
+			heldSkips,
 			periodCovered: null, // per-row retention_expires_at; batch range not tracked
 		});
 
-		return { deletedCount, storageDeleted, dryRun, errors };
+		return { deletedCount, storageDeleted, dryRun, errors, heldSkips };
 	}
 
 	/**
@@ -703,6 +778,7 @@ class EuComplianceService {
 		// seam (P-10) and delete their observer_audio_chunks row with the
 		// object (design §5.1 step 3).
 		const { isLegalHoldActive } = require('../lib/observerCapture');
+		const { anyHoldActive } = require('../lib/legalHold');
 
 		const { rows } = await pool.query(
 			`SELECT object_key, object_type, expires_at, candidate_id, interview_id FROM recording_objects
@@ -726,8 +802,16 @@ class EuComplianceService {
 				if (!minExpiresAt || row.expires_at < minExpiresAt) minExpiresAt = row.expires_at;
 				if (!maxExpiresAt || row.expires_at > maxExpiresAt) maxExpiresAt = row.expires_at;
 
-				if (row.object_type === 'observer_audio' &&
-					await isLegalHoldActive({ candidateId: row.candidate_id, sessionId: row.interview_id })) {
+				// #799 (G-1): the hold check now covers EVERY registry row,
+				// not only observer_audio — recording_objects already
+				// selects candidate_id for legacy frame/recording rows.
+				// Unattributable rows (candidate_id NULL) fall back to the
+				// any-active-hold skip. Both checks are fail-closed.
+				const held =
+					row.candidate_id != null
+						? await isLegalHoldActive({ candidateId: row.candidate_id, sessionId: row.interview_id })
+						: await anyHoldActive();
+				if (held) {
 					heldSkips++;
 					continue;
 				}
@@ -767,6 +851,7 @@ class EuComplianceService {
 			storageDeleted,
 			dryRun,
 			errorCount: errors,
+			heldSkips,
 			periodCovered: minExpiresAt ? { minExpiresAt, maxExpiresAt } : null,
 		});
 
@@ -825,6 +910,7 @@ class EuComplianceService {
 			storageDeleted: 0,
 			dryRun,
 			errorCount: 0,
+			heldSkips,
 		});
 
 		return { deletedCount, heldSkips, dryRun };
@@ -843,6 +929,32 @@ class EuComplianceService {
 	 */
 	static async purgeExpiredTemplates({ dryRun = true, retentionDays = 90 } = {}) {
 		const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+
+		// #799 (G-1): biometric_templates has NO identity column by
+		// deliberate schema design (migration 246: opaque subject_ref,
+		// no join path to users), so per-candidate consultation is
+		// impossible. Build default (STOP 1 Open Question 1, fallback
+		// pattern): while ANY hold is active, this purge skips its run
+		// and reports why — coarse, fail-safe, reversible. The
+		// alternative (exempting templates) would purge a held
+		// candidate's templates on schedule.
+		const { anyHoldActive } = require('../lib/legalHold');
+		if (await anyHoldActive()) {
+			const r = await pool.query(
+				`SELECT COUNT(*)::int AS c FROM biometric_templates WHERE created_at < $1`,
+				[cutoff],
+			);
+			const heldSkips = r.rows[0].c;
+			await EuComplianceService._auditPurge({
+				runType: 'biometric_templates',
+				objectCount: 0,
+				storageDeleted: 0,
+				dryRun,
+				errorCount: 0,
+				heldSkips,
+			});
+			return { deletedCount: 0, dryRun, heldSkips, skippedDueToHold: true };
+		}
 
 		let deletedCount;
 		if (!dryRun) {
@@ -865,9 +977,10 @@ class EuComplianceService {
 			storageDeleted: 0,
 			dryRun,
 			errorCount: 0,
+			heldSkips: 0,
 		});
 
-		return { deletedCount, dryRun };
+		return { deletedCount, dryRun, heldSkips: 0, skippedDueToHold: false };
 	}
 
 	/**
@@ -883,19 +996,40 @@ class EuComplianceService {
 	static async purgeExpiredObserverReports({ dryRun = true, retentionDays = 30 } = {}) {
 		const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
 
-		let deletedCount;
-		if (!dryRun) {
-			const r = await pool.query(
-				`DELETE FROM ai_observer_reports WHERE created_at < $1`,
-				[cutoff],
-			);
-			deletedCount = r.rowCount;
-		} else {
-			const r = await pool.query(
-				`SELECT COUNT(*)::int AS c FROM ai_observer_reports WHERE created_at < $1`,
-				[cutoff],
-			);
-			deletedCount = r.rows[0].c;
+		// #799 (G-1): per-row hold consult (converted from a bulk DELETE).
+		// Candidate attribution via interview_sessions.candidate_id (the
+		// join pattern at lib/erasureService.js). Both checks fail-closed.
+		const { isLegalHoldActive } = require('../lib/observerCapture');
+		const { anyHoldActive } = require('../lib/legalHold');
+		const { rows } = await pool.query(
+			`SELECT r.id, s.candidate_id, r.interview_session_id FROM ai_observer_reports r
+			 LEFT JOIN interview_sessions s ON s.id = r.interview_session_id
+			 WHERE r.created_at < $1`,
+			[cutoff],
+		);
+
+		let deletedCount = 0;
+		let heldSkips = 0;
+		for (const row of rows) {
+			// #915 PR-gate fix round (privacy F-1): pass the report's
+			// session id as well as the candidate — the session's company
+			// is the only path by which a company-only hold protects a
+			// candidate's reports (candidates have no users.company_id).
+			const held =
+				row.candidate_id != null || row.interview_session_id != null
+					? await isLegalHoldActive({
+							candidateId: row.candidate_id ?? undefined,
+							sessionId: row.interview_session_id ?? undefined,
+						})
+					: await anyHoldActive();
+			if (held) {
+				heldSkips++;
+				continue;
+			}
+			if (!dryRun) {
+				await pool.query(`DELETE FROM ai_observer_reports WHERE id = $1`, [row.id]);
+			}
+			deletedCount++;
 		}
 
 		await EuComplianceService._auditPurge({
@@ -904,9 +1038,10 @@ class EuComplianceService {
 			storageDeleted: 0,
 			dryRun,
 			errorCount: 0,
+			heldSkips,
 		});
 
-		return { deletedCount, dryRun };
+		return { deletedCount, dryRun, heldSkips };
 	}
 
 	/**
@@ -919,7 +1054,7 @@ class EuComplianceService {
 	 * Failure here is LOUD (not best-effort-silent): the audit entry IS the
 	 * Art. 5(2) compliance artifact.
 	 */
-	static async _auditPurge({ runType, objectCount, storageDeleted, dryRun, errorCount, periodCovered = null }) {
+	static async _auditPurge({ runType, objectCount, storageDeleted, dryRun, errorCount, periodCovered = null, heldSkips = 0 }) {
 		const auditLogService = require('./auditLogService');
 		await auditLogService.logEvent({
 			eventType: auditLogService.EVENT_TYPES.STATUS_CHANGE,
@@ -934,6 +1069,7 @@ class EuComplianceService {
 				storageDeleted,
 				dryRun: !!dryRun,
 				errorCount,
+				heldSkips, // #799: held rows visibly skipped, never silently retained
 				periodCovered, // { minExpiresAt, maxExpiresAt } per batch
 			},
 		});

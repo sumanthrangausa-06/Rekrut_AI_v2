@@ -91,6 +91,7 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 	test('returns { shredded: true } and audits when a DEK is destroyed', async () => {
 		const client = { query: jest.fn() };
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
 			.mockResolvedValueOnce({ rowCount: 0 }) // embeddings DELETE: no row
 			.mockResolvedValueOnce({ rowCount: 0 }) // search-index DELETE: no row
@@ -175,7 +176,9 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 	test('returns { shredded: false } on DEKNotFound (no DEK → not an error)', async () => {
 		const client = { query: jest.fn() };
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 0 }) // destroyDEK: DEKNotFound
+			.mockResolvedValueOnce({ rowCount: 1 }) // Gate A: DEK tombstone INSERT (pre-existing chain gap, repaired #799)
 			.mockResolvedValueOnce({ rowCount: 0 }) // embeddings DELETE: no row
 			.mockResolvedValueOnce({ rowCount: 0 }) // search-index DELETE: no row
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
@@ -256,8 +259,30 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 	});
 
 	test('rethrows non-DEKNotFound errors (caller rolls back)', async () => {
+		// #799: the FIRST query is now the legal-hold check, and it is
+		// fail-closed — a DB error there aborts the erasure with a typed
+		// LegalHoldError (nothing is deleted), which the caller rolls
+		// back exactly like any other erasure error.
 		const client = { query: jest.fn().mockRejectedValue(new Error('db down')) };
-		await expect(erasePersonalData(7, { client })).rejects.toThrow('db down');
+		const err = await erasePersonalData(7, { client }).catch((e) => e);
+		expect(err.code).toBe('LEGAL_HOLD');
+		expect(biometricAudit.logAccess).not.toHaveBeenCalled();
+	});
+
+	test('F-8 (PR-gate fix round): a destroyDEK-stage error still propagates RAW once the hold check has passed', async () => {
+		// Privacy F-8: the test above now asserts the hold-check stage's
+		// fail-closed semantics, which removed coverage that an error at
+		// the destroyDEK stage itself (hold check passed, DEK UPDATE
+		// fails) propagates unchanged — not wrapped as LEGAL_HOLD.
+		const client = {
+			query: jest
+				.fn()
+				.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799 legal-hold check: no hold
+				.mockRejectedValueOnce(new Error('dek db down')), // destroyDEK UPDATE fails
+		};
+		const err = await erasePersonalData(7, { client }).catch((e) => e);
+		expect(err.message).toBe('dek db down');
+		expect(err.code).not.toBe('LEGAL_HOLD');
 		expect(biometricAudit.logAccess).not.toHaveBeenCalled();
 	});
 });

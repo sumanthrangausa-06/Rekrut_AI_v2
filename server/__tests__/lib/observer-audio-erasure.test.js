@@ -8,6 +8,12 @@ const mockErasure = { regRows: [], chunkKeyRows: [], calls: [] };
 const mockPool = {
 	query: jest.fn(async (sql, params = []) => {
 		mockErasure.calls.push(sql);
+		// #799/#915: legal-hold check (lib/legalHold.js) — this suite seeds
+		// no holds; held behaviour is covered by legal-hold.test.js. This
+		// branch must precede the interview_sessions branch: since the
+		// #915 F-1 fix, the legal_holds query itself contains an
+		// interview_sessions subquery (candidate company attribution).
+		if (sql.includes('FROM legal_holds')) return { rows: [], rowCount: 0 };
 		if (sql.includes('FROM interview_sessions')) return { rows: [{ id: 42, candidate_name: 'x', candidate_email: 'x@y.z' }] };
 		if (sql.includes("registration_state = 'confirmed'") && sql.includes('recording_objects')) return { rows: mockErasure.regRows };
 		if (sql.includes('SELECT object_key FROM observer_audio_chunks')) return { rows: mockErasure.chunkKeyRows };
@@ -26,7 +32,7 @@ jest.mock('../../../lib/file-storage', () => ({
 	deleteStorageObject: jest.fn(async () => ({ deleted: true })),
 	storageKeysToFileUrls: (keys) => keys.map((key) => `/api/files/${encodeURIComponent(key)}`),
 }));
-jest.mock('../../../lib/notificationScheduler', () => ({ cancelNotificationsForUser: jest.fn(async () => {}) }));
+jest.mock('../../../lib/notificationScheduler', () => ({ cancelNotificationsForUser: jest.fn(async () => {}) }), { virtual: true });
 process.env.BIOMETRIC_ENCRYPTION_KEY = process.env.BIOMETRIC_ENCRYPTION_KEY || 'c'.repeat(64);
 
 const { erasePersonalData, deleteErasedStorageFiles } = require('../../../lib/erasureService');
