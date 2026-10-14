@@ -771,17 +771,37 @@ router.get('/audit-trail/candidate/:candidateId', authMiddleware, async (req, re
 		// Access control: candidate viewing own record, or admin/employer
 		const isOwn = req.user?.role === 'candidate' && req.user?.id === candidateId;
 		const isAdmin = req.user?.role === 'admin';
-		const isCompanyUser =
-			['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) && req.user?.company_id;
+		let isCompanyUser = false;
 
-		if (!isOwn && !isAdmin && !isCompanyUser) {
-			return res.status(403).json({ error: 'Access denied' });
+		// #920: a company user may read a candidate's audit trail only when
+		// the candidate is linked to their company by a job_applications
+		// row — the same SELECT 1 … LIMIT 1 linkage idiom as the merged
+		// #926 guards above (:584, :1119). Fail-closed when company_id is
+		// null. Guard runs before the service call; denial is this
+		// endpoint's existing 403, identical for foreign and non-existent
+		// candidate IDs (no existence oracle). Self/admin paths unchanged.
+		if (!isOwn && !isAdmin) {
+			const isHiringRole = ['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role);
+			if (!isHiringRole || req.user?.company_id == null) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
+			const linkage = await pool.query(
+				'SELECT 1 FROM job_applications WHERE candidate_id = $1 AND company_id = $2 LIMIT 1',
+				[candidateId, req.user.company_id],
+			);
+			if (linkage.rows.length === 0) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
+			isCompanyUser = true;
 		}
 
 		const { limit, offset } = req.query;
 		const result = await auditLogService.getCandidateDecisions(candidateId, {
 			limit: limit ? parseInt(limit, 10) : 500,
 			offset: offset ? parseInt(offset, 10) : 0,
+			// #920 (Sumanth ruling): company-user callers receive only
+			// their own company's events; self/admin stay unscoped.
+			...(isCompanyUser ? { companyId: req.user.company_id } : {}),
 		});
 
 		res.json({ success: true, ...result });
