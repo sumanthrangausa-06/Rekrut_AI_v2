@@ -172,25 +172,33 @@ answer the same question. The target fixes those 9, and the conventions in §2 s
 tenth from forming. A programme that chased the raw count instead would spend its
 risk budget on tables that harm no one.
 
-### 1.5 The target model — ER diagrams
+### 1.5 The target model — ER diagram and key attributes
 
-The target of §1.2–§1.4, drawn. **These diagrams are the TARGET** — one home per
-concept, as designed above — not today's schema (today's full 239-table schema is
-[schema.md](./schema.md); the as-is core graph is [data-model.md](./data-model.md)
-§1.1). Reading conventions:
+The target of §1.2–§1.4, drawn — presented exactly the way
+[data-model.md](./data-model.md) §1.1 presents the as-is core: **one relationship
+diagram per cluster** (Mermaid `erDiagram`, **relationship lines only — no
+attribute blocks**), with **key attributes in a table** beneath each diagram.
+(An earlier draft of this section used attribute-block diagrams; GitHub's rich
+display could not render them, so the format was changed to mirror the pack's
+own data-model.md. The design content is unchanged.) **These diagrams are the
+TARGET** — one home per concept, as designed above — not today's schema
+(today's full 239-table schema is [schema.md](./schema.md); the as-is core graph
+is data-model.md §1.1). Reading conventions:
 
-- **Key attributes only** — PK/FK plus the few columns that explain a relationship.
-  Full column lists stay in schema.md; a diagram that carried all ~215 target
-  tables' columns would be wallpaper, not a model.
-- **FK-less by design is drawn without lines.** `legal_holds`,
+- **Relationships in the diagrams; attributes in the tables.** Each table lists,
+  per entity, the PK/FK plus the few columns that explain a relationship. Full
+  column lists stay in schema.md — where the mirrored format forced a choice,
+  completeness of relationships won over attribute depth.
+- **FK-less by design is drawn without lines** and does not appear in the
+  diagrams at all — the same treatment as data-model.md §1.1. `legal_holds`,
   `pending_storage_deletions`, `recording_objects`, and `biometric_templates`
-  appear as standalone boxes on purpose: their missing FKs are a safety property
-  (§4), and a line would lie about how they connect.
-- **"Today" insets** are included for the contested clusters (sessions, consent,
-  search) where a duplicate structure is the thing being retired — target diagrams
-  alone would hide what the consolidation actually removes. Retiring structures
-  are named in the inset captions; §1.3 carries the full today→target mapping for
-  all 9 contested concepts.
+  are listed in the tables with their logical links: their missing FKs are a
+  safety property (§4), and a line would lie about how they connect.
+- **"Today" insets are prose + tables, not diagrams**, for the contested
+  clusters (sessions, consent, search) where a duplicate structure is the thing
+  being retired — target diagrams alone would hide what the consolidation
+  actually removes. §1.3 carries the full today→target mapping for all 9
+  contested concepts.
 
 **Overview — the hubs and the spine.** Everything a builder must hold in their
 head: three hubs (`users` / `companies` / `jobs`), the joint pipeline row, the one
@@ -198,108 +206,6 @@ session spine, the two scores, the one consent family, the audit tiers.
 
 ```mermaid
 erDiagram
-    users {
-        int id PK
-        varchar email UK
-        int company_id FK "membership"
-        timestamp deleted_at "soft-delete tombstone"
-    }
-    companies {
-        int id PK
-        int owner_id FK "ownership truth - never a role string"
-        varchar slug UK
-    }
-    roles {
-        int id PK
-        varchar name UK
-    }
-    user_roles {
-        int user_id PK "composite PK (user_id, role_id, company_id)"
-        int role_id FK "composite PK"
-        int company_id FK "composite PK - role scoped to company"
-    }
-    candidate_profiles {
-        int id PK
-        int user_id FK
-    }
-    candidate_data_keys {
-        int candidate_id PK "per-candidate DEK"
-    }
-    candidate_embeddings {
-        int id PK
-        int user_id FK "the only embedding store"
-    }
-    jobs {
-        int id PK
-        int company_id FK
-        int user_id FK "posted by"
-    }
-    job_applications {
-        int id PK
-        int job_id FK
-        int candidate_id FK
-        int company_id FK
-        varchar status "joint row - candidate content redactable, company skeleton retainable"
-    }
-    interview_sessions {
-        int id PK
-        varchar type "screening | ai_interview | practice | human | scheduled"
-        int job_id FK
-        int application_id FK
-        int candidate_id FK
-        int company_id FK
-        jsonb config
-    }
-    omni_scores {
-        int id PK
-        int user_id FK "OmniScore - the candidate score"
-    }
-    trust_scores {
-        int id PK
-        int company_id FK "Trust Score - the company score"
-    }
-    consent_texts {
-        varchar consent_type PK "recording | biometric | id_verification"
-        varchar version PK
-    }
-    consent_receipts {
-        int id PK
-        int interview_session_id FK
-        int candidate_id "bare integer as built in 244 - no FK"
-        varchar consent_text_version FK "pinned to consent_texts"
-    }
-    offers {
-        int id PK
-        int candidate_id FK
-        int job_id FK
-    }
-    employees {
-        int id PK
-        int user_id FK
-        int company_id FK
-    }
-    audit_logs {
-        int id PK
-        int user_id FK "tier 1 - general"
-    }
-    compliance_audit_trail {
-        uuid id PK "tier 2 - DSAR and compliance"
-    }
-    biometric_audit_log {
-        int id PK "tier 3 - append-only by trigger, segregated"
-    }
-    legal_holds {
-        int id PK
-        int user_id "bare integer - no FK by design"
-        int company_id "bare integer - no FK by design"
-    }
-    data_retention_policies {
-        int id PK "platform-owned retention clocks"
-    }
-    pending_storage_deletions {
-        int id PK
-        int user_id "bare integer - no FK by design"
-    }
     users ||--o{ companies : "owns via owner_id"
     companies ||--o{ users : "employs via company_id"
     users ||--o{ user_roles : "assigned"
@@ -328,77 +234,40 @@ erDiagram
     users ||--o{ audit_logs : "actor in"
 ```
 
+| Entity | Key attributes |
+|---|---|
+| `users` | `id` PK · `email` UK · `company_id` FK (membership) · `deleted_at` — soft-delete tombstone |
+| `companies` | `id` PK · `owner_id` FK — ownership truth, never a role string · `slug` UK |
+| `roles` | `id` PK · `name` UK |
+| `user_roles` | Composite PK (`user_id`, `role_id`, `company_id`) — role scoped to company |
+| `candidate_profiles` | `id` PK · `user_id` FK |
+| `candidate_data_keys` | `candidate_id` PK — per-candidate DEK |
+| `candidate_embeddings` | `id` PK · `user_id` FK — the only embedding store |
+| `jobs` | `id` PK · `company_id` FK · `user_id` FK (posted by) |
+| `job_applications` | `id` PK · `job_id` FK · `candidate_id` FK · `company_id` FK · `status` — joint row: candidate content redactable, company skeleton retainable |
+| `interview_sessions` | `id` PK · `type` (screening / ai_interview / practice / human / scheduled) · `job_id` FK · `application_id` FK · `candidate_id` FK · `company_id` FK · `config` JSONB |
+| `omni_scores` | `id` PK · `user_id` FK — OmniScore, the candidate score |
+| `trust_scores` | `id` PK · `company_id` FK — Trust Score, the company score |
+| `consent_texts` | Composite PK (`consent_type`, `version`) — consent_type: recording / biometric / id_verification |
+| `consent_receipts` | `id` PK · `interview_session_id` FK · `candidate_id` — bare integer as built in 244, no FK (drawing finding 1) · `consent_text_version` FK — pinned to `consent_texts` |
+| `offers` | `id` PK · `candidate_id` FK · `job_id` FK — keyed to candidate + job, not to the application row (drawing finding 2) |
+| `employees` | `id` PK · `user_id` FK · `company_id` FK |
+| `audit_logs` | `id` PK · `user_id` FK — tier 1, general |
+| `compliance_audit_trail` | `id` (uuid) PK — tier 2, DSAR and compliance evidence; drawn without lines (platform-owned, subject-referencing) |
+| `biometric_audit_log` | `id` PK — tier 3, append-only by trigger, segregated; drawn without lines |
+| `legal_holds` | `id` PK · `user_id`, `company_id` — bare integers, no FK by design; drawn without lines |
+| `data_retention_policies` | `id` PK — platform-owned retention clocks; drawn without lines |
+| `pending_storage_deletions` | `id` PK · `user_id` — bare integer, no FK by design; drawn without lines |
+
 **Sessions — everything hangs off the one spine.** Recordings, transcripts,
 observer artefacts, and consent receipts are children of `interview_sessions`;
 a new interview flavour is a `type` value, never a new table (R-7).
 `recording_objects` is the storage registry (FK-less by design);
-`biometric_templates` stays segregated behind its opaque `subject_ref`.
+`biometric_templates` stays segregated behind its opaque `subject_ref` — both
+are in the table, drawn without lines.
 
 ```mermaid
 erDiagram
-    job_applications {
-        int id PK
-    }
-    interview_sessions {
-        int id PK
-        varchar type "screening | ai_interview | practice | human | scheduled"
-        int application_id FK
-        int candidate_id FK
-        int company_id FK
-        jsonb config "holds the biometric_collection consent flag"
-        varchar status
-    }
-    interview_recordings {
-        int id PK
-        int interview_session_id FK
-        varchar status
-        timestamp retention_expires_at "90d default, 30d post-decision if session-linked"
-    }
-    interview_transcripts {
-        int id PK
-        int recording_id FK
-    }
-    recording_consent {
-        int id PK
-        int recording_id FK
-        int user_id FK
-    }
-    ai_observer_reports {
-        int id PK
-        int interview_session_id FK "one report per session"
-    }
-    observer_jobs {
-        int id PK
-        int interview_session_id FK "one job per session"
-    }
-    observer_audio_chunks {
-        int id PK
-        int interview_session_id FK
-    }
-    observer_speech_measurements {
-        int id PK
-        int interview_session_id FK
-    }
-    observer_capture_outcomes {
-        int interview_session_id PK "PK and FK - one outcome row per session"
-    }
-    consent_receipts {
-        int id PK
-        int interview_session_id FK
-    }
-    recording_objects {
-        varchar object_key PK
-        int interview_id "bare integer - registry, no FK by design"
-        int candidate_id "bare integer - registry, no FK by design"
-        timestamp expires_at
-    }
-    biometric_templates {
-        int id PK
-        varchar subject_ref "opaque - no user FK by design, segregation is the point"
-    }
-    users {
-        int id PK
-    }
     job_applications ||--o{ interview_sessions : "spawns"
     interview_sessions ||--o{ interview_recordings : "recorded as"
     interview_recordings ||--o{ interview_transcripts : "transcribed as"
@@ -412,39 +281,36 @@ erDiagram
     interview_sessions ||--o{ consent_receipts : "consent for session"
 ```
 
+| Entity | Key attributes |
+|---|---|
+| `job_applications` | `id` PK |
+| `interview_sessions` | `id` PK · `type` (screening / ai_interview / practice / human / scheduled) · `application_id` FK · `candidate_id` FK · `company_id` FK · `config` JSONB (holds the `biometric_collection` consent flag) · `status` |
+| `interview_recordings` | `id` PK · `interview_session_id` FK · `status` · `retention_expires_at` — 90d default, 30d post-decision if session-linked |
+| `interview_transcripts` | `id` PK · `recording_id` FK |
+| `recording_consent` | `id` PK · `recording_id` FK · `user_id` FK |
+| `ai_observer_reports` | `id` PK · `interview_session_id` FK — one report per session |
+| `observer_jobs` | `id` PK · `interview_session_id` FK — one job per session |
+| `observer_audio_chunks` | `id` PK · `interview_session_id` FK |
+| `observer_speech_measurements` | `id` PK · `interview_session_id` FK |
+| `observer_capture_outcomes` | `interview_session_id` PK and FK — one outcome row per session |
+| `consent_receipts` | `id` PK · `interview_session_id` FK |
+| `recording_objects` | `object_key` PK · `interview_id`, `candidate_id` — bare integers; storage registry, no FK by design. Drawn without lines |
+| `biometric_templates` | `id` PK · `subject_ref` — opaque, no user FK by design; segregation is the point. Drawn without lines |
+| `users` | `id` PK |
+
 *Today, for contrast — the seven session-shaped structures the spine replaces
 (§1.3). Each is an independent table with its own consent gate, erasure path, and
-lifecycle; they are drawn without their relationships because there is no shared
-structure to draw — that absence is the finding. `screening_sessions` and
-`interviews` are retirement-class (no runtime creator / read-only);
-`mock_interview_sessions`, `scheduled_interviews`, `interview_events`, and
-`practice_sessions` are still live and fold in as `type` values, one flow at a
-time (C-10, last).*
+lifecycle; they share no structure — that absence is the finding.*
 
-```mermaid
-erDiagram
-    interview_sessions {
-        int id PK "the spine - canonical"
-    }
-    screening_sessions {
-        int id PK "no runtime creator left - retires"
-    }
-    mock_interview_sessions {
-        int id PK "live - folds in as a type"
-    }
-    scheduled_interviews {
-        int id PK "live - folds in as a type, last"
-    }
-    interview_events {
-        int id PK "live - folds in as a type"
-    }
-    interviews {
-        int id PK "read-only legacy - retires with its last stats reader"
-    }
-    practice_sessions {
-        int id PK "live - folds in as type practice"
-    }
-```
+| Structure | State today | Fate in target |
+|---|---|---|
+| `interview_sessions` | The spine — canonical | Stays; absorbs the rest as `type` values |
+| `screening_sessions` | No runtime creator left | Retires |
+| `mock_interview_sessions` | Live | Folds in as a `type` |
+| `scheduled_interviews` | Live | Folds in as a `type`, last |
+| `interview_events` | Live | Folds in as a `type` |
+| `interviews` | Read-only legacy | Retires with its last stats reader |
+| `practice_sessions` | Live | Folds in as type `practice` |
 
 **Consent, privacy & audit — one consent family, three audit tiers.** Receipts
 pin the exact text version consented to (the property the 013 family cannot
@@ -454,61 +320,25 @@ merging them weakens legal guarantees (§4).
 
 ```mermaid
 erDiagram
-    consent_texts {
-        varchar consent_type PK "recording | biometric | id_verification"
-        varchar version PK
-        text text_en
-    }
-    consent_receipts {
-        int id PK
-        int interview_session_id FK
-        int candidate_id "bare integer as built in 244 - no FK"
-        varchar consent_type FK "composite FK with version"
-        varchar consent_text_version FK "composite FK with type"
-        varchar consent_text_hash
-        timestamp granted_at
-        timestamp withdrawn_at
-    }
-    interview_sessions {
-        int id PK
-    }
-    users {
-        int id PK
-    }
-    data_requests {
-        int id PK
-        int user_id FK "DSAR subject"
-        int processed_by FK
-    }
-    audit_logs {
-        int id PK
-        int user_id FK "tier 1 - general, absorbs activity_log"
-    }
-    compliance_audit_trail {
-        uuid id PK "tier 2 - DSAR and compliance evidence"
-    }
-    biometric_audit_log {
-        int id PK "tier 3 - append-only by trigger, segregated"
-    }
-    legal_holds {
-        int id PK
-        int user_id "bare integer - no FK by design"
-        int company_id "bare integer - no FK by design"
-        varchar scope "gates erasure and purge per row, fail-closed"
-    }
-    data_retention_policies {
-        int id PK "one clock per data family"
-    }
-    pending_storage_deletions {
-        int id PK
-        int user_id "bare integer - no FK by design"
-        varchar object_key "crash-safe post-commit storage deletion ledger"
-    }
     consent_texts ||--o{ consent_receipts : "version pinned by"
     interview_sessions ||--o{ consent_receipts : "consent for session"
     users ||--o{ data_requests : "files DSAR"
     users ||--o{ audit_logs : "actor in"
 ```
+
+| Entity | Key attributes |
+|---|---|
+| `consent_texts` | Composite PK (`consent_type`, `version`) — consent_type: recording / biometric / id_verification · `text_en` |
+| `consent_receipts` | `id` PK · `interview_session_id` FK · `candidate_id` — bare integer as built in 244, no FK (drawing finding 1) · (`consent_type`, `consent_text_version`) composite FK to `consent_texts` · `consent_text_hash` · `granted_at` · `withdrawn_at` |
+| `interview_sessions` | `id` PK |
+| `users` | `id` PK |
+| `data_requests` | `id` PK · `user_id` FK (DSAR subject) · `processed_by` FK |
+| `audit_logs` | `id` PK · `user_id` FK — tier 1, general; absorbs `activity_log` |
+| `compliance_audit_trail` | `id` (uuid) PK — tier 2, DSAR and compliance evidence. Drawn without lines |
+| `biometric_audit_log` | `id` PK — tier 3, append-only by trigger, segregated. Drawn without lines |
+| `legal_holds` | `id` PK · `user_id`, `company_id` — bare integers, no FK by design · `scope` — gates erasure and purge per row, fail-closed. Drawn without lines |
+| `data_retention_policies` | `id` PK — one clock per data family. Drawn without lines |
+| `pending_storage_deletions` | `id` PK · `user_id` — bare integer, no FK by design · `object_key` — crash-safe post-commit storage deletion ledger. Drawn without lines |
 
 *Today, for contrast — both consent families are live and writing (premise
 correction 2): 013 (`consent_records`, written by compliance routes and the EU
@@ -517,59 +347,21 @@ session-scoped, text-pinned consent. Neither is a superset of the other. C-05
 moves 013's writers onto 244 behind a lossless mapping, archives 013 read-only,
 then retires it — Lex-led, last with sessions.*
 
-```mermaid
-erDiagram
-    users {
-        int id PK
-    }
-    consent_records {
-        int id PK
-        int user_id FK "013 family - GDPR records, admin reporting"
-    }
-    consent_history {
-        int id PK "013 family - written today, grain differs from 244"
-    }
-    users ||--o{ consent_records : "recorded for"
-```
+| Family | Key attributes | Serves today | Fate in target |
+|---|---|---|---|
+| `consent_records` (013) | `id` PK · `user_id` FK | GDPR records, admin reporting | Read-only archive, then retires (C-05) |
+| `consent_history` (013) | `id` PK | Written today; grain differs from 244 | Same path as `consent_records` |
+| `consent_texts` / `consent_receipts` (244) | See table above | Session-scoped, text-pinned consent | **Canonical — stays** |
 
 **Roles & access — RBAC is the only role system.** `user_roles` is scoped per
 company, which is exactly what the legacy scalar could never express (the same
 person is candidate here, recruiter there). In the target, `users.role` is at
-most a derived coarse class and is dropped at the C-06 contract — it is drawn
+most a derived coarse class and is dropped at the C-06 contract — it appears
 nowhere above as a source of truth because it stops being one; `companies.owner_id`
 remains the ownership truth throughout.
 
 ```mermaid
 erDiagram
-    users {
-        int id PK
-        varchar email UK
-        int company_id FK "membership"
-    }
-    companies {
-        int id PK
-        int owner_id FK "ownership truth"
-    }
-    roles {
-        int id PK
-        varchar name UK "no employer role exists - company scope carries it"
-    }
-    permissions {
-        int id PK
-        varchar name UK
-        varchar resource
-        varchar action
-    }
-    role_permissions {
-        int role_id PK "composite PK (role_id, permission_id)"
-        int permission_id FK "composite PK"
-    }
-    user_roles {
-        int user_id PK "composite PK (user_id, role_id, company_id)"
-        int role_id FK "composite PK"
-        int company_id FK "composite PK - the same user, different roles per company"
-        int assigned_by FK
-    }
     users ||--o{ companies : "owns via owner_id"
     companies ||--o{ users : "employs via company_id"
     users ||--o{ user_roles : "assigned"
@@ -579,6 +371,15 @@ erDiagram
     permissions ||--o{ role_permissions : "granted via"
 ```
 
+| Entity | Key attributes |
+|---|---|
+| `users` | `id` PK · `email` UK · `company_id` FK (membership) |
+| `companies` | `id` PK · `owner_id` FK — ownership truth |
+| `roles` | `id` PK · `name` UK — no `employer` role exists; company scope carries it |
+| `permissions` | `id` PK · `name` UK · `resource` · `action` |
+| `role_permissions` | Composite PK (`role_id`, `permission_id`) |
+| `user_roles` | Composite PK (`user_id`, `role_id`, `company_id`) — the same user, different roles per company · `assigned_by` FK |
+
 **Candidate, CV pipeline & search.** The profile family holds candidate facts;
 the CV tables are ordered pipeline **stages** (intake → parse → analysis →
 review), not copies, and stay (C-09 unifies only the storage-key reference).
@@ -587,52 +388,6 @@ sources, and anything searchable must be rebuildable from them (R-4).
 
 ```mermaid
 erDiagram
-    users {
-        int id PK
-    }
-    candidate_profiles {
-        int id PK
-        int user_id FK
-        text resume_url "one of three file references C-09 unifies"
-    }
-    candidate_skills {
-        int id PK
-        int user_id FK
-    }
-    work_experience {
-        int id PK
-        int user_id FK
-    }
-    education {
-        int id PK
-        int user_id FK
-    }
-    candidate_data_keys {
-        int candidate_id PK "per-candidate DEK - crypto-shredding anchor"
-    }
-    candidate_embeddings {
-        int id PK
-        int user_id FK "the only embedding store - search source"
-    }
-    cv_uploads {
-        int id PK
-        int user_id FK "stage 1 - intake"
-    }
-    parsed_resumes {
-        int id PK
-        int user_id FK "stage 2 - parse"
-        varchar file_url "one of three file references C-09 unifies"
-    }
-    cv_analyses {
-        int id PK
-        int user_id FK
-        int document_id FK "stage 3 - analysis, SET NULL to parsed_resumes"
-    }
-    cv_reviews {
-        uuid id PK
-        int user_id FK
-        int document_id FK "stage 4 - review, SET NULL to parsed_resumes"
-    }
     users ||--o| candidate_profiles : "has"
     users ||--o{ candidate_skills : "has"
     users ||--o{ work_experience : "has"
@@ -645,20 +400,29 @@ erDiagram
     parsed_resumes ||--o{ cv_reviews : "reviewed as"
 ```
 
+| Entity | Key attributes |
+|---|---|
+| `users` | `id` PK |
+| `candidate_profiles` | `id` PK · `user_id` FK · `resume_url` — one of three file references C-09 unifies |
+| `candidate_skills` | `id` PK · `user_id` FK |
+| `work_experience` | `id` PK · `user_id` FK |
+| `education` | `id` PK · `user_id` FK |
+| `candidate_data_keys` | `candidate_id` PK — per-candidate DEK, crypto-shredding anchor |
+| `candidate_embeddings` | `id` PK · `user_id` FK — the only embedding store; search source |
+| `cv_uploads` | `id` PK · `user_id` FK — stage 1, intake |
+| `parsed_resumes` | `id` PK · `user_id` FK · `file_url` — one of three file references C-09 unifies · stage 2, parse |
+| `cv_analyses` | `id` PK · `user_id` FK · `document_id` FK to `parsed_resumes` (SET NULL) — stage 3, analysis |
+| `cv_reviews` | `id` (uuid) PK · `user_id` FK · `document_id` FK to `parsed_resumes` (SET NULL) — stage 4, review |
+
 *Today, for contrast — recruiter search actually reads `candidate_search_index`:
 a trigger-synced second copy of the embedding **plus plaintext PII** (name, bio,
 location), flagged CRITICAL inside the erasure code itself (C-08). In the target
 it loses its PII columns first, then becomes a rebuildable materialisation or a
 view over the two sources above, then the copy retires.*
 
-```mermaid
-erDiagram
-    candidate_search_index {
-        int user_id PK "PK and FK - copy of candidate_embeddings plus plaintext PII - retires"
-        varchar name "plaintext PII"
-        text bio "plaintext PII"
-    }
-```
+| Structure | Key attributes | Fate in target |
+|---|---|---|
+| `candidate_search_index` | `user_id` PK and FK · `name`, `bio` — plaintext PII | Loses its PII columns, becomes a rebuildable materialisation or view, then the copy retires (C-08) |
 
 **Onboarding & background verification.** This cluster's structures do not
 consolidate in the target — its target change is *coverage*: every family here is
@@ -668,91 +432,6 @@ the surviving company documents stay the company's record.
 
 ```mermaid
 erDiagram
-    users {
-        int id PK
-    }
-    jobs {
-        int id PK
-    }
-    offers {
-        int id PK
-        int candidate_id FK
-        int job_id FK
-        varchar status
-    }
-    onboarding_checklists {
-        int id PK
-        int offer_id FK
-        int candidate_id FK
-    }
-    onboarding_documents {
-        int id PK
-        int checklist_id FK
-        int candidate_id FK
-    }
-    candidate_onboarding_data {
-        int id PK
-        int candidate_id FK
-        int checklist_id FK
-        text ssn_encrypted "SSN, bank and I-9 fields - encrypted at rest"
-    }
-    bg_verification_requests {
-        int id PK
-        int candidate_id FK
-    }
-    employment_history {
-        int id PK
-        int candidate_id FK
-    }
-    reference_checks {
-        int id PK
-        int candidate_id FK
-        int employment_history_id FK
-    }
-    discrepancies {
-        int id PK
-        int verification_request_id FK "child of the BGV request - deleted first at erasure"
-    }
-    identity_verifications {
-        int id PK
-        int user_id FK
-        varchar type "aadhaar | pan"
-    }
-    verification_documents {
-        int id PK
-        int user_id FK "government IDs and selfies"
-    }
-    document_verifications {
-        int id PK
-        int document_id FK
-        int user_id FK
-    }
-    verified_credentials {
-        int id PK
-        int user_id FK
-    }
-    companies {
-        int id PK
-    }
-    signature_documents {
-        int id PK
-        int company_id FK
-        int created_by FK
-    }
-    signing_parties {
-        int id PK
-        int user_id FK
-        int company_id FK
-    }
-    signature_requests {
-        int id PK
-        int document_id FK
-        int party_id FK
-    }
-    signature_audit_events {
-        int id PK
-        int document_id FK "hash chain is never rewritten"
-    }
     users ||--o{ offers : "offered to"
     jobs ||--o{ offers : "for role"
     offers ||--o{ onboarding_checklists : "opens"
@@ -776,6 +455,28 @@ erDiagram
     signature_documents ||--o{ signature_audit_events : "audited by"
 ```
 
+| Entity | Key attributes |
+|---|---|
+| `users` | `id` PK |
+| `jobs` | `id` PK |
+| `offers` | `id` PK · `candidate_id` FK · `job_id` FK · `status` |
+| `onboarding_checklists` | `id` PK · `offer_id` FK · `candidate_id` FK |
+| `onboarding_documents` | `id` PK · `checklist_id` FK · `candidate_id` FK |
+| `candidate_onboarding_data` | `id` PK · `candidate_id` FK · `checklist_id` FK · `ssn_encrypted` — SSN, bank and I-9 fields, encrypted at rest |
+| `bg_verification_requests` | `id` PK · `candidate_id` FK |
+| `employment_history` | `id` PK · `candidate_id` FK |
+| `reference_checks` | `id` PK · `candidate_id` FK · `employment_history_id` FK |
+| `discrepancies` | `id` PK · `verification_request_id` FK — child of the BGV request; deleted first at erasure |
+| `identity_verifications` | `id` PK · `user_id` FK · `type` (aadhaar / pan) |
+| `verification_documents` | `id` PK · `user_id` FK — government IDs and selfies |
+| `document_verifications` | `id` PK · `document_id` FK · `user_id` FK |
+| `verified_credentials` | `id` PK · `user_id` FK |
+| `companies` | `id` PK |
+| `signature_documents` | `id` PK · `company_id` FK · `created_by` FK |
+| `signing_parties` | `id` PK · `user_id` FK · `company_id` FK |
+| `signature_requests` | `id` PK · `document_id` FK · `party_id` FK |
+| `signature_audit_events` | `id` PK · `document_id` FK — hash chain is never rewritten |
+
 **Post-hire.** An accepted offer becomes an `employees` row for the same person —
 the flow runs *through* `users` (offers and employees are both keyed to the
 candidate), there is no direct offers→employees FK, and the diagram does not
@@ -785,37 +486,6 @@ surface, not Rekrut's platform copy — keep/erase table §4.4.)
 
 ```mermaid
 erDiagram
-    users {
-        int id PK
-    }
-    companies {
-        int id PK
-    }
-    offers {
-        int id PK
-        int candidate_id FK
-        varchar status "accepted offer is the entry point"
-    }
-    employees {
-        int id PK
-        int user_id FK "the hired candidate"
-        int employer_id FK "employer user"
-        int company_id FK
-        varchar status
-    }
-    payroll_configs {
-        int id PK
-        int employee_id FK
-    }
-    payroll_runs {
-        int id PK
-        int employer_id FK "employer user runs payroll"
-    }
-    paychecks {
-        int id PK
-        int payroll_run_id FK
-        int employee_id FK
-    }
     users ||--o{ offers : "offered to"
     users ||--o{ employees : "employed as"
     users ||--o{ employees : "employs as employer"
@@ -825,6 +495,16 @@ erDiagram
     payroll_runs ||--o{ paychecks : "issues"
     employees ||--o{ paychecks : "paid via"
 ```
+
+| Entity | Key attributes |
+|---|---|
+| `users` | `id` PK |
+| `companies` | `id` PK |
+| `offers` | `id` PK · `candidate_id` FK · `status` — accepted offer is the entry point |
+| `employees` | `id` PK · `user_id` FK (the hired candidate) · `employer_id` FK (employer user) · `company_id` FK · `status` |
+| `payroll_configs` | `id` PK · `employee_id` FK |
+| `payroll_runs` | `id` PK · `employer_id` FK — employer user runs payroll |
+| `paychecks` | `id` PK · `payroll_run_id` FK · `employee_id` FK |
 
 *Two drawing findings, flagged rather than silently designed around (see also
 the PR note): (1) `consent_receipts.candidate_id` is a **bare integer with no FK**
