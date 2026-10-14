@@ -299,7 +299,7 @@ describe('#813 erasePersonalData — application-keyed sweep (C2)', () => {
 			screeningResponses: [{ id: 21, application_id: null, questionnaire_id: 31 }],
 			questionnaireJob: new Map([[31, { job_id: 51, company_id: 3 }]]),
 		});
-		const result = await erasureService.erasePersonalData(7, { client });
+		await erasureService.erasePersonalData(7, { client });
 		expect(callsMatching(client, /DELETE FROM screening_responses/i)[0][1]).toEqual([7, [21]]);
 	});
 
