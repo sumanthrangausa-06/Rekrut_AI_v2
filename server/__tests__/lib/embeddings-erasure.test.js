@@ -47,6 +47,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
 			.mockResolvedValueOnce({ rowCount: 1 }) // embeddings DELETE
 			.mockResolvedValueOnce({ rowCount: 1 }) // search-index DELETE
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1123: verified_credentials SELECT (FK-ordered, no rows)
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: parsed_resumes
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: candidate_profiles
@@ -147,6 +148,32 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			framesLedgered: 0,
 			framesHeld: 0,
 			gapAHeldSkips: 0,
+			gapD: {
+				candidateOnboardingData: 0,
+				onboardingDocuments: 0,
+				onboardingChecklists: 0,
+				onboardingChats: 0,
+				onboardingPlans: 0,
+				onboardingTasks: 0,
+				bgVerificationRequests: 0,
+				discrepancies: 0,
+				educationHistory: 0,
+				employmentHistory: 0,
+				referenceChecks: 0,
+				verifiedCredentials: 0,
+				offersRedacted: 0,
+				signatureRequests: 0,
+				signingPartiesDeleted: 0,
+				signingPartiesRedacted: 0,
+				signatureDocuments: 0,
+				documentHashRecords: 0,
+				signatureAuditEvents: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				storageLedgered: 0,
+				nonPatternStorageUrls: [],
+				signatureAuditResidual: 0,
+			},
 			storageKeys: [],
 		});
 	});
@@ -159,6 +186,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 1 }) // Gate A: DEK tombstone INSERT (pre-existing chain gap, repaired #799)
 			.mockResolvedValueOnce({ rowCount: 1 }) // embeddings DELETE
 			.mockResolvedValueOnce({ rowCount: 1 }) // search-index DELETE
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1123: verified_credentials SELECT (FK-ordered, no rows)
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: parsed_resumes
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: candidate_profiles
@@ -250,6 +278,32 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			framesLedgered: 0,
 			framesHeld: 0,
 			gapAHeldSkips: 0,
+			gapD: {
+				candidateOnboardingData: 0,
+				onboardingDocuments: 0,
+				onboardingChecklists: 0,
+				onboardingChats: 0,
+				onboardingPlans: 0,
+				onboardingTasks: 0,
+				bgVerificationRequests: 0,
+				discrepancies: 0,
+				educationHistory: 0,
+				employmentHistory: 0,
+				referenceChecks: 0,
+				verifiedCredentials: 0,
+				offersRedacted: 0,
+				signatureRequests: 0,
+				signingPartiesDeleted: 0,
+				signingPartiesRedacted: 0,
+				signatureDocuments: 0,
+				documentHashRecords: 0,
+				signatureAuditEvents: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				storageLedgered: 0,
+				nonPatternStorageUrls: [],
+				signatureAuditResidual: 0,
+			},
 			storageKeys: [],
 		});
 		// No DEK destroyed → no purge audit entry, but embeddings still deleted.
@@ -263,6 +317,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
 			.mockResolvedValueOnce({ rowCount: 0 }) // embeddings DELETE: no row
 			.mockResolvedValueOnce({ rowCount: 0 }) // search-index DELETE: no row
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1123: verified_credentials SELECT (FK-ordered, no rows)
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: parsed_resumes
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: candidate_profiles
@@ -350,6 +405,32 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			framesLedgered: 0,
 			framesHeld: 0,
 			gapAHeldSkips: 0,
+			gapD: {
+				candidateOnboardingData: 0,
+				onboardingDocuments: 0,
+				onboardingChecklists: 0,
+				onboardingChats: 0,
+				onboardingPlans: 0,
+				onboardingTasks: 0,
+				bgVerificationRequests: 0,
+				discrepancies: 0,
+				educationHistory: 0,
+				employmentHistory: 0,
+				referenceChecks: 0,
+				verifiedCredentials: 0,
+				offersRedacted: 0,
+				signatureRequests: 0,
+				signingPartiesDeleted: 0,
+				signingPartiesRedacted: 0,
+				signatureDocuments: 0,
+				documentHashRecords: 0,
+				signatureAuditEvents: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				storageLedgered: 0,
+				nonPatternStorageUrls: [],
+				signatureAuditResidual: 0,
+			},
 			storageKeys: [],
 		});
 	});
@@ -375,6 +456,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 1 }) // Gate A: DEK tombstone INSERT (pre-existing chain gap, repaired #799)
 			.mockResolvedValueOnce({ rowCount: 0 }) // embeddings DELETE: no row
 			.mockResolvedValueOnce({ rowCount: 1 }) // search-index DELETE
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1123: verified_credentials SELECT (FK-ordered, no rows)
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: parsed_resumes
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: candidate_profiles
@@ -461,6 +543,32 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			framesLedgered: 0,
 			framesHeld: 0,
 			gapAHeldSkips: 0,
+			gapD: {
+				candidateOnboardingData: 0,
+				onboardingDocuments: 0,
+				onboardingChecklists: 0,
+				onboardingChats: 0,
+				onboardingPlans: 0,
+				onboardingTasks: 0,
+				bgVerificationRequests: 0,
+				discrepancies: 0,
+				educationHistory: 0,
+				employmentHistory: 0,
+				referenceChecks: 0,
+				verifiedCredentials: 0,
+				offersRedacted: 0,
+				signatureRequests: 0,
+				signingPartiesDeleted: 0,
+				signingPartiesRedacted: 0,
+				signatureDocuments: 0,
+				documentHashRecords: 0,
+				signatureAuditEvents: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				storageLedgered: 0,
+				nonPatternStorageUrls: [],
+				signatureAuditResidual: 0,
+			},
 			storageKeys: [],
 		});
 	});
@@ -474,6 +582,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 1 }) // Gate A: DEK tombstone INSERT (pre-existing chain gap, repaired #799)
 			.mockResolvedValueOnce({ rowCount: 1 }) // embeddings DELETE
 			.mockResolvedValueOnce({ rowCount: 1 }) // search-index DELETE
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1123: verified_credentials SELECT (FK-ordered, no rows)
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: parsed_resumes
 			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: candidate_profiles

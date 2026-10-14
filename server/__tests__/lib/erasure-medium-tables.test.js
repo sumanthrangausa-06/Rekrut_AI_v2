@@ -51,6 +51,7 @@ function mockPhase1WithMedium(overrides = {}) {
 		.mockResolvedValueOnce(q([], 1)) // destroyDEK UPDATE
 		.mockResolvedValueOnce(q([], 1)) // embeddings DELETE
 		.mockResolvedValueOnce(q([], 1)) // search-index DELETE
+		.mockResolvedValueOnce(q([], 0)) // #1123: verified_credentials SELECT (FK-ordered, no rows)
 		.mockResolvedValueOnce(q([], 0)) // cv_uploads
 		.mockResolvedValueOnce(q([], 0)) // parsed_resumes
 		.mockResolvedValueOnce(q([], 0)) // candidate_profiles
