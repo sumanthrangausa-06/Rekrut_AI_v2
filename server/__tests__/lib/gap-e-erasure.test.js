@@ -21,15 +21,27 @@
  *   RESEARCHED company — never hold attribution.
  *   application_optimizations — whole-row DELETE (originals AND the
  *   AI-rewritten outputs die with the row; no skeleton, no UPDATE).
- *   COMMENTS — ONE recursive scan (application branch via the
- *   candidate's application ids + candidate branch entity_id = the
- *   candidate's users.id, VERIFIED 6172041587 + reply children via
- *   parent_id transitively), partitioned per row by its precomputed
- *   company (application ⇒ job_applications.company_id; candidate ⇒
- *   null), then comment_mentions DELETE by id set BEFORE comments
- *   DELETE by id set. A mention naming the candidate on ANOTHER
- *   comment is deleted row-only (host untouched) and inherits its
- *   parent comment's partition exactly.
+ *   COMMENTS — ONE recursive scan (application branch ONLY, via the
+ *   candidate's application ids, + reply children via parent_id
+ *   transitively), partitioned per row by its precomputed company
+ *   (application ⇒ job_applications.company_id), then
+ *   comment_mentions DELETE by id set BEFORE comments DELETE by id
+ *   set. A mention naming the candidate on ANOTHER comment is
+ *   deleted row-only (host untouched) and inherits its parent
+ *   comment's partition exactly.
+ *   NAMED RESIDUAL (#1124 steering; Scout build-entry re-verification
+ *   superseding 6172041587): comments with entity_type='candidate'
+ *   are NOT deleted in this build — what entity_id denotes for that
+ *   branch is UNVERIFIABLE from the repo (migration 128: no FK, no
+ *   DDL comment; sole writer routes/collaboration.js is a
+ *   branch-blind pass-through of req.body; the frontend never
+ *   instantiates entityType="candidate"; no tests/seeds create one),
+ *   and the users.id / candidate_profiles.id SERIAL spaces overlap,
+ *   so a guessed join could erase another candidate's comments. The
+ *   subset is blocked pending a live-DB join check or a recorded
+ *   ruling adopting users.id as a decided interpretation. The
+ *   residual is pinned by a dedicated test below — it must NOT be
+ *   forced green by re-adding a candidate branch.
  *   LEGAL HOLD — shipped entry gate unchanged; per-row consults
  *   fail-closed via a GAP-E-LOCAL three-way partition (gapEPartition,
  *   beside the block; gapDPartition is NOT modified): unheld (delete)
@@ -198,21 +210,19 @@ function fullScenario() {
 		toolProgress: [{ id: 56 }],
 		coachSessions: [{ id: 57 }],
 		optimizations: [{ id: 61 }, { id: 62 }],
+		// Application branch ONLY (steering residual: candidate-entity
+		// comments — e.g. a thread rooted at id 71 — are never scanned).
 		commentsScan: [
-			{ id: 71, entity_type: 'candidate', entity_id: 7, parent_id: null, company_id: null },
 			{ id: 72, entity_type: 'application', entity_id: 900, parent_id: null, company_id: 3 },
-			{ id: 73, entity_type: 'application', entity_id: 900, parent_id: 72, company_id: 3 },
-			{ id: 74, entity_type: 'candidate', entity_id: 7, parent_id: 71, company_id: null, deleted: true },
+			{ id: 73, entity_type: 'application', entity_id: 900, parent_id: 72, company_id: 3, deleted: true },
 		],
 		mentionsByComment: [
-			{ id: 81, comment_id: 71 },
-			{ id: 82, comment_id: 72 },
-			{ id: 83, comment_id: 73 },
-			{ id: 85, comment_id: 71 },
+			{ id: 81, comment_id: 72 },
+			{ id: 82, comment_id: 73 },
 		],
 		foreignMentions: [
 			{ id: 84, comment_id: 999, company_id: null }, // host comment is NOT the candidate's
-			{ id: 85, comment_id: 71, company_id: null }, // parent IS in the scan — inherits, no double-count
+			{ id: 85, comment_id: 71, company_id: null }, // host is a candidate-entity comment (residual host) — mention row only
 		],
 		portfolio: [{ id: 91, image_url: EXTERNAL_IMAGE_URL }],
 		jobActions: [{ id: 92 }],
@@ -267,8 +277,8 @@ describe('#1124 GAP-E erasePersonalData — profile-adjacent & career family', (
 			profileToolProgress: 1,
 			careerCoachSessions: 1,
 			applicationOptimizations: 2,
-			comments: 4,
-			commentMentions: 5,
+			comments: 2,
+			commentMentions: 4,
 			portfolioProjects: 1,
 			candidateJobActions: 1,
 			savedJobs: 1,
@@ -375,7 +385,7 @@ describe('#1124 GAP-E erasePersonalData — profile-adjacent & career family', (
 		expect(result.gapE.applicationOptimizations).toBe(2);
 	});
 
-	test('comments: ONE recursive scan covers candidate + application + reply children (incl. deleted=true); mentions deleted by id set BEFORE comments', async () => {
+	test('comments: ONE recursive scan covers the application branch + reply children (incl. deleted=true); mentions deleted by id set BEFORE comments', async () => {
 		const client = makeClient(fullScenario());
 		const result = await erasureService.erasePersonalData(7, { client });
 
@@ -384,7 +394,6 @@ describe('#1124 GAP-E erasePersonalData — profile-adjacent & career family', (
 		);
 		expect(scans).toHaveLength(1);
 		const scanSql = scans[0][0];
-		expect(scanSql).toMatch(/entity_type = 'candidate' AND c\.entity_id = \$1/);
 		expect(scanSql).toMatch(/entity_type = 'application'/);
 		expect(scanSql).toMatch(/FROM job_applications WHERE candidate_id = \$1/);
 		expect(scanSql).toMatch(/parent_id/);
@@ -393,18 +402,40 @@ describe('#1124 GAP-E erasePersonalData — profile-adjacent & career family', (
 
 		const mentionDeletes = callsMatching(client, /DELETE FROM comment_mentions/i);
 		expect(mentionDeletes).toHaveLength(1);
-		expect([...mentionDeletes[0][1][0]].sort((a, b) => a - b)).toEqual([81, 82, 83, 84, 85]);
+		expect([...mentionDeletes[0][1][0]].sort((a, b) => a - b)).toEqual([81, 82, 84, 85]);
 		const commentDeletes = callsMatching(client, /DELETE FROM comments/i);
 		expect(commentDeletes).toHaveLength(1);
-		expect(commentDeletes[0][1]).toEqual([[71, 72, 73, 74]]);
+		expect(commentDeletes[0][1]).toEqual([[72, 73]]);
 		expect(callIndex(client, /DELETE FROM comment_mentions/i)).toBeLessThan(
 			callIndex(client, /DELETE FROM comments/i),
 		);
 		// Host comment 999 (another candidate's thread) is untouched:
 		// the mention naming this candidate on it died row-only.
 		expect(commentDeletes[0][1][0]).not.toContain(999);
-		expect(result.gapE.comments).toBe(4);
-		expect(result.gapE.commentMentions).toBe(5);
+		expect(result.gapE.comments).toBe(2);
+		expect(result.gapE.commentMentions).toBe(4);
+	});
+
+	test('NAMED RESIDUAL: candidate-entity comments are NOT deleted — the entity_id join is UNVERIFIABLE (no guessed users.id key)', async () => {
+		const client = makeClient(fullScenario());
+		await erasureService.erasePersonalData(7, { client });
+
+		const scans = client.query.mock.calls.filter(
+			([sql]) => /WITH RECURSIVE/i.test(sql) && /FROM comments/i.test(sql),
+		);
+		expect(scans).toHaveLength(1);
+		// The scan carries NO candidate-entity root branch at all.
+		expect(scans[0][0]).not.toMatch(/entity_type = 'candidate'/);
+		// Candidate-entity comment 71 (the residual host in the
+		// fixtures) is never in a comments DELETE id set — while the
+		// mention naming the candidate ON it (85) still dies row-only
+		// via the mentioned_user_id path (a real FK column, not a guess).
+		const commentDeletes = callsMatching(client, /DELETE FROM comments/i);
+		for (const [, params] of commentDeletes) {
+			expect(params[0]).not.toContain(71);
+		}
+		const mentionDeletes = callsMatching(client, /DELETE FROM comment_mentions/i);
+		expect(mentionDeletes[0][1][0]).toContain(85);
 	});
 
 	test('comments hold partition: held application comments + their mentions survive together; foreign mention on a held host survives', async () => {
@@ -419,10 +450,11 @@ describe('#1124 GAP-E erasePersonalData — profile-adjacent & career family', (
 		const client = makeClient({ ...scenario, heldCompanies: new Set([99]) });
 		const result = await erasureService.erasePersonalData(7, { client });
 
+		// Both scanned comments are held: no comments DELETE is issued.
 		const commentDeletes = callsMatching(client, /DELETE FROM comments/i);
-		expect(commentDeletes[0][1]).toEqual([[71, 74]]);
+		expect(commentDeletes).toHaveLength(0);
 		const mentionDeletes = callsMatching(client, /DELETE FROM comment_mentions/i);
-		expect([...mentionDeletes[0][1][0]].sort((a, b) => a - b)).toEqual([81, 85]);
+		expect([...mentionDeletes[0][1][0]].sort((a, b) => a - b)).toEqual([85]);
 		// Held survivals: 2 comments + their 2 mentions + the foreign
 		// mention on the held host = 5, named for both tables.
 		expect(result.gapE.rowsHeld).toBe(5);
