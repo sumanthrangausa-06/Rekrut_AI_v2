@@ -102,12 +102,12 @@ const statusConfig: Record<
 	},
 };
 
-const COLUMN_STATUS_MAP: Record<string, string> = {
-	applied: 'applied',
-	in_discussion: 'screening',
-	offer_received: 'offered',
-};
-
+// S-096 (#820): board columns reflect the application's real (recruiter-
+// owned) status. Terminal states get their own truthful `closed` column —
+// they must never fall back to `applied`. Dragging a card only re-places it
+// on this board locally (see localPlacements below); it never writes a
+// status to the server — the only candidate-writable transition is
+// withdraw, via the withdraw action.
 const STATUS_TO_COLUMN: Record<string, string> = {
 	applied: 'applied',
 	screening: 'in_discussion',
@@ -116,6 +116,8 @@ const STATUS_TO_COLUMN: Record<string, string> = {
 	interviewed: 'in_discussion',
 	offered: 'offer_received',
 	hired: 'offer_received',
+	rejected: 'closed',
+	withdrawn: 'closed',
 };
 
 export function CandidateApplicationsPage() {
@@ -127,7 +129,10 @@ export function CandidateApplicationsPage() {
 	const [selectedApp, setSelectedApp] = useState<KanbanApplication | null>(null);
 	const [outreachApp, setOutreachApp] = useState<KanbanApplication | null>(null);
 	const [activeDragItem, setActiveDragItem] = useState<KanbanItem | null>(null);
-	const [updatingStatus, setUpdatingStatus] = useState(false);
+	// Board-local drag placements (#820): appId → columnId for cards the
+	// candidate has dragged on this board. Local organisation only — never
+	// sent to the server and never changes the application's real status.
+	const [localPlacements, setLocalPlacements] = useState<Record<number, string>>({});
 
 	const sensors = useSensors(
 		useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -162,24 +167,28 @@ export function CandidateApplicationsPage() {
 		return savedJobs.filter((sj) => !appliedJobIds.has(sj.job_id));
 	}, [savedJobs, applications]);
 
-	// Group items into columns
+	// Group items into columns. A board-local drag placement wins for
+	// display; otherwise the column is derived from the real status.
+	// Unknown statuses land in `closed` rather than being silently
+	// presented as `applied` (the pre-#820 fallback lie).
 	const columnItems = useMemo(() => {
 		const result: Record<string, KanbanItem[]> = {
 			saved: filteredSavedJobs.map((j) => ({ type: 'saved' as const, data: j })),
 			applied: [],
 			in_discussion: [],
 			offer_received: [],
+			closed: [],
 		};
 
 		for (const app of applications) {
-			const colId = STATUS_TO_COLUMN[app.status] || 'applied';
+			const colId = localPlacements[app.id] ?? STATUS_TO_COLUMN[app.status] ?? 'closed';
 			if (result[colId]) {
 				result[colId].push({ type: 'application' as const, data: app });
 			}
 		}
 
 		return result;
-	}, [applications, filteredSavedJobs]);
+	}, [applications, filteredSavedJobs, localPlacements]);
 
 	function handleDragStart(event: DragStartEvent) {
 		const { active } = event;
@@ -187,7 +196,12 @@ export function CandidateApplicationsPage() {
 		if (data) setActiveDragItem(data);
 	}
 
-	async function handleDragEnd(event: DragEndEvent) {
+	// #820: drag is board-local only. Application status is recruiter-owned
+	// (the server now 403s candidate status writes except withdraw), so a
+	// drag must never call the status endpoint or mutate the application's
+	// status — it only records where the candidate placed the card on
+	// their own board. Nothing here pretends to persist a status change.
+	function handleDragEnd(event: DragEndEvent) {
 		const { active, over } = event;
 		setActiveDragItem(null);
 
@@ -199,32 +213,11 @@ export function CandidateApplicationsPage() {
 		if (activeData?.type !== 'application') return;
 		if (!overColumnId) return;
 
-		const sourceColumnId = active.data.current?.columnId as string;
-		if (sourceColumnId === overColumnId) return;
-
-		const newStatus = COLUMN_STATUS_MAP[overColumnId];
-		if (!newStatus) return;
-
 		const app = activeData.data;
+		const currentColumnId = localPlacements[app.id] ?? STATUS_TO_COLUMN[app.status] ?? 'closed';
+		if (currentColumnId === overColumnId) return;
 
-		// Optimistic update
-		setApplications((prev) => prev.map((a) => (a.id === app.id ? { ...a, status: newStatus } : a)));
-
-		setUpdatingStatus(true);
-		try {
-			await apiCall(`/candidate/applications/${app.id}/status`, {
-				method: 'PUT',
-				body: JSON.stringify({ status: newStatus }),
-			});
-		} catch (err: any) {
-			// Revert on error
-			setApplications((prev) =>
-				prev.map((a) => (a.id === app.id ? { ...a, status: app.status } : a)),
-			);
-			alert(err instanceof Error ? err.message : 'Failed to update status');
-		} finally {
-			setUpdatingStatus(false);
-		}
+		setLocalPlacements((prev) => ({ ...prev, [app.id]: overColumnId }));
 	}
 
 	async function withdrawApplication() {
@@ -237,6 +230,13 @@ export function CandidateApplicationsPage() {
 			setApplications((prev) =>
 				prev.map((a) => (a.id === withdrawTarget.id ? { ...a, status: 'withdrawn' } : a)),
 			);
+			// A withdrawn application renders in `closed` — drop any board-
+			// local placement so the truthful status decides its column.
+			setLocalPlacements((prev) => {
+				const next = { ...prev };
+				delete next[withdrawTarget.id];
+				return next;
+			});
 			setWithdrawTarget(null);
 			setSelectedApp(null);
 		} catch (err: any) {
@@ -342,12 +342,6 @@ export function CandidateApplicationsPage() {
 				</Card>
 			) : (
 				<div className="relative">
-					{updatingStatus && (
-						<div className="absolute top-0 right-0 z-10 flex items-center gap-2 rounded-lg bg-white border px-3 py-1.5 shadow-sm text-xs text-muted-foreground">
-							<div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-							Updating...
-						</div>
-					)}
 					<DndContext
 						sensors={sensors}
 						collisionDetection={closestCorners}
@@ -374,7 +368,9 @@ export function CandidateApplicationsPage() {
 									item={activeDragItem}
 									columnId={
 										activeDragItem.type === 'application'
-											? STATUS_TO_COLUMN[activeDragItem.data.status] || 'applied'
+											? (localPlacements[activeDragItem.data.id] ??
+												STATUS_TO_COLUMN[activeDragItem.data.status] ??
+												'closed')
 											: 'saved'
 									}
 									isOverlay
