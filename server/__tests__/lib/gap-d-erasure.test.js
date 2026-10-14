@@ -24,7 +24,12 @@
  *   REDACT: offers (skeleton); signing_parties rows that touch a
  *   surviving company document (email/full_name/phone + user linkage).
  *   NEVER REWRITTEN: signature_audit_events on surviving documents —
- *   residual actor_email is a NAMED RESIDUAL, counted in the result.
+ *   residual actor_email is a NAMED RESIDUAL, counted in the result
+ *   as a LOWER BOUND (actor-linked events only; PR-gate P-2).
+ *   MIGRATION 259 (PR-gate fix P-1): offers.salary was NOT NULL
+ *   (migration 014), so the ruled skeleton's salary = NULL aborted
+ *   the whole erasure on a real DB; migration 259 drops that one
+ *   constraint — the skeleton UPDATE itself is unchanged.
  *   STORAGE: onboarding_documents.document_url, offers.signature_url,
  *   signature_documents.file_url → in-tx pending_storage_deletions
  *   ledger → Phase 2, but ONLY for /api/files/ URLs; any other URL is
@@ -497,6 +502,35 @@ describe('#1123 GAP-D erasePersonalData — BGV & onboarding family', () => {
 			expect(callsMatching(client, new RegExp(`DELETE FROM ${table}`, 'i'))).toHaveLength(0);
 		}
 		expect(callsMatching(client, /UPDATE offers/i)).toHaveLength(0);
+	});
+});
+
+describe('#1123 GAP-D PR-gate fix P-1 — migration 259 makes the ruled offers skeleton executable', () => {
+	test('migration 259 exists, contains exactly the one ALTER, and the skeleton UPDATE is unchanged', async () => {
+		const fs = require('fs');
+		const path = require('path');
+		const migrationPath = path.join(__dirname, '../../../migrations/259_offers_salary_nullable.js');
+		expect(fs.existsSync(migrationPath)).toBe(true);
+		const source = fs.readFileSync(migrationPath, 'utf8');
+		// The exact ruled ALTER — and no other schema statement in the file.
+		expect(source).toContain('ALTER TABLE offers ALTER COLUMN salary DROP NOT NULL;');
+		expect(source.match(/ALTER TABLE/g)).toHaveLength(1);
+		expect(source).not.toMatch(/CREATE TABLE|ADD COLUMN|DROP TABLE|DROP COLUMN/);
+
+		// Runner contract (migrate.js): a named module exporting up();
+		// up() issues exactly the one statement.
+		const migration = require(migrationPath);
+		expect(migration.name).toBe('259_offers_salary_nullable');
+		expect(typeof migration.up).toBe('function');
+		const queries = [];
+		await migration.up({ query: async (sql) => { queries.push(sql); return { rows: [], rowCount: 0 }; } });
+		expect(queries).toHaveLength(1);
+		expect(queries[0].trim()).toBe('ALTER TABLE offers ALTER COLUMN salary DROP NOT NULL;');
+
+		// The skeleton UPDATE is unchanged — salary still goes to NULL
+		// (no sentinel); migration 259 is what makes it executable.
+		const erasureSource = fs.readFileSync(path.join(__dirname, '../../../lib/erasureService.js'), 'utf8');
+		expect(erasureSource).toMatch(/UPDATE offers\s+SET salary = NULL,/);
 	});
 });
 
