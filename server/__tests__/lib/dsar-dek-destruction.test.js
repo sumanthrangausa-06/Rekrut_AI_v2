@@ -302,6 +302,7 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 				heldTables: [],
 				holdLookupFailed: 0,
 				lookupFailedTables: [],
+				emailCaptureFailed: true, // #1125 F1: finite mock queue resolves no email at GAP-F capture — unresolvable capture is capture-failed
 			},
 			storageKeys: [],
 		});
@@ -522,6 +523,7 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 				heldTables: [],
 				holdLookupFailed: 0,
 				lookupFailedTables: [],
+				emailCaptureFailed: true, // #1125 F1: finite mock queue resolves no email at GAP-F capture — unresolvable capture is capture-failed
 			},
 			storageKeys: [],
 		});

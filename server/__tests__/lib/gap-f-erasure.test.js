@@ -33,6 +33,13 @@
  *   reads users.email at the top of the GAP-F block — the admin DSAR
  *   flow never tombstones). Email deletes issued with the tombstone
  *   address would match nothing and report a false zero.
+ *   CAPTURE VALIDATION (privacy-review Finding 1, PR #1160) — the
+ *   RESOLVED address is validated regardless of source: a tombstone
+ *   shape (deleted_<id>_<hash>@deleted.local) or an unresolvable
+ *   (NULL) capture is capture-failed — loud console.error (never
+ *   the address), gapF.emailCaptureFailed: true qualifying the
+ *   email-matched families' zeros, email-matched deletes not
+ *   issued at all, user-keyed deletes unaffected.
  *
  * Modelled on gap-e-erasure.test.js (SQL-routing fake). Mocked suite:
  * real-DB verification comes at the PR gate (database reviewer dry
@@ -132,8 +139,23 @@ function makeClient(scenario = {}) {
 		if (/FROM communications/i.test(sql)) return { rows: s.communications, rowCount: s.communications.length };
 		if (/FROM sequence_enrollments/i.test(sql)) return { rows: s.sequenceEnrollments, rowCount: s.sequenceEnrollments.length };
 		if (/FROM email_queue/i.test(sql)) return { rows: s.emailQueue, rowCount: s.emailQueue.length };
-		if (/FROM notification_queue/i.test(sql)) return { rows: s.notificationQueue, rowCount: s.notificationQueue.length };
-		if (/FROM notification_logs/i.test(sql)) return { rows: s.notificationLogs, rowCount: s.notificationLogs.length };
+		// notification_queue / notification_logs: emulate the real
+		// WHERE semantics — a user_id-only select (the form issued when
+		// no usable email was captured) returns ONLY user-keyed rows;
+		// the email-only (NULL-user_id) rows are matched by the
+		// `OR email = $2` branch alone.
+		if (/FROM notification_queue/i.test(sql)) {
+			const rows = /OR email/i.test(sql)
+				? s.notificationQueue
+				: s.notificationQueue.filter((r) => r.user_id === params[0]);
+			return { rows, rowCount: rows.length };
+		}
+		if (/FROM notification_logs/i.test(sql)) {
+			const rows = /OR email/i.test(sql)
+				? s.notificationLogs
+				: s.notificationLogs.filter((r) => r.user_id === params[0]);
+			return { rows, rowCount: rows.length };
+		}
 		if (/FROM user_notifications/i.test(sql)) return { rows: s.userNotifications, rowCount: s.userNotifications.length };
 		if (/FROM notification_preferences/i.test(sql)) return { rows: s.notificationPreferences, rowCount: s.notificationPreferences.length };
 		// Everything else in the pre-#1125 sequence: generic success.
@@ -209,6 +231,7 @@ describe('#1125 GAP-F erasePersonalData — communications & notifications famil
 			holdLookupFailed: 0,
 			heldTables: [],
 			lookupFailedTables: [],
+			emailCaptureFailed: false,
 		});
 		// Keying: communications NEVER by recruiter_id; email_queue by
 		// the pre-tombstone recipient address.
@@ -268,6 +291,110 @@ describe('#1125 GAP-F erasePersonalData — communications & notifications famil
 			([sql]) => !/DELETE FROM/i.test(sql),
 		);
 		expect(emailSelects[0][1]).toEqual([ORIGINAL_EMAIL]);
+	});
+
+	test('capture-failed (fallback tombstone): fallback returns the tombstone address with NO originalEmail — flag set, email-matched rows NOT deleted, user-keyed rows still deleted, loud log with no email value', async () => {
+		// Privacy-review Finding 1 (#1125, PR #1160): the admin DSAR
+		// caller passes no originalEmail, so after a self-delete has
+		// tombstoned users.email the fallback read returns the
+		// synthetic address. Matching on it would match nothing and
+		// report a false-complete clean zero.
+		const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+		try {
+			const client = makeClient({ ...fullScenario(), userEmail: TOMBSTONE_EMAIL });
+			const result = await erasureService.erasePersonalData(7, { client });
+
+			expect(result.gapF.emailCaptureFailed).toBe(true);
+			// email_queue is email-only linkage: no DELETE is issued
+			// for it on the tombstone address.
+			expect(callsMatching(client, /DELETE FROM email_queue/i)).toHaveLength(0);
+			expect(result.gapF.emailQueue).toBe(0);
+			// notification_queue / notification_logs: ONLY the
+			// user-keyed rows delete; the email-only (NULL-user_id)
+			// rows survive, and the surviving log's audio-cache row
+			// survives with it (knock-on follows the parent set).
+			expect(callsMatching(client, /DELETE FROM notification_queue/i)[0][1]).toEqual([[41]]);
+			expect(callsMatching(client, /DELETE FROM notification_logs/i)[0][1]).toEqual([[51]]);
+			expect(callsMatching(client, /DELETE FROM notification_audio_cache/i)[0][1]).toEqual([[61]]);
+			expect(result.gapF).toMatchObject({
+				notificationQueue: 1,
+				notificationLogs: 1,
+				notificationAudioCache: 1,
+			});
+			// User-keyed families proceed normally.
+			expect(result.gapF).toMatchObject({
+				communications: 2,
+				sequenceEnrollments: 1,
+				userNotifications: 1,
+				notificationPreferences: 1,
+			});
+			// No query was ever issued with the tombstone address.
+			for (const [sql, params] of client.query.mock.calls) {
+				if (/email_queue|notification_queue|notification_logs/i.test(sql)) {
+					expect(JSON.stringify(params)).not.toContain('deleted.local');
+				}
+			}
+			// Loud log naming the failure — and carrying NO email
+			// value (the existing code never logs the address).
+			expect(errSpy).toHaveBeenCalled();
+			const logged = errSpy.mock.calls.flat().join(' ');
+			expect(logged).toMatch(/email capture failed/i);
+			expect(logged).not.toContain(TOMBSTONE_EMAIL);
+			expect(logged).not.toContain(ORIGINAL_EMAIL);
+		} finally {
+			errSpy.mockRestore();
+		}
+	});
+
+	test('capture-failed (originalEmail is itself a tombstone): validation is source-agnostic — flag set, email-matched rows NOT deleted, user-keyed rows still deleted, loud log', async () => {
+		const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+		try {
+			const client = makeClient(fullScenario());
+			const result = await erasureService.erasePersonalData(7, {
+				client,
+				originalEmail: TOMBSTONE_EMAIL,
+			});
+
+			expect(result.gapF.emailCaptureFailed).toBe(true);
+			// originalEmail was supplied, so the fallback read never ran.
+			expect(callsMatching(client, /SELECT email FROM users WHERE id = \$1/i)).toHaveLength(0);
+			expect(callsMatching(client, /DELETE FROM email_queue/i)).toHaveLength(0);
+			expect(callsMatching(client, /DELETE FROM notification_queue/i)[0][1]).toEqual([[41]]);
+			expect(callsMatching(client, /DELETE FROM notification_logs/i)[0][1]).toEqual([[51]]);
+			expect(result.gapF).toMatchObject({
+				communications: 2,
+				userNotifications: 1,
+				notificationPreferences: 1,
+			});
+			expect(errSpy).toHaveBeenCalled();
+			const logged = errSpy.mock.calls.flat().join(' ');
+			expect(logged).toMatch(/email capture failed/i);
+			expect(logged).not.toContain(TOMBSTONE_EMAIL);
+		} finally {
+			errSpy.mockRestore();
+		}
+	});
+
+	test('capture-failed (unresolvable): no user row / no email — same capture-failed treatment, user-keyed rows still deleted', async () => {
+		const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+		try {
+			const client = makeClient({ ...fullScenario(), userEmail: null });
+			const result = await erasureService.erasePersonalData(7, { client });
+
+			expect(result.gapF.emailCaptureFailed).toBe(true);
+			expect(callsMatching(client, /DELETE FROM email_queue/i)).toHaveLength(0);
+			expect(callsMatching(client, /DELETE FROM notification_queue/i)[0][1]).toEqual([[41]]);
+			expect(callsMatching(client, /DELETE FROM notification_logs/i)[0][1]).toEqual([[51]]);
+			expect(result.gapF).toMatchObject({
+				communications: 2,
+				userNotifications: 1,
+				notificationPreferences: 1,
+			});
+			expect(errSpy).toHaveBeenCalled();
+			expect(errSpy.mock.calls.flat().join(' ')).toMatch(/email capture failed/i);
+		} finally {
+			errSpy.mockRestore();
+		}
 	});
 
 	test('per-row hold: a held communications row survives, is counted in rowsHeld and named in heldTables', async () => {

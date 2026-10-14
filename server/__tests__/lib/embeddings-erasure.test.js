@@ -266,6 +266,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 				heldTables: [],
 				holdLookupFailed: 0,
 				lookupFailedTables: [],
+				emailCaptureFailed: true, // #1125 F1: finite mock queue resolves no email at GAP-F capture — unresolvable capture is capture-failed
 			},
 			storageKeys: [],
 		});
@@ -489,6 +490,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 				heldTables: [],
 				holdLookupFailed: 0,
 				lookupFailedTables: [],
+				emailCaptureFailed: true, // #1125 F1: finite mock queue resolves no email at GAP-F capture — unresolvable capture is capture-failed
 			},
 			storageKeys: [],
 		});
@@ -709,6 +711,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 				heldTables: [],
 				holdLookupFailed: 0,
 				lookupFailedTables: [],
+				emailCaptureFailed: true, // #1125 F1: finite mock queue resolves no email at GAP-F capture — unresolvable capture is capture-failed
 			},
 			storageKeys: [],
 		});
@@ -940,6 +943,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 				heldTables: [],
 				holdLookupFailed: 0,
 				lookupFailedTables: [],
+				emailCaptureFailed: true, // #1125 F1: finite mock queue resolves no email at GAP-F capture — unresolvable capture is capture-failed
 			},
 			storageKeys: [],
 		});
