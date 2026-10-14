@@ -395,7 +395,7 @@ describe('#1124 GAP-E erasePersonalData — profile-adjacent & career family', (
 		expect(scans).toHaveLength(1);
 		const scanSql = scans[0][0];
 		expect(scanSql).toMatch(/entity_type = 'application'/);
-		expect(scanSql).toMatch(/FROM job_applications WHERE candidate_id = \$1/);
+		expect(scanSql).toMatch(/JOIN job_applications ja ON ja\.id = c\.entity_id AND ja\.candidate_id = \$1/);
 		expect(scanSql).toMatch(/parent_id/);
 		// Soft-deleted rows are NOT filtered out of the scan.
 		expect(scanSql).not.toMatch(/deleted = false/i);
