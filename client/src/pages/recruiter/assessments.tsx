@@ -81,7 +81,7 @@ interface AssessmentDetail {
 	score: number;
 	max_score: number;
 	passed: boolean;
-	anti_cheat_score: number;
+	anti_cheat_score: number | null;
 	duration_seconds: number;
 	completed_at: string;
 	title: string;
@@ -691,14 +691,18 @@ export function RecruiterAssessmentsPage() {
 							<div className="rounded-lg bg-muted/50 p-3 text-center">
 								<p
 									className={`font-medium text-sm ${
-										(selectedDetail.anti_cheat_score || 100) >= 80
-											? 'text-emerald-600'
-											: (selectedDetail.anti_cheat_score || 100) >= 50
-												? 'text-amber-600'
-												: 'text-destructive'
+										selectedDetail.anti_cheat_score == null
+											? 'text-muted-foreground'
+											: selectedDetail.anti_cheat_score >= 80
+												? 'text-emerald-600'
+												: selectedDetail.anti_cheat_score >= 50
+													? 'text-amber-600'
+													: 'text-destructive'
 									}`}
 								>
-									{selectedDetail.anti_cheat_score || 100}%
+									{selectedDetail.anti_cheat_score == null
+										? 'Insufficient data'
+										: `${selectedDetail.anti_cheat_score}%`}
 								</p>
 								<p className="text-xs text-muted-foreground">Integrity</p>
 							</div>

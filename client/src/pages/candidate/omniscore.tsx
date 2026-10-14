@@ -352,6 +352,8 @@ export function CandidateOmniScorePage() {
 	}
 
 	const score = scoreData?.current;
+	// S-111 (#836): no computed score → honest state, never a fabricated 300.
+	const totalScore = score?.total_score ?? null;
 	const breakdown = scoreData?.breakdown;
 
 	if (loading) {
@@ -415,7 +417,18 @@ export function CandidateOmniScorePage() {
 						<Card className="overflow-hidden border-primary/20">
 							<div className="bg-gradient-to-br from-card to-primary/5 p-8">
 								<div className="flex flex-col md:flex-row items-center gap-8">
-									<ScoreRing score={score?.total_score || 300} />
+									{totalScore != null ? (
+										<ScoreRing score={totalScore} />
+									) : (
+										<div className="flex h-40 w-40 flex-col items-center justify-center rounded-full border-2 border-dashed border-muted text-center">
+											<span className="text-sm font-medium text-muted-foreground">
+												Insufficient data
+											</span>
+											<span className="text-xs text-muted-foreground uppercase tracking-wider">
+												OmniScore
+											</span>
+										</div>
+									)}
 									<div className="flex-1 text-center md:text-left">
 										<Badge variant="outline" className={tierBg[score?.tier || 'new']}>
 											{score?.tier_label || 'New'}
@@ -433,7 +446,7 @@ export function CandidateOmniScorePage() {
 												<div
 													className="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full transition-all duration-1000"
 													style={{
-														width: `${Math.max(0, (((score?.total_score || 300) - 300) / 550) * 100)}%`,
+														width: `${totalScore != null ? Math.max(0, ((totalScore - 300) / 550) * 100) : 0}%`,
 													}}
 												/>
 											</div>

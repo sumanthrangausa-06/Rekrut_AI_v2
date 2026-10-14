@@ -20,7 +20,7 @@ router.get('/default', authMiddleware, async (req, res) => {
 			        (SELECT COUNT(*) FROM users WHERE company_id = companies.id AND role IN ('recruiter','hiring_manager','admin')) as employee_count,
 			        (SELECT COALESCE(AVG(overall_rating), 0) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
 			        (SELECT COUNT(*) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as review_count,
-			        (SELECT COALESCE(AVG(total_score), 0) FROM omni_scores os JOIN users u ON os.user_id = u.id WHERE u.company_id = companies.id) as trustscore
+			        (SELECT ts.total_score FROM trust_scores ts WHERE ts.company_id = companies.id) as trustscore
 			 FROM companies WHERE id = $1`,
 			[companyId],
 		);
@@ -55,7 +55,7 @@ router.get('/default', authMiddleware, async (req, res) => {
 				size: company.size || '11-50 employees',
 				industry: company.industry || 'Technology / SaaS',
 				founded: company.founded_year ? String(company.founded_year) : '2020',
-				trustscore: Math.round(company.trustscore || 75),
+				trustscore: company.trustscore != null ? Math.round(company.trustscore) : null,
 				rating:
 					parseFloat(company.rating || '0') > 0 ? parseFloat(company.rating).toFixed(1) : '4.5',
 				reviewCount: parseInt(company.review_count, 10) || 0,
@@ -159,7 +159,7 @@ router.get('/:id', async (req, res) => {
 				        (SELECT COUNT(*) FROM users WHERE company_id = companies.id AND role IN ('recruiter','hiring_manager','admin')) as employee_count,
 				        (SELECT COALESCE(AVG(overall_rating), 0) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
 				        (SELECT COUNT(*) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as review_count,
-				        (SELECT COALESCE(AVG(total_score), 0) FROM omni_scores os JOIN users u ON os.user_id = u.id WHERE u.company_id = companies.id) as trustscore
+				        (SELECT ts.total_score FROM trust_scores ts WHERE ts.company_id = companies.id) as trustscore
 				 FROM companies WHERE id = $1`,
 				[id],
 			);
@@ -170,7 +170,7 @@ router.get('/:id', async (req, res) => {
 				        (SELECT COUNT(*) FROM users WHERE company_id = companies.id AND role IN ('recruiter','hiring_manager','admin')) as employee_count,
 				        (SELECT COALESCE(AVG(overall_rating), 0) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
 				        (SELECT COUNT(*) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as review_count,
-				        (SELECT COALESCE(AVG(total_score), 0) FROM omni_scores os JOIN users u ON os.user_id = u.id WHERE u.company_id = companies.id) as trustscore
+				        (SELECT ts.total_score FROM trust_scores ts WHERE ts.company_id = companies.id) as trustscore
 				 FROM companies WHERE slug = $1`,
 				[id],
 			);
@@ -206,7 +206,7 @@ router.get('/:id', async (req, res) => {
 				size: company.size || '11-50 employees',
 				industry: company.industry || 'Technology / SaaS',
 				founded: company.founded_year ? String(company.founded_year) : '2020',
-				trustscore: Math.round(company.trustscore || 75),
+				trustscore: company.trustscore != null ? Math.round(company.trustscore) : null,
 				rating:
 					parseFloat(company.rating || '0') > 0 ? parseFloat(company.rating).toFixed(1) : '4.5',
 				reviewCount: parseInt(company.review_count, 10) || 0,

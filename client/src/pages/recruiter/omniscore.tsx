@@ -266,7 +266,18 @@ export function RecruiterOmniScorePage() {
 						<Card className="overflow-hidden border-purple-500/20">
 							<div className="bg-gradient-to-br from-card to-purple-500/5 p-8">
 								<div className="flex flex-col md:flex-row items-center gap-8">
-									<ScoreRing score={trustScore?.score || 500} />
+									{trustScore?.score != null ? (
+										<ScoreRing score={trustScore.score} />
+									) : (
+										<div className="flex h-[140px] w-[140px] flex-col items-center justify-center rounded-full border-2 border-dashed border-muted text-center">
+											<span className="text-sm font-medium text-muted-foreground">
+												Insufficient data
+											</span>
+											<span className="text-xs text-muted-foreground uppercase tracking-wider">
+												TrustScore
+											</span>
+										</div>
+									)}
 									<div className="flex-1 text-center md:text-left">
 										<Badge variant="outline" className={tierBg[trustScore?.tier || 'new']}>
 											{trustScore?.tier_label || 'New Employer'}

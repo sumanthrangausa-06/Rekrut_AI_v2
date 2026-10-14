@@ -879,7 +879,7 @@ export function CandidateProfilePage() {
 
 					{/* Right: OmniScore Ring + Analytics */}
 					<div className="flex flex-col sm:flex-row gap-4 lg:items-center shrink-0">
-						<OmniScoreRing score={profile.omni_score || 75} />
+						<OmniScoreRing score={profile.omni_score ?? null} />
 						<div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
 							<AnalyticsStat icon={Eye} value={profile.profile_views || 0} label="Profile Views" />
 							<AnalyticsStat
@@ -1132,11 +1132,20 @@ export function CandidateProfilePage() {
 }
 
 // ====== OMNISCORE RING ======
-function OmniScoreRing({ score }: { score: number }) {
+function OmniScoreRing({ score }: { score: number | null }) {
 	const radius = 36;
 	const circumference = 2 * Math.PI * radius;
-	const strokeDashoffset = circumference - (score / 100) * circumference;
-	const color = score >= 80 ? 'text-green-500' : score >= 60 ? 'text-amber-500' : 'text-red-400';
+	// S-111 (#836): no score yet → empty ring + honest state, never a number.
+	const strokeDashoffset =
+		score == null ? circumference : circumference - (score / 100) * circumference;
+	const color =
+		score == null
+			? 'text-muted'
+			: score >= 80
+				? 'text-green-500'
+				: score >= 60
+					? 'text-amber-500'
+					: 'text-red-400';
 
 	return (
 		<div className="relative flex flex-col items-center">
@@ -1155,7 +1164,13 @@ function OmniScoreRing({ score }: { score: number }) {
 					/>
 				</svg>
 				<div className="absolute inset-0 flex flex-col items-center justify-center">
-					<span className="text-lg font-bold leading-none">{score}</span>
+					{score == null ? (
+						<span className="px-1 text-center text-[10px] font-medium leading-tight text-muted-foreground">
+							Insufficient data
+						</span>
+					) : (
+						<span className="text-lg font-bold leading-none">{score}</span>
+					)}
 					<span className="text-[9px] text-muted-foreground uppercase">OmniScore</span>
 				</div>
 			</div>
