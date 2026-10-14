@@ -14,7 +14,10 @@ jest.mock('../../../lib/auth', () => {
 		req.user = { id: 42, email: 'candidate@test.com', role: 'candidate' };
 		return next();
 	});
-	return { authMiddleware };
+	// S-098 (#822): routes/interviews.js now also imports requireRole —
+	// spread the actual module so the mock carries it.
+	const actual = jest.requireActual('../../../lib/auth');
+	return { ...actual, authMiddleware };
 });
 
 // ─── External boundaries ─────────────────────────────────────────────────────

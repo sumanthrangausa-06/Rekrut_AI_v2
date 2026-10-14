@@ -1,6 +1,6 @@
 const express = require('express');
 const pool = require('../lib/db');
-const { authMiddleware } = require('../lib/auth');
+const { authMiddleware, requireRole } = require('../lib/auth');
 const {
 	filterWhisperHallucination,
 	isValidTranscriptLength,
@@ -2726,7 +2726,7 @@ router.delete('/screening/templates/:id', authMiddleware, async (req, res) => {
 // /interview/session/:token, which resolves ONLY via interview_sessions —
 // writing screening_sessions here would produce dead invite links. The legacy
 // /screening/session/:token/* endpoints stay for in-flight pre-migration sessions.
-router.post('/screening/send', authMiddleware, async (req, res) => {
+router.post('/screening/send', authMiddleware, requireRole('admin', 'employer', 'recruiter', 'hiring_manager'), async (req, res) => {
 	try {
 		const { template_id, candidate_id, application_id, job_id } = req.body;
 
@@ -2747,20 +2747,41 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 		const tmpl = template.rows[0];
 		const resolvedJobId = tmpl.job_id || job_id || null;
 
-		// Validate candidate_id matches the application (if application_id provided)
+		// S-098 (#822): the application must belong to the caller's company
+		// before anything is created or written. The scoped query makes a
+		// foreign application and a non-existent one indistinguishable —
+		// both 404, no session, no mutation. (Previously this check was
+		// unscoped and a missing application silently passed, leaving a
+		// session with a dangling application reference.)
 		if (application_id) {
 			const appCheck = await pool.query(
-				'SELECT candidate_id FROM job_applications WHERE id = $1',
-				[application_id],
+				'SELECT candidate_id, job_id, company_id FROM job_applications WHERE id = $1 AND company_id = $2',
+				[application_id, req.user.company_id],
 			);
-			if (
-				appCheck.rows.length > 0 &&
-				String(appCheck.rows[0].candidate_id) !== String(candidate_id)
-			) {
+			if (appCheck.rows.length === 0) {
+				return res.status(404).json({ error: 'Application not found' });
+			}
+			if (String(appCheck.rows[0].candidate_id) !== String(candidate_id)) {
 				return res
 					.status(400)
 					.json({ error: 'Candidate does not match the application' });
 			}
+		}
+
+		// S-098 (#822): same company check for the resolved job — covers the
+		// body `job_id` fallback when the template carries no job_id. The
+		// scoped row fetched here is reused for the frozen engine config
+		// below, so a foreign or non-existent job 404s before any write.
+		let jobRow = null;
+		if (resolvedJobId) {
+			const jobResult = await pool.query(
+				'SELECT * FROM jobs WHERE id = $1 AND company_id = $2',
+				[resolvedJobId, req.user.company_id],
+			);
+			if (jobResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
+			jobRow = jobResult.rows[0];
 		}
 
 		// Duplicate check against the unified table (was: screening_sessions).
@@ -2784,13 +2805,6 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 				error: 'Screening already sent to this candidate',
 				session_id: existing.rows[0].id,
 			});
-		}
-
-		// Job row for the frozen engine config (mirrors the auto-send hook).
-		let jobRow = null;
-		if (resolvedJobId) {
-			const jobResult = await pool.query('SELECT * FROM jobs WHERE id = $1', [resolvedJobId]);
-			jobRow = jobResult.rows[0] || null;
 		}
 
 		// Freeze the engine config at creation (Task 2 contract) — identical
