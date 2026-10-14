@@ -232,6 +232,15 @@ async function migrate() {
         preferred_role VARCHAR(255),
         salary_expectation VARCHAR(100),
         remote_preference VARCHAR(50),
+        bio TEXT,
+        phone VARCHAR(50),
+        github_url VARCHAR(500),
+        photo_url VARCHAR(500),
+        salary_min INTEGER,
+        salary_max INTEGER,
+        preferred_job_types JSONB DEFAULT '["full-time"]',
+        preferred_locations JSONB DEFAULT '[]',
+        years_experience INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
