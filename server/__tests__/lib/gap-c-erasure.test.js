@@ -23,6 +23,22 @@
  *   gapC.interviewEventsDeleted.
  *   Q3 CONFIRMED — interview_reminders + event-linked interview_rooms
  *   (interview_session_id IS NULL only) are in scope under Principle 1.
+ *   FIX ROUND (Lex ruling, comment 6169043564 — Option A RULED,
+ *   Option B REJECTED): the rooms DELETE is partitioned at DELETE
+ *   time by NOT EXISTS on interview_recordings.room_id (mig 128 ON
+ *   DELETE CASCADE; the production writer sets room_id on event
+ *   recordings, so an unpartitioned DELETE cascade-destroyed the
+ *   GAP-A-kept recording + its K-1 consent fact — database gate
+ *   BLOCK, PR #1156 comment 6169006094). A referenced room survives
+ *   WHOLE, unredacted, under amended K-12 and is counted in
+ *   gapC.interviewRoomsKeptForRecordings, never as deleted; an
+ *   unreferenced room is whole-DELETED as Q3 ruled; the recording
+ *   row is never touched by GAP-C. HONEST LIMIT of this mocked
+ *   harness: the fake cannot model the FK CASCADE or evaluate the
+ *   NOT EXISTS against real recording rows — the tests below pin
+ *   the SQL shape, the candidate ids passed, and the counting
+ *   (via a simulated rowCount), and the cascade proof itself
+ *   belongs to the database re-review's real-DB dry run.
  *
  *   HARD DELETE: scheduled_interviews, interview_reminders (by unheld
  *   parent ids + recipient_id), interview_feedback, candidate_feedback,
@@ -286,6 +302,7 @@ describe('#1122 GAP-C erasePersonalData — scheduling & human-interview family'
 			interviewEventsDeleted: 2,
 			proposedSlots: 3,
 			interviewRooms: 1,
+			interviewRoomsKeptForRecordings: 0,
 			mockInterviewSessions: 2,
 			interviews: 1,
 			interviewAnalysis: 2,
@@ -506,6 +523,73 @@ describe('#1122 GAP-C erasePersonalData — scheduling & human-interview family'
 		expect(calls[0][1]).toEqual([7, [1601]]);
 	});
 
+	test('fix round (Option A): rooms DELETE carries the NOT EXISTS recording partition; a referenced room is counted kept, never deleted; the recording row is never touched', async () => {
+		// Two unheld event-linked rooms are DELETE candidates: 1201
+		// (its event is recording-linked) and 1202 (childless event).
+		// The mocked fake cannot evaluate NOT EXISTS or model the
+		// mig-128 CASCADE, so the DB's partition outcome is simulated
+		// with deleteCounts: only 1 of the 2 candidate rows is
+		// actually deleted. The service must count the survivor
+		// separately — kept = candidates − deleted.
+		const scenario = {
+			events: [
+				{ id: 1001, company_id: 3, has_recording: true },
+				{ id: 1002, company_id: 3, has_recording: false },
+			],
+			rooms: [
+				{ id: 1201, interview_event_id: 1001 },
+				{ id: 1202, interview_event_id: 1002 },
+			],
+			deleteCounts: { interview_rooms: 1 },
+		};
+		const client = makeClient(scenario);
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		const roomDeletes = callsMatching(client, /DELETE FROM interview_rooms/i);
+		expect(roomDeletes).toHaveLength(1);
+		const [sql, params] = roomDeletes[0];
+		// The partition is IN the DELETE (evaluated at DELETE time,
+		// in-transaction), not a JS pre-filter: both unheld candidates
+		// are passed and the DB excludes referenced rooms.
+		expect(sql).toMatch(
+			/NOT EXISTS\s*\(\s*SELECT 1 FROM interview_recordings WHERE room_id = interview_rooms\.id\s*\)/i,
+		);
+		expect(params).toEqual([[1201, 1202]]);
+		// The scope guard stands on the candidate SELECT.
+		const roomSelect = client.query.mock.calls.find(
+			([s]) => /SELECT/i.test(s) && /FROM interview_rooms/i.test(s),
+		);
+		expect(roomSelect[0]).toMatch(/interview_session_id IS NULL/i);
+		// Counting: 1 deleted, 1 kept-for-recordings — never conflated.
+		expect(result.gapC.interviewRooms).toBe(1);
+		expect(result.gapC.interviewRoomsKeptForRecordings).toBe(1);
+		// Option B is the forbidden shape: GAP-C issues no DELETE and
+		// no UPDATE against interview_recordings in this scenario
+		// (GAP-A's own keep-redact finds no recording rows here).
+		expect(callsMatching(client, /DELETE FROM interview_recordings/i)).toHaveLength(0);
+		expect(callsMatching(client, /UPDATE interview_recordings/i)).toHaveLength(0);
+		// No redaction of the surviving room either: no UPDATE at all
+		// is issued against interview_rooms.
+		expect(callsMatching(client, /UPDATE interview_rooms/i)).toHaveLength(0);
+		// Held counting is unchanged by the partition: nothing held here.
+		expect(result.gapC.rowsHeld).toBe(0);
+	});
+
+	test('fix round (Option A): an unreferenced room is whole-DELETED and kept count stays zero', async () => {
+		const scenario = {
+			events: [{ id: 1002, company_id: 3, has_recording: false }],
+			rooms: [{ id: 1202, interview_event_id: 1002 }],
+		};
+		const client = makeClient(scenario);
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		const roomDeletes = callsMatching(client, /DELETE FROM interview_rooms/i);
+		expect(roomDeletes).toHaveLength(1);
+		expect(roomDeletes[0][1]).toEqual([[1202]]);
+		expect(result.gapC.interviewRooms).toBe(1);
+		expect(result.gapC.interviewRoomsKeptForRecordings).toBe(0);
+	});
+
 	test('whole-erasure gate: an active hold aborts before any GAP-C statement (LegalHoldError, zero deletes)', async () => {
 		const client = makeClient({ ...fullScenario(), gateHeld: true });
 		const err = await erasureService.erasePersonalData(7, { client }).catch((e) => e);
@@ -532,6 +616,7 @@ describe('#1122 GAP-C erasePersonalData — scheduling & human-interview family'
 			interviewEventsDeleted: 0,
 			proposedSlots: 0,
 			interviewRooms: 0,
+			interviewRoomsKeptForRecordings: 0,
 			mockInterviewSessions: 0,
 			interviews: 0,
 			interviewAnalysis: 0,
