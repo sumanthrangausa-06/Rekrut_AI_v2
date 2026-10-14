@@ -44,6 +44,22 @@
  *   held-preserved / lookup-failure-preserved), fail-closed on any
  *   throw. gapH carries per-table counts only (§4.1 — no values).
  *
+ *   PR-GATE FIX ROUND (database-reviewer BLOCK, proven on real PG):
+ *   both production callers run erasePersonalData inside BEGIN…COMMIT
+ *   on one client, so a throwing consult ABORTS the transaction —
+ *   the next statement throws 25P02, the caller rolls back, and the
+ *   lookup-failure partition never completes. Each per-row consult is
+ *   therefore wrapped in a SAVEPOINT on the same queryable: SAVEPOINT
+ *   before the consult, RELEASE on success, ROLLBACK TO SAVEPOINT
+ *   (then RELEASE) on throw → row counted lookup-failed, erasure
+ *   continues and COMPLETES. No-surrounding-transaction callers:
+ *   SAVEPOINT itself errors 25P01 in autocommit (PG 16, verified) —
+ *   that code is the probe: the consult then runs bare, because in
+ *   autocommit each statement is its own implicit transaction and a
+ *   throw cannot poison later statements. Any other SAVEPOINT error
+ *   (e.g. 25P02 — the caller's transaction was already aborted)
+ *   propagates: the pre-existing fail-closed abort is preserved.
+ *
  *   PLACEMENT: adjacent to the shipped S-078 recording_consent
  *   redaction, following its statement idiom.
  *
@@ -90,12 +106,25 @@ function makeClient(scenario = {}) {
 		gapHHoldActions: [],
 		gateHeld: false,
 		anyHold: false,
+		savepointErrorCode: null,
 		...scenario,
 	};
 	const holdActions = [...s.gapHHoldActions];
 	let holdCalls = 0;
 	const client = { query: jest.fn() };
 	client.query.mockImplementation(async (sql, params = []) => {
+		// Savepoint-containment probe (PR-gate fix round): SAVEPOINT /
+		// RELEASE / ROLLBACK TO succeed generically, unless the scenario
+		// simulates the autocommit probe failure (25P01) or another
+		// SAVEPOINT error — only the SAVEPOINT statement itself throws.
+		if (/^SAVEPOINT/i.test(sql) && s.savepointErrorCode) {
+			const err = new Error('SAVEPOINT can only be used in transaction blocks');
+			err.code = s.savepointErrorCode;
+			throw err;
+		}
+		if (/^(SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT)/i.test(sql)) {
+			return { rows: [], rowCount: 0 };
+		}
 		// anyHoldActive(): its own parameterless legal_holds probe.
 		if (/SELECT id FROM legal_holds WHERE released_at IS NULL LIMIT 1/i.test(sql)) {
 			return s.anyHold ? { rows: [{ id: 1 }], rowCount: 1 } : { rows: [], rowCount: 0 };
@@ -139,6 +168,26 @@ function callsMatching(client, re) {
 }
 function callIndex(client, re) {
 	return client.query.mock.calls.findIndex(([sql]) => re.test(sql));
+}
+// Containment-sequence view of the GAP-H window (from the
+// consent_records SELECT up to, excluding, the #780 job_applications
+// SELECT): classifies each statement so tests can pin the exact
+// SAVEPOINT / consult / RELEASE / ROLLBACK-TO order per row.
+function gapHEvents(client) {
+	const sqls = client.query.mock.calls.map(([sql]) => sql);
+	const start = sqls.findIndex((s) => /SELECT id, revoked_by FROM consent_records/i.test(s));
+	const end = sqls.findIndex((s, i) => i > start && /FROM job_applications/i.test(s));
+	return sqls.slice(start, end === -1 ? undefined : end).map((s) => {
+		if (/^ROLLBACK TO SAVEPOINT/i.test(s)) return 'ROLLBACK_TO';
+		if (/^RELEASE SAVEPOINT/i.test(s)) return 'RELEASE';
+		if (/^SAVEPOINT/i.test(s)) return 'SAVEPOINT';
+		if (/FROM legal_holds/i.test(s)) return 'HOLD';
+		if (/SELECT id, revoked_by FROM consent_records/i.test(s)) return 'SELECT_RECORDS';
+		if (/SELECT id, changed_by FROM consent_history/i.test(s)) return 'SELECT_HISTORY';
+		if (/UPDATE consent_records/i.test(s)) return 'UPDATE_RECORDS';
+		if (/UPDATE consent_history/i.test(s)) return 'UPDATE_HISTORY';
+		return `OTHER:${s.slice(0, 60)}`;
+	});
 }
 const recordsUpdateRe = /UPDATE consent_records/i;
 const historyUpdateRe = /UPDATE consent_history/i;
@@ -306,6 +355,23 @@ describe('#1127 GAP-H erasePersonalData — consent IP/UA redaction (K-1)', () =
 			rowsHeld: 0,
 			heldTables: [],
 		});
+		// Containment (PR-gate fix round): EVERY GAP-H consult is wrapped
+		// SAVEPOINT…RELEASE; the throwing consult (history row #22) is
+		// contained by ROLLBACK_TO + RELEASE, and the erasure then
+		// COMPLETES — history row #23 is still consulted and the UPDATE
+		// still runs. Without the savepoint, the throw would abort the
+		// caller's transaction (25P02) and none of this could follow.
+		expect(gapHEvents(client)).toEqual([
+			'SELECT_RECORDS',
+			'SAVEPOINT', 'HOLD', 'RELEASE',
+			'SAVEPOINT', 'HOLD', 'RELEASE',
+			'UPDATE_RECORDS',
+			'SELECT_HISTORY',
+			'SAVEPOINT', 'HOLD', 'RELEASE',
+			'SAVEPOINT', 'HOLD', 'ROLLBACK_TO', 'RELEASE',
+			'SAVEPOINT', 'HOLD', 'RELEASE',
+			'UPDATE_HISTORY',
+		]);
 	});
 
 	test('per-row hold (cross-posture): a held consent_history row is NOT redacted, is counted in consentHistoryHeld and named; the unheld rows still redact', async () => {
@@ -354,6 +420,90 @@ describe('#1127 GAP-H erasePersonalData — consent IP/UA redaction (K-1)', () =
 			holdLookupFailed: 1,
 			lookupFailedTables: ['consent_records'],
 		});
+		// Containment, cross-posture (records table): the throwing
+		// consult (records row #12) is ROLLBACK_TO-contained, and the
+		// erasure COMPLETES — the records UPDATE and the whole history
+		// family still execute afterwards.
+		expect(gapHEvents(client)).toEqual([
+			'SELECT_RECORDS',
+			'SAVEPOINT', 'HOLD', 'RELEASE',
+			'SAVEPOINT', 'HOLD', 'ROLLBACK_TO', 'RELEASE',
+			'UPDATE_RECORDS',
+			'SELECT_HISTORY',
+			'SAVEPOINT', 'HOLD', 'RELEASE',
+			'SAVEPOINT', 'HOLD', 'RELEASE',
+			'SAVEPOINT', 'HOLD', 'RELEASE',
+			'UPDATE_HISTORY',
+		]);
+	});
+
+	test('containment success path: every GAP-H consult is wrapped SAVEPOINT…RELEASE and NO rollback-to is issued', async () => {
+		const client = makeClient(fullScenario());
+		await erasureService.erasePersonalData(7, { client });
+
+		expect(gapHEvents(client)).toEqual([
+			'SELECT_RECORDS',
+			'SAVEPOINT', 'HOLD', 'RELEASE',
+			'SAVEPOINT', 'HOLD', 'RELEASE',
+			'UPDATE_RECORDS',
+			'SELECT_HISTORY',
+			'SAVEPOINT', 'HOLD', 'RELEASE',
+			'SAVEPOINT', 'HOLD', 'RELEASE',
+			'SAVEPOINT', 'HOLD', 'RELEASE',
+			'UPDATE_HISTORY',
+		]);
+		expect(callsMatching(client, /^ROLLBACK TO SAVEPOINT/i)).toHaveLength(0);
+	});
+
+	test('autocommit guard: SAVEPOINT probe fails 25P01 (no surrounding transaction) ⇒ consults run bare and the erasure still completes with the three-way partition', async () => {
+		const client = makeClient({
+			...fullScenario(),
+			savepointErrorCode: '25P01',
+			gapHHoldActions: ['none', 'error', 'none', 'none', 'none'],
+		});
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		// In bare mode the SAVEPOINT probe is attempted per row but no
+		// RELEASE / ROLLBACK TO ever follows — and none is needed: in
+		// autocommit a throwing consult cannot poison later statements
+		// (each is its own implicit transaction).
+		expect(callsMatching(client, /^SAVEPOINT/i)).toHaveLength(5);
+		expect(callsMatching(client, /^RELEASE SAVEPOINT/i)).toHaveLength(0);
+		expect(callsMatching(client, /^ROLLBACK TO SAVEPOINT/i)).toHaveLength(0);
+		expect(gapHEvents(client)).toEqual([
+			'SELECT_RECORDS',
+			'SAVEPOINT', 'HOLD',
+			'SAVEPOINT', 'HOLD',
+			'UPDATE_RECORDS',
+			'SELECT_HISTORY',
+			'SAVEPOINT', 'HOLD',
+			'SAVEPOINT', 'HOLD',
+			'SAVEPOINT', 'HOLD',
+			'UPDATE_HISTORY',
+		]);
+		// The throwing bare consult still lands in the third bucket and
+		// the erasure completes with correct counters.
+		expect(callsMatching(client, recordsUpdateRe)[0][1]).toEqual([7, [11]]);
+		expect(result.gapH).toMatchObject({
+			consentRecordsRedacted: 1,
+			consentRecordsLookupFailed: 1,
+			consentHistoryRedacted: 3,
+			holdLookupFailed: 1,
+			lookupFailedTables: ['consent_records'],
+		});
+	});
+
+	test('savepoint probe failure with a NON-25P01 code is not swallowed: the erasure aborts fail-closed (e.g. caller transaction already aborted)', async () => {
+		const client = makeClient({
+			...fullScenario(),
+			savepointErrorCode: '25P02',
+		});
+		const err = await erasureService.erasePersonalData(7, { client }).catch((e) => e);
+
+		expect(err).toBeInstanceOf(Error);
+		expect(err.code).toBe('25P02');
+		expect(callsMatching(client, recordsUpdateRe)).toHaveLength(0);
+		expect(callsMatching(client, historyUpdateRe)).toHaveLength(0);
 	});
 
 	test('all rows held/failed in a table ⇒ no UPDATE is issued against that table at all', async () => {
