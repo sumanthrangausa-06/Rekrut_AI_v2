@@ -9,6 +9,13 @@
  *   Repo convention: requireAdmin rejects non-admins with 401 (same as
  *   the DSAR listing endpoint tests) — STOP 1's "403" is realised as the
  *   repo's existing admin-gate status.
+ * #780 note: erasePersonalData is mocked at this module boundary, so
+ * this suite carries no query-sequence chain to extend — the #780
+ * job_applications SELECT/UPDATE steps and the §4 return additions
+ * (jobApplicationsRedacted / jobApplicationRowsHeld) live inside the
+ * mocked function and are covered by the lib suites
+ * (job-applications-erasure, legal-hold). The LegalHoldError mapping
+ * exercised here is unchanged by #780.
  */
 const request = require('supertest');
 const express = require('express');

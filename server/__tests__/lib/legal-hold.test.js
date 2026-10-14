@@ -469,6 +469,13 @@ describe('erasePersonalData under hold', () => {
 		const client = makeClient();
 		const result = await erasePersonalData(7, { client });
 		expect(result.shredded).toBe(false); // erasure ran (DEKNotFound on the empty fake)
+		// #780: the job_applications lookup runs in sequence (this fake
+		// answers it with no rows) — nothing redacted, nothing held.
+		const sqls = client.query.mock.calls.map((c) => c[0]);
+		expect(sqls.some((s) => s.includes('FROM job_applications'))).toBe(true);
+		expect(sqls.some((s) => s.includes('UPDATE job_applications'))).toBe(false);
+		expect(result.jobApplicationsRedacted).toBe(false);
+		expect(result.jobApplicationRowsHeld).toBe(0);
 	});
 
 	test('released hold unblocks erasure (proceeds to DEK step)', async () => {
