@@ -125,6 +125,8 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1127: consent_records SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1127: consent_history SELECT (no rows)
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: screening_responses SELECT (no rows)
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: job_application_screenings SELECT (no rows)
@@ -323,6 +325,20 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 				holdLookupFailed: 0,
 				lookupFailedTables: [],
 			},
+			gapH: {
+				consentRecordsRedacted: 0,
+				consentRecordsHeld: 0,
+				consentRecordsLookupFailed: 0,
+				consentHistoryRedacted: 0,
+				consentHistoryHeld: 0,
+				consentHistoryLookupFailed: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				actorFkResidual: 0,
+				actorFkResidualColumns: ['consent_records.revoked_by', 'consent_history.changed_by'],
+			},
 			storageKeys: [],
 		});
 		expect(biometricAudit.logAccess).toHaveBeenCalledTimes(1);
@@ -366,6 +382,8 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1127: consent_records SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1127: consent_history SELECT (no rows)
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: screening_responses SELECT (no rows)
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: job_application_screenings SELECT (no rows)
@@ -562,6 +580,20 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 				heldTables: [],
 				holdLookupFailed: 0,
 				lookupFailedTables: [],
+			},
+			gapH: {
+				consentRecordsRedacted: 0,
+				consentRecordsHeld: 0,
+				consentRecordsLookupFailed: 0,
+				consentHistoryRedacted: 0,
+				consentHistoryHeld: 0,
+				consentHistoryLookupFailed: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				actorFkResidual: 0,
+				actorFkResidualColumns: ['consent_records.revoked_by', 'consent_history.changed_by'],
 			},
 			storageKeys: [],
 		});
