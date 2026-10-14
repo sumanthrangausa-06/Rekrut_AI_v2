@@ -23,6 +23,7 @@
 |----------|-------------|--------|
 | `00-relearn/project-knowledge-base.md` | 5-step codebase relearn output (Scout, v2) | ✅ Approved |
 | `00-relearn/data/` | **Data documentation pack** — [index](00-relearn/data/README.md): data model, as-is schema, migrations, access-control (RLS) truth, seed data (Scout/Rex/Quinn, 2026-10-13) | 📄 At gate |
+| `DESIGN.md` (repo root) | **Design system** — tokens, typography, layout/shells, components, accessibility floor, voice & honesty rules, known gaps/targets (Aria/Nova/Quinn, 2026-10-14) | ✅ Living document |
 | `01-analysis/technical-research-integrity.md` | Integrity research (Q1-Q9, papers 2022-2026) | ✅ Complete |
 | `01-analysis/architecture-verification.md` | Codebase verification + AI Observer design (v2) | ✅ Complete |
 | `01-analysis/competitive-analysis.md` | 7 competitors, differentiation gaps (Aria) | ✅ Complete |
