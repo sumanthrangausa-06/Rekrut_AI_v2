@@ -84,6 +84,11 @@ function mockPhase1WithMedium(overrides = {}) {
 		.mockResolvedValueOnce(q([], 0)) // job_recommendations
 		.mockResolvedValueOnce(q([], 0)) // recording_consent redaction
 		.mockResolvedValueOnce(q([], 0)) // #780: job_applications SELECT (no applications)
+		.mockResolvedValueOnce(q([], 0)) // #813: screening_responses SELECT (no rows)
+		.mockResolvedValueOnce(q([], 0)) // #813: job_application_screenings SELECT (no rows)
+		.mockResolvedValueOnce(q([], 0)) // #813: ai_screenings SELECT (no rows)
+		.mockResolvedValueOnce(q([], 0)) // #813: outreach_attempts SELECT (no rows)
+		.mockResolvedValueOnce(q([], 0)) // #813: auto_apply_profiles SELECT (no rows)
 		// S-047 (E-008): observer tables.
 		.mockResolvedValueOnce(q([], 0)) // ai_observer_reports
 		.mockResolvedValueOnce(q([], 0)); // observer_jobs

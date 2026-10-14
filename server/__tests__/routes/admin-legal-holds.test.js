@@ -16,6 +16,13 @@
  * mocked function and are covered by the lib suites
  * (job-applications-erasure, legal-hold). The LegalHoldError mapping
  * exercised here is unchanged by #780.
+ *
+ * #813 note: same module-boundary posture — the C2 sweep's five-table
+ * SELECT/DELETE steps and its return additions (the five *Deleted
+ * flags, aiScreeningAuditLogsDeleted / aiScreeningHumanReviewsDeleted
+ * counts, applicationKeyedRowsHeld / applicationKeyedHeldDetails,
+ * autoApplyConsentTombstone) live inside the mocked function and are
+ * covered by the lib suite (application-keyed-erasure). Unchanged here.
  */
 const request = require('supertest');
 const express = require('express');

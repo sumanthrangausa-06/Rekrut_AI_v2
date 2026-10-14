@@ -476,6 +476,15 @@ describe('erasePersonalData under hold', () => {
 		expect(sqls.some((s) => s.includes('UPDATE job_applications'))).toBe(false);
 		expect(result.jobApplicationsRedacted).toBe(false);
 		expect(result.jobApplicationRowsHeld).toBe(0);
+		// #813: the C2 sweep SELECTs run in sequence too (this fake
+		// answers them with no rows) — nothing deleted, nothing held.
+		expect(sqls.some((x) => x.includes('FROM screening_responses'))).toBe(true);
+		expect(sqls.some((x) => x.includes('FROM ai_screenings'))).toBe(true);
+		expect(sqls.some((x) => x.includes('FROM auto_apply_profiles'))).toBe(true);
+		expect(result.screeningResponsesDeleted).toBe(false);
+		expect(result.aiScreeningsDeleted).toBe(false);
+		expect(result.autoApplyProfileDeleted).toBe(false);
+		expect(result.applicationKeyedRowsHeld).toBe(0);
 	});
 
 	test('released hold unblocks erasure (proceeds to DEK step)', async () => {
