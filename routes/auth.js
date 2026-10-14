@@ -1819,6 +1819,13 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 			console.error('Audit log failed (non-blocking):', auditErr.message);
 		}
 
+		// #1126 (GAP-G, STOP 1 §5): Flow A session hygiene — destroy the
+		// caller's own session post-commit, before the response (absent
+		// before this story; the logout handlers are the precedent).
+		// user_sessions rows themselves are a named residual (no user
+		// key — see the erasure keep/erase table §5), NOT claimed erased.
+		if (req.session) req.session.destroy();
+
 		res.json({ success: true, message: 'Account deleted successfully.' });
 	} catch (err) {
 		// #799 (G-1): an active legal hold blocks erasure (the transaction

@@ -525,7 +525,10 @@ describe('#1126 GAP-G erasePersonalData — account residuals & tokens (E-16)', 
 		expect(serialised).not.toContain('Real Name');
 		expect(serialised).not.toContain('Sole Trader Co');
 		for (const [key, value] of Object.entries(result.gapG)) {
-			expect(key).not.toMatch(/hash|hmac|marker|token|email/i);
+			// No hash/marker field of any identifier (§4.1) — count
+			// keys naming a family (e.g. refreshTokens) are counts,
+			// not identifier-derived values.
+			expect(key).not.toMatch(/hash|hmac|marker/i);
 			if (Array.isArray(value)) {
 				for (const entry of value) expect(typeof entry).toBe('string');
 			} else {
