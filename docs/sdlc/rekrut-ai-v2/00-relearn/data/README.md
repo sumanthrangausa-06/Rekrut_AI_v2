@@ -11,6 +11,7 @@
 | [migrations.md](./migrations.md) | How did the schema get here — full migration inventory (001–258), how migrations run at deploy, what is deploy-pending (252–258), how to add one, and the known fresh-database defect at migration 238 (#894). |
 | [rls-policies.md](./rls-policies.md) | How is data access actually controlled? **There is no Postgres RLS** — this doc is the truth about the application-layer enforcement that exists instead, with the patterns new code must copy. |
 | [seed-data.md](./seed-data.md) | What seed/fixture data exists, the test-account policy (#151, #336), what must never be seeded, and how a builder gets a working local dataset. |
+| [data-model-simplification-assessment.md](./data-model-simplification-assessment.md) | Is the model too complex, and how does it get simpler? The target simplified model (canonical home per concept, ≈212–216 tables from 239), the anti-accretion conventions that keep it simple, graded candidates with safe migration paths and the proof standard before any drop, and pre/post-launch sequencing. Assessment only — nothing filed or changed. |
 
 **Reading order for a new builder:** data-model → schema → rls-policies → migrations → seed-data.
 
