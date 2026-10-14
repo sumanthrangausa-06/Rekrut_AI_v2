@@ -289,6 +289,21 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 				lookupFailedTables: [],
 				storageLedgered: 0,
 			},
+			gapF: {
+				communications: 0,
+				sequenceEnrollments: 0,
+				emailQueue: 0,
+				notificationQueue: 0,
+				notificationLogs: 0,
+				userNotifications: 0,
+				notificationPreferences: 0,
+				notificationAudioCache: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				emailCaptureFailed: true, // #1125 F1: finite mock queue resolves no email at GAP-F capture — unresolvable capture is capture-failed
+			},
 			storageKeys: [],
 		});
 		expect(biometricAudit.logAccess).toHaveBeenCalledTimes(1);
@@ -494,6 +509,21 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 				holdLookupFailed: 0,
 				lookupFailedTables: [],
 				storageLedgered: 0,
+			},
+			gapF: {
+				communications: 0,
+				sequenceEnrollments: 0,
+				emailQueue: 0,
+				notificationQueue: 0,
+				notificationLogs: 0,
+				userNotifications: 0,
+				notificationPreferences: 0,
+				notificationAudioCache: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				emailCaptureFailed: true, // #1125 F1: finite mock queue resolves no email at GAP-F capture — unresolvable capture is capture-failed
 			},
 			storageKeys: [],
 		});
