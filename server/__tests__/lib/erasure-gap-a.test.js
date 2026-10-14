@@ -71,9 +71,11 @@ function freshState() {
 			{ id: 21, interview_event_id: 31, interview_session_id: null, storage_path: enc(LOC_A) },
 			{ id: 22, interview_event_id: null, interview_session_id: 11, storage_path: enc(LOC_B) },
 		],
+		// Real recording_objects row shape (mig 253/257): object_key is the
+		// PRIMARY KEY — there is NO id column. Fixtures must not invent one.
 		frames: [
-			{ id: 41, object_key: FRAME_A, interview_id: null },
-			{ id: 42, object_key: FRAME_B, interview_id: 11 },
+			{ object_key: FRAME_A, interview_id: null },
+			{ object_key: FRAME_B, interview_id: 11 },
 		],
 		heldSessionCompany: null,
 		transcriptRowCount: 2,
@@ -220,6 +222,19 @@ describe('GAP-A (c): recording objects + frames', () => {
 			(c) => /UPDATE recording_objects/i.test(c.sql) && /deleted_at = NOW\(\)/.test(c.sql) && /object_type = 'frame'/.test(c.sql),
 		);
 		expect(stamp).toBeDefined();
+		// B-1: recording_objects has no `id` column (mig 253 PK is object_key).
+		// The frame SELECT must not request `id`, and the stamp must key rows
+		// by object_key, carrying the object keys as its ANY() params.
+		const frameSel = state.calls.find(
+			(c) => /FROM recording_objects/i.test(c.sql) && /object_type = 'frame'/.test(c.sql),
+		);
+		expect(frameSel).toBeDefined();
+		expect(frameSel.sql).not.toMatch(/SELECT id,/i);
+		expect(frameSel.sql).toMatch(/object_key/);
+		expect(stamp.sql).toMatch(/object_key = ANY\(\$2\)/);
+		expect(stamp.sql).not.toMatch(/\bid = ANY/);
+		expect(stamp.params[0]).toBe(7);
+		expect(stamp.params[1]).toEqual(expect.arrayContaining([FRAME_A, FRAME_B]));
 		expect(state.calls.some((c) => /DELETE FROM recording_objects/i.test(c.sql))).toBe(false);
 		expect(result.framesLedgered).toBe(2);
 		expect(result.recordingFramesLedgered).toBe(true);
@@ -290,6 +305,20 @@ describe('GAP-A Phase 2: drain deletes ledgered recording objects', () => {
 		expect(deleteFile).toHaveBeenCalledWith(`/api/files/${encodeURIComponent(FRAME_A)}`);
 		expect(res.deleted).toBe(2);
 		expect(res.failed).toBe(0);
+	});
+
+	test('bucketless livekit_recording location ⇒ fail closed: visible failure, NO delete attempted on any provider (S-1)', async () => {
+		db.query.mockImplementation(
+			routePhase2([
+				{ id: 64, file_url: 'rekrut-recordings/room-x-9.mp4', storage_type: 'r2', source_family: 'livekit_recording' },
+			]),
+		);
+		const res = await deleteErasedStorageFiles(7, {});
+		expect(deleteStorageObject).not.toHaveBeenCalled();
+		expect(deleteFile).not.toHaveBeenCalled();
+		expect(res.deleted).toBe(0);
+		expect(res.failed).toBe(1);
+		expect(res.failures).toContain('rekrut-recordings/room-x-9.mp4');
 	});
 
 	test('egress bucket that is NOT a configured file-storage provider ⇒ visible failure, no invented primitive', async () => {
