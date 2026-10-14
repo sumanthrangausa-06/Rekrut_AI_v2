@@ -83,6 +83,7 @@ function mockPhase1(overrides = {}) {
 		.mockResolvedValueOnce(q([], 0)) // score_history
 		.mockResolvedValueOnce(q([], 0)) // job_recommendations
 		.mockResolvedValueOnce(q([], 0)) // recording_consent redaction
+		.mockResolvedValueOnce(q([], 0)) // #780: job_applications SELECT (no applications)
 		.mockResolvedValueOnce(q([], 0)) // S-047: ai_observer_reports
 		.mockResolvedValueOnce(q([], 0)); // S-047: observer_jobs
 	// Ledger INSERTs: one per storage key (mocked as needed per test).

@@ -104,6 +104,8 @@ describe('POST /api/admin/compliance/data-requests/:id/fulfill', () => {
 			shredded: true,
 			embeddingsDeleted: true,
 			searchIndexDeleted: false,
+			jobApplicationsRedacted: true, // #780 §4
+			jobApplicationRowsHeld: 0, // #780 §4
 		});
 
 		const res = await request(makeApp())
@@ -250,6 +252,8 @@ describe('POST /api/admin/compliance/data-requests/:id/fulfill', () => {
 			shredded: true,
 			embeddingsDeleted: true,
 			searchIndexDeleted: false,
+			jobApplicationsRedacted: true, // #780 §4
+			jobApplicationRowsHeld: 0, // #780 §4
 		});
 
 		await request(makeApp())

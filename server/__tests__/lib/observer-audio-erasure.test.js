@@ -77,6 +77,17 @@ describe('erasePersonalData — observer_audio composition (§5.2)', () => {
 		expect(result.storageKeys.filter((k) => k.includes('observer-audio'))).toHaveLength(0);
 	});
 
+	test('#780: job_applications SELECT is issued in sequence; no applications ⇒ flags false/0', async () => {
+		const result = await erasePersonalData(7, { client: { query: mockPool.query } });
+		// The generic SELECT branch of this router answers the #780
+		// job_applications lookup with no rows — no per-row hold consults,
+		// no UPDATE, and the §4 return additions report false/0.
+		expect(mockErasure.calls.some((s) => s.includes('FROM job_applications'))).toBe(true);
+		expect(mockErasure.calls.some((s) => s.includes('UPDATE job_applications'))).toBe(false);
+		expect(result.jobApplicationsRedacted).toBe(false);
+		expect(result.jobApplicationRowsHeld).toBe(0);
+	});
+
 	test('T9: Phase 2 deletes the ledger URLs (objects actually removed)', async () => {
 		const result = await erasePersonalData(7, { client: { query: mockPool.query } });
 		const phase2 = await deleteErasedStorageFiles(result.storageKeys);

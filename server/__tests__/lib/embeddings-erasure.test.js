@@ -76,6 +76,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
 			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
 		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
@@ -126,6 +127,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			scoreComponentsDeleted: false,
 			scoreHistoryDeleted: false,
 			jobRecommendationsDeleted: false,
+			jobApplicationsRedacted: false, // #780
+			jobApplicationRowsHeld: 0, // #780
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
@@ -173,6 +176,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
 			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
 		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
@@ -214,6 +218,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			scoreComponentsDeleted: false,
 			scoreHistoryDeleted: false,
 			jobRecommendationsDeleted: false,
+			jobApplicationsRedacted: false, // #780
+			jobApplicationRowsHeld: 0, // #780
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
@@ -262,6 +268,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
 			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
 		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
@@ -299,6 +306,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			scoreComponentsDeleted: false,
 			scoreHistoryDeleted: false,
 			jobRecommendationsDeleted: false,
+			jobApplicationsRedacted: false, // #780
+			jobApplicationRowsHeld: 0, // #780
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
@@ -359,6 +368,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
 			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
 
@@ -395,6 +405,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			scoreComponentsDeleted: false,
 			scoreHistoryDeleted: false,
 			jobRecommendationsDeleted: false,
+			jobApplicationsRedacted: false, // #780
+			jobApplicationRowsHeld: 0, // #780
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
@@ -443,6 +455,7 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
 			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
 

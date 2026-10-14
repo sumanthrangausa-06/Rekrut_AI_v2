@@ -82,6 +82,7 @@ function mockPhase1WithMedium(overrides = {}) {
 		.mockResolvedValueOnce(q([], 0)) // score_history
 		.mockResolvedValueOnce(q([], 0)) // job_recommendations
 		.mockResolvedValueOnce(q([], 0)) // recording_consent redaction
+		.mockResolvedValueOnce(q([], 0)) // #780: job_applications SELECT (no applications)
 		// S-047 (E-008): observer tables.
 		.mockResolvedValueOnce(q([], 0)) // ai_observer_reports
 		.mockResolvedValueOnce(q([], 0)); // observer_jobs

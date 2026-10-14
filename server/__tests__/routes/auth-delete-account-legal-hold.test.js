@@ -6,6 +6,14 @@
  * routes/auth.js is imported with its boundaries mocked; erasePersonalData
  * is mocked to throw the typed LegalHoldError, exactly as the real erasure
  * gate does after rolling the deletion transaction back.
+ *
+ * #780 note: erasePersonalData is mocked at this module boundary, so
+ * this suite carries no query-sequence chain to extend — the #780
+ * job_applications SELECT/UPDATE steps and the §4 return additions
+ * (jobApplicationsRedacted / jobApplicationRowsHeld) live inside the
+ * mocked function and are covered by the lib suites
+ * (job-applications-erasure, legal-hold). The hold-rejection path
+ * exercised here is unchanged by #780.
  */
 const request = require('supertest');
 const express = require('express');
