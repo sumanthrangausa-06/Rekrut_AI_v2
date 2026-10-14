@@ -102,3 +102,14 @@ The assessment's §2 conventions (R-1–R-8) are **adopted as standing team conv
 ## 7. What this plan does not do
 
 It authorises no drop, no contract, and no production run by itself. Every contract still needs its gate packet (§3 evidence + migration + forward-fix rollback story) at whichever gate §4 assigns it. Counsel items remain open and unsent. Live state remains NOT VERIFIED until #1142 is executed at a staging-QA window.
+
+---
+
+## 8. Standing directives (Sumanth, 2026-10-14 — appended same day)
+
+1. **Sub-agents are expected, not exceptional.** Personas create sub-agents whenever a task needs deeper understanding. Depth limits that would force checklist-only reviews are designed around by spawning; any remaining method compromise is disclosed as before.
+2. **The stakes.** This application must be LIVE by January 2027 WITH USERS, as a **secured, trustworthy** web application — the proof that AI can be trusted. If it makes no revenue, the AI agents company shuts down. Priorities, in order when they conflict: security, honesty (no fabricated data anywhere), compliance evidence, the launch-critical path — then elegance.
+3. **Continuous operation.** A scheduled advance run (`rekrut-programme-advance`, every ~4h) feeds this programme between conversations. Issue checkpoints must be meticulous enough that any run can pick up exactly where the last left off; state that exists only in a conversation does not exist.
+4. **Self-upgrade.** Personas may search for and propose new skills (including online) when a task needs one — proposals come through Lead with a reason; security-relevant skill installs get a review note.
+
+These directives bind every dispatch under this plan. They do not change the autonomy boundary in §4.
