@@ -198,6 +198,11 @@ Blocking all three, per-row: **legal hold** (§3.4).
 
 ### 3.3 Erasure — `lib/erasureService.js`, `erasePersonalData()` (606 lines)
 
+> **Disposition authority:** this section summarises the shipped mechanism. For
+> the formal per-category keep/erase disposition — what must erase, what may be
+> kept, on what basis and for how long, and the GAP register (#1120–#1129) —
+> see [erasure-keep-erase-table.md](./erasure-keep-erase-table.md) (owner: Lex).
+
 Single choke point for self-serve account deletion (`routes/auth.js:1764-1774`, inside
 the deletion transaction) and DSAR fulfilment. Shape: **legal-hold gate first,
 fail-closed** (:84-101 — a lookup *error* aborts the erasure with `LegalHoldError`;
