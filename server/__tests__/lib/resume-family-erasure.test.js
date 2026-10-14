@@ -84,6 +84,8 @@ function mockPhase1(overrides = {}) {
 		.mockResolvedValueOnce(q([], 0)) // score_history
 		.mockResolvedValueOnce(q([], 0)) // job_recommendations
 		.mockResolvedValueOnce(q([], 0)) // recording_consent redaction
+		.mockResolvedValueOnce(q([], 0)) // #1127: consent_records SELECT (no rows)
+		.mockResolvedValueOnce(q([], 0)) // #1127: consent_history SELECT (no rows)
 		.mockResolvedValueOnce(q([], 0)) // #780: job_applications SELECT (no applications)
 		.mockResolvedValueOnce(q([], 0)) // #813: screening_responses SELECT (no rows)
 		.mockResolvedValueOnce(q([], 0)) // #813: job_application_screenings SELECT (no rows)
