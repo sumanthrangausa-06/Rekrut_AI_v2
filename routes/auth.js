@@ -1764,6 +1764,12 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 			const erasureResult =
 				await erasePersonalData(user.id, {
 					client,
+					// #1125 GAP-F: the tombstone UPDATE above already
+					// rewrote users.email — pass the pre-tombstone
+					// address (req.user was loaded before it) so the
+					// email-matched family deletes match the original
+					// recipient strings, not the synthetic address.
+					originalEmail: user.email,
 					audit: {
 						userId: user.id,
 						userRole: user.role || 'candidate',
