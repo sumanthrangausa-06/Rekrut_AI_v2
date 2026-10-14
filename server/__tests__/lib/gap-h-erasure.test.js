@@ -308,6 +308,54 @@ describe('#1127 GAP-H erasePersonalData — consent IP/UA redaction (K-1)', () =
 		});
 	});
 
+	test('per-row hold (cross-posture): a held consent_history row is NOT redacted, is counted in consentHistoryHeld and named; the unheld rows still redact', async () => {
+		const client = makeClient({
+			...fullScenario(),
+			gapHHoldActions: ['none', 'none', 'held', 'none', 'none'],
+		});
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		// History row #21 (the 3rd GAP-H consult) is held ⇒ excluded.
+		expect(callsMatching(client, historyUpdateRe)[0][1]).toEqual([7, [22, 23]]);
+		expect(callsMatching(client, recordsUpdateRe)[0][1]).toEqual([7, [11, 12]]);
+		expect(result.gapH).toMatchObject({
+			consentRecordsRedacted: 2,
+			consentRecordsHeld: 0,
+			consentRecordsLookupFailed: 0,
+			consentHistoryRedacted: 2,
+			consentHistoryHeld: 1,
+			consentHistoryLookupFailed: 0,
+			rowsHeld: 1,
+			heldTables: ['consent_history'],
+			holdLookupFailed: 0,
+			lookupFailedTables: [],
+		});
+	});
+
+	test('hold-lookup SABOTAGE (cross-posture): a throwing consult on a consent_records row lands in consentRecordsLookupFailed — row preserved, counted separately, NOT in heldTables', async () => {
+		const client = makeClient({
+			...fullScenario(),
+			gapHHoldActions: ['none', 'error', 'none', 'none', 'none'],
+		});
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		// Records row #12 (the 2nd GAP-H consult) failed lookup ⇒ excluded.
+		expect(callsMatching(client, recordsUpdateRe)[0][1]).toEqual([7, [11]]);
+		expect(callsMatching(client, historyUpdateRe)[0][1]).toEqual([7, [21, 22, 23]]);
+		expect(result.gapH).toMatchObject({
+			consentRecordsRedacted: 1,
+			consentRecordsHeld: 0,
+			consentRecordsLookupFailed: 1,
+			consentHistoryRedacted: 3,
+			consentHistoryHeld: 0,
+			consentHistoryLookupFailed: 0,
+			rowsHeld: 0,
+			heldTables: [],
+			holdLookupFailed: 1,
+			lookupFailedTables: ['consent_records'],
+		});
+	});
+
 	test('all rows held/failed in a table ⇒ no UPDATE is issued against that table at all', async () => {
 		const client = makeClient({
 			consentRecords: [{ id: 11, revoked_by: null }],
