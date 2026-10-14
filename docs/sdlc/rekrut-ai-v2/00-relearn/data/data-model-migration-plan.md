@@ -113,3 +113,13 @@ It authorises no drop, no contract, and no production run by itself. Every contr
 4. **Self-upgrade.** Personas may search for and propose new skills (including online) when a task needs one — proposals come through Lead with a reason; security-relevant skill installs get a review note.
 
 These directives bind every dispatch under this plan. They do not change the autonomy boundary in §4.
+
+---
+
+## 9. Standing technique — reverse engineering (Sumanth, 2026-10-14)
+
+**Reverse engineering is a general method for the team, not just a software tool.** When any persona faces something unfamiliar they need to understand — a competitor's product/flow/pricing/UX, a third-party integration's real behaviour, a packaged tool under evaluation, an undocumented API's actual responses, even a process or document structure — they reverse-engineer it: **observe outputs → trace structure → reconstruct the design and intent → document the findings** (Scout documents, Rex interprets, the owning persona acts).
+
+For software artifacts the instrument is **REA** (`~/workspace/skill-repos/rea`, CLI 6.4.0; static JS/Electron/.NET/website/WASM analysis works in this environment; its browser mode and Hopper/Ghidra/IDA hookups do not — runtime observation pairs it with other instruments as available).
+
+Dispatches may invoke it by name ("reverse-engineer X") the way they invoke systematic-debugging. **Boundary:** only on things the team is entitled to examine — public/competitor-facing products, our own artifacts, licensed evaluations; never bypassing access controls or into anyone's private systems.
