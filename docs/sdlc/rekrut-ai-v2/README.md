@@ -30,6 +30,8 @@
 | `01-analysis/pricing-strategy-brief.md` | Hybrid pricing recommendation | ✅ Complete |
 | `01-analysis/whole-app-compliance-blueprint.md` | USA/EU/India, 26 items, 10 legal questions | ✅ Complete |
 | `01-analysis/integrity-mitigation-brief.md` | 8 recommendations + operational playbook | ✅ Complete |
+| `00-relearn/project-knowledge-base-2026-10-13-full-application.md` | Full-application relearn: 22 modules, issue reconciliation, reverse ADRs (Scout) | ✅ Complete |
+| `02-planning/full-application/` | Whole-application overview + 23 module PRDs + consolidated decisions for Sumanth (Rex) | ⏳ At Sumanth's gate |
 
 ---
 
@@ -88,3 +90,4 @@
 | 2026-10-10 | Legal reviews consent + retention before Phase 3 | Sumanth |
 | 2026-10-13 | Gate A ruled **B, amended**: Observer ships presence-only for a controlled cohort in January (no public consent ask, no analysis claimed); dormant audio-capture built as one complete unit after design approval; re-entry contract — counsel + design cleared by 2026-11-01 opens cohort pilot path, after 2026-12-01 nothing activates pre-launch (full ruling on #634) | Sumanth |
 | 2026-10-13 | Gate A dormant-capture design package delivered for approval (Rex v2 + Quinn validation protocol + Lex consent/retention review; privacy review BLOCK on v1 cleared with conditions on v2) — `04-implementation/unified-interview-engine/gate-a-dormant-capture-design.md` | Lead |
+| 2026-10-12 | Mock scores & OmniScore: practice OUT of OmniScore → separate labelled readiness panel; practice-fact marker adopted (opt-in default-off, counts/dates only); removal scheduled separately — supersedes "practice-only" posture (see KB §7; #113, #791–#793) | Sumanth |
