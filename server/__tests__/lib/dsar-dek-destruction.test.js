@@ -171,6 +171,18 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			observerAudioChunksDeleted: false,
 			observerSpeechMeasurementsDeleted: false,
 			observerCaptureOutcomesDeleted: false,
+			interviewSessionsStripped: false, // GAP-A (#1120)
+			sessionsStripped: 0,
+			sessionsHeld: 0,
+			transcriptsDeleted: 0,
+			recordingsLedgered: 0,
+			recordingsRedacted: 0,
+			recordingsHeld: 0,
+			recordingsUndecryptable: 0,
+			recordingFramesLedgered: false,
+			framesLedgered: 0,
+			framesHeld: 0,
+			gapAHeldSkips: 0,
 			storageKeys: [],
 		});
 		expect(biometricAudit.logAccess).toHaveBeenCalledTimes(1);
@@ -259,6 +271,18 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			observerAudioChunksDeleted: false,
 			observerSpeechMeasurementsDeleted: false,
 			observerCaptureOutcomesDeleted: false,
+			interviewSessionsStripped: false, // GAP-A (#1120)
+			sessionsStripped: 0,
+			sessionsHeld: 0,
+			transcriptsDeleted: 0,
+			recordingsLedgered: 0,
+			recordingsRedacted: 0,
+			recordingsHeld: 0,
+			recordingsUndecryptable: 0,
+			recordingFramesLedgered: false,
+			framesLedgered: 0,
+			framesHeld: 0,
+			gapAHeldSkips: 0,
 			storageKeys: [],
 		});
 		expect(biometricAudit.logAccess).not.toHaveBeenCalled();

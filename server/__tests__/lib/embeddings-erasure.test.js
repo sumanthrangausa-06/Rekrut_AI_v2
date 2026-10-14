@@ -135,6 +135,18 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			observerAudioChunksDeleted: false,
 			observerSpeechMeasurementsDeleted: false,
 			observerCaptureOutcomesDeleted: false,
+			interviewSessionsStripped: false, // GAP-A (#1120)
+			sessionsStripped: 0,
+			sessionsHeld: 0,
+			transcriptsDeleted: 0,
+			recordingsLedgered: 0,
+			recordingsRedacted: 0,
+			recordingsHeld: 0,
+			recordingsUndecryptable: 0,
+			recordingFramesLedgered: false,
+			framesLedgered: 0,
+			framesHeld: 0,
+			gapAHeldSkips: 0,
 			storageKeys: [],
 		});
 	});
@@ -226,6 +238,18 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			observerAudioChunksDeleted: false,
 			observerSpeechMeasurementsDeleted: false,
 			observerCaptureOutcomesDeleted: false,
+			interviewSessionsStripped: false, // GAP-A (#1120)
+			sessionsStripped: 0,
+			sessionsHeld: 0,
+			transcriptsDeleted: 0,
+			recordingsLedgered: 0,
+			recordingsRedacted: 0,
+			recordingsHeld: 0,
+			recordingsUndecryptable: 0,
+			recordingFramesLedgered: false,
+			framesLedgered: 0,
+			framesHeld: 0,
+			gapAHeldSkips: 0,
 			storageKeys: [],
 		});
 		// No DEK destroyed → no purge audit entry, but embeddings still deleted.
@@ -314,6 +338,18 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			observerAudioChunksDeleted: false,
 			observerSpeechMeasurementsDeleted: false,
 			observerCaptureOutcomesDeleted: false,
+			interviewSessionsStripped: false, // GAP-A (#1120)
+			sessionsStripped: 0,
+			sessionsHeld: 0,
+			transcriptsDeleted: 0,
+			recordingsLedgered: 0,
+			recordingsRedacted: 0,
+			recordingsHeld: 0,
+			recordingsUndecryptable: 0,
+			recordingFramesLedgered: false,
+			framesLedgered: 0,
+			framesHeld: 0,
+			gapAHeldSkips: 0,
 			storageKeys: [],
 		});
 	});
@@ -413,6 +449,18 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			observerAudioChunksDeleted: false,
 			observerSpeechMeasurementsDeleted: false,
 			observerCaptureOutcomesDeleted: false,
+			interviewSessionsStripped: false, // GAP-A (#1120)
+			sessionsStripped: 0,
+			sessionsHeld: 0,
+			transcriptsDeleted: 0,
+			recordingsLedgered: 0,
+			recordingsRedacted: 0,
+			recordingsHeld: 0,
+			recordingsUndecryptable: 0,
+			recordingFramesLedgered: false,
+			framesLedgered: 0,
+			framesHeld: 0,
+			gapAHeldSkips: 0,
 			storageKeys: [],
 		});
 	});
