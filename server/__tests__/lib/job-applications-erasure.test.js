@@ -256,4 +256,17 @@ describe('#780 erasePersonalData — job_applications redaction', () => {
 		// Only the entry-gate hold lookup ran — no per-row consults.
 		expect(callsMatching(client, /FROM legal_holds/i)).toHaveLength(1);
 	});
+
+	test('(g) #813: C2 sweep SELECTs run after the #780 block; no rows ⇒ C2 flags false/0', async () => {
+		const client = makeClient({ appRows: [{ id: 11, company_id: 3 }], updateRowCount: 1 });
+		const result = await erasureService.erasePersonalData(7, { client });
+		for (const t of ['screening_responses', 'job_application_screenings', 'ai_screenings', 'outreach_attempts', 'auto_apply_profiles']) {
+			expect(callsMatching(client, new RegExp(`FROM ${t}`, 'i')).length).toBeGreaterThan(0);
+			expect(callsMatching(client, new RegExp(`DELETE FROM ${t}`, 'i'))).toHaveLength(0);
+		}
+		expect(result.screeningResponsesDeleted).toBe(false);
+		expect(result.aiScreeningsDeleted).toBe(false);
+		expect(result.applicationKeyedRowsHeld).toBe(0);
+		expect(result.autoApplyConsentTombstone).toBeNull();
+	});
 });

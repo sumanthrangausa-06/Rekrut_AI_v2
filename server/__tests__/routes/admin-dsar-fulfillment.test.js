@@ -106,6 +106,16 @@ describe('POST /api/admin/compliance/data-requests/:id/fulfill', () => {
 			searchIndexDeleted: false,
 			jobApplicationsRedacted: true, // #780 §4
 			jobApplicationRowsHeld: 0, // #780 §4
+			screeningResponsesDeleted: true, // #813 §4
+			jobApplicationScreeningsDeleted: false, // #813 §4
+			aiScreeningsDeleted: true, // #813 §4
+			outreachAttemptsDeleted: false, // #813 §4
+			autoApplyProfileDeleted: true, // #813 §4
+			aiScreeningAuditLogsDeleted: 2, // #813 D-1
+			aiScreeningHumanReviewsDeleted: 1, // #813 D-1
+			applicationKeyedRowsHeld: 0, // #813 §4
+			applicationKeyedHeldDetails: [], // #813 D-3
+			autoApplyConsentTombstone: { profileExisted: true, gdprConsent: true, consentDate: '2026-01-02T00:00:00.000Z' }, // #813 D-2
 		});
 
 		const res = await request(makeApp())
@@ -254,6 +264,16 @@ describe('POST /api/admin/compliance/data-requests/:id/fulfill', () => {
 			searchIndexDeleted: false,
 			jobApplicationsRedacted: true, // #780 §4
 			jobApplicationRowsHeld: 0, // #780 §4
+			screeningResponsesDeleted: true, // #813 §4
+			jobApplicationScreeningsDeleted: false, // #813 §4
+			aiScreeningsDeleted: true, // #813 §4
+			outreachAttemptsDeleted: false, // #813 §4
+			autoApplyProfileDeleted: true, // #813 §4
+			aiScreeningAuditLogsDeleted: 2, // #813 D-1
+			aiScreeningHumanReviewsDeleted: 1, // #813 D-1
+			applicationKeyedRowsHeld: 0, // #813 §4
+			applicationKeyedHeldDetails: [], // #813 D-3
+			autoApplyConsentTombstone: { profileExisted: true, gdprConsent: true, consentDate: '2026-01-02T00:00:00.000Z' }, // #813 D-2
 		});
 
 		await request(makeApp())

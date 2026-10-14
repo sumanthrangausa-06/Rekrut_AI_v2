@@ -88,6 +88,21 @@ describe('erasePersonalData — observer_audio composition (§5.2)', () => {
 		expect(result.jobApplicationRowsHeld).toBe(0);
 	});
 
+	test('#813: C2 SELECTs are issued in sequence; no rows ⇒ flags false/0, tombstone null', async () => {
+		const result = await erasePersonalData(7, { client: { query: mockPool.query } });
+		// The generic SELECT branch answers the five C2 lookups with no
+		// rows — no DELETEs on the five, no D-1 child DELETEs.
+		for (const t of ['screening_responses', 'job_application_screenings', 'ai_screenings', 'outreach_attempts', 'auto_apply_profiles']) {
+			expect(mockErasure.calls.some((x) => x.includes(`FROM ${t}`))).toBe(true);
+			expect(mockErasure.calls.some((x) => x.includes(`DELETE FROM ${t}`))).toBe(false);
+		}
+		expect(result.screeningResponsesDeleted).toBe(false);
+		expect(result.aiScreeningsDeleted).toBe(false);
+		expect(result.autoApplyProfileDeleted).toBe(false);
+		expect(result.applicationKeyedRowsHeld).toBe(0);
+		expect(result.autoApplyConsentTombstone).toBeNull();
+	});
+
 	test('T9: Phase 2 deletes the ledger URLs (objects actually removed)', async () => {
 		const result = await erasePersonalData(7, { client: { query: mockPool.query } });
 		const phase2 = await deleteErasedStorageFiles(result.storageKeys);

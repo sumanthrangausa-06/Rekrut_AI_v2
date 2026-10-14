@@ -78,6 +78,11 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: screening_responses SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: job_application_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: ai_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: outreach_attempts SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: auto_apply_profiles SELECT (no rows)
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
 			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
 		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
@@ -130,6 +135,16 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			jobRecommendationsDeleted: false,
 			jobApplicationsRedacted: false, // #780
 			jobApplicationRowsHeld: 0, // #780
+			screeningResponsesDeleted: false, // #813
+			jobApplicationScreeningsDeleted: false, // #813
+			aiScreeningsDeleted: false, // #813
+			outreachAttemptsDeleted: false, // #813
+			autoApplyProfileDeleted: false, // #813
+			aiScreeningAuditLogsDeleted: 0, // #813
+			aiScreeningHumanReviewsDeleted: 0, // #813
+			applicationKeyedRowsHeld: 0, // #813
+			applicationKeyedHeldDetails: [], // #813
+			autoApplyConsentTombstone: null, // #813
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
@@ -217,6 +232,11 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: screening_responses SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: job_application_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: ai_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: outreach_attempts SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: auto_apply_profiles SELECT (no rows)
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
 			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
 		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
@@ -260,6 +280,16 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			jobRecommendationsDeleted: false,
 			jobApplicationsRedacted: false, // #780
 			jobApplicationRowsHeld: 0, // #780
+			screeningResponsesDeleted: false, // #813
+			jobApplicationScreeningsDeleted: false, // #813
+			aiScreeningsDeleted: false, // #813
+			outreachAttemptsDeleted: false, // #813
+			autoApplyProfileDeleted: false, // #813
+			aiScreeningAuditLogsDeleted: 0, // #813
+			aiScreeningHumanReviewsDeleted: 0, // #813
+			applicationKeyedRowsHeld: 0, // #813
+			applicationKeyedHeldDetails: [], // #813
+			autoApplyConsentTombstone: null, // #813
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
@@ -348,6 +378,11 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: screening_responses SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: job_application_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: ai_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: outreach_attempts SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: auto_apply_profiles SELECT (no rows)
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
 			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
 		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
@@ -387,6 +422,16 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			jobRecommendationsDeleted: false,
 			jobApplicationsRedacted: false, // #780
 			jobApplicationRowsHeld: 0, // #780
+			screeningResponsesDeleted: false, // #813
+			jobApplicationScreeningsDeleted: false, // #813
+			aiScreeningsDeleted: false, // #813
+			outreachAttemptsDeleted: false, // #813
+			autoApplyProfileDeleted: false, // #813
+			aiScreeningAuditLogsDeleted: 0, // #813
+			aiScreeningHumanReviewsDeleted: 0, // #813
+			applicationKeyedRowsHeld: 0, // #813
+			applicationKeyedHeldDetails: [], // #813
+			autoApplyConsentTombstone: null, // #813
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
@@ -487,6 +532,11 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: screening_responses SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: job_application_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: ai_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: outreach_attempts SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: auto_apply_profiles SELECT (no rows)
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
 			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
 
@@ -525,6 +575,16 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			jobRecommendationsDeleted: false,
 			jobApplicationsRedacted: false, // #780
 			jobApplicationRowsHeld: 0, // #780
+			screeningResponsesDeleted: false, // #813
+			jobApplicationScreeningsDeleted: false, // #813
+			aiScreeningsDeleted: false, // #813
+			outreachAttemptsDeleted: false, // #813
+			autoApplyProfileDeleted: false, // #813
+			aiScreeningAuditLogsDeleted: 0, // #813
+			aiScreeningHumanReviewsDeleted: 0, // #813
+			applicationKeyedRowsHeld: 0, // #813
+			applicationKeyedHeldDetails: [], // #813
+			autoApplyConsentTombstone: null, // #813
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
@@ -613,6 +673,11 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: screening_responses SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: job_application_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: ai_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: outreach_attempts SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: auto_apply_profiles SELECT (no rows)
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
 			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
 
