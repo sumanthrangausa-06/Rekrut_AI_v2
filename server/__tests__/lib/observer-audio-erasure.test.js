@@ -4,7 +4,7 @@
  * the migration-252 deletion ledger (source_family='observer_audio'), drop
  * chunk/measurement/outcome rows, and stamp (not delete) the registry row.
  */
-const mockErasure = { regRows: [], chunkKeyRows: [], calls: [] };
+const mockErasure = { regRows: [], chunkKeyRows: [], calls: [], ledger: [] };
 const mockPool = {
 	query: jest.fn(async (sql, params = []) => {
 		mockErasure.calls.push(sql);
@@ -15,9 +15,41 @@ const mockPool = {
 		// interview_sessions subquery (candidate company attribution).
 		if (sql.includes('FROM legal_holds')) return { rows: [], rowCount: 0 };
 		if (sql.includes('FROM interview_sessions')) return { rows: [{ id: 42, candidate_name: 'x', candidate_email: 'x@y.z' }] };
-		if (sql.includes("registration_state = 'confirmed'") && sql.includes('recording_objects')) return { rows: mockErasure.regRows };
-		if (sql.includes('SELECT object_key FROM observer_audio_chunks')) return { rows: mockErasure.chunkKeyRows };
-		if (sql.includes('INSERT INTO pending_storage_deletions')) return { rows: [], rowCount: 1 };
+		// #817 harness drift repair — match CURRENT lib/erasureService.js
+		// §5.2 shapes: the registry read is a plain object_key SELECT keyed
+		// by object_type='observer_audio' (the old branch anchored on a
+		// registration_state='confirmed' shape the service no longer
+		// issues), and chunk keys come back from the chunk DELETE's
+		// RETURNING clause (the old branch waited for a SELECT that no
+		// longer exists, so keys never reached result.storageKeys and the
+		// generic DELETE branch's rowCount 1 made the chunks flag read
+		// true even with no artefacts).
+		if (sql.includes('SELECT object_key FROM recording_objects') && sql.includes("object_type = 'observer_audio'")) return { rows: mockErasure.regRows, rowCount: mockErasure.regRows.length };
+		if (sql.includes('DELETE FROM observer_audio_chunks')) return { rows: mockErasure.chunkKeyRows, rowCount: mockErasure.chunkKeyRows.length };
+		// The ledger is stateful in the fake: Phase 2 (deleteErasedStorageFiles)
+		// no longer takes the key list — it drains pending_storage_deletions
+		// via db, so inserts must be recorded and the drain SELECT / status
+		// UPDATE answered from the same state, or T9 verifies nothing.
+		if (sql.includes('INSERT INTO pending_storage_deletions')) {
+			const m = sql.match(/VALUES\s*\(\$1,\s*\$2,\s*'([^']+)',\s*'pending'(?:,\s*'([^']+)')?\)/);
+			mockErasure.ledger.push({
+				id: mockErasure.ledger.length + 1,
+				user_id: params[0],
+				file_url: params[1],
+				storage_type: m ? m[1] : 'r2',
+				source_family: m && m[2] ? m[2] : null,
+				status: 'pending',
+			});
+			return { rows: [], rowCount: 1 };
+		}
+		if (sql.includes('FROM pending_storage_deletions') && sql.includes("status = 'pending'")) {
+			return { rows: mockErasure.ledger.filter((e) => e.status === 'pending') };
+		}
+		if (sql.includes('UPDATE pending_storage_deletions')) {
+			const entry = mockErasure.ledger.find((e) => e.id === params[2]);
+			if (entry) entry.status = params[0];
+			return { rows: [], rowCount: entry ? 1 : 0 };
+		}
 		if (sql.includes('DELETE FROM ai_screening_sessions')) return { rows: [], rowCount: 0 };
 		if (sql.includes('DELETE FROM')) return { rows: [], rowCount: 1 };
 		if (sql.includes('UPDATE recording_objects SET deleted_at')) return { rows: [], rowCount: 1 };
@@ -30,6 +62,8 @@ jest.mock('../../../lib/db', () => mockPool);
 jest.mock('../../../lib/biometricAudit', () => ({ logAccess: jest.fn(async () => {}) }));
 jest.mock('../../../lib/file-storage', () => ({
 	deleteStorageObject: jest.fn(async () => ({ deleted: true })),
+	// Phase 2 deletes /api/files/ ledger URLs via deleteFile (idempotent).
+	deleteFile: jest.fn(async () => ({ deleted: true })),
 	storageKeysToFileUrls: (keys) => keys.map((key) => `/api/files/${encodeURIComponent(key)}`),
 }));
 jest.mock('../../../lib/notificationScheduler', () => ({ cancelNotificationsForUser: jest.fn(async () => {}) }), { virtual: true });
@@ -45,6 +79,7 @@ describe('erasePersonalData — observer_audio composition (§5.2)', () => {
 		mockErasure.regRows = [{ object_key: REG_KEY }];
 		mockErasure.chunkKeyRows = [{ object_key: REG_KEY }, { object_key: CHUNK_KEY_2 }];
 		mockErasure.calls = [];
+		mockErasure.ledger = [];
 		mockPool.query.mockClear();
 	});
 
