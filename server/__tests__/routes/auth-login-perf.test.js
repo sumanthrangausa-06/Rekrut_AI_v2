@@ -131,6 +131,31 @@ describe('#105 login latency', () => {
 		}
 	});
 
+	it('a failing rehash AND a throwing failure-logger still do not fail the login (F-1)', async () => {
+		const email = 'perf-rehashlogfail@example.com';
+		const userId = await registerUser(email);
+		await downgradeToCost13(userId);
+
+		const originalImpl = pool.query.getMockImplementation();
+		pool.query.mockImplementation(async (sql, params) => {
+			if (String(sql).toLowerCase().includes('update users set password_hash')) {
+				throw new Error('simulated rehash write failure');
+			}
+			return originalImpl(sql, params);
+		});
+		const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {
+			throw new Error('simulated logger failure');
+		});
+		try {
+			const res = await request(app).post('/api/auth/login').send({ email, password: PASSWORD });
+			expect(res.status).toBe(200);
+			expect(res.body.token).toBeTruthy();
+		} finally {
+			pool.query.mockImplementation(originalImpl);
+			errSpy.mockRestore();
+		}
+	});
+
 	it('POST /api/auth/login for a converged (cost-12) user completes within the 2s budget', async () => {
 		const email = 'perf-budget@example.com';
 		await registerUser(email);

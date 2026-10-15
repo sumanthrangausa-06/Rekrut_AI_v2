@@ -453,7 +453,11 @@ router.post('/login', rateLimits.strict, async (req, res) => {
 				const newHash = await hashPassword(password);
 				await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, user.id]);
 			} catch (rehashErr) {
-				console.error('[auth] rehash-on-login failed', { userId: user.id, error: rehashErr.code || rehashErr.message });
+				try {
+					console.error('[auth] rehash-on-login failed', { userId: user.id, error: rehashErr.code || rehashErr.message });
+				} catch (_logErr) {
+					// F-1: logging must never fail the login.
+				}
 			}
 		}
 
