@@ -15,7 +15,7 @@ router.get('/default', authMiddleware, async (req, res) => {
 
 		// Get company data
 		const companyResult = await pool.query(
-			`SELECT id, name, slug, industry, size, website, description, logo_url, location, founded_year,
+			`SELECT id, name, slug, industry, company_size AS size, website, description, logo_url, headquarters AS location, founded_year,
 			        (SELECT COUNT(*) FROM jobs WHERE company_id = companies.id AND status = 'active') as open_positions,
 			        (SELECT COUNT(*) FROM users WHERE company_id = companies.id AND role IN ('recruiter','hiring_manager','admin')) as employee_count,
 			        (SELECT COALESCE(AVG(overall_rating), 0) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
@@ -33,8 +33,8 @@ router.get('/default', authMiddleware, async (req, res) => {
 
 		// Get active jobs for this company
 		const jobsResult = await pool.query(
-			`SELECT id, title, department, location, job_type, salary_range, created_at
-			 FROM jobs WHERE company_id = $1 AND status = 'active' ORDER BY created_at DESC`,
+			`SELECT j.id, j.title, d.name AS department, j.location, j.job_type, j.salary_range, j.created_at
+			 FROM jobs j LEFT JOIN departments d ON d.id = j.department_id WHERE j.company_id = $1 AND j.status = 'active' ORDER BY j.created_at DESC`,
 			[companyId],
 		);
 
@@ -154,7 +154,7 @@ router.get('/:id', async (req, res) => {
 		let companyResult;
 		if (/^\d+$/.test(id)) {
 			companyResult = await pool.query(
-				`SELECT id, name, slug, industry, size, website, description, logo_url, location, founded_year,
+				`SELECT id, name, slug, industry, company_size AS size, website, description, logo_url, headquarters AS location, founded_year,
 				        (SELECT COUNT(*) FROM jobs WHERE company_id = companies.id AND status = 'active') as open_positions,
 				        (SELECT COUNT(*) FROM users WHERE company_id = companies.id AND role IN ('recruiter','hiring_manager','admin')) as employee_count,
 				        (SELECT COALESCE(AVG(overall_rating), 0) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
@@ -165,7 +165,7 @@ router.get('/:id', async (req, res) => {
 			);
 		} else {
 			companyResult = await pool.query(
-				`SELECT id, name, slug, industry, size, website, description, logo_url, location, founded_year,
+				`SELECT id, name, slug, industry, company_size AS size, website, description, logo_url, headquarters AS location, founded_year,
 				        (SELECT COUNT(*) FROM jobs WHERE company_id = companies.id AND status = 'active') as open_positions,
 				        (SELECT COUNT(*) FROM users WHERE company_id = companies.id AND role IN ('recruiter','hiring_manager','admin')) as employee_count,
 				        (SELECT COALESCE(AVG(overall_rating), 0) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
@@ -184,8 +184,8 @@ router.get('/:id', async (req, res) => {
 
 		// Get active jobs for this company
 		const jobsResult = await pool.query(
-			`SELECT id, title, department, location, job_type, salary_range, created_at
-			 FROM jobs WHERE company_id = $1 AND status = 'active' ORDER BY created_at DESC`,
+			`SELECT j.id, j.title, d.name AS department, j.location, j.job_type, j.salary_range, j.created_at
+			 FROM jobs j LEFT JOIN departments d ON d.id = j.department_id WHERE j.company_id = $1 AND j.status = 'active' ORDER BY j.created_at DESC`,
 			[company.id],
 		);
 

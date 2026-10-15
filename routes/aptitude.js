@@ -838,7 +838,7 @@ router.get(
 				`
         SELECT ata.*, u.name as candidate_name, u.email as candidate_email
         FROM aptitude_test_attempts ata
-        JOIN users u ON u.id = ata.user_id
+        JOIN users u ON u.id = ata.candidate_id
         WHERE ata.test_id = $1
         ORDER BY ata.created_at DESC
       `,
