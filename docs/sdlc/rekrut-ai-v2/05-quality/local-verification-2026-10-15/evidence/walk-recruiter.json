@@ -1,0 +1,506 @@
+[
+  {
+    "module": "M1-auth",
+    "name": "recruiter-login-ui",
+    "url": "/login",
+    "finalUrl": "/recruiter/pending-approval",
+    "note": "UI form login"
+  },
+  {
+    "module": "M2-companies",
+    "name": "recruiter-dashboard-1192",
+    "url": "/recruiter",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500",
+      "GET /api/api/recruiter/activity -> 404"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Welcome back, QA Here's what's happening with your hiring pipeline today Post New Job Upgrade to Pro to unlock advanced features Search entire candidate database, AI video interviews, ad",
+    "shot": "M2-companies__recruiter-dashboard-1192.png"
+  },
+  {
+    "module": "M3-jobs",
+    "name": "recruiter-jobs",
+    "url": "/recruiter/jobs",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/jobs",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Job Postings Manage your active and past job listings Post New Job 1 Active Jobs 1 Total Applications 0 Hired — Avg Days to Fill All Status Active Paused Closed Draft QA Fixture Data Ana",
+    "shot": "M3-jobs__recruiter-jobs.png"
+  },
+  {
+    "module": "M3-jobs",
+    "name": "recruiter-job-new-1185",
+    "url": "/recruiter/jobs/new",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/jobs/new",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Post New Job Create a new job posting in 3 steps Draft saved You have an unsaved draft. Restore it to continue where you left off. Dismiss Restore Draft Job Details Requirements Preview ",
+    "shot": "M3-jobs__recruiter-job-new-1185.png"
+  },
+  {
+    "module": "M6-applications",
+    "name": "recruiter-applications",
+    "url": "/recruiter/applications",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/applications",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Applications Review and manage candidate applications All Jobs QA Fixture Data Analyst 1 Total 1 New 0 In Pipeline 0 Offered / Hired Search From Date To Date All (1) New (1) Sort: Date N",
+    "shot": "M6-applications__recruiter-applications.png"
+  },
+  {
+    "module": "M6-applications",
+    "name": "job-applicants",
+    "url": "/recruiter/jobs/1/applicants",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/jobs/1/applicants",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Pipeline QA Fixture Data Analyst — 1 applicant ✨ Assessment Automation Board List Activity 1 Total 1 New 0 In Pipeline 0 Offered/Hired New 1 Q QA Candidate 36% Today Screening Advance Sc",
+    "shot": "M6-applications__job-applicants.png"
+  },
+  {
+    "module": "M4-candidates",
+    "name": "recruiter-candidates",
+    "url": "/recruiter/candidates",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/candidates",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Candidates Manage and review your candidate pipeline Export CSV Post a Job Candidates 0 Matching filters 0 Filters AI Semantic Save Search Sort: Relevance Sort: Newest Sort: Experience S",
+    "shot": "M4-candidates__recruiter-candidates.png"
+  },
+  {
+    "module": "M9-ai-interview",
+    "name": "recruiter-screening",
+    "url": "/recruiter/screening",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/screening",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter AI Screener AI-powered candidate analysis and fit scoring View Candidates Run Screening This is an AI-generated recommendation. A human must make the final decision. No candidate has bee",
+    "shot": "M9-ai-interview__recruiter-screening.png"
+  },
+  {
+    "module": "M10-human-interviews",
+    "name": "recruiter-interviews",
+    "url": "/recruiter/interviews",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/interviews",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Interviews Schedule, screen, and evaluate candidates with AI Screening Templates Monitor Screenings Schedule Interview 0 Today 0 Upcoming 0 Completed 0 AI Screenings Upcoming (0) Pending",
+    "shot": "M10-human-interviews__recruiter-interviews.png"
+  },
+  {
+    "module": "M10-human-interviews",
+    "name": "recruiter-calendar",
+    "url": "/recruiter/calendar",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/calendar",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Calendar Settings Connect your calendar to sync interviews and manage scheduling Google Calendar Not connected Sync interview events with Google Calendar Connect Google Calendar Outlook ",
+    "shot": "M10-human-interviews__recruiter-calendar.png"
+  },
+  {
+    "module": "M10-human-interviews",
+    "name": "recruiter-panels",
+    "url": "/recruiter/panels",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/panels",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Interview Panels Manage multi-interviewer panels with scorecards and shared notes Criteria Create Panel Job: Select a job... QA Fixture Data Analyst No panels yet Create a panel for this",
+    "shot": "M10-human-interviews__recruiter-panels.png"
+  },
+  {
+    "module": "M10-human-interviews",
+    "name": "recruiter-recordings",
+    "url": "/recruiter/recordings",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/recordings",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Recordings View and manage interview recordings Back to Interviews Select Interview Choose an interview event... Select an Interview Choose an interview event from the dropdown above to ",
+    "shot": "M10-human-interviews__recruiter-recordings.png"
+  },
+  {
+    "module": "M11-observer",
+    "name": "recruiter-proctoring",
+    "url": "/recruiter/proctoring",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/proctoring",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Proctoring Review Queue Review flagged proctoring sessions. Never auto-reject — always human review. 0 flagged sessions total Pending Approved Rejected All No flagged sessions All clear!",
+    "shot": "M11-observer__recruiter-proctoring.png"
+  },
+  {
+    "module": "M2-companies",
+    "name": "recruiter-career-page",
+    "url": "/recruiter/career-page",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "Failed to load career page: Error: Failed to load career page\n    at N (http://localhost:3000/assets/index-BRf9XP4t.js:3:6380)\n    at async s (http://localhost:3000/assets/career-page-BVIGPUsQ.js:1:12"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500",
+      "GET /api/careers/default -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/career-page",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter This career page isn't available right now. © 2026 Rekrut AI, Inc. Privacy Terms Help Center",
+    "shot": "M2-companies__recruiter-career-page.png"
+  },
+  {
+    "module": "M2-companies",
+    "name": "recruiter-company-1190",
+    "url": "/recruiter/company",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/company",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Company Profile Manage your company's brand and team 11% Profile QA Corp 2026 Verified Overview Branding Team (1) Audit Log Company Information Company Name Industry Select Industry Tech",
+    "shot": "M2-companies__recruiter-company-1190.png"
+  },
+  {
+    "module": "M2-companies",
+    "name": "recruiter-team",
+    "url": "/recruiter/team",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/team",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Team Management Manage your company's recruiting team — 1 active Invite Member Q QA Recruiter You Owner recruiter@qacorp.rekrutai.test Admin Joined 10/15/2026 © 2026 Rekrut AI, Inc. Priv",
+    "shot": "M2-companies__recruiter-team.png"
+  },
+  {
+    "module": "M2-companies",
+    "name": "recruiter-profile-fake",
+    "url": "/recruiter/profile",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/profile",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Back to Dashboard 4.8 Rating 89 Total Hires 12 Active Jobs T TechCorp Solutions Verified Technology • 250-500 employees Edit Profile Leading technology solutions provider specializing in",
+    "shot": "M2-companies__recruiter-profile-fake.png"
+  },
+  {
+    "module": "M21-analytics",
+    "name": "recruiter-analytics",
+    "url": "/recruiter/analytics",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/analytics",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Hiring Analytics Track your recruitment performance and insights Last 7 days Last 30 days Last 90 days Last year Export CSV Print PDF 0 Job Views 1 Applications 0.0% Conversion Rate — Av",
+    "shot": "M21-analytics__recruiter-analytics.png"
+  },
+  {
+    "module": "M18-comms",
+    "name": "recruiter-communications",
+    "url": "/recruiter/communications",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/communications",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Back to Dashboard Communications Manage all candidate and team communications 1 unread Inbox Starred Unread Email Alex Johnson New Jun 6, 10:30 AM Application for Senior Frontend Develop",
+    "shot": "M18-comms__recruiter-communications.png"
+  },
+  {
+    "module": "M12-scoring",
+    "name": "recruiter-trustscore-1192",
+    "url": "/recruiter/trustscore",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500",
+      "GET /api/trustscore -> 403",
+      "GET /api/trustscore/assessment-responsiveness -> 403",
+      "GET /api/trustscore/breakdown -> 403",
+      "GET /api/trustscore/standalone -> 403"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/trustscore",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Failed to load TrustScore Recruiter access required Retry © 2026 Rekrut AI, Inc. Privacy Terms Help Center",
+    "shot": "M12-scoring__recruiter-trustscore-1192.png"
+  },
+  {
+    "module": "M19-privacy",
+    "name": "recruiter-compliance",
+    "url": "/recruiter/compliance",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/compliance",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Back to Dashboard Compliance (EU AI Act) Bias audits, consent management, data lineage, and AI explainability in accordance with Regulation (EU) 2024/1689 Compliant Export Report Avg Sel",
+    "shot": "M19-privacy__recruiter-compliance.png"
+  },
+  {
+    "module": "M14-verification",
+    "name": "recruiter-background-check",
+    "url": "/recruiter/background-check",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/background-check",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Background Check Review Review candidate employment, education, and verification results Search for a candidate Type at least 2 characters to search © 2026 Rekrut AI, Inc. Privacy Terms ",
+    "shot": "M14-verification__recruiter-background-check.png"
+  },
+  {
+    "module": "M17-posthire",
+    "name": "recruiter-offers",
+    "url": "/recruiter/offers",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/offers",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Offers Create AI-generated professional offer letters Create Offer 0 Total 0 Pending 0 Accepted 0 Declined All (0) No offers created yet Create your first offer to start hiring candidate",
+    "shot": "M17-posthire__recruiter-offers.png"
+  },
+  {
+    "module": "M17-posthire",
+    "name": "recruiter-onboarding",
+    "url": "/recruiter/onboarding",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/onboarding",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Onboarding Dashboard Track employee onboarding progress, documents, and compliance. Employees AI Plans 0 Total Onboarding 0 Completed 0 In Progress 0% Completion Rate All Pending In Prog",
+    "shot": "M17-posthire__recruiter-onboarding.png"
+  },
+  {
+    "module": "M17-posthire",
+    "name": "recruiter-payroll",
+    "url": "/recruiter/payroll",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/payroll",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Global Payroll Manage compensation across US and India with region-aware tax calculations Run Payroll 0 Total Employees $0.00 This Month Net 0 Upcoming Runs 0 Completed Runs Overview Emp",
+    "shot": "M17-posthire__recruiter-payroll.png"
+  },
+  {
+    "module": "M17-posthire",
+    "name": "recruiter-payroll-dashboard",
+    "url": "/recruiter/payroll-dashboard",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/payroll",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Global Payroll Manage compensation across US and India with region-aware tax calculations Run Payroll 0 Total Employees $0.00 This Month Net 0 Upcoming Runs 0 Completed Runs Overview Emp",
+    "shot": "M17-posthire__recruiter-payroll-dashboard.png"
+  },
+  {
+    "module": "M13-assessments",
+    "name": "recruiter-assessments",
+    "url": "/recruiter/assessments",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/assessments",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Skill Assessments Review candidate test scores and skill verifications 0 Candidates Tested 0 Total Tests 0 Passed 0 Avg Score 0 Skills Tested Job Assessments Skill Tests Skill Breakdown ",
+    "shot": "M13-assessments__recruiter-assessments.png"
+  },
+  {
+    "module": "M13-assessments",
+    "name": "recruiter-aptitude-tests",
+    "url": "/recruiter/aptitude-tests",
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /recruiter/aptitude-tests -> 404",
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 404,
+    "finalUrl": "/recruiter/aptitude-tests",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Aptitude Tests Manage cognitive assessment tests Create Test 1 Total Tests 1 Active 00 Total Attempts Cognitive Aptitude Assessment Active 15 min 30 questions Pass: 60% Retake: 30d locko",
+    "shot": "M13-assessments__recruiter-aptitude-tests.png"
+  }
+]

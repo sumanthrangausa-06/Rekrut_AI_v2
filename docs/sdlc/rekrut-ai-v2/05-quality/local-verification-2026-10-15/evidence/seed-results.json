@@ -1,0 +1,26 @@
+{
+  "candidateRegister": {
+    "status": 201,
+    "id": 1,
+    "token": true
+  },
+  "recruiterRegister": {
+    "status": 201,
+    "id": 2,
+    "token": true,
+    "company": 1
+  },
+  "jobCreate": {
+    "status": 500,
+    "body": "{\"error\":\"Failed to create job\"}"
+  },
+  "companyProfile": {
+    "status": 200,
+    "slug": "qa-corp-2026-2",
+    "id": 1
+  },
+  "candidateJobs": {
+    "status": 500,
+    "body": "{\"error\":\"Failed to fetch jobs\"}"
+  }
+}
