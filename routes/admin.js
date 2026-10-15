@@ -4,6 +4,7 @@ const _crypto = require('node:crypto');
 const path = require('node:path');
 const fs = require('node:fs');
 const pool = require('../lib/db');
+const { sanitizeErasureResult } = require('../lib/erasureResultSanitizer');
 const router = express.Router();
 
 let logAuthEvent;
@@ -2141,7 +2142,11 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 					id,
 					JSON.stringify({
 						target_user_id: dr.user_id,
-						erasure,
+						// #1128 D-8b: persist ONLY the sanitised copy —
+						// the raw erasure result carries storageKeys[] +
+						// gapC/gapD.nonPatternStorageUrls (raw storage
+						// keys) and must never reach audit_logs.metadata.
+						erasure: sanitizeErasureResult(erasure),
 						fulfilledBy: req.session?.adminBridgedFrom || 'admin-panel-session',
 					}),
 					req.ip || null,
@@ -2167,7 +2172,14 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 				erasure.storageFilesFailed = storageErasure.failed;
 			}
 
-			res.json({ success: true, requestId: id, status: 'completed', erasure });
+			// #1128 D-8b: the HTTP response gets the sanitised copy too —
+			// storage-files counts added above pass through as counts.
+			res.json({
+				success: true,
+				requestId: id,
+				status: 'completed',
+				erasure: sanitizeErasureResult(erasure),
+			});
 		} catch (txErr) {
 			await client.query('ROLLBACK');
 			// #799 (G-1): a legal hold vs a DSAR request is a CONFLICT,

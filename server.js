@@ -1039,12 +1039,33 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 			// (DB review m6 — this purge previously had no caller).
 			const testPurge = await purgeTestObserverAudio({ dryRun: opts.dryRun });
 
+			// #1128 GAP-I (D-7): storage-deletion ledger terminal purge —
+			// deliberately NOT gated by LIVE_PURGE / opts.dryRun. Gate
+			// analysis: the gated calls above delete USER CONTENT on a
+			// retention schedule, which is what RETENTION_PURGE_LIVE
+			// arms. This purge deletes no user content: the storage
+			// objects were already deleted at the subject's own erasure
+			// request (Phase-2 drain); it only folds terminal
+			// (status='deleted', >7-day grace) pending_storage_deletions
+			// rows into one bounded key-free audit_logs record per user
+			// and deletes the ledger's per-object key inventory. That
+			// is erasure-machinery hygiene in the erasure-completion
+			// section (alongside reconcileObserverAudioIntents above),
+			// not the #805 retention purge — gating it behind a flag
+			// that is never set outside production would leave the
+			// shadow key inventory in place indefinitely, which is the
+			// K-2 defect this story removes. Legal-hold fail-closed
+			// inside the purge itself (D-3/D-6).
+			const { purgeDrainedStorageDeletions } = require('./lib/erasureService');
+			const ledgerPurge = await purgeDrainedStorageDeletions();
+
 			const mode = opts.dryRun ? 'DRY-RUN' : 'LIVE';
 			console.log(
 				`[retention] ${mode}: recordings=${rec.deletedCount} (storage=${rec.storageDeleted}), ` +
 				`registry=${reg.purgedCount} (storage=${reg.storageDeleted}), templates=${tpl.deletedCount}, ` +
 				`observer_reports=${obs.deletedCount}, speech_measurements=${speechMeas.deletedCount}, ` +
 				`capture_intents_reconciled=${recon.rowsRetired}, test_capture_purged=${testPurge.objectsDeleted}, ` +
+				`storage_ledger_purged=${ledgerPurge.ledgerRowsPurged} (users=${ledgerPurge.usersPurged}, held=${ledgerPurge.ledgerRowsRetainedHeld}, lookup_failed=${ledgerPurge.ledgerHoldLookupFailed}), ` +
 				// #799: held rows are visibly skipped in the run report, never silently retained.
 				`held_skips=${(rec.heldSkips || 0) + (reg.heldSkips || 0) + (tpl.heldSkips || 0) + (obs.heldSkips || 0) + (speechMeas.heldSkips || 0) + (testPurge.heldSkips || 0) + (recon.heldSkips || 0)}`,
 			);

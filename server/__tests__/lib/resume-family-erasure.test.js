@@ -14,7 +14,9 @@
  *   Phase 1 (in-tx): DELETEs + INSERT ledger rows
  *   Phase 2 (post-commit): deleteErasedStorageFiles(userId) reads ledger,
  *     deletes files (R2/B2 via deleteFile, local via deleteEncryptedFile),
- *     marks entries deleted/failed, per-file audit with metadata (Q4).
+ *     marks entries deleted/failed, one aggregate audit entry per run
+ *     (#1128 D-8a; the original per-file audit with metadata (Q4) was
+ *     K-2 defect (i) — it persisted the raw storage key).
  */
 jest.mock('../../../lib/db', () => ({
 	query: jest.fn(),
@@ -246,7 +248,7 @@ describe('S-076 deleteErasedStorageFiles — Phase 2 (ledger-driven)', () => {
 		expect(fileStorage.deleteFile).not.toHaveBeenCalled();
 	});
 
-	test('persistent failure marks ledger failed + per-file audit with metadata', async () => {
+	test('persistent failure marks ledger failed + ONE aggregate audit entry (#1128 D-8a)', async () => {
 		const db = require('../../../lib/db');
 		db.query
 			.mockResolvedValueOnce({
@@ -268,17 +270,24 @@ describe('S-076 deleteErasedStorageFiles — Phase 2 (ledger-driven)', () => {
 			/UPDATE pending_storage_deletions/i.test(sql),
 		);
 		expect(updateCall[1][0]).toBe('failed');
-		// Per-file audit with metadata (Q4).
+		// #1128 D-8a: ONE aggregate audit entry per drain run — counts +
+		// error class only, NO file_url / raw key anywhere (the pre-#1128
+		// per-file metadata.file_url shape was K-2 defect (i)).
+		expect(biometricAudit.logAccess).toHaveBeenCalledTimes(1);
 		expect(biometricAudit.logAccess).toHaveBeenCalledWith(
 			expect.objectContaining({
 				action: 'delete',
 				dataType: 'storage_file',
 				metadata: expect.objectContaining({
-					file_url: '/api/files/r2/cv/dead.pdf',
-					outcome: 'failed',
+					deleted: 0,
+					failed: 1,
+					heldSkips: 0,
+					errorClassCounts: expect.objectContaining({ Error: 1 }),
 				}),
 			}),
 		);
+		expect(JSON.stringify(biometricAudit.logAccess.mock.calls)).not.toContain('dead.pdf');
+		expect(JSON.stringify(biometricAudit.logAccess.mock.calls)).not.toContain('file_url');
 	});
 });
 
