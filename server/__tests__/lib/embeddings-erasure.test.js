@@ -147,6 +147,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			applicationKeyedRowsHeld: 0, // #813
 			applicationKeyedHeldDetails: [], // #813
 			autoApplyConsentTombstone: null, // #813
+			threatIntelChecksDeleted: 0, // #807
+			threatIntelRowsHeld: 0, // #807
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
@@ -406,6 +408,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			applicationKeyedRowsHeld: 0, // #813
 			applicationKeyedHeldDetails: [], // #813
 			autoApplyConsentTombstone: null, // #813
+			threatIntelChecksDeleted: 0, // #807
+			threatIntelRowsHeld: 0, // #807
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
@@ -662,6 +666,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			applicationKeyedRowsHeld: 0, // #813
 			applicationKeyedHeldDetails: [], // #813
 			autoApplyConsentTombstone: null, // #813
+			threatIntelChecksDeleted: 0, // #807
+			threatIntelRowsHeld: 0, // #807
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
@@ -929,6 +935,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			applicationKeyedRowsHeld: 0, // #813
 			applicationKeyedHeldDetails: [], // #813
 			autoApplyConsentTombstone: null, // #813
+			threatIntelChecksDeleted: 0, // #807
+			threatIntelRowsHeld: 0, // #807
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
