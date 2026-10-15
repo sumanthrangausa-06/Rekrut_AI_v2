@@ -1015,6 +1015,10 @@ async function _quarantineRecording(recording, storagePath, candidateId, err, at
  * the bounded-retry + quarantine path (R-3) and returns
  * { completed: false, quarantined: true } instead of throwing, so both
  * completion sites surface the failed, unplayable row.
+ * Re-invoking on an already-'completed' row that carries the encryption
+ * marker short-circuits at entry (see below) — idempotent re-runnability
+ * must never re-enter the encrypt/quarantine machinery for a healthy
+ * completed recording.
  * @param {number} recordingId
  * @param {string} storagePath - egress file location of the landed object
  * @param {number} durationSeconds
@@ -1022,6 +1026,24 @@ async function _quarantineRecording(recording, storagePath, candidateId, err, at
  * @returns {Promise<{completed: boolean, quarantined?: boolean, reason?: string}>}
  */
 async function completeRecordingRecord(recordingId, storagePath, durationSeconds, fileSizeBytes) {
+	const recording = (await findRecordingById(recordingId)) || { id: recordingId };
+	// Already-completed short-circuit (#1130 hazard fix): a row that is
+	// already 'completed' AND carries the encryption marker (the
+	// candidate-dek:v1 key id, or a storage pointer naming the .enc
+	// object) is DONE — return the completed result having touched
+	// NOTHING (no ledger insert, no status write, no storage operation).
+	// Without this, a re-invocation fell through to the C1 repoint guard,
+	// escalated into quarantine, and G1 ledgered the LIVE .enc of the
+	// healthy completed recording for Phase-2 deletion. Both completion
+	// call sites inherit this by construction. Completed rows WITHOUT
+	// the marker (legacy) are not short-circuited — they follow the
+	// pre-existing path below unchanged.
+	if (recording.status === 'completed') {
+		const marked =
+			recording.encryption_key_id === sessionRecordingStore.ENCRYPTION_KEY_ID ||
+			sessionRecordingStore.isEncryptedRecording(recording, decryptStoragePath(recording));
+		if (marked) return { completed: true };
+	}
 	if (!storagePath) {
 		// No landed object to encrypt: preserve the legacy no-object
 		// completion (nothing plaintext is addressable from the row).
@@ -1034,7 +1056,6 @@ async function completeRecordingRecord(recordingId, storagePath, durationSeconds
 		);
 		return { completed: true, legacy: true };
 	}
-	const recording = (await findRecordingById(recordingId)) || { id: recordingId };
 	let candidateId = null;
 	let lastErr = null;
 	for (let attempt = 1; attempt <= MAX_COMPLETION_ATTEMPTS; attempt++) {

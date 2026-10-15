@@ -104,6 +104,7 @@ const baseQueryImpl = db.query.getMockImplementation();
 const livekitService = require('../../services/livekit');
 const sessionRecordingStore = require('../../../lib/sessionRecordingStore');
 const biometricCrypto = require('../../../lib/biometricCrypto');
+const sharedEncryption = require('../../../services/encryption');
 const { MAX_PLAINTEXT_BYTES } = require('../../../lib/r2RecordingStore');
 
 // ─── In-memory stores ─────────────────────────────────────────────────────
@@ -289,7 +290,7 @@ describe('completeRecordingRecord — happy paths', () => {
 		expect(registry[0].candidate_id).toBe(8);
 	});
 
-	test('re-run after a PARTIAL attempt resumes (no orphan second .enc); re-run after completion hits the C1 terminal guard', async () => {
+	test('re-run after a PARTIAL attempt resumes (no orphan second .enc); re-run after completion hits the already-completed short-circuit', async () => {
 		// Partial attempt: delete-verify fails once → quarantined/failed,
 		// then the retry resumes on the same deterministic .enc.
 		s3.fail.deleteLeavesObject = true;
@@ -303,13 +304,53 @@ describe('completeRecordingRecord — happy paths', () => {
 		expect(registry).toHaveLength(1);
 		expect([...s3.objects.keys()].filter((k) => k.endsWith('.enc'))).toHaveLength(1);
 
-		// C1 (gate fix round): 'completed' is terminal for the repoint —
-		// a second completion does NOT re-complete or mutate the row.
+		// Hazard fix (#1130): a completed + DEK-marked row re-invoked
+		// hits the entry short-circuit and returns the already-completed
+		// result having touched NOTHING — no ledger insert (the pre-fix
+		// path escalated via the C1 repoint guard into quarantine and
+		// ledgered the LIVE .enc for Phase-2 deletion), no storage call,
+		// no row mutation.
+		const rowBefore = recordings.get(rec.id);
+		const snapshot = {
+			...rowBefore,
+			storage_path: rowBefore.storage_path
+				? Buffer.from(rowBefore.storage_path)
+				: rowBefore.storage_path,
+		};
+		const ledgerBefore = ledger.length;
+		const countsBefore = { ...s3.counts };
 		const result2 = await livekitService.completeRecordingRecord(rec.id, LOC, 120, PLAIN.length);
-		expect(result2.completed).toBe(false);
+		expect(result2.completed).toBe(true);
+		expect(ledger).toHaveLength(ledgerBefore);
+		expect(s3.counts).toEqual(countsBefore);
+		expect(recordings.get(rec.id)).toEqual(snapshot);
 		expect(recordings.get(rec.id).status).toBe('completed');
 		expect(registry).toHaveLength(1);
 		expect([...s3.objects.keys()].filter((k) => k.endsWith('.enc'))).toHaveLength(1);
+	});
+
+	test('already-completed row marked ONLY by its .enc pointer → short-circuit: success, zero ledger inserts, zero storage calls, row byte-identical', async () => {
+		const rec = seedRecording({
+			status: 'completed',
+			encryption_key_id: 'default',
+			storage_path: sharedEncryption.encrypt(Buffer.from(ENC_LOC)),
+			duration_seconds: 120,
+			file_size_bytes: PLAIN.length,
+		});
+		const rowBefore = recordings.get(rec.id);
+		const snapshot = {
+			...rowBefore,
+			storage_path: Buffer.from(rowBefore.storage_path),
+		};
+		const countsBefore = { ...s3.counts };
+
+		const result = await livekitService.completeRecordingRecord(rec.id, LOC, 120, PLAIN.length);
+
+		expect(result).toEqual({ completed: true });
+		expect(ledger).toHaveLength(0);
+		expect(registry).toHaveLength(0);
+		expect(s3.counts).toEqual(countsBefore);
+		expect(recordings.get(rec.id)).toEqual(snapshot);
 	});
 });
 
