@@ -87,6 +87,7 @@ jest.mock('../../../lib/legalHold', () => {
 
 const pool = require('../../../lib/db');
 const { erasePersonalData } = require('../../../lib/erasureService');
+const { AuditLogger } = require('../../../services/auditLogService');
 const legalHold = require('../../../lib/legalHold');
 const authRoutes = require('../../../routes/auth');
 
@@ -134,5 +135,41 @@ describe('DELETE /delete-account under an active legal hold (Lex F-1)', () => {
 
 		expect(res.status).toBe(500);
 		expect(res.body.error).toMatch(/could not be recorded/i);
+	});
+});
+
+describe('DELETE /delete-account success — #1128 D-8b sanitised audit metadata', () => {
+	beforeEach(() => {
+		// Overrides the hold-rejection posture of the outer beforeEach.
+		const KEY = '/api/files/r2/cv/self-serve-secret.pdf';
+		const NP = 'https://storage.example.com/bucket/self-serve-nonpattern.pdf';
+		erasePersonalData.mockReset();
+		erasePersonalData.mockResolvedValue({
+			shredded: true,
+			storageKeys: [KEY, NP],
+			gapC: { nonPatternStorageUrls: [NP] },
+			gapD: { nonPatternStorageUrls: [] },
+		});
+	});
+
+	test('account_deleted audit entry is written with counts only — no raw keys, no nested URLs', async () => {
+		const res = await request(makeApp())
+			.delete('/api/auth/delete-account')
+			.send({ password: 'DeleteMe123!' });
+
+		expect(res.status).toBe(200);
+		// Regression pin for the #1128 hoisting fix: before it, the
+		// AuditLogger call referenced an out-of-scope `erasureResult`
+		// and this mock was NEVER called on the success path.
+		expect(AuditLogger.log).toHaveBeenCalledTimes(1);
+		const arg = AuditLogger.log.mock.calls[0][0];
+		expect(arg.actionType).toBe('account_deleted');
+		expect(arg.metadata.storageKeys).toBeUndefined();
+		expect(arg.metadata.storageKeysCount).toBe(2);
+		expect(arg.metadata.gapC.nonPatternStorageUrls).toBeUndefined();
+		expect(arg.metadata.gapC.nonPatternStorageUrlCount).toBe(1);
+		expect(arg.metadata.gapD.nonPatternStorageUrlCount).toBe(0);
+		expect(JSON.stringify(arg.metadata)).not.toContain('self-serve-secret');
+		expect(JSON.stringify(arg.metadata)).not.toContain('self-serve-nonpattern');
 	});
 });

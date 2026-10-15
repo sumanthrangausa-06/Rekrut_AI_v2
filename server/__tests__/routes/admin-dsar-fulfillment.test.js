@@ -166,6 +166,38 @@ describe('POST /api/admin/compliance/data-requests/:id/fulfill', () => {
 		expect(auditMeta.fulfilledBy).toBeDefined();
 	});
 
+	test('#1128 D-8b: audit metadata AND response carry ONLY the sanitised erasure copy (counts, no raw keys)', async () => {
+		pool.query.mockResolvedValueOnce({ rows: [PENDING_DELETION] });
+		const client = mockClient();
+		pool.connect.mockResolvedValueOnce(client);
+		const KEY = '/api/files/r2/cv/top-secret.pdf';
+		const NP = 'https://storage.example.com/bucket/non-pattern-secret.pdf';
+		erasePersonalData.mockResolvedValueOnce({
+			shredded: true,
+			storageKeys: [KEY],
+			gapC: { scheduledInterviews: 1, nonPatternStorageUrls: [NP] },
+			gapD: { offersRedacted: 2, nonPatternStorageUrls: [KEY, NP] },
+		});
+
+		const res = await request(makeApp())
+			.post('/api/admin/compliance/data-requests/10/fulfill')
+			.expect(200);
+
+		const auditCall = client.query.mock.calls.find(([sql]) => /INSERT INTO audit_logs/.test(sql));
+		const auditMeta = JSON.parse(auditCall[1][4]);
+		expect(auditMeta.erasure.storageKeys).toBeUndefined();
+		expect(auditMeta.erasure.storageKeysCount).toBe(1);
+		expect(auditMeta.erasure.gapC.nonPatternStorageUrls).toBeUndefined();
+		expect(auditMeta.erasure.gapC.nonPatternStorageUrlCount).toBe(1);
+		expect(auditMeta.erasure.gapD.nonPatternStorageUrlCount).toBe(2);
+		expect(auditCall[1][4]).not.toContain(KEY);
+		expect(auditCall[1][4]).not.toContain(NP);
+		expect(JSON.stringify(res.body)).not.toContain(KEY);
+		expect(JSON.stringify(res.body)).not.toContain(NP);
+		expect(res.body.erasure.storageKeysCount).toBe(1);
+		expect(res.body.erasure.storageFilesDeleted).toBe(0);
+	});
+
 	test('rejects non-deletion request types (export is fulfilled at creation)', async () => {
 		pool.query.mockResolvedValueOnce({
 			rows: [{ ...PENDING_DELETION, request_type: 'export', status: 'completed' }],

@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const pool = require('../lib/db');
 const { encrypt, decrypt } = require('../lib/crypto-utils');
 const { erasePersonalData } = require('../lib/erasureService');
+const { sanitizeErasureResult } = require('../lib/erasureResultSanitizer');
 const {
 	generateToken,
 	generateRefreshToken,
@@ -1761,6 +1762,13 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 		const client = await pool.connect();
 		// S-067 (#720): erasure scope for the account_deleted audit metadata.
 		let storageErasure = { deleted: 0, failed: 0, failures: [] };
+		// #1128: hoisted out of the tx block — it was previously `const`
+		// inside the try below, so the account_deleted AuditLogger call
+		// after the block referenced an out-of-scope binding, threw
+		// ReferenceError, and the audit entry was silently lost to the
+		// non-blocking catch. The D-8b sanitised audit write below
+		// requires the result to actually be reachable here.
+		let erasureResult = null;
 		try {
 			await client.query('BEGIN');
 			await client.query('UPDATE refresh_tokens SET is_revoked = true WHERE user_id = $1', [user.id]);
@@ -1785,7 +1793,7 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 			// the candidate_search_index row (GDPR Art. 17 — plaintext personal
 			// data, not biometric).
 			// Runs inside this transaction via the shared erasure routine.
-			const erasureResult =
+			erasureResult =
 				await erasePersonalData(user.id, {
 					client,
 					// #1125 GAP-F: the tombstone UPDATE above already
@@ -1832,8 +1840,11 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 				// scope, not just the S-067/S-075 flags — matches the
 				// compliance path (routes/admin.js gdpr_deletion_fulfilled).
 				metadata: {
-					...erasureResult,
-					storageKeys: undefined,
+					// #1128 D-8b: sanitised COPY only — replaces the
+					// hand-rolled `storageKeys: undefined` strip, which
+					// left the nested gapC/gapD.nonPatternStorageUrls
+					// (raw storage keys) in the persisted metadata.
+					...sanitizeErasureResult(erasureResult),
 					storage_files_deleted: storageErasure.deleted,
 					storage_files_failed: storageErasure.failed,
 				},
