@@ -151,8 +151,13 @@ describe('#807 recordCheck — pipeline end-to-end', () => {
 		expect(client.inserts).toHaveLength(0);
 	});
 
-	test('module exports ONLY recordCheck — no read/lookup/compare oracle', () => {
+	test('module exports ONLY recordCheck + fingerprintFor — no read/lookup/compare oracle', () => {
+		// #815 (S-095) amendment: fingerprintFor is additionally exported
+		// for lib/applicationIpCapture.js. It is a pure compute function
+		// (secret → HMAC) with no access to stored rows — the C6 oracle
+		// prohibition is about reads against stored fingerprints, and no
+		// lookup/verify/compare/read export exists or may be added here.
 		const mod = require('../../../lib/threatIntelChecks');
-		expect(Object.keys(mod).sort()).toEqual(['recordCheck']);
+		expect(Object.keys(mod).sort()).toEqual(['fingerprintFor', 'recordCheck']);
 	});
 });

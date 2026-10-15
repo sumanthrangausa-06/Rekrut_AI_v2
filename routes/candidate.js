@@ -26,6 +26,7 @@ const { notifyUser } = require('../lib/notify');
 // insertAuditLog → audit_logs table).
 const { insertAuditLog } = require('./audit');
 const { checkFeatureAccess, incrementUsage } = require('../lib/subscription');
+const { captureApplicationIp } = require('../lib/applicationIpCapture');
 const calendarService = require('../server/services/calendar-service');
 
 let matchingEngine;
@@ -3106,7 +3107,7 @@ async function submitApplication({
 // Apply to a job (rate-limited per S-096/#820, in-file rateLimits precedent)
 router.post('/jobs/:jobId/apply', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
-		const { cover_letter, screening_answers } = req.body;
+		const { cover_letter, screening_answers, ip_capture_consent } = req.body;
 		const application = await submitApplication({
 			candidateId: req.user.id,
 			jobId: req.params.jobId,
@@ -3114,6 +3115,31 @@ router.post('/jobs/:jobId/apply', authMiddleware, rateLimits.standard, async (re
 			screeningAnswers: screening_answers,
 			appliedVia: 'manual',
 		});
+		// #815 (S-095): application-time IP capture, wired at THIS route
+		// level only — submitApplication is shared with both auto-apply
+		// routes, which must never capture. Manual-only, consent-gated,
+		// flag-gated inside the capture module; the captured fingerprint
+		// lives in its own table and never enters the application row or
+		// this response. Best-effort: any capture failure logs ONLY the
+		// error code (never a message, which could carry values) and the
+		// application response is unchanged.
+		try {
+			await captureApplicationIp(
+				{
+					applicationId: application.id,
+					candidateId: req.user.id,
+					companyId: application.company_id,
+					reqIp: req.ip,
+					consentGiven: ip_capture_consent === true,
+				},
+				{ client: pool },
+			);
+		} catch (captureErr) {
+			console.error(
+				'[application-ip-capture] capture failed:',
+				captureErr && captureErr.code ? captureErr.code : 'UNKNOWN',
+			);
+		}
 		// #820: shape at the response layer — submitApplication's internal
 		// return value (shared with auto-apply) is unchanged.
 		res.json({ success: true, application: toCandidateApplication(application) });
