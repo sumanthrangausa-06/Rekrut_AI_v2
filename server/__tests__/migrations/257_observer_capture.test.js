@@ -94,8 +94,11 @@ describe('257_observer_capture migration', () => {
 		expect(src).toMatch(/CREATE TABLE IF NOT EXISTS observer_cohort_allowlist/);
 		expect(src).toMatch(/company_id INTEGER PRIMARY KEY/);
 		expect(src).toMatch(/CREATE TABLE IF NOT EXISTS observer_cohort_membership/);
-		// D-2: surrogate PK, NOT a session-id PK — corrections are appended rows
-		const membershipBlock = src.slice(src.indexOf('observer_cohort_membership'));
+		// D-2: surrogate PK, NOT a session-id PK — corrections are appended rows.
+		// Anchor to the CREATE TABLE statement, not the first mention of the
+		// table name (the header comment names it ~150 lines earlier, and
+		// the 400-char window from there closes before the DDL).
+		const membershipBlock = src.slice(src.indexOf('CREATE TABLE IF NOT EXISTS observer_cohort_membership'));
 		expect(membershipBlock.slice(0, 400)).toMatch(/id SERIAL PRIMARY KEY/);
 		expect(src).toMatch(/\(interview_session_id, recorded_at DESC\)/);
 	});

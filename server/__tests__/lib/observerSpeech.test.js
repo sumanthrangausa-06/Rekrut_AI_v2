@@ -8,6 +8,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 const S = require('../../../lib/observerSpeech');
 
+// Static scans (AF-5 / COPY-1) judge CODE, not prose: strip block
+// comments and full-line // comments so a negation disclaimer in a
+// header comment ("computes no affect, deception, … value", "NO
+// fallback, heuristic, … scores") is not read as the thing it forbids.
+// Code on mixed lines is kept whole.
+const stripComments = (src) => src
+	.replace(/\/\*[\s\S]*?\*\//g, '')
+	.split('\n')
+	.filter((line) => !line.trimStart().startsWith('//'))
+	.join('\n');
+
 const SR = 16000;
 function tone(freq, seconds, amp = 0.5, sr = SR) {
 	const n = Math.floor(seconds * sr);
@@ -196,12 +207,21 @@ describe('anti-fabrication suite (Quinn §5)', () => {
 	test('AF-5 static scan: no fallback score constructs in the new modules', () => {
 		const files = ['observerSpeech.js', 'observerCapture.js', 'observerCaptureGate.js', 'r2ObserverAudioStore.js'];
 		for (const f of files) {
-			const src = fs.readFileSync(path.join(__dirname, '../../../lib', f), 'utf8');
-			// No random or constant assignment to measurement values
-			expect(src).not.toMatch(/speech_rate_wpm\s*[:=]\s*[^m][^e]/);
+			const src = stripComments(fs.readFileSync(path.join(__dirname, '../../../lib', f), 'utf8'));
+			// No random assignment to measurement values, and EVERY
+			// speech_rate_wpm assignment's value token must be missing( or
+			// measured( — no constant/computed fallback score. (A single
+			// negative regex cannot say this: \s* backtracks, so the old
+			// [^m][^e] tail matched " m" of `missing(` itself, and a
+			// lookahead after \s* is defeated the same way. Collect the
+			// value tokens and judge each one.)
+			const badWpmTokens = [...src.matchAll(/speech_rate_wpm\s*[:=]\s*([^\s;,]+)/g)]
+				.map((m) => m[1])
+				.filter((t) => !t.startsWith('missing(') && !t.startsWith('measured('));
+			expect(badWpmTokens).toEqual([]);
 			expect(src).not.toMatch(/Math\.random\(\)/);
 		}
-		const speechSrc = fs.readFileSync(path.join(__dirname, '../../../lib/observerSpeech.js'), 'utf8');
+		const speechSrc = stripComments(fs.readFileSync(path.join(__dirname, '../../../lib/observerSpeech.js'), 'utf8'));
 		expect(speechSrc).not.toMatch(/fallback|heuristic/i);
 	});
 
@@ -220,11 +240,11 @@ describe('anti-fabrication suite (Quinn §5)', () => {
 	test('COPY-1: no deception/affect labelling anywhere in the new modules', () => {
 		const files = ['observerSpeech.js', 'observerCapture.js', 'observerCaptureGate.js', 'r2ObserverAudioStore.js', 'observerAudioTestDecrypt.js'];
 		for (const f of files) {
-			const src = fs.readFileSync(path.join(__dirname, '../../../lib', f), 'utf8');
+			const src = stripComments(fs.readFileSync(path.join(__dirname, '../../../lib', f), 'utf8'));
 			expect(src).not.toMatch(/stress_score|stress_level|deception|lie_detect|emotion_score|affect_score/i);
 		}
 		// The physical name is contractual: pitch_variability, never a synonym for an inner state
-		const speechSrc = fs.readFileSync(path.join(__dirname, '../../../lib/observerSpeech.js'), 'utf8');
+		const speechSrc = stripComments(fs.readFileSync(path.join(__dirname, '../../../lib/observerSpeech.js'), 'utf8'));
 		expect(speechSrc).toMatch(/pitch_variability/);
 	});
 });
