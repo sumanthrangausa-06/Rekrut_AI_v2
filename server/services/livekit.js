@@ -1406,6 +1406,12 @@ module.exports = {
 	completeRecordingRecord,
 	// Issue #1130 — encrypt-at-completion helpers
 	resolveRecordingCandidateId,
+	// Issue #1131 (GAP-A3) — the batch migration tool reuses the DEK-state
+	// helpers rather than forking their string-matching (crypto §6.3).
+	_dekState,
+	_isDEKDestroyedNow,
+	dekState: _dekState,
+	isDEKDestroyedNow: _isDEKDestroyedNow,
 	fetchDecryptedRecording,
 	isEncryptedRecording: sessionRecordingStore.isEncryptedRecording,
 	failRecordingRecord,
