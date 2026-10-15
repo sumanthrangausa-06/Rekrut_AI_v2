@@ -72,6 +72,88 @@ passed** — both failures in `observer-audio-erasure.test.js` ("T8: registry
 pre-existing #1117 observer-audio drift. Log:
 `~/workspace/rekrut-1167-dryrun/unit-baseline.log`.
 
-## Fix
+## Fix (commit 5787423a — `lib/erasureService.js` only, +107/−31)
 
-_(filled in after implementation — see the fix commit)_
+One shared helper, `containedConsult(fn)` closing over `queryable`, placed
+at the top of `erasePersonalData` (the entry gate deliberately does NOT use
+it — its throw is the design). It mirrors the GAP-H dance with one
+documented extension:
+
+- `SAVEPOINT gap_hold_consult`; on error code **25P01** (autocommit — no
+  surrounding transaction, poisoning impossible) run `fn()` bare and return
+  its result; on any other SAVEPOINT error, rethrow.
+- With the savepoint set: run `fn()`; then — whether it returned or threw —
+  `ROLLBACK TO SAVEPOINT gap_hold_consult` + `RELEASE SAVEPOINT
+  gap_hold_consult`; rethrow after de-poisoning if it threw, else return
+  its value. The rollback-to is **unconditional** (GAP-H releases without
+  rollback on success only because its consult throws reliably; GAP-A's
+  and GAP-F H1's consults self-catch, so a swallowed PG error leaves the
+  transaction aborted with no throw to trigger cleanup). All contained
+  consults/walks are read-only SELECTs, so rollback-to undoes nothing
+  legitimate. If ROLLBACK TO / RELEASE themselves throw (genuinely dead
+  transaction), the error propagates — fail-closed.
+
+Applied at exactly the BROKEN sites, nothing else:
+
+| Site | Change |
+|---|---|
+| 1 · `gapDRowHeld` | `findActiveHold` wrapped in `containedConsult`. Repairs GAP-D + GAP-B + GAP-C (all families, `gapDDeleteFamily` variants, and the direct calls for signature documents/parties route through it). |
+| 2 · #780 `job_applications` loop | Consult wrapped; the existing catch still counts the row (`rowHeld=true` on error). |
+| 3 · `c2Partition` | Job-walk wrapped (its catch still notes `job_walk_error`) AND consult wrapped (its catch still notes `held_company`). |
+| 4 · GAP-A sessions/recordings/frames | `isHeld` replaced by `gapAContainedHeld(subject)`: contained `findActiveHold({userId, sessionId}, queryable)`, held := (hold != null), contained throw ⇒ held. Subjects mirror exactly what `isHeld` received (sessions: session row id; recordings: `interview_session_id`; frames: `interview_id`). No lookup-failed bucket invented — GAP-A's error≡held contract unchanged. |
+| 5 · `gapEPartition` | Consult wrapped; throw ⇒ existing failedRows (lookup-failed) path. |
+| 6 · `gapFPartition` + H1 | Consult wrapped AND `gapFGetAnyHold()` wrapped (containment de-poisons even though `anyHoldActive` self-catches and never throws; its error⇒true return still governs). Throw ⇒ existing failedRows path. |
+| 7 · `gapGPartition` | Consult wrapped; throw ⇒ existing failedRows path. |
+
+`gapHPartition` untouched (the proven control). `lib/legalHold.js`
+untouched. No counting changes: variable names, buckets, note-helpers,
+result fields, and log-line meanings are identical.
+
+## GREEN evidence (post-fix, same harness, MODE=green)
+
+Every previously-BROKEN scenario now COMPLETES with the family's designed
+counts and the tombstone committed (user stripped to "Deleted User");
+logs in `~/workspace/rekrut-1167-dryrun/green/run-*.log`:
+
+| Scenario | Post-fix counts |
+|---|---|
+| gapd | gapD.verifiedCredentials=1, rowsHeld=1 (heldTables=[verified_credentials]); 1 row preserved in DB |
+| gapd-company | gapD.offersRedacted=0, rowsHeld=2 (both offers share the failing company — both held, both preserved) |
+| gapb | gapB.scoreSnapshots=1, rowsHeld=1; 1 row preserved |
+| gapc | gapC.scheduledInterviews=1, rowsHeld=1; 1 row preserved |
+| gap780 | jobApplicationRowsHeld=1; 1 application redacted (cover NULL), failed one intact |
+| c2-walk | applicationKeyedRowsHeld=1, details reason `held_company`; response preserved, parent application redacted |
+| c2-walk-error | applicationKeyedRowsHeld=1, details reason `job_walk_error`; response preserved, parent application redacted |
+| gapa-isheld | sessionsHeld=1, sessionsStripped=1; failed session unstripped, other stripped |
+| gapa-rec | recordingsHeld=1, recordingsRedacted=1; failed recording preserved, other status='deleted' |
+| gapa-frames | framesHeld=1, framesLedgered=1; failed frame unstamped, other stamped deleted_at |
+| gape | candidateInvites deleted=1, holdLookupFailed=1 (rowsHeld=0 — lookup-failed is its own bucket), 1 row preserved |
+| gapf | userNotifications deleted=1, holdLookupFailed=1, 1 row preserved |
+| gapf-h1 | gapF.emailQueue=0, rowsHeld=2 (heldTables=[email_queue]) — H1's error⇒true governed after de-poisoning; both queue rows preserved, run completed |
+| gapg | refresh_tokens: 1 erased, holdLookupFailed=1, 1 token preserved |
+| gapd-autocommit (posture) | Pool caller (no BEGIN): SAVEPOINT probe 25P01 → bare consult; verifiedCredentials=1, rowsHeld=1, failed row preserved |
+| baseline (control) | COMPLETED — result object **byte-identical** to the pre-fix baseline run |
+| gaph-current (control) | COMPLETED, consentRecordsRedacted=1, consentRecordsLookupFailed=1 — result byte-identical to pre-fix run; GAP-H code untouched |
+| rename / poison / drain (controls) | Unchanged: LEGAL_HOLD gate refusal / LEGAL_HOLD on poison row / drain heldSkips=2 |
+
+## Unit suites (post-fix)
+
+Same 17-suite erasure set: **2 failed, 177 passed — suite-by-suite and
+test-by-test identical to the pre-fix baseline** (the same 2
+observer-audio failures from #1117 drift; no new failures). No mock
+teaching was needed: the suites' query mocks already accept-and-ignore
+SAVEPOINT / ROLLBACK TO / RELEASE statements (GAP-H trained them in
+#1127), so there is no test-only commit in this story. Log:
+`~/workspace/rekrut-1167-dryrun/unit-after.log`.
+
+## Notes / deviations
+
+- C2 walk-error injection uses a table rename (restored immediately)
+  rather than a client.query wrapper — the wrapper hung the harness's
+  own pg pool. Same genuine-server-error poison class; the rename
+  technique is the reviewer's own entry-gate control method. The task
+  brief's wrapper suggestion is noted as attempted-and-replaced.
+- `gapi-purge` control re-run artifact: see RED table note (dirty-DB
+  seed isolation; GAP-I untouched and not a fix site).
+- `npm ci` remains broken on dev (#1193); all runs used the NODE_PATH
+  workaround. No package files or lockfile were modified.
