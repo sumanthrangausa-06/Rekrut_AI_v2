@@ -58,7 +58,7 @@ Verdicts: **PASS** = screens render real/honest data, no failing calls · **PART
 | M21 Analytics | **PARTIAL** | Recruiter Analytics renders (`M21-analytics/recruiter-analytics.png`) but its activity feed call is **`/api/api/recruiter/activity` → 404** (double-prefix, D8). Admin Analytics is unreachable for the env-admin (D11). |
 | M22 Referrals | **FAIL** | Referrals list API 500s (`uuid = integer` type mismatch, D4); the page at least says so honestly — "Something went wrong — Failed to load referrals" (`M22-referrals/candidate-referrals.png`). Referral *creation* via this surface is broken on a fresh DB. (The referral INSERT defect #824 is a separate already-filed item.) |
 
-**Module tally (22 modules + public surfaces): PASS 2 (Public, M1) · PARTIAL 13 · FAIL 6 (M2, M3, M12, M18, M19, M22) · ABSENT-BY-DESIGN 1 (M15).**
+**Module tally (22 modules + public surfaces): PASS 2 (Public, M1) · PARTIAL 14 · FAIL 6 (M2, M3, M12, M18, M19, M22) · ABSENT-BY-DESIGN 1 (M15).**
 
 ## Oct 14 defect family — retest results (all on today's HEAD `62ec551c`)
 
