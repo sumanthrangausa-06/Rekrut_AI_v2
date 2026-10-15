@@ -43,7 +43,7 @@ router.post('/analyze', authMiddleware, async (req, res) => {
       SELECT 
         u.id, u.name, u.email,
         cp.headline, cp.years_experience,
-        (SELECT json_agg(json_build_object('name', skill, 'level', level)) 
+        (SELECT json_agg(json_build_object('name', skill_name, 'level', level)) 
          FROM candidate_skills WHERE user_id = u.id) as skills,
         (SELECT json_agg(json_build_object('degree', degree, 'field', field_of_study, 'institution', institution))
          FROM education WHERE user_id = u.id) as education,
@@ -69,7 +69,7 @@ router.post('/analyze', authMiddleware, async (req, res) => {
 		// Parse job skills from JSONB
 		const jobData = {
 			...job,
-			required_skills: job.required_skills || [],
+			required_skills: job.skills_required || [],
 			preferred_skills: job.preferred_skills || [],
 			min_years: job.min_years_experience || 0,
 		};
@@ -175,7 +175,7 @@ router.post('/batch', authMiddleware, async (req, res) => {
       SELECT 
         u.id, u.name, u.email,
         cp.years_experience,
-        (SELECT json_agg(json_build_object('name', skill, 'level', level)) 
+        (SELECT json_agg(json_build_object('name', skill_name, 'level', level)) 
          FROM candidate_skills WHERE user_id = u.id) as skills,
         (SELECT total_score FROM omni_scores WHERE user_id = u.id ORDER BY last_updated DESC LIMIT 1) as omni_score,
         ja.id as application_id
@@ -313,7 +313,7 @@ router.post('/compare', authMiddleware, async (req, res) => {
 				`
         SELECT u.*, cp.years_experience, 
           (SELECT total_score FROM omni_scores WHERE user_id = u.id ORDER BY last_updated DESC LIMIT 1) as omni_score,
-          (SELECT json_agg(json_build_object('name', skill)) FROM candidate_skills WHERE user_id = u.id) as skills
+          (SELECT json_agg(json_build_object('name', skill_name)) FROM candidate_skills WHERE user_id = u.id) as skills
         FROM users u LEFT JOIN candidate_profiles cp ON cp.user_id = u.id WHERE u.id = $1
       `,
 				[candidate1_id],
@@ -322,7 +322,7 @@ router.post('/compare', authMiddleware, async (req, res) => {
 				`
         SELECT u.*, cp.years_experience,
           (SELECT total_score FROM omni_scores WHERE user_id = u.id ORDER BY last_updated DESC LIMIT 1) as omni_score,
-          (SELECT json_agg(json_build_object('name', skill)) FROM candidate_skills WHERE user_id = u.id) as skills
+          (SELECT json_agg(json_build_object('name', skill_name)) FROM candidate_skills WHERE user_id = u.id) as skills
         FROM users u LEFT JOIN candidate_profiles cp ON cp.user_id = u.id WHERE u.id = $1
       `,
 				[candidate2_id],

@@ -203,16 +203,36 @@ async function migrate() {
       )
     `);
 
+    // #1184 BOOTSTRAP-PARITY (reviewed manifest, referrals.id row):
+    // referral_rewards rewritten to migration 070_refer_and_earn.js's shape
+    // verbatim (UUID id/referral_id + FK to referrals(id)). The FK requires
+    // referrals to exist first, but bootstrap runs BEFORE migration 070, so
+    // this block first creates referrals with 070's own verbatim shape
+    // (IF NOT EXISTS — migration 070's identical CREATE then no-ops).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS referrals (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        referrer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        referral_code VARCHAR(50) NOT NULL UNIQUE,
+        referred_email VARCHAR(255),
+        referred_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'registered', 'converted')),
+        reward_status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (reward_status IN ('pending', 'claimed', 'paid')),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        converted_at TIMESTAMPTZ
+      )
+    `);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS referral_rewards (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        referral_id INTEGER,
-        reward_type VARCHAR(50) DEFAULT 'premium_days',
-        amount INTEGER DEFAULT 0,
-        status VARCHAR(50) DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT NOW(),
-        claimed_at TIMESTAMP
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        referral_id UUID REFERENCES referrals(id) ON DELETE SET NULL,
+        reward_type VARCHAR(20) NOT NULL CHECK (reward_type IN ('credits', 'premium_days')),
+        amount INTEGER NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'claimed', 'paid')),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        claimed_at TIMESTAMPTZ
       )
     `);
 

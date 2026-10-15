@@ -2951,7 +2951,7 @@ async function submitApplication({
 
 						// Notify candidate
 						await pool.query(
-							`INSERT INTO notifications (user_id, type, title, message, data, created_at)
+							`INSERT INTO user_notifications (user_id, type, title, message, metadata, created_at)
 							 VALUES ($1, 'screening_invite', $2, $3, $4, NOW())`,
 							[
 								candidateId,
@@ -4289,7 +4289,7 @@ router.put('/offers/:id/accept', authMiddleware, async (req, res) => {
 
 		// Update application status to 'hired'
 		await pool.query(
-			`UPDATE job_applications SET status = 'hired', updated_at = NOW()
+			`UPDATE job_applications SET status = 'hired', hired_at = NOW(), updated_at = NOW()
        WHERE job_id = $1 AND candidate_id = $2`,
 			[existing.rows[0].job_id, req.user.id],
 		);

@@ -80,7 +80,7 @@ async function getCandidateFullProfile(candidateId) {
       SELECT
         u.id, u.name, u.email,
         cp.headline, cp.years_experience,
-        (SELECT json_agg(json_build_object('name', skill, 'level', level))
+        (SELECT json_agg(json_build_object('name', skill_name, 'level', level))
          FROM candidate_skills WHERE user_id = u.id) as skills,
         (SELECT json_agg(json_build_object('degree', degree, 'field', field_of_study, 'institution', institution))
          FROM education WHERE user_id = u.id) as education,
@@ -105,7 +105,7 @@ async function getJobForScreening(jobId) {
 	const job = result.rows[0];
 	return {
 		...job,
-		required_skills: job.required_skills || [],
+		required_skills: job.skills_required || [],
 		preferred_skills: job.preferred_skills || [],
 		min_years: job.min_years_experience || 0,
 	};

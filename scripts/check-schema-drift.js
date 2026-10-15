@@ -12,6 +12,14 @@
  *
  * Exit 1 if any finding exists, 0 if clean.
  *
+ * CI guard mode (#1184 Ruling 3): add `--ci --migrate-exit <code> --migrate-log <file>`.
+ * The expectation set is the STOP 2 reviewed manifest
+ * (docs/sdlc/rekrut-ai-v2/04-implementation/schema-drift-manifest-1184-REVIEWED.md),
+ * parsed at runtime (rows split on unescaped pipes) — never a hand-copied list.
+ * The DB must be a fresh scratch DB built only by `node migrate.js`;
+ * --migrate-exit/--migrate-log carry that run's exit code and combined output
+ * for #1141 attribution. CI mode exits 0 only if every Ruling 3 assertion passes.
+ *
  * Method notes / known limits (see audit report):
  *  - SQL is extracted from string/template literals. Interpolated template
  *    literals (${...}) are flagged DYNAMIC and their static parts still parsed.
@@ -183,9 +191,24 @@ function parseQuery(sqlRaw, ctx, refs, dynamics) {
         off += part.length + 1;
       }
     }
-    // WHERE / GROUP BY / ORDER BY / HAVING: identifiers adjacent to operators, commas, parens
-    const fromIdx = sql.search(/\bFROM\b/i);
-    const tail = fromIdx >= 0 ? sql.slice(fromIdx) : '';
+    // WHERE / GROUP BY / ORDER BY / HAVING: identifiers adjacent to operators, commas, parens.
+    // Subquery spans are blanked first, per the documented method — a
+    // subquery's bare columns belong to the subquery's scope, not to the
+    // outer query's single table (#1184 CI guard: the candidate_profiles
+    // headline subquery in lib/career-coach-ai.js otherwise fabricates a
+    // users.user_id finding). Function calls (LOWER(...), RANDOM(), ...)
+    // are preserved so the followed-by-'(' function guard below still works.
+    let clauseSql = '';
+    { let i = 0;
+      while (i < sql.length) {
+        if (sql[i] === '(' && /^\s*SELECT\b/i.test(sql.slice(i + 1))) {
+          let d = 0;
+          while (i < sql.length) { if (sql[i] === '(') d++; else if (sql[i] === ')') { d--; if (!d) { i++; break; } } i++; }
+          clauseSql += '()';
+        } else { clauseSql += sql[i]; i++; }
+      } }
+    const fromIdx = clauseSql.search(/\bFROM\b/i);
+    const tail = fromIdx >= 0 ? clauseSql.slice(fromIdx) : '';
     const clause = tail.match(/\b(WHERE|GROUP\s+BY|ORDER\s+BY|HAVING)\b([\s\S]*)$/i);
     if (clause) {
       const body = clause[2];
@@ -235,6 +258,262 @@ function parseCreateTables(src) {
   return map;
 }
 
+
+// ================= CI guard mode (#1184, Ruling 3) =================
+// The reviewed manifest is the expectation set. Rows are split on
+// UNESCAPED pipes (details contain escaped \| sequences).
+function splitUnescapedPipes(line) {
+  const parts = [];
+  let cur = '', esc = false;
+  for (const ch of line) {
+    if (esc) { cur += ch; esc = false; }
+    else if (ch === '\\') esc = true;
+    else if (ch === '|') { parts.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  parts.push(cur);
+  return parts;
+}
+
+function parseReviewedManifest() {
+  const file = path.join(ROOT, 'docs/sdlc/rekrut-ai-v2/04-implementation/schema-drift-manifest-1184-REVIEWED.md');
+  const rows = new Map(); // key -> {disposition, detail}
+  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    if (!line.startsWith('| ')) continue;
+    const parts = splitUnescapedPipes(line);
+    if (parts.length < 7) continue;
+    const keyM = parts[1].trim().match(/^([a-z_][\w]*\.[a-z_][\w]*)/);
+    if (!keyM) continue;
+    const disposition = parts[5].trim();
+    if (!/^(262-ADD|BOOTSTRAP-PARITY|CODE-SIDE|NOT-DRIFT|DORMANT|BOUNDARY|P2-TAIL)$/.test(disposition)) continue;
+    rows.set(keyM[1], { disposition, detail: parts[6].trim() });
+  }
+  return rows;
+}
+
+const RAW_TYPE_FAMILY = (raw) => {
+  const t = raw.toUpperCase().replace(/\s+/g, '');
+  if (t.startsWith('TSVECTOR')) return 'tsvector';
+  if (t.startsWith('VECTOR')) return 'vector';
+  if (t.startsWith('VARCHAR') || t.startsWith('TEXT') || t.startsWith('CHAR')) return 'text';
+  if (t.startsWith('INT') || t.startsWith('SERIAL')) return 'integer';
+  if (t.startsWith('BOOL')) return 'boolean';
+  if (t.startsWith('TIMESTAMP') || t.startsWith('DATE') || t.startsWith('TIME')) return 'temporal';
+  if (t.startsWith('JSON')) return 'json';
+  if (t.startsWith('UUID')) return 'uuid';
+  if (t.startsWith('NUMERIC') || t.startsWith('DOUBLE') || t.startsWith('REAL')) return 'numeric';
+  return t.toLowerCase();
+};
+
+const normalizeDefault = (v) => {
+  if (v === null || v === undefined) return null;
+  let out = String(v).trim().toLowerCase();
+  out = out.replace(/::[a-z0-9_ ]+(\([\d, ]+\))?$/, '').trim(); // strip trailing cast
+  while (/^\((.*)\)$/.test(out)) out = out.replace(/^\((.*)\)$/, '$1').trim();
+  return out;
+};
+
+/** Parse CREATE TABLE bodies from a migration source (top-level comma split). */
+function parseCreateTableBodies(src) {
+  const map = new Map();
+  const re = /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+([a-z_][\w]*)\s*\(/gi;
+  let m;
+  while ((m = re.exec(src))) {
+    const openIdx = src.indexOf('(', m.index);
+    let depth = 0, end = openIdx;
+    for (; end < src.length; end++) { if (src[end] === '(') depth++; else if (src[end] === ')') { depth--; if (!depth) break; } }
+    const body = src.slice(openIdx + 1, end);
+    const parts = [];
+    let d = 0, cur = '';
+    for (const ch of body) {
+      if (ch === '(') d++;
+      if (ch === ')') d--;
+      if (ch === ',' && d === 0) { parts.push(cur); cur = ''; } else cur += ch;
+    }
+    if (cur.trim()) parts.push(cur);
+    const cols = new Map();
+    for (const part of parts) {
+      const cm = part.trim().match(/^"?([a-z_][\w]*)"?\s+([A-Z]+(?:\s*\([\d,]+\))?)/i);
+      if (!cm) continue;
+      const name = cm[1].toLowerCase();
+      if (['primary', 'foreign', 'unique', 'check', 'constraint'].includes(name)) continue;
+      cols.set(name, cm[2]);
+    }
+    if (cols.size) map.set(m[1].toLowerCase(), cols);
+  }
+  return map;
+}
+
+/** Migration name exactly as migrate.js resolves it: require the module and
+ * read `name`, falling back to the filename. (Source-pattern parsing is NOT
+ * faithful here: some migrations contain unrelated `name:` literals, e.g.
+ * email-template seeds, and others use `exports.name =`.) */
+function migrationNameFromSource(file, src, migDir) {
+  if (file.endsWith('.sql')) return file;
+  try {
+    const mod = require(path.join(migDir, file));
+    if (mod && mod.name) return mod.name;
+    return file.replace(/\.js$/, '');
+  } catch {
+    const m = src.match(/exports\.name\s*=\s*'([^']+)'/)
+      || src.match(/module\.exports\s*=\s*\{[\s\S]*?\bname:\s*'([^']+)'/);
+    return m ? m[1] : file.replace(/\.js$/, '');
+  }
+}
+
+async function runCiGuard({ url, list, colInfo, schema, args }) {
+  const failures = [];
+  const warnings = [];
+  const fail = (msg) => failures.push(msg);
+  const manifest = parseReviewedManifest();
+  if (manifest.size === 0) fail('reviewed manifest parsed to 0 rows — guard cannot run');
+  const byDisp = (d) => [...manifest.entries()].filter(([, v]) => v.disposition === d).map(([k]) => k);
+  const addKeys = byDisp('262-ADD');
+  const codeKeys = byDisp('CODE-SIDE');
+  const bootstrapKeys = byDisp('BOOTSTRAP-PARITY');
+  const dormantKeys = byDisp('DORMANT').sort();
+  const boundaryKeys = byDisp('BOUNDARY').sort();
+  const permittedKeys = new Set([...byDisp('NOT-DRIFT'), ...dormantKeys, ...boundaryKeys]);
+
+  const { Pool } = require('pg');
+  const pool = new Pool({ connectionString: url, ssl: false });
+  const q = async (sql, params) => (await pool.query(sql, params)).rows;
+  let migNames = new Set();
+  try { migNames = new Set((await q('SELECT name FROM _migrations')).map(r => r.name)); } catch { /* handled below */ }
+
+  // ---- (1) migrate-exit attribution (never swallow) ----
+  const exitArg = args.includes('--migrate-exit') ? parseInt(args[args.indexOf('--migrate-exit') + 1], 10) : null;
+  const logArg = args.includes('--migrate-log') ? args[args.indexOf('--migrate-log') + 1] : null;
+  const migLog = logArg && fs.existsSync(logArg) ? fs.readFileSync(logArg, 'utf8') : '';
+  if (exitArg === null || Number.isNaN(exitArg)) {
+    fail('CI mode requires --migrate-exit <code> from the migrate.js run that built this DB');
+  } else if (exitArg === 0) {
+    for (const n of ['130_candidate_search', 'p5_screening_conversational_phase', 'p6_screening_template_topics', 'p7_auto_send_screening_on_jobs']) {
+      if (!migNames.has(n)) fail(`migrate exit 0 but _migrations is missing '${n}' (post-p2 tail must be recorded in a clean run)`);
+    }
+    if (!failures.length) console.log('migrate exit 0 — full chain recorded, including the post-p2 tail');
+  } else if (exitArg === 1) {
+    const migDir = path.join(ROOT, 'migrations');
+    const chainFiles = fs.readdirSync(migDir).filter(f => f.endsWith('.js') || f.endsWith('.sql')).sort()
+      .filter(f => f <= '261_application_ip_captures.js');
+    const missingChain = chainFiles.filter(f => !migNames.has(migrationNameFromSource(f, fs.readFileSync(path.join(migDir, f), 'utf8'), migDir)));
+    const condError = migLog.includes('0A000') && migLog.includes('p2_schema_hardening.sql');
+    const cond262 = migNames.has('262_schema_drift_class_fix');
+    if (condError && cond262 && missingChain.length === 0) {
+      console.log('migrate exit 1 attributed to #1141 (p2_schema_hardening.sql, 0A000)');
+    } else {
+      fail(`migrate exit 1 NOT attributable to #1141 (0A000-in-p2:${condError}, 262-recorded:${cond262}, numbered-chain-through-261-missing:${missingChain.join(',') || 'none'})`);
+      console.log('--- raw migrate output (unattributed failure) ---');
+      console.log(migLog || '(no --migrate-log provided)');
+      console.log('--- end raw migrate output ---');
+    }
+  } else {
+    fail(`migrate exit ${exitArg} is neither 0 nor 1 — unattributable`);
+    console.log('--- raw migrate output ---'); console.log(migLog || '(no --migrate-log provided)'); console.log('--- end raw migrate output ---');
+  }
+
+  // ---- (2) 262-ADD column rows (non whole-table) ----
+  let checked262 = 0;
+  for (const [key, { disposition, detail }] of manifest) {
+    if (disposition !== '262-ADD' || detail.includes('whole-table re-home')) continue;
+    const [table, column] = key.split('.');
+    const m = detail.match(/ADD COLUMN IF NOT EXISTS\s+([a-z_][\w]*)\s+([A-Z]+(?:\s*\([\d,]+\))?)/);
+    if (!m) { fail(`${key}: could not parse ADD COLUMN shape from reviewed manifest detail`); continue; }
+    if (m[1].toLowerCase() !== column) { fail(`${key}: manifest detail names a different column (${m[1]})`); continue; }
+    const info = colInfo.get(key);
+    if (!info) { fail(`${key}: 262-ADD column missing on fresh DB`); continue; }
+    checked262++;
+    const fam = TYPE_FAMILY(info.udt_name);
+    const wantFam = RAW_TYPE_FAMILY(m[2]);
+    if (fam !== wantFam) fail(`${key}: type family mismatch — manifest ${m[2]} (${wantFam}), fresh DB ${info.udt_name} (${fam})`);
+    const tail = detail.slice(m.index, m.index + 220).split('—')[0];
+    const dm = tail.match(/DEFAULT\s+('[^']*'|[A-Za-z0-9_]+(?:\(\))?)/i);
+    if (dm) {
+      const want = normalizeDefault(dm[1]);
+      const got = normalizeDefault(info.column_default);
+      if (want !== got) fail(`${key}: default mismatch — manifest ${want}, fresh DB ${got}`);
+    }
+    const wantNullable = /NOT\s+NULL/i.test(tail) ? 'NO' : 'YES';
+    if (info.is_nullable !== wantNullable) fail(`${key}: nullability mismatch — manifest expects is_nullable=${wantNullable}, fresh DB ${info.is_nullable}`);
+  }
+
+  // ---- (3) whole-table rows: p3b re-home, complete ----
+  const wholeTables = [...new Set([...manifest.entries()]
+    .filter(([, v]) => v.disposition === '262-ADD' && v.detail.includes('whole-table re-home'))
+    .map(([k]) => k.split('.')[0]))].sort();
+  const p3bSrc = fs.readFileSync(path.join(ROOT, 'migrations', 'p3b_candidate_search.js'), 'utf8');
+  const p3bTables = parseCreateTableBodies(p3bSrc);
+  let wholeCols = 0;
+  for (const table of wholeTables) {
+    if (!schema.has(table)) { fail(`${table}: whole table missing on fresh DB (p3b re-home did not land)`); continue; }
+    const cols = p3bTables.get(table);
+    if (!cols) { fail(`${table}: could not parse p3b DDL for the whole-table expectation`); continue; }
+    for (const [column, rawType] of cols) {
+      const info = colInfo.get(`${table}.${column}`);
+      if (!info) { fail(`${table}.${column}: p3b DDL column missing on fresh DB (partial re-home)`); continue; }
+      wholeCols++;
+      const fam = TYPE_FAMILY(info.udt_name);
+      const wantFam = RAW_TYPE_FAMILY(rawType);
+      if (fam !== wantFam) fail(`${table}.${column}: type family mismatch — p3b ${rawType} (${wantFam}), fresh DB ${info.udt_name} (${fam})`);
+    }
+  }
+  const idxNames = new Set((await q(`SELECT indexname FROM pg_indexes WHERE schemaname='public'`)).map(r => r.indexname));
+  const wantIdx = [...p3bSrc.matchAll(/CREATE INDEX IF NOT EXISTS\s+([a-z_][\w]*)/gi)].map(x => x[1].toLowerCase());
+  for (const idx of wantIdx) if (!idxNames.has(idx)) fail(`p3b index missing on fresh DB: ${idx}`);
+  const procNames = new Set((await q(`SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace`)).map(r => r.proname));
+  const wantProcs = [...p3bSrc.matchAll(/CREATE OR REPLACE FUNCTION\s+([a-z_][\w]*)/gi)].map(x => x[1].toLowerCase());
+  for (const fn of wantProcs) if (!procNames.has(fn)) fail(`p3b function missing on fresh DB: ${fn}`);
+  const trigNames = new Set((await q(`SELECT tgname FROM pg_trigger WHERE NOT tgisinternal`)).map(r => r.tgname));
+  const wantTrigs = [...p3bSrc.matchAll(/CREATE TRIGGER\s+([a-z_][\w]*)/gi)].map(x => x[1].toLowerCase());
+  for (const tg of wantTrigs) if (!trigNames.has(tg)) fail(`p3b trigger missing on fresh DB: ${tg}`);
+
+  // ---- (4) bootstrap parity: referral_rewards UUID + FK ----
+  for (const col of ['id', 'referral_id']) {
+    const info = colInfo.get(`referral_rewards.${col}`);
+    if (!info) fail(`referral_rewards.${col}: missing on fresh DB (bootstrap parity)`);
+    else if (info.udt_name !== 'uuid') fail(`referral_rewards.${col}: bootstrap parity expects uuid, fresh DB has ${info.udt_name}`);
+  }
+  const fkRows = await q(`
+    SELECT a.attname AS col, af.attname AS fcol
+    FROM pg_constraint c
+    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+    JOIN pg_attribute af ON af.attrelid = c.confrelid AND af.attnum = ANY (c.confkey)
+    WHERE c.contype = 'f' AND c.conrelid = 'referral_rewards'::regclass AND c.confrelid = 'referrals'::regclass`);
+  if (!fkRows.some(r => r.col === 'referral_id' && r.fcol === 'id')) {
+    fail('referral_rewards.referral_id: FK to referrals(id) missing on fresh DB (bootstrap parity)');
+  }
+
+  // ---- (5) findings assertions ----
+  const findingKeys = [...new Set(list.map(f => `${f.table}.${f.column}`))];
+  for (const key of findingKeys) {
+    const entry = manifest.get(key);
+    if (!entry) { fail(`extractor finding not in reviewed manifest (new drift needs human review): ${key}`); continue; }
+    if (entry.disposition === '262-ADD' || entry.disposition === 'CODE-SIDE' || entry.disposition === 'BOOTSTRAP-PARITY') {
+      fail(`extractor finding persists for ${entry.disposition} key (fix did not land): ${key}`);
+    } else if (!permittedKeys.has(key)) {
+      fail(`extractor finding for ${entry.disposition} key is not a permitted finding: ${key}`);
+    }
+  }
+  for (const key of permittedKeys) {
+    if (!findingKeys.includes(key)) warnings.push(`permitted reviewed key no longer appears in extractor findings (manifest should be refreshed): ${key}`);
+  }
+
+  await pool.end();
+
+  // DORMANT + BOUNDARY printed every run — the debt is never silent.
+  console.log(`DORMANT (${dormantKeys.length}): ${dormantKeys.join(', ') || 'none'}`);
+  console.log(`BOUNDARY (${boundaryKeys.length}): ${boundaryKeys.join(', ') || 'none'}`);
+  console.log(`CI guard: 262-ADD columns checked: ${checked262}, whole-table (${wholeTables.join(', ')}) DDL columns checked: ${wholeCols}, p3b indexes checked: ${wantIdx.length}, functions: ${wantProcs.length}, triggers: ${wantTrigs.length}`);
+  for (const w of warnings) console.log(`WARNING: ${w}`);
+  if (failures.length) {
+    console.log(`CI guard: FAIL (${failures.length})`);
+    for (const f of failures) console.log(`FAIL: ${f}`);
+    process.exit(1);
+  }
+  console.log('CI guard: PASS');
+  process.exit(0);
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const jsonOut = args.includes('--json') ? args[args.indexOf('--json') + 1] : null;
@@ -244,7 +523,7 @@ async function main() {
   const { Pool } = require('pg');
   const pool = new Pool({ connectionString: url, ssl: false });
   const { rows } = await pool.query(
-    `SELECT table_name, column_name, data_type, udt_name FROM information_schema.columns WHERE table_schema='public' ORDER BY table_name, ordinal_position`);
+    `SELECT table_name, column_name, data_type, udt_name, column_default, is_nullable FROM information_schema.columns WHERE table_schema='public' ORDER BY table_name, ordinal_position`);
   const { rows: tblRows } = await pool.query(
     `SELECT table_name, table_type FROM information_schema.tables WHERE table_schema='public'`);
   await pool.end();
@@ -254,6 +533,7 @@ async function main() {
     schema.get(r.table_name).set(r.column_name, r);
   }
   const tableKind = new Map(tblRows.map(r => [r.table_name, r.table_type]));
+  const colInfo = new Map(rows.map(r => [`${r.table_name}.${r.column_name}`, r]));
   const knownTables = new Set(schema.keys());
 
   // DDL presence index over migrations/ + migrate.js, for chain-status classification.
@@ -391,6 +671,7 @@ async function main() {
   }
 
   const list = [...findings.values()].sort((a, b) => (a.table + a.column).localeCompare(b.table + b.column));
+  if (args.includes('--ci')) { await runCiGuard({ url, list, colInfo, schema, args }); return; }
   console.log(`# schema-drift audit — tables in fresh DB: ${schema.size}, code refs checked: ${refs.length}, distinct table.column: ${manifest.size}`);
   console.log(`# findings: ${list.length}`);
   for (const f of list) console.log(`${f.table}.${f.column}\t${f.status}\t${f.detail || ''}\tDDL:${f.ddl.join('|') || '-'}\tREFS:${[...new Set(f.refs)].slice(0, 6).join(' ; ')}`);

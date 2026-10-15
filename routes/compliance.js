@@ -276,14 +276,15 @@ router.post('/fairness/audit', authMiddleware, async (_req, res) => {
 		// Get demographic breakdowns
 		const demographics = await pool.query(`
       SELECT
-        cp.gender,
-        cp.ethnicity,
+        cd.gender,
+        cd.ethnicity,
         COUNT(*) as total,
         AVG(os.overall_score) as avg_score
       FROM candidate_profiles cp
+      LEFT JOIN candidate_demographics cd ON cd.user_id = cp.user_id
       LEFT JOIN omniscore_results os ON os.user_id = cp.user_id
       WHERE os.overall_score IS NOT NULL
-      GROUP BY cp.gender, cp.ethnicity
+      GROUP BY cd.gender, cd.ethnicity
     `);
 
 		// Get appeal statistics
