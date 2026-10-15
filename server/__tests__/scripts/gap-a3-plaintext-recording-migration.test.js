@@ -532,6 +532,51 @@ describe('CLI parsing + live refusal', () => {
 		expect(s3.counts).toEqual({ get: 0, put: 0, delete: 0, head: 0 });
 		expect(writeLog).toHaveLength(0);
 	});
+
+	test('advisory lock is taken + unlocked on a dedicated pool.connect() client, not the pool, and released (SEC B-2)', async () => {
+		baseWorld();
+		await ensureDek(7);
+		seedRow({ id: 1001, session: 10 });
+		const makeClient = () => ({
+			query: jest.fn(async (sql, params) => {
+				const handled = routeSql(sql, params || []);
+				if (handled) return handled;
+				return baseQueryImpl(sql, params);
+			}),
+			release: jest.fn(),
+		});
+		const originalConnect = db.connect;
+		try {
+			db.query.mockClear();
+			const client = makeClient();
+			db.connect = jest.fn(async () => client);
+			const res = await run({});
+			expect(res.exitCode).toBe(0);
+			const clientSql = client.query.mock.calls.map(([sql]) => sql);
+			expect(clientSql.some((s) => s.includes('pg_try_advisory_lock'))).toBe(true);
+			expect(clientSql.some((s) => s.includes('pg_advisory_unlock'))).toBe(true);
+			expect(client.release).toHaveBeenCalledTimes(1);
+			const poolLockCalls = db.query.mock.calls.filter(
+				([sql]) =>
+					sql.includes('pg_try_advisory_lock') || sql.includes('pg_advisory_unlock'),
+			);
+			expect(poolLockCalls).toHaveLength(0);
+
+			// Held-lock refusal on the dedicated client still exits 1
+			// and still releases that client.
+			lockState.available = false;
+			const client2 = makeClient();
+			db.connect = jest.fn(async () => client2);
+			const res2 = await run({});
+			expect(res2.exitCode).toBe(1);
+			expect(
+				client2.query.mock.calls.some(([sql]) => sql.includes('pg_try_advisory_lock')),
+			).toBe(true);
+			expect(client2.release).toHaveBeenCalledTimes(1);
+		} finally {
+			db.connect = originalConnect;
+		}
+	});
 });
 
 // ─── Dry-run ──────────────────────────────────────────────────────────────
@@ -576,6 +621,22 @@ describe('dry-run classification (full fixture matrix)', () => {
 		});
 		expect(r.outcomes.company_derivation_failed).toBe(1);
 		expect(r.reconciliation.ok).toBe(true);
+		// Privacy C1: plaintext_remaining includes unknown_marker +
+		// undecryptable_pointer (both plaintext not shown gone).
+		expect(r.plaintext_remaining.breakdown).toMatchObject({
+			unknown_marker: 1,
+			undecryptable_pointer: 1,
+		});
+		expect(r.plaintext_remaining.total).toBe(12);
+		expect(r.plaintext_remaining.basis).toContain('unknown_marker');
+		expect(r.plaintext_remaining.basis).toContain('undecryptable_pointer');
+		expect(r.plaintext_remaining.basis).toContain('migrated_plaintext_pending');
+		expect(r.plaintext_remaining.basis).toContain('deleted_pointer_retained');
+		expect(
+			r.scope_limits.some(
+				(s) => s.includes('not_found') && s.includes('checked bucket'),
+			),
+		).toBe(true);
 
 		// ZERO writes of any kind: no S3 put/delete/get, no DB writes, no DEK rows created.
 		expect(s3.counts.put).toBe(0);
@@ -605,6 +666,17 @@ describe('dry-run classification (full fixture matrix)', () => {
 		expect(allIds).toContain(1027); // not found
 		expect(allIds).not.toContain(1001); // migrated class: counts only, no per-row list
 		expect(allIds).not.toContain(1004);
+		// Privacy C2: candidate_id only for per-candidate-disposition
+		// classes; every other exception entry is recording_id only.
+		const heldEntry = (man.exceptions.skipped_held || []).find((e) => e.recording_id === 1009);
+		expect(heldEntry).toBeDefined();
+		expect(heldEntry.candidate_id).toBe(13);
+		const notFoundEntry = (man.exceptions.not_found || []).find((e) => e.recording_id === 1027);
+		expect(notFoundEntry).toBeDefined();
+		expect(notFoundEntry).not.toHaveProperty('candidate_id');
+		const unknownEntry = (man.exceptions.unknown_marker || []).find((e) => e.recording_id === 1020);
+		expect(unknownEntry).toBeDefined();
+		expect(unknownEntry).not.toHaveProperty('candidate_id');
 	});
 });
 
@@ -681,6 +753,32 @@ describe('live main pass — migration sequence', () => {
 		expect(res.report.outcomes.migrated).toBe(0);
 		expect(s3.objects.has(keyFor(1029))).toBe(false);
 		expect(ledger[0].status).toBe('deleted');
+	});
+
+	test('ledger-recovery verified delete failure → recovery_failed: 1 (Tier 1 outcome) and exit 2 (SEC B-1)', async () => {
+		baseWorld();
+		await ensureDek(7);
+		seedRow({ id: 1029, session: 10, marker: 'candidate-dek:v1', pointerLoc: `${locFor(1029)}.enc` });
+		s3.objects.set(`${keyFor(1029)}.enc`, Buffer.from('enc-1029'));
+		seedLedger(7, locFor(1029));
+		const real = sessionRecordingStore;
+		const failingDelete = {
+			...real,
+			deleteRecordingObjectVerified: async (loc) => {
+				if (loc === locFor(1029)) {
+					const e = new Error('still exists');
+					e.code = 'DELETE_VERIFY_FAILED';
+					throw e;
+				}
+				return real.deleteRecordingObjectVerified(loc);
+			},
+		};
+		const res = await run({ live: true, approvedBy: 'Tester' }, { storage: failingDelete });
+		expect(res.exitCode).toBe(2);
+		expect(res.report.outcomes.recovery_failed).toBe(1);
+		expect(res.report.outcomes.recovered_deletions).toBe(0);
+		expect(s3.objects.has(keyFor(1029))).toBe(true);
+		expect(ledger[0].status).toBe('pending');
 	});
 });
 
@@ -808,6 +906,32 @@ describe('live main pass — failure + race classes', () => {
 		expect(ledger.filter((l) => l.file_url === locFor(1024))).toHaveLength(0); // no ledger intent before verify
 	});
 
+	test('DEK destroyed between upload and verify → quarantined with DEK_DESTROYED (not Error), plaintext present, no repoint, no ledger intent, no DEK resurrection (CRYPTO C-1)', async () => {
+		baseWorld();
+		await ensureDek(7);
+		seedRow({ id: 1031, session: 10 });
+		const real = sessionRecordingStore;
+		const destroyingUpload = {
+			...real,
+			uploadEncryptedObject: async (loc, env) => {
+				const out = await real.uploadEncryptedObject(loc, env);
+				destroyDek(7);
+				return out;
+			},
+		};
+		const res = await run({ live: true, approvedBy: 'Tester' }, { storage: destroyingUpload });
+		expect(res.exitCode).toBe(2);
+		expect(res.report.outcomes.quarantined).toBe(1);
+		expect(res.report.outcomes.migrated).toBe(0);
+		expect(res.report.error_class_counts.DEK_DESTROYED).toBe(1);
+		expect(res.report.error_class_counts.Error).toBeUndefined();
+		expect(s3.objects.has(keyFor(1031))).toBe(true);
+		expect(recordings.get(1031).encryption_key_id).toBe('default');
+		expect(ledger.filter((l) => l.file_url === locFor(1031))).toHaveLength(0);
+		expect(deks.has(7)).toBe(true);
+		expect(deks.get(7).destroyed_at).not.toBeNull();
+	});
+
 	test('mid-run DEK destruction (after verify/ledger intent, before repoint) → destroyed_mid_migration, .enc ledgered, plaintext untouched, no repoint', async () => {
 		baseWorld();
 		await ensureDek(20);
@@ -821,6 +945,7 @@ describe('live main pass — failure + race classes', () => {
 			if (params[1] === locFor(1025)) destroyDek(20);
 		};
 		const res = await run({ live: true, approvedBy: 'Tester' });
+		expect(res.exitCode).toBe(2);
 		expect(res.report.outcomes.destroyed_mid_migration).toBe(1);
 		expect(res.report.outcomes.migrated).toBe(0);
 		expect(recordings.get(1025).encryption_key_id).toBe('default');
@@ -874,6 +999,7 @@ describe('live main pass — failure + race classes', () => {
 			},
 		};
 		const res1 = await run({ live: true, approvedBy: 'Tester' }, { storage: failingDelete });
+		expect(res1.exitCode).toBe(2);
 		expect(res1.report.outcomes.migrated_plaintext_pending).toBe(1);
 		expect(res1.report.outcomes.migrated).toBe(0);
 		expect(recordings.get(1028).encryption_key_id).toBe('candidate-dek:v1'); // repoint DID happen

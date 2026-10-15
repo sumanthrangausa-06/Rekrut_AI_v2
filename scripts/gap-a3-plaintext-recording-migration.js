@@ -32,6 +32,8 @@
  *  - A ledger-recovery phase opens every live run: a pending/failed
  *    livekit_recording ledger row whose recording already points at
  *    the .enc sibling gets its plaintext deleted + marked.
+ *  - Ledger-recovery note: the ledger-recovery phase runs at the start
+ *    of every live run and is NOT bounded by --limit/--recording-id.
  *  - Reporting is two-tier: Tier 1 counts-only (NO ids, NO storage
  *    keys/locations/URLs, NO pointer ciphertext, NO hashes, NO raw
  *    error messages — error CLASSES only); Tier 2 manifest (file via
@@ -78,6 +80,7 @@ const OUTCOME_FIELDS = [
 	'migrated_resumed',
 	'migrated_plaintext_pending',
 	'recovered_deletions',
+	'recovery_failed',
 	'dek_minted',
 	'skipped_held',
 	'hold_lookup_failed',
@@ -97,6 +100,16 @@ const OUTCOME_FIELDS = [
 	'quarantined',
 	'failed',
 ];
+// Tier 2 manifest minimisation (privacy C2): candidate_id appears ONLY
+// for the per-candidate-disposition classes below; every other
+// exception-class entry is { recording_id } only.
+const MANIFEST_CANDIDATE_ID_CLASSES = new Set([
+	'skipped_held',
+	'dek_destroyed',
+	'destroyed_mid_migration',
+	'absent_dek',
+	'unresolvable',
+]);
 // Classes whose recording ids may appear in the Tier 2 manifest.
 // migrated / migrated_resumed are NEVER listed per-row (counts only).
 const EXCEPTION_CLASSES = [
@@ -561,6 +574,9 @@ async function processOne(recordingId, snapshotPointer, deps, ctx = {}) {
 	let dekMinted = false;
 
 	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+		// Stage marker for crypto C-1: only encrypt / verify failures
+		// re-probe the DEK state in the catch below.
+		let attemptStage = null;
 		try {
 			let source = null;
 			if (!resume) {
@@ -569,9 +585,11 @@ async function processOne(recordingId, snapshotPointer, deps, ctx = {}) {
 				source = await deps.storage.downloadRecordingObject(plaintextLocation, {
 					maxBytes: deps.maxBytes,
 				});
+				attemptStage = 'encrypt';
 				const envelope = await deps.storage.encryptSessionRecording(source, candidateId, recordingId);
 				if (mintPending) dekMinted = true;
 				await deps.storage.uploadEncryptedObject(plaintextLocation, envelope);
+				attemptStage = null;
 			}
 
 			// Registry check + insert. A row for this .enc key held by a
@@ -599,6 +617,7 @@ async function processOne(recordingId, snapshotPointer, deps, ctx = {}) {
 			// re-download the .enc with the DEFAULT cap; envelope length
 			// must equal source length + 29 exactly; decrypt must
 			// succeed; decrypted bytes must equal the source.
+			attemptStage = 'verify';
 			const encBytes = await deps.storage.downloadRecordingObject(encLocation);
 			if (!resume) {
 				if (encBytes.length !== source.length + 29) {
@@ -620,6 +639,7 @@ async function processOne(recordingId, snapshotPointer, deps, ctx = {}) {
 					throw coded('VERIFY_FAILED', 'resume size mismatch');
 				}
 			}
+			attemptStage = null;
 
 			// Ledger intent (select-before-insert reuse). Failure aborts
 			// the object: NO repoint, NO delete.
@@ -675,7 +695,20 @@ async function processOne(recordingId, snapshotPointer, deps, ctx = {}) {
 			log(recordingId, 'migrated');
 			return { disposition: 'migrated', resumed: resume, dekMinted };
 		} catch (err) {
-			const cls = errorClass(err);
+			let cls = errorClass(err);
+			// Crypto C-1: a DEK destroyed between upload and verify (or
+			// during encrypt) surfaces from the crypto layer as an
+			// uncoded error. Re-probe the DEK state via the imported
+			// livekit helper — no error-message matching here — and
+			// record DEK_DESTROYED for this attempt's accounting when
+			// destroyed. The disposition still quarantines below.
+			if (attemptStage === 'encrypt' || attemptStage === 'verify') {
+				try {
+					if ((await deps.dekState(candidateId)) === 'destroyed') cls = 'DEK_DESTROYED';
+				} catch {
+					// Probe failure: keep the original error class.
+				}
+			}
 			if (NON_RETRYABLE.has(cls) || err.nonRetryable) {
 				if (cls === 'NOT_FOUND') return { disposition: 'not_found', errorClass: cls, dekMinted };
 				return { disposition: 'quarantined', errorClass: cls, dekMinted };
@@ -732,6 +765,9 @@ async function ledgerRecoveryPhase(deps, outcomes, log) {
 			}
 			void acted;
 		} catch (err) {
+			// SEC B-1: a recovery failure is a counted outcome (and an
+			// exit-2 term), never just a log line.
+			outcomes.recovery_failed = (outcomes.recovery_failed || 0) + 1;
 			log(null, 'recovery_error', errorClass(err));
 		}
 	}
@@ -826,7 +862,9 @@ async function runMigration(opts = {}, depOverrides = {}) {
 		if (!EXCEPTION_CLASSES.includes(cls)) return;
 		if (!manifest.exceptions[cls]) manifest.exceptions[cls] = [];
 		manifest.exceptions[cls].push(
-			candidateId != null ? { recording_id: recordingId, candidate_id: candidateId } : { recording_id: recordingId },
+			candidateId != null && MANIFEST_CANDIDATE_ID_CLASSES.has(cls)
+				? { recording_id: recordingId, candidate_id: candidateId }
+				: { recording_id: recordingId },
 		);
 	};
 	const bumpError = (cls) => {
@@ -855,6 +893,7 @@ async function runMigration(opts = {}, depOverrides = {}) {
 			'Completeness is row-bounded: egress objects landed on pointer-NULL rows and bucket objects with no row are out of scope (bucket-listing reconciliation is a follow-up for the live gate).',
 			'Hold claim is scoped to candidate- and company-held material; recruiter/panel-member user-holds are not consulted.',
 			'Verified delete is current-version only; bucket versioning is unverified — "expunged" is not claimed.',
+			'not_found means no object was found in the bucket actually checked — absence is proven only for that checked bucket, not for any other bucket.',
 		],
 	});
 
@@ -868,6 +907,11 @@ async function runMigration(opts = {}, depOverrides = {}) {
 
 	const deps = resolveDeps(depOverrides);
 	let report = baseReport();
+	// SEC B-2: the advisory lock is a SESSION lock — it must live on a
+	// dedicated client from pool.connect() for the entire run, never on
+	// a pooled query (which may idle-close or land on another session).
+	let lockClient = null;
+	let lockHeld = false;
 
 	try {
 		// Startup: fresh-process assumption; assert storage config
@@ -875,18 +919,20 @@ async function runMigration(opts = {}, depOverrides = {}) {
 		if (typeof deps.storage._clearClient === 'function') deps.storage._clearClient();
 		deps.storage.getRecordingStorageConfig();
 
-		// Single instance: Postgres advisory lock (both modes).
-		const lockRes = await deps.pool.query('SELECT pg_try_advisory_lock($1) AS locked', [
-			ADVISORY_LOCK_KEY,
-		]);
-		const lockRow = lockRes.rows[0] || {};
-		const locked = lockRow.locked ?? lockRow.pg_try_advisory_lock ?? Object.values(lockRow)[0];
-		if (!locked) {
-			report.fatal_error_class = 'ADVISORY_LOCK_HELD';
-			return { exitCode: 1, report, manifest };
-		}
-
+		// Single instance: Postgres advisory lock (both modes), taken
+		// on the dedicated client; the rest of the tool uses the pool.
+		lockClient = await deps.pool.connect();
 		try {
+			const lockRes = await lockClient.query('SELECT pg_try_advisory_lock($1) AS locked', [
+				ADVISORY_LOCK_KEY,
+			]);
+			const lockRow = lockRes.rows[0] || {};
+			const locked = lockRow.locked ?? lockRow.pg_try_advisory_lock ?? Object.values(lockRow)[0];
+			if (!locked) {
+				report.fatal_error_class = 'ADVISORY_LOCK_HELD';
+				return { exitCode: 1, report, manifest };
+			}
+			lockHeld = true;
 			// Ledger-recovery phase opens every LIVE run.
 			if (options.live) await ledgerRecoveryPhase(deps, outcomes, log);
 
@@ -990,11 +1036,47 @@ async function runMigration(opts = {}, depOverrides = {}) {
 			report.plaintext_remaining = plaintextRemaining(outcomes, sides);
 			report.finished_at = new Date().toISOString();
 			await writeOutputs(options, report, manifest);
-			return { exitCode: reconciled ? 0 : 2, report, manifest };
+			// SEC B-1: a non-clean live run exits 2 — reconciliation
+			// failure OR any quarantined / failed /
+			// migrated_plaintext_pending / destroyed_mid_migration /
+			// recovery_failed outcome.
+			const nonClean =
+				(outcomes.quarantined || 0) > 0 ||
+				(outcomes.failed || 0) > 0 ||
+				(outcomes.migrated_plaintext_pending || 0) > 0 ||
+				(outcomes.destroyed_mid_migration || 0) > 0 ||
+				(outcomes.recovery_failed || 0) > 0;
+			return { exitCode: reconciled && !nonClean ? 0 : 2, report, manifest };
 		} finally {
-			await deps.pool
-				.query('SELECT pg_advisory_unlock($1) AS locked', [ADVISORY_LOCK_KEY])
-				.catch(() => {});
+			// SEC B-2: unlock on the SAME dedicated client that holds
+			// the lock, inspect its result (no silent swallow — an
+			// unlock failure is a class-only log line), then release.
+			if (lockClient) {
+				try {
+					if (lockHeld) {
+						const unlockRes = await lockClient.query(
+							'SELECT pg_advisory_unlock($1) AS unlocked',
+							[ADVISORY_LOCK_KEY],
+						);
+						const unlockRow = unlockRes.rows[0] || {};
+						const unlocked =
+							unlockRow.unlocked ??
+							unlockRow.pg_advisory_unlock ??
+							Object.values(unlockRow)[0];
+						if (!unlocked) {
+							console.log(
+								'[gap-a3] advisory_unlock_failed error_class=ADVISORY_UNLOCK_FAILED',
+							);
+						}
+					}
+				} catch (unlockErr) {
+					console.log(
+						`[gap-a3] advisory_unlock_failed error_class=${errorClass(unlockErr)}`,
+					);
+				} finally {
+					lockClient.release();
+				}
+			}
 		}
 	} catch (err) {
 		report = baseReport();
@@ -1027,12 +1109,14 @@ function plaintextRemaining(outcomes, sides) {
 		deleted_pointer_retained: sides?.deleted_pointer_retained || 0,
 		absent_dek_main_pass: outcomes.absent_dek || 0,
 		migrated_plaintext_pending: outcomes.migrated_plaintext_pending || 0,
+		unknown_marker: outcomes.unknown_marker || 0,
+		undecryptable_pointer: outcomes.undecryptable_pointer || 0,
 	};
 	return {
 		total: Object.values(breakdown).reduce((a, b) => a + b, 0),
 		breakdown,
 		basis:
-			'held + hold-lookup-failed + quarantined classes (quarantined, failed, unresolvable, dek_destroyed, destroyed_mid_migration, registry_conflict, concurrent_change, ledger_error) + expired + deleted_pointer_retained (class D) + absent_dek (main pass) + migrated_plaintext_pending',
+			'held + hold-lookup-failed + quarantined classes (quarantined, failed, unresolvable, dek_destroyed, destroyed_mid_migration, registry_conflict, concurrent_change, ledger_error) + expired + deleted_pointer_retained (class D) + absent_dek (main pass) + migrated_plaintext_pending + unknown_marker + undecryptable_pointer',
 	};
 }
 
