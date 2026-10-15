@@ -83,6 +83,15 @@ describe('#807 severity cap', () => {
 		expect(src).toContain("subject_fingerprint ~ '^[0-9a-f]{64}$'");
 	});
 
+	test('migration 260 encodes the silo CHECK: a non-NULL fingerprint requires a company (database F1)', () => {
+		const src = fs.readFileSync(
+			path.join(__dirname, '../../../migrations/260_threat_intel_checks.js'),
+			'utf8',
+		);
+		expect(src).toContain('threat_intel_checks_siloed_fingerprint');
+		expect(src).toMatch(/CHECK\s*\(\s*company_id IS NOT NULL OR subject_fingerprint IS NULL\s*\)/);
+	});
+
 	test('migration 260: FK to job_applications with NO cascade action', () => {
 		const src = fs.readFileSync(
 			path.join(__dirname, '../../../migrations/260_threat_intel_checks.js'),

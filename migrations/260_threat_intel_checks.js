@@ -36,7 +36,12 @@
 //     carry a NULL company: a subject-bearing check on such an
 //     application is REFUSED at the app layer (privacy C3), while a
 //     subject-less provenance row may still record with a NULL
-//     company_id and a NULL fingerprint.
+//     company_id and a NULL fingerprint. The silo invariant — a
+//     non-NULL fingerprint requires a company — is ALSO encoded in
+//     the schema (named CHECK threat_intel_checks_siloed_fingerprint,
+//     database gate F1 on PR #1211), so the fingerprint-without-
+//     company state is impossible in the DB, not only refused in
+//     code.
 //   - severity: equality CHECK (severity = 'info') — the S-084
 //     interim guardrail encoded, not assumed. Raising the cap
 //     requires a migration, never an app/config change alone.
@@ -79,7 +84,8 @@ module.exports = {
 				signal_payload     JSONB NOT NULL DEFAULT '{}'::jsonb,
 				sources_checked    TEXT[] NOT NULL DEFAULT '{}',
 				sources_failed     TEXT[] NOT NULL DEFAULT '{}',
-				created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+				created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				CONSTRAINT threat_intel_checks_siloed_fingerprint CHECK (company_id IS NOT NULL OR subject_fingerprint IS NULL)
 			);
 		`);
 		await client.query(`
