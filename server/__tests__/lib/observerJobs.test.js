@@ -91,6 +91,45 @@ describe('observerJobs', () => {
 		});
 	});
 
+	describe('markObserving (#785)', () => {
+		it('transitions a claimed job to observing and returns rowCount', async () => {
+			db.query.mockResolvedValueOnce({ rowCount: 1 });
+
+			const rowCount = await observerJobs.markObserving(1);
+
+			expect(db.query).toHaveBeenCalledWith(
+				expect.stringContaining("status = 'observing'"),
+				[1],
+			);
+			const query = db.query.mock.calls[0][0];
+			expect(query).toMatch(/status = 'claimed'/);
+			expect(rowCount).toBe(1);
+		});
+
+		// #785: status guard — a racing markObserving after a consent-
+		// withdrawal cancel must not resurrect a terminal job.
+		it('is guarded — terminal jobs (cancelled/failed/complete) are no-ops', async () => {
+			db.query.mockResolvedValueOnce({ rowCount: 0 });
+
+			const rowCount = await observerJobs.markObserving(1);
+
+			const query = db.query.mock.calls[0][0];
+			expect(query).toMatch(/status = 'claimed'/);
+			expect(rowCount).toBe(0);
+		});
+
+		it('is guarded — a pending (never claimed) job cannot jump to observing', async () => {
+			db.query.mockResolvedValueOnce({ rowCount: 0 });
+
+			const rowCount = await observerJobs.markObserving(1);
+
+			const query = db.query.mock.calls[0][0];
+			expect(query).toMatch(/AND status = 'claimed'/);
+			expect(query).not.toMatch(/'pending'/);
+			expect(rowCount).toBe(0);
+		});
+	});
+
 	describe('complete', () => {
 		it('marks job complete', async () => {
 			db.query.mockResolvedValueOnce({ rowCount: 1 });
