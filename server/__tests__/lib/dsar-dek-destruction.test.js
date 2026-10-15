@@ -183,6 +183,8 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			applicationKeyedRowsHeld: 0, // #813
 			applicationKeyedHeldDetails: [], // #813
 			autoApplyConsentTombstone: null, // #813
+			threatIntelChecksDeleted: 0, // #807
+			threatIntelRowsHeld: 0, // #807
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
@@ -439,6 +441,8 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			applicationKeyedRowsHeld: 0, // #813
 			applicationKeyedHeldDetails: [], // #813
 			autoApplyConsentTombstone: null, // #813
+			threatIntelChecksDeleted: 0, // #807
+			threatIntelRowsHeld: 0, // #807
 			recordingConsentRedacted: false,
 			observerReportsDeleted: false,
 			observerJobsDeleted: false,
