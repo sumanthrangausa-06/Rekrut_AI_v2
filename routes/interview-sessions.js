@@ -957,21 +957,28 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 				// file (spec §6: analysis re-runnable from the recording).
 				// completeRecordingRecord encrypts storage_path (BYTEA) the
 				// same way the event-flow does.
+				// GAP-A2 (#1130, R-5): completion goes through the
+				// encrypt-at-completion choke point; the unconditional
+				// completed UPDATE below is gated on its success — a
+				// quarantined recording stays failed/non-completed.
+				let completion = null;
 				if (egressResult?.fileLocation) {
-					await livekitService.completeRecordingRecord(
+					completion = await livekitService.completeRecordingRecord(
 						recording.id,
 						egressResult.fileLocation,
 						egressResult.durationSeconds ?? null,
 						egressResult.fileSizeBytes ?? null,
 					);
 				}
-				await pool.query(
-					`UPDATE interview_recordings
+				if (completion?.completed !== false) {
+					await pool.query(
+						`UPDATE interview_recordings
 					    SET status = 'completed', stopped_at = NOW(), updated_at = NOW(),
 					        retention_expires_at = COALESCE(retention_expires_at, $2)
 					  WHERE id = $1`,
-					[recording.id, livekitService.getRecordingRetentionDate()],
-				);
+						[recording.id, livekitService.getRecordingRetentionDate()],
+					);
+				}
 			}
 			const indicators = turns.filter((t) => t?.frame_indicators).map((t) => t.frame_indicators);
 			if (indicators.length > 0) {

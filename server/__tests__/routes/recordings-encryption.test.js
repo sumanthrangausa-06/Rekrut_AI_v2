@@ -125,7 +125,8 @@ describe('GET /recordings/:id/playback — .enc recordings', () => {
 		expect(res.status).toBe(200);
 		expect(res.headers['cache-control']).toBe('no-store');
 		expect(res.headers['content-type']).toMatch(/video\/mp4/);
-		expect(res.text).toBe('PLAIN-VIDEO');
+		const bodyText = Buffer.isBuffer(res.body) ? res.body.toString() : res.text;
+		expect(bodyText).toBe('PLAIN-VIDEO');
 		expect(res.body.playback).toBeUndefined();
 	});
 

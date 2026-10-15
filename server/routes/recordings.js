@@ -536,6 +536,37 @@ router.get(
 				return res.status(404).json({ error: 'Recording file not found' });
 			}
 
+			// GAP-A2 (#1130, R-6): marked (.enc) recordings are served ONLY
+			// via this decrypt-proxy — no direct URL, no fallback on
+			// decrypt failure (that would be a downgrade path). Access was
+			// checked above (canAccessRecording) BEFORE any decrypt;
+			// decryption uses the existing DEK only, in memory, no-store.
+			// Destroyed-DEK/tamper and storage failures are indistinct.
+			if (livekitService.isEncryptedRecording(recording, storagePath)) {
+				try {
+					const plaintext = await livekitService.fetchDecryptedRecording(recording);
+					res.set('Content-Type', 'video/mp4');
+					res.set('Content-Length', String(plaintext.length));
+					res.set('Cache-Control', 'no-store');
+					res.set('Content-Disposition', 'inline');
+					return res.send(plaintext);
+				} catch (decryptErr) {
+					if (decryptErr.code === 'NOT_FOUND') {
+						return res.status(404).json({ error: 'Recording not found' });
+					}
+					if (decryptErr.code === 'RECORDING_TOO_LARGE') {
+						return res.status(413).json({ error: 'Recording too large' });
+					}
+					if (
+						decryptErr.code === 'STORAGE_UNAVAILABLE' ||
+						decryptErr.code === 'CONFIG_ERROR'
+					) {
+						return res.status(503).json({ error: 'Recording temporarily unavailable' });
+					}
+					return res.status(403).json({ error: 'Recording access denied' });
+				}
+			}
+
 			// Generate signed playback token
 			const token = generatePlaybackToken(recordingId, user.id, 300); // 5 minutes
 			if (!token) {
@@ -598,17 +629,25 @@ router.post(
 				return res.status(404).json({ error: 'Recording file not found' });
 			}
 
-			// Mark as processing
+			// Mark as processing — scoped to completed rows (R-5/C8): the
+			// status resets below are likewise scoped to 'processing', so
+			// they can never resurrect a quarantined/non-completed
+			// recording to 'completed'.
 			await pool.query(
-				`UPDATE interview_recordings SET status = 'processing', updated_at = NOW() WHERE id = $1`,
+				`UPDATE interview_recordings SET status = 'processing', updated_at = NOW() WHERE id = $1 AND status = 'completed'`,
 				[recordingId],
 			);
 
-			// Download audio
-			const audioBuffer = await livekitService.downloadRecordingAudio(storagePath);
+			// Download audio. GAP-A2 (#1130, R-6): .enc recordings decrypt
+			// in memory via the DEK path (shared cap, no temp plaintext,
+			// never downloadRecordingAudio's unauthenticated
+			// constructed-URL fetch); legacy plaintext keeps that path.
+			const audioBuffer = livekitService.isEncryptedRecording(recording, storagePath)
+				? await livekitService.fetchDecryptedRecording(recording).catch(() => null)
+				: await livekitService.downloadRecordingAudio(storagePath);
 			if (!audioBuffer) {
 				await pool.query(
-					`UPDATE interview_recordings SET status = 'completed', updated_at = NOW() WHERE id = $1`,
+					`UPDATE interview_recordings SET status = 'completed', updated_at = NOW() WHERE id = $1 AND status = 'processing'`,
 					[recordingId],
 				);
 				return res.status(500).json({ error: 'Failed to download recording audio' });
@@ -624,7 +663,7 @@ router.post(
 
 			if (!whisperResult?.text) {
 				await pool.query(
-					`UPDATE interview_recordings SET status = 'completed', updated_at = NOW() WHERE id = $1`,
+					`UPDATE interview_recordings SET status = 'completed', updated_at = NOW() WHERE id = $1 AND status = 'processing'`,
 					[recordingId],
 				);
 				return res.status(500).json({ error: 'Transcription failed' });
@@ -649,7 +688,7 @@ router.post(
 
 			// Mark as completed again
 			await pool.query(
-				`UPDATE interview_recordings SET status = 'completed', updated_at = NOW() WHERE id = $1`,
+				`UPDATE interview_recordings SET status = 'completed', updated_at = NOW() WHERE id = $1 AND status = 'processing'`,
 				[recordingId],
 			);
 
@@ -666,7 +705,7 @@ router.post(
 			// Always reset status on error
 			try {
 				await pool.query(
-					`UPDATE interview_recordings SET status = 'completed', updated_at = NOW() WHERE id = $1`,
+					`UPDATE interview_recordings SET status = 'completed', updated_at = NOW() WHERE id = $1 AND status = 'processing'`,
 					[parseInt(req.params.id, 10)],
 				);
 			} catch (_e) {

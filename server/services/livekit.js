@@ -12,6 +12,8 @@
 
 const pool = require('../../lib/db');
 const encryption = require('../../services/encryption');
+const biometricCrypto = require('../../lib/biometricCrypto');
+const sessionRecordingStore = require('../../lib/sessionRecordingStore');
 
 // LiveKit SDK v2 is ESM-only; lazy-load via dynamic import
 /** @type {any} */
@@ -728,14 +730,164 @@ async function createRecordingRecord({
 }
 
 /**
- * Mark a recording as stopped and store the encrypted file path.
- * @param {number} recordingId
- * @param {string} storagePath - raw S3/R2 path or URL
- * @param {number} durationSeconds
- * @param {number} fileSizeBytes
+ * Resolve the candidate a recording belongs to — GAP-A's two attributions
+ * ONLY (#1130 STOP 1 §1): session-flow via interview_sessions.candidate_id,
+ * event-flow via interview_events.candidate_id. Returns an integer id or
+ * null when neither attribution resolves (escalate — never a shared-key
+ * fallback).
+ * @param {Object} recording - interview_recordings row
+ * @returns {Promise<number|null>}
  */
-async function completeRecordingRecord(recordingId, storagePath, durationSeconds, fileSizeBytes) {
-	const encryptedPath = storagePath ? encryption.encrypt(Buffer.from(storagePath)) : null;
+async function resolveRecordingCandidateId(recording) {
+	if (!recording) return null;
+	let candidateId = null;
+	if (recording.interview_session_id != null) {
+		const res = await pool.query('SELECT candidate_id FROM interview_sessions WHERE id = $1', [
+			recording.interview_session_id,
+		]);
+		candidateId = res.rows[0]?.candidate_id ?? null;
+	} else if (recording.interview_event_id != null) {
+		const res = await pool.query('SELECT candidate_id FROM interview_events WHERE id = $1', [
+			recording.interview_event_id,
+		]);
+		candidateId = res.rows[0]?.candidate_id ?? null;
+	}
+	const n = Number(candidateId);
+	return Number.isInteger(n) && candidateId != null ? n : null;
+}
+
+/**
+ * DEK state preflight (R-1) via select-only getDEK — never mints, never
+ * creates key material. Returns 'existing' | 'absent' | 'destroyed'.
+ * Any other getDEK failure is rethrown (escalate, not a fallback).
+ */
+async function _dekState(candidateId) {
+	try {
+		const dek = await biometricCrypto.getDEK(candidateId);
+		dek.fill(0);
+		return 'existing';
+	} catch (err) {
+		if (/destroyed/i.test(err.message || '')) return 'destroyed';
+		if (/no DEK row/i.test(err.message || '')) return 'absent';
+		throw err;
+	}
+}
+
+async function _isDEKDestroyedNow(candidateId) {
+	const res = await pool.query(
+		'SELECT destroyed_at FROM candidate_data_keys WHERE candidate_id = $1',
+		[candidateId],
+	);
+	return res.rows.length > 0 && res.rows[0].destroyed_at != null;
+}
+
+const MAX_COMPLETION_ATTEMPTS = 3;
+
+/**
+ * One encrypt-at-completion attempt (#1130). Ordering is the contract:
+ * size gate → download → DEK preflight → encrypt → upload .enc →
+ * register → verified plaintext delete → destroyed re-check → repoint →
+ * completed. Throws on any failure; the caller owns retries/quarantine.
+ * Idempotent: the .enc key is deterministic and the registry insert is
+ * ON CONFLICT DO NOTHING, so a re-run after a partial attempt re-uses
+ * the same object/row; if the plaintext is already gone but the .enc
+ * exists, the attempt resumes at register/repoint.
+ */
+async function _encryptRecordingOnce(recording, storagePath, durationSeconds, fileSizeBytes) {
+	const candidateId = await resolveRecordingCandidateId(recording);
+	if (candidateId == null) {
+		const err = new Error(
+			`[livekit] completeRecordingRecord: no candidate resolvable for recording ${recording.id} — escalating, no shared-key fallback`,
+		);
+		err.code = 'NO_CANDIDATE';
+		err.nonRetryable = true;
+		throw err;
+	}
+
+	// R-2 size gate BEFORE download, on the egress-reported size.
+	const MAX = sessionRecordingStore.MAX_SESSION_RECORDING_BYTES;
+	if (fileSizeBytes != null && Number(fileSizeBytes) > MAX) {
+		const err = new Error(`[livekit] recording ${recording.id} exceeds the ${MAX}-byte cap — quarantining`);
+		err.code = 'RECORDING_TOO_LARGE';
+		err.nonRetryable = true;
+		throw err;
+	}
+
+	const encLocation = sessionRecordingStore.encLocationFor(storagePath);
+	let plaintextDeleted = false;
+
+	// Download the landed plaintext (counting stream aborts over the cap
+	// when the egress size is unknown). Already-encrypted re-runs resume.
+	let alreadyEncrypted = false;
+	try {
+		const existingEnc = await sessionRecordingStore.recordingObjectExists(encLocation);
+		const plain = await sessionRecordingStore
+			.downloadRecordingObject(storagePath, { maxBytes: MAX })
+			.catch((err) => {
+				if (err.code === 'NOT_FOUND' && existingEnc) {
+					alreadyEncrypted = true;
+					plaintextDeleted = true; // plaintext already gone from a prior attempt
+					return null;
+				}
+				throw err;
+			});
+		if (!alreadyEncrypted) {
+			// R-1 DEK preflight: absent (no tombstone) may mint via
+			// encryptWithDEK; destroyed/tombstoned escalates — never re-mint.
+			const dekState = await _dekState(candidateId);
+			if (dekState === 'destroyed') {
+				const err = new Error(
+					`[livekit] recording ${recording.id}: candidate DEK destroyed — escalating, no re-mint`,
+				);
+				err.code = 'DEK_DESTROYED';
+				err.nonRetryable = true;
+				throw err;
+			}
+			const envelope = await sessionRecordingStore.encryptSessionRecording(
+				plain,
+				candidateId,
+				recording.id,
+			);
+			await sessionRecordingStore.uploadEncryptedObject(storagePath, envelope);
+		}
+	} catch (err) {
+		if (err.code === 'RECORDING_TOO_LARGE') err.nonRetryable = true;
+		throw err;
+	}
+
+	// Register the .enc (candidate-keyed, 90-day expiry — R-7). Intent is
+	// recorded before the plaintext delete so a crash never leaves an
+	// unregistered .enc as the only copy.
+	await pool.query(
+		`INSERT INTO recording_objects (object_key, candidate_id, object_type, expires_at)
+		 VALUES ($1, $2, 'recording', $3)
+		 ON CONFLICT (object_key) DO NOTHING`,
+		[encLocation, candidateId, getRecordingRetentionDate()],
+	);
+
+	// Verified delete of the plaintext original (explicit result +
+	// existence check inside deleteRecordingObjectVerified).
+	if (!plaintextDeleted) {
+		await sessionRecordingStore.deleteRecordingObjectVerified(storagePath);
+		plaintextDeleted = true;
+	}
+
+	// Re-check destroyed_at before repoint (observer precedent): a DEK
+	// destroyed mid-completion must not produce a completed recording.
+	if (await _isDEKDestroyedNow(candidateId)) {
+		const err = new Error(
+			`[livekit] recording ${recording.id}: candidate DEK destroyed before repoint — escalating`,
+		);
+		err.code = 'DEK_DESTROYED';
+		err.nonRetryable = true;
+		err.plaintextDeleted = plaintextDeleted;
+		throw err;
+	}
+
+	// Repoint: storage_path keeps the EXISTING shared-key pointer format
+	// (R-7), now naming the .enc location; the row is marked (.enc key +
+	// encryption_key_id). Only then status='completed'.
+	const encryptedPath = encryption.encrypt(Buffer.from(encLocation));
 	await pool.query(
 		`UPDATE interview_recordings
 		 SET status = 'completed',
@@ -743,10 +895,124 @@ async function completeRecordingRecord(recordingId, storagePath, durationSeconds
 		     duration_seconds = $1,
 		     storage_path = $2,
 		     file_size_bytes = $3,
+		     encryption_key_id = $4,
 		     updated_at = NOW()
-		 WHERE id = $4`,
-		[durationSeconds, encryptedPath, fileSizeBytes, recordingId],
+		 WHERE id = $5`,
+		[
+			durationSeconds,
+			encryptedPath,
+			fileSizeBytes ?? recording.file_size_bytes ?? null,
+			sessionRecordingStore.ENCRYPTION_KEY_ID,
+			recording.id,
+		],
 	);
+	return { completed: true, candidateId, encLocation };
+}
+
+/**
+ * Quarantine a recording whose encryption could not complete (R-3, exact
+ * mechanism stated at STOP 2): ledger the plaintext key for the existing
+ * Phase-2 drain, mark the recording failed (non-completed, unplayable),
+ * and log an operator-visible line (error class only).
+ */
+async function _quarantineRecording(recording, storagePath, candidateId, err, attempts) {
+	const errorClass = err?.code || err?.name || 'Error';
+	try {
+		if (!err?.plaintextDeleted) {
+			await pool.query(
+				`INSERT INTO pending_storage_deletions (user_id, file_url, storage_type, status, source_family)
+				 VALUES ($1, $2, 'r2', 'pending', 'livekit_recording')`,
+				// user_id 0 sentinel when no candidate is resolvable: no real
+				// user owns the row, so no user's erasure drain can claim it.
+				[candidateId ?? 0, storagePath],
+			);
+		}
+	} catch (ledgerErr) {
+		console.error(
+			`[livekit] recording completion quarantine ledger failed recording_id=${recording.id} error_class=${ledgerErr?.code || ledgerErr?.name || 'Error'}`,
+		);
+	}
+	try {
+		await failRecordingRecord(recording.id, err?.message);
+	} catch (_e) {
+		/* the operator log below is the durable signal */
+	}
+	console.error(
+		`[livekit] recording completion quarantined recording_id=${recording.id} attempts=${attempts} error_class=${errorClass}`,
+	);
+	return { completed: false, quarantined: true, reason: errorClass };
+}
+
+/**
+ * Mark a recording as stopped and complete it — ONLY via the
+ * encrypt-at-completion path (#1130, fail-closed). Before a recording may
+ * become 'completed': download the landed plaintext from the egress
+ * bucket → encrypt with the candidate's DEK → upload .enc → register →
+ * verified-delete the plaintext → repoint → completed. Any failure runs
+ * the bounded-retry + quarantine path (R-3) and returns
+ * { completed: false, quarantined: true } instead of throwing, so both
+ * completion sites surface the failed, unplayable row.
+ * @param {number} recordingId
+ * @param {string} storagePath - egress file location of the landed object
+ * @param {number} durationSeconds
+ * @param {number} fileSizeBytes - egress-reported size (size gate, R-2)
+ * @returns {Promise<{completed: boolean, quarantined?: boolean, reason?: string}>}
+ */
+async function completeRecordingRecord(recordingId, storagePath, durationSeconds, fileSizeBytes) {
+	if (!storagePath) {
+		// No landed object to encrypt: preserve the legacy no-object
+		// completion (nothing plaintext is addressable from the row).
+		await pool.query(
+			`UPDATE interview_recordings
+			 SET status = 'completed', stopped_at = NOW(), duration_seconds = $1,
+			     storage_path = NULL, file_size_bytes = $2, updated_at = NOW()
+			 WHERE id = $3`,
+			[durationSeconds, fileSizeBytes, recordingId],
+		);
+		return { completed: true, legacy: true };
+	}
+	const recording = (await findRecordingById(recordingId)) || { id: recordingId };
+	let candidateId = null;
+	let lastErr = null;
+	for (let attempt = 1; attempt <= MAX_COMPLETION_ATTEMPTS; attempt++) {
+		try {
+			return await _encryptRecordingOnce(recording, storagePath, durationSeconds, fileSizeBytes);
+		} catch (err) {
+			lastErr = err;
+			if (candidateId == null) {
+				candidateId = await resolveRecordingCandidateId(recording).catch(() => null);
+			}
+			if (err.nonRetryable || attempt === MAX_COMPLETION_ATTEMPTS) {
+				return _quarantineRecording(recording, storagePath, candidateId, err, attempt);
+			}
+		}
+	}
+	return _quarantineRecording(recording, storagePath, candidateId, lastErr, MAX_COMPLETION_ATTEMPTS);
+}
+
+/**
+ * Fetch + decrypt a marked (.enc) recording in memory for the playback
+ * proxy and the transcription branch (R-6). Existing-DEK only — never
+ * mint-on-read. AAD is reconstructed from the DB row (candidate resolved
+ * via the GAP-A attributions + recording id). Enforces the shared cap.
+ * @param {Object} recording - interview_recordings row
+ * @returns {Promise<Buffer>} plaintext recording bytes
+ */
+async function fetchDecryptedRecording(recording) {
+	const storagePath = decryptStoragePath(recording);
+	if (!storagePath) {
+		const err = new Error('[livekit] fetchDecryptedRecording: no storage path');
+		err.code = 'NOT_FOUND';
+		throw err;
+	}
+	const candidateId = await resolveRecordingCandidateId(recording);
+	if (candidateId == null) {
+		const err = new Error('[livekit] fetchDecryptedRecording: no candidate resolvable');
+		err.code = 'NO_CANDIDATE';
+		throw err;
+	}
+	const envelope = await sessionRecordingStore.downloadRecordingObject(storagePath);
+	return sessionRecordingStore.decryptSessionRecording(envelope, candidateId, recording.id);
 }
 
 /**
@@ -1012,6 +1278,10 @@ module.exports = {
 	stopSessionEgress,
 	createRecordingRecord,
 	completeRecordingRecord,
+	// Issue #1130 — encrypt-at-completion helpers
+	resolveRecordingCandidateId,
+	fetchDecryptedRecording,
+	isEncryptedRecording: sessionRecordingStore.isEncryptedRecording,
 	failRecordingRecord,
 	findRecordingById,
 	findActiveRecordingByRoomId,
