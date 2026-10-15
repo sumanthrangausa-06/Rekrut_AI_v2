@@ -134,8 +134,11 @@ describe('#807 silo — company-keyed fingerprints', () => {
 	});
 
 	test('no cross-company read exists: the module exports no lookup/verify/compare function', () => {
+		// #815 (S-095) amendment: fingerprintFor (pure HMAC compute, no
+		// stored-data access) joins recordCheck as an export; the
+		// no-read-oracle assertion below is unchanged and still binds.
 		const mod = require('../../../lib/threatIntelChecks');
-		expect(Object.keys(mod)).toEqual(['recordCheck']);
+		expect(Object.keys(mod).sort()).toEqual(['fingerprintFor', 'recordCheck']);
 		for (const name of Object.keys(mod)) {
 			expect(name).not.toMatch(/lookup|verify|compare|find|get|read|search/i);
 		}
