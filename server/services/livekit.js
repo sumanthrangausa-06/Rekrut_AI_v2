@@ -952,10 +952,18 @@ async function _encryptRecordingOnce(recording, storagePath, durationSeconds, fi
  * Phase-2 drain, mark the recording failed (non-completed, unplayable),
  * and log an operator-visible line (error class only).
  */
-async function _quarantineRecording(recording, storagePath, candidateId, err, attempts) {
+async function _quarantineRecording(recording, storagePath, candidateId, err, attempts, accumulatedFlags) {
 	const errorClass = err?.code || err?.name || 'Error';
+	// Privacy delta re-gate (#1130): consume the invocation-scoped
+	// MONOTONIC accumulator from completeRecordingRecord — a flag set by
+	// ANY attempt stays set even when the final attempt's own error
+	// carries it false (e.g. a pre-upload download failure after an
+	// earlier attempt already uploaded the .enc). Falls back to the
+	// error's own flags when no accumulator is supplied.
+	const plaintextDeleted = Boolean(accumulatedFlags?.plaintextDeleted || err?.plaintextDeleted);
+	const encUploaded = Boolean(accumulatedFlags?.encUploaded || err?.encUploaded);
 	try {
-		if (!err?.plaintextDeleted) {
+		if (!plaintextDeleted) {
 			await pool.query(
 				`INSERT INTO pending_storage_deletions (user_id, file_url, storage_type, status, source_family)
 				 VALUES ($1, $2, 'r2', 'pending', 'livekit_recording')`,
@@ -975,7 +983,7 @@ async function _quarantineRecording(recording, storagePath, candidateId, err, at
 		// the post-verified-delete branch, where the plaintext row is
 		// correctly skipped), the surviving .enc must reach the Phase-2
 		// drain or it would be an unledgered orphan copy.
-		if (err?.encUploaded) {
+		if (encUploaded) {
 			await pool.query(
 				`INSERT INTO pending_storage_deletions (user_id, file_url, storage_type, status, source_family)
 				 VALUES ($1, $2, 'r2', 'pending', 'livekit_recording')`,
@@ -1058,20 +1066,36 @@ async function completeRecordingRecord(recordingId, storagePath, durationSeconds
 	}
 	let candidateId = null;
 	let lastErr = null;
+	// Privacy delta re-gate (#1130): encUploaded / plaintextDeleted are
+	// per-attempt locals of _encryptRecordingOnce — invocation-scoped
+	// MONOTONIC accumulator here. An attempt that uploads the .enc (or
+	// verified-deletes the plaintext) and then fails retryably must not
+	// have that fact lost when a later attempt fails PRE-upload (its own
+	// error carries both flags false): once true, never reset.
+	const accumulatedFlags = { encUploaded: false, plaintextDeleted: false };
 	for (let attempt = 1; attempt <= MAX_COMPLETION_ATTEMPTS; attempt++) {
 		try {
 			return await _encryptRecordingOnce(recording, storagePath, durationSeconds, fileSizeBytes);
 		} catch (err) {
 			lastErr = err;
+			if (err.encUploaded) accumulatedFlags.encUploaded = true;
+			if (err.plaintextDeleted) accumulatedFlags.plaintextDeleted = true;
 			if (candidateId == null) {
 				candidateId = await resolveRecordingCandidateId(recording).catch(() => null);
 			}
 			if (err.nonRetryable || attempt === MAX_COMPLETION_ATTEMPTS) {
-				return _quarantineRecording(recording, storagePath, candidateId, err, attempt);
+				return _quarantineRecording(recording, storagePath, candidateId, err, attempt, accumulatedFlags);
 			}
 		}
 	}
-	return _quarantineRecording(recording, storagePath, candidateId, lastErr, MAX_COMPLETION_ATTEMPTS);
+	return _quarantineRecording(
+		recording,
+		storagePath,
+		candidateId,
+		lastErr,
+		MAX_COMPLETION_ATTEMPTS,
+		accumulatedFlags,
+	);
 }
 
 /**

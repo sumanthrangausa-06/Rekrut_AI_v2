@@ -518,6 +518,48 @@ describe('gate fix round — C1 atomic guards / G1 .enc ledger / G2 pointer / N3
 	});
 });
 
+describe('privacy delta re-gate — cross-attempt flag accumulation (#1130)', () => {
+	test('attempt 1 uploads .enc then fails retryably on delete-verify; attempts 2-3 fail pre-upload on download → quarantine ledgers BOTH plaintext and .enc, uploads == 1', async () => {
+		const rec = seedRecording();
+		const origDownload = sessionRecordingStore.downloadRecordingObject;
+		const origDeleteVerified = sessionRecordingStore.deleteRecordingObjectVerified;
+		let downloadCalls = 0;
+		sessionRecordingStore.downloadRecordingObject = async (...args) => {
+			downloadCalls++;
+			if (downloadCalls > 1) {
+				const e = new Error('transient download boom');
+				e.code = 'DOWNLOAD_TRANSIENT';
+				throw e;
+			}
+			return origDownload(...args);
+		};
+		sessionRecordingStore.deleteRecordingObjectVerified = async () => {
+			const e = new Error('object still exists after delete');
+			e.code = 'DELETE_VERIFY_FAILED';
+			throw e;
+		};
+		let result;
+		try {
+			result = await livekitService.completeRecordingRecord(rec.id, LOC, 120, PLAIN.length);
+		} finally {
+			sessionRecordingStore.downloadRecordingObject = origDownload;
+			sessionRecordingStore.deleteRecordingObjectVerified = origDeleteVerified;
+		}
+
+		expect(result.completed).toBe(false);
+		expect(result.quarantined).toBe(true);
+		// Exactly one .enc upload happened (attempt 1 only).
+		expect(s3.counts.put).toBe(1);
+		expect(downloadCalls).toBe(3);
+		// The quarantining (final) attempt carries encUploaded=false on its
+		// own — the invocation-scoped monotonic accumulator must still
+		// ledger the .enc uploaded by attempt 1, alongside the plaintext
+		// (which was never deleted).
+		expect(ledger).toHaveLength(2);
+		expect(ledger.map((l) => l.file_url).sort()).toEqual([ENC_LOC, LOC].sort());
+	});
+});
+
 describe('fetchDecryptedRecording (playback/transcription decrypt)', () => {
 	test('destroyed DEK after completion → decrypt throws (never mint-on-read)', async () => {
 		const rec = seedRecording();
