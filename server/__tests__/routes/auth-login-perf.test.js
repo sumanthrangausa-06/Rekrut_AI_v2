@@ -156,6 +156,41 @@ describe('#105 login latency', () => {
 		}
 	});
 
+	it('rehash never overwrites a password changed mid-flight (security C1: compare-and-swap)', async () => {
+		const email = 'perf-cas@example.com';
+		const NEW_PASSWORD = 'ChangedPass1!';
+		const userId = await registerUser(email);
+		await downgradeToCost13(userId);
+
+		// Simulate a password change landing between the login's verify and
+		// its rehash update: intercept the first password_hash UPDATE of the
+		// login and rewrite the stored hash to a NEW password's hash first.
+		const originalImpl = pool.query.getMockImplementation();
+		let intercepted = false;
+		pool.query.mockImplementation(async (sql, params) => {
+			const s = String(sql).toLowerCase();
+			if (!intercepted && s.includes('update users set password_hash')) {
+				intercepted = true;
+				const changedHash = await bcrypt.hash(NEW_PASSWORD, 12);
+				await originalImpl('UPDATE users SET password_hash = $1 WHERE id = $2', [changedHash, userId]);
+			}
+			return originalImpl(sql, params);
+		});
+		try {
+			const res = await request(app).post('/api/auth/login').send({ email, password: PASSWORD });
+			expect(res.status).toBe(200); // the login itself was valid when verified
+			expect(intercepted).toBe(true);
+		} finally {
+			pool.query.mockImplementation(originalImpl);
+		}
+
+		// The mid-flight change must have won: new password works, old doesn't.
+		const withNew = await request(app).post('/api/auth/login').send({ email, password: NEW_PASSWORD });
+		expect(withNew.status).toBe(200);
+		const withOld = await request(app).post('/api/auth/login').send({ email, password: PASSWORD });
+		expect(withOld.status).toBe(401);
+	});
+
 	it('POST /api/auth/login for a converged (cost-12) user completes within the 2s budget', async () => {
 		const email = 'perf-budget@example.com';
 		await registerUser(email);

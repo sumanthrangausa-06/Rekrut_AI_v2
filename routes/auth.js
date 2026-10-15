@@ -451,7 +451,16 @@ router.post('/login', rateLimits.strict, async (req, res) => {
 		if (needsRehash(user.password_hash)) {
 			try {
 				const newHash = await hashPassword(password);
-				await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, user.id]);
+				// C1 (security review, hard condition): compare-and-swap — only
+				// rewrite the exact hash we verified. If the password was
+				// changed/reset (or the credential scrubbed by delete-account)
+				// during the rehash window, this matches 0 rows and the newer
+				// state wins; rowCount 0 is a success outcome, not an error.
+				await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2 AND password_hash = $3', [
+					newHash,
+					user.id,
+					user.password_hash,
+				]);
 			} catch (rehashErr) {
 				try {
 					console.error('[auth] rehash-on-login failed', { userId: user.id, error: rehashErr.code || rehashErr.message });
