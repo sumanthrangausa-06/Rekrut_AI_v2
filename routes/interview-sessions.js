@@ -971,13 +971,26 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 					);
 				}
 				if (completion?.completed !== false) {
-					await pool.query(
+					// DB C1 (#1130 gate fix): atomic guard in the statement
+					// itself — a row concurrently set 'deleted', or whose
+					// candidate DEK is destroyed, matches 0 rows; 0 rows is
+					// NOT treated as completed (operator-logged, the row
+					// keeps its concurrent/terminal state).
+					const finalizeRes = await pool.query(
 						`UPDATE interview_recordings
 					    SET status = 'completed', stopped_at = NOW(), updated_at = NOW(),
 					        retention_expires_at = COALESCE(retention_expires_at, $2)
-					  WHERE id = $1`,
-						[recording.id, livekitService.getRecordingRetentionDate()],
+					  WHERE id = $1
+					    AND status <> 'deleted'
+					    AND NOT EXISTS (SELECT 1 FROM candidate_data_keys
+					                    WHERE candidate_id = $3 AND destroyed_at IS NOT NULL)`,
+						[recording.id, livekitService.getRecordingRetentionDate(), session.candidate_id],
 					);
+					if (finalizeRes.rowCount === 0) {
+						console.error(
+							`[interview-sessions] recording finalize matched 0 rows recording_id=${recording.id} (deleted row or destroyed candidate DEK) — not treated as completed`,
+						);
+					}
 				}
 			}
 			const indicators = turns.filter((t) => t?.frame_indicators).map((t) => t.frame_indicators);

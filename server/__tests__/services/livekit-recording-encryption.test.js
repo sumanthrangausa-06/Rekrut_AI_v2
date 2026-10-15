@@ -115,6 +115,11 @@ const registry = []; // recording_objects rows
 const ledger = []; // pending_storage_deletions rows
 let nextId = 1;
 
+// Gate-fix-round concurrency hooks (C1): fired inside the mock DB at the
+// exact statement where a concurrent erasure could land, so the atomic
+// guards in the statements themselves are what the tests exercise.
+const hooks = { beforeRepoint: null, onRegister: null };
+
 const PLAIN_KEY = 'rekrut-recordings/interview-10-123.mp4';
 const LOC = `s3://test-bucket/${PLAIN_KEY}`;
 const ENC_LOC = `${LOC}.enc`;
@@ -141,7 +146,9 @@ function seedRecording(overrides = {}) {
 
 function routeSql(sql, params = []) {
 	const n = sql.toLowerCase().replace(/\s+/g, ' ').trim();
-	if (n.includes('from candidate_data_keys')) {
+	if (n.startsWith('select') && n.includes('from candidate_data_keys')) {
+		// SELECT-only: the repoint UPDATE also names candidate_data_keys
+		// (its NOT EXISTS guard) and must fall through to the UPDATE branch.
 		const row = deks.get(Number(params[0]));
 		return { rows: row ? [{ ...row }] : [], rowCount: row ? 1 : 0 };
 	}
@@ -164,6 +171,7 @@ function routeSql(sql, params = []) {
 		return { rows: e ? [{ candidate_id: e.candidate_id }] : [], rowCount: e ? 1 : 0 };
 	}
 	if (n.startsWith('insert into recording_objects')) {
+		if (hooks.onRegister) hooks.onRegister();
 		if (!registry.some((r) => r.object_key === params[0])) {
 			registry.push({ object_key: params[0], candidate_id: params[1], expires_at: params[2] });
 		}
@@ -176,6 +184,19 @@ function routeSql(sql, params = []) {
 	if (n.startsWith('update interview_recordings')) {
 		const idParam = [...params].reverse().find((p) => recordings.has(Number(p)));
 		const row = recordings.get(Number(idParam));
+		// C1 atomic guards, evaluated at statement time like a real DB:
+		// the repoint concurrency hook fires first (a concurrent erasure
+		// landing between the destroyed re-check and the repoint).
+		if (row && n.includes("status = 'completed'") && n.includes('encryption_key_id') && hooks.beforeRepoint) {
+			hooks.beforeRepoint();
+		}
+		if (row && n.includes("status not in ('deleted','completed')") && ['deleted', 'completed'].includes(row.status)) {
+			return { rows: [], rowCount: 0 };
+		}
+		if (row && n.includes('not exists') && n.includes('candidate_data_keys')) {
+			const dek = deks.get(Number(params[params.length - 1]));
+			if (dek?.destroyed_at) return { rows: [], rowCount: 0 };
+		}
 		if (row) {
 			if (n.includes("status = 'completed'")) row.status = 'completed';
 			if (n.includes("status = 'failed'")) row.status = 'failed';
@@ -204,6 +225,8 @@ beforeEach(() => {
 	registry.length = 0;
 	ledger.length = 0;
 	nextId = 1;
+	hooks.beforeRepoint = null;
+	hooks.onRegister = null;
 	s3.reset();
 	sessions.set(10, { id: 10, candidate_id: 7 });
 	events.set(31, { id: 31, candidate_id: 8 });
@@ -266,12 +289,24 @@ describe('completeRecordingRecord — happy paths', () => {
 		expect(registry[0].candidate_id).toBe(8);
 	});
 
-	test('idempotent re-run: second completion does not orphan a second .enc or fail on missing plaintext', async () => {
+	test('re-run after a PARTIAL attempt resumes (no orphan second .enc); re-run after completion hits the C1 terminal guard', async () => {
+		// Partial attempt: delete-verify fails once → quarantined/failed,
+		// then the retry resumes on the same deterministic .enc.
+		s3.fail.deleteLeavesObject = true;
 		const rec = seedRecording();
-		await livekitService.completeRecordingRecord(rec.id, LOC, 120, PLAIN.length);
-		const result2 = await livekitService.completeRecordingRecord(rec.id, LOC, 120, PLAIN.length);
+		const partial = await livekitService.completeRecordingRecord(rec.id, LOC, 120, PLAIN.length);
+		expect(partial.completed).toBe(false);
+		s3.fail.deleteLeavesObject = false;
+		const resumed = await livekitService.completeRecordingRecord(rec.id, LOC, 120, PLAIN.length);
+		expect(resumed.completed).toBe(true);
+		expect(recordings.get(rec.id).status).toBe('completed');
+		expect(registry).toHaveLength(1);
+		expect([...s3.objects.keys()].filter((k) => k.endsWith('.enc'))).toHaveLength(1);
 
-		expect(result2.completed).toBe(true);
+		// C1 (gate fix round): 'completed' is terminal for the repoint —
+		// a second completion does NOT re-complete or mutate the row.
+		const result2 = await livekitService.completeRecordingRecord(rec.id, LOC, 120, PLAIN.length);
+		expect(result2.completed).toBe(false);
 		expect(recordings.get(rec.id).status).toBe('completed');
 		expect(registry).toHaveLength(1);
 		expect([...s3.objects.keys()].filter((k) => k.endsWith('.enc'))).toHaveLength(1);
@@ -328,7 +363,11 @@ describe('completeRecordingRecord — fail-closed quarantine', () => {
 		expect(result.completed).toBe(false);
 		expect(recordings.get(rec.id).status).toBe('failed');
 		expect(recordings.get(rec.id).storage_path == null || !String(recordings.get(rec.id).storage_path).includes('.enc')).toBe(true);
-		expect(ledger).toHaveLength(1);
+		// G1: BOTH objects are ledgered — the surviving plaintext AND the
+		// uploaded .enc (the .enc row is inserted independent of the
+		// plaintext-ledger skip).
+		expect(ledger).toHaveLength(2);
+		expect(ledger.map((l) => l.file_url).sort()).toEqual([ENC_LOC, LOC].sort());
 	});
 
 	test('over-cap (egress-reported size) → quarantine BEFORE download; plaintext NOT deleted by encrypt path', async () => {
@@ -353,6 +392,88 @@ describe('completeRecordingRecord — fail-closed quarantine', () => {
 		expect(recordings.get(rec.id).status).toBe('failed');
 		expect(s3.objects.has(PLAIN_KEY)).toBe(true);
 		expect(ledger).toHaveLength(1);
+	});
+});
+
+describe('gate fix round — C1 atomic guards / G1 .enc ledger / G2 pointer / N3', () => {
+	test('C1: row concurrently set deleted at repoint → 0-row guard → quarantine, NOT completed:true; fail-marking cannot flip it either', async () => {
+		const rec = seedRecording();
+		hooks.beforeRepoint = () => {
+			recordings.get(rec.id).status = 'deleted';
+		};
+		const result = await livekitService.completeRecordingRecord(rec.id, LOC, 120, PLAIN.length);
+
+		expect(result.completed).toBe(false);
+		expect(result.quarantined).toBe(true);
+		// The concurrent 'deleted' state is terminal — neither the repoint
+		// nor the quarantine fail-marking may move it.
+		expect(recordings.get(rec.id).status).toBe('deleted');
+		// G1/N3: plaintext was verified-deleted (no plaintext ledger row),
+		// but the uploaded .enc IS ledgered for the Phase-2 drain.
+		expect(ledger).toHaveLength(1);
+		expect(ledger[0].file_url).toBe(ENC_LOC);
+		expect(ledger[0].user_id).toBe(7);
+	});
+
+	test('C1: DEK destroyed at repoint → NOT EXISTS guard → 0 rows → quarantine, NOT completed:true', async () => {
+		await biometricCrypto.getOrCreateDEK(7);
+		const rec = seedRecording();
+		hooks.beforeRepoint = () => {
+			deks.get(7).destroyed_at = new Date();
+		};
+		const result = await livekitService.completeRecordingRecord(rec.id, LOC, 120, PLAIN.length);
+
+		expect(result.completed).toBe(false);
+		expect(result.quarantined).toBe(true);
+		expect(recordings.get(rec.id).status).toBe('failed');
+		expect(ledger.map((l) => l.file_url)).toEqual([ENC_LOC]);
+	});
+
+	test('C1: failRecordingRecord cannot flip a deleted or completed row (terminal guard), still fails a live row', async () => {
+		const deleted = seedRecording({ status: 'deleted' });
+		const completed = seedRecording({ status: 'completed' });
+		const live = seedRecording({ status: 'recording' });
+
+		await livekitService.failRecordingRecord(deleted.id, 'x');
+		await livekitService.failRecordingRecord(completed.id, 'x');
+		await livekitService.failRecordingRecord(live.id, 'x');
+
+		expect(recordings.get(deleted.id).status).toBe('deleted');
+		expect(recordings.get(completed.id).status).toBe('completed');
+		expect(recordings.get(live.id).status).toBe('failed');
+	});
+
+	test('G1+G2+N3: DEK destroyed after verified delete (deviation-1 branch) → .enc ledgered, plaintext NOT re-ledgered, failed row carries the plaintext pointer', async () => {
+		await biometricCrypto.getOrCreateDEK(7);
+		const rec = seedRecording();
+		hooks.onRegister = () => {
+			deks.get(7).destroyed_at = new Date();
+		};
+		const result = await livekitService.completeRecordingRecord(rec.id, LOC, 120, PLAIN.length);
+
+		expect(result.completed).toBe(false);
+		const row = recordings.get(rec.id);
+		expect(row.status).toBe('failed');
+		// Plaintext really is gone (verified delete happened)…
+		expect(s3.objects.has(PLAIN_KEY)).toBe(false);
+		// …so NO plaintext ledger row (N3), but the .enc IS ledgered (G1).
+		expect(ledger).toHaveLength(1);
+		expect(ledger[0].file_url).toBe(ENC_LOC);
+		expect(ledger[0].user_id).toBe(7);
+		// G2: the failed row carries the shared-key-encrypted PLAIN
+		// pointer, so GAP-A enumeration reaches it by construction.
+		expect(livekitService.decryptStoragePath(row)).toBe(LOC);
+	});
+
+	test('G2: delete-verify-failure quarantine → failed row carries the plaintext pointer', async () => {
+		s3.fail.deleteLeavesObject = true;
+		const rec = seedRecording();
+		const result = await livekitService.completeRecordingRecord(rec.id, LOC, 120, PLAIN.length);
+
+		expect(result.completed).toBe(false);
+		const row = recordings.get(rec.id);
+		expect(row.status).toBe('failed');
+		expect(livekitService.decryptStoragePath(row)).toBe(LOC);
 	});
 });
 

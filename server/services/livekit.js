@@ -815,6 +815,10 @@ async function _encryptRecordingOnce(recording, storagePath, durationSeconds, fi
 
 	const encLocation = sessionRecordingStore.encLocationFor(storagePath);
 	let plaintextDeleted = false;
+	// G1 (#1130 gate fix): set BEFORE the upload attempt — whenever the
+	// .enc upload may have occurred, quarantine must ledger the .enc
+	// location too (mirrors plaintextDeleted's role for the plaintext).
+	let encUploaded = false;
 
 	// Download the landed plaintext (counting stream aborts over the cap
 	// when the egress size is unknown). Already-encrypted re-runs resume.
@@ -827,6 +831,7 @@ async function _encryptRecordingOnce(recording, storagePath, durationSeconds, fi
 				if (err.code === 'NOT_FOUND' && existingEnc) {
 					alreadyEncrypted = true;
 					plaintextDeleted = true; // plaintext already gone from a prior attempt
+					encUploaded = true; // the .enc is the surviving copy
 					return null;
 				}
 				throw err;
@@ -848,64 +853,96 @@ async function _encryptRecordingOnce(recording, storagePath, durationSeconds, fi
 				candidateId,
 				recording.id,
 			);
+			encUploaded = true; // the upload may land even if its ack is lost
 			await sessionRecordingStore.uploadEncryptedObject(storagePath, envelope);
 		}
 	} catch (err) {
 		if (err.code === 'RECORDING_TOO_LARGE') err.nonRetryable = true;
-		throw err;
-	}
-
-	// Register the .enc (candidate-keyed, 90-day expiry — R-7). Intent is
-	// recorded before the plaintext delete so a crash never leaves an
-	// unregistered .enc as the only copy.
-	await pool.query(
-		`INSERT INTO recording_objects (object_key, candidate_id, object_type, expires_at)
-		 VALUES ($1, $2, 'recording', $3)
-		 ON CONFLICT (object_key) DO NOTHING`,
-		[encLocation, candidateId, getRecordingRetentionDate()],
-	);
-
-	// Verified delete of the plaintext original (explicit result +
-	// existence check inside deleteRecordingObjectVerified).
-	if (!plaintextDeleted) {
-		await sessionRecordingStore.deleteRecordingObjectVerified(storagePath);
-		plaintextDeleted = true;
-	}
-
-	// Re-check destroyed_at before repoint (observer precedent): a DEK
-	// destroyed mid-completion must not produce a completed recording.
-	if (await _isDEKDestroyedNow(candidateId)) {
-		const err = new Error(
-			`[livekit] recording ${recording.id}: candidate DEK destroyed before repoint — escalating`,
-		);
-		err.code = 'DEK_DESTROYED';
-		err.nonRetryable = true;
+		// Carry the ledgering flags into quarantine (G1 / N3).
 		err.plaintextDeleted = plaintextDeleted;
+		err.encUploaded = encUploaded;
 		throw err;
 	}
 
-	// Repoint: storage_path keeps the EXISTING shared-key pointer format
-	// (R-7), now naming the .enc location; the row is marked (.enc key +
-	// encryption_key_id). Only then status='completed'.
-	const encryptedPath = encryption.encrypt(Buffer.from(encLocation));
-	await pool.query(
-		`UPDATE interview_recordings
-		 SET status = 'completed',
-		     stopped_at = NOW(),
-		     duration_seconds = $1,
-		     storage_path = $2,
-		     file_size_bytes = $3,
-		     encryption_key_id = $4,
-		     updated_at = NOW()
-		 WHERE id = $5`,
-		[
-			durationSeconds,
-			encryptedPath,
-			fileSizeBytes ?? recording.file_size_bytes ?? null,
-			sessionRecordingStore.ENCRYPTION_KEY_ID,
-			recording.id,
-		],
-	);
+	try {
+		// Register the .enc (candidate-keyed, 90-day expiry — R-7). Intent is
+		// recorded before the plaintext delete so a crash never leaves an
+		// unregistered .enc as the only copy.
+		await pool.query(
+			`INSERT INTO recording_objects (object_key, candidate_id, object_type, expires_at)
+			 VALUES ($1, $2, 'recording', $3)
+			 ON CONFLICT (object_key) DO NOTHING`,
+			[encLocation, candidateId, getRecordingRetentionDate()],
+		);
+
+		// Verified delete of the plaintext original (explicit result +
+		// existence check inside deleteRecordingObjectVerified).
+		if (!plaintextDeleted) {
+			await sessionRecordingStore.deleteRecordingObjectVerified(storagePath);
+			plaintextDeleted = true;
+		}
+
+		// Re-check destroyed_at before repoint (observer precedent): a DEK
+		// destroyed mid-completion must not produce a completed recording.
+		// DB N3: this throw is post-verified-delete — the catch below stamps
+		// plaintextDeleted=true on it (and on EVERY post-delete throw), so
+		// quarantine never ledgers an already-deleted plaintext key.
+		if (await _isDEKDestroyedNow(candidateId)) {
+			const err = new Error(
+				`[livekit] recording ${recording.id}: candidate DEK destroyed before repoint — escalating`,
+			);
+			err.code = 'DEK_DESTROYED';
+			err.nonRetryable = true;
+			throw err;
+		}
+
+		// Repoint: storage_path keeps the EXISTING shared-key pointer format
+		// (R-7), now naming the .enc location; the row is marked (.enc key +
+		// encryption_key_id). Only then status='completed'.
+		// DB C1: the guard is atomic IN the statement — a row concurrently
+		// set 'deleted'/'completed', or whose candidate DEK was destroyed
+		// after the re-check above, matches 0 rows; 0 rows escalates into
+		// quarantine, never { completed: true }.
+		const encryptedPath = encryption.encrypt(Buffer.from(encLocation));
+		const repoint = await pool.query(
+			`UPDATE interview_recordings
+			 SET status = 'completed',
+			     stopped_at = NOW(),
+			     duration_seconds = $1,
+			     storage_path = $2,
+			     file_size_bytes = $3,
+			     encryption_key_id = $4,
+			     updated_at = NOW()
+			 WHERE id = $5
+			   AND status NOT IN ('deleted','completed')
+			   AND NOT EXISTS (SELECT 1 FROM candidate_data_keys
+			                   WHERE candidate_id = $6 AND destroyed_at IS NOT NULL)`,
+			[
+				durationSeconds,
+				encryptedPath,
+				fileSizeBytes ?? recording.file_size_bytes ?? null,
+				sessionRecordingStore.ENCRYPTION_KEY_ID,
+				recording.id,
+				candidateId,
+			],
+		);
+		if (!repoint.rowCount) {
+			const err = new Error(
+				`[livekit] recording ${recording.id}: repoint matched 0 rows (concurrent deleted/completed state or destroyed DEK) — escalating`,
+			);
+			err.code = 'REPOINT_GUARDED';
+			err.nonRetryable = true;
+			throw err;
+		}
+	} catch (err) {
+		// DB N3 + G1: stamp the CURRENT flags on every throw from the
+		// register/delete/repoint section — post-verified-delete throws
+		// carry plaintextDeleted=true, and any throw after the upload
+		// attempt carries encUploaded=true.
+		err.plaintextDeleted = plaintextDeleted;
+		err.encUploaded = encUploaded;
+		throw err;
+	}
 	return { completed: true, candidateId, encLocation };
 }
 
@@ -922,9 +959,30 @@ async function _quarantineRecording(recording, storagePath, candidateId, err, at
 			await pool.query(
 				`INSERT INTO pending_storage_deletions (user_id, file_url, storage_type, status, source_family)
 				 VALUES ($1, $2, 'r2', 'pending', 'livekit_recording')`,
-				// user_id 0 sentinel when no candidate is resolvable: no real
-				// user owns the row, so no user's erasure drain can claim it.
+				// user_id 0 sentinel when no candidate is resolvable.
+				// DB C2 (verified mechanism): the S-077 sweep enumerates
+				// `SELECT DISTINCT user_id FROM pending_storage_deletions
+				// WHERE status='pending'` with NO user_id filter
+				// (lib/erasureService.js sweepPendingStorageDeletions), so
+				// sentinel-0 rows ARE sweep-selected and drained by the
+				// sweep; what they cannot be claimed by is a PER-USER
+				// erasure drain (no real user has id 0).
 				[candidateId ?? 0, storagePath],
+			);
+		}
+		// G1: the .enc object is ledgered INDEPENDENT of the plaintext
+		// skip above — whenever the upload may have occurred (including
+		// the post-verified-delete branch, where the plaintext row is
+		// correctly skipped), the surviving .enc must reach the Phase-2
+		// drain or it would be an unledgered orphan copy.
+		if (err?.encUploaded) {
+			await pool.query(
+				`INSERT INTO pending_storage_deletions (user_id, file_url, storage_type, status, source_family)
+				 VALUES ($1, $2, 'r2', 'pending', 'livekit_recording')`,
+				[
+					candidateId ?? 0,
+					sessionRecordingStore.encLocationFor(storagePath),
+				],
 			);
 		}
 	} catch (ledgerErr) {
@@ -933,7 +991,12 @@ async function _quarantineRecording(recording, storagePath, candidateId, err, at
 		);
 	}
 	try {
-		await failRecordingRecord(recording.id, err?.message);
+		// G2: persist the shared-key-encrypted PLAINTEXT pointer on the
+		// failed row in the same update that marks it failed, so GAP-A
+		// erasure enumeration (which decrypts the row's pointer) reaches
+		// quarantined plaintext by construction.
+		const plaintextPointer = encryption.encrypt(Buffer.from(storagePath));
+		await failRecordingRecord(recording.id, err?.message, { storagePath: plaintextPointer });
 	} catch (_e) {
 		/* the operator log below is the durable signal */
 	}
@@ -1017,16 +1080,34 @@ async function fetchDecryptedRecording(recording) {
 
 /**
  * Mark a recording as failed.
+ * DB C1: the guard excludes terminal rows — a 'deleted'/'completed' row
+ * is never flipped to 'failed'; 0 rows matched is a no-op success (the
+ * row is already in a terminal state), not an error.
  * @param {number} recordingId
  * @param {string} [reason]
+ * @param {object} [opts]
+ * @param {Buffer} [opts.storagePath] - G2: shared-key-encrypted storage
+ *   pointer persisted in the same update (quarantine path only).
  */
-async function failRecordingRecord(recordingId, _reason) {
+async function failRecordingRecord(recordingId, _reason, opts = {}) {
+	if (opts.storagePath) {
+		await pool.query(
+			`UPDATE interview_recordings
+			 SET status = 'failed',
+			     stopped_at = NOW(),
+			     storage_path = $2,
+			     updated_at = NOW()
+			 WHERE id = $1 AND status NOT IN ('deleted','completed')`,
+			[recordingId, opts.storagePath],
+		);
+		return;
+	}
 	await pool.query(
 		`UPDATE interview_recordings
 		 SET status = 'failed',
 		     stopped_at = NOW(),
 		     updated_at = NOW()
-		 WHERE id = $1`,
+		 WHERE id = $1 AND status NOT IN ('deleted','completed')`,
 		[recordingId],
 	);
 }
