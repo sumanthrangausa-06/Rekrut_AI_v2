@@ -150,6 +150,24 @@ describe('POST /api/company/transfer-ownership — old-owner demotion (Issue #76
 		expect(revoke.sql).toMatch(/where name = 'owner'/);
 	});
 
+	it("never issues UPDATE users SET role = 'owner' during transfer (Issue #1140)", async () => {
+		const res = await request(app)
+			.post('/api/company/transfer-ownership')
+			.send({ newOwnerId: 2 });
+
+		expect(res.status).toBe(200);
+
+		// chk_users_role (migration 047) forbids 'owner' in users.role — this
+		// write rolls the whole transfer back where the CHECK exists.
+		const ownerWrites = issuedUpdates.filter((u) => /role = 'owner'/i.test(u.sql));
+		expect(ownerWrites).toHaveLength(0);
+
+		// Ownership still moves via RBAC: old owner's owner role revoked,
+		// new owner's owner role granted.
+		expect(issuedUpdates.some((u) => u.sql.startsWith('delete from user_roles'))).toBe(true);
+		expect(issuedUpdates.some((u) => u.sql.startsWith('insert into user_roles'))).toBe(true);
+	});
+
 	it('grants the new owner the RBAC owner role (user_roles)', async () => {
 		const res = await request(app)
 			.post('/api/company/transfer-ownership')

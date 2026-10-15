@@ -206,7 +206,6 @@ jest.mock('../../../lib/db', () => {
 				if (normalized === 'begin') return {};
 				if (normalized.includes('update companies set owner_id')) return { rows: [] };
 				if (normalized.includes("update users set role = 'admin'")) return { rows: [] };
-				if (normalized.includes("update users set role = 'owner'")) return { rows: [] };
 				if (normalized === 'commit') return {};
 				if (normalized === 'rollback') return {};
 				return { rows: [], rowCount: 0 };

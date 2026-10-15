@@ -1320,11 +1320,6 @@ router.post(
 					[req.user.id, company.id],
 				);
 
-				// Update new owner's role to owner
-				await client.query("UPDATE users SET role = 'owner', updated_at = NOW() WHERE id = $1", [
-					newOwnerId,
-				]);
-
 				// Grant new owner the RBAC 'owner' role (mirrors employer
 				// signup in routes/auth.js)
 				await client.query(
