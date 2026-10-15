@@ -159,6 +159,23 @@ Verification of the window: **Relay/Suga, activation-blocking (C-L2)**.
   candidate-facing erasure confirmation must say so; over-promising, not
   the limitation, is the exposure. Confirmation wording: **counsel**.
 
+**Status after GAP-J (#1129):** A processor & log retention inventory
+now exists ([processor-log-retention-inventory.md](processor-log-retention-inventory.md)).
+Each entry records the data classes sent, the first-party control, the
+designed disposition, and the evidence state. Dispositions are
+DESIGNED, NOT IMPLEMENTED: no processor-side deletion is performed by
+erasePersonalData() today, and no vendor retention period, deletion
+SLA, training use, or DPA state in the inventory is verified — every
+vendor-side entry is marked NOT VERIFIED pending vendor-terms review
+(tracked, §6.2 / #788 pattern; nothing sent). Follow-on builds filed
+from the inventory: #1179, #1180, #1181, #1182. Until a follow-on
+lands and its entry is re-marked, no erasure may be described —
+internally or to a candidate — as reaching processor copies,
+application/error logs, or telemetry. Counsel-open items unchanged
+and named: processor-deletion contract wording; erasure-confirmation
+wording (including the already-disclosed-data limitation in this
+section).
+
 ### 4.4 Out of candidate-erasure scope — stated, not silent
 **Payroll / employee records** (`employees`, `paychecks`, `payroll_configs`
 — incl. bank routing last-4, salary, tax status — `tax_documents`) are the
@@ -202,7 +219,7 @@ MUST-ERASE line's verdict:
 | K-3/K-4/K-7/K-9 skeletons | **Clocks/bases open; K-4/K-9 need rulings** | §6 (R-1, R-2, R-5) + counsel |
 | Ledger terminal state | **SHIPPED (#1128):** drained `pending_storage_deletions` rows (`status='deleted'`, `updated_at` older than the 7-day grace) are terminally purged by `purgeDrainedStorageDeletions` (per-user transactions, legal-hold consult fail-closed before and inside the tx), folded into one bounded key-free `audit_logs` record per user (`storage_deletion_ledger_purged` — counts, family/type breakdowns, attempts total, timestamp bounds, SHA-256 digest of the purged ledger **IDs**); `pending`/`failed` rows are never purged and never folded as deleted (`failed` rows remain a dead letter until #1171) | **GAP-I (#1128)** |
 | §4.2 Backups | **NOT VERIFIED** | C-L2 (existing, activation-blocking) |
-| §4.3 Processors/logs | **No inventory or retention exists** | **GAP-J** (new) |
+| §4.3 Processors/logs | **INVENTORY DESIGNED — propagation NOT BUILT; vendor retentions NOT VERIFIED** | **GAP-J (#1129); builds: #1179–#1182; counsel: §6.2** |
 
 ### Gap register for Lead to file (one story per root-cause family — the
 ### S-076/S-078/#813 filing pattern; this doc is the spec basis for each)
@@ -279,7 +296,11 @@ necessity/limitation mapping for the skeletons · crypto-shredding
 sufficiency (K-8) · backup-expunge disclosure wording + the PITR window
 (§4.2, with C-L2 verification) · billing statute/period per jurisdiction
 (K-6) · legal-hold discipline cadence (K-5) · processor-deletion contract
-wording (§4.3) · erasure-confirmation wording (§4.3) · C-NEW-01 / C-NEW-03
+wording (§4.3) (inventory: #1129; tracker items C-P*) ·
+erasure-confirmation wording (§4.3) · B-J3 — expiry-only reliance
+(GAP-J boundary register, #1129) · B-J4 — AI-provider
+retention/training acceptance (GAP-J boundary register, #1129) ·
+C-NEW-01 / C-NEW-03
 (§4.1) · the standing tracker (C-01–C-08, #788) is unchanged by this doc.
 
 ---
