@@ -1,0 +1,18 @@
+{
+  "careersBySlug": 200,
+  "careersById": 200,
+  "careersAuthedDefault": 200,
+  "companyPublic": 200,
+  "joinRequests": 200,
+  "savedJobs": 200,
+  "myApplications": 200,
+  "referrals": 200,
+  "matchingRecommendations": 200,
+  "companyMatches": 400,
+  "recruiterCandidates": 200,
+  "trustLeaderboard": 500,
+  "trustLeaderboardNoAuth": 500,
+  "adminDataRequests": 200,
+  "adminConsents": 200,
+  "adminAppeals": 200
+}
