@@ -85,8 +85,15 @@ jest.mock('../../lib/db', () => {
 		if (normalized.includes('update users set password_hash')) {
 			const newHash = params[0];
 			const userId = params[1];
+			// #105 C1: the rehash-on-login update is compare-and-swap
+			// (… AND password_hash = $3). Honour the predicate so tests can
+			// prove a mid-flight password change is never overwritten.
+			const casExpected = normalized.includes('and password_hash') ? params[2] : undefined;
 			for (const user of mockUsers.values()) {
 				if (user.id === userId) {
+					if (casExpected !== undefined && user.password_hash !== casExpected) {
+						return { rows: [], rowCount: 0 };
+					}
 					user.password_hash = newHash;
 					break;
 				}
