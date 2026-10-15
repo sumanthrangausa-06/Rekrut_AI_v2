@@ -11,6 +11,8 @@ const {
 	rotateRefreshToken,
 	revokeAllTokens,
 	authMiddleware,
+	hashPassword,
+	needsRehash,
 } = require('../lib/auth');
 
 const { AuditLogger } = require('../services/auditLogService');
@@ -137,7 +139,7 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 		}
 
 		// Hash password
-		const password_hash = await bcrypt.hash(password, 13);
+		const password_hash = await hashPassword(password);
 
 		// Create user
 		const result = await pool.query(
@@ -444,6 +446,19 @@ router.post('/login', rateLimits.strict, async (req, res) => {
 			console.log(logMsg);
 			logAuth(logMsg);
 			return res.status(401).json({ error: 'Invalid credentials' });
+		}
+
+		if (needsRehash(user.password_hash)) {
+			try {
+				const newHash = await hashPassword(password);
+				await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, user.id]);
+			} catch (rehashErr) {
+				try {
+					console.error('[auth] rehash-on-login failed', { userId: user.id, error: rehashErr.code || rehashErr.message });
+				} catch (_logErr) {
+					// F-1: logging must never fail the login.
+				}
+			}
 		}
 
 		const accessToken = generateToken(user);
@@ -1634,7 +1649,7 @@ router.post('/reset-password', rateLimits.strict, async (req, res) => {
 		}
 
 		// Hash new password
-		const passwordHash = await bcrypt.hash(password, 13);
+		const passwordHash = await hashPassword(password);
 
 		// Update user password
 		await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
@@ -1685,7 +1700,7 @@ router.post('/password', authMiddleware, rateLimits.strict, async (req, res) => 
 			return res.status(400).json({ error: getPasswordPolicyMessage(user.role) });
 		}
 
-		const passwordHash = await bcrypt.hash(newPassword, 13);
+		const passwordHash = await hashPassword(newPassword);
 		await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, user.id]);
 
 		// Invalidate every session, then re-issue for this one

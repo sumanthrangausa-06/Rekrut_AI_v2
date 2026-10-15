@@ -17,8 +17,9 @@ try {
 let verifyToken;
 let authMiddleware;
 let requireRole;
+let hashPassword;
 try {
-	({ verifyToken, authMiddleware, requireRole } = require('../lib/auth'));
+	({ verifyToken, authMiddleware, requireRole, hashPassword } = require('../lib/auth'));
 } catch (_e) {
 	verifyToken = () => null;
 }
@@ -90,7 +91,7 @@ async function initAdminCredentials() {
 		);
 	}
 
-	ADMIN_PASSWORD_HASH = await bcrypt.hash(password, 13);
+	ADMIN_PASSWORD_HASH = await hashPassword(password);
 	console.log('[admin] Admin credentials loaded from env vars');
 }
 
