@@ -257,11 +257,12 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 			// Set company owner
 			await client.query('UPDATE companies SET owner_id = $1 WHERE id = $2', [user.id, company.id]);
 
-			// Initialize TrustScore
+			// Initialize TrustScore (#1192: honest null until a component
+			// computes a real score — never a readable STARTING 500)
 			await client.query(
 				`INSERT INTO trust_scores (company_id, total_score, score_tier)
-         VALUES ($1, $2, 'new')`,
-				[company.id, 500],
+         VALUES ($1, NULL, NULL)`,
+				[company.id],
 			);
 
 			// Add verification bonus for work email (domain verified)

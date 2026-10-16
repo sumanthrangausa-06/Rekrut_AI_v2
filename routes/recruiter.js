@@ -3851,7 +3851,7 @@ router.get(
              cp.headline, cp.years_experience,
              mr.matching_skills, mr.missing_skills,
              -- Composite rank: 50% OmniScore + 50% match_score
-             (COALESCE(os.total_score, 300) * 0.5 + COALESCE(ja.match_score, 50) * 0.5 * 8.5) as composite_score
+             (COALESCE(os.total_score, 0) * 0.5 + COALESCE(ja.match_score, 50) * 0.5 * 8.5) as composite_score
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id

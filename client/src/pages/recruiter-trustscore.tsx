@@ -22,14 +22,14 @@ import { apiCall } from '@/lib/api';
 // ─── Types ──────────────────────────────────────────────────
 
 interface V1Score {
-	total_score: number;
+	total_score: number | null;
 	verification: number;
 	job_authenticity: number;
 	hiring_ratio: number;
 	feedback: number;
 	behavior: number;
-	tier: string;
-	tier_label: string;
+	tier: string | null;
+	tier_label: string | null;
 	tier_color: string;
 }
 
@@ -64,9 +64,9 @@ interface BreakdownResponse {
 	success: boolean;
 	current: V1Score;
 	v2: {
-		total_score: number;
-		v1_score: number;
-		v2_score: number;
+		total_score: number | null;
+		v1_score: number | null;
+		v2_score: number | null;
 		employee_satisfaction: number;
 		interview_experience: number;
 		offer_acceptance_rate: number;
@@ -75,8 +75,8 @@ interface BreakdownResponse {
 		salary_competitiveness: number;
 		diversity_metrics: number;
 		career_growth: number;
-		tier: string;
-		tier_label: string;
+		tier: string | null;
+		tier_label: string | null;
 		tier_color: string;
 		data_sufficiency?: {
 			overall: number;
@@ -292,10 +292,15 @@ export function RecruiterTrustscorePage() {
 	}
 
 	const v2 = breakdown.v2;
+	// #1239: totals are nullable (#1192 honest-null contract). A null total
+	// is "no score yet" — every derived number below stays null with it,
+	// never 0 and never NaN.
 	const overallScore = v2?.total_score ?? trustscore.total_score;
+	const hasScore = overallScore != null;
 	const previousScore =
 		breakdown.history.length > 0 ? breakdown.history[0].previous_score : overallScore;
-	const scoreChange = overallScore - previousScore;
+	const scoreChange =
+		overallScore != null && previousScore != null ? overallScore - previousScore : null;
 
 	// Combine v1 + v2 components for display
 	const allComponents = [
@@ -343,29 +348,37 @@ export function RecruiterTrustscorePage() {
 								<div className="relative">
 									<div
 										className={`w-24 h-24 rounded-full flex items-center justify-center border-4 ${
-											overallScore >= 700
-												? 'border-green-500/30 bg-green-500/10'
-												: overallScore >= 400
-													? 'border-yellow-500/30 bg-yellow-500/10'
-													: 'border-red-500/30 bg-red-500/10'
+											!hasScore
+												? 'border-slate-500/30 bg-slate-500/10'
+												: overallScore >= 700
+													? 'border-green-500/30 bg-green-500/10'
+													: overallScore >= 400
+														? 'border-yellow-500/30 bg-yellow-500/10'
+														: 'border-red-500/30 bg-red-500/10'
 										}`}
 									>
-										<span
-											className={`text-4xl font-bold ${
-												overallScore >= 700
-													? 'text-green-400'
-													: overallScore >= 400
-														? 'text-yellow-400'
-														: 'text-red-400'
-											}`}
-										>
-											{overallScore}
-										</span>
+										{hasScore ? (
+											<span
+												className={`text-4xl font-bold ${
+													overallScore >= 700
+														? 'text-green-400'
+														: overallScore >= 400
+															? 'text-yellow-400'
+															: 'text-red-400'
+												}`}
+											>
+												{overallScore}
+											</span>
+										) : (
+											<span className="text-sm font-medium text-gray-400 text-center px-2">
+												Insufficient data
+											</span>
+										)}
 									</div>
 									<div className="absolute -bottom-1 -right-1 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg">
-										{scoreChange > 0 ? (
+										{scoreChange != null && scoreChange > 0 ? (
 											<TrendingUp className="w-5 h-5 text-green-500" />
-										) : scoreChange < 0 ? (
+										) : scoreChange != null && scoreChange < 0 ? (
 											<TrendingDown className="w-5 h-5 text-red-500" />
 										) : (
 											<div className="w-2 h-2 bg-gray-400 rounded-full" />
@@ -375,17 +388,20 @@ export function RecruiterTrustscorePage() {
 								<div>
 									<h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">TrustScore</h1>
 									<p className="text-gray-400">
-										{scoreChange > 0 ? '+' : ''}
-										{scoreChange} from last update
+										{scoreChange != null
+											? `${scoreChange > 0 ? '+' : ''}${scoreChange} from last update`
+											: 'No score yet'}
 									</p>
 									<div className="flex items-center gap-2 mt-2 flex-wrap">
-										<Badge className={tierBadgeClass(v2?.tier || trustscore.tier)}>
-											<Shield className="w-3 h-3 mr-1" />
-											{v2?.tier_label || trustscore.tier_label}
-										</Badge>
+										{(v2?.tier_label || trustscore.tier_label) && (
+											<Badge className={tierBadgeClass(v2?.tier || trustscore.tier || '')}>
+												<Shield className="w-3 h-3 mr-1" />
+												{v2?.tier_label || trustscore.tier_label}
+											</Badge>
+										)}
 										<span className="text-sm text-gray-500">Updated daily</span>
 									</div>
-									{v2?.data_sufficiency && v2.data_sufficiency.overall < 50 && (
+									{hasScore && v2?.data_sufficiency && v2.data_sufficiency.overall < 50 && (
 										<Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 mt-2">
 											<AlertTriangle className="w-3 h-3 mr-1" />
 											Insufficient Data ({v2.data_sufficiency.overall}%)
@@ -395,8 +411,12 @@ export function RecruiterTrustscorePage() {
 							</div>
 							<div className="text-right">
 								<p className="text-sm text-gray-400 mb-1">V1 Score</p>
-								<p className="text-2xl font-bold text-white">{trustscore.total_score}</p>
-								<p className="text-xs text-gray-500 mt-1">V2: {v2?.v2_score ?? 0} pts</p>
+								<p className="text-2xl font-bold text-white">
+									{trustscore.total_score ?? 'N/A'}
+								</p>
+								<p className="text-xs text-gray-500 mt-1">
+									V2: {v2?.v2_score != null ? `${v2.v2_score} pts` : 'N/A'}
+								</p>
 							</div>
 						</div>
 					</CardContent>

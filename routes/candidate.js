@@ -3592,7 +3592,7 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 				omniscore:
 					v.omni_score != null
 						? { total_score: v.omni_score, score_tier: v.score_tier }
-						: { total_score: 300, score_tier: 'new' },
+						: { total_score: null, score_tier: null },
 				profile_completeness: completeness,
 				missing_sections: missingSections,
 				skills: {

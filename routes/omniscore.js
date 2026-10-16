@@ -186,8 +186,8 @@ router.get('/company-score/:companyId', authMiddleware, async (req, res) => {
 			company: companyResult.rows[0],
 			trust_score: {
 				score: calculated.total_score,
-				tier: calculated.tier,
-				tier_label: tierInfo?.label || 'New Employer',
+				tier: calculated.total_score == null ? null : calculated.tier,
+				tier_label: calculated.total_score == null ? null : tierInfo?.label || 'New Employer',
 				tier_color: tierInfo?.color || '#94a3b8',
 				breakdown: {
 					verification: { score: calculated.verification, max: 200, label: 'Company Verification' },
@@ -395,8 +395,11 @@ router.get('/mutual-matches', authMiddleware, async (req, res) => {
 
 		// Calculate mutual fit for each
 		const matches = result.rows.map((row) => {
-			const candidateStrength = (candidateScores.total_score - 300) / 550; // 0-1 scale
-			const companyStrength = (row.company_trust_score || 500) / 1000; // 0-1 scale
+			// #1192: null scores contribute 0 strength — never NaN, never the
+			// old || 500 trust fallback that invented a mid-tier company.
+			const candidateStrength =
+				candidateScores.total_score == null ? 0 : (candidateScores.total_score - 300) / 550; // 0-1 scale
+			const companyStrength = row.company_trust_score == null ? 0 : row.company_trust_score / 1000; // 0-1 scale
 			const matchStrength = (row.match_score || 50) / 100; // 0-1 scale
 
 			// Mutual fit: geometric mean of all three signals
@@ -416,8 +419,8 @@ router.get('/mutual-matches', authMiddleware, async (req, res) => {
 				mutual_fit_score: mutualFit,
 				mutual_level: mutualLevel,
 				signals: {
-					your_score: `OmniScore ${candidateScores.total_score} (${candidateScores.tier_label})`,
-					company_score: `TrustScore ${row.company_trust_score || 'N/A'} (${row.company_tier || 'new'})`,
+					your_score: `OmniScore ${candidateScores.total_score ?? 'N/A'} (${candidateScores.tier_label ?? 'Insufficient data'})`,
+					company_score: `TrustScore ${row.company_trust_score || 'N/A'} (${row.company_trust_score == null ? 'Insufficient data' : row.company_tier || 'new'})`,
 					skill_match: `${Math.round(row.match_score || 0)}% match`,
 				},
 			};
@@ -598,8 +601,8 @@ router.get('/company-dashboard', authMiddleware, async (req, res) => {
 			success: true,
 			trust_score: {
 				score: trustScores.total_score,
-				tier: trustScores.tier,
-				tier_label: tierInfo?.label || 'New Employer',
+				tier: trustScores.total_score == null ? null : trustScores.tier,
+				tier_label: trustScores.total_score == null ? null : tierInfo?.label || 'New Employer',
 				tier_color: tierInfo?.color || '#94a3b8',
 				breakdown: {
 					verification: {
