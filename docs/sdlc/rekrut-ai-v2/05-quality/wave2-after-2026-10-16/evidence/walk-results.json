@@ -1,0 +1,148 @@
+[
+  {
+    "name": "1188-careers-public",
+    "url": "/careers/qa-corp-2026-2",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load career page: Error: Session expired\n    at N (http://localhost:3000/assets/index-D3x2GA9w.js:3:6218)\n    at async s (http://localhost:3000/assets/career-page-CgT-nj3_.js:1:1292)"
+    ],
+    "failedReqs": [
+      "GET /api/careers/default -> 401"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/login",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Rekrut AI Don't have an account? Sign up Sign in Welcome back — pick up where you left off Email Password Remember me Forgot password? Sign in Or sign in with Google LinkedIn SSL Secured Trusted by 2,000+ companies SOC 2 Type II compliant · GDPR ready · AES-256 encryption Welcome back! Sign in to access your dashboard, track applications, and continue your interview practice. Job Seeker Find your next role Employer Hire top talent",
+    "shot": "1188-careers-public.png"
+  },
+  {
+    "name": "recruiter-login",
+    "url": "/login",
+    "finalUrl": "/recruiter/pending-approval"
+  },
+  {
+    "name": "1192-recruiter-dashboard",
+    "url": "/recruiter",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "failedReqs": [
+      "GET /api/api/recruiter/activity -> 404"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters QA Recruiter Welcome back, QA Here's what's happening with your hiring pipeline today Post New Job Upgrade to Pro to unlock advanced features Search entire candidate database, AI video interviews, advanced analytics, and contract generation Upgrade Employer Trust Score: Insufficient data Higher scores attract more qualified candidates Improve Score 12% 1 Active Jobs 0% 0 Total Applicants 0% 0 Hires This Month 0% — Avg Time-to-Fill Post New Job AI-assisted job creation View Candidates Browse your talent pool Schedule Interview Calendar integration Applicants Over Time No applicant data yet Appli",
+    "shot": "1192-recruiter-dashboard.png"
+  },
+  {
+    "name": "893-recruiter-compliance",
+    "url": "/recruiter/compliance",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+    ],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/compliance",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters QA Recruiter Back to Dashboard Compliance Live records returned by the compliance service: bias monitoring for your company's jobs, fairness audits, retention policies, and human overrides. Where there are no records, this page says so — nothing here is estimated or pre-filled. Flagged bias metrics 0 Jobs 1 Fairness audits on record 0 Retention policies on record 7 Flagged Bias Metrics No flagged bias metrics returned for your company. Bias Metrics by Job Job QA Fixture Data Analyst No bias metrics stored for this job yet. Four-Fifths Rule — QA Fixture Data Analyst No four-fifths results return",
+    "shot": "893-recruiter-compliance.png"
+  },
+  {
+    "name": "845-recruiter-profile-redirect",
+    "url": "/recruiter/profile",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+    ],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/company",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters QA Recruiter Company Profile Manage your company's brand and team 11% Profile QA Corp 2026 Verified Overview Branding Team (1) Audit Log Company Information Company Name Industry Select Industry Technology Healthcare Finance Education Retail Manufacturing Media Consulting Government Non-Profit Other Company Size Select Size 1-10 11-50 51-200 201-500 501-1,000 1,001-5,000 5,001+ Founded Year Headquarters Primary Country United States India United Kingdom Canada Germany France Australia Singapore Operating Countries Select all countries where you hire employees United States India United Kingdom ",
+    "shot": "845-recruiter-profile-redirect.png"
+  },
+  {
+    "name": "889-recruiter-communications-redirect",
+    "url": "/recruiter/communications",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+    ],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/chat",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters QA Recruiter Messages New No conversations yet Candidates will appear here when they apply to your jobs Post a Job Select a conversation to start messaging Choose a conversation from the sidebar to view messages © 2026 Rekrut AI, Inc. Privacy Terms Help Center",
+    "shot": "889-recruiter-communications-redirect.png"
+  },
+  {
+    "name": "1239-recruiter-trustscore",
+    "url": "/recruiter/trustscore",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED",
+      "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ],
+    "failedReqs": [
+      "GET /api/trustscore/breakdown -> 403",
+      "GET /api/trustscore/standalone -> 403",
+      "GET /api/trustscore/assessment-responsiveness -> 403",
+      "GET /api/trustscore -> 403"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/trustscore",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters QA Recruiter Failed to load TrustScore Recruiter access required Retry © 2026 Rekrut AI, Inc. Privacy Terms Help Center",
+    "shot": "1239-recruiter-trustscore.png"
+  },
+  {
+    "name": "candidate-login",
+    "url": "/login",
+    "finalUrl": "/candidate"
+  },
+  {
+    "name": "1192-candidate-dashboard",
+    "url": "/candidate",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+    ],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters QA Candidate Welcome back, QA 👋 Here's your job search overview Find AI-Matched Jobs Complete your profile to get better AI matches 8% complete — add headline, bio, location, social links, resume, skills, experience, education, phone, years of experience, profile photo Complete Profile 0 Applications Browse jobs → 0 Interviews Practice now → 0 Skills Add skills → — OmniScore Complete profile → Browse Jobs AI-matched jobs My Applications 0 active My Profile 8% comple",
+    "shot": "1192-candidate-dashboard.png"
+  },
+  {
+    "name": "1192-candidate-omniscore",
+    "url": "/candidate/omniscore",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "failedReqs": [
+      "GET /api/omniscore/explainer -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/candidate/omniscore",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters QA Candidate OmniScore Your candidate credit score — like FICO for hiring Two-Sided Scoring My Score Mutual Matches Rate Companies Insufficient data OMNISCORE New Your Candidate Credit Score Ranges from 300 (minimum) to 850 (exceptional). This score is visible to recruiters and affects your ranking in job matches. 300 850 Score Breakdown Verified Skills Insufficient data Assessments passed, certifications, and work samples. Complete the related activities to unlock t",
+    "shot": "1192-candidate-omniscore.png"
+  },
+  {
+    "name": "1192-candidate-scores",
+    "url": "/candidate/scores",
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+    ],
+    "failedReqs": [
+      "GET /candidate/scores -> 404"
+    ],
+    "docStatus": 404,
+    "finalUrl": "/candidate/assessments",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters QA Candidate Skill Assessments Verify your skills with AI-powered assessments 0 Tests Taken 0 Passed 0 Verified Skills Available Tests Assigned to You My Results Technical Skills JS JavaScript Adaptive Core JS, ES6+, async/await, closures, prototypes Start Test PY Python Adaptive Core Python, data structures, OOP, standard library Start Test RE React Adaptive Components, hooks, state management, lifecycle Start Test NJ Node.js Adaptive Express, APIs, async patterns, ",
+    "shot": "1192-candidate-scores.png"
+  }
+]
