@@ -176,4 +176,13 @@ describe('#1192 TrustScore payload routes — fresh company', () => {
 		expect(res.status).toBe(200);
 		expect(res.body.trust_score.total_score).toBeNull();
 	});
+
+	test('GET /trustscore/company/:id/public → score null AND tier_label null (no verdict label on a null), insufficient_data true', async () => {
+		const res = await request(buildApp()).get('/api/trustscore/company/42/public');
+		expect(res.status).toBe(200);
+		expect(res.body.trustscore.score).toBeNull();
+		expect(res.body.trustscore.tier).toBeNull();
+		expect(res.body.trustscore.tier_label).toBeNull();
+		expect(res.body.trustscore.insufficient_data).toBe(true);
+	});
 });

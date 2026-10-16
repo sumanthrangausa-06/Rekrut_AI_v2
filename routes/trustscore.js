@@ -346,7 +346,7 @@ router.get('/company/:id/public', async (req, res) => {
 			trustscore: {
 				score: v2Scores.total_score,
 				tier: v2Scores.tier,
-				tier_label: tierInfo?.label || 'New Employer',
+				tier_label: v2Scores.total_score == null ? null : tierInfo?.label || 'New Employer',
 				tier_color: tierInfo?.color || '#94a3b8',
 				insufficient_data: insufficientData,
 				data_sufficiency_score: v2Scores.data_sufficiency?.overall || 0,
