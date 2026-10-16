@@ -100,7 +100,7 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 	const isPremium = user?.subscriptionTier === 'pro';
 	const navLinks = isRecruiter ? recruiterLinks : candidateLinks;
 	const settingsPath = isRecruiter ? '/recruiter/settings' : '/candidate/settings';
-	const profilePath = isRecruiter ? '/recruiter/profile' : '/candidate/profile';
+	const profilePath = isRecruiter ? '/recruiter/company' : '/candidate/profile';
 	const jobsPath = isRecruiter ? '/recruiter/jobs' : '/candidate/jobs';
 
 	const handleSort = (value: string) => {

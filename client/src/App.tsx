@@ -64,9 +64,6 @@ const TestCameraPage = lazy(() =>
 const _PostHireFeedbackPage = lazy(() =>
 	import('@/pages/post-hire-feedback').then((m) => ({ default: m.RecruiterPostHireFeedbackPage })),
 );
-const RecruiterProfilePage = lazy(() =>
-	import('@/pages/recruiter-profile').then((m) => ({ default: m.RecruiterProfilePage })),
-);
 const RecruiterTrustscorePage = lazy(() =>
 	import('@/pages/recruiter-trustscore').then((m) => ({ default: m.RecruiterTrustscorePage })),
 );
@@ -1374,16 +1371,7 @@ function AppRoutes() {
 						</Protected>
 					}
 				/>
-				<Route
-					path="profile"
-					element={
-						<Protected>
-							<RecruiterGuard>
-								<RecruiterProfilePage />
-							</RecruiterGuard>
-						</Protected>
-					}
-				/>
+				<Route path="profile" element={<Navigate to="/recruiter/company" replace />} />
 				<Route
 					path="payroll"
 					element={
