@@ -81,7 +81,10 @@ describe('careers honest stats (#1188)', () => {
 			expect(res.body.stats.employees).toBeNull();
 			expect(res.body.company.rating).toBeNull();
 			expect(res.body.company.reviewCount).toBe(0);
+			// No declared size → null, never the invented '11-50 employees'.
+			expect(res.body.company.size).toBeNull();
 			const payload = JSON.stringify(res.body);
+			expect(payload).not.toContain('11-50 employees');
 			expect(payload).not.toContain('"avgTimeToHire":18');
 			expect(payload).not.toContain('"growthRate":34');
 			expect(payload).not.toContain('"employees":50');
@@ -102,6 +105,7 @@ describe('careers honest stats (#1188)', () => {
 			expect(res.body.stats.avgTimeToHire).toBe(20.5);
 			// Declared company_size as a string — not the team-account count (3).
 			expect(res.body.stats.employees).toBe('51-200');
+			expect(res.body.company.size).toBe('51-200');
 			// Still no source → still null, even for a company with data.
 			expect(res.body.stats.growthRate).toBeNull();
 		});

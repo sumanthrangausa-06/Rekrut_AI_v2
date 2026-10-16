@@ -24,7 +24,7 @@ const careerData = (overrides: Record<string, unknown> = {}) => ({
 		description: 'Acme builds things.',
 		website: 'https://acme.example.com',
 		location: 'Remote',
-		size: '11-50 employees',
+		size: null,
 		industry: 'Technology',
 		founded: '2020',
 		trustscore: null,
@@ -63,6 +63,8 @@ describe('Careers page honest stats (#1188)', () => {
 		expect(screen.queryByText('18d')).not.toBeInTheDocument();
 		expect(screen.queryByText('+34%')).not.toBeInTheDocument();
 		expect(screen.queryByText('4.5')).not.toBeInTheDocument();
+		// Undeclared size renders as absence — never '11-50 employees'.
+		expect(screen.queryByText('11-50 employees')).not.toBeInTheDocument();
 	});
 
 	it('company with real stats → computed values render, growth card stays hidden (null)', async () => {

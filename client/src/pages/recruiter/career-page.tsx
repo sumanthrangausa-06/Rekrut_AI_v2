@@ -42,7 +42,7 @@ export type CareerPageData = {
 		description: string;
 		website: string;
 		location: string;
-		size: string;
+		size: string | null;
 		industry: string;
 		founded: string;
 		trustscore: number | null;
@@ -175,10 +175,12 @@ export function RecruiterCareerPage() {
 									<MapPin className="h-3.5 w-3.5" />
 									{company.location}
 								</span>
-								<span className="flex items-center gap-1">
-									<Users className="h-3.5 w-3.5" />
-									{company.size}
-								</span>
+								{company.size != null && (
+									<span className="flex items-center gap-1">
+										<Users className="h-3.5 w-3.5" />
+										{company.size}
+									</span>
+								)}
 								<span className="flex items-center gap-1">
 									<Globe className="h-3.5 w-3.5" />
 									<a
