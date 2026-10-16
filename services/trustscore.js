@@ -1134,9 +1134,16 @@ async function getLeaderboard(options = {}) {
 	let whereClause = 'WHERE ts.data_sufficiency_score >= 50 AND ts.total_score >= $3';
 	const params = [limit, offset, minScore];
 
+	// #1237: the count query needs its own renumbered clause — reusing the
+	// main clause ($3/$4) with sliced params leaves $1 typeless (42P18).
+	let countWhereClause = 'WHERE ts.data_sufficiency_score >= 50 AND ts.total_score >= $1';
+	const countParams = [minScore];
+
 	if (tier) {
 		whereClause += ' AND ts.score_tier = $4';
 		params.push(tier);
+		countWhereClause += ' AND ts.score_tier = $2';
+		countParams.push(tier);
 	}
 
 	const result = await pool.query(
@@ -1182,9 +1189,9 @@ async function getLeaderboard(options = {}) {
     SELECT COUNT(*) as total
     FROM companies c
     JOIN trust_scores ts ON c.id = ts.company_id
-    ${whereClause}
+    ${countWhereClause}
   `,
-		params.slice(2), // limit and offset not needed for count
+		countParams,
 	);
 
 	return {
