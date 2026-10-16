@@ -100,7 +100,8 @@ const benefitIcons: Record<string, React.ReactNode> = {
 };
 
 export function RecruiterCareerPage() {
-	const { companyId } = useParams();
+	const params = useParams();
+	const companyKey = params.company ?? params.companyId;
 	const [data, setData] = useState<CareerPageData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [selectedDept, setSelectedDept] = useState('all');
@@ -109,7 +110,7 @@ export function RecruiterCareerPage() {
 		async function load() {
 			setLoading(true);
 			try {
-				const result = await apiCall<CareerPageData>(`/careers/${companyId || 'default'}`);
+				const result = await apiCall<CareerPageData>(`/careers/${companyKey || 'default'}`);
 				setData(result);
 			} catch (err) {
 				console.error('Failed to load career page:', err);
@@ -121,7 +122,7 @@ export function RecruiterCareerPage() {
 			}
 		}
 		load();
-	}, [companyId]);
+	}, [companyKey]);
 
 	if (loading) {
 		return (
