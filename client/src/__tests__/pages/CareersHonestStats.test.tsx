@@ -43,7 +43,7 @@ function renderCareers(data: Record<string, unknown>) {
 	return render(
 		<MemoryRouter initialEntries={['/careers/acme']}>
 			<Routes>
-				<Route path="/careers/:companyId" element={<RecruiterCareerPage />} />
+				<Route path="/careers/:company" element={<RecruiterCareerPage />} />
 			</Routes>
 		</MemoryRouter>,
 	);
@@ -51,6 +51,13 @@ function renderCareers(data: Record<string, unknown>) {
 
 describe('Careers page honest stats (#1188)', () => {
 	beforeEach(() => vi.clearAllMocks());
+
+	it('#1187: requests the company from the URL (/careers/acme), not /careers/default', async () => {
+		renderCareers(careerData());
+		expect((await screen.findAllByText('Open Positions')).length).toBeGreaterThan(0);
+		expect(mockApiCall).toHaveBeenCalledWith('/careers/acme');
+		expect(mockApiCall).not.toHaveBeenCalledWith('/careers/default');
+	});
 
 	it('no-data company → no stat cards for null stats, no invented numbers, no blank units', async () => {
 		renderCareers(careerData());

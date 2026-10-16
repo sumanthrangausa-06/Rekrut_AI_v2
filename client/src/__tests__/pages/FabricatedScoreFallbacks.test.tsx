@@ -258,11 +258,19 @@ describe('Public careers page TrustScore (was: candidate-average || 75, plus moc
 		return render(
 			<MemoryRouter initialEntries={['/careers/acme']}>
 				<Routes>
-					<Route path="/careers/:companyId" element={<RecruiterCareerPage />} />
+					<Route path="/careers/:company" element={<RecruiterCareerPage />} />
 				</Routes>
 			</MemoryRouter>,
 		);
 	}
+
+	it('#1187: requests the company from the URL (/careers/acme), not /careers/default', async () => {
+		mockApiCall.mockResolvedValue(careerData(null) as never);
+		renderCareers();
+		expect(await screen.findByText('TrustScore: Insufficient data')).toBeInTheDocument();
+		expect(mockApiCall).toHaveBeenCalledWith('/careers/acme');
+		expect(mockApiCall).not.toHaveBeenCalledWith('/careers/default');
+	});
 
 	it('company with no Trust Score basis → "Insufficient data", no number', async () => {
 		mockApiCall.mockResolvedValue(careerData(null) as never);
