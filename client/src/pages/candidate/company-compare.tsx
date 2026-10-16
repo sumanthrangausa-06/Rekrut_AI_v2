@@ -39,7 +39,7 @@ interface ComparisonFactor {
 	values: Array<{
 		company_id: number;
 		company_name: string;
-		value: number;
+		value: number | null;
 		percentage: number;
 		winner: boolean;
 	}>;
@@ -59,7 +59,7 @@ interface LeaderboardCompany {
 	logo_url: string | null;
 	industry: string;
 	is_verified: boolean;
-	total_score: number;
+	total_score: number | null;
 }
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -241,7 +241,7 @@ export function CompanyComparePage() {
 									<div className="flex-1 min-w-0">
 										<p className="font-medium text-sm truncate">{c.company_name}</p>
 										<p className="text-xs text-muted-foreground">
-											{c.industry} · TrustScore {c.total_score}
+											{c.industry} · TrustScore {c.total_score ?? 'N/A'}
 										</p>
 									</div>
 									<Plus className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -457,15 +457,19 @@ export function CompanyComparePage() {
 																v.winner ? 'text-emerald-600' : 'text-muted-foreground'
 															}`}
 														>
-															{v.value}
+															{v.value ?? 'N/A'}
 															{v.winner && (
 																<Star className="h-3.5 w-3.5 inline ml-1 text-emerald-500" />
 															)}
 														</span>
-														<span className="text-xs text-muted-foreground">/ {factor.max}</span>
+														{v.value != null && (
+															<span className="text-xs text-muted-foreground">/ {factor.max}</span>
+														)}
 													</div>
 													<Progress value={v.percentage} className="h-2" />
-													<p className="text-xs text-muted-foreground">{v.percentage}%</p>
+													<p className="text-xs text-muted-foreground">
+														{v.value != null ? `${v.percentage}%` : 'N/A'}
+													</p>
 												</div>
 											))}
 										</div>

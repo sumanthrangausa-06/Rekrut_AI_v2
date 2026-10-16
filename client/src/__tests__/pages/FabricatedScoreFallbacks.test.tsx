@@ -6,6 +6,7 @@ import { CandidateOmniScorePage } from '@/pages/candidate/omniscore';
 import { CandidateProfilePage } from '@/pages/candidate/profile';
 import { RecruiterCareerPage } from '@/pages/recruiter/career-page';
 import { RecruiterOmniScorePage } from '@/pages/recruiter/omniscore';
+import { RecruiterTrustscorePage } from '@/pages/recruiter-trustscore';
 
 // S-111 (#836): no real score ⇒ no numeric score renders — the honest
 // state ("Insufficient data" / nothing) instead of the fabricated
@@ -114,6 +115,102 @@ describe('Recruiter TrustScore hero (was: score || 500)', () => {
 			</MemoryRouter>,
 		);
 		expect(await screen.findByText('742')).toBeInTheDocument();
+	});
+});
+
+describe('Standalone TrustScore page (#1239: null totals → no-data hero)', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	const nullTrustscore = {
+		total_score: null,
+		verification: 0,
+		job_authenticity: 0,
+		hiring_ratio: 0,
+		feedback: 0,
+		behavior: 0,
+		tier: null,
+		tier_label: null,
+		tier_color: '#94a3b8',
+	};
+	const breakdownFor = (v1: unknown, v2: Record<string, unknown>) => ({
+		success: true,
+		current: v1,
+		v2,
+		breakdown: [],
+		v2_breakdown: [],
+		recommendations: [],
+		v2_recommendations: [],
+		history: [],
+		analytics: { active_jobs: 0, total_applications: 0, interviews: 0, offers: 0, hires: 0 },
+	});
+
+	it('no-data company → "Insufficient data" hero, no NaN, no V2 0, no self-contradicting badge', async () => {
+		mockByUrl({
+			'/trustscore/breakdown': breakdownFor(nullTrustscore, {
+				total_score: null,
+				v1_score: null,
+				v2_score: null,
+				employee_satisfaction: 0,
+				interview_experience: 0,
+				offer_acceptance_rate: 0,
+				time_to_hire: 0,
+				response_rate: 0,
+				salary_competitiveness: 0,
+				diversity_metrics: 0,
+				career_growth: 0,
+				tier: null,
+				tier_label: null,
+				tier_color: '#94a3b8',
+				data_sufficiency: { overall: 0, factors: {} },
+			}),
+			'/trustscore/assessment-responsiveness': null,
+			'/trustscore/standalone': null,
+			'/trustscore': { success: true, trustscore: nullTrustscore },
+		});
+		const { container } = render(
+			<MemoryRouter>
+				<RecruiterTrustscorePage />
+			</MemoryRouter>,
+		);
+		expect(await screen.findByText('Insufficient data')).toBeInTheDocument();
+		expect(container.textContent).not.toContain('NaN');
+		expect(container.textContent).not.toMatch(/V2:\s*0\s*pts/);
+		// The hero must not sit beside its own "Insufficient Data (x%)" badge.
+		expect(screen.queryByText(/Insufficient Data \(/)).not.toBeInTheDocument();
+	});
+
+	it('real scores → hero and V1 render exactly as today', async () => {
+		const realV1 = { ...nullTrustscore, total_score: 700, tier: 'good', tier_label: 'Good' };
+		mockByUrl({
+			'/trustscore/breakdown': breakdownFor(realV1, {
+				total_score: 742,
+				v1_score: 700,
+				v2_score: 123,
+				employee_satisfaction: 0,
+				interview_experience: 0,
+				offer_acceptance_rate: 0,
+				time_to_hire: 0,
+				response_rate: 0,
+				salary_competitiveness: 0,
+				diversity_metrics: 0,
+				career_growth: 0,
+				tier: 'good',
+				tier_label: 'Good',
+				tier_color: '#84cc16',
+				data_sufficiency: { overall: 80, factors: {} },
+			}),
+			'/trustscore/assessment-responsiveness': null,
+			'/trustscore/standalone': null,
+			'/trustscore': { success: true, trustscore: realV1 },
+		});
+		render(
+			<MemoryRouter>
+				<RecruiterTrustscorePage />
+			</MemoryRouter>,
+		);
+		expect(await screen.findByText('742')).toBeInTheDocument();
+		expect(screen.getByText('700')).toBeInTheDocument();
+		expect(screen.getByText(/V2:/)).toHaveTextContent('V2: 123 pts');
 	});
 });
 

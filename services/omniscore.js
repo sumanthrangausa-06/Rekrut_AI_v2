@@ -757,6 +757,9 @@ async function computeFactors(userId) {
 		factors,
 		fraudSignals,
 		tier: tierFromScore(clampedTotal),
+		// #1192: a candidate whose every factor reports has_data:false has no
+		// score — the floor formula's output is an artifact, not a verdict.
+		hasAnyData: Object.values(factors).some((f) => f.hasData),
 	};
 }
 
@@ -768,11 +771,13 @@ async function getOrCreateScore(userId) {
 		return existing.rows[0];
 	}
 
+	// #1192: seed an honest null, never the 300 starter literal — a row
+	// created here is served by the profile's LEFT JOIN before any compute.
 	const result = await pool.query(
 		`INSERT INTO omni_scores (user_id, total_score, score_tier, version)
-     VALUES ($1, $2, 'new', 2)
+     VALUES ($1, NULL, NULL, 2)
      RETURNING *`,
-		[userId, SCORE_RANGES.MIN],
+		[userId],
 	);
 	return result.rows[0];
 }
@@ -781,7 +786,8 @@ async function getOrCreateScore(userId) {
  * Calculate score on-demand (deterministic). Does NOT require explicit checkin.
  */
 async function calculateScore(userId) {
-	const { total, factors, fraudSignals, tier } = await computeFactors(userId);
+	const { total, factors, fraudSignals, tier, hasAnyData } = await computeFactors(userId);
+	const noData = !hasAnyData;
 
 	// Backwards-compat mapping to old columns
 	const interview_score = Math.round(factors.interview_performance.raw);
@@ -793,13 +799,17 @@ async function calculateScore(userId) {
 		(factors.reliability_signals.raw + factors.soft_skills.raw) / 2,
 	);
 
-	// Compute peer percentile
-	const percentileRes = await pool.query(
-		`SELECT COUNT(*) FILTER (WHERE total_score <= $1) * 100.0 / NULLIF(COUNT(*), 0) as percentile
+	// Compute peer percentile (a no-data candidate has no percentile — the
+	// 50th-percentile default is the same fabrication as the floor total)
+	let peerPercentile = null;
+	if (!noData) {
+		const percentileRes = await pool.query(
+			`SELECT COUNT(*) FILTER (WHERE total_score <= $1) * 100.0 / NULLIF(COUNT(*), 0) as percentile
      FROM omni_scores`,
-		[total],
-	);
-	const peerPercentile = Math.round(parseFloat(percentileRes.rows[0]?.percentile || '50'));
+			[total],
+		);
+		peerPercentile = Math.round(parseFloat(percentileRes.rows[0]?.percentile || '50'));
+	}
 
 	// Update the score record
 	await pool.query(
@@ -817,12 +827,15 @@ async function calculateScore(userId) {
       version = 2
     WHERE user_id = $10`,
 		[
-			total,
+			// #1192 persisted-row trap: a no-data compute must overwrite any
+			// stored starter/floor total with NULL, so the profile LEFT JOIN
+			// can never serve a fabricated verdict after this call.
+			noData ? null : total,
 			interview_score,
 			technical_score,
 			resume_score,
 			behavior_score,
-			dbTierFromLabel(tier),
+			noData ? null : dbTierFromLabel(tier),
 			JSON.stringify(
 				Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)])),
 			),
@@ -832,33 +845,35 @@ async function calculateScore(userId) {
 		],
 	);
 
-	// Weekly snapshot (idempotent — only one per week)
-	await pool.query(
-		`INSERT INTO score_snapshots (user_id, total_score, factor_scores, peer_percentile, snapshot_week, created_at)
+	// Weekly snapshot (idempotent — only one per week). Skipped when noData:
+	// a snapshot of a fabricated total would re-create the verdict on read.
+	if (!noData)
+		await pool.query(
+			`INSERT INTO score_snapshots (user_id, total_score, factor_scores, peer_percentile, snapshot_week, created_at)
      VALUES ($1, $2, $3, $4, DATE_TRUNC('week', CURRENT_DATE)::DATE, NOW())
      ON CONFLICT (user_id, snapshot_week) DO UPDATE SET
        total_score = EXCLUDED.total_score,
        factor_scores = EXCLUDED.factor_scores,
        peer_percentile = EXCLUDED.peer_percentile,
        created_at = NOW()`,
-		[
-			userId,
-			total,
-			JSON.stringify(
-				Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)])),
-			),
-			peerPercentile,
-		],
-	);
+			[
+				userId,
+				total,
+				JSON.stringify(
+					Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)])),
+				),
+				peerPercentile,
+			],
+		);
 
 	return {
-		total_score: total,
+		total_score: noData ? null : total,
 		interview: interview_score,
 		technical: technical_score,
 		resume: resume_score,
 		behavior: behavior_score,
-		tier,
-		tier_label: SCORE_RANGES.TIERS[tier]?.label || 'New',
+		tier: noData ? null : tier,
+		tier_label: noData ? null : SCORE_RANGES.TIERS[tier]?.label || 'New',
 		peer_percentile: peerPercentile,
 		fraud_signals: fraudSignals,
 		factors: Object.fromEntries(

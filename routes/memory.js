@@ -497,8 +497,8 @@ router.get('/match-breakdown/:candidateId/:jobId', authMiddleware, async (req, r
 				},
 			},
 			omniscore: {
-				total: omni.total_score || 300,
-				tier: omni.score_tier || 'new',
+				total: omni.total_score ?? null,
+				tier: omni.score_tier ?? null,
 				interview: omni.interview_score || 0,
 				technical: omni.technical_score || 0,
 				resume: omni.resume_score || 0,
@@ -548,7 +548,7 @@ router.get('/omniscore-trend', authMiddleware, async (req, res) => {
 
 		res.json({
 			success: true,
-			current: currentResult.rows[0] || { total_score: 300, score_tier: 'new' },
+			current: currentResult.rows[0] || { total_score: null, score_tier: null },
 			history: result.rows,
 			period_days: parseInt(days, 10),
 		});

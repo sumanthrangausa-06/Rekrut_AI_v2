@@ -116,11 +116,13 @@ async function getOrCreateTrustScore(companyId) {
 		return existing.rows[0];
 	}
 
+	// #1192: seed an honest null, never the STARTING 500 — the row is read
+	// directly by company payloads before any recompute happens.
 	const result = await pool.query(
 		`INSERT INTO trust_scores (company_id, total_score, score_tier)
-     VALUES ($1, $2, 'new')
+     VALUES ($1, NULL, NULL)
      RETURNING *`,
-		[companyId, TRUST_SCORE_RANGES.STARTING],
+		[companyId],
 	);
 
 	return result.rows[0];
@@ -160,6 +162,10 @@ async function calculateTrustScore(companyId) {
 	const componentTotal = Object.values(scores).reduce((a, b) => a + b, 0);
 	const total = Math.min(TRUST_SCORE_RANGES.MAX, componentTotal);
 
+	// #1192: zero trust_score_components rows = no data. The recomputed 0
+	// is a verdict the company never earned — return and persist null.
+	const noData = components.rows.length === 0;
+
 	let tier = 'new';
 	for (const [key, range] of Object.entries(TRUST_SCORE_RANGES.TIERS)) {
 		if (total >= range.min && total <= range.max) {
@@ -182,22 +188,22 @@ async function calculateTrustScore(companyId) {
     WHERE company_id = $8
   `,
 		[
-			total,
+			noData ? null : total,
 			scores.verification,
 			scores.job_authenticity,
 			scores.hiring_ratio,
 			scores.feedback,
 			scores.behavior,
-			tier,
+			noData ? null : tier,
 			companyId,
 		],
 	);
 
 	return {
-		total_score: total,
+		total_score: noData ? null : total,
 		...scores,
-		tier,
-		tier_label: TRUST_SCORE_RANGES.TIERS[tier]?.label || 'New Employer',
+		tier: noData ? null : tier,
+		tier_label: noData ? null : TRUST_SCORE_RANGES.TIERS[tier]?.label || 'New Employer',
 		tier_color: TRUST_SCORE_RANGES.TIERS[tier]?.color || '#94a3b8',
 	};
 }
@@ -1039,6 +1045,10 @@ async function calculateTrustScoreV2(companyId) {
 		}
 	}
 
+	// #1192: v1 returned null total ⇔ zero component rows. The combined
+	// total must not resurrect a numeric verdict (or re-persist one).
+	const noData = v1.total_score == null;
+
 	// Update database with v2 scores
 	await pool.query(
 		`
@@ -1059,7 +1069,7 @@ async function calculateTrustScoreV2(companyId) {
     WHERE company_id = $12
   `,
 		[
-			combinedTotal,
+			noData ? null : combinedTotal,
 			v2Scores.employee_satisfaction,
 			v2Scores.interview_experience,
 			v2Scores.offer_acceptance_rate,
@@ -1069,12 +1079,12 @@ async function calculateTrustScoreV2(companyId) {
 			v2Scores.diversity_metrics,
 			v2Scores.career_growth,
 			dataSufficiency.overall,
-			tier,
+			noData ? null : tier,
 			companyId,
 		],
 	);
 
-	return {
+	const result = {
 		total_score: combinedTotal,
 		v1_score: v1.total_score,
 		v2_score: v2Total,
@@ -1085,6 +1095,16 @@ async function calculateTrustScoreV2(companyId) {
 		tier_color: TRUST_SCORE_RANGES.TIERS[tier]?.color || '#94a3b8',
 		data_sufficiency: dataSufficiency,
 	};
+	if (noData) {
+		// The ...v1 spread above carries v1's fields; force the honest nulls
+		// last so no layer of this payload can expose a numeric total.
+		result.total_score = null;
+		result.v1_score = null;
+		result.v2_score = null;
+		result.tier = null;
+		result.tier_label = null;
+	}
+	return result;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1201,7 +1221,7 @@ async function compareCompanies(companyIds) {
     FROM companies c
     JOIN trust_scores ts ON c.id = ts.company_id
     WHERE c.id = ANY($1)
-    ORDER BY ts.total_score DESC
+    ORDER BY ts.total_score DESC NULLS LAST
   `,
 		[companyIds],
 	);
@@ -1230,15 +1250,19 @@ async function compareCompanies(companyIds) {
 		values: companies.map((c) => ({
 			company_id: c.company_id,
 			company_name: c.company_name,
-			value: c[factor.key] || 0,
-			percentage: factor.max > 0 ? Math.round(((c[factor.key] || 0) / factor.max) * 100) : 0,
+			// #1192: a null total_score stays null (client renders N/A) — never 0.
+			value: factor.key === 'total_score' ? (c[factor.key] ?? null) : c[factor.key] || 0,
+			percentage:
+				factor.max > 0 && c[factor.key] != null
+					? Math.round(((c[factor.key] || 0) / factor.max) * 100)
+					: 0,
 			winner: false,
 		})),
 	}));
 
 	// Mark winners per factor
 	for (const factor of comparison) {
-		const maxValue = Math.max(...factor.values.map((v) => v.value));
+		const maxValue = Math.max(...factor.values.map((v) => v.value ?? 0));
 		factor.values.forEach((v) => {
 			if (v.value === maxValue && maxValue > 0) v.winner = true;
 		});
