@@ -12,6 +12,32 @@ const express = require('express');
 const mockState = { trustRow: null, components: [] };
 
 function mockDbQuery(sql, params = []) {
+	if (sql.includes('FROM omni_scores os')) {
+		return Promise.resolve({ rows: [] }); // heal-script omni scan: no omni rows in this suite
+	}
+	if (sql.includes('FROM trust_scores') && sql.includes('AS id')) {
+		// heal-script scan
+		return Promise.resolve({ rows: mockState.trustRow ? [{ id: 42 }] : [] });
+	}
+	if (sql.includes('JOIN trust_scores') && sql.includes('c.slug')) {
+		// public-by-slug direct read: companies JOIN trust_scores … WHERE c.slug
+		return Promise.resolve({
+			rows: [
+				{
+					id: 42,
+					company_name: 'Fresh Co',
+					name: 'Fresh Co',
+					slug: 'fresh-co',
+					is_verified: false,
+					total_score: mockState.trustRow ? mockState.trustRow.total_score : null,
+					score_tier: mockState.trustRow ? mockState.trustRow.score_tier : null,
+					verification_score: 0,
+					response_score: 0,
+					feedback_score: 0,
+				},
+			],
+		});
+	}
 	if (sql.includes('INSERT INTO trust_scores')) {
 		const total = sql.includes('$2') ? params[1] : null;
 		mockState.trustRow = { company_id: params[0], total_score: total, score_tier: 'new' };
@@ -184,5 +210,37 @@ describe('#1192 TrustScore payload routes — fresh company', () => {
 		expect(res.body.trustscore.tier).toBeNull();
 		expect(res.body.trustscore.tier_label).toBeNull();
 		expect(res.body.trustscore.insufficient_data).toBe(true);
+	});
+});
+
+describe('#1192 legacy persisted trust rows — heal script (engine-arbitrated recompute)', () => {
+	// Code-review gate delta: a STARTING-500 row written before the fix is
+	// served verbatim by direct reads (public-by-slug) until healed.
+	const loadHeal = () => require('../../scripts/recompute-honest-null-scores').recomputeHonestNullScores;
+
+	test('dry-run: legacy 500 counted as would-null, nothing written', async () => {
+		mockState.trustRow = { company_id: 42, total_score: 500, score_tier: 'new' };
+		const report = await loadHeal()({ live: false });
+		expect(report.trust).toEqual({ scanned: 1, would_null: 1, would_keep_number: 0, skipped: 0 });
+		expect(mockState.trustRow.total_score).toBe(500);
+	});
+
+	test('live heal: legacy 500, zero components → public-by-slug payload score null', async () => {
+		mockState.trustRow = { company_id: 42, total_score: 500, score_tier: 'new' };
+		const before = await request(buildApp()).get('/api/trustscore/public/fresh-co');
+		expect(before.body.trustscore.score).toBe(500); // the defect, pre-heal
+		const report = await loadHeal()({ live: true });
+		expect(report.trust.would_null).toBe(1);
+		const after = await request(buildApp()).get('/api/trustscore/public/fresh-co');
+		expect(after.body.trustscore.score).toBeNull();
+	});
+
+	test('live heal: a genuine row keeps its exact engine number (200, not erased)', async () => {
+		mockState.components = [{ component_type: 'verification', points: 50, max_points: 50 }];
+		mockState.trustRow = { company_id: 42, total_score: 200, score_tier: 'new' };
+		const report = await loadHeal()({ live: true });
+		expect(report.trust.would_keep_number).toBe(1);
+		const after = await request(buildApp()).get('/api/trustscore/public/fresh-co');
+		expect(after.body.trustscore.score).toBe(200);
 	});
 });

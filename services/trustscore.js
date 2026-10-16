@@ -433,6 +433,20 @@ async function recordScoreChange(companyId, previousScore, newScore, reason, com
  * Calculate data sufficiency for a company (0-100)
  * Returns which factors have enough data and overall sufficiency
  */
+/**
+ * #1192: the engine's own no-data predicate — true when the company has at
+ * least one trust_score_components row (the sole input basis of
+ * calculateTrustScore). Used by the legacy-row heal script so the engine,
+ * not a value heuristic, arbitrates which stored rows are real.
+ */
+async function hasTrustScoreData(companyId) {
+	const result = await pool.query(
+		'SELECT COUNT(*) as count FROM trust_score_components WHERE company_id = $1',
+		[companyId],
+	);
+	return parseInt(result.rows[0].count, 10) > 0;
+}
+
 async function getDataSufficiency(companyId) {
 	// Count data points per factor
 	const [ratings, _feedback, applications, offers, _jobsCount, interviews] = await Promise.all([
@@ -1574,6 +1588,7 @@ module.exports = {
 	// V1 functions (preserved)
 	getOrCreateTrustScore,
 	calculateTrustScore,
+	hasTrustScoreData,
 	addVerificationComponent,
 	addJobAuthenticityComponent,
 	updateHiringRatioScore,

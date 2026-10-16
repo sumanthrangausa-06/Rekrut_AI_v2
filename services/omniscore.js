@@ -765,6 +765,16 @@ async function computeFactors(userId) {
 
 // ─── Public API ─────────────────────────────────────────────
 
+/**
+ * #1192: the engine's own no-data predicate — true when at least one factor
+ * reports has_data. Used by the legacy-row heal script so the engine, not a
+ * value heuristic, arbitrates which stored rows are real.
+ */
+async function hasScoreData(userId) {
+	const { hasAnyData } = await computeFactors(userId);
+	return hasAnyData;
+}
+
 async function getOrCreateScore(userId) {
 	const existing = await pool.query('SELECT * FROM omni_scores WHERE user_id = $1', [userId]);
 	if (existing.rows.length > 0) {
@@ -1246,6 +1256,7 @@ module.exports = {
 	FACTOR_META,
 	getOrCreateScore,
 	calculateScore,
+	hasScoreData,
 	recordCheckin,
 	addInterviewComponent,
 	addTechnicalComponent,

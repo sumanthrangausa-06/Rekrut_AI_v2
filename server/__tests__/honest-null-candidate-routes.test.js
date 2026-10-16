@@ -131,3 +131,54 @@ describe('#1192 memory routes', () => {
 		expect(res.body.current).toEqual({ total_score: null, score_tier: null });
 	});
 });
+
+describe('#1192 legacy stats view row — heal, then dashboard-stats first read', () => {
+	test('view omni_score 352 pre-heal → live heal → stats payload total_score null', async () => {
+		jest.resetModules(); // fresh router + fresh analyticsCache for a true first read
+		const legacy = { total: 352, tier: 'new' };
+		const baseImpl = mockQuery.getMockImplementation();
+		mockQuery.mockImplementation(async (sql, params = []) => {
+			if (sql.includes('v_candidate_full_profile')) {
+				return {
+					rows: [
+						{
+							id: 7,
+							name: 'Legacy Candidate',
+							omni_score: legacy.total,
+							score_tier: legacy.tier,
+							skill_count: '0',
+							skill_verified_count: '0',
+							experience_count: '0',
+							education_count: '0',
+						},
+					],
+				};
+			}
+			if (sql.includes('FROM omni_scores os')) return { rows: [{ id: 7, deleted_at: null }] };
+			if (sql.includes('UPDATE omni_scores')) {
+				legacy.total = params[0];
+				legacy.tier = params[5];
+				return { rows: [] };
+			}
+			if (sql.includes('FROM trust_scores')) return { rows: [] };
+			return baseImpl(sql, params);
+		});
+
+		// The stored value the stats ternary passes through, pre-heal:
+		const viewRow = (await mockQuery('SELECT * FROM v_candidate_full_profile WHERE id = $1', [7])).rows[0];
+		expect(viewRow.omni_score).toBe(352);
+
+		const { recomputeHonestNullScores } = require('../../scripts/recompute-honest-null-scores');
+		const report = await recomputeHonestNullScores({ live: true });
+		expect(report.omni.would_null).toBe(1);
+		expect(legacy.total).toBeNull();
+
+		const freshCandidateRouter = require('../../routes/candidate');
+		const app = express();
+		app.use(express.json());
+		app.use('/api/candidate', freshCandidateRouter);
+		const res = await request(app).get('/api/candidate/dashboard/stats');
+		expect(res.status).toBe(200);
+		expect(res.body.stats.omniscore).toEqual({ total_score: null, score_tier: null });
+	});
+});
