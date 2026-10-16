@@ -46,7 +46,7 @@ export type CareerPageData = {
 		industry: string;
 		founded: string;
 		trustscore: number | null;
-		rating: number;
+		rating: number | null;
 		reviewCount: number;
 	};
 	culture: {
@@ -74,9 +74,10 @@ export type CareerPageData = {
 	}>;
 	stats: {
 		openPositions: number;
-		avgTimeToHire: number;
-		employees: number;
-		growthRate: number;
+		avgTimeToHire: number | null;
+		// Declared company size (e.g. "51-200"), not a headcount — #1188.
+		employees: string | null;
+		growthRate: number | null;
 	};
 };
 
@@ -192,11 +193,15 @@ export function RecruiterCareerPage() {
 							</div>
 						</div>
 						<div className="text-right">
-							<div className="flex items-center gap-1">
-								<Star className="h-5 w-5 text-amber-500 fill-amber-500" />
-								<span className="text-xl font-bold">{company.rating}</span>
-							</div>
-							<p className="text-xs text-muted-foreground">{company.reviewCount} reviews</p>
+							{company.rating != null && (
+								<>
+									<div className="flex items-center gap-1">
+										<Star className="h-5 w-5 text-amber-500 fill-amber-500" />
+										<span className="text-xl font-bold">{company.rating}</span>
+									</div>
+									<p className="text-xs text-muted-foreground">{company.reviewCount} reviews</p>
+								</>
+							)}
 							<div className="mt-1 flex items-center gap-1">
 								<Shield className="h-3.5 w-3.5 text-emerald-500" />
 								<span className="text-xs text-emerald-600 font-medium">
@@ -224,39 +229,45 @@ export function RecruiterCareerPage() {
 							</div>
 						</CardContent>
 					</Card>
-					<Card>
-						<CardContent className="p-4">
-							<div className="flex items-center justify-between">
-								<div>
-									<p className="text-2xl font-bold">{stats.employees}</p>
-									<p className="text-xs text-muted-foreground">Employees</p>
+					{stats.employees != null && (
+						<Card>
+							<CardContent className="p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-2xl font-bold">{stats.employees}</p>
+										<p className="text-xs text-muted-foreground">Company Size</p>
+									</div>
+									<Users className="h-8 w-8 text-muted-foreground/50" />
 								</div>
-								<Users className="h-8 w-8 text-muted-foreground/50" />
-							</div>
-						</CardContent>
-					</Card>
-					<Card>
-						<CardContent className="p-4">
-							<div className="flex items-center justify-between">
-								<div>
-									<p className="text-2xl font-bold">{stats.avgTimeToHire}d</p>
-									<p className="text-xs text-muted-foreground">Avg Time to Hire</p>
+							</CardContent>
+						</Card>
+					)}
+					{stats.avgTimeToHire != null && (
+						<Card>
+							<CardContent className="p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-2xl font-bold">{stats.avgTimeToHire}d</p>
+										<p className="text-xs text-muted-foreground">Avg Time to Hire</p>
+									</div>
+									<Clock className="h-8 w-8 text-muted-foreground/50" />
 								</div>
-								<Clock className="h-8 w-8 text-muted-foreground/50" />
-							</div>
-						</CardContent>
-					</Card>
-					<Card>
-						<CardContent className="p-4">
-							<div className="flex items-center justify-between">
-								<div>
-									<p className="text-2xl font-bold text-green-600">+{stats.growthRate}%</p>
-									<p className="text-xs text-muted-foreground">YoY Growth</p>
+							</CardContent>
+						</Card>
+					)}
+					{stats.growthRate != null && (
+						<Card>
+							<CardContent className="p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-2xl font-bold text-green-600">+{stats.growthRate}%</p>
+										<p className="text-xs text-muted-foreground">YoY Growth</p>
+									</div>
+									<TrendingUp className="h-8 w-8 text-green-500/50" />
 								</div>
-								<TrendingUp className="h-8 w-8 text-green-500/50" />
-							</div>
-						</CardContent>
-					</Card>
+							</CardContent>
+						</Card>
+					)}
 				</div>
 
 				{/* About */}
