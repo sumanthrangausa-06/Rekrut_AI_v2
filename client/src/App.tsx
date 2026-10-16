@@ -70,12 +70,6 @@ const RecruiterProfilePage = lazy(() =>
 const RecruiterTrustscorePage = lazy(() =>
 	import('@/pages/recruiter-trustscore').then((m) => ({ default: m.RecruiterTrustscorePage })),
 );
-const RecruiterCommunicationsPage = lazy(() =>
-	import('@/pages/recruiter-communications').then((m) => ({
-		default: m.RecruiterCommunicationsPage,
-	})),
-);
-
 const LeaderboardPage = lazy(() =>
 	import('@/pages/candidate/leaderboard').then((m) => ({ default: m.LeaderboardPage })),
 );
@@ -1304,15 +1298,10 @@ function AppRoutes() {
 						</Protected>
 					}
 				/>
+				{/* #889: invented inbox retired — the real messages home is chat */}
 				<Route
 					path="communications"
-					element={
-						<Protected>
-							<RecruiterGuard>
-								<RecruiterCommunicationsPage />
-							</RecruiterGuard>
-						</Protected>
-					}
+					element={<Navigate to="/recruiter/chat" replace />}
 				/>
 				<Route
 					path="trustscore"
