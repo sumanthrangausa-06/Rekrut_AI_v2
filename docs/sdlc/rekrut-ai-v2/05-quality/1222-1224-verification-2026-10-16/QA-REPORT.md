@@ -31,3 +31,16 @@
 ## Limits
 
 Desktop viewport only (1440×900), per standing QA order. Local fresh install only — nothing on staging or production was touched, no PR was merged, no issue was closed, no flag flipped, no data outside this run's own local QA databases was created or deleted, and no email/outreach was sent. #1222, #1223 and #1224 remain **OPEN** for Lead.
+
+---
+
+## Addendum — #1226 Candidate payroll profile 404 (Lead addendum, same run)
+
+**Requested by Lead** after Scout's STOP 1 (issue comment 6229273027) reclassified the filed root cause: the route exists and matches; the QA-time 404 is the handler's designed "Employee profile not found" (`routes/payroll.js:1048`) for a user with no `employees` row. Verified by Quinn in this same fresh-install environment at the same tested commit `96fe0f83` (note: live `origin/dev` advanced to `8e0bba6a` during the wider programme — the intervening commits touch only #1229's migration 263 and the LinkedIn optimizer, no payroll files). Two cases:
+
+| Case | Setup | Verdict | Evidence |
+|---|---|---|---|
+| **(a) Candidate WITH an employee record** | Seeded `employees` row (`QNN-1226-001`, Data Analyst, employer = the batch company owner) + `payroll_configs` (salary 85000, bi-weekly, direct deposit) for a fresh candidate | **PASS** | API: `GET /api/payroll/employee/profile` → **200**, profile carries the seeded employee_number/position/salary. Browser: `/candidate/payroll` renders "My Payroll" — $85,000.00 Annual Salary, Bi-Weekly, Pay Profile with Employee ID QNN-1226-001 / Data Analyst / Direct Deposit, honest "No paychecks yet" (`screenshots/1226a-candidate-payroll-with-profile.png`, visually inspected) |
+| **(b) Candidate with NO employee record** | The batch candidate (verified 0 `employees` rows in the scratch DB) | **PASS** | API: `GET /api/payroll/employee/profile` → **404 `{"error":"Employee profile not found"}`** — the handler's designed response, NOT the Express route-miss body (`"API endpoint not found"`); anon → 401. Browser: payroll page fired that 404 and rendered the graceful **"Payroll Not Set Up — Your payroll profile hasn't been created yet…"** empty state; no crash, no error boundary, no login bounce (`screenshots/1226b-candidate-payroll-not-set-up.png`, visually inspected) |
+
+**#1226 overall: PASS (2/2).** Quinn confirms Scout's reclassification with runtime evidence: not a missing/mismatched route — an expected data-state 404 with a designed empty state, and a 200 with a rendered profile once an employee record exists. API probe 4/4 (`evidence/api-probe-1226.json`), browser PASS both cases (`evidence/browser-result-1226.json`). #1226 remains **OPEN** for Lead (reclassification/closure decision is Lead's, not Quinn's).
