@@ -1,0 +1,101 @@
+{
+  "employerLogin": {
+    "afterLoginUrl": "http://localhost:3000/recruiter",
+    "isPendingApprovalUrl": false,
+    "hasAwaitingApprovalText": false,
+    "textExcerpt": "Skip to content\nRekrut AI\nDashboard\nJobs\nApplications\nAssessments\nCandidates\nInterviews\nMessages\nAI Screening\nRecordings\nPanels\nCalendar\nOffers\nOnboarding\nScores\nAnalytics\nCompliance (EU AI Act)\nProctoring\nCompany\nTeam\nPayroll\nJoin Requests\nSettings\nSign out\nRecruiter\nTry Premium\nRelevance\nFilters\nQuinn After Employer\nWelcome back, Quinn\n\nHere's what's happening with your hiring pipeline today\n\nPost New Job\n\nUpgrade to Pro to unlock advanced features\n\nSearch entire candidate database, AI video interviews, advanced analytics, and contract generation\n\nUpgrade\n\nEmployer Trust Score: Insufficient data\n\nHigher scores attract more qualified candidates\n\nImprove Score\n0%\n\n0\n\nActive Jobs\n\n0%\n\n0\n\nTotal Applicants\n\n0%\n\n0\n\nHires This Month\n\n0%\n\n—\n\nAvg Time-to-Fill\n\nPost New Job\n\nAI-assisted job creation\n\nView Candidates\n\nBrowse your talent pool\n\nSchedule Interview\n\nCalendar integration\n\nApplicants Over Time\n\nNo applicant data yet\n\nApplications will appear here once candidates start applying to your jobs.\n\nPost a Job\nPipeline Funnel\nApplied\nScreened\nInterview\nOffer\nHired\nNo candidates in pipeline yet\n0 candidates total\nView pipeline\nPipeline Overview\nView all\n0\nApplied\n0\nScreened\n0\nInterview\n0\n",
+    "apiCalls": [
+      "200 /api/auth/oauth/status",
+      "200 /api/analytics/events",
+      "200 /api/analytics/events",
+      "200 /api/auth/login",
+      "200 /api/company/profile",
+      "200 /api/billing/tier",
+      "200 /api/analytics/events",
+      "200 /api/company/join-requests",
+      "200 /api/notifications/in-app?limit=50",
+      "200 /api/interviews/my-interviews",
+      "200 /api/recruiter/activity",
+      "200 /api/recruiter/applications",
+      "200 /api/recruiter/dashboard"
+    ]
+  },
+  "trustscore": {
+    "finalUrl": "http://localhost:3000/recruiter/trustscore",
+    "trustscoreCalls": [
+      "200 /api/trustscore",
+      "200 /api/trustscore/assessment-responsiveness",
+      "200 /api/trustscore/standalone",
+      "200 /api/trustscore/breakdown"
+    ],
+    "trustscore403": [],
+    "bouncedToLogin": false,
+    "hasTrustScoreText": true,
+    "textExcerpt": "Skip to content\nRekrut AI\nDashboard\nJobs\nApplications\nAssessments\nCandidates\nInterviews\nMessages\nAI Screening\nRecordings\nPanels\nCalendar\nOffers\nOnboarding\nScores\nAnalytics\nCompliance (EU AI Act)\nProctoring\nCompany\nTeam\nPayroll\nJoin Requests\nSettings\nSign out\nRecruiter\nTry Premium\nRelevance\nFilters\nQuinn After Employer\nBack to Dashboard\nInsufficient data\nTrustScore\n\nNo score yet\n\nUpdated daily\n\nV1 Score\n\nN/A\n\nV2: N/A\n\nTrustScore v2 Factors\nCompany Verification\n0\n/ 200\n\nCompany Verification score\n\nJob Authenticity\n0\n/ 250\n\nJob Authenticity score\n\nInterview-to-Offer Ratio\n0\n/ 250\n\nInterview-to-Offer Ratio score\n\nCandidate Feedback\n0\n/ 200\n\nCandidate Feedback score\n\nPlatform Behavior\n0\n/ 100\n\nPlatform Behavior score\n\nEmployee Satisfaction\nNot enough data\n—\n/ 100\n\nEmployee Satisfaction score\n\nInterview Experience\nNot enough data\n—\n/ 100\n\nInterview Experience score\n\nOffer Acceptance Rate\nNot enough data\n—\n/ 75\n\nOffer Acceptance Rate score\n\nTime to Hire\nNot enough data\n—\n/ 50\n\nTime to Hire score\n\nResponse Rate\nNot enough data\n—\n/ 75\n\nResponse Rate score\n\nSalary Competitiveness\nNot enough data\n—\n/ 50\n\nSalary Competitiveness score\n\nDiversity Metrics\nNot enough data\n—\n/ 0\n\nDiversity Metrics score\n\nCareer Growth\nNot enough data\n—\n/ 100\n\nCareer Growth score\n\nAdditional Insights\nPrivate to your team\nImprovement Guidance\nImprove the Interview Experience\nhigh\n\nSend prep materials 24h before interviews. Keep interviews on schedule. Follow up within 48h with next steps.\n\nCurrent: 0/100\n+70 po",
+    "apiCalls": [
+      "200 /api/auth/me",
+      "200 /api/auth/me",
+      "200 /api/company/profile",
+      "200 /api/billing/tier",
+      "200 /api/company/profile",
+      "200 /api/billing/tier",
+      "200 /api/company/join-requests",
+      "200 /api/trustscore",
+      "200 /api/trustscore/assessment-responsiveness",
+      "200 /api/trustscore/standalone",
+      "200 /api/notifications/in-app?limit=50",
+      "200 /api/trustscore/breakdown"
+    ]
+  },
+  "adminLogin": {
+    "afterLoginUrl": "http://localhost:3000/admin/ai-health",
+    "bouncedToLogin": false
+  },
+  "adminPages": {
+    "analytics": {
+      "finalUrl": "http://localhost:3000/admin/analytics",
+      "bouncedToLogin": false,
+      "relevantCalls": [
+        "200 /api/analytics/dashboard?start_date=2026-09-17&end_date=2026-10-17"
+      ],
+      "relevant401": [],
+      "all401": [],
+      "textExcerpt": "Analytics Dashboard\n\nTrack landing page performance and user engagement\n\nDate Range:\nto\nApply\nDAILY VISITORS\n0\nLast 30 days\nTOTAL SIGN-UPS\n0\nCandidates + Recruiters\nCONVERSION RATE\n0.00%\nLanding → Sign-up\nCLICK-THROUGH RATE\n0.00%\nLanding → CTA Click\nSign-up Funnel\nLanding Page Views\n0\nSign-up Clicks\n0\nSign-up Page Views\n0\nSign-ups Completed\n0\nDaily Visitors (Last 30 Days)\nNo visitor data yet\n\nVisitor data will appear here as users visit the site.\n\nFeature Engagement\nFEATURE\tTOTAL USES\tUNIQUE USERS\n\nNo feature engagement yet\n\nFeature usage data will appear as users interact with the platform.\n\nPage Views\nPAGE\tTOTAL VIEWS\tUNIQUE VISITORS\n\nNo page views yet\n\nPage view data will appear as users navigate the platform.",
+      "apiCalls": [
+        "200 /api/admin/me",
+        "200 /api/admin/me",
+        "200 /api/analytics/dashboard?start_date=2026-09-17&end_date=2026-10-17"
+      ]
+    },
+    "biometricAudit": {
+      "finalUrl": "http://localhost:3000/admin/biometric-audit",
+      "bouncedToLogin": false,
+      "relevantCalls": [
+        "200 /api/admin/biometric-audit?limit=50&offset=0"
+      ],
+      "relevant401": [],
+      "all401": [],
+      "textExcerpt": "Biometric Audit Log\n\nAppend-only record of biometric data access. Candidate references are pseudonymized.\n\nFilters\nCandidate ID\nAction\nAll actions\nview\nexport\ndelete\npurge\nData type\nStart date\nEnd date\nApply filters\nClear\nEntries\n\nNo audit entries match the current filters.",
+      "apiCalls": [
+        "200 /api/admin/me",
+        "200 /api/admin/me",
+        "200 /api/admin/biometric-audit?limit=50&offset=0"
+      ]
+    },
+    "emailQueue": {
+      "finalUrl": "http://localhost:3000/admin/email-queue",
+      "bouncedToLogin": false,
+      "relevantCalls": [
+        "200 /api/admin/email-queue"
+      ],
+      "relevant401": [],
+      "all401": [],
+      "textExcerpt": "Email Queue\nRefresh\nRetry Failed (0)\nPending\n0\nSent\n0\nFailed\n0\nTotal\n0\nEmail Queue Status\n\nThe email queue processes emails asynchronously every 30 seconds. Failed emails are retried up to 3 times automatically.\n\nProcessor Status\nRunning (30s interval)\nMax Retries\n3\nBatch Size\n10 per cycle",
+      "apiCalls": [
+        "200 /api/admin/me",
+        "200 /api/admin/me",
+        "200 /api/admin/email-queue"
+      ]
+    }
+  }
+}

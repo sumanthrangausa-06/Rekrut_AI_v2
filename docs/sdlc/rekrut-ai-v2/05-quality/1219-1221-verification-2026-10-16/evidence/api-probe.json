@@ -1,0 +1,139 @@
+{
+  "seed": {
+    "companyId": 1,
+    "candidateId": 1,
+    "recruiterId": 2
+  },
+  "api": {
+    "loginCandidate": {
+      "status": 200,
+      "gotToken": true,
+      "role": "candidate"
+    },
+    "loginRecruiter": {
+      "status": 200,
+      "gotToken": true,
+      "role": "recruiter"
+    },
+    "explainer": {
+      "status": 200,
+      "success": true,
+      "error": null,
+      "peerComparison": {
+        "percentile": null,
+        "avgScore": null,
+        "topScore": null,
+        "medianScore": null
+      },
+      "factorCount": 8,
+      "bodyExcerpt": "{\"success\":true,\"factors\":[{\"name\":\"Reliability Signals\",\"impact\":47,\"raw_score\":85,\"weight\":0.1,\"grade\":\"Excellent\",\"description\":\"Response time, attendance, and follow-through.\",\"plain_text\":\"Your reliability signals is exceptional — a major strength.\",\"details\":[\"Interview attendance 50% (+15.0)\",\"Application follow-through 100% (+20.0)\"],\"action\":null},{\"name\":\"Market Demand\",\"impact\":6,\"raw_score\":20,\"weight\":0.05,\"grade\":\"Needs Work\",\"description\":\"How your skills match current job market needs.\",\"plain_text\":\"Your market demand needs attention — this is a growth opportunity.\",\"details\":"
+    },
+    "explainerAnon": {
+      "status": 401,
+      "error": "Authentication required"
+    },
+    "history": {
+      "status": 200,
+      "error": null,
+      "isArray": true,
+      "count": 0,
+      "bodyExcerpt": "{\"interviews\":[]}"
+    },
+    "historyAnon": {
+      "status": 401,
+      "error": "Authentication required"
+    },
+    "numericIdControl": {
+      "status": 404,
+      "error": "Interview not found",
+      "bodyExcerpt": "{\"error\":\"Interview not found\"}"
+    },
+    "activity": {
+      "status": 200,
+      "success": true,
+      "error": null,
+      "isArray": true,
+      "count": 0,
+      "bodyExcerpt": "{\"success\":true,\"activities\":[]}"
+    },
+    "activityDoublePrefix": {
+      "status": 404
+    },
+    "activityAsCandidate": {
+      "status": 403,
+      "error": "No company associated with this account"
+    }
+  },
+  "dbChecks": {
+    "omniScoresRowsBeforeExplainer": 0,
+    "omniAggregatesAfter": {
+      "rows": 0,
+      "avgScore": null,
+      "topScore": null,
+      "medianScore": null
+    }
+  },
+  "checks": [
+    {
+      "id": "1219",
+      "label": "#1219 explainer as candidate: 200 (not 500)",
+      "pass": true,
+      "detail": "status=200 error=null"
+    },
+    {
+      "id": "1219",
+      "label": "#1219 explainer: success + factors present",
+      "pass": true,
+      "detail": "success=true factors=8"
+    },
+    {
+      "id": "1219",
+      "label": "#1219 peer stats honest: equal DB aggregates (null when no data), never fabricated 500/1000/500",
+      "pass": true,
+      "detail": "api={\"percentile\":null,\"avgScore\":null,\"topScore\":null,\"medianScore\":null} db={\"rows\":0,\"avgScore\":null,\"topScore\":null,\"medianScore\":null} omniRowsBefore=0"
+    },
+    {
+      "id": "1219",
+      "label": "#1219 explainer anon: 401 (auth still enforced)",
+      "pass": true,
+      "detail": "status=401"
+    },
+    {
+      "id": "1220",
+      "label": "#1220 GET /api/interviews/history?limit=50 as candidate: 200 (not 400)",
+      "pass": true,
+      "detail": "status=200 error=null"
+    },
+    {
+      "id": "1220",
+      "label": "#1220 history: interviews array returned",
+      "pass": true,
+      "detail": "isArray=true count=0"
+    },
+    {
+      "id": "1220",
+      "label": "#1220 history anon: 401 (auth still enforced)",
+      "pass": true,
+      "detail": "status=401"
+    },
+    {
+      "id": "1221",
+      "label": "#1221 GET /api/recruiter/activity as recruiter: 200 (not 404/500)",
+      "pass": true,
+      "detail": "status=200 error=null"
+    },
+    {
+      "id": "1221",
+      "label": "#1221 activity: success + activities array",
+      "pass": true,
+      "detail": "success=true isArray=true count=0"
+    },
+    {
+      "id": "1221",
+      "label": "#1221 contrast: /api/api/recruiter/activity (old double-prefix) is 404 — server never had that route",
+      "pass": true,
+      "detail": "status=404"
+    }
+  ],
+  "allPass": true
+}

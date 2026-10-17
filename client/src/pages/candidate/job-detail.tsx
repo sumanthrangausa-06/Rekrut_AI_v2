@@ -39,6 +39,7 @@ import { SEO } from '@/components/SEO';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -123,6 +124,7 @@ export function CandidateJobDetailPage() {
 	const [job, setJob] = useState<Job | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [applying, setApplying] = useState(false);
+	const [ipCaptureConsent, setIpCaptureConsent] = useState(false);
 	const [applied, setApplied] = useState(false);
 	const [showApplyForm, setShowApplyForm] = useState(false);
 	const [showOneClickModal, setShowOneClickModal] = useState(false);
@@ -515,7 +517,11 @@ export function CandidateJobDetailPage() {
 		try {
 			await apiCall(`/candidate/jobs/${job.id}/apply`, {
 				method: 'POST',
-				body: { cover_letter: coverLetter, screening_answers: screeningAnswers },
+				body: {
+					cover_letter: coverLetter,
+					screening_answers: screeningAnswers,
+					ip_capture_consent: ipCaptureConsent,
+				},
 			});
 			setApplied(true);
 			setShowApplyForm(false);
@@ -1555,6 +1561,25 @@ export function CandidateJobDetailPage() {
 								)}
 							</div>
 						)}
+						<div className="rounded-lg border p-3 sm:p-4 space-y-2">
+							<p className="text-xs text-muted-foreground">
+								Optional security check: with your consent, we record a pseudonymised
+								fingerprint made from your IP address — never your actual IP address — so
+								this employer can detect duplicate or fraudulent applications. It is kept
+								for 12 months, is never used to judge your application, and you can
+								withdraw consent any time via privacy@rekrutai.co. Declining changes
+								nothing about your application.
+							</p>
+							<Checkbox
+								checked={ipCaptureConsent}
+								onCheckedChange={(checked) => setIpCaptureConsent(checked === true)}
+								label={
+									<span className="text-sm">
+										I consent to the security fingerprint capture described above
+									</span>
+								}
+							/>
+						</div>
 						<div className="flex flex-col sm:flex-row gap-2 pt-2 border-t">
 							<Button onClick={handleApply} disabled={applying} className="gap-2 min-h-[44px]">
 								{applying ? (

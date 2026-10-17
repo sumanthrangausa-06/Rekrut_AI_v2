@@ -1,0 +1,227 @@
+{
+  "seed": {
+    "soloId": 15,
+    "zeroId": 16,
+    "omniRowsAtStart": {
+      "n": 0,
+      "scored": 0
+    }
+  },
+  "phases": {
+    "A1_soloOmniscore": {
+      "status": 200,
+      "total_score": 372,
+      "peer_percentile": null
+    },
+    "A1_db": {
+      "omniRow": {
+        "total_score": 372,
+        "peer_percentile": null
+      },
+      "snapshot": {
+        "total_score": 372,
+        "peer_percentile": null
+      }
+    },
+    "A2_explainerFirstCall": {
+      "status": 200,
+      "peerComparison": {
+        "percentile": null,
+        "avgScore": null,
+        "topScore": null,
+        "medianScore": null
+      },
+      "cohortAfterWipe": "0 scored rows at call time"
+    },
+    "A2b0_soloRescoreAfterWipe": {
+      "status": 200,
+      "peer_percentile": null
+    },
+    "A2b_explainerAfterScored": {
+      "status": 200,
+      "peerComparison": {
+        "percentile": 100,
+        "avgScore": 372,
+        "topScore": 372,
+        "medianScore": 372
+      },
+      "note": "exactly one scored row exists (solo 372, persisted by A2b0) -> 1/1 = 100"
+    },
+    "A3_zeroOmniscore": {
+      "status": 200,
+      "total_score": null,
+      "peer_percentile": null
+    },
+    "B_expectedFromSql": {
+      "raw": "66.6666666666666667",
+      "rounded": 67
+    },
+    "B_soloOmniscore": {
+      "status": 200,
+      "total_score": 372,
+      "peer_percentile": 67
+    },
+    "B_db": {
+      "omniRow": {
+        "peer_percentile": 67
+      },
+      "snapshot": {
+        "peer_percentile": 67
+      }
+    },
+    "B_explainer": {
+      "status": 200,
+      "peerComparison": {
+        "percentile": 67,
+        "avgScore": 357,
+        "topScore": 400,
+        "medianScore": 372
+      }
+    },
+    "C_flatQuizAnswers": {
+      "status": 200,
+      "success": true,
+      "archetype": "The Creative Problem-Solver",
+      "firstPath": "Engineering Management",
+      "firstPathFit": 82
+    },
+    "C_wrongField": {
+      "status": 400,
+      "body": {
+        "error": "Quiz answers are required"
+      }
+    },
+    "C_phantom": {
+      "status": 404,
+      "bodyExcerpt": "\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n<meta charset=\\\"utf-8\\\">\\n<title>Error</title>\\n</head>\\n<body>\\n<pre>Cannot POST /api/profile-enhancement/career-"
+    },
+    "C_anon": {
+      "status": 403,
+      "careerDiagnosesRows": [
+        {
+          "user_id": 15
+        }
+      ],
+      "note": "anon POST rejected by CSRF/auth layer (403); no diagnosis row exists for any anon/peer user — only solo (from c1) at this point"
+    },
+    "C_doubleStringified": {
+      "status": 200,
+      "note": "INFORMATIONAL ONLY: known #1268 server double-parse tolerance (filed follow-up). #1261 is about the CLIENT wire shape, proven in the browser run.",
+      "bodyExcerpt": "{\"success\":true,\"diagnosis\":{\"id\":5,\"careerArchetype\":{\"name\":\"The Creative Problem-Solver\",\"description\":\"You naturally"
+    },
+    "anonOmniscore": {
+      "status": 401
+    }
+  },
+  "checks": [
+    {
+      "id": "setup",
+      "label": "candidate logins 200 + token",
+      "pass": true,
+      "detail": "solo=200 zero=200"
+    },
+    {
+      "id": "1251",
+      "label": "A1: candidate WITH data, zero scored peers -> peer_percentile null (never 50)",
+      "pass": true,
+      "detail": "status=200 total=372 peer=null"
+    },
+    {
+      "id": "1251",
+      "label": "A1: total is the real computed 372 (unit-suite anchor)",
+      "pass": true,
+      "detail": "total=372"
+    },
+    {
+      "id": "1251",
+      "label": "A1: persisted omni_scores.peer_percentile is NULL",
+      "pass": true,
+      "detail": "db={\"total_score\":372,\"peer_percentile\":null}"
+    },
+    {
+      "id": "1251",
+      "label": "A1: persisted snapshot peer_percentile is NULL",
+      "pass": true,
+      "detail": "snap={\"total_score\":372,\"peer_percentile\":null}"
+    },
+    {
+      "id": "1251",
+      "label": "A2: explainer first-call, zero scored peers -> peerComparison.percentile null (UI renders N/A)",
+      "pass": true,
+      "detail": "status=200 peer={\"percentile\":null,\"avgScore\":null,\"topScore\":null,\"medianScore\":null}"
+    },
+    {
+      "id": "1251",
+      "label": "A2b0: solo re-score on wiped cohort -> peer_percentile null again",
+      "pass": true,
+      "detail": "peer=null"
+    },
+    {
+      "id": "1251",
+      "label": "A2b: explainer with exactly one scored peer (self) -> real 100, not null, not 50",
+      "pass": true,
+      "detail": "peer={\"percentile\":100,\"avgScore\":372,\"topScore\":372,\"medianScore\":372}"
+    },
+    {
+      "id": "1251",
+      "label": "A3: zero-input candidate -> total null AND peer_percentile null",
+      "pass": true,
+      "detail": "status=200 total=null peer=null"
+    },
+    {
+      "id": "1251",
+      "label": "B: with scored peers -> real percentile (not null, not fabricated 50)",
+      "pass": true,
+      "detail": "peer=67"
+    },
+    {
+      "id": "1251",
+      "label": "B: peer_percentile equals SQL expression result (67)",
+      "pass": true,
+      "detail": "api=67 sql=67"
+    },
+    {
+      "id": "1251",
+      "label": "B: persisted omni + snapshot peer_percentile = 67",
+      "pass": true,
+      "detail": "db={\"peer_percentile\":67} snap={\"peer_percentile\":67}"
+    },
+    {
+      "id": "1251",
+      "label": "B: explainer peerComparison.percentile = 67",
+      "pass": true,
+      "detail": "explainer={\"percentile\":67,\"avgScore\":357,\"topScore\":400,\"medianScore\":372}"
+    },
+    {
+      "id": "1261",
+      "label": "C: POST /api/career-diagnosis {quizAnswers} -> 200 + real diagnosis shape",
+      "pass": true,
+      "detail": "status=200 archetype=The Creative Problem-Solver path=Engineering Management"
+    },
+    {
+      "id": "1261",
+      "label": "C: wrong field {answers} -> 400",
+      "pass": true,
+      "detail": "status=400 body={\"error\":\"Quiz answers are required\"}"
+    },
+    {
+      "id": "1261",
+      "label": "C: phantom /api/profile-enhancement/career-diagnosis -> 404 route-miss",
+      "pass": true,
+      "detail": "status=404"
+    },
+    {
+      "id": "1261",
+      "label": "C: anon POST rejected (401/403) and created no diagnosis row",
+      "pass": true,
+      "detail": "status=403 rows=[{\"user_id\":15}] soloId=15"
+    },
+    {
+      "id": "1251",
+      "label": "control: anon GET /api/omniscore -> 401",
+      "pass": true,
+      "detail": "status=401"
+    }
+  ],
+  "allPass": true
+}

@@ -202,9 +202,9 @@ class BiasDetection {
 			// Get OmniScore distribution by demographic groups
 			const scoresByDemographics = await pool.query(`
         SELECT
-          cp.gender,
-          cp.ethnicity,
-          cp.age_range,
+          cd.gender,
+          cd.ethnicity,
+          cd.age_group AS age_range,
           COUNT(*) as total_candidates,
           AVG(os.overall_score) as avg_score,
           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY os.overall_score) as median_score,
@@ -212,9 +212,10 @@ class BiasDetection {
           MAX(os.overall_score) as max_score,
           STDDEV(os.overall_score) as score_stddev
         FROM candidate_profiles cp
+        LEFT JOIN candidate_demographics cd ON cd.user_id = cp.user_id
         LEFT JOIN omniscore_results os ON os.user_id = cp.user_id
         WHERE os.overall_score IS NOT NULL
-        GROUP BY cp.gender, cp.ethnicity, cp.age_range
+        GROUP BY cd.gender, cd.ethnicity, cd.age_group
       `);
 
 			// Calculate disparity metrics

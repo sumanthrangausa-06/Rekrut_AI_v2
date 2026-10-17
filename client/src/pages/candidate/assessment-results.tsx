@@ -28,7 +28,7 @@ interface AssessmentResult {
 	max_difficulty_reached: number;
 	duration_seconds: number;
 	answers_given: { isCorrect: boolean }[];
-	anti_cheat_score: number;
+	anti_cheat_score: number | null;
 	tab_switches: number;
 	copy_paste_attempts: number;
 	time_anomalies: number;
@@ -136,23 +136,29 @@ export function AssessmentResultsPage() {
 	const durationMinutes = Math.floor(result.duration_seconds / 60);
 	const durationSeconds = Math.floor(result.duration_seconds % 60);
 
-	const integrityScore = result.anti_cheat_score || 100;
+	// S-111 (#836): absent anti_cheat_score means "not computed" — never
+	// present it as 100. A real stored value (including 0) renders as-is.
+	const integrityScore = result.anti_cheat_score ?? null;
 	const integrityLabel =
-		integrityScore >= 90
-			? 'Excellent'
-			: integrityScore >= 70
-				? 'Good'
-				: integrityScore >= 50
-					? 'Fair'
-					: 'Poor';
+		integrityScore === null
+			? 'Insufficient data'
+			: integrityScore >= 90
+				? 'Excellent'
+				: integrityScore >= 70
+					? 'Good'
+					: integrityScore >= 50
+						? 'Fair'
+						: 'Poor';
 	const integrityColor =
-		integrityScore >= 90
-			? 'text-emerald-500'
-			: integrityScore >= 70
-				? 'text-blue-500'
-				: integrityScore >= 50
-					? 'text-amber-500'
-					: 'text-red-500';
+		integrityScore === null
+			? 'text-muted-foreground'
+			: integrityScore >= 90
+				? 'text-emerald-500'
+				: integrityScore >= 70
+					? 'text-blue-500'
+					: integrityScore >= 50
+						? 'text-amber-500'
+						: 'text-red-500';
 
 	return (
 		<div className="space-y-6 px-4 sm:px-6">
@@ -290,7 +296,7 @@ export function AssessmentResultsPage() {
 				</CardHeader>
 				<CardContent className="space-y-6">
 					<div className="flex items-center gap-4">
-						<div className={`text-4xl font-bold ${integrityColor}`}>{integrityScore}</div>
+						<div className={`text-4xl font-bold ${integrityColor}`}>{integrityScore ?? '—'}</div>
 						<div>
 							<div className="font-semibold">Assessment Integrity</div>
 							<div className="text-sm text-muted-foreground">{integrityLabel}</div>

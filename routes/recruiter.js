@@ -327,12 +327,13 @@ router.get(
 				const genderResult = await pool.query(
 					`
         SELECT
-          COALESCE(cp.gender, 'Unknown') as label,
+          COALESCE(cd.gender, 'Unknown') as label,
           COUNT(*) as count
         FROM job_applications ja
         JOIN candidate_profiles cp ON ja.candidate_id = cp.user_id
+        LEFT JOIN candidate_demographics cd ON cd.user_id = cp.user_id
         WHERE ja.company_id = $1 ${dateFilter}
-        GROUP BY cp.gender
+        GROUP BY cd.gender
       `,
 					[companyId, days],
 				);
@@ -346,12 +347,13 @@ router.get(
 				const ethnicityResult = await pool.query(
 					`
         SELECT
-          COALESCE(cp.ethnicity, 'Unknown') as label,
+          COALESCE(cd.ethnicity, 'Unknown') as label,
           COUNT(*) as count
         FROM job_applications ja
         JOIN candidate_profiles cp ON ja.candidate_id = cp.user_id
+        LEFT JOIN candidate_demographics cd ON cd.user_id = cp.user_id
         WHERE ja.company_id = $1 ${dateFilter}
-        GROUP BY cp.ethnicity
+        GROUP BY cd.ethnicity
       `,
 					[companyId, days],
 				);
@@ -412,26 +414,28 @@ router.get(
 				const genderPipelineResult = await pool.query(
 					`
         SELECT
-          COALESCE(cp.gender, 'Unknown') as group_label,
+          COALESCE(cd.gender, 'Unknown') as group_label,
           ja.status as stage,
           COUNT(*) as count
         FROM job_applications ja
         JOIN candidate_profiles cp ON ja.candidate_id = cp.user_id
+        LEFT JOIN candidate_demographics cd ON cd.user_id = cp.user_id
         WHERE ja.company_id = $1 ${dateFilter}
-        GROUP BY cp.gender, ja.status
+        GROUP BY cd.gender, ja.status
       `,
 					[companyId, days],
 				);
 				const ethnicityPipelineResult = await pool.query(
 					`
         SELECT
-          COALESCE(cp.ethnicity, 'Unknown') as group_label,
+          COALESCE(cd.ethnicity, 'Unknown') as group_label,
           ja.status as stage,
           COUNT(*) as count
         FROM job_applications ja
         JOIN candidate_profiles cp ON ja.candidate_id = cp.user_id
+        LEFT JOIN candidate_demographics cd ON cd.user_id = cp.user_id
         WHERE ja.company_id = $1 ${dateFilter}
-        GROUP BY cp.ethnicity, ja.status
+        GROUP BY cd.ethnicity, ja.status
       `,
 					[companyId, days],
 				);
@@ -1998,7 +2002,7 @@ router.put(
 			if (status && status !== existing.rows[0].old_status) {
 				try {
 					await pool.query(
-						`INSERT INTO events (user_id, event_type, event_data, created_at)
+						`INSERT INTO events (user_id, event_type, metadata, created_at)
            VALUES ($1, 'application_status_changed', $2, NOW())`,
 						[
 							req.user.id,
@@ -3847,7 +3851,7 @@ router.get(
              cp.headline, cp.years_experience,
              mr.matching_skills, mr.missing_skills,
              -- Composite rank: 50% OmniScore + 50% match_score
-             (COALESCE(os.total_score, 300) * 0.5 + COALESCE(ja.match_score, 50) * 0.5 * 8.5) as composite_score
+             (COALESCE(os.total_score, 0) * 0.5 + COALESCE(ja.match_score, 50) * 0.5 * 8.5) as composite_score
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id
@@ -4436,16 +4440,16 @@ router.get(
 			try {
 				const diversityResult = await pool.query(
 					`SELECT 
-					COUNT(*) FILTER (WHERE u.gender = 'male') as male_count,
-					COUNT(*) FILTER (WHERE u.gender = 'female') as female_count,
-					COUNT(*) FILTER (WHERE u.gender = 'non_binary') as non_binary_count,
-					COUNT(*) FILTER (WHERE u.gender IS NULL OR u.gender = 'prefer_not_to_say') as gender_unspecified,
-					COUNT(*) FILTER (WHERE u.ethnicity = 'asian') as asian_count,
-					COUNT(*) FILTER (WHERE u.ethnicity = 'black') as black_count,
-					COUNT(*) FILTER (WHERE u.ethnicity = 'hispanic') as hispanic_count,
-					COUNT(*) FILTER (WHERE u.ethnicity = 'white') as white_count,
-					COUNT(*) FILTER (WHERE u.ethnicity = 'other') as ethnicity_other,
-					COUNT(*) FILTER (WHERE u.ethnicity IS NULL) as ethnicity_unspecified,
+					COUNT(*) FILTER (WHERE cd.gender = 'male') as male_count,
+					COUNT(*) FILTER (WHERE cd.gender = 'female') as female_count,
+					COUNT(*) FILTER (WHERE cd.gender = 'non_binary') as non_binary_count,
+					COUNT(*) FILTER (WHERE cd.gender IS NULL OR cd.gender = 'prefer_not_to_say') as gender_unspecified,
+					COUNT(*) FILTER (WHERE cd.ethnicity = 'asian') as asian_count,
+					COUNT(*) FILTER (WHERE cd.ethnicity = 'black') as black_count,
+					COUNT(*) FILTER (WHERE cd.ethnicity = 'hispanic') as hispanic_count,
+					COUNT(*) FILTER (WHERE cd.ethnicity = 'white') as white_count,
+					COUNT(*) FILTER (WHERE cd.ethnicity = 'other') as ethnicity_other,
+					COUNT(*) FILTER (WHERE cd.ethnicity IS NULL) as ethnicity_unspecified,
 					COUNT(*) FILTER (WHERE DATE_PART('year', AGE(COALESCE(u.date_of_birth, NOW() - INTERVAL '30 years'))) < 25) as age_under_25,
 					COUNT(*) FILTER (WHERE DATE_PART('year', AGE(COALESCE(u.date_of_birth, NOW() - INTERVAL '30 years'))) BETWEEN 25 AND 34) as age_25_34,
 					COUNT(*) FILTER (WHERE DATE_PART('year', AGE(COALESCE(u.date_of_birth, NOW() - INTERVAL '30 years'))) BETWEEN 35 AND 44) as age_35_44,
@@ -4453,6 +4457,7 @@ router.get(
 					COUNT(*) FILTER (WHERE DATE_PART('year', AGE(COALESCE(u.date_of_birth, NOW() - INTERVAL '30 years'))) >= 55) as age_55_plus
 				 FROM job_applications a
 				 JOIN users u ON a.candidate_id = u.id
+				 LEFT JOIN candidate_demographics cd ON cd.user_id = u.id
 				 WHERE a.company_id = $1 AND a.applied_at >= NOW() - INTERVAL '${days} days'`,
 					[companyId],
 				);

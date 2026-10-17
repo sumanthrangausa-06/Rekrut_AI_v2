@@ -1,0 +1,46 @@
+# QA REPORT — Batched AFTER verification: #1222 + #1223 + #1224 (fresh install)
+
+**Persona:** QUINN (Phase 6 — Quality) · **Date:** 2026-10-16 · **Run dir:** `~/workspace/goals/launch-rekrut-ai-v2-by-january/hidden_files/1222-1224-after-run/`
+**Tested commit:** `96fe0f83882dc33188e34051eddb1841513cd624` (Merge PR #1260) — verified equal to live `origin/dev` head at run start (`git ls-remote` + fetch), in Quinn's own isolated clone (`~/workspace/rekrut-quinn-batch-after/repo`, detached HEAD); the shared dev worktree was not touched. This head contains all three fix merges: `c46ef0ea` (PR #1255, #1222), `e5f6f33a` (PR #1257, #1223), `227db0c4` (PR #1256, #1224).
+**Scope:** AFTER capture for three already-merged Wave 3 defects only. **This run closes nothing and merges nothing.** All three issues stay OPEN for Lead. No promotion, no purge flag, no live/production DB, no outreach, no code fixes in this lane.
+
+## Verdict — all three PASS
+
+| Defect | What was broken | Verdict | Evidence |
+|---|---|---|---|
+| **#1222** TrustScore page 403 for company owner | All `/api/trustscore*` calls 403 "Recruiter access required" for role `employer` | **PASS** | API: all four page calls as seeded employer/company owner → **200** (`/api/trustscore`, `/breakdown`, `/assessment-responsiveness`, `/standalone`). Negative controls: candidate → **403** (access not widened), anon → 401. Browser (real UI login): TrustScore page fired exactly those four calls, all **200**, zero 403; page renders "TrustScore — No score yet", V1 **N/A**, factors "Not enough data" — honest empty state, no fabricated score (`screenshots/1222-employer-trustscore.png`, visually inspected by Quinn). Server log: "Recruiter access required" → 0 |
+| **#1223** Company owner lands on "Awaiting Approval" after login | Post-login routing misclassified the owner (login payload omits `company_id`) | **PASS** | Browser (real UI login as employer, `companies.owner_id` = the user, zero join requests in the fresh DB — the exact original defect setup): landed on **`http://localhost:3000/recruiter`**, NOT `/recruiter/pending-approval`; no "Awaiting Approval" text anywhere; dashboard fully rendered ("Welcome back, Quinn", "Employer Trust Score: Insufficient data", Recent Activity) (`screenshots/1223-employer-after-login.png`, visually inspected) |
+| **#1224** Admin Analytics / Biometric Audit / Email Queue bounce env-admin to /login, APIs 401 | The env-admin holds only a cookie session (no JWT); all three APIs were JWT-only | **PASS** | API: env-admin login (real CSRF double-submit flow, as the UI does) → 200 + session cookie; with that session **200** on `/api/analytics/dashboard`, `/api/admin/biometric-audit`, `/api/admin/email-queue`. Anon controls → **401** on all three (auth still enforced). Browser (real UI login at `/admin/login` → lands `/admin/ai-health`, no bounce): Analytics renders ("Analytics Dashboard", honest zeros / "No visitor data yet", its API **200**), Biometric Audit renders ("Biometric Audit Log", "No audit entries match", API **200**), Email Queue renders (Pending/Sent/Failed/Total 0, processor status, API **200**) — zero 401s, no `/login` bounce on any (`screenshots/1224-admin-*.png`, all visually inspected) |
+
+**Overall: PASS (3/3).** API probe 12/12 checks PASS (`evidence/api-probe.json`); browser checks PASS for all three (`evidence/browser-result.json`).
+
+## Fresh-install proof
+
+- **Database isolation note (method deviation, disclosed):** the run started on the shared local cluster at `127.0.0.1:55433`, but that cluster's `postgres` password was changed repeatedly by parallel lanes mid-run — the app health flipped to `degraded` with DB error `28P01` (password authentication failed) and the first browser capture batch was corrupted by it (blank pages after the DB dropped; that batch was discarded, not reported). The run was therefore restarted on a **private PostgreSQL 16.15 instance owned by this run alone** (port 55434, trust auth, data dir `/var/lib/postgresql/quinn1222`), which no other lane can touch. Same PG version, same fresh-install method; the shared cluster and its databases were not deleted or altered beyond a scratch-password reset and one scratch DB (`rekrut_after_1222`) created there before the switch.
+- Database `rekrut_after_1222` created **empty** on the private instance; schema built **only** by `node migrate.js` from the clean clone at `96fe0f83` (full log in `evidence/migrate.log`).
+  - 149 migrations recorded in `_migrations`, 248 public tables — identical counts to the #1219–#1221 AFTER run.
+  - **Known fresh-install defect persists at this commit:** `migrate.js` exits **1** at `p2_schema_hardening.sql` — code `0A000`, `cannot alter type of a column used by a view or rule` (`candidate_profiles.availability` / `v_candidate_full_profile`). Identical to prior AFTER runs; #1141 territory, pre-existing, unrelated to #1222/#1223/#1224. **Nothing was hand-applied.**
+- Server: `node server.js` from the clone at `96fe0f83` (no dependency changes vs the prior run's tested commit, so installed modules were reused; client rebuilt with `npm run build`, exit 0), serving on port **3000**. Health: `200 {"status":"ok","db":"connected"}` with commit `96fe0f83…` reported by `/health`.
+- Fixtures (this run's scratch DB only, seeded via the repo's own bcryptjs hashing): one employer/company owner (`quinn-after-employer@example.com`, company "Quinn After Co", `companies.owner_id` set to the employer — the exact #1222/#1223 setup), one candidate control (`quinn-after-candidate@example.com`). Env-admin used this run's own `ADMIN_USERNAME`/`ADMIN_PASSWORD` server env (values committed nowhere).
+
+## Observations (not verdicts)
+
+- **O1:** The first (discarded) capture batch also showed the recruiter dashboard's error boundary ("This page encountered an error") while the DB was failing with `28P01`. On the clean private-DB run the same login rendered the full dashboard with no error — the boundary display tracks DB health, not a #1223 regression. No filing by Quinn; Lead may note it if dashboard resilience under DB failure is ever scoped.
+- **O2:** The API probe's first attempt at env-admin login returned 403 — that was the harness omitting the CSRF double-submit the real UI performs (`client/src/pages/admin/login.tsx` reads the `_csrf` cookie and sends `X-CSRF-Token`). The probe was corrected to the real browser flow and then passed 12/12; the browser flow itself never had this issue. Disclosed so the method change is not a mystery.
+
+## Limits
+
+Desktop viewport only (1440×900), per standing QA order. Local fresh install only — nothing on staging or production was touched, no PR was merged, no issue was closed, no flag flipped, no data outside this run's own local QA databases was created or deleted, and no email/outreach was sent. #1222, #1223 and #1224 remain **OPEN** for Lead.
+
+---
+
+## Addendum — #1226 Candidate payroll profile 404 (Lead addendum, same run)
+
+**Requested by Lead** after Scout's STOP 1 (issue comment 6229273027) reclassified the filed root cause: the route exists and matches; the QA-time 404 is the handler's designed "Employee profile not found" (`routes/payroll.js:1048`) for a user with no `employees` row. Verified by Quinn in this same fresh-install environment at the same tested commit `96fe0f83` (note: live `origin/dev` advanced to `8e0bba6a` during the wider programme — the intervening commits touch only #1229's migration 263 and the LinkedIn optimizer, no payroll files). Two cases:
+
+| Case | Setup | Verdict | Evidence |
+|---|---|---|---|
+| **(a) Candidate WITH an employee record** | Seeded `employees` row (`QNN-1226-001`, Data Analyst, employer = the batch company owner) + `payroll_configs` (salary 85000, bi-weekly, direct deposit) for a fresh candidate | **PASS** | API: `GET /api/payroll/employee/profile` → **200**, profile carries the seeded employee_number/position/salary. Browser: `/candidate/payroll` renders "My Payroll" — $85,000.00 Annual Salary, Bi-Weekly, Pay Profile with Employee ID QNN-1226-001 / Data Analyst / Direct Deposit, honest "No paychecks yet" (`screenshots/1226a-candidate-payroll-with-profile.png`, visually inspected) |
+| **(b) Candidate with NO employee record** | The batch candidate (verified 0 `employees` rows in the scratch DB) | **PASS** | API: `GET /api/payroll/employee/profile` → **404 `{"error":"Employee profile not found"}`** — the handler's designed response, NOT the Express route-miss body (`"API endpoint not found"`); anon → 401. Browser: payroll page fired that 404 and rendered the graceful **"Payroll Not Set Up — Your payroll profile hasn't been created yet…"** empty state; no crash, no error boundary, no login bounce (`screenshots/1226b-candidate-payroll-not-set-up.png`, visually inspected) |
+
+**#1226 overall: PASS (2/2).** Quinn confirms Scout's reclassification with runtime evidence: not a missing/mismatched route — an expected data-state 404 with a designed empty state, and a 200 with a rendered profile once an employee record exists. API probe 4/4 (`evidence/api-probe-1226.json`), browser PASS both cases (`evidence/browser-result-1226.json`). #1226 remains **OPEN** for Lead (reclassification/closure decision is Lead's, not Quinn's).

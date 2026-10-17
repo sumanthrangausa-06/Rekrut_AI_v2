@@ -4,6 +4,7 @@ const _crypto = require('node:crypto');
 const path = require('node:path');
 const fs = require('node:fs');
 const pool = require('../lib/db');
+const { sanitizeErasureResult } = require('../lib/erasureResultSanitizer');
 const router = express.Router();
 
 let logAuthEvent;
@@ -15,14 +16,18 @@ try {
 
 // Import JWT verification to bridge main-app admin users into admin panel
 let verifyToken;
+let authMiddleware;
+let requireRole;
+let hashPassword;
 try {
-	verifyToken = require('../lib/auth').verifyToken;
+	({ verifyToken, authMiddleware, requireRole, hashPassword } = require('../lib/auth'));
 } catch (_e) {
 	verifyToken = () => null;
 }
 
 // ─── Rate Limiting (distributed via PostgreSQL) ─────────────────────────────
 const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-limiter');
+const emailQueue = require('../lib/email-queue');
 
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
 const MAX_ATTEMPTS = 5;
@@ -88,7 +93,7 @@ async function initAdminCredentials() {
 		);
 	}
 
-	ADMIN_PASSWORD_HASH = await bcrypt.hash(password, 13);
+	ADMIN_PASSWORD_HASH = await hashPassword(password);
 	console.log('[admin] Admin credentials loaded from env vars');
 }
 
@@ -96,33 +101,46 @@ async function initAdminCredentials() {
 initAdminCredentials();
 
 // ─── Middleware ──────────────────────────────────────────────────────────────
+
+// #1224: single source for env-admin session validity, shared by
+// requireAdmin and bridgeAdminSession. Returns 'none' when there is no
+// admin session, 'expired' when one existed but timed out (session
+// cleared, 401 already sent — caller must stop), 'ok' when valid
+// (activity timestamp refreshed).
+function checkAdminSession(req, res) {
+	if (!req.session?.isAdmin) return 'none';
+	// Admin session timeout enforcement
+	const ADMIN_IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+	const ADMIN_ABSOLUTE_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours
+	const now = Date.now();
+	const lastActivity = req.session.lastAdminActivity
+		? new Date(req.session.lastAdminActivity).getTime()
+		: now;
+	const loginAt = req.session.adminLoginAt ? new Date(req.session.adminLoginAt).getTime() : now;
+
+	if (now - lastActivity > ADMIN_IDLE_TIMEOUT) {
+		req.session.isAdmin = false;
+		req.session.adminLoginAt = null;
+		req.session.lastAdminActivity = null;
+		res.status(401).json({ error: 'Admin session expired due to inactivity' });
+		return 'expired';
+	}
+	if (now - loginAt > ADMIN_ABSOLUTE_TIMEOUT) {
+		req.session.isAdmin = false;
+		req.session.adminLoginAt = null;
+		req.session.lastAdminActivity = null;
+		res.status(401).json({ error: 'Admin session expired (absolute timeout)' });
+		return 'expired';
+	}
+	req.session.lastAdminActivity = new Date().toISOString();
+	return 'ok';
+}
+
 async function requireAdmin(req, res, next) {
 	// Path 1: Already authenticated via admin login
-	if (req.session?.isAdmin) {
-		// Admin session timeout enforcement
-		const ADMIN_IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-		const ADMIN_ABSOLUTE_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours
-		const now = Date.now();
-		const lastActivity = req.session.lastAdminActivity
-			? new Date(req.session.lastAdminActivity).getTime()
-			: now;
-		const loginAt = req.session.adminLoginAt ? new Date(req.session.adminLoginAt).getTime() : now;
-
-		if (now - lastActivity > ADMIN_IDLE_TIMEOUT) {
-			req.session.isAdmin = false;
-			req.session.adminLoginAt = null;
-			req.session.lastAdminActivity = null;
-			return res.status(401).json({ error: 'Admin session expired due to inactivity' });
-		}
-		if (now - loginAt > ADMIN_ABSOLUTE_TIMEOUT) {
-			req.session.isAdmin = false;
-			req.session.adminLoginAt = null;
-			req.session.lastAdminActivity = null;
-			return res.status(401).json({ error: 'Admin session expired (absolute timeout)' });
-		}
-		req.session.lastAdminActivity = new Date().toISOString();
-		return next();
-	}
+	const sessionStatus = checkAdminSession(req, res);
+	if (sessionStatus === 'ok') return next();
+	if (sessionStatus === 'expired') return;
 
 	// Path 2: Bridge — JWT-authenticated user with admin role gets auto-elevated
 	const token = req.headers.authorization?.split(' ')[1] || req.session?.token;
@@ -147,6 +165,35 @@ async function requireAdmin(req, res, next) {
 	}
 
 	return res.status(401).json({ error: 'Admin authentication required' });
+}
+
+// #1224 (D11): the env-admin holds ONLY a cookie session (isAdmin) — no
+// JWT, no users row — so APIs gated purely by JWT authMiddleware 401'd
+// the legitimate admin session. bridgeAdminSession runs BEFORE the JWT
+// middleware on those APIs: a valid env-admin session (same timeouts as
+// requireAdmin Path 1) is bridged to a synthetic admin req.user and the
+// JWT chain is skipped via skipIfAdminSession; anything else falls
+// through to the existing JWT chain completely unchanged. This adds an
+// already-trusted credential; it removes no check — no session and no
+// JWT still 401s downstream, and a non-admin JWT is still denied by the
+// downstream role check.
+function bridgeAdminSession(req, res, next) {
+	const sessionStatus = checkAdminSession(req, res);
+	if (sessionStatus === 'expired') return; // 401 already sent
+	if (sessionStatus === 'ok') {
+		req.adminSession = true;
+		if (!req.user) {
+			// The env-admin has no users row; id stays null (audit rows
+			// written for env-admin views carry a null actor id, never a
+			// fabricated user id).
+			req.user = { id: null, role: 'admin', envAdmin: true };
+		}
+	}
+	return next();
+}
+
+function skipIfAdminSession(middleware) {
+	return (req, res, next) => (req.adminSession ? next() : middleware(req, res, next));
 }
 
 // ─── Routes ─────────────────────────────────────────────────────────────────
@@ -240,6 +287,47 @@ router.get('/me', (req, res) => {
 
 	return res.status(401).json({ authenticated: false });
 });
+
+// GET /api/admin/email-queue — queue stats (admin only)
+// POST /api/admin/email-queue/retry — retry failed emails (admin only)
+// #1224: these handlers lived in server.js behind JWT-only
+// authMiddleware, which 401'd the env-admin cookie session. They live in
+// the admin router now, gated by the admin-session bridge + the same JWT
+// chain and inline admin check as before. The queue processor itself
+// stays in server.js.
+router.get(
+	'/email-queue',
+	bridgeAdminSession,
+	skipIfAdminSession(authMiddleware),
+	async (req, res) => {
+		if (req.user.role !== 'admin') {
+			return res.status(403).json({ error: 'Admin access required' });
+		}
+		try {
+			const stats = await emailQueue.getStats();
+			res.json({ stats });
+		} catch (_err) {
+			res.status(500).json({ error: 'Failed to get queue stats' });
+		}
+	},
+);
+
+router.post(
+	'/email-queue/retry',
+	bridgeAdminSession,
+	skipIfAdminSession(authMiddleware),
+	async (req, res) => {
+		if (req.user.role !== 'admin') {
+			return res.status(403).json({ error: 'Admin access required' });
+		}
+		try {
+			const retried = await emailQueue.retryFailed();
+			res.json({ retried: retried.length });
+		} catch (_err) {
+			res.status(500).json({ error: 'Failed to retry failed emails' });
+		}
+	},
+);
 
 // GET /api/admin/revenue — admin-only revenue funnel metrics
 router.get('/revenue', requireAdmin, async (req, res) => {
@@ -501,6 +589,174 @@ router.get('/team-status', requireAdmin, async (_req, res) => {
 		res.status(500).json({ error: 'Failed to load team status' });
 	}
 });
+
+// ─── Biometric Audit Log Viewer (S-065, #715) ─────────────────────────────────
+// Read path for the S-014 append-only biometric audit trail.
+//
+// Access control (main-app pattern, per STOP 1): admin + hiring_manager via
+// main-app JWT (authMiddleware + requireRole). This is intentionally NOT the
+// admin-panel requireAdmin — hiring managers are main-app users, not admin-
+// panel users.
+//
+// Privacy: no JOIN to users in the read path (no PII). Candidate references
+// are display-level pseudonyms (S-057 follow-up will encrypt at rest).
+
+const { pseudonymizeCandidateId, VALID_ACTIONS: AUDIT_ACTIONS } = require('../lib/biometricAudit');
+
+// GET /api/admin/biometric-audit — paginated audit entries with filters
+router.get(
+	'/biometric-audit',
+	// #1224: env-admin cookie session bridges in as role 'admin' (global
+	// view, same as a JWT admin); JWT admin/hiring_manager path unchanged.
+	bridgeAdminSession,
+	skipIfAdminSession(authMiddleware),
+	skipIfAdminSession(requireRole('admin', 'hiring_manager')),
+	rateLimits.admin,
+	async (req, res) => {
+		try {
+			const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+			const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+			const { candidate_id, action, data_type, start_date, end_date } = req.query;
+
+			if (action && !AUDIT_ACTIONS.includes(action)) {
+				return res.status(400).json({
+					error: `Invalid action filter. Must be one of: ${AUDIT_ACTIONS.join(', ')}`,
+				});
+			}
+
+			// Privacy review H2: reject non-numeric candidate_id (was NaN → 500).
+			let candidateIdFilter = null;
+			if (candidate_id) {
+				candidateIdFilter = parseInt(candidate_id, 10);
+				if (Number.isNaN(candidateIdFilter)) {
+					return res.status(400).json({ error: 'Invalid candidate_id filter' });
+				}
+			}
+
+			// Privacy review L2: validate date filters (was raw → 500 on bad input).
+			const dateRe = /^\d{4}-\d{2}-\d{2}(T.*)?$/;
+			for (const [label, value] of [
+				['start_date', start_date],
+				['end_date', end_date],
+			]) {
+				if (value && !dateRe.test(value)) {
+					return res.status(400).json({ error: `Invalid ${label} format (use YYYY-MM-DD)` });
+				}
+			}
+
+			const conditions = [];
+			const params = [];
+			let idx = 1;
+
+			// S-065 C1 (privacy review, CRITICAL): tenant isolation. A
+			// hiring_manager must only see their own company's audit entries.
+			// admin keeps the global view. NULL company_id rows (written before
+			// tenant attribution existed) are excluded from hiring_manager
+			// views — `company_id = $n` never matches NULL, fail-closed.
+			const isAdmin = req.user.role === 'admin';
+			if (!isAdmin) {
+				if (!req.user.company_id) {
+					return res.status(403).json({
+						error: 'Account has no company attribution; audit access denied.',
+					});
+				}
+				conditions.push(`company_id = $${idx++}`);
+				params.push(req.user.company_id);
+			}
+
+			if (candidateIdFilter !== null) {
+				conditions.push(`candidate_id = $${idx++}`);
+				params.push(candidateIdFilter);
+			}
+			if (action) {
+				conditions.push(`action = $${idx++}`);
+				params.push(action);
+			}
+			if (data_type) {
+				conditions.push(`data_type = $${idx++}`);
+				params.push(data_type);
+			}
+			if (start_date) {
+				conditions.push(`accessed_at >= $${idx++}`);
+				params.push(start_date);
+			}
+			if (end_date) {
+				conditions.push(`accessed_at <= $${idx++}`);
+				params.push(end_date);
+			}
+
+			const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+			// No JOIN to users — actor identity stays as user_id + user_role only.
+			const dataResult = await pool.query(
+				`SELECT id, accessed_at, user_id, user_role, action, data_type,
+				        candidate_id, ip_address
+				   FROM biometric_audit_log
+				   ${where}
+				   ORDER BY accessed_at DESC
+				   LIMIT $${idx++} OFFSET $${idx++}`,
+				[...params, limit, offset],
+			);
+
+			const countResult = await pool.query(
+				`SELECT COUNT(*) as total FROM biometric_audit_log ${where}`,
+				params,
+			);
+
+			const entries = dataResult.rows.map((row) => ({
+				id: row.id,
+				accessed_at: row.accessed_at,
+				user_id: row.user_id,
+				user_role: row.user_role,
+				action: row.action,
+				data_type: row.data_type,
+				// Display-level pseudonym (S-065). Raw candidate_id is intentionally
+				// omitted — use the candidate_id filter to investigate a subject.
+				candidate_ref: pseudonymizeCandidateId(row.candidate_id),
+				// Privacy review M1: ip_address is personal data of the accessor;
+				// only admins need it for oversight.
+				...(isAdmin ? { ip_address: row.ip_address } : {}),
+			}));
+
+			// Privacy review M2: log the read itself (accountability). Fire-and-
+			// forget — a logging failure must not fail the read. Written to the
+			// general audit_logs table, NOT biometric_audit_log (avoid recursion).
+			pool
+				.query(
+					`INSERT INTO audit_logs (action_type, user_id, target_type, metadata, ip_address, created_at)
+					 VALUES ('biometric_audit_viewed', $1, 'biometric_audit_log', $2, $3, NOW())`,
+					[
+						req.user.id,
+						JSON.stringify({
+							viewer_role: req.user.role,
+							filters: { candidate_id, action, data_type, start_date, end_date },
+							result_count: dataResult.rows.length,
+						}),
+						req.ip || null,
+					],
+				)
+				.catch((logErr) => {
+					console.error('[admin/biometric-audit] read-audit log failed:', logErr.message);
+				});
+
+			res.json({
+				success: true,
+				entries,
+				total: parseInt(countResult.rows[0].total, 10),
+				limit,
+				offset,
+			});
+		} catch (error) {
+			const ref = require('node:crypto').randomUUID();
+			console.error(`[ERROR ref=${ref}] [admin/biometric-audit] Error:`, error);
+			if (process.env.NODE_ENV === 'production') {
+				res.status(500).json({ error: 'Internal server error', ref });
+			} else {
+				res.status(500).json({ error: 'Failed to load biometric audit log', ref });
+			}
+		}
+	},
+);
 
 // ─── Admin Compliance (EU AI Act) ───────────────────────────────────────────
 
@@ -1660,7 +1916,7 @@ router.get('/compliance/appeals', requireAdmin, async (req, res) => {
         sa.id,
         sa.user_id,
         u.email as user_email,
-        u.full_name as user_name,
+        u.name as user_name,
         sa.score_type,
         sa.original_score,
         sa.appeal_reason,
@@ -1735,7 +1991,7 @@ router.get('/compliance/consents', requireAdmin, async (req, res) => {
         cr.id,
         cr.user_id,
         u.email as user_email,
-        u.full_name as user_name,
+        u.name as user_name,
         cr.consent_type,
         cr.consented,
         cr.consented_at,
@@ -1811,7 +2067,7 @@ router.get('/compliance/data-requests', requireAdmin, async (req, res) => {
         dr.id,
         dr.user_id,
         u.email as user_email,
-        u.full_name as user_name,
+        u.name as user_name,
         dr.request_type,
         dr.status,
         dr.requested_at,
@@ -1866,6 +2122,284 @@ router.get('/compliance/data-requests', requireAdmin, async (req, res) => {
 	} catch (error) {
 		console.error('[admin/compliance/data-requests] Error:', error.message);
 		res.status(500).json({ error: 'Failed to load data requests' });
+	}
+});
+
+// POST /api/admin/compliance/data-requests/:id/fulfill — fulfill a pending DSAR
+// deletion request (#746). Calls the shared erasureService.erasePersonalData()
+// (S-067/S-075) inside a transaction so admin fulfillment shreds identically to
+// self-serve account deletion. Terminal status is 'completed' (matches the
+// chk_data_requests_status constraint; export requests are fulfilled
+// synchronously at creation and are rejected here by the type gate).
+router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, res) => {
+	try {
+		const id = parseInt(req.params.id, 10);
+		if (!Number.isInteger(id) || id <= 0) {
+			return res.status(400).json({ error: 'Invalid request id' });
+		}
+
+		const found = await pool.query(
+			`SELECT dr.*, u.company_id
+       FROM data_requests dr
+       LEFT JOIN users u ON u.id = dr.user_id
+       WHERE dr.id = $1`,
+			[id],
+		);
+		if (found.rows.length === 0) {
+			return res.status(404).json({ error: 'Data request not found' });
+		}
+		const dr = found.rows[0];
+
+		// Type gate: only deletion requests go through erasure fulfillment.
+		if (dr.request_type !== 'deletion') {
+			return res.status(400).json({
+				error: `Cannot fulfill request of type '${dr.request_type}' via this endpoint`,
+			});
+		}
+
+		// Status gate: idempotent on completed, conflict on rejected.
+		if (dr.status === 'completed') {
+			return res.json({
+				success: true,
+				alreadyProcessed: true,
+				status: dr.status,
+				requestId: id,
+			});
+		}
+		if (dr.status === 'rejected') {
+			return res.status(409).json({ error: 'Request was rejected and cannot be fulfilled' });
+		}
+
+		const client = await pool.connect();
+		try {
+			await client.query('BEGIN');
+
+			// NULL user_id: the users row was hard-deleted out-of-band. The app
+			// itself never hard-deletes users (DELETE /delete-account soft-deletes
+			// and calls erasePersonalData itself), so this state is unreachable
+			// through any app path — treat it as an anomaly, not a normal case.
+			// candidate_data_keys has NO FK to users (migrations/246), so a manual
+			// hard delete would leave the DEK row (and recoverable ciphertext)
+			// behind — flag it loudly rather than claiming "nothing left".
+			let erasure = null;
+			if (dr.user_id != null) {
+				const { erasePersonalData } = require('../lib/erasureService');
+				erasure = await erasePersonalData(dr.user_id, {
+					client,
+					audit: {
+						userId: dr.user_id,
+						userRole: 'candidate',
+						ipAddress: req.ip,
+						companyId: dr.company_id,
+					},
+				});
+			} else {
+				console.warn(
+					`[ALERT][admin/compliance/data-requests/fulfill] data_request ${id} has NULL user_id — ` +
+						`users row hard-deleted out-of-band; DEK-store cleanup unverified for this path.`,
+				);
+			}
+
+			const note =
+				dr.user_id == null
+					? 'Fulfilled with anomaly: user row hard-deleted out-of-band (app never hard-deletes users); DEK-store cleanup unverified — manual review advised'
+					: `Fulfilled by admin: DEK shredded=${erasure.shredded}, embeddings=${erasure.embeddingsDeleted}, searchIndex=${erasure.searchIndexDeleted}`;
+			const notes = dr.notes ? `${dr.notes}\n${note}` : note;
+
+			await client.query(
+				`UPDATE data_requests
+         SET status = 'completed', processed_at = NOW(), processed_by = $1, notes = $2
+         WHERE id = $3`,
+				[req.user?.id || null, notes, id],
+			);
+
+			// Audit the fulfillment atomically inside the transaction (same
+			// audit_logs schema as AuditLogger.log). If this INSERT fails the
+			// whole tx rolls back — fail-closed: better to retry than to erase
+			// without an audit trail (Q2-1).
+			// fulfilledBy: session admins have no req.user; record the bridge
+			// identity (or panel session) so a regulator can see WHO executed
+			// this erasure (Q2-2).
+			await client.query(
+				`INSERT INTO audit_logs (action_type, user_id, target_type, target_id, metadata, ip_address, user_agent)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+				[
+					'gdpr_deletion_fulfilled',
+					req.user?.id || null,
+					'data_request',
+					id,
+					JSON.stringify({
+						target_user_id: dr.user_id,
+						// #1128 D-8b: persist ONLY the sanitised copy —
+						// the raw erasure result carries storageKeys[] +
+						// gapC/gapD.nonPatternStorageUrls (raw storage
+						// keys) and must never reach audit_logs.metadata.
+						erasure: sanitizeErasureResult(erasure),
+						fulfilledBy: req.session?.adminBridgedFrom || 'admin-panel-session',
+					}),
+					req.ip || null,
+					req.get('user-agent') || null,
+				],
+			);
+
+			await client.query('COMMIT');
+
+			// S-076 (#759) Phase 2: delete storage objects AFTER commit, driven
+			// by the pending_storage_deletions ledger (crash-safe). R2 NEVER in-tx.
+			if (erasure) {
+				const { deleteErasedStorageFiles } = require('../lib/erasureService');
+				const storageErasure = await deleteErasedStorageFiles(dr.user_id, {
+					audit: {
+						userId: dr.user_id,
+						userRole: 'candidate',
+						ipAddress: req.ip,
+						companyId: dr.company_id,
+					},
+				});
+				erasure.storageFilesDeleted = storageErasure.deleted;
+				erasure.storageFilesFailed = storageErasure.failed;
+			}
+
+			// #1128 D-8b: the HTTP response gets the sanitised copy too —
+			// storage-files counts added above pass through as counts.
+			res.json({
+				success: true,
+				requestId: id,
+				status: 'completed',
+				erasure: sanitizeErasureResult(erasure),
+			});
+		} catch (txErr) {
+			await client.query('ROLLBACK');
+			// #799 (G-1): a legal hold vs a DSAR request is a CONFLICT,
+			// surfaced and recorded under GDPR Art. 17(3)(e) — never a
+			// silent proceed and never a silent refusal. The erasure did
+			// not run (rolled back); record the conflict on the request
+			// and answer 409 so the admin can release the hold and
+			// re-fulfil.
+			if (txErr.code === 'LEGAL_HOLD') {
+				// Lex F-1 (#915 PR-gate fix round): the durable conflict
+				// record is the compliance_audit_trail entry (hold id,
+				// actor, request/subject identifiers) — the data_requests
+				// note below is a secondary, human-readable copy. The 409
+				// may claim "recorded" ONLY when the audit write succeeded;
+				// if it fails, fail closed: surface the failure with a 500
+				// (the erasure did NOT run — the tx rolled back — so a
+				// retry after the trail recovers loses nothing).
+				let conflictRecorded = false;
+				try {
+					const { recordLegalHoldConflict } = require('../lib/legalHold');
+					await recordLegalHoldConflict({
+						holdId: txErr.details?.holdId ?? null,
+						actor: legalHoldActor(req),
+						actorRole: 'admin',
+						requestId: id,
+						subjectUserId: dr.user_id ?? null,
+						companyId: dr.company_id ?? null,
+						source: 'dsar_fulfillment',
+					});
+					conflictRecorded = true;
+				} catch (recErr) {
+					console.error('[admin/compliance/data-requests/fulfill] legal-hold conflict AUDIT record failed:', recErr.message);
+				}
+				if (!conflictRecorded) {
+					return res.status(500).json({
+						error:
+							'Legal hold active: erasure was NOT performed, but the conflict could not be recorded ' +
+							'in the compliance audit trail. Retry the fulfilment so the conflict can be recorded.',
+						legalHold: true,
+						requestId: id,
+						conflictRecorded: false,
+					});
+				}
+				try {
+					const conflictNote =
+						`Fulfilment blocked ${new Date().toISOString()}: active legal hold on the subject ` +
+						'(GDPR Art. 17(3)(e)) — erasure NOT performed; conflict recorded in the compliance audit trail.';
+					await pool.query(
+						`UPDATE data_requests SET notes = $1 WHERE id = $2`,
+						[dr.notes ? `${dr.notes}\n${conflictNote}` : conflictNote, id],
+					);
+				} catch (recErr) {
+					console.error('[admin/compliance/data-requests/fulfill] legal-hold conflict note write failed:', recErr.message);
+				}
+				return res.status(409).json({
+					error:
+						'Legal hold active: this erasure cannot proceed while the subject is under a legal hold ' +
+						'(GDPR Art. 17(3)(e)). The conflict has been recorded; release the hold and re-fulfil.',
+					legalHold: true,
+					requestId: id,
+					conflictRecorded: true,
+				});
+			}
+			throw txErr;
+		} finally {
+			client.release();
+		}
+	} catch (error) {
+		console.error('[admin/compliance/data-requests/fulfill] Error:', error.message);
+		res.status(500).json({ error: 'Failed to fulfill data request' });
+	}
+});
+
+// ─── Legal holds (#799, G-1) ────────────────────────────────────────────────
+// Admin-only set/release for the platform legal-hold mechanism
+// (lib/legalHold.js, migration 258). While a hold is active, the
+// automated retention purges and erasure paths wired in #799 skip the
+// held subject (counted + audited). No admin UI in this story
+// (explicitly out of scope).
+
+function legalHoldActor(req) {
+	return req.session?.adminBridgedFrom || req.user?.id || 'admin-panel';
+}
+
+router.get('/legal-holds', requireAdmin, async (req, res) => {
+	try {
+		const { listHolds } = require('../lib/legalHold');
+		const holds = await listHolds({ activeOnly: req.query.active === 'true' });
+		res.json({ success: true, holds });
+	} catch (error) {
+		console.error('[admin/legal-holds] list error:', error.message);
+		res.status(500).json({ error: 'Failed to list legal holds' });
+	}
+});
+
+router.post('/legal-holds', requireAdmin, async (req, res) => {
+	try {
+		const { userId, companyId, reason } = req.body || {};
+		if ((userId == null && companyId == null) || !reason || !String(reason).trim()) {
+			return res.status(400).json({
+				error: 'A subject (userId and/or companyId) and a reason are required',
+			});
+		}
+		const { placeHold } = require('../lib/legalHold');
+		const hold = await placeHold({
+			userId: userId ?? null,
+			companyId: companyId ?? null,
+			reason: String(reason),
+			setBy: legalHoldActor(req),
+		});
+		res.status(201).json({ success: true, hold });
+	} catch (error) {
+		console.error('[admin/legal-holds] place error:', error.message);
+		res.status(500).json({ error: 'Failed to place legal hold' });
+	}
+});
+
+router.post('/legal-holds/:id/release', requireAdmin, async (req, res) => {
+	try {
+		const holdId = parseInt(req.params.id, 10);
+		if (!Number.isInteger(holdId) || holdId <= 0) {
+			return res.status(400).json({ error: 'Invalid hold id' });
+		}
+		const { releaseHold } = require('../lib/legalHold');
+		const hold = await releaseHold({ holdId, releasedBy: legalHoldActor(req) });
+		if (!hold) {
+			return res.status(404).json({ error: 'Active legal hold not found' });
+		}
+		res.json({ success: true, hold });
+	} catch (error) {
+		console.error('[admin/legal-holds] release error:', error.message);
+		res.status(500).json({ error: 'Failed to release legal hold' });
 	}
 });
 
@@ -2221,3 +2755,5 @@ router.get('/agents/stats', requireAdmin, async (_req, res) => {
 
 module.exports = router;
 module.exports.requireAdmin = requireAdmin;
+module.exports.bridgeAdminSession = bridgeAdminSession;
+module.exports.skipIfAdminSession = skipIfAdminSession;

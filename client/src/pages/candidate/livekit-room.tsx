@@ -51,6 +51,9 @@ interface TokenResponse {
 	roomName: string;
 	livekitUrl: string;
 	expiresIn: number;
+	// S-048 (#696): observer disclosure fields (optional for backwards compat)
+	observer_enabled?: boolean;
+	observer_consent?: 'granted' | 'declined' | 'unknown';
 }
 
 interface RecordingInfo {
@@ -422,7 +425,8 @@ function RoomControlBar({
 
 // ─── Consent Dialog ──────────────────────────────────────────────────────
 
-function ConsentDialog({
+// Exported for S-048 (#696) component tests
+export function ConsentDialog({
 	open,
 	onClose,
 	participants,
@@ -431,6 +435,11 @@ function ConsentDialog({
 	onStartRecording,
 	allConsented,
 	consentLoading,
+	// S-048 (#696): observer disclosure — branched on consent state per
+	// privacy-engineer review. observerEnabled = recruiter intent;
+	// observerConsent = default-deny gate state (granted|declined|unknown).
+	observerEnabled,
+	observerConsent,
 }: {
 	open: boolean;
 	onClose: () => void;
@@ -440,6 +449,8 @@ function ConsentDialog({
 	onStartRecording: () => void;
 	allConsented: boolean;
 	consentLoading: boolean;
+	observerEnabled?: boolean;
+	observerConsent?: 'granted' | 'declined' | 'unknown';
 }) {
 	return (
 		<Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -451,6 +462,31 @@ function ConsentDialog({
 					</DialogTitle>
 					<DialogDescription>
 						All participants must consent before the interview can be recorded.
+						{/* S-048 (#696): observer disclosure branched on default-deny
+						    gate state. granted → affirmative notice; declined →
+						    reassurance that the gate honored their choice; unknown
+						    or disabled → nothing (observer is blocked, nothing
+						    truthful to disclose). */}
+						{observerEnabled && observerConsent === 'granted' && (
+							<span className="block mt-2 text-xs">
+								This session will include AI-assisted analysis of your voice and video
+								to help the recruiter evaluate the interview.{' '}
+								<a
+									href="/privacy/biometric-policy"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="underline"
+								>
+									Learn more
+								</a>
+							</span>
+						)}
+						{observerEnabled && observerConsent === 'declined' && (
+							<span className="block mt-2 text-xs text-emerald-700">
+								AI-assisted analysis of this session is disabled — you declined
+								biometric analysis.
+							</span>
+						)}
 					</DialogDescription>
 				</DialogHeader>
 				<div className="space-y-3 py-2">
@@ -531,11 +567,15 @@ function RoomUI({
 	onLeave,
 	roomId,
 	isRecruiter,
+	observerEnabled,
+	observerConsent,
 }: {
 	roomName: string;
 	onLeave: () => void;
 	roomId: string;
 	isRecruiter: boolean;
+	observerEnabled?: boolean;
+	observerConsent?: 'granted' | 'declined' | 'unknown';
 }) {
 	const [showSidebar, setShowSidebar] = useState(false);
 	const [recording, setRecording] = useState<RecordingInfo | null>(null);
@@ -729,6 +769,8 @@ function RoomUI({
 				onStartRecording={handleConsentStartRecording}
 				allConsented={allConsented}
 				consentLoading={consentLoading}
+				observerEnabled={observerEnabled}
+				observerConsent={observerConsent}
 			/>
 		</div>
 	);
@@ -851,6 +893,8 @@ export function LiveKitRoomPage() {
 				onLeave={handleLeave}
 				roomId={roomId}
 				isRecruiter={isRecruiter}
+				observerEnabled={tokenData.observer_enabled}
+				observerConsent={tokenData.observer_consent}
 			/>
 		</LiveKitRoom>
 	);

@@ -14,7 +14,9 @@
     "migrate": "node migrate.js",
     "lint": "npx @biomejs/biome check",
     "postinstall": "if [ \"$CI\" = \"true\" ] || [ \"$RENDER\" = \"true\" ]; then echo '[postinstall] Skipping audio setup in CI/Render environment'; else bash scripts/setup-audio.sh 2>&1 || echo '[postinstall] Audio setup skipped (non-fatal)'; fi",
-    "check-orphans": "node scripts/check-orphans.js"
+    "check-orphans": "node scripts/check-orphans.js",
+    "check-schema-drift": "node scripts/check-schema-drift.js",
+    "check-schema-drift:ci": "node scripts/check-schema-drift.js --ci"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
@@ -46,7 +48,8 @@
     "pgvector": "^0.1.5",
     "prom-client": "^15.1.3",
     "simple-oauth2": "^5.1.0",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.16",

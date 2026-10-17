@@ -1,0 +1,170 @@
+{
+  "seed": {
+    "companyId": 1,
+    "employerId": 1,
+    "candidateId": 2,
+    "ownerIdSet": true
+  },
+  "api": {
+    "loginEmployer": {
+      "status": 200,
+      "gotToken": true,
+      "role": "employer",
+      "company_id_in_login_payload": null
+    },
+    "loginCandidate": {
+      "status": 200,
+      "gotToken": true,
+      "role": "candidate"
+    },
+    "trustscoreEmployer": {
+      "/api/trustscore": {
+        "status": 200,
+        "error": null,
+        "success": true,
+        "excerpt": "{\"success\":true,\"trustscore\":{\"total_score\":null,\"verification\":0,\"job_authenticity\":0,\"hiring_ratio\":0,\"feedback\":0,\"behavior\":0,\"tier\":null,\"tier_label\":null,\"tier_color\":\"#94a3b8\"}}"
+      },
+      "/api/trustscore/breakdown": {
+        "status": 200,
+        "error": null,
+        "success": true,
+        "excerpt": "{\"success\":true,\"current\":{\"total_score\":null,\"verification\":0,\"job_authenticity\":0,\"hiring_ratio\":0,\"feedback\":0,\"behavior\":0,\"tier\":null,\"tier_label\":null,\"tier_color\":\"#94a3b8\"},\"v2\":{\"total_score\":null,\"v1_score\":null,\"v2_score\":null,\"verification\":0,\"job_authenticity\":0,\"hiring_ratio\":0,\"feedba"
+      },
+      "/api/trustscore/assessment-responsiveness": {
+        "status": 200,
+        "error": null,
+        "success": null,
+        "excerpt": "{\"review_rate\":0,\"median_days_to_action\":null,\"ghost_rate\":0,\"total_assessments\":0,\"cherry_picking\":null,\"sufficient\":false}"
+      },
+      "/api/trustscore/standalone": {
+        "status": 200,
+        "error": null,
+        "success": null,
+        "excerpt": "{\"workplace_culture\":{\"score\":0,\"avg_rating\":0,\"dimensions\":{},\"data_points\":0,\"sufficient\":false},\"candidate_nps\":{\"score\":0,\"nps\":0,\"promoters\":0,\"detractors\":0,\"total\":0,\"sufficient\":false},\"reapplication_rate\":{\"score\":0,\"reapplication_rate\":0,\"reapplied_count\":0,\"total_rejected\":0,\"sufficient\":"
+      }
+    },
+    "trustscoreCandidateControl": {
+      "status": 403,
+      "error": "Recruiter access required"
+    },
+    "trustscoreAnon": {
+      "status": 401
+    },
+    "adminLogin": {
+      "status": 200,
+      "success": true,
+      "gotSessionCookie": true,
+      "error": null
+    },
+    "adminWithSession": {
+      "/api/analytics/dashboard": {
+        "status": 200,
+        "error": null,
+        "excerpt": "{\"success\":true,\"cached\":false,\"data\":{\"page_views\":[],\"signup_funnel\":{\"landing_views\":0,\"signup_page_views\":0,\"signup_clicks\":0,\"candidate_signups\":0,\"recruiter_signups\":0,\"total_signups\":0,\"conversion_rate\":\"0.00\",\"click_through_rate\":\"0.00\"},\"revenue_funnel\":{\"pricing_views\":0,\"billing_cycle_tog"
+      },
+      "/api/admin/biometric-audit": {
+        "status": 200,
+        "error": null,
+        "excerpt": "{\"success\":true,\"entries\":[],\"total\":0,\"limit\":50,\"offset\":0}"
+      },
+      "/api/admin/email-queue": {
+        "status": 200,
+        "error": null,
+        "excerpt": "{\"stats\":{}}"
+      }
+    },
+    "adminAnon": {
+      "/api/analytics/dashboard": {
+        "status": 401,
+        "error": "Authentication required"
+      },
+      "/api/admin/biometric-audit": {
+        "status": 401,
+        "error": "Authentication required"
+      },
+      "/api/admin/email-queue": {
+        "status": 401,
+        "error": "Authentication required"
+      }
+    },
+    "analyticsAsEmployerControl": {
+      "status": 403,
+      "error": "Insufficient permissions"
+    }
+  },
+  "checks": [
+    {
+      "id": "1222",
+      "label": "#1222 /api/trustscore as employer: not 403",
+      "pass": true,
+      "detail": "status=200 error=null"
+    },
+    {
+      "id": "1222",
+      "label": "#1222 /api/trustscore/breakdown as employer: not 403",
+      "pass": true,
+      "detail": "status=200 error=null"
+    },
+    {
+      "id": "1222",
+      "label": "#1222 /api/trustscore/assessment-responsiveness as employer: not 403",
+      "pass": true,
+      "detail": "status=200 error=null"
+    },
+    {
+      "id": "1222",
+      "label": "#1222 /api/trustscore/standalone as employer: not 403",
+      "pass": true,
+      "detail": "status=200 error=null"
+    },
+    {
+      "id": "1222",
+      "label": "#1222 candidate control still 403 on /api/trustscore (not widened)",
+      "pass": true,
+      "detail": "status=403"
+    },
+    {
+      "id": "1224",
+      "label": "#1224 env-admin login: 200 + session cookie",
+      "pass": true,
+      "detail": "status=200 cookie=true"
+    },
+    {
+      "id": "1224",
+      "label": "#1224 /api/analytics/dashboard with env-admin session: not 401",
+      "pass": true,
+      "detail": "status=200 error=null"
+    },
+    {
+      "id": "1224",
+      "label": "#1224 /api/admin/biometric-audit with env-admin session: not 401",
+      "pass": true,
+      "detail": "status=200 error=null"
+    },
+    {
+      "id": "1224",
+      "label": "#1224 /api/admin/email-queue with env-admin session: not 401",
+      "pass": true,
+      "detail": "status=200 error=null"
+    },
+    {
+      "id": "1224",
+      "label": "#1224 /api/analytics/dashboard anon: 401 (auth still enforced)",
+      "pass": true,
+      "detail": "status=401"
+    },
+    {
+      "id": "1224",
+      "label": "#1224 /api/admin/biometric-audit anon: 401 (auth still enforced)",
+      "pass": true,
+      "detail": "status=401"
+    },
+    {
+      "id": "1224",
+      "label": "#1224 /api/admin/email-queue anon: 401 (auth still enforced)",
+      "pass": true,
+      "detail": "status=401"
+    }
+  ],
+  "allPass": true
+}

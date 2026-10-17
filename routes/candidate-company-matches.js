@@ -266,7 +266,9 @@ Respond ONLY with the JSON array.`;
 				name: company.name,
 				industry: company.industry,
 				logo_url: company.logo_url,
-				match_score: typeof aiMatch.match_score === 'number' ? aiMatch.match_score : 50,
+				// #1271: no AI score for this company → honest null, never the
+				// fabricated 50 (the AI's silence says nothing about merit).
+				match_score: typeof aiMatch.match_score === 'number' ? aiMatch.match_score : null,
 				value_hook: aiMatch.value_hook || `Opportunity at ${company.name}`,
 				match_reason: aiMatch.match_reason || 'Profile may align with company needs.',
 				outreach_difficulty: ['easy', 'medium', 'hard'].includes(aiMatch.outreach_difficulty)
@@ -275,8 +277,9 @@ Respond ONLY with the JSON array.`;
 			};
 		});
 
-		// Sort by match score descending
-		matches.sort((a, b) => b.match_score - a.match_score);
+		// Sort by match score descending; unscored (null) companies last —
+		// an unknown score is not a 0 score.
+		matches.sort((a, b) => (b.match_score ?? -1) - (a.match_score ?? -1));
 
 		const responsePayload = {
 			matches,

@@ -42,11 +42,11 @@ export type CareerPageData = {
 		description: string;
 		website: string;
 		location: string;
-		size: string;
+		size: string | null;
 		industry: string;
 		founded: string;
-		trustscore: number;
-		rating: number;
+		trustscore: number | null;
+		rating: number | null;
 		reviewCount: number;
 	};
 	culture: {
@@ -74,9 +74,10 @@ export type CareerPageData = {
 	}>;
 	stats: {
 		openPositions: number;
-		avgTimeToHire: number;
-		employees: number;
-		growthRate: number;
+		avgTimeToHire: number | null;
+		// Declared company size (e.g. "51-200"), not a headcount — #1188.
+		employees: string | null;
+		growthRate: number | null;
 	};
 };
 
@@ -99,7 +100,8 @@ const benefitIcons: Record<string, React.ReactNode> = {
 };
 
 export function RecruiterCareerPage() {
-	const { companyId } = useParams();
+	const params = useParams();
+	const companyKey = params.company ?? params.companyId;
 	const [data, setData] = useState<CareerPageData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [selectedDept, setSelectedDept] = useState('all');
@@ -108,18 +110,19 @@ export function RecruiterCareerPage() {
 		async function load() {
 			setLoading(true);
 			try {
-				const result = await apiCall<CareerPageData>(`/careers/${companyId || 'default'}`);
+				const result = await apiCall<CareerPageData>(`/careers/${companyKey || 'default'}`);
 				setData(result);
 			} catch (err) {
 				console.error('Failed to load career page:', err);
-				// Use mock data
-				setData(generateMockData());
+				// S-111 (#836): never substitute fabricated mock company data on
+				// this public surface — leave data null and render the honest
+				// unavailable state below.
 			} finally {
 				setLoading(false);
 			}
 		}
 		load();
-	}, [companyId]);
+	}, [companyKey]);
 
 	if (loading) {
 		return (
@@ -132,7 +135,15 @@ export function RecruiterCareerPage() {
 		);
 	}
 
-	if (!data) return null;
+	if (!data) {
+		return (
+			<div className="flex min-h-screen items-center justify-center px-6">
+				<p className="text-sm text-muted-foreground">
+					This career page isn't available right now.
+				</p>
+			</div>
+		);
+	}
 
 	const { company, culture, team, jobs, stats } = data;
 
@@ -165,10 +176,12 @@ export function RecruiterCareerPage() {
 									<MapPin className="h-3.5 w-3.5" />
 									{company.location}
 								</span>
-								<span className="flex items-center gap-1">
-									<Users className="h-3.5 w-3.5" />
-									{company.size}
-								</span>
+								{company.size != null && (
+									<span className="flex items-center gap-1">
+										<Users className="h-3.5 w-3.5" />
+										{company.size}
+									</span>
+								)}
 								<span className="flex items-center gap-1">
 									<Globe className="h-3.5 w-3.5" />
 									<a
@@ -183,15 +196,21 @@ export function RecruiterCareerPage() {
 							</div>
 						</div>
 						<div className="text-right">
-							<div className="flex items-center gap-1">
-								<Star className="h-5 w-5 text-amber-500 fill-amber-500" />
-								<span className="text-xl font-bold">{company.rating}</span>
-							</div>
-							<p className="text-xs text-muted-foreground">{company.reviewCount} reviews</p>
+							{company.rating != null && (
+								<>
+									<div className="flex items-center gap-1">
+										<Star className="h-5 w-5 text-amber-500 fill-amber-500" />
+										<span className="text-xl font-bold">{company.rating}</span>
+									</div>
+									<p className="text-xs text-muted-foreground">{company.reviewCount} reviews</p>
+								</>
+							)}
 							<div className="mt-1 flex items-center gap-1">
 								<Shield className="h-3.5 w-3.5 text-emerald-500" />
 								<span className="text-xs text-emerald-600 font-medium">
-									TrustScore {company.trustscore}
+									{company.trustscore != null
+										? `TrustScore ${company.trustscore}`
+										: 'TrustScore: Insufficient data'}
 								</span>
 							</div>
 						</div>
@@ -213,39 +232,45 @@ export function RecruiterCareerPage() {
 							</div>
 						</CardContent>
 					</Card>
-					<Card>
-						<CardContent className="p-4">
-							<div className="flex items-center justify-between">
-								<div>
-									<p className="text-2xl font-bold">{stats.employees}</p>
-									<p className="text-xs text-muted-foreground">Employees</p>
+					{stats.employees != null && (
+						<Card>
+							<CardContent className="p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-2xl font-bold">{stats.employees}</p>
+										<p className="text-xs text-muted-foreground">Company Size</p>
+									</div>
+									<Users className="h-8 w-8 text-muted-foreground/50" />
 								</div>
-								<Users className="h-8 w-8 text-muted-foreground/50" />
-							</div>
-						</CardContent>
-					</Card>
-					<Card>
-						<CardContent className="p-4">
-							<div className="flex items-center justify-between">
-								<div>
-									<p className="text-2xl font-bold">{stats.avgTimeToHire}d</p>
-									<p className="text-xs text-muted-foreground">Avg Time to Hire</p>
+							</CardContent>
+						</Card>
+					)}
+					{stats.avgTimeToHire != null && (
+						<Card>
+							<CardContent className="p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-2xl font-bold">{stats.avgTimeToHire}d</p>
+										<p className="text-xs text-muted-foreground">Avg Time to Hire</p>
+									</div>
+									<Clock className="h-8 w-8 text-muted-foreground/50" />
 								</div>
-								<Clock className="h-8 w-8 text-muted-foreground/50" />
-							</div>
-						</CardContent>
-					</Card>
-					<Card>
-						<CardContent className="p-4">
-							<div className="flex items-center justify-between">
-								<div>
-									<p className="text-2xl font-bold text-green-600">+{stats.growthRate}%</p>
-									<p className="text-xs text-muted-foreground">YoY Growth</p>
+							</CardContent>
+						</Card>
+					)}
+					{stats.growthRate != null && (
+						<Card>
+							<CardContent className="p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-2xl font-bold text-green-600">+{stats.growthRate}%</p>
+										<p className="text-xs text-muted-foreground">YoY Growth</p>
+									</div>
+									<TrendingUp className="h-8 w-8 text-green-500/50" />
 								</div>
-								<TrendingUp className="h-8 w-8 text-green-500/50" />
-							</div>
-						</CardContent>
-					</Card>
+							</CardContent>
+						</Card>
+					)}
 				</div>
 
 				{/* About */}
@@ -382,132 +407,4 @@ export function RecruiterCareerPage() {
 			</div>
 		</div>
 	);
-}
-
-function generateMockData(): CareerPageData {
-	return {
-		company: {
-			id: 'techcorp',
-			name: 'TechCorp',
-			tagline: 'Building the future of AI-powered hiring',
-			description:
-				"TechCorp is a leading technology company focused on AI-powered recruitment solutions. We believe in hiring the best talent regardless of background, and our platform uses cutting-edge AI to eliminate bias while matching candidates with their ideal roles. Founded in 2018, we've grown to 500+ employees across 12 countries.",
-			website: 'https://techcorp.example.com',
-			location: 'San Francisco, CA (Remote-friendly)',
-			size: '500-1000 employees',
-			industry: 'Technology / SaaS',
-			founded: '2018',
-			trustscore: 87,
-			rating: 4.6,
-			reviewCount: 243,
-		},
-		culture: {
-			values: ['Innovation', 'Diversity', 'Transparency', 'Growth', 'Impact'],
-			benefits: [
-				{
-					icon: 'health',
-					label: 'Health Insurance',
-					description: '100% coverage for you and dependents',
-				},
-				{ icon: 'remote', label: 'Remote Work', description: 'Work from anywhere, async-friendly' },
-				{ icon: 'flexible', label: 'Flexible Hours', description: 'Choose your own schedule' },
-				{
-					icon: 'learning',
-					label: 'Learning Budget',
-					description: '$5,000/year for courses and conferences',
-				},
-				{
-					icon: 'equity',
-					label: 'Equity',
-					description: 'Meaningful stock options for all employees',
-				},
-				{ icon: 'vacation', label: 'Unlimited PTO', description: 'Take time when you need it' },
-				{ icon: 'parental', label: 'Parental Leave', description: '20 weeks paid for all parents' },
-				{ icon: 'gym', label: 'Wellness', description: '$100/month gym or wellness stipend' },
-			],
-			photos: [],
-		},
-		team: [
-			{
-				id: '1',
-				name: 'Sarah Chen',
-				role: 'CEO & Founder',
-				quote: "We're building the future of work",
-			},
-			{
-				id: '2',
-				name: 'James Wilson',
-				role: 'CTO',
-				quote: 'AI should augment, not replace, human judgment',
-			},
-			{
-				id: '3',
-				name: 'Maria Garcia',
-				role: 'Head of People',
-				quote: 'Culture is our competitive advantage',
-			},
-			{
-				id: '4',
-				name: 'David Kim',
-				role: 'VP Engineering',
-				quote: 'Great engineers want to solve hard problems',
-			},
-		],
-		jobs: [
-			{
-				id: '1',
-				title: 'Senior Frontend Engineer',
-				department: 'Engineering',
-				location: 'Remote',
-				type: 'Full-time',
-				salary: '$140k - $180k',
-				postedAt: '2024-01-15',
-				matchScore: 92,
-			},
-			{
-				id: '2',
-				title: 'Product Manager',
-				department: 'Product',
-				location: 'San Francisco',
-				type: 'Full-time',
-				salary: '$130k - $160k',
-				postedAt: '2024-01-14',
-				matchScore: 85,
-			},
-			{
-				id: '3',
-				title: 'AI Research Scientist',
-				department: 'Engineering',
-				location: 'Remote',
-				type: 'Full-time',
-				salary: '$160k - $220k',
-				postedAt: '2024-01-13',
-			},
-			{
-				id: '4',
-				title: 'Sales Development Rep',
-				department: 'Sales',
-				location: 'Austin',
-				type: 'Full-time',
-				salary: '$60k - $80k + OTE',
-				postedAt: '2024-01-12',
-			},
-			{
-				id: '5',
-				title: 'UX Designer',
-				department: 'Design',
-				location: 'Remote',
-				type: 'Full-time',
-				salary: '$110k - $140k',
-				postedAt: '2024-01-11',
-				matchScore: 78,
-			},
-		],
-		stats: {
-			openPositions: 12,
-			avgTimeToHire: 18,
-			employees: 523,
-			growthRate: 34,
-		},
-	};
 }

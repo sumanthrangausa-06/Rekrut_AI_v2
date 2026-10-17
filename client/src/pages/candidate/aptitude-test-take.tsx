@@ -35,7 +35,7 @@ interface AnswerResponse {
 	score?: number;
 	maxScore?: number;
 	percentile?: number;
-	antiCheatScore?: number;
+	antiCheatScore?: number | null;
 	passed?: boolean;
 }
 
@@ -55,7 +55,7 @@ export function CandidateAptitudeTestTakePage() {
 	const [maxScore, setMaxScore] = useState(0);
 	const [percentile, setPercentile] = useState<number | null>(null);
 	const [passed, setPassed] = useState(false);
-	const [antiCheatScore, setAntiCheatScore] = useState(100);
+	const [antiCheatScore, setAntiCheatScore] = useState<number | null>(null);
 	const [timeLeft, setTimeLeft] = useState(0);
 	const [_totalDuration, setTotalDuration] = useState(0);
 	const [tabWarningCount, setTabWarningCount] = useState(0);
@@ -140,7 +140,7 @@ export function CandidateAptitudeTestTakePage() {
 					setFinalScore(result.score || 0);
 					setMaxScore(result.maxScore || 0);
 					setPercentile(result.percentile ?? null);
-					setAntiCheatScore(result.antiCheatScore || 100);
+					setAntiCheatScore(result.antiCheatScore ?? null);
 					setPassed(result.passed || false);
 					setCompleted(true);
 					// Redirect to results page after a short delay
@@ -286,6 +286,7 @@ export function CandidateAptitudeTestTakePage() {
 									<p className="text-xs text-muted-foreground">Percentile</p>
 								</div>
 							)}
+							{antiCheatScore !== null && (
 							<div className="rounded-lg bg-muted/50 p-3">
 								<p
 									className={`font-medium ${antiCheatScore >= 80 ? 'text-emerald-600' : antiCheatScore >= 50 ? 'text-amber-600' : 'text-destructive'}`}
@@ -294,6 +295,7 @@ export function CandidateAptitudeTestTakePage() {
 								</p>
 								<p className="text-xs text-muted-foreground">Integrity</p>
 							</div>
+						)}
 						</div>
 
 						<div className="flex gap-2 justify-center">

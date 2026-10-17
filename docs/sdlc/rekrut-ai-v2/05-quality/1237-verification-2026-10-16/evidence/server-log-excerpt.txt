@@ -1,0 +1,11 @@
+QUINN #1237 AFTER — server log checks (full log: logs/server.log in run dir; server started from _1237-verify @ a3b411a0 on port 3000)
+Health: GET /api/health -> {"status":"ok","db":"connected"}
+grep counts over the whole reported run's server.log:
+  '42P18'                        -> 0
+  'could not determine data type' -> 0
+  'does not exist'               -> 0
+  'Get leaderboard error'        -> 0
+Note: an early discarded browser attempt via http://127.0.0.1:3000 produced 'Not allowed by CORS'
+errors in the log (the CORS whitelist permits localhost:3000 only, per server.js:443) — the reported
+browser capture used http://localhost:3000 and produced no such errors. The CORS lines are in the full
+log and are an origin artefact of that discarded attempt, not leaderboard-path errors.

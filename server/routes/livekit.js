@@ -20,6 +20,7 @@ const { authMiddleware } = require('../../lib/auth');
 const { requirePermission } = require('../../middleware/rbac');
 const { rateLimits } = require('../../lib/distributed-rate-limiter');
 const livekitService = require('../services/livekit');
+const { canEnableObserver } = require('../../lib/observerConsentGate');
 
 const router = express.Router();
 
@@ -147,12 +148,40 @@ router.post(
 				ttlMs: 60 * 60 * 1000, // 1 hour
 			});
 
+			// S-048 (#696): observer disclosure fields. Look up the linked
+			// interview session (if any) for observer_enabled + consent state.
+			// Defaults to disabled/unknown when no session is linked.
+			let observerEnabled = false;
+			let observerConsent = 'unknown';
+			if (room.interview_session_id) {
+				try {
+					const pool = require('../../lib/db');
+					const sRes = await pool.query(`SELECT config FROM interview_sessions WHERE id = $1`, [
+						room.interview_session_id,
+					]);
+					if (sRes.rows.length > 0) {
+						const session = sRes.rows[0];
+						observerEnabled = session.config?.observer_enabled === true;
+						const gate = canEnableObserver(session);
+						observerConsent = gate.allowed
+							? 'granted'
+							: gate.code === 'BIOMETRIC_CONSENT_DECLINED'
+								? 'declined'
+								: 'unknown';
+					}
+				} catch (lookupErr) {
+					console.error('[livekit-routes] Observer disclosure lookup failed:', lookupErr.message);
+				}
+			}
+
 			res.json({
 				success: true,
 				token,
 				roomName: room.room_name,
 				livekitUrl: process.env.LIVEKIT_URL,
 				expiresIn: 3600,
+				observer_enabled: observerEnabled,
+				observer_consent: observerConsent,
 			});
 		} catch (err) {
 			console.error('[livekit-routes] Token error:', err.message);
@@ -334,7 +363,24 @@ router.post(
 					: { canPublish: true, canSubscribe: true, canPublishData: true },
 			});
 
-			res.json({ token, roomName: room.room_name, livekitUrl: process.env.LIVEKIT_URL });
+			// S-048 (#696): observer disclosure fields for the candidate consent
+			// dialog. observer_enabled = recruiter intent; observer_consent =
+			// default-deny gate state (granted|declined|unknown). The frontend
+			// shows the AI disclosure copy when observer_enabled is true.
+			const gate = canEnableObserver(session);
+			const observerConsent = gate.allowed
+				? 'granted'
+				: gate.code === 'BIOMETRIC_CONSENT_DECLINED'
+					? 'declined'
+					: 'unknown';
+
+			res.json({
+				token,
+				roomName: room.room_name,
+				livekitUrl: process.env.LIVEKIT_URL,
+				observer_enabled: session.config?.observer_enabled === true,
+				observer_consent: observerConsent,
+			});
 		} catch (err) {
 			console.error('[livekit-routes] Session token error:', err.message);
 			if (err.message.includes('not configured')) {
@@ -371,6 +417,17 @@ router.post(
 			const isOwnCandidate = Number(user.id) === Number(session.candidate_id);
 			if (!isHiringTeamForSession(session, user) && !(isOwnCandidate && mode === 'interviewer')) {
 				return res.status(403).json({ error: 'Not authorized to dispatch the voice agent' });
+			}
+
+			// S-070 (#724): biometric decline gate (Option A, Sumanth decision
+			// 2026-10-10). Same policy as the observer/enable route — the
+			// observer must never receive streams for a declined-biometric
+			// session, regardless of entry point.
+			if (mode === 'observer') {
+				const gate = canEnableObserver(session);
+				if (!gate.allowed) {
+					return res.status(403).json({ error: gate.message, code: gate.code });
+				}
 			}
 
 			// Full-branch review C1 (#323): the AI interviewer must never be

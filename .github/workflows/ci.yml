@@ -267,3 +267,59 @@ jobs:
           done
           echo "❌ Dev API health check failed after 5 attempts"
           exit 1
+
+  fresh-db-schema-guard:
+    name: Fresh-DB Schema Guard (#1184)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: rekrut_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          until pg_isready -h localhost -p 5432 -U test; do
+            echo "Waiting for PostgreSQL..."
+            sleep 1
+          done
+          echo "PostgreSQL is ready"
+
+      # migrate.js is expected to exit 1 on the known #1141 halt
+      # (p2_schema_hardening.sql, 0A000) — capture its exit code and output
+      # WITHOUT failing the step; the guard attributes it, never swallows it.
+      - name: Run migrations (capture exit code)
+        run: |
+          set +e
+          node migrate.js > migrate-output.log 2>&1
+          echo "MIGRATE_EXIT=$?" >> $GITHUB_ENV
+          cat migrate-output.log
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgres://test:test@localhost:5432/rekrut_test
+
+      - name: Run fresh-DB schema guard
+        run: node scripts/check-schema-drift.js --ci --migrate-exit "$MIGRATE_EXIT" --migrate-log migrate-output.log
+        env:
+          DATABASE_URL: postgres://test:test@localhost:5432/rekrut_test

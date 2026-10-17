@@ -27,7 +27,7 @@ interface LeaderboardCompany {
 	logo_url: string | null;
 	industry: string;
 	is_verified: boolean;
-	total_score: number;
+	total_score: number | null;
 	score_tier: string;
 	response_rate_score: number;
 	data_sufficiency_score: number;
@@ -191,7 +191,7 @@ export function LeaderboardPage() {
 					const responsePct =
 						company.response_rate_score != null
 							? Math.round((company.response_rate_score / 75) * 100)
-							: 0;
+							: null;
 
 					return (
 						<Card key={company.company_id} className="hover:border-primary/30 transition-colors">
@@ -236,7 +236,7 @@ export function LeaderboardPage() {
 												className={tierColors[company.score_tier] || tierColors.new}
 											>
 												<Shield className="h-3 w-3 mr-0.5" />
-												{company.total_score}
+												{company.total_score ?? 'N/A'}
 											</Badge>
 											{company.insufficient_data && (
 												<Badge
@@ -274,7 +274,7 @@ export function LeaderboardPage() {
 									<div className="hidden sm:flex flex-col items-end gap-1 shrink-0 min-w-[100px]">
 										<div className="flex items-center gap-1 text-sm">
 											<MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
-											<span className="font-medium">{responsePct}%</span>
+											<span className="font-medium">{responsePct != null ? `${responsePct}%` : 'N/A'}</span>
 											<span className="text-xs text-muted-foreground">response</span>
 										</div>
 										<Link
@@ -290,7 +290,7 @@ export function LeaderboardPage() {
 								<div className="flex sm:hidden items-center justify-between mt-3 pt-3 border-t">
 									<div className="flex items-center gap-1 text-sm">
 										<MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
-										<span className="font-medium">{responsePct}%</span>
+										<span className="font-medium">{responsePct != null ? `${responsePct}%` : 'N/A'}</span>
 										<span className="text-xs text-muted-foreground">response rate</span>
 									</div>
 									<Link

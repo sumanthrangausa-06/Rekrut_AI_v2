@@ -99,9 +99,9 @@ interface QuickStat {
 
 interface RecruiterDashboardData {
 	trust_score: {
-		total_score: number;
-		tier: string;
-		tier_label: string;
+		total_score: number | null;
+		tier: string | null;
+		tier_label: string | null;
 		tier_color: string;
 	};
 	job_stats: {
@@ -716,7 +716,7 @@ export function RecruiterDashboard() {
 		async function loadActivityFeed() {
 			try {
 				const res = await apiCall<{ success: boolean; activities: FeedActivityItem[] }>(
-					'/api/recruiter/activity',
+					'/recruiter/activity',
 				);
 				setFeedActivities(res.activities || []);
 			} catch {
@@ -1057,11 +1057,15 @@ export function RecruiterDashboard() {
 							<p className="font-medium">
 								Employer Trust Score:{' '}
 								<span style={{ color: data.trust_score.tier_color }}>
-									{data.trust_score.total_score}/1000
+									{data.trust_score.total_score != null
+										? `${data.trust_score.total_score}/1000`
+										: 'Insufficient data'}
 								</span>
 							</p>
 							<p className="text-xs text-muted-foreground">
-								{data.trust_score.tier_label} — Higher scores attract more qualified candidates
+								{data.trust_score.total_score != null && data.trust_score.tier_label
+									? `${data.trust_score.tier_label} — Higher scores attract more qualified candidates`
+									: 'Higher scores attract more qualified candidates'}
 							</p>
 						</div>
 						<Link to="/recruiter/company">

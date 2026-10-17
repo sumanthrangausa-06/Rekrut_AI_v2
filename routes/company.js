@@ -1,13 +1,13 @@
 // Company Management Routes
 const express = require('express');
 const crypto = require('node:crypto');
-const bcrypt = require('bcryptjs');
 const pool = require('../lib/db');
 const {
 	generateToken,
 	generateRefreshToken,
 	authMiddleware,
 	optionalAuth,
+	hashPassword,
 } = require('../lib/auth');
 const trustscoreService = require('../services/trustscore');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
@@ -83,7 +83,7 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 		if (existingCompany) {
 			// 3. Route to approval workflow instead of creating duplicate company
 			// Create the user first (without company_id, they'll be pending)
-			const password_hash = await bcrypt.hash(password, 13);
+			const password_hash = await hashPassword(password);
 			const userResult = await pool.query(
 				`INSERT INTO users (email, password_hash, name, role, company_name)
          VALUES ($1, $2, $3, 'recruiter', $4)
@@ -245,7 +245,7 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 			const company = companyResult.rows[0];
 
 			// Create recruiter user
-			const password_hash = await bcrypt.hash(password, 13);
+			const password_hash = await hashPassword(password);
 			const userResult = await client.query(
 				`INSERT INTO users (email, password_hash, name, role, company_name, company_id)
          VALUES ($1, $2, $3, 'recruiter', $4, $5)
@@ -257,11 +257,12 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 			// Set company owner
 			await client.query('UPDATE companies SET owner_id = $1 WHERE id = $2', [user.id, company.id]);
 
-			// Initialize TrustScore
+			// Initialize TrustScore (#1192: honest null until a component
+			// computes a real score — never a readable STARTING 500)
 			await client.query(
 				`INSERT INTO trust_scores (company_id, total_score, score_tier)
-         VALUES ($1, $2, 'new')`,
-				[company.id, 500],
+         VALUES ($1, NULL, NULL)`,
+				[company.id],
 			);
 
 			// Add verification bonus for work email (domain verified)
@@ -757,7 +758,7 @@ router.post(
 
 			// Generate temporary password
 			const tempPassword = crypto.randomBytes(12).toString('base64url').slice(0, 16);
-			const password_hash = await bcrypt.hash(tempPassword, 13);
+			const password_hash = await hashPassword(tempPassword);
 
 			// Get company name
 			const companyNameResult = await pool.query('SELECT name FROM companies WHERE id = $1', [
@@ -1304,15 +1305,30 @@ router.post(
 					company.id,
 				]);
 
-				// Update old owner's role to admin
-				await client.query("UPDATE users SET role = 'admin', updated_at = NOW() WHERE id = $1", [
+				// Update old owner's role to recruiter (Issue #768: never mint
+				// platform admins via ownership transfer)
+				await client.query("UPDATE users SET role = 'recruiter', updated_at = NOW() WHERE id = $1", [
 					req.user.id,
 				]);
 
-				// Update new owner's role to owner
-				await client.query("UPDATE users SET role = 'owner', updated_at = NOW() WHERE id = $1", [
-					newOwnerId,
-				]);
+				// Revoke old owner's RBAC 'owner' role (company-scoped). The
+				// legacy users.role column is only a fallback — RBAC takes
+				// precedence, so without this the demotion is a no-op.
+				await client.query(
+					`DELETE FROM user_roles
+					  WHERE user_id = $1 AND company_id = $2
+					    AND role_id = (SELECT id FROM roles WHERE name = 'owner')`,
+					[req.user.id, company.id],
+				);
+
+				// Grant new owner the RBAC 'owner' role (mirrors employer
+				// signup in routes/auth.js)
+				await client.query(
+					`INSERT INTO user_roles (user_id, role_id, company_id, assigned_by)
+					  SELECT $1, r.id, $2, $3 FROM roles r WHERE r.name = 'owner'
+					  ON CONFLICT DO NOTHING`,
+					[newOwnerId, company.id, req.user.id],
+				);
 
 				await client.query('COMMIT');
 			} catch (err) {
@@ -1338,6 +1354,8 @@ router.post(
 						new_owner_id: newOwnerId,
 						new_owner_email: target.email,
 						new_owner_name: target.name,
+						old_owner_role_change: { from: 'owner', to: 'recruiter' },
+						new_owner_role_change: { from: target.role, to: 'owner' },
 					},
 				});
 			} catch (auditErr) {

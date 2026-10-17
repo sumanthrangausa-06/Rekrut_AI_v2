@@ -1,6 +1,6 @@
 const express = require('express');
 const pool = require('../lib/db');
-const { authMiddleware } = require('../lib/auth');
+const { authMiddleware, requireRole } = require('../lib/auth');
 const {
 	filterWhisperHallucination,
 	isValidTranscriptLength,
@@ -26,10 +26,15 @@ const omniscoreService = require('../services/omniscore');
 const multer = require('multer');
 
 const { rateLimits } = require('../lib/distributed-rate-limiter');
+const { requireBiometricConsent } = require('../server/middleware/requireBiometricConsent');
 const emailService = require('../lib/email-service');
 const calendarService = require('../server/services/calendar-service');
 const { notifyUser } = require('../lib/notify');
-const { uploadToB2 } = require('../lib/file-storage');
+// S-069 (#722): encrypted .webm recording storage (per-candidate DEK).
+const {
+	uploadEncryptedRecording,
+	decryptRecording,
+} = require('../lib/r2RecordingStore');
 // Task 11 (#322): company audit log (#251 pattern) for session.sent on manual send.
 const { insertAuditLog } = require('./audit');
 
@@ -90,244 +95,45 @@ const FALLBACK_QUESTIONS = [
 ];
 
 // Start a new interview - RATE LIMITED (AI call)
-router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
-	try {
-		const { job_id, job_title, job_description, interview_type = 'mock' } = req.body;
-
-		// Generate questions using AI with fallback
-		let questions;
-		try {
-			questions = await generateInterviewQuestions(
-				job_title || 'Software Developer',
-				job_description,
-				5,
-			);
-			console.log('AI generated', questions.length, 'interview questions');
-		} catch (aiErr) {
-			console.error('AI question generation failed, using fallback questions:', aiErr.message);
-			questions = FALLBACK_QUESTIONS;
-		}
-
-		// Validate questions array
-		if (!questions || !Array.isArray(questions) || questions.length === 0) {
-			console.warn('Invalid questions from AI, using fallback');
-			questions = FALLBACK_QUESTIONS;
-		}
-
-		// Create interview record
-		const result = await pool.query(
-			`INSERT INTO interviews (user_id, job_id, interview_type, questions, status)
-       VALUES ($1, $2, $3, $4, 'in_progress')
-       RETURNING *`,
-			[req.user.id, job_id, interview_type, JSON.stringify(questions)],
-		);
-
-		// Track mock interview start
-		try {
-			await pool.query('INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)', [
-				'mock_interview_start',
-				req.user.id,
-				JSON.stringify({ interview_type, job_id }),
-			]);
-		} catch (e) {
-			console.error('Failed to log interview start event:', e);
-		}
-
-		res.json({
-			success: true,
-			interview: result.rows[0],
-			questions: questions.map((q, i) => ({
-				index: i,
-				question: q.question,
-				category: q.category,
-				difficulty: q.difficulty,
-			})),
-		});
-	} catch (err) {
-		console.error('Start interview error:', err);
-		if (err.allProvidersFailed) {
-			return handleAIError(res, err, 'Interview question generation');
-		}
-		res.status(500).json({ error: 'Failed to start interview' });
-	}
+// S-074 (#751): RETIRED — legacy write endpoint. Returns 410 Gone + logs the hit
+// for one sprint. Reads on this router are unaffected. See #742 (resolved by deprecation).
+router.post('/start', authMiddleware, (req, res) => {
+	console.warn(
+		`[S-074 retired-hit] ${req.method} ${req.originalUrl} at ${new Date().toISOString()} ` +
+			`ip=${req.ip} ua=${req.get('user-agent') || 'unknown'}`,
+	);
+	return res.status(410).json({
+		error: 'This endpoint has been retired. Legacy interview write operations are no longer supported.',
+		code: 'ENDPOINT_RETIRED',
+	});
 });
 
 // Submit response to a question
-router.post('/:id/respond', authMiddleware, async (req, res) => {
-	try {
-		const { question_index, response_text, video_url } = req.body;
-
-		// Get interview
-		const interview = await pool.query('SELECT * FROM interviews WHERE id = $1 AND user_id = $2', [
-			req.params.id,
-			req.user.id,
-		]);
-
-		if (interview.rows.length === 0) {
-			return res.status(404).json({ error: 'Interview not found' });
-		}
-
-		const interviewData = interview.rows[0];
-		const questions = interviewData.questions;
-		const question = questions[question_index];
-
-		if (!question) {
-			return res.status(400).json({ error: 'Invalid question index' });
-		}
-
-		// Analyze response with AI
-		const analysis = await analyzeInterviewResponse(
-			question.question,
-			response_text,
-			question.key_points || [],
-			{ subscriptionId: req.user.stripe_subscription_id },
-		);
-
-		// Update responses array
-		const responses = interviewData.responses || [];
-		responses[question_index] = {
-			question_index,
-			response_text,
-			video_url,
-			analysis,
-			submitted_at: new Date().toISOString(),
-		};
-
-		// Update video URLs if provided
-		const videoUrls = interviewData.video_urls || [];
-		if (video_url) {
-			videoUrls[question_index] = video_url;
-		}
-
-		// Update responses - use updated_at if column exists, fallback gracefully
-		try {
-			await pool.query(
-				`UPDATE interviews SET responses = $1, video_urls = $2, updated_at = NOW()
-         WHERE id = $3`,
-				[JSON.stringify(responses), JSON.stringify(videoUrls), req.params.id],
-			);
-		} catch (updateErr) {
-			// Fallback if updated_at column doesn't exist yet (pre-migration)
-			if (updateErr.message?.includes('updated_at')) {
-				console.warn('updated_at column missing, updating without it');
-				await pool.query(
-					`UPDATE interviews SET responses = $1, video_urls = $2
-           WHERE id = $3`,
-					[JSON.stringify(responses), JSON.stringify(videoUrls), req.params.id],
-				);
-			} else {
-				throw updateErr;
-			}
-		}
-
-		res.json({
-			success: true,
-			analysis,
-			questions_remaining: questions.length - responses.filter((r) => r).length,
-		});
-	} catch (err) {
-		console.error('Submit response error:', err);
-		res.status(500).json({ error: 'Failed to submit response' });
-	}
+// S-074 (#751): RETIRED — legacy write endpoint. Returns 410 Gone + logs the hit
+// for one sprint. Reads on this router are unaffected. See #742 (resolved by deprecation).
+router.post('/:id/respond', authMiddleware, (req, res) => {
+	console.warn(
+		`[S-074 retired-hit] ${req.method} ${req.originalUrl} at ${new Date().toISOString()} ` +
+			`ip=${req.ip} ua=${req.get('user-agent') || 'unknown'}`,
+	);
+	return res.status(410).json({
+		error: 'This endpoint has been retired. Legacy interview write operations are no longer supported.',
+		code: 'ENDPOINT_RETIRED',
+	});
 });
 
 // Complete interview and get overall feedback
-router.post('/:id/complete', authMiddleware, async (req, res) => {
-	try {
-		const interview = await pool.query('SELECT * FROM interviews WHERE id = $1 AND user_id = $2', [
-			req.params.id,
-			req.user.id,
-		]);
-
-		if (interview.rows.length === 0) {
-			return res.status(404).json({ error: 'Interview not found' });
-		}
-
-		const interviewData = interview.rows[0];
-		const responses = interviewData.responses || [];
-		const validResponses = responses.filter((r) => r?.analysis);
-
-		if (validResponses.length === 0) {
-			return res.status(400).json({ error: 'No responses to evaluate' });
-		}
-
-		// Generate overall feedback
-		const overallFeedback = await generateOverallFeedback(
-			validResponses.map((r) => r.analysis),
-			{ subscriptionId: req.user.stripe_subscription_id },
-		);
-
-		// Audit log: AI explanation generated for interview feedback
-		await AuditLogger.log({
-			actionType: 'ai_explanation_generated',
-			userId: req.user.id,
-			targetType: 'interview',
-			targetId: req.params.id,
-			metadata: {
-				interview_id: req.params.id,
-				overall_score: overallFeedback.overall_score,
-				model_version: 'interview-feedback-v1',
-				explanation_type: 'interview_feedback',
-				confidence: overallFeedback.overall_score / 100,
-				response_count: validResponses.length,
-			},
-			req,
-		});
-
-		// Calculate duration
-		const startTime = new Date(interviewData.created_at);
-		const duration = Math.floor((Date.now() - startTime.getTime()) / 1000);
-
-		// Update interview record
-		await pool.query(
-			`UPDATE interviews SET
-        status = 'completed',
-        ai_feedback = $1,
-        overall_score = $2,
-        duration_seconds = $3,
-        completed_at = NOW()
-       WHERE id = $4`,
-			[JSON.stringify(overallFeedback), overallFeedback.overall_score, duration, req.params.id],
-		);
-
-		// Update OmniScore with interview results
-		let omniscoreUpdate = null;
-		try {
-			omniscoreUpdate = await omniscoreService.addInterviewComponent(
-				req.user.id,
-				req.params.id,
-				overallFeedback.overall_score,
-			);
-
-			// Update role-specific score if job title is available
-			if (interviewData.job_id) {
-				const job = await pool.query('SELECT title FROM jobs WHERE id = $1', [
-					interviewData.job_id,
-				]);
-				if (job.rows.length > 0) {
-					await omniscoreService.updateRoleScore(
-						req.user.id,
-						job.rows[0].title,
-						overallFeedback.overall_score,
-					);
-				}
-			}
-		} catch (scoreErr) {
-			console.error('OmniScore update error:', scoreErr);
-			// Don't fail the request if OmniScore update fails
-		}
-
-		res.json({
-			success: true,
-			overall_feedback: overallFeedback,
-			duration_seconds: duration,
-			response_count: validResponses.length,
-			omniscore: omniscoreUpdate,
-		});
-	} catch (err) {
-		console.error('Complete interview error:', err);
-		res.status(500).json({ error: 'Failed to complete interview' });
-	}
+// S-074 (#751): RETIRED — legacy write endpoint. Returns 410 Gone + logs the hit
+// for one sprint. Reads on this router are unaffected. See #742 (resolved by deprecation).
+router.post('/:id/complete', authMiddleware, (req, res) => {
+	console.warn(
+		`[S-074 retired-hit] ${req.method} ${req.originalUrl} at ${new Date().toISOString()} ` +
+			`ip=${req.ip} ua=${req.get('user-agent') || 'unknown'}`,
+	);
+	return res.status(410).json({
+		error: 'This endpoint has been retired. Legacy interview write operations are no longer supported.',
+		code: 'ENDPOINT_RETIRED',
+	});
 });
 
 // Get interview history
@@ -358,9 +164,97 @@ router.get('/history', authMiddleware, async (req, res) => {
 // server.js — interviewEventsRoutes' GET /:id isInt validator would
 // otherwise 400 on the fixed segment "my-interviews".
 
+// S-069 (#722): session-auth decrypt-proxy for encrypted .webm recordings.
+// GET /api/interviews/video-playback/:interviewId/:questionIndex
+//
+// AC-2: playback requires authorization (the candidate owns the interview)
+// followed by server-side decryption. No plaintext at rest, no
+// unauthenticated decrypt path. Unlike S-059's frame proxy (capability
+// tokens for vision APIs), playback consumers present a session, so plain
+// authMiddleware is the right model — no token minting needed.
+//
+// AC-3: DEK destruction renders recordings unrecoverable — decryptRecording
+// throws when the DEK was destroyed, and the proxy returns 403 (no oracle:
+// decryption failures are indistinguishable from missing keys).
+// Crypto M2: rate-limit the proxy — each hit fetches and decrypts up to
+// ~50MB, cheap amplification against the shared VM without a limiter.
+router.get(
+	'/video-playback/:interviewId/:questionIndex',
+	authMiddleware,
+	rateLimits.standard,
+	async (req, res) => {
+	try {
+		// Crypto L1: strict param validation (parseInt is lenient: "7abc" → 7).
+		if (!/^\d+$/.test(req.params.interviewId) || !/^\d+$/.test(req.params.questionIndex)) {
+			return res.status(400).json({ error: 'Invalid interview or question index' });
+		}
+		const interviewId = parseInt(req.params.interviewId, 10);
+		const questionIndex = parseInt(req.params.questionIndex, 10);
+
+		const result = await pool.query('SELECT * FROM interviews WHERE id = $1', [interviewId]);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Interview not found' });
+		}
+		const interview = result.rows[0];
+
+		// Authorization: the candidate owns the interview. (Recruiters see
+		// aggregate scores from this table, never videos — matches the
+		// upload route's ownership check.)
+		if (Number(interview.user_id) !== Number(req.user.id)) {
+			return res.status(403).json({ error: 'Not authorized' });
+		}
+
+		const responses = interview.responses || [];
+		const entry = responses[questionIndex];
+		const videoKey = entry && entry.video_key;
+		if (!videoKey) {
+			// No encrypted recording for this question — legacy plaintext rows
+			// keep their /api/files/... URLs, which still serve them.
+			return res.status(404).json({ error: 'Recording not found' });
+		}
+
+		try {
+			// Crypto H1: interviewId + questionIndex reconstruct the upload-time
+			// AAD — a replayed key from another question fails GCM auth.
+			const plaintext = await decryptRecording(videoKey, interview.user_id, interviewId, questionIndex);
+			res.set('Content-Type', 'video/webm');
+			res.set('Content-Length', String(plaintext.length));
+			// Never cache plaintext biometric recordings at the edge
+			res.set('Cache-Control', 'no-store');
+			res.set('Content-Disposition', 'inline');
+			return res.send(plaintext);
+		} catch (decryptErr) {
+			if (decryptErr.code === 'NOT_FOUND') {
+				return res.status(404).json({ error: 'Recording not found' });
+			}
+			// Decryption failure (wrong DEK, tampered bytes, destroyed DEK) and
+			// storage outages all present as 403/503 WITHOUT distinguishing —
+			// no oracle for attackers probing key validity.
+			if (decryptErr.code === 'STORAGE_UNAVAILABLE') {
+				return res.status(503).json({ error: 'Recording temporarily unavailable' });
+			}
+			if (decryptErr.code === 'RECORDING_TOO_LARGE') {
+				return res.status(413).json({ error: 'Recording too large' });
+			}
+			return res.status(403).json({ error: 'Recording access denied' });
+		}
+	} catch (err) {
+		console.error('[interviews] video-playback error:', err.message);
+		res.status(500).json({ error: 'Failed to play recording' });
+	}
+});
+
 // Get interview details
 router.get('/:id', authMiddleware, async (req, res) => {
 	try {
+		// #1220: non-numeric ids reach this handler by fall-through from
+		// interview-events (which now defers literal segments to this
+		// router). They cannot be interview ids — answer 404 instead of
+		// letting Postgres reject the id cast as a 500. (Same /^\d+$/
+		// strict check as the video-playback route above.)
+		if (!/^\d+$/.test(req.params.id)) {
+			return res.status(404).json({ error: 'Interview not found' });
+		}
 		const result = await pool.query(
 			`SELECT i.*, j.title as job_title, j.company as job_company
        FROM interviews i
@@ -382,58 +276,18 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
 // Upload video for interview response
 // AI video analysis - RATE LIMITED
-router.post(
-	'/upload-video',
-	authMiddleware,
-	rateLimits.ai,
-	upload.single('video'),
-	async (req, res) => {
-		try {
-			if (!req.file) {
-				return res.status(400).json({ error: 'No video file provided' });
-			}
-
-			const { interview_id, question_index } = req.body;
-
-			if (!interview_id || question_index === undefined) {
-				return res.status(400).json({ error: 'Missing interview_id or question_index' });
-			}
-
-			// Verify interview belongs to user
-			const interview = await pool.query(
-				'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
-				[interview_id, req.user.id],
-			);
-
-			if (interview.rows.length === 0) {
-				return res.status(404).json({ error: 'Interview not found' });
-			}
-
-			// Upload to Backblaze B2
-			let videoUrl;
-			try {
-				const uploadResult = await uploadToB2({
-					buffer: req.file.buffer,
-					mimetype: req.file.mimetype,
-					filename: `interview-${interview_id}-q${question_index}.webm`,
-					prefix: 'interviews',
-				});
-				videoUrl = uploadResult.url;
-			} catch (uploadErr) {
-				console.error('B2 upload error:', uploadErr.code, uploadErr.message);
-				return res.status(500).json({ error: 'Failed to upload video' });
-			}
-
-			res.json({
-				success: true,
-				video_url: videoUrl,
-			});
-		} catch (err) {
-			console.error('Upload video error:', err);
-			res.status(500).json({ error: 'Failed to upload video' });
-		}
-	},
-);
+// S-074 (#751): RETIRED — legacy write endpoint. Returns 410 Gone + logs the hit
+// for one sprint. Reads on this router are unaffected. See #742 (resolved by deprecation).
+router.post('/upload-video', authMiddleware, (req, res) => {
+	console.warn(
+		`[S-074 retired-hit] ${req.method} ${req.originalUrl} at ${new Date().toISOString()} ` +
+			`ip=${req.ip} ua=${req.get('user-agent') || 'unknown'}`,
+	);
+	return res.status(410).json({
+		error: 'This endpoint has been retired. Legacy interview write operations are no longer supported.',
+		code: 'ENDPOINT_RETIRED',
+	});
+});
 
 // Get stats for dashboard
 router.get('/stats/summary', authMiddleware, async (req, res) => {
@@ -476,78 +330,17 @@ router.get('/stats/summary', authMiddleware, async (req, res) => {
 // =============== VIDEO ANALYSIS ===============
 
 // Save video analysis data
-router.post('/save-analysis', authMiddleware, async (req, res) => {
-	try {
-		const { interview_id, question_index, analysis_data, scores } = req.body;
-
-		// Verify interview belongs to user
-		const interview = await pool.query('SELECT * FROM interviews WHERE id = $1 AND user_id = $2', [
-			interview_id,
-			req.user.id,
-		]);
-
-		if (interview.rows.length === 0) {
-			return res.status(404).json({ error: 'Interview not found' });
-		}
-
-		// Insert or update analysis
-		await pool.query(
-			`INSERT INTO interview_analysis (
-        interview_id, question_index, analysis_data,
-        eye_contact_score, expression_score, body_language_score,
-        voice_score, presentation_score
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      ON CONFLICT (interview_id, question_index)
-      DO UPDATE SET
-        analysis_data = $3,
-        eye_contact_score = $4,
-        expression_score = $5,
-        body_language_score = $6,
-        voice_score = $7,
-        presentation_score = $8`,
-			[
-				interview_id,
-				question_index,
-				JSON.stringify(analysis_data),
-				scores.eyeContact || 0,
-				scores.expression || 0,
-				scores.bodyLanguage || 0,
-				scores.voice || 0,
-				scores.presentation || 0,
-			],
-		);
-
-		// Audit log: AI interview analysis
-		await AuditLogger.log({
-			actionType: 'interview_analysis',
-			userId: req.user.id,
-			targetType: 'interview',
-			targetId: interview_id,
-			metadata: {
-				question_index: question_index,
-				eye_contact_score: scores.eyeContact || 0,
-				expression_score: scores.expression || 0,
-				body_language_score: scores.bodyLanguage || 0,
-				voice_score: scores.voice || 0,
-				presentation_score: scores.presentation || 0,
-				model_version: 'video-analysis-v1',
-				confidence:
-					(scores.eyeContact ||
-						0 + scores.expression ||
-						0 + scores.bodyLanguage ||
-						0 + scores.voice ||
-						0 + scores.presentation ||
-						0) / 500,
-			},
-			req,
-		});
-
-		res.json({ success: true });
-	} catch (err) {
-		console.error('Save analysis error:', err);
-		res.status(500).json({ error: 'Failed to save analysis' });
-	}
+// S-074 (#751): RETIRED — legacy write endpoint. Returns 410 Gone + logs the hit
+// for one sprint. Reads on this router are unaffected. See #742 (resolved by deprecation).
+router.post('/save-analysis', authMiddleware, (req, res) => {
+	console.warn(
+		`[S-074 retired-hit] ${req.method} ${req.originalUrl} at ${new Date().toISOString()} ` +
+			`ip=${req.ip} ua=${req.get('user-agent') || 'unknown'}`,
+	);
+	return res.status(410).json({
+		error: 'This endpoint has been retired. Legacy interview write operations are no longer supported.',
+		code: 'ENDPOINT_RETIRED',
+	});
 });
 
 // Get video analysis for an interview
@@ -1153,7 +946,7 @@ router.post('/mock/:sessionId/respond', authMiddleware, rateLimits.ai, async (re
 });
 
 // End a mock interview session and get comprehensive feedback
-router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
+router.post('/mock/:sessionId/end', authMiddleware, requireBiometricConsent('biometric'), async (req, res) => {
 	try {
 		const sessionId = req.params.sessionId;
 		const { frames } = req.body; // Video frames for body language analysis
@@ -1355,6 +1148,8 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
 						module: 'mock_interview',
 						transcription: candidateText,
 						durationSeconds,
+						// S-059 (#630): candidateId required for DEK-encrypted frame upload
+						candidateId: bgUserId,
 					};
 					bgPromises.push(
 						analyzeVideoPresentation(frames, videoOptions).catch((e) => {
@@ -1984,16 +1779,18 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 
 // Text-to-Speech endpoint — converts interviewer text to spoken audio
 // Real-time single-frame body language analysis (lightweight, called every ~20s during interview) — RATE LIMITED
-router.post('/mock/analyze-frame', authMiddleware, rateLimits.ai, async (req, res) => {
+// S-011: consent-gated — biometric frame analysis requires valid biometric consent for the session.
+router.post('/mock/analyze-frame', authMiddleware, rateLimits.ai, requireBiometricConsent('biometric'), async (req, res) => {
 	try {
 		const { frame } = req.body;
 		if (!frame) {
 			return res.status(400).json({ error: 'No frame provided' });
 		}
 
-		// Upload single frame to R2
+		// Upload single frame to R2 — S-059 (#630): encrypted with the
+		// candidate's DEK before upload; returns a decrypt-proxy URL.
 		const { uploadFrameToR2 } = require('../lib/polsia-ai');
-		const frameUrl = await uploadFrameToR2(frame, 0);
+		const frameUrl = await uploadFrameToR2(frame, 0, { candidateId: req.user.id });
 		if (!frameUrl) {
 			return res.json({ success: false, error: 'Frame upload failed' });
 		}
@@ -2937,7 +2734,7 @@ router.delete('/screening/templates/:id', authMiddleware, async (req, res) => {
 // /interview/session/:token, which resolves ONLY via interview_sessions —
 // writing screening_sessions here would produce dead invite links. The legacy
 // /screening/session/:token/* endpoints stay for in-flight pre-migration sessions.
-router.post('/screening/send', authMiddleware, async (req, res) => {
+router.post('/screening/send', authMiddleware, requireRole('admin', 'employer', 'recruiter', 'hiring_manager'), async (req, res) => {
 	try {
 		const { template_id, candidate_id, application_id, job_id } = req.body;
 
@@ -2958,20 +2755,41 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 		const tmpl = template.rows[0];
 		const resolvedJobId = tmpl.job_id || job_id || null;
 
-		// Validate candidate_id matches the application (if application_id provided)
+		// S-098 (#822): the application must belong to the caller's company
+		// before anything is created or written. The scoped query makes a
+		// foreign application and a non-existent one indistinguishable —
+		// both 404, no session, no mutation. (Previously this check was
+		// unscoped and a missing application silently passed, leaving a
+		// session with a dangling application reference.)
 		if (application_id) {
 			const appCheck = await pool.query(
-				'SELECT candidate_id FROM job_applications WHERE id = $1',
-				[application_id],
+				'SELECT candidate_id, job_id, company_id FROM job_applications WHERE id = $1 AND company_id = $2',
+				[application_id, req.user.company_id],
 			);
-			if (
-				appCheck.rows.length > 0 &&
-				String(appCheck.rows[0].candidate_id) !== String(candidate_id)
-			) {
+			if (appCheck.rows.length === 0) {
+				return res.status(404).json({ error: 'Application not found' });
+			}
+			if (String(appCheck.rows[0].candidate_id) !== String(candidate_id)) {
 				return res
 					.status(400)
 					.json({ error: 'Candidate does not match the application' });
 			}
+		}
+
+		// S-098 (#822): same company check for the resolved job — covers the
+		// body `job_id` fallback when the template carries no job_id. The
+		// scoped row fetched here is reused for the frozen engine config
+		// below, so a foreign or non-existent job 404s before any write.
+		let jobRow = null;
+		if (resolvedJobId) {
+			const jobResult = await pool.query(
+				'SELECT * FROM jobs WHERE id = $1 AND company_id = $2',
+				[resolvedJobId, req.user.company_id],
+			);
+			if (jobResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
+			jobRow = jobResult.rows[0];
 		}
 
 		// Duplicate check against the unified table (was: screening_sessions).
@@ -2995,13 +2813,6 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
 				error: 'Screening already sent to this candidate',
 				session_id: existing.rows[0].id,
 			});
-		}
-
-		// Job row for the frozen engine config (mirrors the auto-send hook).
-		let jobRow = null;
-		if (resolvedJobId) {
-			const jobResult = await pool.query('SELECT * FROM jobs WHERE id = $1', [resolvedJobId]);
-			jobRow = jobResult.rows[0] || null;
 		}
 
 		// Freeze the engine config at creation (Task 2 contract) — identical

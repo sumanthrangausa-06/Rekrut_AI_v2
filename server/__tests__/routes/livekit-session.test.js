@@ -343,6 +343,7 @@ describe('POST /api/livekit/session-rooms/:sessionId/dispatch', () => {
 	});
 
 	test('observer mode passes mode through to dispatch metadata', async () => {
+		sessions.get(10).config = { biometric_collection: true };
 		const res = await request(app)
 			.post('/api/livekit/session-rooms/10/dispatch')
 			.set(as(2))
@@ -359,6 +360,7 @@ describe('POST /api/livekit/session-rooms/:sessionId/dispatch', () => {
 	});
 
 	test('a different mode is not treated as already dispatched', async () => {
+		sessions.get(10).config = { biometric_collection: true };
 		mockAgentDispatchClient.listDispatch.mockResolvedValue([existingDispatch('interviewer')]);
 		const res = await request(app)
 			.post('/api/livekit/session-rooms/10/dispatch')
@@ -521,12 +523,45 @@ describe('POST /api/livekit/session-rooms/:sessionId/dispatch', () => {
 	});
 
 	test("observer dispatch on a 'human' session still works → 200", async () => {
+		sessions.get(11).config = { biometric_collection: true };
 		const res = await request(app)
 			.post('/api/livekit/session-rooms/11/dispatch')
 			.set(as(2))
 			.send({ mode: 'observer' });
 		expect(res.status).toBe(200);
 		expect(res.body.dispatched).toBe(true);
+	});
+
+	test('S-070 (#724): observer dispatch blocked when biometric_collection is false (AC-4)', async () => {
+		sessions.get(10).config = { biometric_collection: false };
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({ mode: 'observer' });
+		expect(res.status).toBe(403);
+		expect(res.body.code).toBe('BIOMETRIC_CONSENT_DECLINED');
+		expect(mockAgentDispatchClient.createDispatch).not.toHaveBeenCalled();
+	});
+
+	test('S-070 (#724): interviewer dispatch unaffected by biometric decline', async () => {
+		sessions.get(10).config = { biometric_collection: false };
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({ mode: 'interviewer' });
+		expect(res.status).toBe(200);
+		expect(res.body.dispatched).toBe(true);
+	});
+
+	test('S-046 (#694): observer dispatch blocked when biometric_collection is unset (default-deny)', async () => {
+		sessions.get(10).config = {};
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/dispatch')
+			.set(as(2))
+			.send({ mode: 'observer' });
+		expect(res.status).toBe(403);
+		expect(res.body.code).toBe('BIOMETRIC_CONSENT_UNKNOWN');
+		expect(mockAgentDispatchClient.createDispatch).not.toHaveBeenCalled();
 	});
 });
 
@@ -620,5 +655,64 @@ describe('POST /api/livekit/session-rooms/:sessionId/dispatch — session egress
 		expect(res.status).toBe(200);
 		expect(res.body.dispatched).toBe(true);
 		expect(mockStartSessionEgress).toHaveBeenCalledTimes(1);
+	});
+});
+
+// ─── S-048 (#696): observer disclosure fields on token endpoint ─────────────
+// The candidate's consent dialog needs to know whether to show the AI
+// disclosure copy. The token endpoint exposes observer_enabled (recruiter
+// intent) + observer_consent (default-deny gate state).
+
+describe('POST /api/livekit/session-rooms/:sessionId/token — observer disclosure', () => {
+	test('returns observer_enabled=false + consent unknown when config empty', async () => {
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/10/token')
+			.set(as(1))
+			.send({ name: 'Cand' });
+		expect(res.status).toBe(200);
+		expect(res.body.observer_enabled).toBe(false);
+		expect(res.body.observer_consent).toBe('unknown');
+	});
+
+	test('returns observer_enabled=true + consent granted when biometric_collection=true', async () => {
+		sessions.set(12, {
+			id: 12,
+			type: 'human',
+			status: 'invited',
+			job_id: 5,
+			company_id: 100,
+			candidate_id: 1,
+			invite_token: 'inv-test-12',
+			config: { observer_enabled: true, biometric_collection: true },
+			conversation: [],
+		});
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/12/token')
+			.set(as(1))
+			.send({ name: 'Cand' });
+		expect(res.status).toBe(200);
+		expect(res.body.observer_enabled).toBe(true);
+		expect(res.body.observer_consent).toBe('granted');
+	});
+
+	test('returns observer_enabled=true + consent declined when biometric_collection=false', async () => {
+		sessions.set(13, {
+			id: 13,
+			type: 'human',
+			status: 'invited',
+			job_id: 5,
+			company_id: 100,
+			candidate_id: 1,
+			invite_token: 'inv-test-13',
+			config: { observer_enabled: true, biometric_collection: false },
+			conversation: [],
+		});
+		const res = await request(app)
+			.post('/api/livekit/session-rooms/13/token')
+			.set(as(1))
+			.send({ name: 'Cand' });
+		expect(res.status).toBe(200);
+		expect(res.body.observer_enabled).toBe(true);
+		expect(res.body.observer_consent).toBe('declined');
 	});
 });

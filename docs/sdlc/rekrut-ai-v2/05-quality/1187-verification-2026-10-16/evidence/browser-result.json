@@ -1,0 +1,26 @@
+{
+  "loggedOut": {
+    "finalUrl": "http://localhost:3000/careers/quinn1187-alpha",
+    "bouncedToLogin": false,
+    "hasAlpha": true,
+    "hasBeta": false,
+    "hasAlphaJob": true,
+    "hasUnavailable": false,
+    "apiCalls": [
+      "200 http://localhost:3000/api/careers/quinn1187-alpha"
+    ],
+    "textExcerpt": "?\nQuinn Alpha Careers Inc\n\nAlpha builds quinn test widgets\n\nAustin, TX\n51-200\nWebsite\nTrustScore: Insufficient data\n\n1\n\nOpen Positions\n\n51-200\n\nCompany Size\n\nAbout Quinn Alpha Careers Inc\n\nAlpha builds quinn test widgets. Join the Alpha team.\n\nInnovation\nDiversity\nTransparency\nGrowth\nImpact\nBenefits & Perks\n\nHealth Insurance\n\n100% coverage for you and dependents\n\nRemote Work\n\nWork from anywhere, async-friendly\n\nFlexible Hours\n\nChoose your own schedule\n\nLearning Budget\n\n$5,000/year for courses and conferences\n\nEquity\n\nMeaningful stock options for all employees\n\nUnlimited PTO\n\nTake time when you need it\n\nParental Leave\n\n20 weeks paid for all parents\n\nWellness\n\n$100/month gym or wellness stipend\n\nMeet the Team\n?\n\nTeam Lead\n\nEngineering Manager\n\n\"We build the future together\"\n\n?\n\nHiring Manager\n\nPeople Operations\n\n\"People are our greatest asset\"\n\nOpen Positions\nAll\nGeneral\nAlpha Widget Engineer\nGeneral\nRemote\nfull-time\n\nCompetitive\n\nApply"
+  },
+  "loggedInAsBeta": {
+    "finalUrl": "http://localhost:3000/careers/quinn1187-alpha",
+    "bouncedToLogin": false,
+    "hasAlpha": true,
+    "hasBeta": false,
+    "hasAlphaJob": true,
+    "hasUnavailable": false,
+    "apiCalls": [
+      "200 http://localhost:3000/api/careers/quinn1187-alpha"
+    ],
+    "textExcerpt": "?\nQuinn Alpha Careers Inc\n\nAlpha builds quinn test widgets\n\nAustin, TX\n51-200\nWebsite\nTrustScore: Insufficient data\n\n1\n\nOpen Positions\n\n51-200\n\nCompany Size\n\nAbout Quinn Alpha Careers Inc\n\nAlpha builds quinn test widgets. Join the Alpha team.\n\nInnovation\nDiversity\nTransparency\nGrowth\nImpact\nBenefits & Perks\n\nHealth Insurance\n\n100% coverage for you and dependents\n\nRemote Work\n\nWork from anywhere, async-friendly\n\nFlexible Hours\n\nChoose your own schedule\n\nLearning Budget\n\n$5,000/year for courses and conferences\n\nEquity\n\nMeaningful stock options for all employees\n\nUnlimited PTO\n\nTake time when you need it\n\nParental Leave\n\n20 weeks paid for all parents\n\nWellness\n\n$100/month gym or wellness stipend\n\nMeet the Team\n?\n\nTeam Lead\n\nEngineering Manager\n\n\"We build the future together\"\n\n?\n\nHiring Manager\n\nPeople Operations\n\n\"People are our greatest asset\"\n\nOpen Positions\nAll\nGeneral\nAlpha Widget Engineer\nGeneral\nRemote\nfull-time\n\nCompetitive\n\nApply"
+  }
+}

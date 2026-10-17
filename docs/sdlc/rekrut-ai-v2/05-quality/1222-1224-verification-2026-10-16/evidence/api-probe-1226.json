@@ -1,0 +1,70 @@
+{
+  "seed": {
+    "employeeCandidateId": 3,
+    "employeeId": 1,
+    "employerId": 1,
+    "companyId": 1,
+    "noProfileCandidateId": 2,
+    "noProfileEmployeeRows": 0
+  },
+  "api": {
+    "loginEmployeeCandidate": {
+      "status": 200,
+      "gotToken": true
+    },
+    "loginNoProfileCandidate": {
+      "status": 200,
+      "gotToken": true
+    },
+    "caseA_profile": {
+      "status": 200,
+      "error": null,
+      "employee_number": "QNN-1226-001",
+      "position": "Data Analyst",
+      "salary_amount": "85000.00",
+      "employer_name": "Quinn After Employer",
+      "excerpt": "{\"profile\":{\"id\":1,\"user_id\":3,\"employer_id\":1,\"employee_number\":\"QNN-1226-001\",\"department\":\"Engineering\",\"position\":\"Data Analyst\",\"employment_type\":\"full-time\",\"start_date\":\"2026-01-05T00:00:00.000Z\",\"end_date\":null,\"status\":\"active\",\"created_at\":\"2026-10-17T04:12:21.865Z\",\"updated_at\":\"2026-10-17T04:12:21.865Z\",\"company_id\":1,\"country_code\":\"US\",\"currency_code\":\"USD\",\"employee_id\":1,\"salary_ty"
+    },
+    "caseA_paychecks": {
+      "status": 200,
+      "isArray": true,
+      "count": 0
+    },
+    "caseB_profile": {
+      "status": 404,
+      "error": "Employee profile not found",
+      "isDesigned404": true,
+      "isRouteMiss404": false
+    },
+    "anon": {
+      "status": 401
+    }
+  },
+  "checks": [
+    {
+      "id": "1226a",
+      "label": "#1226(a) GET /api/payroll/employee/profile with employees row: 200",
+      "pass": true,
+      "detail": "status=200 error=null"
+    },
+    {
+      "id": "1226a",
+      "label": "#1226(a) profile carries seeded employee data",
+      "pass": true,
+      "detail": "employee_number=QNN-1226-001 position=Data Analyst salary=85000.00"
+    },
+    {
+      "id": "1226b",
+      "label": "#1226(b) GET profile with NO employees row: designed 404 \"Employee profile not found\" (not route-miss)",
+      "pass": true,
+      "detail": "status=404 error=Employee profile not found"
+    },
+    {
+      "id": "1226b",
+      "label": "#1226(b) anon: 401 (auth still enforced)",
+      "pass": true,
+      "detail": "status=401"
+    }
+  ],
+  "allPass": true
+}

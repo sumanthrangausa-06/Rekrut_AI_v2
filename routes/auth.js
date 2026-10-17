@@ -4,12 +4,16 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const pool = require('../lib/db');
 const { encrypt, decrypt } = require('../lib/crypto-utils');
+const { erasePersonalData } = require('../lib/erasureService');
+const { sanitizeErasureResult } = require('../lib/erasureResultSanitizer');
 const {
 	generateToken,
 	generateRefreshToken,
 	rotateRefreshToken,
 	revokeAllTokens,
 	authMiddleware,
+	hashPassword,
+	needsRehash,
 } = require('../lib/auth');
 
 const { AuditLogger } = require('../services/auditLogService');
@@ -136,7 +140,7 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 		}
 
 		// Hash password
-		const password_hash = await bcrypt.hash(password, 13);
+		const password_hash = await hashPassword(password);
 
 		// Create user
 		const result = await pool.query(
@@ -445,6 +449,28 @@ router.post('/login', rateLimits.strict, async (req, res) => {
 			return res.status(401).json({ error: 'Invalid credentials' });
 		}
 
+		if (needsRehash(user.password_hash)) {
+			try {
+				const newHash = await hashPassword(password);
+				// C1 (security review, hard condition): compare-and-swap — only
+				// rewrite the exact hash we verified. If the password was
+				// changed/reset (or the credential scrubbed by delete-account)
+				// during the rehash window, this matches 0 rows and the newer
+				// state wins; rowCount 0 is a success outcome, not an error.
+				await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2 AND password_hash = $3', [
+					newHash,
+					user.id,
+					user.password_hash,
+				]);
+			} catch (rehashErr) {
+				try {
+					console.error('[auth] rehash-on-login failed', { userId: user.id, error: rehashErr.code || rehashErr.message });
+				} catch (_logErr) {
+					// F-1: logging must never fail the login.
+				}
+			}
+		}
+
 		const accessToken = generateToken(user);
 		let refreshToken;
 		try {
@@ -480,6 +506,7 @@ router.post('/login', rateLimits.strict, async (req, res) => {
 				email: user.email,
 				name: user.name,
 				role: user.role,
+				company_id: user.company_id,
 				is_paid: user.is_paid,
 				avatar_url: user.avatar_url,
 			},
@@ -1633,7 +1660,7 @@ router.post('/reset-password', rateLimits.strict, async (req, res) => {
 		}
 
 		// Hash new password
-		const passwordHash = await bcrypt.hash(password, 13);
+		const passwordHash = await hashPassword(password);
 
 		// Update user password
 		await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
@@ -1684,7 +1711,7 @@ router.post('/password', authMiddleware, rateLimits.strict, async (req, res) => 
 			return res.status(400).json({ error: getPasswordPolicyMessage(user.role) });
 		}
 
-		const passwordHash = await bcrypt.hash(newPassword, 13);
+		const passwordHash = await hashPassword(newPassword);
 		await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, user.id]);
 
 		// Invalidate every session, then re-issue for this one
@@ -1734,6 +1761,15 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 		}
 
 		const client = await pool.connect();
+		// S-067 (#720): erasure scope for the account_deleted audit metadata.
+		let storageErasure = { deleted: 0, failed: 0, failures: [] };
+		// #1128: hoisted out of the tx block — it was previously `const`
+		// inside the try below, so the account_deleted AuditLogger call
+		// after the block referenced an out-of-scope binding, threw
+		// ReferenceError, and the audit entry was silently lost to the
+		// non-blocking catch. The D-8b sanitised audit write below
+		// requires the result to actually be reachable here.
+		let erasureResult = null;
 		try {
 			await client.query('BEGIN');
 			await client.query('UPDATE refresh_tokens SET is_revoked = true WHERE user_id = $1', [user.id]);
@@ -1752,7 +1788,42 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 				WHERE id = $1`,
 				[user.id],
 			);
+			// S-067 (#720) AC-1/AC-2: crypto-shred the candidate's DEK as part of
+			// the erasure workflow (account deletion is the DSAR erasure path).
+			// S-075 (#752): also hard-deletes the candidate_embeddings row and
+			// the candidate_search_index row (GDPR Art. 17 — plaintext personal
+			// data, not biometric).
+			// Runs inside this transaction via the shared erasure routine.
+			erasureResult =
+				await erasePersonalData(user.id, {
+					client,
+					// #1125 GAP-F: the tombstone UPDATE above already
+					// rewrote users.email — pass the pre-tombstone
+					// address (req.user was loaded before it) so the
+					// email-matched family deletes match the original
+					// recipient strings, not the synthetic address.
+					originalEmail: user.email,
+					audit: {
+						userId: user.id,
+						userRole: user.role || 'candidate',
+						ipAddress: req.ip,
+						// S-065 C1: tenant attribution for the purge audit entry.
+						companyId: user.company_id,
+					},
+				});
 			await client.query('COMMIT');
+
+			// S-076 (#759) Phase 2: delete storage objects AFTER commit, driven
+			// by the pending_storage_deletions ledger (crash-safe). R2 NEVER in-tx.
+			const { deleteErasedStorageFiles } = require('../lib/erasureService');
+			storageErasure = await deleteErasedStorageFiles(user.id, {
+				audit: {
+					userId: user.id,
+					userRole: user.role || 'candidate',
+					ipAddress: req.ip,
+					companyId: user.company_id,
+				},
+			});
 		} catch (txErr) {
 			await client.query('ROLLBACK');
 			throw txErr;
@@ -1766,15 +1837,71 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 				userId: user.id,
 				targetType: 'user',
 				targetId: user.id,
-				metadata: {},
+				// Privacy-engineer S-078 (SHOULD-FIX): carry the full erasure
+				// scope, not just the S-067/S-075 flags — matches the
+				// compliance path (routes/admin.js gdpr_deletion_fulfilled).
+				metadata: {
+					// #1128 D-8b: sanitised COPY only — replaces the
+					// hand-rolled `storageKeys: undefined` strip, which
+					// left the nested gapC/gapD.nonPatternStorageUrls
+					// (raw storage keys) in the persisted metadata.
+					...sanitizeErasureResult(erasureResult),
+					storage_files_deleted: storageErasure.deleted,
+					storage_files_failed: storageErasure.failed,
+				},
 				req,
 			});
 		} catch (auditErr) {
 			console.error('Audit log failed (non-blocking):', auditErr.message);
 		}
 
+		// #1126 (GAP-G, STOP 1 §5): Flow A session hygiene — destroy the
+		// caller's own session post-commit, before the response (absent
+		// before this story; the logout handlers are the precedent).
+		// user_sessions rows themselves are a named residual (no user
+		// key — see the erasure keep/erase table §5), NOT claimed erased.
+		if (req.session) req.session.destroy();
+
 		res.json({ success: true, message: 'Account deleted successfully.' });
 	} catch (err) {
+		// #799 (G-1): an active legal hold blocks erasure (the transaction
+		// rolled back — the account is NOT deleted and the DEK is NOT
+		// destroyed). Surface the conflict as 409, GDPR Art. 17(3)(e).
+		// Lex F-1 (#915 PR-gate fix round): this path previously left NO
+		// durable record of the refused erasure. Write the conflict to
+		// compliance_audit_trail (hold id, actor, subject) BEFORE
+		// answering; if that write fails, fail closed with a 500 that
+		// surfaces the failure (nothing was deleted either way, so the
+		// user can simply retry).
+		if (err.code === 'LEGAL_HOLD') {
+			try {
+				const { recordLegalHoldConflict } = require('../lib/legalHold');
+				await recordLegalHoldConflict({
+					holdId: err.details?.holdId ?? null,
+					actor: req.user?.id ?? null,
+					actorRole: 'user',
+					subjectUserId: req.user?.id ?? null,
+					companyId: req.user?.company_id ?? null,
+					source: 'self_serve_delete_account',
+				});
+			} catch (recErr) {
+				console.error('[auth/delete-account] legal-hold conflict AUDIT record failed:', recErr.message);
+				return res.status(500).json({
+					error:
+						'Legal hold active: nothing was deleted, but the conflict could not be recorded ' +
+						'in the compliance audit trail. Please retry so the conflict can be recorded.',
+					legalHold: true,
+					conflictRecorded: false,
+				});
+			}
+			return res.status(409).json({
+				error:
+					'Legal hold active: this account cannot be erased while it is under a legal hold ' +
+					'(GDPR Art. 17(3)(e)). Nothing was deleted.',
+				legalHold: true,
+				conflictRecorded: true,
+			});
+		}
 		console.error('Delete account error:', err.message, err.code, err.stack);
 		res.status(500).json({ error: 'Failed to delete account' });
 	}

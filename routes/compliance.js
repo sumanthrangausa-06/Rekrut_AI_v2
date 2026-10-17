@@ -276,14 +276,15 @@ router.post('/fairness/audit', authMiddleware, async (_req, res) => {
 		// Get demographic breakdowns
 		const demographics = await pool.query(`
       SELECT
-        cp.gender,
-        cp.ethnicity,
+        cd.gender,
+        cd.ethnicity,
         COUNT(*) as total,
         AVG(os.overall_score) as avg_score
       FROM candidate_profiles cp
+      LEFT JOIN candidate_demographics cd ON cd.user_id = cp.user_id
       LEFT JOIN omniscore_results os ON os.user_id = cp.user_id
       WHERE os.overall_score IS NOT NULL
-      GROUP BY cp.gender, cp.ethnicity
+      GROUP BY cd.gender, cd.ethnicity
     `);
 
 		// Get appeal statistics
@@ -428,6 +429,14 @@ router.get('/appeal/:userId', authMiddleware, async (req, res) => {
 // Query audit logs
 router.get('/audit/logs', authMiddleware, async (req, res) => {
 	try {
+		// S-097 (#821): admin-only. The legacy audit_logs table has no
+		// company_id, so company-scoping is not implementable here — the
+		// company-scoped regulator path already exists at /audit-trail/export.
+		// Any non-admin audience for the unscoped log is precisely the leak.
+		if (req.user?.role !== 'admin') {
+			return res.status(403).json({ error: 'Admin access required' });
+		}
+
 		const { userId, actionType, startDate, endDate, limit, offset } = req.query;
 
 		const logs = await AuditLogger.query({
@@ -452,6 +461,12 @@ router.get('/audit/logs', authMiddleware, async (req, res) => {
 // Export audit logs
 router.post('/audit/export', authMiddleware, async (req, res) => {
 	try {
+		// S-097 (#821): admin-only, same ruling as GET /audit/logs above —
+		// audit_logs cannot be company-scoped (no company_id column).
+		if (req.user?.role !== 'admin') {
+			return res.status(403).json({ error: 'Admin access required' });
+		}
+
 		const { startDate, endDate, format } = req.body;
 
 		if (!startDate || !endDate) {
@@ -552,6 +567,31 @@ router.get('/explain/omniscore/:userId', authMiddleware, async (req, res) => {
 	try {
 		const { userId } = req.params;
 
+		// S-097 (#821): this is a user-record endpoint, so the file's own
+		// canAccessUserRecord guard (self-or-admin, used by 8 siblings) is
+		// the right shape — not a company-scoped query. One extension: a
+		// hiring-side caller may read the score of a candidate who has an
+		// application with their company (recruiter-of-record), proven by a
+		// job_applications linkage row. Guard runs before the service call.
+		const access = canAccessUserRecord(req, userId);
+		if (!access.ok) {
+			if (access.status !== 403) {
+				return res.status(access.status).json({ error: access.error });
+			}
+			const isHiringRole = ['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role);
+			let linked = false;
+			if (isHiringRole && req.user?.company_id != null) {
+				const linkage = await pool.query(
+					'SELECT 1 FROM job_applications WHERE candidate_id = $1 AND company_id = $2 LIMIT 1',
+					[parseInt(userId, 10), req.user.company_id],
+				);
+				linked = linkage.rows.length > 0;
+			}
+			if (!linked) {
+				return res.status(access.status).json({ error: access.error });
+			}
+		}
+
 		const explanation = await explainOmniScore(parseInt(userId, 10));
 
 		await AuditLogger.log({
@@ -577,8 +617,54 @@ router.get('/explain/omniscore/:userId', authMiddleware, async (req, res) => {
 router.get('/explain/decision/:applicationId', authMiddleware, async (req, res) => {
 	try {
 		const { applicationId } = req.params;
+		const applicationIdInt = parseInt(applicationId, 10);
 
-		const explanation = await explainDecision(parseInt(applicationId, 10));
+		// S-097 (#821): object-level authorisation BEFORE the service call.
+		// The guard must live in the route: explainDecision re-throws on
+		// error (it depends on the phantom candidate_job_matches table), so
+		// a denied caller must never reach it. The resource is an
+		// application, not a user record, so canAccessUserRecord does not
+		// fit — load the application's own candidate/company anchors and
+		// compare here (the scoped-load shape used across this codebase).
+		// Allow: admin; the candidate themself; a hiring role whose
+		// company owns the application (fail-closed on null company_id).
+		// Everything else — including a non-existent ID — is the same 404,
+		// so foreign IDs cannot be distinguished from missing ones.
+		const appResult = Number.isInteger(applicationIdInt)
+			? await pool.query('SELECT candidate_id, company_id FROM job_applications WHERE id = $1', [
+					applicationIdInt,
+				])
+			: { rows: [] };
+		const application = appResult.rows[0];
+		const isAdmin = req.user?.role === 'admin';
+		const isCandidateSelf = !!application && req.user?.id === application.candidate_id;
+		const isOwningHiring =
+			!!application &&
+			['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) &&
+			req.user?.company_id != null &&
+			Number(req.user.company_id) === Number(application.company_id);
+		if (!application || (!isAdmin && !isCandidateSelf && !isOwningHiring)) {
+			return res.status(404).json({ error: 'Application not found' });
+		}
+
+		const rawExplanation = await explainDecision(applicationIdInt);
+
+		// Audience shaping (S-097, privacy seat; S-087 toCandidateSafeReport
+		// precedent — shape at the route boundary): a candidate audience
+		// never receives recruiter_notes, an internal hiring-team field.
+		// Fix round (privacy F1 / security F-3, Lead's ruling): shape on
+		// the authorisation identity, not the role string — a self-applicant
+		// whose account role is no longer `candidate` (e.g. converted to
+		// recruiter) is still the candidate audience for their own
+		// application. Recruiter/employer-of-record and admin callers
+		// (an admin keeps the full record even when they are the applicant)
+		// keep the full record unchanged.
+		let explanation = rawExplanation;
+		if (isCandidateSelf && !isAdmin && rawExplanation?.decision) {
+			const candidateDecision = { ...rawExplanation.decision };
+			delete candidateDecision.recruiter_notes;
+			explanation = { ...rawExplanation, decision: candidateDecision };
+		}
 
 		await AuditLogger.log({
 			actionType: 'decision_explanation_viewed',
@@ -686,17 +772,37 @@ router.get('/audit-trail/candidate/:candidateId', authMiddleware, async (req, re
 		// Access control: candidate viewing own record, or admin/employer
 		const isOwn = req.user?.role === 'candidate' && req.user?.id === candidateId;
 		const isAdmin = req.user?.role === 'admin';
-		const isCompanyUser =
-			['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) && req.user?.company_id;
+		let isCompanyUser = false;
 
-		if (!isOwn && !isAdmin && !isCompanyUser) {
-			return res.status(403).json({ error: 'Access denied' });
+		// #920: a company user may read a candidate's audit trail only when
+		// the candidate is linked to their company by a job_applications
+		// row — the same SELECT 1 … LIMIT 1 linkage idiom as the merged
+		// #926 guards above (:584, :1119). Fail-closed when company_id is
+		// null. Guard runs before the service call; denial is this
+		// endpoint's existing 403, identical for foreign and non-existent
+		// candidate IDs (no existence oracle). Self/admin paths unchanged.
+		if (!isOwn && !isAdmin) {
+			const isHiringRole = ['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role);
+			if (!isHiringRole || req.user?.company_id == null) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
+			const linkage = await pool.query(
+				'SELECT 1 FROM job_applications WHERE candidate_id = $1 AND company_id = $2 LIMIT 1',
+				[candidateId, req.user.company_id],
+			);
+			if (linkage.rows.length === 0) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
+			isCompanyUser = true;
 		}
 
 		const { limit, offset } = req.query;
 		const result = await auditLogService.getCandidateDecisions(candidateId, {
 			limit: limit ? parseInt(limit, 10) : 500,
 			offset: offset ? parseInt(offset, 10) : 0,
+			// #920 (Sumanth ruling): company-user callers receive only
+			// their own company's events; self/admin stay unscoped.
+			...(isCompanyUser ? { companyId: req.user.company_id } : {}),
 		});
 
 		res.json({ success: true, ...result });
@@ -999,11 +1105,44 @@ router.get('/explain/job/:jobId/candidate/:candidateId', authMiddleware, async (
 
 		// Candidate can view their own explanation
 		const isOwn = req.user?.role === 'candidate' && req.user?.id === candidateId;
-		const isCompanyUser = ['employer', 'recruiter', 'hiring_manager', 'admin'].includes(
-			req.user?.role,
-		);
-		if (!isOwn && !isCompanyUser) {
+		const isAdmin = req.user?.role === 'admin';
+		const isHiringRole = ['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role);
+		if (!isOwn && !isAdmin && !isHiringRole) {
 			return res.status(403).json({ error: 'Access denied' });
+		}
+
+		// S-097 (#821): a hiring role may only explain decisions for jobs
+		// their own company owns. The resource here is the job, so the
+		// job-company ownership check is the right shape (contrast the
+		// user-record guard on /explain/omniscore above). Foreign and
+		// non-existent jobs are the same 404, and the check runs before
+		// the service call. Candidate-self and admin are not job-scoped.
+		if (!isOwn && !isAdmin) {
+			const jobResult = await pool.query('SELECT company_id FROM jobs WHERE id = $1', [jobId]);
+			const job = jobResult.rows[0];
+			if (
+				!job ||
+				req.user?.company_id == null ||
+				Number(req.user.company_id) !== Number(job.company_id)
+			) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
+
+			// Fix round (security F-1, Lead ruling option (a)): owning a job
+			// alone does not link the candidate to the caller's company, and
+			// the service returns the candidate's global score data — so a
+			// hiring role additionally needs a job_applications
+			// candidate×company linkage, mirroring the read-only SELECT 1
+			// linkage on /explain/omniscore above. Denial is this endpoint's
+			// existing non-subject-candidate 403, before the service call.
+			// Candidate-self and admin paths above are unchanged.
+			const linkage = await pool.query(
+				'SELECT 1 FROM job_applications WHERE candidate_id = $1 AND company_id = $2 LIMIT 1',
+				[candidateId, req.user.company_id],
+			);
+			if (linkage.rows.length === 0) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
 		}
 
 		const explanation = await EuComplianceService.explainDecisionForJob({
@@ -1173,6 +1312,11 @@ router.post('/retention/policies', authMiddleware, async (req, res) => {
 /**
  * POST /api/compliance/retention/purge
  * Execute automated data purge based on retention policies.
+ *
+ * S-077 (#760): live deletion (dryRun: false) is gated behind
+ * RETENTION_PURGE_LIVE — same gate as the scheduled cron. Per Sumanth's
+ * standing rule, live storage deletion needs his explicit approval.
+ * Dry-run is always available for preview.
  */
 router.post('/retention/purge', authMiddleware, async (req, res) => {
 	try {
@@ -1181,9 +1325,25 @@ router.post('/retention/purge', authMiddleware, async (req, res) => {
 		}
 
 		const { dryRun = true, companyId } = req.body;
+		const isLive = dryRun === false;
+
+		if (isLive && process.env.RETENTION_PURGE_LIVE !== 'true') {
+			return res.status(403).json({
+				error: 'Live purge is disabled. Run with dryRun: true for preview, or set RETENTION_PURGE_LIVE=true (requires Sumanth approval).',
+			});
+		}
+
+		// Staging guard: staging shares the production database. Live purge
+		// is only allowed in production, even with the flag set.
+		if (isLive && process.env.NODE_ENV !== 'production') {
+			return res.status(403).json({
+				error: 'Live purge is only allowed in production (staging shares the production database).',
+			});
+		}
+
 		const targetCompanyId = req.user.role === 'admin' ? companyId : req.user.company_id;
 		const summary = await EuComplianceService.executePurge({
-			dryRun: dryRun !== false,
+			dryRun: !isLive,
 			companyId: targetCompanyId,
 		});
 

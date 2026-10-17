@@ -26,6 +26,7 @@ const { notifyUser } = require('../lib/notify');
 // insertAuditLog → audit_logs table).
 const { insertAuditLog } = require('./audit');
 const { checkFeatureAccess, incrementUsage } = require('../lib/subscription');
+const { captureApplicationIp } = require('../lib/applicationIpCapture');
 const calendarService = require('../server/services/calendar-service');
 
 let matchingEngine;
@@ -2697,6 +2698,75 @@ router.get('/jobs/dismissed', authMiddleware, async (req, res) => {
 	}
 });
 
+// ─── S-096 (#820): candidate-safe application projection ────────────────────
+// Candidate-facing application responses must NEVER serialise the raw
+// job_applications row: recruiter_notes and screening_score are
+// recruiter-internal, and omniscore_at_apply / resume_url are not consumed
+// by any candidate application surface. This explicit allowlist is the
+// candidate-safe column set (S-087/#790 precedent: explicit SQL projection
+// + whitelist shaping at the response layer). The privacy seat owns judging
+// this list at the PR gate.
+//
+// Candidate-safe fields (the candidate's own application, as rendered by
+// the candidate Kanban / application detail):
+//   id, job_id, candidate_id, company_id, status,
+//   cover_letter (candidate's own), screening_answers (candidate's own),
+//   screening_status (their screening progress state — NOT the score),
+//   match_score (shown to the candidate in the detail dialog),
+//   assessment_score / assessment_result (candidate's own, shown on the
+//   Kanban card), is_auto_applied, applied_via, applied_at, updated_at.
+// Explicitly EXCLUDED: recruiter_notes, screening_score, omniscore_at_apply,
+// resume_url.
+const CANDIDATE_APPLICATION_FIELDS = [
+	'id',
+	'job_id',
+	'candidate_id',
+	'company_id',
+	'status',
+	'cover_letter',
+	'screening_answers',
+	'screening_status',
+	'match_score',
+	'assessment_score',
+	'assessment_result',
+	'is_auto_applied',
+	'applied_via',
+	'applied_at',
+	'updated_at',
+];
+const CANDIDATE_APPLICATION_COLUMNS = CANDIDATE_APPLICATION_FIELDS.join(', ');
+// GET /applications list rows additionally carry the job/company basics the
+// board already exposes to the candidate, plus intro/outreach display data.
+const CANDIDATE_APPLICATION_LIST_FIELDS = [
+	...CANDIDATE_APPLICATION_FIELDS,
+	'title',
+	'company',
+	'location',
+	'salary_range',
+	'job_type',
+	'screening_questions',
+	'posted_by_company',
+	'poster_company',
+	'intro_status',
+	'intro_id',
+	'outreach_count',
+];
+
+function pickCandidateFields(row, fields) {
+	if (!row) return row;
+	const out = {};
+	for (const field of fields) out[field] = row[field] ?? null;
+	return out;
+}
+
+function toCandidateApplication(row) {
+	return pickCandidateFields(row, CANDIDATE_APPLICATION_FIELDS);
+}
+
+function toCandidateApplicationListRow(row) {
+	return pickCandidateFields(row, CANDIDATE_APPLICATION_LIST_FIELDS);
+}
+
 // Helper: shared application submission logic (manual + auto-apply)
 async function submitApplication({
 	candidateId,
@@ -2881,7 +2951,7 @@ async function submitApplication({
 
 						// Notify candidate
 						await pool.query(
-							`INSERT INTO notifications (user_id, type, title, message, data, created_at)
+							`INSERT INTO user_notifications (user_id, type, title, message, metadata, created_at)
 							 VALUES ($1, 'screening_invite', $2, $3, $4, NOW())`,
 							[
 								candidateId,
@@ -3034,10 +3104,10 @@ async function submitApplication({
 
 	return result.rows[0];
 }
-// Apply to a job
-router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
+// Apply to a job (rate-limited per S-096/#820, in-file rateLimits precedent)
+router.post('/jobs/:jobId/apply', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
-		const { cover_letter, screening_answers } = req.body;
+		const { cover_letter, screening_answers, ip_capture_consent } = req.body;
 		const application = await submitApplication({
 			candidateId: req.user.id,
 			jobId: req.params.jobId,
@@ -3045,7 +3115,34 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
 			screeningAnswers: screening_answers,
 			appliedVia: 'manual',
 		});
-		res.json({ success: true, application });
+		// #815 (S-095): application-time IP capture, wired at THIS route
+		// level only — submitApplication is shared with both auto-apply
+		// routes, which must never capture. Manual-only, consent-gated,
+		// flag-gated inside the capture module; the captured fingerprint
+		// lives in its own table and never enters the application row or
+		// this response. Best-effort: any capture failure logs ONLY the
+		// error code (never a message, which could carry values) and the
+		// application response is unchanged.
+		try {
+			await captureApplicationIp(
+				{
+					applicationId: application.id,
+					candidateId: req.user.id,
+					companyId: application.company_id,
+					reqIp: req.ip,
+					consentGiven: ip_capture_consent === true,
+				},
+				{ client: pool },
+			);
+		} catch (captureErr) {
+			console.error(
+				'[application-ip-capture] capture failed:',
+				captureErr && captureErr.code ? captureErr.code : 'UNKNOWN',
+			);
+		}
+		// #820: shape at the response layer — submitApplication's internal
+		// return value (shared with auto-apply) is unchanged.
+		res.json({ success: true, application: toCandidateApplication(application) });
 	} catch (err) {
 		if (err.statusCode) {
 			return res.status(err.statusCode).json({ error: err.message });
@@ -3060,7 +3157,10 @@ router.get('/applications', authMiddleware, async (req, res) => {
 	try {
 		const applications = await pool.query(
 			`
-      SELECT ja.*, ja.is_auto_applied, j.title, j.company, j.location, j.salary_range, j.job_type,
+      SELECT ja.id, ja.job_id, ja.candidate_id, ja.company_id, ja.status, ja.cover_letter,
+             ja.screening_answers, ja.screening_status, ja.match_score, ja.assessment_score,
+             ja.assessment_result, ja.is_auto_applied, ja.applied_via, ja.applied_at, ja.updated_at,
+             j.title, j.company, j.location, j.salary_range, j.job_type,
              j.screening_questions, u.company_name as posted_by_company,
              COALESCE(NULLIF(u.company_name, ''), j.company) as poster_company,
              ri.status as intro_status, ri.id as intro_id,
@@ -3075,7 +3175,12 @@ router.get('/applications', authMiddleware, async (req, res) => {
 			[req.user.id],
 		);
 
-		res.json({ success: true, applications: applications.rows });
+		// #820: whitelist-shape list rows as well as projecting in SQL —
+		// recruiter_notes / screening_score never leave the server.
+		res.json({
+			success: true,
+			applications: applications.rows.map(toCandidateApplicationListRow),
+		});
 	} catch (err) {
 		console.error('Get applications error:', err);
 		res.status(500).json({ error: 'Failed to get applications' });
@@ -3121,7 +3226,8 @@ router.post('/applications/auto-apply', authMiddleware, async (req, res) => {
 		});
 
 		await incrementUsage(req.user.id, 'auto_apply');
-		res.json({ success: true, application });
+		// #820: candidate-facing response — candidate-safe projection only.
+		res.json({ success: true, application: toCandidateApplication(application) });
 	} catch (err) {
 		if (err.statusCode) {
 			return res.status(err.statusCode).json({ error: err.message });
@@ -3268,7 +3374,8 @@ router.post('/jobs/:id/auto-apply', authMiddleware, rateLimits.standard, async (
 		});
 
 		await incrementUsage(req.user.id, 'auto_apply');
-		res.json({ success: true, application });
+		// #820: candidate-facing response — candidate-safe projection only.
+		res.json({ success: true, application: toCandidateApplication(application) });
 	} catch (err) {
 		if (err.statusCode) {
 			return res.status(err.statusCode).json({ error: err.message });
@@ -3299,19 +3406,24 @@ router.put('/applications/:id/withdraw', authMiddleware, async (req, res) => {
 		}
 
 		const result = await pool.query(
-			`UPDATE job_applications SET status = 'withdrawn', updated_at = NOW() WHERE id = $1 RETURNING *`,
+			`UPDATE job_applications SET status = 'withdrawn', updated_at = NOW() WHERE id = $1 RETURNING ${CANDIDATE_APPLICATION_COLUMNS}`,
 			[req.params.id],
 		);
 
-		res.json({ success: true, application: result.rows[0] });
+		res.json({ success: true, application: toCandidateApplication(result.rows[0]) });
 	} catch (err) {
 		console.error('Withdraw application error:', err);
 		res.status(500).json({ error: 'Failed to withdraw application' });
 	}
 });
 
-// Update application status
-router.put('/applications/:id/status', authMiddleware, async (req, res) => {
+// Update application status — S-096 (#820): candidates own exactly ONE
+// transition, `withdrawn`. Every other status is recruiter-owned pipeline
+// state; a candidate attempt to set one is 403 and the row is unchanged
+// (previously any of the 9 statuses was accepted, so a candidate could
+// self-advance to `hired` and even reverse a recruiter's `rejected`).
+// Rate-limited per #820 (in-file rateLimits precedent).
+router.put('/applications/:id/status', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
 		const { status } = req.body;
 		const validStatuses = [
@@ -3342,12 +3454,27 @@ router.put('/applications/:id/status', authMiddleware, async (req, res) => {
 			return res.status(404).json({ error: 'Application not found' });
 		}
 
+		// Transition guard: the only candidate-writable status is `withdrawn`.
+		if (status !== 'withdrawn') {
+			return res.status(403).json({
+				error: 'Candidates can only withdraw their own application',
+			});
+		}
+
+		// Same terminal-state rule as the withdraw sibling endpoint: a
+		// withdrawn/hired/rejected application cannot be withdrawn.
+		if (['withdrawn', 'hired', 'rejected'].includes(existing.rows[0].status)) {
+			return res.status(400).json({
+				error: `Cannot withdraw an application with status: ${existing.rows[0].status}`,
+			});
+		}
+
 		const result = await pool.query(
-			`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+			`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING ${CANDIDATE_APPLICATION_COLUMNS}`,
 			[status, req.params.id],
 		);
 
-		res.json({ success: true, application: result.rows[0] });
+		res.json({ success: true, application: toCandidateApplication(result.rows[0]) });
 	} catch (err) {
 		console.error('Update application status error:', err);
 		res.status(500).json({ error: 'Failed to update application status' });
@@ -3465,7 +3592,7 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 				omniscore:
 					v.omni_score != null
 						? { total_score: v.omni_score, score_tier: v.score_tier }
-						: { total_score: 300, score_tier: 'new' },
+						: { total_score: null, score_tier: null },
 				profile_completeness: completeness,
 				missing_sections: missingSections,
 				skills: {
@@ -4162,7 +4289,7 @@ router.put('/offers/:id/accept', authMiddleware, async (req, res) => {
 
 		// Update application status to 'hired'
 		await pool.query(
-			`UPDATE job_applications SET status = 'hired', updated_at = NOW()
+			`UPDATE job_applications SET status = 'hired', hired_at = NOW(), updated_at = NOW()
        WHERE job_id = $1 AND candidate_id = $2`,
 			[existing.rows[0].job_id, req.user.id],
 		);

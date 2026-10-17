@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Bookmark, FileText, MessageCircle, Trophy } from 'lucide-react';
+import { Bookmark, FileText, MessageCircle, Trophy, XCircle } from 'lucide-react';
 import type { KanbanApplication, KanbanItem } from './kanban-card';
 import { KanbanCard } from './kanban-card';
 
@@ -55,6 +55,18 @@ export const KANBAN_COLUMNS: KanbanColumnDef[] = [
 		borderColor: 'border-emerald-200',
 		emptyText: 'No offers yet',
 		emptySubtext: 'Offers and hires will appear here',
+	},
+	{
+		// S-096 (#820): terminal applications (rejected / withdrawn) render
+		// truthfully in their own column — never under Applied.
+		id: 'closed',
+		title: 'Closed',
+		icon: XCircle,
+		color: 'text-slate-700',
+		bgColor: 'bg-slate-50',
+		borderColor: 'border-slate-200',
+		emptyText: 'No closed applications',
+		emptySubtext: 'Rejected or withdrawn applications will appear here',
 	},
 ];
 

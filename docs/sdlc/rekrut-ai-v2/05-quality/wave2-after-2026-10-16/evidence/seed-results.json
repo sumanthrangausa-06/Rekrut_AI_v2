@@ -1,0 +1,24 @@
+{
+  "candidateRegister": {
+    "status": 201,
+    "id": 1
+  },
+  "recruiterRegister": {
+    "status": 201,
+    "id": 2,
+    "company": 1
+  },
+  "jobCreate": {
+    "status": 200,
+    "body": "{\"success\":true,\"job\":{\"id\":1,\"user_id\":2,\"title\":\"QA Fixture Data Analyst\",\"company\":\"QA Corp 2026\",\"description\":\"Fixture job created by the Quinn Wave 2 AFTER verification run (Oct 16) on a fresh install.\",\"requirements\":\"SQL, dashboards\",\"location\":\"Remote\",\"salary_range\":null,\"job_type\":\"full-t"
+  },
+  "jobId": 1,
+  "companyProfile": {
+    "status": 200,
+    "slug": "qa-corp-2026-2",
+    "id": 1,
+    "size": null
+  },
+  "slug": "qa-corp-2026-2",
+  "companyId": 1
+}

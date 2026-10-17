@@ -24,7 +24,7 @@ async function explainOmniScore(userId) {
 		// Get score components breakdown
 		const components = await pool.query(
 			`
-        SELECT component_type, source_type, points_earned, weight, created_at, metadata
+        SELECT component_type, source_type, points AS points_earned, weight, created_at, metadata
         FROM score_components
         WHERE user_id = $1
         ORDER BY created_at DESC

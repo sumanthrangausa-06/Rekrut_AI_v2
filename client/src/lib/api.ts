@@ -1,3 +1,10 @@
+import {
+	extractSessionIdFromRequest,
+	getConsentRedirect,
+	isConsentErrorCode,
+	shouldRedirectForConsentCode,
+} from './consentErrorHandler';
+
 const TOKEN_KEY = 'rekrutai_token';
 const REFRESH_KEY = 'rekrutai_refresh';
 const CSRF_TOKEN_KEY = 'rekrutai_csrf';
@@ -284,7 +291,44 @@ export async function apiCall<T = unknown>(url: string, options: ApiCallOptions 
 		const errorData = await res.json().catch(() => ({ error: 'Request failed' }));
 		const error = new Error(errorData.error || `Request failed: ${res.status}`);
 		// Attach error code for programmatic handling (e.g., BLOCKED_EMAIL_DOMAIN)
-		(error as Error & { code?: string }).code = errorData.code;
+		const code = errorData.code as string | undefined;
+		(error as Error & { code?: string }).code = code;
+		// Attach HTTP status for programmatic handling (e.g., S-073 graceful
+		// degradation on 404 when a backend endpoint is not yet deployed).
+		(error as Error & { status?: number }).status = res.status;
+
+		// Consent gate (S-011): redirect to consent screens on 403 consent errors.
+		// CONSENT_WITHDRAWN is excluded — the caller shows an inline message instead.
+		if (res.status === 403 && isConsentErrorCode(code) && shouldRedirectForConsentCode(code)) {
+			const sessionId = extractSessionIdFromRequest(url, body);
+			const redirect = getConsentRedirect(code, sessionId);
+			if (redirect && typeof window !== 'undefined') {
+				window.location.href = redirect;
+				// Throw to stop the promise chain; the redirect is already in flight.
+				throw error;
+			}
+		}
+
+		// Flag withdrawn consent so callers can show an inline re-consent message
+		// instead of redirecting (the withdrawal was intentional). S-064 (#714):
+		// attach the consent type and broadcast an event so any page can render
+		// the WithdrawnConsentRecovery UI without touching every catch block.
+		if (res.status === 403 && code === 'CONSENT_WITHDRAWN') {
+			const consentType = (errorData as { type?: string }).type ?? 'biometric';
+			(error as Error & { isConsentWithdrawn?: boolean }).isConsentWithdrawn = true;
+			(error as Error & { consentType?: string }).consentType = consentType;
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(
+					new CustomEvent('consent-withdrawn', {
+						detail: {
+							consentType,
+							sessionId: extractSessionIdFromRequest(url, body),
+						},
+					}),
+				);
+			}
+		}
+
 		throw error;
 	}
 
@@ -412,6 +456,9 @@ export function isRecruiterRole(role: UserRole): boolean {
 export function getDashboardPath(user: User): string {
 	// Platform admins bypass company join approval (users.role or user_roles RBAC table)
 	if (user.role === 'admin' || user.is_platform_admin) return '/recruiter';
+	// #1223: a known company owner is never awaiting join approval — they
+	// ARE the approver, even if company_id has not been hydrated yet.
+	if (user.is_company_owner) return '/recruiter';
 	if (isRecruiterRole(user.role) && !user.company_id) {
 		return '/recruiter/pending-approval';
 	}

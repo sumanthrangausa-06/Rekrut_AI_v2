@@ -33,6 +33,12 @@ const PricingPage = lazy(() => import('@/pages/pricing').then((m) => ({ default:
 const AboutPage = lazy(() => import('@/pages/about').then((m) => ({ default: m.AboutPage })));
 const ContactPage = lazy(() => import('@/pages/contact').then((m) => ({ default: m.ContactPage })));
 const PrivacyPage = lazy(() => import('@/pages/privacy').then((m) => ({ default: m.PrivacyPage })));
+const BiometricPolicyPage = lazy(() =>
+	import('@/pages/biometric-policy').then((m) => ({ default: m.BiometricPolicyPage })),
+);
+const ConsentScreensPage = lazy(() =>
+	import('@/pages/consent-screens').then((m) => ({ default: m.ConsentScreensPage })),
+);
 const TermsPage = lazy(() => import('@/pages/terms').then((m) => ({ default: m.TermsPage })));
 const PaymentSuccessPage = lazy(() =>
 	import('@/pages/payment-success').then((m) => ({ default: m.PaymentSuccessPage })),
@@ -58,18 +64,9 @@ const TestCameraPage = lazy(() =>
 const _PostHireFeedbackPage = lazy(() =>
 	import('@/pages/post-hire-feedback').then((m) => ({ default: m.RecruiterPostHireFeedbackPage })),
 );
-const RecruiterProfilePage = lazy(() =>
-	import('@/pages/recruiter-profile').then((m) => ({ default: m.RecruiterProfilePage })),
-);
 const RecruiterTrustscorePage = lazy(() =>
 	import('@/pages/recruiter-trustscore').then((m) => ({ default: m.RecruiterTrustscorePage })),
 );
-const RecruiterCommunicationsPage = lazy(() =>
-	import('@/pages/recruiter-communications').then((m) => ({
-		default: m.RecruiterCommunicationsPage,
-	})),
-);
-
 const LeaderboardPage = lazy(() =>
 	import('@/pages/candidate/leaderboard').then((m) => ({ default: m.LeaderboardPage })),
 );
@@ -453,6 +450,11 @@ const AdminEmailQueuePage = lazy(() =>
 		default: m.AdminEmailQueuePage,
 	})),
 );
+const BiometricAuditPage = lazy(() =>
+	import('@/pages/admin/biometric-audit').then((m) => ({
+		default: m.BiometricAuditPage,
+	})),
+);
 
 const SignDocumentPage = lazy(() =>
 	import('@/pages/signature/SignDocument').then((m) => ({ default: m.SignDocumentPage })),
@@ -572,6 +574,8 @@ function AppRoutes() {
 			<Route path="/about" element={<AboutPage />} />
 			<Route path="/contact" element={<ContactPage />} />
 			<Route path="/privacy" element={<PrivacyPage />} />
+			<Route path="/privacy/biometric-policy" element={<BiometricPolicyPage />} />
+			<Route path="/interview/consent" element={<ConsentScreensPage />} />
 			<Route path="/terms" element={<TermsPage />} />
 
 			<Route path="/leaderboard" element={<LeaderboardPage />} />
@@ -1291,15 +1295,10 @@ function AppRoutes() {
 						</Protected>
 					}
 				/>
+				{/* #889: invented inbox retired — the real messages home is chat */}
 				<Route
 					path="communications"
-					element={
-						<Protected>
-							<RecruiterGuard>
-								<RecruiterCommunicationsPage />
-							</RecruiterGuard>
-						</Protected>
-					}
+					element={<Navigate to="/recruiter/chat" replace />}
 				/>
 				<Route
 					path="trustscore"
@@ -1361,16 +1360,7 @@ function AppRoutes() {
 						</Protected>
 					}
 				/>
-				<Route
-					path="profile"
-					element={
-						<Protected>
-							<RecruiterGuard>
-								<RecruiterProfilePage />
-							</RecruiterGuard>
-						</Protected>
-					}
-				/>
+				<Route path="profile" element={<Navigate to="/recruiter/company" replace />} />
 				<Route
 					path="payroll"
 					element={
@@ -1586,6 +1576,14 @@ function AppRoutes() {
 				element={
 					<AdminAuthGuard>
 						<AdminEmailQueuePage />
+					</AdminAuthGuard>
+				}
+			/>
+			<Route
+				path="/admin/biometric-audit"
+				element={
+					<AdminAuthGuard allowedRoles={['admin', 'hiring_manager']}>
+						<BiometricAuditPage />
 					</AdminAuthGuard>
 				}
 			/>

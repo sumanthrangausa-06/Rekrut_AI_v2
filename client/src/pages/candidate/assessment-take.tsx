@@ -32,7 +32,7 @@ interface SessionCurrentResponse {
 	question?: Question;
 	score?: number;
 	passed?: boolean;
-	antiCheatScore?: number;
+	antiCheatScore?: number | null;
 	durationSeconds?: number;
 	maxDifficultyReached?: number;
 }
@@ -50,7 +50,9 @@ export function AssessmentTakePage() {
 	const [passed, setPassed] = useState(false);
 	const [timeLeft, setTimeLeft] = useState(0);
 	const [skillName, setSkillName] = useState('');
-	const [antiCheatScore, setAntiCheatScore] = useState(100);
+	// S-111 (#836): null until the server returns a computed value — absent
+	// means "not computed", never a default 100.
+	const [antiCheatScore, setAntiCheatScore] = useState<number | null>(null);
 	const [durationSeconds, setDurationSeconds] = useState(0);
 	const [maxDifficulty, setMaxDifficulty] = useState(0);
 	const startTimeRef = useRef(Date.now());
@@ -80,7 +82,7 @@ export function AssessmentTakePage() {
 				setFinalScore(result.score || 0);
 				setPassed(result.passed || false);
 				setSkillName(result.skillName || '');
-				setAntiCheatScore(result.antiCheatScore || 100);
+				setAntiCheatScore(result.antiCheatScore ?? null);
 				setDurationSeconds(result.durationSeconds || 0);
 				setMaxDifficulty(result.maxDifficultyReached || 0);
 			} else if (result.status === 'in_progress' && result.question) {
@@ -134,7 +136,7 @@ export function AssessmentTakePage() {
 						);
 						setFinalScore(fullResult.score || result.score || 0);
 						setPassed(fullResult.passed || (fullResult.score || 0) >= 60);
-						setAntiCheatScore(fullResult.antiCheatScore || 100);
+						setAntiCheatScore(fullResult.antiCheatScore ?? null);
 						setDurationSeconds(fullResult.durationSeconds || 0);
 						setMaxDifficulty(fullResult.maxDifficultyReached || 0);
 					} catch {
@@ -275,6 +277,7 @@ export function AssessmentTakePage() {
 									<p className="text-xs text-muted-foreground">Max Difficulty</p>
 								</div>
 							)}
+							{antiCheatScore !== null && (
 							<div className="rounded-lg bg-muted/50 p-3">
 								<p
 									className={`font-medium ${antiCheatScore >= 80 ? 'text-emerald-600' : antiCheatScore >= 50 ? 'text-amber-600' : 'text-destructive'}`}
@@ -283,6 +286,7 @@ export function AssessmentTakePage() {
 								</p>
 								<p className="text-xs text-muted-foreground">Integrity</p>
 							</div>
+						)}
 						</div>
 
 						<div className="flex gap-2 justify-center">

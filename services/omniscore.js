@@ -757,10 +757,23 @@ async function computeFactors(userId) {
 		factors,
 		fraudSignals,
 		tier: tierFromScore(clampedTotal),
+		// #1192: a candidate whose every factor reports has_data:false has no
+		// score — the floor formula's output is an artifact, not a verdict.
+		hasAnyData: Object.values(factors).some((f) => f.hasData),
 	};
 }
 
 // ─── Public API ─────────────────────────────────────────────
+
+/**
+ * #1192: the engine's own no-data predicate — true when at least one factor
+ * reports has_data. Used by the legacy-row heal script so the engine, not a
+ * value heuristic, arbitrates which stored rows are real.
+ */
+async function hasScoreData(userId) {
+	const { hasAnyData } = await computeFactors(userId);
+	return hasAnyData;
+}
 
 async function getOrCreateScore(userId) {
 	const existing = await pool.query('SELECT * FROM omni_scores WHERE user_id = $1', [userId]);
@@ -768,11 +781,13 @@ async function getOrCreateScore(userId) {
 		return existing.rows[0];
 	}
 
+	// #1192: seed an honest null, never the 300 starter literal — a row
+	// created here is served by the profile's LEFT JOIN before any compute.
 	const result = await pool.query(
 		`INSERT INTO omni_scores (user_id, total_score, score_tier, version)
-     VALUES ($1, $2, 'new', 2)
+     VALUES ($1, NULL, NULL, 2)
      RETURNING *`,
-		[userId, SCORE_RANGES.MIN],
+		[userId],
 	);
 	return result.rows[0];
 }
@@ -781,7 +796,8 @@ async function getOrCreateScore(userId) {
  * Calculate score on-demand (deterministic). Does NOT require explicit checkin.
  */
 async function calculateScore(userId) {
-	const { total, factors, fraudSignals, tier } = await computeFactors(userId);
+	const { total, factors, fraudSignals, tier, hasAnyData } = await computeFactors(userId);
+	const noData = !hasAnyData;
 
 	// Backwards-compat mapping to old columns
 	const interview_score = Math.round(factors.interview_performance.raw);
@@ -793,13 +809,25 @@ async function calculateScore(userId) {
 		(factors.reliability_signals.raw + factors.soft_skills.raw) / 2,
 	);
 
-	// Compute peer percentile
-	const percentileRes = await pool.query(
-		`SELECT COUNT(*) FILTER (WHERE total_score <= $1) * 100.0 / NULLIF(COUNT(*), 0) as percentile
+	// Compute peer percentile (a no-data candidate has no percentile — the
+	// 50th-percentile default is the same fabrication as the floor total).
+	// #1251 honest-null: the denominator counts only SCORED peers
+	// (COUNT(total_score) skips NULL totals), so when no scored peers exist
+	// the expression is NULL — and a NULL percentile stays null, never a
+	// fabricated 50. (Numerator needs no change: NULL <= $1 is never true.)
+	let peerPercentile = null;
+	if (!noData) {
+		const percentileRes = await pool.query(
+			`SELECT COUNT(*) FILTER (WHERE total_score <= $1) * 100.0 / NULLIF(COUNT(total_score), 0) as percentile
      FROM omni_scores`,
-		[total],
-	);
-	const peerPercentile = Math.round(parseFloat(percentileRes.rows[0]?.percentile || '50'));
+			[total],
+		);
+		const rawPercentile = percentileRes.rows[0]?.percentile;
+		const parsedPercentile =
+			rawPercentile === null || rawPercentile === undefined ? NaN : parseFloat(rawPercentile);
+		// NaN (NULL / non-numeric) stays honest null — never a number, never 50.
+		peerPercentile = Number.isNaN(parsedPercentile) ? null : Math.round(parsedPercentile);
+	}
 
 	// Update the score record
 	await pool.query(
@@ -817,12 +845,15 @@ async function calculateScore(userId) {
       version = 2
     WHERE user_id = $10`,
 		[
-			total,
+			// #1192 persisted-row trap: a no-data compute must overwrite any
+			// stored starter/floor total with NULL, so the profile LEFT JOIN
+			// can never serve a fabricated verdict after this call.
+			noData ? null : total,
 			interview_score,
 			technical_score,
 			resume_score,
 			behavior_score,
-			dbTierFromLabel(tier),
+			noData ? null : dbTierFromLabel(tier),
 			JSON.stringify(
 				Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)])),
 			),
@@ -832,33 +863,35 @@ async function calculateScore(userId) {
 		],
 	);
 
-	// Weekly snapshot (idempotent — only one per week)
-	await pool.query(
-		`INSERT INTO score_snapshots (user_id, total_score, factor_scores, peer_percentile, snapshot_week, created_at)
+	// Weekly snapshot (idempotent — only one per week). Skipped when noData:
+	// a snapshot of a fabricated total would re-create the verdict on read.
+	if (!noData)
+		await pool.query(
+			`INSERT INTO score_snapshots (user_id, total_score, factor_scores, peer_percentile, snapshot_week, created_at)
      VALUES ($1, $2, $3, $4, DATE_TRUNC('week', CURRENT_DATE)::DATE, NOW())
      ON CONFLICT (user_id, snapshot_week) DO UPDATE SET
        total_score = EXCLUDED.total_score,
        factor_scores = EXCLUDED.factor_scores,
        peer_percentile = EXCLUDED.peer_percentile,
        created_at = NOW()`,
-		[
-			userId,
-			total,
-			JSON.stringify(
-				Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)])),
-			),
-			peerPercentile,
-		],
-	);
+			[
+				userId,
+				total,
+				JSON.stringify(
+					Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)])),
+				),
+				peerPercentile,
+			],
+		);
 
 	return {
-		total_score: total,
+		total_score: noData ? null : total,
 		interview: interview_score,
 		technical: technical_score,
 		resume: resume_score,
 		behavior: behavior_score,
-		tier,
-		tier_label: SCORE_RANGES.TIERS[tier]?.label || 'New',
+		tier: noData ? null : tier,
+		tier_label: noData ? null : SCORE_RANGES.TIERS[tier]?.label || 'New',
 		peer_percentile: peerPercentile,
 		fraud_signals: fraudSignals,
 		factors: Object.fromEntries(
@@ -1063,10 +1096,14 @@ async function getScoreExplainer(userId) {
 		});
 	}
 
-	// Peer comparison
+	// Peer comparison. #1219: the old query also selected
+	// `PERCENT_RANK() WITHIN GROUP (ORDER BY total_score)` — a hypothetical-set
+	// aggregate with zero direct arguments against one ordering column, which
+	// Postgres can never resolve ("function percent_rank(integer) does not
+	// exist") and which 500'd this endpoint. Its result was never used:
+	// percentile comes from calculateScore (COUNT FILTER / NULLIF, above).
 	const percentileRes = await pool.query(
 		`SELECT
-      PERCENT_RANK() WITHIN GROUP (ORDER BY total_score) * 100 as percentile,
       AVG(total_score) as avg_score,
       MAX(total_score) as top_score,
       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total_score) as median_score
@@ -1074,14 +1111,17 @@ async function getScoreExplainer(userId) {
 	);
 	const peerStats = percentileRes.rows[0] || {};
 	const userPercentile = scoreData.peer_percentile;
+	// #1219/#1192 honest-null: aggregates over an empty omni_scores table are
+	// NULL — serve null, never the old fabricated 500/1000/500 fallbacks.
+	const peerStat = (v) => (v === null || v === undefined ? null : Math.round(parseFloat(v)));
 
 	return {
 		factors: explainers.sort((a, b) => b.impact - a.impact),
 		peerComparison: {
 			percentile: userPercentile,
-			avgScore: Math.round(parseFloat(peerStats.avg_score || '500')),
-			topScore: Math.round(parseFloat(peerStats.top_score || '1000')),
-			medianScore: Math.round(parseFloat(peerStats.median_score || '500')),
+			avgScore: peerStat(peerStats.avg_score),
+			topScore: peerStat(peerStats.top_score),
+			medianScore: peerStat(peerStats.median_score),
 		},
 		improvementRoadmap: buildRoadmap(factors),
 		fraud_signals: scoreData.fraud_signals,
@@ -1231,6 +1271,7 @@ module.exports = {
 	FACTOR_META,
 	getOrCreateScore,
 	calculateScore,
+	hasScoreData,
 	recordCheckin,
 	addInterviewComponent,
 	addTechnicalComponent,
