@@ -44,7 +44,7 @@ export type CareerPageData = {
 		location: string;
 		size: string | null;
 		industry: string;
-		founded: string;
+		founded: string | null;
 		trustscore: number | null;
 		rating: number | null;
 		reviewCount: number;
