@@ -20,6 +20,16 @@
  * (141 routes extracted; extractor fixtures below pin the supported
  * shapes). A future route shape outside those fixtures fails the sanity
  * floor or the coverage assertion — fail-closed, never silently green.
+ *
+ * Load-bearing conventions (reviewer note, #1225): the extractor only
+ * recognises double-quoted path="..." attributes — the style used by
+ * every route in App.tsx today (path={'...'} or path='...' would be
+ * silently skipped, and a single such route would not trip the sanity
+ * floor). The brace-depth walk ignores braces inside string literals,
+ * and extractKnownRouteRegexes treats any single-quoted string in the
+ * KNOWN_ROUTES block as a pattern, so comments there must not contain
+ * apostrophes. If App.tsx or server.js changes these conventions, update
+ * the extractor and its fixtures in the same change.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -177,6 +187,14 @@ describe('SPA KNOWN_ROUTES guard (Issue #1225)', () => {
 			'/admin/nonexistent',
 			'/candidate/scores/extra',
 			'/compare/extra',
+			// Bogus suffixes on the parameterised routes added for #1225:
+			// the [^/]+ segments must not swallow extra path parts.
+			'/recruiter/aptitude-tests/42/bogus',
+			'/aptitude-tests/42/bogus',
+			'/candidate/screening/42/extra',
+			'/recruiter/jobs/42/panel-criteria/extra',
+			'/r/42/extra',
+			'/admin/biometric-audit/extra',
 		];
 		for (const p of unknown) {
 			expect(knownRegexes.some((re) => re.test(p))).toBe(false);

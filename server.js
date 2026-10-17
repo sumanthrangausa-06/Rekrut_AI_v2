@@ -2200,6 +2200,7 @@ const KNOWN_ROUTES = [
 	'^/aptitude-tests$',
 	'^/aptitude-tests/[^/]+/take$',
 	'^/aptitude-test-results/[^/]+$',
+
 	// Recruiter routes
 	'^/recruiter$',
 	'^/recruiter/jobs$',
