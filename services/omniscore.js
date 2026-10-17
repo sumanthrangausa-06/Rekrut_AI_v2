@@ -810,15 +810,23 @@ async function calculateScore(userId) {
 	);
 
 	// Compute peer percentile (a no-data candidate has no percentile — the
-	// 50th-percentile default is the same fabrication as the floor total)
+	// 50th-percentile default is the same fabrication as the floor total).
+	// #1251 honest-null: the denominator counts only SCORED peers
+	// (COUNT(total_score) skips NULL totals), so when no scored peers exist
+	// the expression is NULL — and a NULL percentile stays null, never a
+	// fabricated 50. (Numerator needs no change: NULL <= $1 is never true.)
 	let peerPercentile = null;
 	if (!noData) {
 		const percentileRes = await pool.query(
-			`SELECT COUNT(*) FILTER (WHERE total_score <= $1) * 100.0 / NULLIF(COUNT(*), 0) as percentile
+			`SELECT COUNT(*) FILTER (WHERE total_score <= $1) * 100.0 / NULLIF(COUNT(total_score), 0) as percentile
      FROM omni_scores`,
 			[total],
 		);
-		peerPercentile = Math.round(parseFloat(percentileRes.rows[0]?.percentile || '50'));
+		const rawPercentile = percentileRes.rows[0]?.percentile;
+		const parsedPercentile =
+			rawPercentile === null || rawPercentile === undefined ? NaN : parseFloat(rawPercentile);
+		// NaN (NULL / non-numeric) stays honest null — never a number, never 50.
+		peerPercentile = Number.isNaN(parsedPercentile) ? null : Math.round(parsedPercentile);
 	}
 
 	// Update the score record
