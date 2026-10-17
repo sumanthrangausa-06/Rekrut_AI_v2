@@ -132,6 +132,48 @@ describe('SPA Fallback Routes (Issue #106)', () => {
 		});
 	});
 
+	describe('Routes restored for Issue #1225 return 200', () => {
+		// All client routes that were missing from KNOWN_ROUTES when #1225 was
+		// filed: the 10 observed in Quinn's local verification plus the further
+		// uncovered routes found by extracting the full client router.
+		// Coverage going forward is enforced by spa-known-routes-guard.test.js.
+		const restoredRoutes = [
+			{ path: '/compare', description: 'company compare (#1225)' },
+			{ path: '/leaderboard', description: 'leaderboard (#1225)' },
+			{ path: '/privacy/biometric-policy', description: 'biometric policy (#1225)' },
+			{ path: '/aptitude-tests', description: 'candidate aptitude tests (#1225)' },
+			{ path: '/candidate/identity-verification', description: 'identity verification (#1225)' },
+			{ path: '/candidate/scores', description: 'candidate scores redirect (#1225)' },
+			{ path: '/candidate/messages', description: 'candidate messages redirect (#1225)' },
+			{ path: '/recruiter/aptitude-tests', description: 'recruiter aptitude tests (#1225)' },
+			{ path: '/recruiter/session-room', description: 'recruiter session room (#1225)' },
+			{ path: '/admin/biometric-audit', description: 'admin biometric audit (#1225)' },
+			{ path: '/ref', description: 'referral landing' },
+			{ path: '/r/abc123', description: 'referral assessment with token' },
+			{ path: '/interview/session/abc123', description: 'interview session with token' },
+			{ path: '/interview/consent', description: 'interview consent' },
+			{ path: '/candidate/interviews/42/book', description: 'candidate book interview' },
+			{ path: '/candidate/quick-practice/42', description: 'candidate quick practice' },
+			{ path: '/candidate/screening/42', description: 'candidate screening by job' },
+			{ path: '/aptitude-tests/42/take', description: 'aptitude test take' },
+			{ path: '/aptitude-test-results/42', description: 'aptitude test results' },
+			{ path: '/recruiter/aptitude-tests/create', description: 'recruiter aptitude test create' },
+			{ path: '/recruiter/aptitude-tests/42/edit', description: 'recruiter aptitude test edit' },
+			{ path: '/recruiter/aptitude-tests/42/results', description: 'recruiter aptitude test results' },
+			{ path: '/recruiter/screening-monitor', description: 'recruiter screening monitor' },
+			{ path: '/recruiter/recordings/42/playback', description: 'recruiter recording playback' },
+			{ path: '/recruiter/interviews/report/42', description: 'recruiter interview report' },
+			{ path: '/recruiter/panels/42', description: 'recruiter panel detail' },
+			{ path: '/recruiter/jobs/42/panel-criteria', description: 'recruiter panel criteria' },
+		];
+
+		it.each(restoredRoutes)('returns 200 for $description ($path)', async ({ path }) => {
+			const res = await request(app).get(path);
+			expect(res.status).toBe(200);
+			expect(res.text).toContain('<!DOCTYPE html>');
+		});
+	});
+
 	describe('Unknown routes return 404', () => {
 		const unknownRoutes = [
 			{ path: '/this-does-not-exist', description: 'random path' },
