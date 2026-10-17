@@ -1,0 +1,34 @@
+# QA REPORT — Batched AFTER verification: #1219 + #1220 + #1221 (fresh install)
+
+**Persona:** QUINN (Phase 6 — Quality) · **Date:** 2026-10-16 · **Run dir:** `~/workspace/goals/launch-rekrut-ai-v2-by-january/hidden_files/1219-1221-after-run/`
+**Tested commit:** `f00bbe11a95765cd1c61f4ff0ca71a6626dc5a23` (Merge PR #1252, the #1219 fix; also contains PR #1253 for #1220 and PR #1249 for #1221) — verified equal to live `origin/dev` head at run start, in a separate clone (`~/workspace/rekrut-quinn-batch-after/repo`, detached HEAD); the shared dev worktree was not touched. **Note:** live `origin/dev` advanced to `c46ef0ea` during the run (other lanes merging); the tested target remained exactly `f00bbe11` per dispatch.
+**Scope:** AFTER capture for three already-merged Wave 3 defects only. **This run closes nothing and merges nothing.** All three issues stay OPEN for Lead. No promotion, no purge flag, no live/production DB, no outreach, no code fixes in this lane.
+
+## Verdict — all three PASS
+
+| Defect | What was broken | Verdict | Evidence |
+|---|---|---|---|
+| **#1219** OmniScore explainer 500 (`function percent_rank(integer) does not exist`) | Candidate score explainer crashed | **PASS** | API: `GET /api/omniscore/explainer` as seeded candidate → **200**, `success:true`, 8 factors. Peer stats honest: `peerComparison = {percentile:null, avgScore:null, topScore:null, medianScore:null}` — exactly equal to direct SQL aggregates over the scratch DB (`omni_scores` had **0 rows** before and after the call), never the old fabricated 500/1000/500 fallbacks. Anon → 401 (auth intact). Browser: candidate OmniScore page fired `200 /api/omniscore/explainer`, no 500; page renders "Insufficient data" for the score and every factor (`screenshots/1219-candidate-omniscore.png`, visually inspected by Quinn). Server log: `percent_rank` → 0, `OmniScore explainer error` → 0 |
+| **#1220** Candidate interview history 400 (route treated `history` as an interview `:id`) | `GET /interviews/history?limit=50` died in the interview-events `/:id` validator | **PASS** | API: `GET /api/interviews/history?limit=50` as seeded candidate → **200** `{"interviews":[]}` (empty is correct — the fresh scratch candidate has no interviews). Anon → 401. Control: numeric `GET /api/interviews/999999` → **404 "Interview not found"** — the numeric-ID validator/handler path still works; only non-numeric literal segments now fall through. Server log: no validator kill on the history path |
+| **#1221** Recruiter dashboard activity feed 404 (client called `/api/api/recruiter/activity`) | Double `/api` prefix in the dashboard's activity-feed call | **PASS** | API: `GET /api/recruiter/activity` as seeded recruiter (company owner) → **200** `{success:true, activities:[]}`. Contrast: `GET /api/api/recruiter/activity` → **404** (the server never had that route; the old client call could never work). Source: `client/src/pages/recruiter/dashboard.tsx:719` now calls `'/recruiter/activity'`; no `'/api/recruiter/activity'` literal remains. Built bundle: **0** files contain `api/api/recruiter/activity`; the dashboard chunk calls `apiCall("/recruiter/activity")` (base adds `/api` once). Browser: real UI login → recruiter dashboard rendered ("Welcome back, Quinn", Recent Activity panel, honest "Employer Trust Score: Insufficient data"); its only activity call was **`200 /api/recruiter/activity`**, zero `/api/api/` calls in the whole session (`screenshots/1221-recruiter-dashboard.png`, visually inspected) |
+
+**Overall: PASS (3/3).** API probe 10/10 checks PASS (`evidence/api-probe.json`); browser checks PASS for #1219 and #1221 (`evidence/browser-result.json`).
+
+## Fresh-install proof
+
+- Local PostgreSQL **16.15** on `127.0.0.1:55433` — this VM had no Postgres at run start (the old `/home/pguser` cluster is gone, and `apt-get update` is extremely slow here); PG 16.15 was installed from the exact Ubuntu noble .debs (16.15-0ubuntu0.24.04.1, same version as prior Quinn runs) plus pgvector 0.8.7 files from the PGDG pool (the PGDG .deb conflicts with Ubuntu's `postgresql-16-jit-llvm` provider, so the extension's `.so`/control files were placed directly — server-extension plumbing only, no schema touched by hand).
+- Database `rekrut_batch_after` created **empty**; schema built **only** by `node migrate.js` from the clean clone at `f00bbe11` (full log in `evidence/migrate.log`).
+  - 149 migrations recorded in `_migrations`, 248 public tables.
+  - **Known fresh-install defect persists at this commit:** `migrate.js` exits **1** at `p2_schema_hardening.sql` — code `0A000`, `cannot alter type of a column used by a view or rule` (`candidate_profiles.availability` / `v_candidate_full_profile`). Identical to the #1187 / Wave 2 AFTER runs; this is #1141 territory, pre-existing, unrelated to #1219/#1220/#1221. **Nothing was hand-applied.**
+- Server: `node server.js` from the clone at `f00bbe11` (root `npm ci` exit 0, 797 pkgs — required `TMPDIR` on disk because `/tmp` is a 512 MB tmpfs and the onnxruntime install extract ran it out of space), client built with `npm run build` (exit 0), serving on port **3000**. Health: `200 {"status":"ok","db":"connected"}`.
+- Fixtures (this run's scratch DB only, seeded via the repo's own bcryptjs hashing): one candidate (`quinn-batch-candidate@example.com`), one recruiter + company owner (`quinn-batch-recruiter@example.com`, company "Quinn Batch Co"). Token scratch files were deleted after capture and committed nowhere.
+
+## Observations (not verdicts)
+
+- **O1:** Recruiter UI login first lands on `/recruiter/pending-approval`; direct navigation to `/recruiter` then rendered the full dashboard and the activity feed loaded (API gate passes because the seeded recruiter has a `company_id`; `requireApprovedRecruiter` only blocks company-less recruiter roles). The pending-approval landing for a company-owning recruiter looks like a pre-existing frontend-flow quirk, unrelated to #1219–#1221 — flagged for Lead triage, not filed by Quinn.
+- **O2:** A first browser attempt using token-only localStorage injection bounced to `/login` on both protected pages (the app requires a real session, not just a stored token). The captures in this report therefore use a real UI login — the stronger evidence anyway. The bounced attempt is disclosed here so the method change is not a mystery.
+- **O3:** During the run, live `origin/dev` advanced past the tested commit (`c46ef0ea` at last fetch). Nothing in this report claims anything about commits after `f00bbe11`.
+
+## Limits
+
+Desktop viewport only (1440×900), per standing QA order. Local fresh install only — nothing on staging or production was touched, no PR was merged, no issue was closed, no flag flipped, no data outside this run's own local QA database was created or deleted, and no email/outreach was sent. #1219, #1220 and #1221 remain **OPEN** for Lead.
