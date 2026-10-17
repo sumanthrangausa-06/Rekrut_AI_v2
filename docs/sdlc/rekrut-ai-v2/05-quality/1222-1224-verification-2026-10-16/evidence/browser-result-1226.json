@@ -1,0 +1,28 @@
+{
+  "caseA": {
+    "afterLoginUrl": "http://localhost:3000/candidate",
+    "finalUrl": "http://localhost:3000/candidate/payroll",
+    "payrollCalls": [
+      "200 /api/payroll/employee/paychecks",
+      "200 /api/payroll/employee/profile"
+    ],
+    "textExcerpt": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nIdentity\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAI Screening\nAssessments\nOmniScore\nOTHER\nInterviews\nMessages\nOffers\nDocuments\nPay & Compensation\nOnboarding\nRefer & Earn\nSettings\nUpgrade to Pro\nSign out\nCandidate\nTry Premium\nRelevance\nFilters\nQuinn After Employee\nMy Payroll\n\nView your compensation, pay stubs, and tax information\n🇺🇸 United States\n\n$85,000.00\n\nAnnual Salary\n\n$0.00\n\nYTD Net Pay\n\n$0.00\n\nYTD Deductions\n\nBi-Weekly\n\nPay Cycle\n\nPay Profile\nEmployee ID\nQNN-1226-001\nPosition\nData Analyst\nRegion\n🇺🇸 United States\nPay Cycle\nBi-Weekly\nPayment\nDirect Deposit\nUpdate Bank Details\nPay History\n\nNo paychecks yet\n\nPaychecks will appear here after your employer runs payroll\n\n© 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+    "profileCall200": true,
+    "hasMyPayroll": true,
+    "hasEmployeeNumber": true,
+    "hasErrorBoundary": false
+  },
+  "caseB": {
+    "afterLoginUrl": "http://localhost:3000/candidate",
+    "finalUrl": "http://localhost:3000/candidate/payroll",
+    "payrollCalls": [
+      "404 /api/payroll/employee/profile",
+      "200 /api/payroll/employee/paychecks"
+    ],
+    "textExcerpt": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nIdentity\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAI Screening\nAssessments\nOmniScore\nOTHER\nInterviews\nMessages\nOffers\nDocuments\nPay & Compensation\nOnboarding\nRefer & Earn\nSettings\nUpgrade to Pro\nSign out\nCandidate\nTry Premium\nRelevance\nFilters\nQuinn After Candidate\nPayroll Not Set Up\n\nYour payroll profile hasn't been created yet. This happens automatically once your employer accepts you and configures your compensation.\n\n© 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+    "profileCall404": true,
+    "hasNotSetUp": true,
+    "hasErrorBoundary": false,
+    "bouncedToLogin": false
+  }
+}
