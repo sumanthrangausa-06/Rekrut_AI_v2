@@ -247,6 +247,14 @@ router.get(
 // Get interview details
 router.get('/:id', authMiddleware, async (req, res) => {
 	try {
+		// #1220: non-numeric ids reach this handler by fall-through from
+		// interview-events (which now defers literal segments to this
+		// router). They cannot be interview ids — answer 404 instead of
+		// letting Postgres reject the id cast as a 500. (Same /^\d+$/
+		// strict check as the video-playback route above.)
+		if (!/^\d+$/.test(req.params.id)) {
+			return res.status(404).json({ error: 'Interview not found' });
+		}
 		const result = await pool.query(
 			`SELECT i.*, j.title as job_title, j.company as job_company
        FROM interviews i

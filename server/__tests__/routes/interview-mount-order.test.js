@@ -70,6 +70,13 @@ const quickPracticeRoutes = require('../../../routes/quick-practice');
 const interviewRoutes = require('../../../routes/interviews');
 const interviewSessionRoutes = require('../../../routes/interview-sessions');
 const recordingRoutes = require('../../../server/routes/recordings');
+// Routers added to server.js after this file was written (#640/#642/#651 and
+// the unified human-interviews router) — the map below must cover every
+// /api/interviews mount in server.js or buildApp throws before asserting.
+const interviewSessionsV2Routes = require('../../../server/routes/interview-sessions-v2');
+const sessionLifecycleRoutes = require('../../../server/routes/session-lifecycle');
+const humanInterviewRequestRoutes = require('../../../server/routes/human-interview-requests');
+const interviewsUnifiedRoutes = require('../../../routes/interviews-unified');
 
 function buildApp() {
 	const app = express();
@@ -91,6 +98,10 @@ function buildApp() {
 		interviewRoutes,
 		interviewSessionRoutes,
 		recordingRoutes,
+		interviewSessionsV2Routes,
+		sessionLifecycleRoutes,
+		humanInterviewRequestRoutes,
+		interviewsUnifiedRoutes,
 	};
 	for (const { prefix, name } of order) {
 		if (!routers[name]) throw new Error(`mount-order test: unknown router ${name}`);
@@ -168,5 +179,43 @@ describe('#244: /api/interviews/recordings mount order', () => {
 		// proves which router answered.
 		expect(res.status).toBe(400);
 		expect(JSON.stringify(res.body)).toContain('event_id');
+	});
+});
+
+describe('#1220: /api/interviews/history mount order', () => {
+	const CANDIDATE = { id: 7, email: 'cand@test.com', role: 'candidate', company_id: null };
+
+	beforeEach(() => {
+		global.__testUsers = { 2: RECRUITER, 7: CANDIDATE };
+	});
+
+	test('GET /history reaches the history handler (not the events :id 400)', async () => {
+		const app = buildApp();
+		const res = await request(app)
+			.get('/api/interviews/history?limit=50')
+			.set('x-test-user-id', '7');
+
+		// The bug: interview-events' GET /:id validator treats 'history' as
+		// an interview id and 400s ("Valid interview ID required") before
+		// interviewRoutes (mounted after it in server.js) can answer.
+		expect(res.status).not.toBe(400);
+		expect(res.status).toBe(200);
+		expect(res.body.interviews).toEqual([]);
+	});
+
+	// NOT asserted here: GET /scheduling-preferences (routes/interviews.js)
+	// is shadowed TWICE — by the events validator above AND by this router's
+	// own GET /:id, which is registered before it. Fixing that second shadow
+	// is outside #1220's scope; it is reported on the issue for Lead instead
+	// of being codified as expected-broken or silently fixed here.
+
+	test('GET /<unknown literal> ends as 404 Interview not found (not 400, not 500)', async () => {
+		const app = buildApp();
+		const res = await request(app)
+			.get('/api/interviews/not-a-real-route')
+			.set('x-test-user-id', '7');
+
+		expect(res.status).toBe(404);
+		expect(res.body.error).toBe('Interview not found');
 	});
 });
