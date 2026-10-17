@@ -1,0 +1,18 @@
+{
+  "note": "Re-evaluation of evidence/browser-result.json with the archetype check corrected to case-insensitive. The original browser-shot.js run flagged #1261 FAIL solely because it searched innerText for mixed-case 'Your Career Archetype' while the page renders that label CSS-uppercased ('YOUR CAREER ARCHETYPE'). Quinn visually inspected screenshots/1261-career-diagnosis-result.png: archetype card renders 'The Creative Problem-Solver' with description, summary, Recommended Career Paths (Engineering Management 82% fit, Staff Engineer 76% fit), strengths and growth areas. No re-run was needed; all other #1261 assertions passed on the original capture.",
+  "omniscoreWithPeers_pass": true,
+  "omniscoreNoData_pass": true,
+  "careerDiagnosis": {
+    "singlePostToFlatRoute": true,
+    "quizAnswersLength": 10,
+    "bodyWasDoubleStringified": false,
+    "phantomRequests": [],
+    "diagnosisResponses": [
+      "200 POST /api/career-diagnosis"
+    ],
+    "resultRendered": true,
+    "archetypeRendered_correctedCheck": true,
+    "pass": true
+  },
+  "overall": "PASS (3/3 browser checks)"
+}
