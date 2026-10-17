@@ -592,6 +592,14 @@ router.post(
 	authMiddleware,
 	asyncHandler(async (req, res) => {
 		const userId = req.user.id;
+
+		// #1268: body contract — a string/array body (e.g. a double-encoded
+		// payload delivered by a non-strict parser) is a client bug. Reject it
+		// loudly; never re-parse a string body here (that tolerance is what
+		// masked the double-stringified body in #1261).
+		if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+			return res.status(400).json({ error: 'Request body must be a JSON object' });
+		}
 		const { quizAnswers } = req.body;
 
 		if (!Array.isArray(quizAnswers) || quizAnswers.length === 0) {
@@ -721,4 +729,24 @@ router.get(
 	}),
 );
 
+// #1268: body-parse failures on POST /api/career-diagnosis (e.g. a
+// double-encoded body, which body-parser's strict mode rejects) must surface
+// as a clear 400 contract error, not the parser's opaque HTML 400 or the
+// global handler's generic 500. Path-scoped: every other route keeps the
+// existing behaviour. Mounted in server.js immediately after express.json().
+// No request body contents are logged or included in the response.
+// eslint-disable-next-line no-unused-vars
+function careerDiagnosisBodyParseError(err, req, res, next) {
+	// Trailing-slash form included: Express routing treats it as the same
+	// route, so the contract must too (reviewer SHOULD-FIX). No startsWith —
+	// that would also catch /api/career-diagnosisXYZ.
+	const isCareerDiagnosisPath =
+		req.path === '/api/career-diagnosis' || req.path === '/api/career-diagnosis/';
+	if (err && err.type === 'entity.parse.failed' && req.method === 'POST' && isCareerDiagnosisPath) {
+		return res.status(400).json({ error: 'Request body must be valid JSON' });
+	}
+	return next(err);
+}
+
 module.exports = router;
+module.exports.careerDiagnosisBodyParseError = careerDiagnosisBodyParseError;
