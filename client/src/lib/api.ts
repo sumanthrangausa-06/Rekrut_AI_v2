@@ -456,6 +456,9 @@ export function isRecruiterRole(role: UserRole): boolean {
 export function getDashboardPath(user: User): string {
 	// Platform admins bypass company join approval (users.role or user_roles RBAC table)
 	if (user.role === 'admin' || user.is_platform_admin) return '/recruiter';
+	// #1223: a known company owner is never awaiting join approval — they
+	// ARE the approver, even if company_id has not been hydrated yet.
+	if (user.is_company_owner) return '/recruiter';
 	if (isRecruiterRole(user.role) && !user.company_id) {
 		return '/recruiter/pending-approval';
 	}
