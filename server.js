@@ -2148,9 +2148,14 @@ const KNOWN_ROUTES = [
 	'^/$',
 	'^/(login|register|forgot-password|reset-password)$',
 	'^/(test-camera|pricing|payment-success)$',
+	'^/(ref|leaderboard|compare)$',
 	'^/screening/[^/]+$',
+	'^/r/[^/]+$',
+	'^/interview/session/[^/]+$',
+	'^/interview/consent$',
 	'^/blog(/[^/]+)?$',
 	'^/(about|contact|privacy|terms)$',
+	'^/privacy/biometric-policy$',
 	'^/company/[^/]+$',
 	'^/careers/[^/]+$',
 	'^/(recruiter-register|employee-payroll)$',
@@ -2167,6 +2172,12 @@ const KNOWN_ROUTES = [
 	'^/candidate/assessment-results$',
 	'^/candidate/job-assessment/[^/]+$',
 	'^/candidate/(interviews|ai-coaching|career-coach|omniscore)$',
+	'^/candidate/interviews/[^/]+/book$',
+	'^/candidate/quick-practice/[^/]+$',
+	'^/candidate/identity-verification$',
+	'^/candidate/screening/[^/]+$',
+	// Redirect-only routes (scores → assessments, messages → chat)
+	'^/candidate/(scores|messages)$',
 	'^/candidate/(documents|interview-practice)$',
 	'^/candidate/(video-interview|interview-analysis|history)$',
 	'^/candidate/(feedback|saved-jobs|top-matches)$',
@@ -2184,6 +2195,12 @@ const KNOWN_ROUTES = [
 
 	'^/candidate/proctoring/[^/]+$',
 	'^/candidate/proctoring/[^/]+/consent$',
+
+	// Aptitude tests (standalone routes, outside /candidate prefix)
+	'^/aptitude-tests$',
+	'^/aptitude-tests/[^/]+/take$',
+	'^/aptitude-test-results/[^/]+$',
+
 	// Recruiter routes
 	'^/recruiter$',
 	'^/recruiter/jobs$',
@@ -2210,6 +2227,15 @@ const KNOWN_ROUTES = [
 	'^/recruiter/proctoring$',
 	'^/recruiter/proctoring/[^/]+$',
 	'^/recruiter/(panels|recordings|calendar|background-check)$',
+	'^/recruiter/panels/[^/]+$',
+	'^/recruiter/recordings/[^/]+/playback$',
+	'^/recruiter/aptitude-tests$',
+	'^/recruiter/aptitude-tests/create$',
+	'^/recruiter/aptitude-tests/[^/]+/(edit|results)$',
+	'^/recruiter/session-room$',
+	'^/recruiter/screening-monitor$',
+	'^/recruiter/interviews/report/[^/]+$',
+	'^/recruiter/jobs/[^/]+/panel-criteria$',
 
 	// Settings
 	'^/settings$',
@@ -2225,7 +2251,7 @@ const KNOWN_ROUTES = [
 	'^/admin$',
 	'^/admin/(dashboard|revenue|ai-health)$',
 	'^/admin/(agents|compliance|eu-ai-act)$',
-	'^/admin/(agent-dashboard|analytics|email-queue)$',
+	'^/admin/(agent-dashboard|analytics|email-queue|biometric-audit)$',
 ].map((pattern) => new RegExp(pattern));
 
 function isKnownSpaRoute(routePath) {
