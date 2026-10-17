@@ -19,6 +19,15 @@
  * with no type OID, exactly like production); the fixed query must record
  * accept AND decline in every shape.
  *
+ * #1315: the hand-built consent_receipts schema below now carries BOTH
+ * real migration-244 CHECK constraints verbatim, so this suite represents
+ * the PRE-268 world faithfully (the earlier hand-built schema omitted
+ * them, which is how the decline bug hid). buildSchema applies migration
+ * 268's up() to the test DB by default — applying 268 is what turns the
+ * decline test green. One dedicated test below builds the schema WITHOUT
+ * 268 and asserts a decline still violates the ordering CHECK, keeping
+ * the red proof in-suite.
+ *
  * Gated behind CONSENT_INTEGRATION_DB_URL so CI (no DB) skips gracefully.
  * Example:
  *   CONSENT_INTEGRATION_DB_URL='postgresql://postgres@127.0.0.1:5432/rekrut_1306_it' \
@@ -30,6 +39,8 @@
 // unmock it here so consentService gets the REAL pool (same pattern as
 // retention-audit-integration.test.js).
 jest.unmock('../../../lib/db');
+
+const mig268 = require('../../../migrations/268_consent_receipts_decline');
 
 const DB_URL = process.env.CONSENT_INTEGRATION_DB_URL;
 const describeIfDb = DB_URL ? describe : describe.skip;
@@ -44,7 +55,7 @@ describeIfDb('consentService.recordConsent (real DB — #1306)', () => {
 	let pool;
 	let consentService;
 
-	async function buildSchema({ textsType, receiptsType }) {
+	async function buildSchema({ textsType, receiptsType }, { apply268 = true } = {}) {
 		await pool.query(`DROP TABLE IF EXISTS consent_receipts`);
 		await pool.query(`DROP TABLE IF EXISTS consent_texts`);
 		await pool.query(`DROP TABLE IF EXISTS interview_sessions`);
@@ -75,6 +86,8 @@ describeIfDb('consentService.recordConsent (real DB — #1306)', () => {
 				consent_text_hash VARCHAR(64) NOT NULL,
 				granted_at TIMESTAMPTZ,
 				withdrawn_at TIMESTAMPTZ,
+				CHECK (granted_at IS NOT NULL OR withdrawn_at IS NOT NULL),
+				CHECK (withdrawn_at IS NULL OR (granted_at IS NOT NULL AND withdrawn_at >= granted_at)),
 				FOREIGN KEY (consent_type, consent_text_version)
 					REFERENCES consent_texts (consent_type, version),
 				UNIQUE (interview_session_id, consent_type, consent_text_version)
@@ -85,6 +98,8 @@ describeIfDb('consentService.recordConsent (real DB — #1306)', () => {
 			 ('recording', '1.0', 'recording text', 'recording text')`,
 		);
 		await pool.query(`INSERT INTO interview_sessions (id, candidate_id, company_id) VALUES (42, 7, 55), (43, 7, 55)`);
+		// Post-268 world by default; the pre-268 red-proof test opts out.
+		if (apply268) await mig268.up(pool);
 	}
 
 	beforeAll(async () => {
@@ -157,4 +172,23 @@ describeIfDb('consentService.recordConsent (real DB — #1306)', () => {
 			});
 		});
 	}
+
+	describe('pre-268 world (real 244 CHECKs, migration 268 NOT applied) — #1315 red proof', () => {
+		beforeEach(async () => {
+			await buildSchema(SHAPES[0], { apply268: false });
+		});
+
+		test('decline rejects with a check-constraint violation (declines could never be stored)', async () => {
+			await expect(
+				consentService.recordConsent({
+					sessionId: 43,
+					candidateId: 7,
+					type: 'biometric_practice',
+					accepted: false,
+					locale: 'en',
+					ipAddress: '127.0.0.1',
+				}),
+			).rejects.toThrow(/violates check constraint/);
+		});
+	});
 });
