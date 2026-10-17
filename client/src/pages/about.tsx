@@ -36,7 +36,7 @@ const values = [
 		icon: Shield,
 		title: 'Radical Transparency',
 		description:
-			'TrustScore and OmniScore exist because hiring should not be a black box. We give both sides the data they need to make informed decisions.',
+			'Trust Score and OmniScore exist because hiring should not be a black box. We give both sides the data they need to make informed decisions.',
 	},
 	{
 		icon: Handshake,
@@ -56,7 +56,7 @@ const founders = [
 	{
 		name: 'Ranga Sumanth',
 		role: 'Co-Founder & CEO',
-		bio: 'Previously led talent acquisition at two high-growth startups. Ranga built Rekrut AI after watching recruiters drown in spreadsheets and candidates ghosted by opaque ATS systems.',
+		bio: 'Ranga built Rekrut AI after watching recruiters drown in spreadsheets and candidates ghosted by opaque ATS systems.',
 		avatar: 'RS',
 		social: 'linkedin',
 	},
@@ -71,9 +71,8 @@ const founders = [
 
 const milestones = [
 	{ year: '2026', event: 'Rekrut AI founded in India as HireLoop', icon: Rocket },
-	{ year: '2026', event: 'First AI matching engine deployed', icon: Zap },
-	{ year: '2026', event: 'OmniScore & TrustScore launched', icon: Award },
-	{ year: '2026', event: 'Global expansion with multi-region support', icon: Globe },
+	{ year: '2026', event: 'First AI matching engine built', icon: Zap },
+	{ year: '2026', event: 'OmniScore & Trust Score built', icon: Award },
 ];
 
 function Header() {
