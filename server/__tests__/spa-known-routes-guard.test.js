@@ -13,6 +13,13 @@
  * The check is one-directional: KNOWN_ROUTES may contain extra legacy
  * patterns with no current client route (e.g. /candidate/video-interview,
  * asserted by spa-routes.test.js); those are not failures.
+ *
+ * Known limitation (reviewer note, #1225): the extractor assumes layout
+ * (parent) routes are non-self-closing tags and that child paths are
+ * relative or standalone-absolute — true for every route in App.tsx today
+ * (141 routes extracted; extractor fixtures below pin the supported
+ * shapes). A future route shape outside those fixtures fails the sanity
+ * floor or the coverage assertion — fail-closed, never silently green.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -89,7 +96,12 @@ function extractClientRoutes(src) {
 	return [...new Set(routes)];
 }
 
-const samplePath = (route) => route.replace(/:[^/]+/g, '42');
+const samplePath = (route, token = '42') => route.replace(/:[^/]+/g, token);
+
+// A parameterised route is sampled with two different tokens so a pattern
+// hard-coded to one literal sample segment cannot mask a missing route.
+const samplesFor = (route) =>
+	route.includes(':') ? [samplePath(route), samplePath(route, 'guardsample')] : [route];
 
 describe('SPA KNOWN_ROUTES guard (Issue #1225)', () => {
 	const appSrc = fs.readFileSync(appTsxPath, 'utf8');
@@ -108,8 +120,10 @@ describe('SPA KNOWN_ROUTES guard (Issue #1225)', () => {
 	});
 
 	it('every client route is covered by KNOWN_ROUTES', () => {
-		const missing = clientRoutes.filter(
-			(route) => !knownRegexes.some((re) => re.test(samplePath(route))),
+		const missing = clientRoutes.filter((route) =>
+			samplesFor(route).some(
+				(sample) => !knownRegexes.some((re) => re.test(sample)),
+			),
 		);
 		if (missing.length > 0) {
 			throw new Error(
@@ -118,6 +132,41 @@ describe('SPA KNOWN_ROUTES guard (Issue #1225)', () => {
 					'\nAdd patterns for them to KNOWN_ROUTES so the SPA fallback returns 200.',
 			);
 		}
+	});
+
+	it('extractor fixtures: supported App.tsx shapes parse exactly', () => {
+		const fixture = `
+<RouteErrorBoundary>{children}</RouteErrorBoundary>
+<Routes>
+	<Route path="/parent" element={<Layout />}>
+		<Route index element={<Home />} />
+		<Route path="child" element={<Child />} />
+		<Route path="deep/:id" element={<Deep />} />
+	</Route>
+	<Route
+		path="/multi"
+		element={
+			<Layout />
+		}
+	>
+		<Route path="kid" element={<Kid />} />
+	</Route>
+	<Route path="/solo/:token" element={<Solo />} />
+	<Route path="*" element={<NotFound />} />
+</Routes>`;
+		const extracted = extractClientRoutes(fixture);
+		expect(extracted).toEqual(
+			expect.arrayContaining([
+				'/parent',
+				'/parent/child',
+				'/parent/deep/:id',
+				'/multi',
+				'/multi/kid',
+				'/solo/:token',
+			]),
+		);
+		// No catch-all, no <Routes>/<RouteErrorBoundary> artefacts.
+		expect(extracted).toHaveLength(6);
 	});
 
 	it('unknown routes are still NOT matched (preserves #106 404 behaviour)', () => {
