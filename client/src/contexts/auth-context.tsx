@@ -254,13 +254,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				// of its own, so a never-resolving profile request would
 				// hang the login transition (and the first setUser) forever.
 				let timer: ReturnType<typeof setTimeout> | undefined;
-				const companyData = await Promise.race([
-					profilePromise,
-					new Promise<null>((resolve) => {
-						timer = setTimeout(() => resolve(null), LOGIN_HYDRATION_TIMEOUT_MS);
-					}),
-				]);
-				if (timer) clearTimeout(timer);
+				let companyData: CompanyProfileResponse | null;
+				try {
+					companyData = await Promise.race([
+						profilePromise,
+						new Promise<null>((resolve) => {
+							timer = setTimeout(() => resolve(null), LOGIN_HYDRATION_TIMEOUT_MS);
+						}),
+					]);
+				} finally {
+					if (timer) clearTimeout(timer);
+				}
 				if (companyData) {
 					resolvedUser = applyCompanyProfile(user, companyData);
 				} else {
@@ -272,7 +276,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 					// nothing. No error state, no duplicate request.
 					profilePromise
 						.then((lateData) => {
-							setUser((prev) => (prev ? applyCompanyProfile(prev, lateData) : prev));
+							setUser((prev) =>
+								prev && prev.id === user.id ? applyCompanyProfile(prev, lateData) : prev,
+							);
 						})
 						.catch(() => {
 							// Late failure — genuine pending state already shown

@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let resolveProfile: ((value: { company: { id: number; owner_id: number } }) => void) | null =
 	null;
+let rejectProfile: ((reason: Error) => void) | null = null;
 
 vi.mock('@/lib/api', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('@/lib/api')>();
@@ -39,8 +40,9 @@ vi.mock('@/lib/api', async (importOriginal) => {
 			if (url === '/billing/tier') return Promise.resolve({ tier: 'free' });
 			if (url === '/company/profile') {
 				// Never resolves on its own — the test controls if/when it settles.
-				return new Promise((resolve) => {
+				return new Promise((resolve, reject) => {
 					resolveProfile = resolve;
+					rejectProfile = reject;
 				});
 			}
 			return Promise.resolve({});
@@ -67,6 +69,7 @@ describe('#1259 login hydration timeout', () => {
 	beforeEach(() => {
 		localStorage.clear();
 		resolveProfile = null;
+		rejectProfile = null;
 		vi.useFakeTimers();
 	});
 
@@ -128,5 +131,30 @@ describe('#1259 login hydration timeout', () => {
 		expect(screen.getByTestId('pending').textContent).toBe('false');
 		expect(screen.getByTestId('company-id').textContent).toBe('1');
 		expect(screen.getByTestId('owner').textContent).toBe('true');
+	});
+
+	it('a profile rejection arriving after the timeout leaves genuine-pending untouched', async () => {
+		render(
+			<AuthProvider>
+				<Probe />
+			</AuthProvider>,
+		);
+
+		await act(async () => {
+			void auth.login('recruiter@qacorp.rekrutai.test', 'password123');
+		});
+		await act(async () => {
+			vi.advanceTimersByTime(5000);
+		});
+		expect(screen.getByTestId('pending').textContent).toBe('true');
+
+		// Late failure (reviewer F3): handled silently — the user simply
+		// stays in the genuine-pending state, no crash, no state change.
+		await act(async () => {
+			rejectProfile?.(new Error('No company associated with this account'));
+		});
+
+		expect(screen.getByTestId('pending').textContent).toBe('true');
+		expect(screen.getByTestId('company-id').textContent).toBe('null');
 	});
 });
