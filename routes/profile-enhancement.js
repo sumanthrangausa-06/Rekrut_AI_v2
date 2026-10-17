@@ -737,7 +737,12 @@ router.get(
 // No request body contents are logged or included in the response.
 // eslint-disable-next-line no-unused-vars
 function careerDiagnosisBodyParseError(err, req, res, next) {
-	if (err && err.type === 'entity.parse.failed' && req.path === '/api/career-diagnosis') {
+	// Trailing-slash form included: Express routing treats it as the same
+	// route, so the contract must too (reviewer SHOULD-FIX). No startsWith —
+	// that would also catch /api/career-diagnosisXYZ.
+	const isCareerDiagnosisPath =
+		req.path === '/api/career-diagnosis' || req.path === '/api/career-diagnosis/';
+	if (err && err.type === 'entity.parse.failed' && req.method === 'POST' && isCareerDiagnosisPath) {
 		return res.status(400).json({ error: 'Request body must be valid JSON' });
 	}
 	return next(err);

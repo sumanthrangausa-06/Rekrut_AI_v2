@@ -102,6 +102,30 @@ describe('POST /api/career-diagnosis body contract (#1268)', () => {
 		expect(inserts).toHaveLength(0);
 	});
 
+	it('array body reaching the handler → 400 contract error (Array.isArray branch)', async () => {
+		const res = await request(buildApp()).post('/api/career-diagnosis').send([ANSWERS[0]]);
+		expect(res.status).toBe(400);
+		expect(res.body).toEqual({ error: 'Request body must be a JSON object' });
+	});
+
+	it('path-scoping: malformed body to a DIFFERENT path is NOT converted (passes through)', async () => {
+		expect(typeof profileEnhancement.careerDiagnosisBodyParseError).toBe('function');
+		const app = express();
+		app.use(express.json({ limit: '50mb' }));
+		app.use(profileEnhancement.careerDiagnosisBodyParseError);
+		app.use('/api', router);
+		// Fallback error handler standing in for the app's global handler:
+		// proves the parse error reached it untouched.
+		app.use((err, _req, res, _next) => res.status(500).json({ error: 'fallback' }));
+		const wire = JSON.stringify(JSON.stringify({ linkedInUrl: 'https://linkedin.com/in/x' }));
+		const res = await request(app)
+			.post('/api/linkedin/connect')
+			.set('Content-Type', 'application/json')
+			.send(wire);
+		expect(res.status).toBe(500);
+		expect(res.body).toEqual({ error: 'fallback' });
+	});
+
 	it('wrong field { answers } → existing 400 contract error unchanged', async () => {
 		const res = await request(buildApp()).post('/api/career-diagnosis').send({ answers: ANSWERS });
 		expect(res.status).toBe(400);
