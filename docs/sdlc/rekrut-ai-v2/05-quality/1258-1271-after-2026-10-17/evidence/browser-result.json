@@ -1,0 +1,35 @@
+{
+  "loginPage": {
+    "url": "http://localhost:3000/login",
+    "textHasLogin": true
+  },
+  "afterLogin": {
+    "url": "http://localhost:3000/candidate"
+  },
+  "storedUser": {
+    "keys": [
+      "token",
+      "rekrutai_ai_chat_history",
+      "rekrutai_analytics_session_id",
+      "rekrutai_csrf",
+      "rekrutai_token",
+      "rekrutai_refresh",
+      "rekrut-theme",
+      "refresh_token"
+    ],
+    "hits": {}
+  },
+  "omniscorePage": {
+    "url": "http://localhost:3000/candidate/omniscore",
+    "hasInsufficientData": true,
+    "has50Match": false,
+    "excerpt": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nIdentity\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAI Screening\nAssessments\nOmniScore\nOTHER\nInterviews\nMessages\nOffers\nDocuments\nPay & Compensation\nOnboarding\nRefer & Earn\nSettings\nUpgrade to Pro\nSign out\nCandidate\nTry Premium\nRelevance\nFilters\nQuinn 1271 MatchCand\nOmniScore\n\nYour candidate credit score — like FICO for hiring\n\nTwo-Sided Scoring\nMy Score\nMutual Matches\nRate Companies\n372\nOMNISCORE\nNeeds Work\nYour Candidate Credit Score\n\nRanges from 300 (minimum) to 850 (exceptional). This score is visible to recruiters and affects your ranking in job matches.\n\n300\n850\nScore Breakdown\nVerified Skills\n8/100(25%)\n• 1 verified skills (+8)\n• 0 passed skill assessments, 0 passed job assessments (+0)\n• 0 portfolio projects (+0)\n• 0 verified documents (+0)\nInterview Performance\nInsufficient data\n\nMock and real interviews plus communication quality. Complete the related activities to unlock this factor.\n\nExperience Quality\nInsufficient data\n\nTenure, company tier, and role progression. Complete the related activ"
+  },
+  "companyMatchesPage": {
+    "url": "http://localhost:3000/candidate/company-matches",
+    "hasNA": false,
+    "hasInsufficientData": false,
+    "has50pct": false,
+    "excerpt": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nIdentity\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAI Screening\nAssessments\nOmniScore\nOTHER\nInterviews\nMessages\nOffers\nDocuments\nPay & Compensation\nOnboarding\nRefer & Earn\nSettings\nUpgrade to Pro\nSign out\nCandidate\nTry Premium\nRelevance\nFilters\nQuinn 1271 MatchCand\nCompany Matches\n\nDiscover the best remote employers and how to reach them\n\n85%\nof jobs are hidden\nTop 10\nemployers matched\n2-3\ncontacts per company\nPositioning\nMatches\nAnalysis\nOutreach\nDefine Your Positioning\n\nYour positioning statement is how companies will see your value\n\nYour Profile Summary\nPositioning Statement\n\nThis statement will be used by AI to craft personalized value hooks for each company.\n\nContinue\nTraditional Job Search\n•\nApply to hundreds of jobs and pray for a response\n•\nCompete with thousands of applicants for posted roles\n•\nNo visibility into company culture or decision makers\n•\nGeneric outreach that gets ignored\nRekrut AI Approach\nTargeted outreach to companies that match your profile\nAccess the hidden job market — 85% o"
+  }
+}

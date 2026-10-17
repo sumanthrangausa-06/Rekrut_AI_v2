@@ -1,0 +1,16 @@
+{
+  "afterLoginUrl": "http://localhost:3000/candidate",
+  "mutualTab": {
+    "url": "http://localhost:3000/candidate/omniscore",
+    "hasInsufficientData": true,
+    "has50Match": false,
+    "excerpt": "Mutual Matches\nRate Companies\n\nMutual Fit Score\n\nCombines your OmniScore + company TrustScore + skill match. Higher = better fit for both sides.\n\nQuinn 1271 Engineer\n0% Mutual Fit\n\nQuinn 1258 Co · Remote · full-time\n\nOmniScore 372 (Needs Work)\nTrustScore N/A (Insufficient data)\nInsufficient data\napplied\n\n© 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center"
+  },
+  "companyMatchesAfterContinue": {
+    "url": "http://localhost:3000/candidate/company-matches",
+    "hasNA": false,
+    "hasInsufficientData": false,
+    "has50pct": false,
+    "excerpt": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nIdentity\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAI Screening\nAssessments\nOmniScore\nOTHER\nInterviews\nMessages\nOffers\nDocuments\nPay & Compensation\nOnboarding\nRefer & Earn\nSettings\nUpgrade to Pro\nSign out\nCandidate\nTry Premium\nRelevance\nFilters\nQuinn 1271 MatchCand\nCompany Matches\n\nDiscover the best remote employers and how to reach them\n\n85%\nof jobs are hidden\nTop 10\nemployers matched\n2-3\ncontacts per company\nPositioning\nMatches\nAnalysis\nOutreach\n\nInternal server error\n\nDismiss\nYour Company Matches\n\n0 companies ranked by match score\n\nBack\n\nNo matches found\n\nComplete your profile to get personalized company matches.\n\nComplete Profile\nAI-curated company intelligence for your job search\nWhat You Will Receive\nTop 10 Remote Employers\n\nGet a curated list of the best remote-first companies actively hiring in your field, ranked by culture, compensation, and growth opportunities.\n\nPersonalized Value Hooks\n\nAI-crafted talking points that highlight your unique fit for each company — use them in cover letters, outreach, and interviews.\n\nDecision Maker Contacts\n\nAccess verified contact details for hiring managers and recruiters so you can skip the ATS and go straight to the source.\n\nOutreach Playbooks\n\nProven email and LinkedIn templates with step-by-step follow-up sequences designed to get responses, not g"
+  }
+}
