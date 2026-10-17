@@ -94,7 +94,10 @@ describe('about page verified history (#1314)', () => {
 
 	it('keeps the verified timeline and canonical spelling', () => {
 		expect(source).toContain('Rekrut AI founded in India as HireLoop');
-		expect(source).toContain('(formerly HireLoop)');
+		// Reviewer Low (PR #1319): "(formerly HireLoop)" appears twice
+		// (SEO description + hero) — assert the count, not just presence,
+		// so deleting one occurrence is caught.
+		expect(source.split('(formerly HireLoop)').length - 1).toBe(2);
 		expect(source).toContain('First AI matching engine built');
 		expect(source).toContain('OmniScore & Trust Score built');
 		expect(source).toContain('Trust Score');
