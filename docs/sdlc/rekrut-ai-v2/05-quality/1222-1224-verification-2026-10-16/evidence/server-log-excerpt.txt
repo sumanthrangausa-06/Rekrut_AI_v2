@@ -1,0 +1,3 @@
+Server (private-PG run at 96fe0f83): 'Rekrut AI running on port 3000'; /health -> {"status":"ok","db":"connected"} commit=96fe0f83882dc33188e34051eddb1841513cd624
+Relevant error counts in full server log: 'Recruiter access required' = 0, 'password authentication failed' = 0, admin/trustscore 401/403 in browser session = 0 (see browser-result.json)
+Full server log retained in run dir: hidden_files/1222-1224-after-run/logs/server.log (not committed - contains runtime startup noise only)
