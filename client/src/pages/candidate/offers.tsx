@@ -32,7 +32,7 @@ interface Offer {
 	company_name: string;
 	company?: string;
 	job_title: string;
-	salary: number;
+	salary: number | null;
 	start_date: string;
 	benefits: string;
 	status: string;
@@ -268,7 +268,7 @@ export function CandidateOffersPage() {
 							<div className="rounded-lg bg-muted/50 p-3">
 								<p className="text-xs text-muted-foreground">Salary</p>
 								<p className="font-medium text-emerald-600">
-									${Number(selectedOffer.salary).toLocaleString()}/yr
+									{selectedOffer.salary != null ? `$${Number(selectedOffer.salary).toLocaleString()}/yr` : '—'}
 								</p>
 							</div>
 							<div className="rounded-lg bg-muted/50 p-3">
@@ -438,7 +438,7 @@ export function CandidateOffersPage() {
 										<strong>{selectedOffer.job_title || selectedOffer.title}</strong> at{' '}
 										<strong>{selectedOffer.company_name || selectedOffer.company}</strong> with an
 										annual salary of{' '}
-										<strong>${Number(selectedOffer.salary).toLocaleString()}</strong>.
+										<strong>{selectedOffer.salary != null ? `$${Number(selectedOffer.salary).toLocaleString()}` : '—'}</strong>.
 									</p>
 								</div>
 							</div>
@@ -574,7 +574,7 @@ function OfferCard({ offer, onClick }: { offer: Offer; onClick: () => void }) {
 								{offer.company_name || offer.company}
 							</span>
 							<span className="flex items-center gap-1">
-								<DollarSign className="h-3.5 w-3.5" />${Number(offer.salary).toLocaleString()}/yr
+								<DollarSign className="h-3.5 w-3.5" />{offer.salary != null ? `$${Number(offer.salary).toLocaleString()}/yr` : '—'}
 							</span>
 							{offer.start_date && (
 								<span className="flex items-center gap-1">
