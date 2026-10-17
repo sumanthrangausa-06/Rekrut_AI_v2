@@ -244,6 +244,33 @@ router.get(
 	}
 });
 
+// #1254: this literal route MUST stay above GET /:id below — Express
+// matches in registration order, so /:id would otherwise capture
+// 'scheduling-preferences' as an interview id and 404 it.
+// Get scheduling preferences
+router.get('/scheduling-preferences', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query('SELECT * FROM scheduling_preferences WHERE user_id = $1', [
+			req.user.id,
+		]);
+
+		res.json({
+			success: true,
+			preferences: result.rows[0] || {
+				timezone: 'America/New_York',
+				available_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+				available_hours: { start: '09:00', end: '17:00' },
+				buffer_minutes: 15,
+				preferred_duration: 60,
+				blackout_dates: [],
+			},
+		});
+	} catch (err) {
+		console.error('Get scheduling preferences error:', err);
+		res.status(500).json({ error: 'Failed to get preferences' });
+	}
+});
+
 // Get interview details
 router.get('/:id', authMiddleware, async (req, res) => {
 	try {
@@ -2534,30 +2561,6 @@ router.post('/scheduling-preferences', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Save scheduling preferences error:', err);
 		res.status(500).json({ error: 'Failed to save preferences' });
-	}
-});
-
-// Get scheduling preferences
-router.get('/scheduling-preferences', authMiddleware, async (req, res) => {
-	try {
-		const result = await pool.query('SELECT * FROM scheduling_preferences WHERE user_id = $1', [
-			req.user.id,
-		]);
-
-		res.json({
-			success: true,
-			preferences: result.rows[0] || {
-				timezone: 'America/New_York',
-				available_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-				available_hours: { start: '09:00', end: '17:00' },
-				buffer_minutes: 15,
-				preferred_duration: 60,
-				blackout_dates: [],
-			},
-		});
-	} catch (err) {
-		console.error('Get scheduling preferences error:', err);
-		res.status(500).json({ error: 'Failed to get preferences' });
 	}
 });
 
