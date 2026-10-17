@@ -513,6 +513,42 @@ describe('consentService.getConsentHistory', () => {
 		expect(row.status_label).toBe('granted');
 	});
 
+	// Reviewer B-1 (PR #1320): fail-closed — a row with NO grant evidence
+	// (both timestamps NULL; unreachable on a correctly migrated DB per the
+	// migration-244 companion CHECK) must never be labelled granted.
+	test('row with neither timestamp is NOT labelled granted (fail-closed)', async () => {
+		db.query.mockResolvedValueOnce({
+			rows: [
+				{
+					id: 4,
+					consent_type: 'recording',
+					granted_at: null,
+					withdrawn_at: null,
+				},
+			],
+		});
+
+		const [row] = await consentService.getConsentHistory(7);
+		expect(row.status).toBe('unknown');
+		expect(row.status_label).toBe('unknown — no grant recorded');
+		expect(row.status).not.toBe('granted');
+	});
+
+	test('mixed rows are labelled independently and original fields survive', async () => {
+		db.query.mockResolvedValueOnce({
+			rows: [
+				{ id: 1, consent_type: 'recording', granted_at: null, withdrawn_at: '2026-10-10T01:00:00Z' },
+				{ id: 2, consent_type: 'biometric', granted_at: '2026-10-10T00:00:00Z', withdrawn_at: null },
+				{ id: 3, consent_type: 'id_verification', granted_at: '2026-10-10T00:00:00Z', withdrawn_at: '2026-10-11T00:00:00Z' },
+			],
+		});
+
+		const history = await consentService.getConsentHistory(7);
+		expect(history.map((r) => r.status)).toEqual(['declined', 'granted', 'withdrawn']);
+		expect(history[0].consent_type).toBe('recording');
+		expect(history[0].withdrawn_at).toBe('2026-10-10T01:00:00Z');
+	});
+
 	test('granted-then-withdrawn is labelled withdrawn (not declined)', async () => {
 		db.query.mockResolvedValueOnce({
 			rows: [
