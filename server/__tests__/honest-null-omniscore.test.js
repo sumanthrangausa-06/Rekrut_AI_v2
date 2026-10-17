@@ -191,6 +191,7 @@ describe('#1251 calculateScore peer-percentile — NULL percentile stays null (h
 		expect(score.peer_percentile).toBeNull();
 		// Persisted row and snapshot must carry the honest null too.
 		expect(mockState.omniRow.peer_percentile).toBeNull();
+		expect(mockState.snapshots.length).toBe(1);
 		for (const s of mockState.snapshots) expect(s.peer_percentile).toBeNull();
 	});
 });
