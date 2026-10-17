@@ -1,0 +1,105 @@
+{
+  "seed": {
+    "candidateId": 1,
+    "otherId": 2,
+    "linkedinProfileSeeded": true
+  },
+  "api": {
+    "loginCandidate": {
+      "status": 200,
+      "gotToken": true,
+      "userId": 1,
+      "role": "candidate"
+    },
+    "tipsOwn": {
+      "status": 200,
+      "success": true,
+      "keys": [
+        "success",
+        "profileStatus",
+        "tips",
+        "headlineSuggestions",
+        "aboutSectionTemplate",
+        "weeklyActionPlan",
+        "summary"
+      ],
+      "profileStatus": {
+        "connected": true,
+        "completenessScore": 25,
+        "missingSections": [
+          "headline",
+          "about",
+          "skills"
+        ],
+        "linkedinUrl": "https://www.linkedin.com/in/quinn-after-1227"
+      },
+      "tipsCount": 5,
+      "firstTipTitles": [
+        "Strengthen your headline",
+        "Write a compelling About section",
+        "Add more skills",
+        "Grow your network strategically",
+        "Post weekly content"
+      ],
+      "headlineSuggestions": [
+        "Data Analyst | Building scalable systems",
+        "Data Analyst | TypeScript, Node.js, AWS",
+        "Data Analyst | Product-focused developer"
+      ],
+      "weeklyActionPlanCount": 5,
+      "hasAboutTemplate": true,
+      "summaryExcerpt": "Your LinkedIn profile is 25% complete. Focus on headline and about and skills to increase visibility.",
+      "error": null
+    },
+    "phantomOldPath": {
+      "status": 404,
+      "error": "API endpoint not found"
+    },
+    "tipsOtherUserControl": {
+      "status": 403,
+      "error": "Access denied"
+    },
+    "tipsAnon": {
+      "status": 401,
+      "error": "Authentication required"
+    }
+  },
+  "checks": [
+    {
+      "label": "tips own id: 200 (not 404)",
+      "pass": true,
+      "detail": "status=200"
+    },
+    {
+      "label": "tips own id: success=true",
+      "pass": true,
+      "detail": "success=true"
+    },
+    {
+      "label": "tips own id: real payload shape (profileStatus+tips+headlines+plan+summary)",
+      "pass": true,
+      "detail": "tips=5 headlines=3 plan=5"
+    },
+    {
+      "label": "tips own id: payload reflects seeded profile (connected, seeded headline in suggestions)",
+      "pass": true,
+      "detail": "connected=true suggestions=[\"Data Analyst | Building scalable systems\",\"Data Analyst | TypeScript, Node.js, AWS\",\"Data Analyst | Product-focused developer\"]"
+    },
+    {
+      "label": "phantom old path: 404 API endpoint not found (route-miss body, documents the dead string)",
+      "pass": true,
+      "detail": "status=404 error=API endpoint not found"
+    },
+    {
+      "label": "other user id control: 403 (ownership guard intact)",
+      "pass": true,
+      "detail": "status=403 error=Access denied"
+    },
+    {
+      "label": "anon control: 401 (auth enforced)",
+      "pass": true,
+      "detail": "status=401"
+    }
+  ],
+  "allPass": true
+}
