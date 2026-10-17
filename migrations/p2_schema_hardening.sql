@@ -15,7 +15,9 @@
 -- exactly these three views (16 column dependencies); no other view,
 -- and nothing depends on these three views. They are dropped here and
 -- recreated verbatim in SECTION 4 at the end of this file, from their
--- owning migrations (237, 240, 240). On DBs where this file already ran,
+-- owning migrations (237_unified_interviews_view_slot_ids,
+-- 240_extend_candidate_full_profile_view, 240_v_unified_assessments).
+-- On DBs where this file already ran,
 -- migrate.js skips it entirely (_migrations holds the filename), so this
 -- section is unreachable there.
 DROP VIEW IF EXISTS v_unified_assessments;
