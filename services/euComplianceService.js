@@ -2,6 +2,54 @@ const pool = require('../lib/db');
 const auditLogService = require('./auditLogService');
 
 /**
+ * #1204: delete one object for a retention purge, routing by key form.
+ *
+ * Provider-prefixed keys (`r2/…`, `b2/…`) go to file-storage
+ * deleteStorageObject, unchanged. `s3://<bucket>/<key>` locations — the
+ * form #1130/GAP-A3 register for session recordings — name the
+ * RECORDING_STORAGE_* egress bucket, which file-storage cannot address
+ * (it parses `s3:` as a provider name and soft-fails forever). Those go
+ * to sessionRecordingStore's verified delete: it parses with the existing
+ * parseRecordingLocation, fails closed when the bucket is not the
+ * configured RECORDING_STORAGE_BUCKET, and verifies the object is gone.
+ * Its throws are normalised to the same soft-fail shape deleteStorageObject
+ * returns, so callers keep their exact stamp-only-on-success semantics:
+ * a failed delete is counted and the row is left for retry — never a
+ * false stamp, never a guessed bucket.
+ *
+ * @param {string} objectKey
+ * @returns {Promise<{deleted: boolean, reason?: string, alreadyGone?: boolean}>}
+ */
+async function deletePurgeStorageObject(objectKey) {
+	if (typeof objectKey === 'string' && objectKey.startsWith('s3://')) {
+		// Specialist review F-1: a malformed s3:// value (no bucket or no
+		// key — corrupt/legacy rows) must NOT reach the recording store:
+		// its parser falls through to a bucket-less key and the verified
+		// delete would "succeed" on a literal garbage key in the configured
+		// bucket, producing a false stamp. Well-formed means exactly the
+		// `s3://<bucket>/<key>` form the writers emit.
+		if (!/^s3:\/\/[^/]+\/.+/.test(objectKey)) {
+			return { deleted: false, reason: 'unrecognized_format' };
+		}
+		// ponytail: lazy-require like the purge methods below — the recording
+		// store pulls crypto/db modules the rest of this service doesn't need.
+		const { deleteRecordingObjectVerified } = require('../lib/sessionRecordingStore');
+		try {
+			await deleteRecordingObjectVerified(objectKey);
+			return { deleted: true };
+		} catch (err) {
+			return {
+				deleted: false,
+				reason: err.code || err.name || 'recording_storage_delete_failed',
+				...(err.nonRetryable ? { nonRetryable: true } : {}),
+			};
+		}
+	}
+	const { deleteStorageObject } = require('../lib/file-storage');
+	return deleteStorageObject(objectKey);
+}
+
+/**
  * EU AI Act Compliance Service
  * Handles risk classification, per-job-posting bias detection,
  * four-fifths rule, explainability, human oversight, data retention,
@@ -672,7 +720,6 @@ class EuComplianceService {
 		let heldSkips = 0;
 
 		// ponytail: lazy-require to avoid hard deps at module load.
-		const { deleteStorageObject } = require('../lib/file-storage');
 		const livekitService = require('../server/services/livekit');
 		// #799 (G-1): per-row legal-hold consult BEFORE the storage delete
 		// and BEFORE the transcript anonymisation below (both are part of
@@ -704,8 +751,19 @@ class EuComplianceService {
 				if (!dryRun && row.storage_path) {
 					// storage_path is encrypted BYTEA — decrypt to get the key.
 					const objectKey = livekitService.decryptStoragePath(row);
-					if (objectKey) {
-						const r = await deleteStorageObject(objectKey);
+					if (!objectKey) {
+						// Specialist review F-2 (pre-existing): decrypt returns
+						// null on ANY decrypt error — a row whose pointer cannot
+						// be read has NOT had its object deleted, so it must not
+						// be marked deleted (that would exclude it from retry
+						// forever while the object survives). Fail closed.
+						storageOk = false;
+						errors++;
+						console.warn(`[retention] storage path undecryptable for recording ${row.id} — leaving for retry`);
+					} else {
+						// #1204: decrypted pointers for #1130-path recordings
+						// are s3:// locations — route by key form.
+						const r = await deletePurgeStorageObject(objectKey);
 						if (r.deleted) {
 							storageDeleted++;
 						} else {
@@ -769,7 +827,6 @@ class EuComplianceService {
 	 * @returns {Promise<{purgedCount, storageDeleted, dryRun, errors}>}
 	 */
 	static async purgeRecordingObjects({ dryRun = true, batchSize = 100 } = {}) {
-		const { deleteStorageObject } = require('../lib/file-storage');
 		// Gate A (S-085 #787, design §5.1): only CONFIRMED registrations are
 		// purge-eligible — 'pending' intent rows belong to the reconciler
 		// (lib/observerCapture.js). Legacy frame/recording rows are born
@@ -817,12 +874,15 @@ class EuComplianceService {
 				}
 
 				if (!dryRun) {
-					const r = await deleteStorageObject(row.object_key);
+					// #1204: s3:// registry keys (session recordings) route to
+					// the RECORDING_STORAGE_* client via the shared helper.
+					const r = await deletePurgeStorageObject(row.object_key);
 					// Q2 fix: only stamp deleted_at on CONFIRMED storage delete.
 					// A soft-failed delete (r.deleted === false) leaves the row
 					// for retry — never mark purged what wasn't deleted.
 					if (r.deleted) {
 						storageDeleted++;
+						purgedCount++;
 						await pool.query(
 							`UPDATE recording_objects SET deleted_at = NOW() WHERE object_key = $1`,
 							[row.object_key],
@@ -834,13 +894,20 @@ class EuComplianceService {
 							);
 						}
 					} else {
+						// Specialist review F-3: a soft-failed row is NOT
+						// purged — it must not be counted in purgedCount /
+						// the audit entry's objectCount. (Dry-run still
+						// counts every enumerated row below.)
 						errors++;
-						console.warn(`[retention] storage delete soft-failed for ${row.object_key}: ${r.reason} — leaving for retry`);
+						// GAP-J (review F-5): reason + type only — never log
+						// the storage key itself.
+						console.warn(`[retention] storage delete soft-failed for ${row.object_type} object: ${r.reason} — leaving for retry`);
 					}
+				} else {
+					purgedCount++;
 				}
-				purgedCount++;
 			} catch (err) {
-				console.error(`[retention] purgeRecordingObjects ${row.object_key} failed:`, err.message);
+				console.error(`[retention] purgeRecordingObjects ${row.object_type} object failed:`, err.message);
 				errors++;
 			}
 		}
