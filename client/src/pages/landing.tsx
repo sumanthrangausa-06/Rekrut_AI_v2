@@ -9,8 +9,6 @@ import {
 	Calendar,
 	CheckCircle2,
 	ChevronDown,
-	ChevronLeft,
-	ChevronRight,
 	ChevronUp,
 	Clock,
 	Compass,
@@ -39,7 +37,7 @@ import {
 	X,
 	Zap,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SEO } from '@/components/SEO';
 import { Badge } from '@/components/ui/badge';
@@ -77,7 +75,7 @@ const blogPosts = [
 		id: '3',
 		title: '5 Mock Interview Mistakes Everyone Makes',
 		excerpt:
-			'We analyzed 10,000 practice interviews. These are the patterns that predict real interview failure.',
+			'Common patterns that can hurt you in a real interview — and how to fix them before the real thing.',
 		tag: 'Career Tips',
 		author: 'Rekrut AI Team',
 		date: 'May 20, 2026',
@@ -162,37 +160,6 @@ const steps = [
 	},
 ];
 
-const testimonials = [
-	{
-		quote:
-			'I applied to 200 jobs manually and got 2 callbacks. Used Rekrut AI for 2 weeks, matched with 12 relevant roles, and got 3 offers.',
-		author: 'Sarah K.',
-		role: 'Product Manager, hired at Stripe',
-		avatar: 'SK',
-	},
-	{
-		quote:
-			'The mock interviews caught me saying um 47 times and helped me fix my pacing. I crushed my real interview.',
-		author: 'Marcus T.',
-		role: 'Software Engineer, hired at Netflix',
-		avatar: 'MT',
-	},
-	{
-		quote:
-			'OmniScore got me noticed by a recruiter who said they never would have found me through keyword search.',
-		author: 'Priya R.',
-		role: 'Data Scientist, hired at Airbnb',
-		avatar: 'PR',
-	},
-	{
-		quote:
-			'As a career switcher, I had no idea how to position myself. The AI coaching gave me a roadmap and the confidence to negotiate a $30K higher salary.',
-		author: 'James L.',
-		role: 'Former Teacher → UX Designer',
-		avatar: 'JL',
-	},
-];
-
 const companyLogos = [
 	'Google',
 	'Stripe',
@@ -205,10 +172,10 @@ const companyLogos = [
 ];
 
 const stats = [
-	{ value: '50K+', label: 'Active candidates' },
-	{ value: '3x', label: 'Better job matches' },
-	{ value: '2 min', label: 'Profile setup' },
-	{ value: '94%', label: 'Interview success rate' },
+	{ value: 'AI Matching', label: 'Jobs matched to your skills' },
+	{ value: 'Mock Interviews', label: 'Practice with AI feedback' },
+	{ value: 'Assessments', label: 'Show what you can do' },
+	{ value: 'OmniScore', label: 'Built from your verified skills' },
 ];
 
 const faq = [
@@ -581,7 +548,7 @@ function HeroSection() {
 							<CheckCircle2 className="h-3.5 w-3.5" /> In-house KYC
 						</span>
 						<span className="flex items-center gap-1">
-							<Users className="h-3.5 w-3.5" /> 50,000+ active candidates
+							<Users className="h-3.5 w-3.5" /> Profiles matched to real jobs
 						</span>
 						<span className="flex items-center gap-1">
 							<Zap className="h-3.5 w-3.5" /> AI-matched to real jobs
@@ -615,8 +582,8 @@ function HeroSection() {
 												<Users className="h-5 w-5 text-primary" />
 											</div>
 											<div>
-												<p className="text-sm font-medium">Active Candidates</p>
-												<p className="text-2xl font-bold text-primary">50,000+</p>
+												<p className="text-sm font-medium">Candidate Matching</p>
+												<p className="text-2xl font-bold text-primary">By skills</p>
 											</div>
 										</div>
 									</CardContent>
@@ -629,7 +596,7 @@ function HeroSection() {
 											</div>
 											<div>
 												<p className="text-sm font-medium">Open Positions</p>
-												<p className="text-2xl font-bold text-green-600">2,400+</p>
+												<p className="text-2xl font-bold text-green-600">Browse & apply</p>
 											</div>
 										</div>
 									</CardContent>
@@ -641,8 +608,8 @@ function HeroSection() {
 												<Star className="h-5 w-5 text-amber-600" />
 											</div>
 											<div>
-												<p className="text-sm font-medium">Avg. Match Score</p>
-												<p className="text-2xl font-bold text-amber-600">87%</p>
+												<p className="text-sm font-medium">Match Score</p>
+												<p className="text-2xl font-bold text-amber-600">Per role</p>
 											</div>
 										</div>
 									</CardContent>
@@ -657,9 +624,9 @@ function HeroSection() {
 								</div>
 								<div className="space-y-2">
 									{[
-										{ name: 'Senior React Developer at Stripe', score: 94, match: 'Top match' },
-										{ name: 'Product Manager at Netflix', score: 91, match: 'Strong fit' },
-										{ name: 'UX Designer at Airbnb', score: 89, match: 'Great fit' },
+										{ name: 'Senior React Developer', match: 'Top match' },
+										{ name: 'Product Manager', match: 'Strong fit' },
+										{ name: 'UX Designer', match: 'Great fit' },
 									].map((job) => (
 										<div
 											key={job.name}
@@ -679,7 +646,6 @@ function HeroSection() {
 												<Badge variant="outline" className="text-xs">
 													{job.match}
 												</Badge>
-												<span className="text-sm font-bold text-primary">{job.score}%</span>
 											</div>
 										</div>
 									))}
@@ -728,51 +694,35 @@ function CompanyTrustBarSection() {
 	);
 }
 
-function LiveStatsSection() {
-	const [counts, setCounts] = useState({ candidates: 0, positions: 0, score: 0 });
-
-	useEffect(() => {
-		const targets = { candidates: 50000, positions: 2400, score: 87 };
-		const duration = 1500;
-		const steps = 30;
-		let step = 0;
-		const interval = setInterval(() => {
-			step++;
-			const progress = step / steps;
-			setCounts({
-				candidates: Math.round(targets.candidates * progress),
-				positions: Math.round(targets.positions * progress),
-				score: Math.round(targets.score * progress),
-			});
-			if (step >= steps) clearInterval(interval);
-		}, duration / steps);
-		return () => clearInterval(interval);
-	}, []);
-
+function PlatformCapabilitiesSection() {
 	return (
 		<section className="py-16 sm:py-20">
 			<div className="mx-auto max-w-7xl px-4">
 				<div className="mx-auto max-w-2xl text-center">
 					<Badge variant="outline" className="mb-4">
-						Live Stats
+						What Rekrut AI does
 					</Badge>
 					<h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
-						Join thousands already hiring smarter
+						Built for candidates and the teams hiring them
 					</h2>
 				</div>
 				<div className="mt-12 grid gap-6 sm:grid-cols-3">
 					{[
 						{
-							value: `${counts.candidates.toLocaleString()}+`,
-							label: 'Active candidates',
+							value: 'AI Job Matching',
+							label: 'Roles matched to your skills, experience, and preferences',
 							icon: Users,
 						},
 						{
-							value: `${counts.positions.toLocaleString()}+`,
-							label: 'Open positions',
+							value: 'Mock Interviews',
+							label: 'Practice with an AI interviewer and get feedback first',
 							icon: Briefcase,
 						},
-						{ value: `${counts.score}%`, label: 'Avg. match score', icon: Star },
+						{
+							value: 'OmniScore',
+							label: 'One score built from your verified skills and assessments',
+							icon: Star,
+						},
 					].map((stat) => (
 						<Card key={stat.label} className="border-0 bg-card shadow-sm text-center">
 							<CardContent className="p-8">
@@ -968,90 +918,6 @@ function HowItWorksSection() {
 							</Card>
 						</div>
 					))}
-				</div>
-			</div>
-		</section>
-	);
-}
-
-function SocialProofSection() {
-	const scrollRef = useRef<HTMLDivElement>(null);
-
-	const scroll = (dir: 'left' | 'right') => {
-		const el = scrollRef.current;
-		if (!el) return;
-		const w = el.offsetWidth;
-		el.scrollBy({ left: dir === 'left' ? -w * 0.8 : w * 0.8, behavior: 'smooth' });
-	};
-
-	return (
-		<section className="border-y bg-muted/30 py-20 sm:py-24">
-			<div className="mx-auto max-w-7xl px-4">
-				<div className="mx-auto max-w-2xl text-center">
-					<Badge variant="outline" className="mb-4">
-						Testimonials
-					</Badge>
-					<h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
-						Success stories from real candidates
-					</h2>
-					<p className="mt-4 text-lg text-muted-foreground">
-						See how Rekrut AI helped people land their dream jobs.
-					</p>
-				</div>
-
-				<div className="mt-14 relative">
-					<div
-						ref={scrollRef}
-						className="flex gap-6 overflow-x-auto pb-4 snap-x snap-mandatory scroll-smooth"
-						style={{ scrollbarWidth: 'none' }}
-					>
-						{testimonials.map((t, i) => (
-							<Card
-								key={t.author}
-								className="min-w-[280px] sm:min-w-[360px] flex-shrink-0 snap-start border-0 bg-card shadow-sm"
-							>
-								<CardContent className="p-6">
-									<div className="flex gap-1">
-										{[1, 2, 3, 4, 5].map((s) => (
-											<Star key={s} className="h-4 w-4 fill-amber-400 text-amber-400" />
-										))}
-									</div>
-									<p className="mt-4 text-sm leading-relaxed text-foreground">"{t.quote}"</p>
-									<div className="mt-6 flex items-center gap-3">
-										<img
-											src={UNSPLASH_IMAGES[`testimonial${i + 1}` as keyof typeof UNSPLASH_IMAGES]}
-											alt={t.author}
-											className="h-10 w-10 rounded-full object-cover"
-											loading="lazy"
-										/>
-										<div>
-											<p className="text-sm font-semibold">{t.author}</p>
-											<p className="text-xs text-muted-foreground">{t.role}</p>
-										</div>
-									</div>
-								</CardContent>
-							</Card>
-						))}
-					</div>
-
-					<div className="mt-4 flex items-center justify-center gap-3">
-						<Button
-							variant="outline"
-							size="icon"
-							onClick={() => scroll('left')}
-							aria-label="Previous testimonial"
-						>
-							<ChevronLeft className="h-4 w-4" />
-						</Button>
-						<Button
-							variant="outline"
-							size="icon"
-							onClick={() => scroll('right')}
-							aria-label="Next testimonial"
-						>
-							<ChevronRight className="h-4 w-4" />
-						</Button>
-					</div>
 				</div>
 			</div>
 		</section>
@@ -1333,8 +1199,7 @@ function CTABannerSection() {
 							Stop applying to black holes. Start getting matched.
 						</h2>
 						<p className="mx-auto mt-4 max-w-xl text-primary-foreground/80 lg:text-lg">
-							Join 50,000+ candidates using AI to find their next job. Free forever. No spam. No
-							noise.
+							Join candidates using AI to find their next job. Free forever. No spam. No noise.
 						</p>
 						<div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
 							{isAuthenticated && user ? (
@@ -1702,13 +1567,12 @@ export function LandingPage() {
 			<main>
 				<HeroSection />
 				<CompanyTrustBarSection />
-				<LiveStatsSection />
+				<PlatformCapabilitiesSection />
 				<div id="features">
 					<FeaturesSection />
 				</div>
 				<FeatureTabsSection />
 				<HowItWorksSection />
-				<SocialProofSection />
 				<PricingTeaserSection />
 				<SecurityTrustSection />
 				<BlogSection />
