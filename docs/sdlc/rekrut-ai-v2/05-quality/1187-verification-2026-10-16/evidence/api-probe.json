@@ -1,0 +1,112 @@
+{
+  "seed": {
+    "alpha": {
+      "id": 1,
+      "slug": "quinn1187-alpha",
+      "name": "Quinn Alpha Careers Inc"
+    },
+    "beta": {
+      "id": 2,
+      "slug": "quinn1187-beta",
+      "name": "Quinn Beta Careers LLC"
+    },
+    "betaUserId": 1
+  },
+  "api": {
+    "loginBeta": {
+      "status": 200,
+      "gotToken": true,
+      "userCompanyId": null
+    },
+    "bySlugAnon": {
+      "status": 200,
+      "companyName": "Quinn Alpha Careers Inc",
+      "companyId": "1",
+      "jobTitles": [
+        "Alpha Widget Engineer"
+      ],
+      "error": null
+    },
+    "byIdAnon": {
+      "status": 200,
+      "companyName": "Quinn Alpha Careers Inc",
+      "companyId": "1",
+      "jobTitles": [
+        "Alpha Widget Engineer"
+      ],
+      "error": null
+    },
+    "betaBySlugAnon": {
+      "status": 200,
+      "companyName": "Quinn Beta Careers LLC",
+      "companyId": "2",
+      "jobTitles": [
+        "Beta Support Specialist"
+      ],
+      "error": null
+    },
+    "defaultAnon": {
+      "status": 401,
+      "companyName": null,
+      "companyId": null,
+      "jobTitles": [],
+      "error": "Authentication required"
+    },
+    "bySlugAsBeta": {
+      "status": 200,
+      "companyName": "Quinn Alpha Careers Inc",
+      "companyId": "1",
+      "jobTitles": [
+        "Alpha Widget Engineer"
+      ],
+      "error": null
+    },
+    "defaultAsBeta": {
+      "status": 200,
+      "companyName": "Quinn Beta Careers LLC",
+      "companyId": "2",
+      "jobTitles": [
+        "Beta Support Specialist"
+      ],
+      "error": null
+    }
+  },
+  "checks": [
+    {
+      "label": "(b) GET /api/careers/quinn1187-alpha logged-out: 200 + Alpha",
+      "pass": true,
+      "detail": "status=200 name=Quinn Alpha Careers Inc jobs=Alpha Widget Engineer"
+    },
+    {
+      "label": "(b) GET /api/careers/<alphaId> logged-out: 200 + Alpha",
+      "pass": true,
+      "detail": "status=200 name=Quinn Alpha Careers Inc"
+    },
+    {
+      "label": "(b) control: /api/careers/quinn1187-beta returns Beta, not Alpha",
+      "pass": true,
+      "detail": "status=200 name=Quinn Beta Careers LLC"
+    },
+    {
+      "label": "(b) contrast: /api/careers/default logged-out is 401 (the old broken fallback path)",
+      "pass": true,
+      "detail": "status=401 error=Authentication required"
+    },
+    {
+      "label": "(c) login as Beta recruiter works",
+      "pass": true,
+      "detail": "status=200 token=true"
+    },
+    {
+      "label": "(c) as Beta user, /api/careers/quinn1187-alpha returns ALPHA (URL company wins)",
+      "pass": true,
+      "detail": "status=200 name=Quinn Alpha Careers Inc"
+    },
+    {
+      "label": "(c) as Beta user, /api/careers/default returns BETA (proves default = own company, so Alpha result is not default leakage)",
+      "pass": true,
+      "detail": "status=200 name=Quinn Beta Careers LLC"
+    }
+  ],
+  "allPass": true
+}
