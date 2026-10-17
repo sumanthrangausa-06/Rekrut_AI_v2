@@ -633,10 +633,16 @@ router.post(
 			// status resets below are likewise scoped to 'processing', so
 			// they can never resurrect a quarantined/non-completed
 			// recording to 'completed'.
-			await pool.query(
+			const claim = await pool.query(
 				`UPDATE interview_recordings SET status = 'processing', updated_at = NOW() WHERE id = $1 AND status = 'completed'`,
 				[recordingId],
 			);
+			// #1202: a concurrent transcribe may have already claimed this
+			// recording — if the claim matched 0 rows, bail instead of
+			// downloading and inserting a duplicate transcript.
+			if (claim.rowCount === 0) {
+				return res.status(409).json({ error: 'Transcription already in progress' });
+			}
 
 			// Download audio. GAP-A2 (#1130, R-6): .enc recordings decrypt
 			// in memory via the DEK path (shared cap, no temp plaintext,
