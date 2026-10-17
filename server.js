@@ -1037,7 +1037,22 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 			// shadow key inventory in place indefinitely, which is the
 			// K-2 defect this story removes. Legal-hold fail-closed
 			// inside the purge itself (D-3/D-6).
-			const { purgeDrainedStorageDeletions } = require('./lib/erasureService');
+			// #1172: storage-deletion ledger sweep — drain crash-orphaned
+			// 'pending' rows (Phase 2 of an erasure that committed but whose
+			// post-commit drain never ran). Until this wiring the sweep had
+			// NO production caller, so orphaned rows were only re-drained
+			// if the same user was erased again. Deliberately NOT gated by
+			// LIVE_PURGE / opts.dryRun: this is erasure completion, not a
+			// retention schedule — every 'pending' row exists only because
+			// Phase 1 already committed that subject's own erasure request,
+			// and the route-context drain (routes/auth.js, routes/admin.js)
+			// runs ungated for the same rows. Gating it behind a
+			// production-only flag would retain erased
+			// users' files indefinitely. Legal-hold fail-closed inside the
+			// drain itself (#799): held rows stay 'pending' and counted.
+			const { sweepPendingStorageDeletions, purgeDrainedStorageDeletions } =
+				require('./lib/erasureService');
+			const storageSweep = await sweepPendingStorageDeletions();
 			const ledgerPurge = await purgeDrainedStorageDeletions();
 
 			const mode = opts.dryRun ? 'DRY-RUN' : 'LIVE';
@@ -1046,9 +1061,10 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 				`registry=${reg.purgedCount} (storage=${reg.storageDeleted}), templates=${tpl.deletedCount}, ` +
 				`observer_reports=${obs.deletedCount}, speech_measurements=${speechMeas.deletedCount}, ` +
 				`capture_intents_reconciled=${recon.rowsRetired}, test_capture_purged=${testPurge.objectsDeleted}, ` +
+				`storage_sweep_deleted=${storageSweep.deleted} (failed=${storageSweep.failed}, held=${storageSweep.heldSkips}), ` +
 				`storage_ledger_purged=${ledgerPurge.ledgerRowsPurged} (users=${ledgerPurge.usersPurged}, held=${ledgerPurge.ledgerRowsRetainedHeld}, lookup_failed=${ledgerPurge.ledgerHoldLookupFailed}), ` +
 				// #799: held rows are visibly skipped in the run report, never silently retained.
-				`held_skips=${(rec.heldSkips || 0) + (reg.heldSkips || 0) + (tpl.heldSkips || 0) + (obs.heldSkips || 0) + (speechMeas.heldSkips || 0) + (testPurge.heldSkips || 0) + (recon.heldSkips || 0)}`,
+				`held_skips=${(storageSweep.heldSkips || 0) + (rec.heldSkips || 0) + (reg.heldSkips || 0) + (tpl.heldSkips || 0) + (obs.heldSkips || 0) + (speechMeas.heldSkips || 0) + (testPurge.heldSkips || 0) + (recon.heldSkips || 0)}`,
 			);
 		} catch (err) {
 			console.error('[retention] Failed:', err.message);
