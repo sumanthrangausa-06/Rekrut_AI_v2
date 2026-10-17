@@ -29,6 +29,8 @@
 
 - **O1:** During server boot, a few background loaders logged `Connection terminated due to connection timeout` (ai-call-logger / activity-logger / token-budget DB loads). Health and every careers probe were unaffected (all 200). Pre-existing startup behaviour, noted for Lead triage only.
 
+- **O2:** The two screenshots are byte-identical (same md5). That is genuine, not a copy error: the public careers page renders the same public content whether or not a session token exists, and both captures are full-page renders of it. The distinguishing evidence for check (c) is therefore the session record in `evidence/browser-result.json` (separate contexts; the Beta token was set in localStorage before navigation, and the page's own API call still went to `/api/careers/quinn1187-alpha`) plus the token-authenticated API pair in `evidence/api-probe.json` (`default` → Beta, slug → Alpha with the same token).
+
 ## Limits
 
 Desktop viewport only (1440×900), per standing QA order. Local fresh install only — nothing on staging or production was touched, no PR was merged, no issue was closed, no flag flipped, no data outside this run's own local QA database was created or deleted, and no email/outreach was sent. #1187 remains **OPEN** for Lead.
