@@ -8,11 +8,18 @@
 -- claim transaction rolls back on a fully-migrated database.
 --
 -- Fix: replace the constraint with the widened value set. Idempotent:
--- DROP CONSTRAINT IF EXISTS + re-add runs cleanly whether the constraint
--- is present (normal case), already widened (re-run), or absent (drifted
--- DB). Re-adding validates existing rows; every value permitted before
+-- DROP CONSTRAINT IF EXISTS + re-add runs cleanly when the constraint is
+-- present (normal case), already widened (re-run), or absent while the
+-- column exists and all existing rows are within the widened set.
+-- Re-adding validates existing rows; every value permitted before
 -- ('manual', 'auto_apply', plus the column default 'manual') is in the
 -- widened set, so validation cannot fail on a 228-conformant database.
+-- On a drifted DB where the column/table is missing or out-of-set rows
+-- exist, the ADD fails — safely: migrate.js runs each migration in a
+-- transaction, so the failure rolls back and 263 stays unrecorded and
+-- retryable (database-reviewer finding, #1229). Before promoting this
+-- migration, verify the target DB's applied_via constraint + check for
+-- out-of-set rows with one pg_constraint query.
 -- Migration 228 is NOT edited.
 
 ALTER TABLE job_applications
