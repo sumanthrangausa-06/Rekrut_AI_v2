@@ -103,6 +103,13 @@ function applyCompanyProfile(
 	};
 }
 
+// #1259: bound for the login() hydration await. A healthy
+// /company/profile is one authenticated GET (~500–2000 ms worst case in
+// the #105 latency history); 5 s clears a slow-but-healthy response
+// (incl. cold starts) while bounding a truly hung request to a
+// tolerable login wait.
+const LOGIN_HYDRATION_TIMEOUT_MS = 5000;
+
 // Background variant used where the user is already on screen
 // (bootstrap / register): patches company_id + ownership when ready.
 function patchCompanyProfile(setUser: Dispatch<SetStateAction<User | null>>) {
@@ -239,11 +246,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		// call fails, and they keep company_id=null → still walled.
 		let resolvedUser = user;
 		if (isRecruiterRole(user.role)) {
+			const profilePromise = apiCall<CompanyProfileResponse>('/company/profile', {
+				skipAuthCheck: false,
+			});
 			try {
-				const companyData = await apiCall<CompanyProfileResponse>('/company/profile', {
-					skipAuthCheck: false,
-				});
-				resolvedUser = applyCompanyProfile(user, companyData);
+				// #1259: bound the hydration await — apiCall has no timeout
+				// of its own, so a never-resolving profile request would
+				// hang the login transition (and the first setUser) forever.
+				let timer: ReturnType<typeof setTimeout> | undefined;
+				const companyData = await Promise.race([
+					profilePromise,
+					new Promise<null>((resolve) => {
+						timer = setTimeout(() => resolve(null), LOGIN_HYDRATION_TIMEOUT_MS);
+					}),
+				]);
+				if (timer) clearTimeout(timer);
+				if (companyData) {
+					resolvedUser = applyCompanyProfile(user, companyData);
+				} else {
+					// Timed out: fall back to the genuine pending state —
+					// the same resolvedUser the failure path below produces
+					// — and keep hydrating in the background off the SAME
+					// request (the patchCompanyProfile pattern): a late
+					// success patches membership in, a late failure changes
+					// nothing. No error state, no duplicate request.
+					profilePromise
+						.then((lateData) => {
+							setUser((prev) => (prev ? applyCompanyProfile(prev, lateData) : prev));
+						})
+						.catch(() => {
+							// Late failure — genuine pending state already shown
+						});
+				}
 			} catch {
 				// No company associated — genuine pending-approval state
 			}
