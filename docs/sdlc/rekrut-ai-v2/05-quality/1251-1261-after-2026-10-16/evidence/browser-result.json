@@ -1,0 +1,69 @@
+{
+  "omniscoreWithPeers": {
+    "loginUrl": "http://localhost:3000/candidate",
+    "finalUrl": "http://localhost:3000/candidate/omniscore",
+    "has67thPercentile": true,
+    "has67Percent": true,
+    "hasFabricated50th": false,
+    "explainerCalls": [
+      "200 /api/omniscore/explainer"
+    ],
+    "textExcerpt": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nIdentity\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAI Screening\nAssessments\nOmniScore\nOTHER\nInterviews\nMessages\nOffers\nDocuments\nPay & Compensation\nOnboarding\nRefer & Earn\nSettings\nUpgrade to Pro\nSign out\nCandidate\nTry Premium\nRelevance\nFilters\nQuinn 1251 quinn-1251-solo\nOmniScore\n\nYour candidate credit score — like FICO for hiring\n\nTwo-Sided Scoring\nMy Score\nMutual Matches\nRate Companies\n372\nOMNISCORE\nNeeds Work\nYour Candidate Credit Score\n\nRanges from 300 (minimum) to 850 (exceptional). This score is visible to recruiters and affects your ranking in job matches.\n\n300\n850\nScore Breakdown\nVerified Skills\n8/100(25%)\n• 1 verified skills (+8)\n• 0 passed skill assessments, 0 passed job assessments (+0)\n• 0 portfolio projects (+0)\n• 0 verified documents (+0)\nInterview Performance\nInsufficient data\n\nMock and real interviews plus communication quality. Complete the related activities to unlock this factor.\n\nExperience Quality\nInsufficient data\n\nTenure, company tier, and role progression. Complete the related activities to unlock this factor.\n\nEducation & Credentials\nInsufficient data\n\nDegrees, courses, and verified credentials. Complete the related activities to unlock this factor.\n\nReliability Signals\nInsufficient data\n\nResponse time, attendance, and follow-through. Complete the related activities to unlock this factor.\n\nSoft Skills\nInsufficient data\n\nCollaboration, leadership, and adaptability. Complete the related activities to unlock this factor.\n\nMarket Demand\n40/100(5%)\n• 1 in-demand skill categories (+40)\nGrowth Trajectory\n10/100(5%)\n• 1 new skills in last 90d (+10)\n• 0 assessments in last"
+  },
+  "omniscoreNoData": {
+    "loginUrl": "http://localhost:3000/candidate",
+    "finalUrl": "http://localhost:3000/candidate/omniscore",
+    "hasInsufficientData": true,
+    "hasNA": true,
+    "has50thPercentile": false,
+    "hasAnyPercentileClaim": false,
+    "explainerCalls": [
+      "200 /api/omniscore/explainer"
+    ],
+    "textExcerpt": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nIdentity\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAI Screening\nAssessments\nOmniScore\nOTHER\nInterviews\nMessages\nOffers\nDocuments\nPay & Compensation\nOnboarding\nRefer & Earn\nSettings\nUpgrade to Pro\nSign out\nCandidate\nTry Premium\nRelevance\nFilters\nQuinn 1251 quinn-1251-zero\nOmniScore\n\nYour candidate credit score — like FICO for hiring\n\nTwo-Sided Scoring\nMy Score\nMutual Matches\nRate Companies\nInsufficient data\nOMNISCORE\nNew\nYour Candidate Credit Score\n\nRanges from 300 (minimum) to 850 (exceptional). This score is visible to recruiters and affects your ranking in job matches.\n\n300\n850\nScore Breakdown\nVerified Skills\nInsufficient data\n\nAssessments passed, certifications, and work samples. Complete the related activities to unlock this factor.\n\nInterview Performance\nInsufficient data\n\nMock and real interviews plus communication quality. Complete the related activities to unlock this factor.\n\nExperience Quality\nInsufficient data\n\nTenure, company tier, and role progression. Complete the related activities to unlock this factor.\n\nEducation & Credentials\nInsufficient data\n\nDegrees, courses, and verified credentials. Complete the related activities to unlock this factor.\n\nReliability Signals\nInsufficient data\n\nResponse time, attendance, and follow-through. Complete the related activities to unlock this factor.\n\nSoft Skills\nInsufficient data\n\nCollaboration, leadership, and adaptability. Complete the related activities to unlock this factor.\n\nMarket Demand\nInsufficient data\n\nHow your skills match current job market needs. Complete the related activities to unlock this factor.\n\nGrowth Trajectory\nInsuffic"
+  },
+  "careerDiagnosis": {
+    "loginUrl": "http://localhost:3000/candidate",
+    "finalUrl": "http://localhost:3000/candidate/career-diagnosis",
+    "introHasStart": true,
+    "diagnosisPosts": [
+      {
+        "method": "POST",
+        "path": "/api/career-diagnosis",
+        "postData": "{\"quizAnswers\":[{\"question\":\"How do you prefer to solve problems?\",\"answer\":\"Analyze data and find patterns\"},{\"question\":\"Which work environment excites you most?\",\"answer\":\"A fast-paced startup with rapid changes\"},{\"question\":\"When facing a tight deadline, you typically:\",\"answer\":\"Break it into tasks and delegate efficiently\"},{\"question\":\"What motivates you most in your career?\",\"answer\":\"Climbing the leadership ladder\"},{\"question\":\"How do you handle ambiguity and uncertainty?\",\"answer\":\"I create structure and define clear goals\"},{\"question\":\"Which skill would you most like to develop?\",\"answer\":\"Strategic thinking and decision-making\"},{\"question\":\"In a group project, what role do you naturally take?\",\"answer\":\"The project manager who keeps everything on track\"},{\"question\":\"How do you prefer to measure your success?\",\"answer\":\"By the results and outcomes I deliver\"},{\"question\":\"What is your ideal work-life balance?\",\"answer\":\"I am driven and do not mind long hours for big goals\"},{\"question\":\"If you could switch careers instantly, you would choose:\",\"answer\":\"A C-suite executive or founder\"}]}"
+      }
+    ],
+    "parsedBodyFieldNames": [
+      "quizAnswers"
+    ],
+    "quizAnswersLength": 10,
+    "bodyWasDoubleStringified": false,
+    "phantomRequests": [],
+    "diagnosisResponses": [
+      "200 POST /api/career-diagnosis"
+    ],
+    "resultRendered": true,
+    "hasArchetype": false,
+    "hasRecommendedPaths": true,
+    "resultExcerpt": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nIdentity\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAI Screening\nAssessments\nOmniScore\nOTHER\nInterviews\nMessages\nOffers\nDocuments\nPay & Compensation\nOnboarding\nRefer & Earn\nSettings\nUpgrade to Pro\nSign out\nCandidate\nTry Premium\nRelevance\nFilters\nQuinn 1251 quinn-1251-solo\nYour Career Diagnosis\n\nPersonalized career insights based on your answers\n\nRetake\n\nYOUR CAREER ARCHETYPE\n\nThe Creative Problem-Solver\n\nYou naturally gravitate toward creative problem-solver roles where you can leverage your strengths in analysis and execution.\n\nAs a The Creative Problem-Solver, you're well-positioned for growth into technical leadership. Focus on communication and strategic thinking to accelerate your trajectory.\n\nRecommended Career Paths\nEngineering Management\n82% fit\n\nLead technical teams while staying close to the code.\n\n2-4 years\nLeadership\nSystem Design\nCommunication\nStaff Engineer\n76% fit\n\nDeep technical expertise across multiple domains.\n\n3-5 years\nArchitecture\nMentoring\nCross-team Collaboration\nYour Strengths\nAnalytical thinking\nStrong communication\nAdaptability\nGrowth Areas\nPublic speaking\nStrategic planning\nDelegation\nRecommended Roles\n\nEngineering Manager\n\n$140K - $200K\n\nCombines technical depth with people leadership.\n\nStaff Software Engineer\n\n$160K - $250K\n\nLeverages your technical breadth and mento",
+    "allApiRequests": [
+      "GET /api/auth/oauth/status",
+      "POST /api/analytics/events",
+      "POST /api/analytics/events",
+      "POST /api/auth/login",
+      "GET /api/billing/tier",
+      "POST /api/analytics/events",
+      "GET /api/notifications/in-app?limit=50",
+      "GET /api/candidate/dashboard/stats",
+      "GET /api/jobs?limit=5",
+      "GET /api/interviews/my-interviews",
+      "GET /api/interviews/screening/my-sessions",
+      "GET /api/auth/me",
+      "GET /api/auth/me",
+      "GET /api/billing/tier",
+      "GET /api/billing/tier",
+      "GET /api/notifications/in-app?limit=50",
+      "POST /api/career-diagnosis"
+    ]
+  }
+}
