@@ -72,7 +72,7 @@ router.get('/default', authMiddleware, async (req, res) => {
 				location: company.location || 'Remote-friendly',
 				size: company.size || null,
 				industry: company.industry || 'Technology / SaaS',
-				founded: company.founded_year ? String(company.founded_year) : '2020',
+				founded: company.founded_year ? String(company.founded_year) : null,
 				trustscore: company.trustscore != null ? Math.round(company.trustscore) : null,
 				rating:
 					parseInt(company.review_count, 10) > 0 && company.rating != null
@@ -228,7 +228,7 @@ router.get('/:id', async (req, res) => {
 				location: company.location || 'Remote-friendly',
 				size: company.size || null,
 				industry: company.industry || 'Technology / SaaS',
-				founded: company.founded_year ? String(company.founded_year) : '2020',
+				founded: company.founded_year ? String(company.founded_year) : null,
 				trustscore: company.trustscore != null ? Math.round(company.trustscore) : null,
 				rating:
 					parseInt(company.review_count, 10) > 0 && company.rating != null
