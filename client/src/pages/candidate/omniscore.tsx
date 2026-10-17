@@ -36,10 +36,11 @@ interface ScoreExplainer {
 		action?: string;
 	}>;
 	peerComparison: {
-		percentile: number;
-		avgScore: number;
-		topScore: number;
-		medianScore: number;
+		// #1219/#1192 honest-null: null when there is no peer data yet.
+		percentile: number | null;
+		avgScore: number | null;
+		topScore: number | null;
+		medianScore: number | null;
 	};
 	improvementRoadmap: Array<{
 		step: number;
@@ -589,43 +590,47 @@ export function CandidateOmniScorePage() {
 										<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
 											<div className="text-center">
 												<p className="text-2xl sm:text-3xl font-bold text-primary">
-													{explainer.peerComparison.percentile}%
+													{explainer.peerComparison.percentile === null
+														? 'N/A'
+														: `${explainer.peerComparison.percentile}%`}
 												</p>
 												<p className="text-xs text-muted-foreground">Percentile</p>
 											</div>
 											<div className="text-center">
 												<p className="text-2xl sm:text-3xl font-bold">
-													{explainer.peerComparison.avgScore}
+													{explainer.peerComparison.avgScore ?? 'N/A'}
 												</p>
 												<p className="text-xs text-muted-foreground">Avg Score</p>
 											</div>
 											<div className="text-center">
 												<p className="text-2xl sm:text-3xl font-bold">
-													{explainer.peerComparison.medianScore}
+													{explainer.peerComparison.medianScore ?? 'N/A'}
 												</p>
 												<p className="text-xs text-muted-foreground">Median Score</p>
 											</div>
 											<div className="text-center">
 												<p className="text-2xl sm:text-3xl font-bold text-emerald-500">
-													{explainer.peerComparison.topScore}
+													{explainer.peerComparison.topScore ?? 'N/A'}
 												</p>
 												<p className="text-xs text-muted-foreground">Top Score</p>
 											</div>
 										</div>
-										<div className="mt-4 p-3 rounded-lg bg-muted/50 text-sm text-center">
-											<p className="text-muted-foreground">
-												You are in the{' '}
-												<span className="font-bold text-primary">
-													{explainer.peerComparison.percentile}th percentile
-												</span>{' '}
-												of all candidates.
-												{explainer.peerComparison.percentile > 80
-													? ' Outstanding! 🎉'
-													: explainer.peerComparison.percentile > 50
-														? ' Above average.'
-														: ' Room to improve.'}
-											</p>
-										</div>
+										{explainer.peerComparison.percentile !== null && (
+											<div className="mt-4 p-3 rounded-lg bg-muted/50 text-sm text-center">
+												<p className="text-muted-foreground">
+													You are in the{' '}
+													<span className="font-bold text-primary">
+														{explainer.peerComparison.percentile}th percentile
+													</span>{' '}
+													of all candidates.
+													{explainer.peerComparison.percentile > 80
+														? ' Outstanding! 🎉'
+														: explainer.peerComparison.percentile > 50
+															? ' Above average.'
+															: ' Room to improve.'}
+												</p>
+											</div>
+										)}
 									</CardContent>
 								</Card>
 							</div>

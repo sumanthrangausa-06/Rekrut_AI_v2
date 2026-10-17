@@ -1088,10 +1088,14 @@ async function getScoreExplainer(userId) {
 		});
 	}
 
-	// Peer comparison
+	// Peer comparison. #1219: the old query also selected
+	// `PERCENT_RANK() WITHIN GROUP (ORDER BY total_score)` — a hypothetical-set
+	// aggregate with zero direct arguments against one ordering column, which
+	// Postgres can never resolve ("function percent_rank(integer) does not
+	// exist") and which 500'd this endpoint. Its result was never used:
+	// percentile comes from calculateScore (COUNT FILTER / NULLIF, above).
 	const percentileRes = await pool.query(
 		`SELECT
-      PERCENT_RANK() WITHIN GROUP (ORDER BY total_score) * 100 as percentile,
       AVG(total_score) as avg_score,
       MAX(total_score) as top_score,
       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total_score) as median_score
@@ -1099,14 +1103,17 @@ async function getScoreExplainer(userId) {
 	);
 	const peerStats = percentileRes.rows[0] || {};
 	const userPercentile = scoreData.peer_percentile;
+	// #1219/#1192 honest-null: aggregates over an empty omni_scores table are
+	// NULL — serve null, never the old fabricated 500/1000/500 fallbacks.
+	const peerStat = (v) => (v === null || v === undefined ? null : Math.round(parseFloat(v)));
 
 	return {
 		factors: explainers.sort((a, b) => b.impact - a.impact),
 		peerComparison: {
 			percentile: userPercentile,
-			avgScore: Math.round(parseFloat(peerStats.avg_score || '500')),
-			topScore: Math.round(parseFloat(peerStats.top_score || '1000')),
-			medianScore: Math.round(parseFloat(peerStats.median_score || '500')),
+			avgScore: peerStat(peerStats.avg_score),
+			topScore: peerStat(peerStats.top_score),
+			medianScore: peerStat(peerStats.median_score),
 		},
 		improvementRoadmap: buildRoadmap(factors),
 		fraud_signals: scoreData.fraud_signals,
