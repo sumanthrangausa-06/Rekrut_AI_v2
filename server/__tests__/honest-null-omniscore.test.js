@@ -9,7 +9,7 @@
  */
 
 // ─── Stateful in-memory omni_scores mock ────────────────────────────────────
-const mockState = { omniRow: null, snapshots: [], skills: [], deletedAt: null };
+const mockState = { omniRow: null, snapshots: [], skills: [], deletedAt: null, percentile: '63.6' };
 const mockClientQuery = jest.fn(async (sql) => {
 	if (sql.includes('candidate_skills')) return { rows: mockState.skills };
 	return { rows: [] };
@@ -46,10 +46,10 @@ jest.mock('../../lib/db', () => ({
 			return { rows: [] };
 		}
 		if (sql.includes('INSERT INTO score_snapshots')) {
-			mockState.snapshots.push({ total_score: params[1] });
+			mockState.snapshots.push({ total_score: params[1], peer_percentile: params[3] });
 			return { rows: [] };
 		}
-		if (sql.includes('COUNT(*) FILTER')) return { rows: [{ percentile: '50' }] };
+		if (sql.includes('COUNT(*) FILTER')) return { rows: [{ percentile: mockState.percentile }] };
 		return { rows: [] };
 	}),
 }));
@@ -64,6 +64,7 @@ beforeEach(() => {
 	mockState.snapshots = [];
 	mockState.skills = [];
 	mockState.deletedAt = null;
+	mockState.percentile = '63.6';
 	jest.clearAllMocks();
 	// clearAllMocks wipes the factory implementations above — restore them.
 	pool.query.mockImplementation(async (sql, params = []) => {
@@ -90,10 +91,10 @@ beforeEach(() => {
 			return { rows: [] };
 		}
 		if (sql.includes('INSERT INTO score_snapshots')) {
-			mockState.snapshots.push({ total_score: params[1] });
+			mockState.snapshots.push({ total_score: params[1], peer_percentile: params[3] });
 			return { rows: [] };
 		}
-		if (sql.includes('COUNT(*) FILTER')) return { rows: [{ percentile: '50' }] };
+		if (sql.includes('COUNT(*) FILTER')) return { rows: [{ percentile: mockState.percentile }] };
 		return { rows: [] };
 	});
 	mockClientQuery.mockImplementation(async (sql) => {
@@ -163,6 +164,34 @@ describe('#1192 OmniScore — with-inputs regression (unchanged computation)', (
 		expect(score.tier).toBe('needs_work');
 		expect(score.tier_label).toBe('Needs Work');
 		expect(typeof score.peer_percentile).toBe('number');
+		// #1251: the mock serves a REAL percentile ('63.6') — distinct from the
+		// fabricated '50' fallback — and it must pass through rounded, unchanged.
+		expect(score.peer_percentile).toBe(64);
+	});
+});
+
+describe('#1251 calculateScore peer-percentile — NULL percentile stays null (honest-null)', () => {
+	const SKILL = {
+		skill_name: 'JavaScript',
+		category: 'software engineering',
+		level: 'expert',
+		is_verified: true,
+		years_experience: 3,
+		created_at: new Date(),
+	};
+
+	test('with inputs but no scored peers (percentile query returns NULL) → peer_percentile is null, never fabricated 50', async () => {
+		mockState.skills = [SKILL];
+		// Postgres returns NULL for COUNT FILTER / NULLIF(COUNT(total_score),0)
+		// when omni_scores has zero rows with a non-null total_score.
+		mockState.percentile = null;
+		await getOrCreateScore(EMPTY_USER);
+		const score = await calculateScore(EMPTY_USER);
+		expect(score.total_score).toBe(372);
+		expect(score.peer_percentile).toBeNull();
+		// Persisted row and snapshot must carry the honest null too.
+		expect(mockState.omniRow.peer_percentile).toBeNull();
+		for (const s of mockState.snapshots) expect(s.peer_percentile).toBeNull();
 	});
 });
 
