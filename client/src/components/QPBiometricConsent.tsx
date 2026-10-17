@@ -71,7 +71,7 @@ export function QPBiometricConsent({ sessionId, onAccepted, onDeclined, onBack }
 		setSubmitState('submitting');
 		setSubmitError(null);
 		try {
-			await apiCall('/api/consent/record', {
+			await apiCall('/consent/record', {
 				method: 'POST',
 				body: { sessionId, type: 'biometric_practice', accepted: true },
 			});
@@ -86,11 +86,15 @@ export function QPBiometricConsent({ sessionId, onAccepted, onDeclined, onBack }
 		// LOW-5: fire-and-forget. The comment previously said "does not block"
 		// but the code awaited — awaiting a hung endpoint makes decline feel
 		// broken, which risks nudging the user toward accept (dark-pattern-adjacent).
-		apiCall('/api/consent/record', {
+		apiCall('/consent/record', {
 			method: 'POST',
 			body: { sessionId, type: 'biometric_practice', accepted: false },
 		}).catch(() => {
-			// Intentionally swallowed — decline stands regardless of receipt write.
+			// Fire-and-forget (LOW-5): the user's decline stands regardless, and
+			// blocking on a failed write would nudge toward accept. A failed
+			// receipt write is an audit gap — it is NOT silently acceptable in
+			// aggregate; it is covered by #1306's end-to-end closure gate,
+			// which reads the decline receipt row back on dev.
 		});
 		// No local declined UI: the parent renders the declined panel on
 		// onDeclined(). (H1: a component-local declined block would be dead
