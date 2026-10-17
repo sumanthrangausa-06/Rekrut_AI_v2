@@ -1,0 +1,205 @@
+{
+  "checks": [
+    {
+      "id": "setup",
+      "label": "login 200 + token",
+      "pass": true,
+      "detail": "status=200"
+    },
+    {
+      "id": "1271a",
+      "label": "mutual-matches 200",
+      "pass": true,
+      "detail": "status=200"
+    },
+    {
+      "id": "1271a",
+      "label": "applied job row present (candidate applied, NO match_results row)",
+      "pass": true,
+      "detail": "rows=1"
+    },
+    {
+      "id": "1271a",
+      "label": "skill_match === \"Insufficient data\"",
+      "pass": true,
+      "detail": "skill_match=\"Insufficient data\""
+    },
+    {
+      "id": "1271a",
+      "label": "no fabricated \"50% match\" in payload",
+      "pass": true,
+      "detail": "full JSON scan"
+    },
+    {
+      "id": "1271a",
+      "label": "NULL match contributes 0 strength -> mutual fit 0 (old ||50 would be >0 with candidate skill seeded)",
+      "pass": true,
+      "detail": "fitKey=mutual_fit_score value=0 numericFields={\"job_id\":1,\"company_id\":1,\"your_omniscore\":372,\"mutual_fit_score\":0}"
+    }
+  ],
+  "status": 200,
+  "body": {
+    "success": true,
+    "your_omniscore": {
+      "total_score": 372,
+      "interview": 0,
+      "technical": 8,
+      "resume": 0,
+      "behavior": 43,
+      "tier": "needs_work",
+      "tier_label": "Needs Work",
+      "peer_percentile": 100,
+      "fraud_signals": [],
+      "factors": {
+        "verified_skills": {
+          "raw": 8,
+          "weight": 0.25,
+          "details": [
+            "1 verified skills (+8)",
+            "0 passed skill assessments, 0 passed job assessments (+0)",
+            "0 portfolio projects (+0)",
+            "0 verified documents (+0)"
+          ],
+          "hasData": true
+        },
+        "interview_performance": {
+          "raw": 0,
+          "weight": 0.2,
+          "details": [
+            "No practice sessions yet",
+            "No completed interviews yet"
+          ],
+          "hasData": false
+        },
+        "experience_quality": {
+          "raw": 0,
+          "weight": 0.15,
+          "details": [
+            "0.0 years experience (+0.0)",
+            "0 current role(s) (+0)",
+            "Role progression bonus (+0)",
+            "0 documented achievements (+0)"
+          ],
+          "hasData": false
+        },
+        "education_credentials": {
+          "raw": 0,
+          "weight": 0.1,
+          "details": [
+            "Education quality (+0)",
+            "0 verified education docs (+0)",
+            "0 fields of study (+0)"
+          ],
+          "hasData": false
+        },
+        "reliability_signals": {
+          "raw": 85,
+          "weight": 0.1,
+          "details": [
+            "Interview attendance 50% (+15.0)",
+            "Application follow-through 100% (+20.0)"
+          ],
+          "hasData": true
+        },
+        "soft_skills": {
+          "raw": 0,
+          "weight": 0.1,
+          "details": [
+            "No soft-skill practice sessions yet",
+            "No soft-skill interview feedback yet"
+          ],
+          "hasData": false
+        },
+        "market_demand": {
+          "raw": 40,
+          "weight": 0.05,
+          "details": [
+            "1 in-demand skill categories (+40)"
+          ],
+          "hasData": true
+        },
+        "growth_trajectory": {
+          "raw": 10,
+          "weight": 0.05,
+          "details": [
+            "1 new skills in last 90d (+10)",
+            "0 assessments in last 90d (+0)",
+            "0 active weeks in last 30d (+0)"
+          ],
+          "hasData": true
+        }
+      }
+    },
+    "mutual_matches": [
+      {
+        "job_id": 1,
+        "title": "Quinn 1271 Engineer",
+        "location": "Remote",
+        "salary_range": null,
+        "job_type": "full-time",
+        "company_id": 1,
+        "company_name": "Quinn 1258 Co",
+        "logo_url": null,
+        "industry": "Tech",
+        "is_verified": false,
+        "company_trust_score": null,
+        "company_tier": null,
+        "application_status": "applied",
+        "match_score": null,
+        "match_level": null,
+        "avg_company_rating": "0",
+        "rating_count": "0",
+        "your_omniscore": 372,
+        "your_tier": "Needs Work",
+        "mutual_fit_score": 0,
+        "mutual_level": "low",
+        "signals": {
+          "your_score": "OmniScore 372 (Needs Work)",
+          "company_score": "TrustScore N/A (Insufficient data)",
+          "skill_match": "Insufficient data"
+        }
+      }
+    ],
+    "explanation": "Mutual fit combines your OmniScore, company TrustScore, and skill match into a single compatibility score."
+  },
+  "row": {
+    "job_id": 1,
+    "title": "Quinn 1271 Engineer",
+    "location": "Remote",
+    "salary_range": null,
+    "job_type": "full-time",
+    "company_id": 1,
+    "company_name": "Quinn 1258 Co",
+    "logo_url": null,
+    "industry": "Tech",
+    "is_verified": false,
+    "company_trust_score": null,
+    "company_tier": null,
+    "application_status": "applied",
+    "match_score": null,
+    "match_level": null,
+    "avg_company_rating": "0",
+    "rating_count": "0",
+    "your_omniscore": 372,
+    "your_tier": "Needs Work",
+    "mutual_fit_score": 0,
+    "mutual_level": "low",
+    "signals": {
+      "your_score": "OmniScore 372 (Needs Work)",
+      "company_score": "TrustScore N/A (Insufficient data)",
+      "skill_match": "Insufficient data"
+    }
+  },
+  "numericFields": {
+    "job_id": 1,
+    "company_id": 1,
+    "your_omniscore": 372,
+    "mutual_fit_score": 0
+  },
+  "note": "mutual_fit_score=0 is consistent with 0-strength NULL contribution, but NOT discriminating in this seed: company trust is also NULL (companyStrength=0), so the geometric mean is 0 under old code too. Discriminating live evidence = skill_match \"Insufficient data\" (old code printed \"0% match\" via ||0 in the label and used ||50 in strength). The strength math with non-zero other signals is covered by the merged unit suite omniscore-mutual-matches-1271.test.js run at this head (see evidence/jest-1271.log).",
+  "summary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0
+  }
+}

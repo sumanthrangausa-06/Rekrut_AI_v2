@@ -1,0 +1,255 @@
+{
+  "seed": {
+    "companyId": 1,
+    "employerId": 1,
+    "employerCompanyId": 1,
+    "candidateId": 2,
+    "candidateCompanyId": null,
+    "mmCandidateId": 3,
+    "jobId": 1,
+    "matchResultsForMm": 0
+  },
+  "phases": {
+    "empLogin": {
+      "status": 200,
+      "user": {
+        "id": 1,
+        "email": "quinn-1258-employer@example.com",
+        "name": "Quinn 1258 Employer",
+        "role": "employer",
+        "company_id": 1,
+        "is_paid": false,
+        "avatar_url": null
+      }
+    },
+    "candLogin": {
+      "status": 200,
+      "user": {
+        "id": 2,
+        "email": "quinn-1258-candidate@example.com",
+        "name": "Quinn 1258 Candidate",
+        "role": "candidate",
+        "company_id": null,
+        "is_paid": false,
+        "avatar_url": null
+      }
+    },
+    "me": {
+      "status": 200,
+      "company_id": 1
+    },
+    "mutualMatches": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "your_omniscore": {
+          "total_score": 372,
+          "interview": 0,
+          "technical": 8,
+          "resume": 0,
+          "behavior": 43,
+          "tier": "needs_work",
+          "tier_label": "Needs Work",
+          "peer_percentile": null,
+          "fraud_signals": [],
+          "factors": {
+            "verified_skills": {
+              "raw": 8,
+              "weight": 0.25,
+              "details": [
+                "1 verified skills (+8)",
+                "0 passed skill assessments, 0 passed job assessments (+0)",
+                "0 portfolio projects (+0)",
+                "0 verified documents (+0)"
+              ],
+              "hasData": true
+            },
+            "interview_performance": {
+              "raw": 0,
+              "weight": 0.2,
+              "details": [
+                "No practice sessions yet",
+                "No completed interviews yet"
+              ],
+              "hasData": false
+            },
+            "experience_quality": {
+              "raw": 0,
+              "weight": 0.15,
+              "details": [
+                "0.0 years experience (+0.0)",
+                "0 current role(s) (+0)",
+                "Role progression bonus (+0)",
+                "0 documented achievements (+0)"
+              ],
+              "hasData": false
+            },
+            "education_credentials": {
+              "raw": 0,
+              "weight": 0.1,
+              "details": [
+                "Education quality (+0)",
+                "0 verified education docs (+0)",
+                "0 fields of study (+0)"
+              ],
+              "hasData": false
+            },
+            "reliability_signals": {
+              "raw": 85,
+              "weight": 0.1,
+              "details": [
+                "Interview attendance 50% (+15.0)",
+                "Application follow-through 100% (+20.0)"
+              ],
+              "hasData": true
+            },
+            "soft_skills": {
+              "raw": 0,
+              "weight": 0.1,
+              "details": [
+                "No soft-skill practice sessions yet",
+                "No soft-skill interview feedback yet"
+              ],
+              "hasData": false
+            },
+            "market_demand": {
+              "raw": 40,
+              "weight": 0.05,
+              "details": [
+                "1 in-demand skill categories (+40)"
+              ],
+              "hasData": true
+            },
+            "growth_trajectory": {
+              "raw": 10,
+              "weight": 0.05,
+              "details": [
+                "1 new skills in last 90d (+10)",
+                "0 assessments in last 90d (+0)",
+                "0 active weeks in last 30d (+0)"
+              ],
+              "hasData": true
+            }
+          }
+        },
+        "mutual_matches": [
+          {
+            "job_id": 1,
+            "title": "Quinn 1271 Engineer",
+            "location": "Remote",
+            "salary_range": null,
+            "job_type": "full-time",
+            "company_id": 1,
+            "company_name": "Quinn 1258 Co",
+            "logo_url": null,
+            "industry": "Tech",
+            "is_verified": false,
+            "company_trust_score": null,
+            "company_tier": null,
+            "application_status": "applied",
+            "match_score": null,
+            "match_level": null,
+            "avg_company_rating": "0",
+            "rating_count": "0",
+            "your_omniscore": 372,
+            "your_tier": "Needs Work",
+            "mutual_fit_score": 0,
+            "mutual_level": "low",
+            "signals": {
+              "your_score": "OmniScore 372 (Needs Work)",
+              "company_score": "TrustScore N/A (Insufficient data)",
+              "skill_match": "Insufficient data"
+            }
+          }
+        ],
+        "explanation": "Mutual fit combines your OmniScore, company TrustScore, and skill match into a single compatibility score."
+      }
+    },
+    "companyMatchesLive": {
+      "status": 500,
+      "body": {
+        "error": "Internal server error",
+        "ref": "4a50aef5-2321-405f-968b-12df7af0f7b6"
+      }
+    }
+  },
+  "checks": [
+    {
+      "id": "1258",
+      "label": "employer login 200",
+      "pass": true,
+      "detail": "status=200"
+    },
+    {
+      "id": "1258",
+      "label": "employer login user HAS company_id key",
+      "pass": true,
+      "detail": "keys=id,email,name,role,company_id,is_paid,avatar_url"
+    },
+    {
+      "id": "1258",
+      "label": "employer login company_id === users.company_id (seeded company)",
+      "pass": true,
+      "detail": "payload=1 db=1"
+    },
+    {
+      "id": "1258",
+      "label": "candidate login 200",
+      "pass": true,
+      "detail": "status=200"
+    },
+    {
+      "id": "1258",
+      "label": "candidate login user HAS company_id key, present-and-null",
+      "pass": true,
+      "detail": "payload=null"
+    },
+    {
+      "id": "1258",
+      "label": "consistency: GET /auth/me company_id matches login payload",
+      "pass": true,
+      "detail": "me=1 login=1 meStatus=200"
+    },
+    {
+      "id": "setup",
+      "label": "match-candidate login 200 + token",
+      "pass": true,
+      "detail": "status=200"
+    },
+    {
+      "id": "1271a",
+      "label": "mutual-matches 200",
+      "pass": true,
+      "detail": "status=200 bodyKeys=success,your_omniscore,mutual_matches,explanation"
+    },
+    {
+      "id": "1271a",
+      "label": "applied job row present in mutual-matches",
+      "pass": false,
+      "detail": "rows=0 first=null"
+    },
+    {
+      "id": "1271a",
+      "label": "skill_match === \"Insufficient data\" (never a fabricated %)",
+      "pass": false,
+      "detail": "skill_match=undefined"
+    },
+    {
+      "id": "1271a",
+      "label": "no \"50% match\" anywhere in payload",
+      "pass": true,
+      "detail": "scan of full JSON"
+    },
+    {
+      "id": "1271b-live",
+      "label": "company-matches live response recorded (status + no fabricated 50 in any match_score)",
+      "pass": true,
+      "detail": "status=500 body={\"error\":\"Internal server error\",\"ref\":\"4a50aef5-2321-405f-968b-12df7af0f7b6\"}"
+    }
+  ],
+  "summary": {
+    "total": 12,
+    "passed": 10,
+    "failed": 2
+  }
+}
