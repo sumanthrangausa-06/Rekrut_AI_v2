@@ -50,7 +50,9 @@ interface CompanyMatch {
 	name: string;
 	industry: string;
 	logo_url?: string;
-	match_score: number;
+	// #1271: null when the AI returned no score for this company — the UI
+	// renders N/A, never a fabricated number.
+	match_score: number | null;
 	value_hook: string;
 	match_reason: string;
 	outreach_difficulty: 'easy' | 'medium' | 'hard';
@@ -148,14 +150,16 @@ function difficultyLabel(difficulty: string): string {
 	}
 }
 
-function scoreColorClass(score: number): string {
+function scoreColorClass(score: number | null): string {
+	if (score == null) return 'text-muted-foreground';
 	if (score >= 80) return 'text-emerald-600';
 	if (score >= 60) return 'text-amber-600';
 	if (score >= 40) return 'text-orange-600';
 	return 'text-red-600';
 }
 
-function scoreBgClass(score: number): string {
+function scoreBgClass(score: number | null): string {
+	if (score == null) return 'bg-slate-50 border-slate-200';
 	if (score >= 80) return 'bg-emerald-50 border-emerald-200';
 	if (score >= 60) return 'bg-amber-50 border-amber-200';
 	if (score >= 40) return 'bg-orange-50 border-orange-200';
@@ -731,10 +735,16 @@ export function CompanyMatchesPage() {
 																			scoreColorClass(match.match_score),
 																		)}
 																	>
-																		{match.match_score}%
+																		{match.match_score != null ? `${match.match_score}%` : 'N/A'}
 																	</span>
 																</div>
-																<Progress value={match.match_score} className="h-1.5" />
+																{match.match_score != null ? (
+																	<Progress value={match.match_score} className="h-1.5" />
+																) : (
+																	<span className="text-xs text-muted-foreground">
+																		Insufficient data
+																	</span>
+																)}
 															</div>
 														</div>
 
@@ -881,7 +891,7 @@ export function CompanyMatchesPage() {
 													scoreColorClass(selectedCompany.match_score),
 												)}
 											>
-												{selectedCompany.match_score}
+												{selectedCompany.match_score ?? 'N/A'}
 											</div>
 											<div className="text-[10px] text-muted-foreground">Match Score</div>
 										</div>
