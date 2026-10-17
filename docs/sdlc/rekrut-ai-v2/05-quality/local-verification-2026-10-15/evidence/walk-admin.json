@@ -1,0 +1,185 @@
+[
+  {
+    "module": "M20-admin",
+    "name": "admin-login-ui",
+    "url": "/admin/login",
+    "finalUrl": "/admin/ai-health"
+  },
+  {
+    "module": "M20-admin",
+    "name": "admin-dashboard",
+    "url": "/admin",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/admin/ai-health -> 404"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/admin",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Admin Dashboard Overview of system health, revenue, and operations Healthy Refresh Total Users 2 1 candidates · 0 recruiters Monthly Revenue $0 MRR active System Health 100% Recent Signups 1 100.0% conversion Admin Modules Revenue & Analytics MRR, conversions, funnel metrics, and visitor analytics AI Health Provider status, circuit breakers, token budgets, and diagnostics Agent Dashboard Monitor agent runs, success rates, and schedules EU AI Act Compliance Audit trail, risk classification, bias ",
+    "shot": "M20-admin__admin-dashboard.png"
+  },
+  {
+    "module": "M20-admin",
+    "name": "admin-ai-health-254",
+    "url": "/admin/ai-health",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/admin/ai-health",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Admin Dashboard HireLoop Monitoring & Control 27s Refresh Logout Overview AI Monitoring AI Providers Routes Prompts Activity Feed Degraded Performance 23 models · NIM off · Groq on · Cerebras on · Deepgram off · OpenAI: 0/100,000 tokens 0 API Calls 0 Failovers Platform Modules (16 modules — all 16 architecture domain groups) Users & Auth Total Users 0 Candidates 0 Recruiters 0 Active Today 0 Sessions 4 New /wk 0 Applications Total 1 Pending 0 Reviewing 0 Accepted 0 Rejected 0 Today 1 Recruiter D",
+    "shot": "M20-admin__admin-ai-health-254.png"
+  },
+  {
+    "module": "M21-analytics",
+    "name": "admin-analytics",
+    "url": "/admin/analytics",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load analytics: Error: Session expired\n    at N (http://localhost:3000/assets/index-BRf9XP4t.js:3:6218)\n    at async http://localhost:3000/assets/analytics-C74hpmfZ.js:1:1166"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/analytics/dashboard -> 401"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/login",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Rekrut AI Don't have an account? Sign up Sign in Welcome back — pick up where you left off Email Password Remember me Forgot password? Sign in Or sign in with Google LinkedIn SSL Secured Trusted by 2,000+ companies SOC 2 Type II compliant · GDPR ready · AES-256 encryption Welcome back! Sign in to access your dashboard, track applications, and continue your interview practice. Job Seeker Find your next role Employer Hire top talent",
+    "shot": "M21-analytics__admin-analytics.png"
+  },
+  {
+    "module": "M20-admin",
+    "name": "admin-agents",
+    "url": "/admin/agents",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/admin/agents",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Agent Monitor Real-time visibility into all 210 agents Refresh Run All Agent Health Running 0 (0%) Idle 0 (0%) Failed 0 (0%) Paused 0 (0%) Recent Failures (24h) No failures in last 24h Queue Status Pending jobs 0 Auto-scaling at 50+ queue depth Agents 0 Running 0 Failed 0 Recent Runs 0 No agents found Try adjusting your search or filters Clear filters",
+    "shot": "M20-admin__admin-agents.png"
+  },
+  {
+    "module": "M20-admin",
+    "name": "admin-agent-dashboard",
+    "url": "/admin/agent-dashboard",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/admin/agent-dashboard",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Agent Command Center Real-time agent orchestration(data: 7:58:00 AM) Pause Refresh Tasks Team Last updated: 7:25:48 PM 0 Total Tasks 0 To Do 0 In Progress 0 Done 0 Blocked 0 Critical All Tasks Critical High Blocked To Do 0 No tasks In Progress 0 No tasks Review 0 No tasks Done 0 No tasks Blocked 0 No tasks Timeout 0 No tasks",
+    "shot": "M20-admin__admin-agent-dashboard.png"
+  },
+  {
+    "module": "M20-admin",
+    "name": "admin-biometric-audit",
+    "url": "/admin/biometric-audit",
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /admin/biometric-audit -> 404",
+      "GET /api/admin/biometric-audit -> 401"
+    ],
+    "docStatus": 404,
+    "finalUrl": "/login",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Rekrut AI Don't have an account? Sign up Sign in Welcome back — pick up where you left off Email Password Remember me Forgot password? Sign in Or sign in with Google LinkedIn SSL Secured Trusted by 2,000+ companies SOC 2 Type II compliant · GDPR ready · AES-256 encryption Welcome back! Sign in to access your dashboard, track applications, and continue your interview practice. Job Seeker Find your next role Employer Hire top talent",
+    "shot": "M20-admin__admin-biometric-audit.png"
+  },
+  {
+    "module": "M19-privacy",
+    "name": "admin-compliance",
+    "url": "/admin/compliance",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/admin/compliance/data-requests -> 500",
+      "GET /api/admin/compliance/consents -> 500",
+      "GET /api/admin/compliance/appeals -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/admin/compliance",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "EU AI Act Compliance Audit trail, risk classification, and transparency reports for AI decisions Export CSV JSON 25% EU AI Act Compliance Score Partially compliant: complete remaining requirements 3 complete 0 pending 8 incomplete 1 in progress Progress 25% Next review: 1/13/2027 Total Decisions 0 Human Reviewed 0 0% Bias Flags 0 Clean Human Overrides 0 Consent Records 0 Active Consents 0 0% Pending Data Requests 0 Clean Pending Appeals 0 Clean AI Screening & Matching High Risk Last: 10/15/2026 ",
+    "shot": "M19-privacy__admin-compliance.png"
+  },
+  {
+    "module": "M18-comms",
+    "name": "admin-email-queue",
+    "url": "/admin/email-queue",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load email queue stats: Error: Session expired\n    at N (http://localhost:3000/assets/index-BRf9XP4t.js:3:6218)\n    at async http://localhost:3000/assets/email-queue-rFSvvpkw.js:1:400"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/admin/email-queue -> 401"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/login",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Rekrut AI Don't have an account? Sign up Sign in Welcome back — pick up where you left off Email Password Remember me Forgot password? Sign in Or sign in with Google LinkedIn SSL Secured Trusted by 2,000+ companies SOC 2 Type II compliant · GDPR ready · AES-256 encryption Welcome back! Sign in to access your dashboard, track applications, and continue your interview practice. Job Seeker Find your next role Employer Hire top talent",
+    "shot": "M18-comms__admin-email-queue.png"
+  },
+  {
+    "module": "M19-privacy",
+    "name": "admin-eu-ai-act",
+    "url": "/admin/eu-ai-act",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/admin/compliance/data-processing -> 404",
+      "GET /api/admin/compliance/consent -> 404",
+      "GET /api/admin/compliance/data-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/admin/eu-ai-act",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "EU AI Act Compliance Dashboard Complete audit trail, risk classification, and transparency reports for AI decisions in accordance with Regulation (EU) 2024/1689 Export Report Total AI Decisions 0 Human Reviewed 0 0% Bias Flags 0 Clean Human Overrides 0 AI Screening & Matching High Risk Last: 10/15/2026 Next: 1/13/2027 Automated candidate screening and job matching affect employment opportunities. High-risk under EU AI Act. Human review required Bias audits monthly Right to explanation Appeal pro",
+    "shot": "M19-privacy__admin-eu-ai-act.png"
+  },
+  {
+    "module": "M16-billing",
+    "name": "admin-revenue",
+    "url": "/admin/revenue",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/admin/revenue",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Stripe ready Revenue Revenue Dashboard + Funnel Metrics Track pricing interest, checkout starts, completed payments, and enterprise handoffs from one place. Open pricing page AI health Test signup flow Pricing viewers 1 0.00 to checkout Checkout starts 0 0.00 completion Checkout confirmations 0 0 canceled Enterprise leads 0 0.00 of pricing visitors Acquisition funnel Landing visitors should flow into signups and role selection. Landing views 1 Signup clicks 0.0% of prior step 0 Signup completion",
+    "shot": "M16-billing__admin-revenue.png"
+  }
+]

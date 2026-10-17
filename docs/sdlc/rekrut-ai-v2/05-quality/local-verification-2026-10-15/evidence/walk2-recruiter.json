@@ -1,0 +1,125 @@
+[
+  {
+    "module": "M8-session-engine",
+    "name": "recruiter-session-room",
+    "url": "/recruiter/session-room",
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /recruiter/session-room -> 404",
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 404,
+    "finalUrl": "/recruiter/session-room",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter No Session Selected Open this page from the 'Join voice room' button on a human interview session. © 2026 Rekrut AI, Inc. Privacy Terms Help Center",
+    "shot": "M8-session-engine__recruiter-session-room.png"
+  },
+  {
+    "module": "M3-jobs",
+    "name": "recruiter-job-detail",
+    "url": "/recruiter/jobs/1",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/jobs/1",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Pipeline QA Fixture Data Analyst — 1 applicant ✨ Assessment Automation Board List Activity 1 Total 1 New 0 In Pipeline 0 Offered/Hired New 1 Q QA Candidate 36% Today Screening Advance Sc",
+    "shot": "M3-jobs__recruiter-job-detail.png"
+  },
+  {
+    "module": "M13-assessments",
+    "name": "recruiter-job-assessment",
+    "url": "/recruiter/jobs/1/assessment",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/jobs/1/assessment",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Back to Pipeline AI Assessment Generator Generate a custom skill assessment tailored to this job's requirements. AI will create technical, scenario-based, behavioral, and code challenge ",
+    "shot": "M13-assessments__recruiter-job-assessment.png"
+  },
+  {
+    "module": "M17-posthire",
+    "name": "recruiter-onboarding-ai",
+    "url": "/recruiter/onboarding-ai",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/onboarding-ai",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter AI Onboarding Plans Generate personalized onboarding plans for new hires Generate New Plan No AI Plans Yet Click \"Generate New Plan\" to create a personalized 30-day onboarding plan for a",
+    "shot": "M17-posthire__recruiter-onboarding-ai.png"
+  },
+  {
+    "module": "M17-posthire",
+    "name": "recruiter-onboarding-docs",
+    "url": "/recruiter/onboarding-docs",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/onboarding-docs",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Onboarding Documents Track candidate onboarding completion and document signatures 📂 No Candidates Yet Once candidates accept offers, their onboarding documents will appear here. © 2026",
+    "shot": "M17-posthire__recruiter-onboarding-docs.png"
+  },
+  {
+    "module": "M16-billing",
+    "name": "recruiter-settings-billing",
+    "url": "/settings",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/settings",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Join Requests Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Settings Manage your profile, account, and preferences Account Notifications Privacy Appearance Billing Change Password Update your password to keep your account secure Current Password ",
+    "shot": "M16-billing__recruiter-settings-billing.png"
+  },
+  {
+    "module": "M17-posthire",
+    "name": "employee-payroll-public",
+    "url": "/employee-payroll",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/join-requests -> 500",
+      "GET /api/payroll/employee/profile -> 404"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/candidate/payroll",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Settings Sign out Recruiter Try Premium Relevance Filters 1 QA Recruiter Payroll Not Set Up Your payroll profile hasn't been created ye",
+    "shot": "M17-posthire__employee-payroll-public.png"
+  }
+]

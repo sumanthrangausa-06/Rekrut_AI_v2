@@ -1,0 +1,245 @@
+[
+  {
+    "module": "public",
+    "name": "landing",
+    "url": "/",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/",
+    "title": "AI-Powered Career Companion — Find Your Next Job Faster — Rekrut AI",
+    "text": "Rekrut AI Pricing Blog About Contact Sign in Get started AI-powered career companion for candidates who want to get hired faster Your AI-Powered Career Companion Match with jobs that fit your skills. Practice interviews with AI. Get hired faster — no spam, no noise. Search Get Started Free See How It Works No credit card required. Free forever. Upgrade when you are ready. Bank-grade security In-house KYC 50,000+ active candidates AI-matched to real jobs rekrutai.co/dashboard Active Candidates 50",
+    "shot": "public__landing.png"
+  },
+  {
+    "module": "public",
+    "name": "pricing",
+    "url": "/pricing",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/pricing",
+    "title": "Pricing — Free Forever, Pro When You Need It — Rekrut AI",
+    "text": "Rekrut AI Sign in Get started Simple plans for teams that need to hire faster Choose a plan that fits your hiring volume. Launch with a clean pricing page, then send buyers straight into Stripe Checkout with one click. Monthly Pay month to month Yearly Save with annual billing Lean and fast Starter For small teams that want a polished hiring workflow. $29 /month 3 active job posts Candidate screening tools Basic analytics dashboard Email support Start checkout Most popular Most popular Growth Fo",
+    "shot": "public__pricing.png"
+  },
+  {
+    "module": "public",
+    "name": "about",
+    "url": "/about",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/about",
+    "title": "About Us — Building the Future of Hiring — Rekrut AI",
+    "text": "Rekrut AI Back to home About us Building the future of hiring Rekrut AI (formerly HireLoop) was founded in 2026 with a simple belief: hiring should be transparent, intelligent, and fair for everyone involved. We are building the AI-native recruitment platform that both candidates and recruiters actually want to use. Our mission Make every hire a great match The average company takes 42 days to fill a role. Candidates send 100+ applications and hear back from fewer than 10. We exist to fix both s",
+    "shot": "public__about.png"
+  },
+  {
+    "module": "public",
+    "name": "blog",
+    "url": "/blog",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/blog",
+    "title": "Blog — Insights on AI Recruitment & Career Growth — Rekrut AI",
+    "text": "Home / Blog Rekrut AI Blog Insights, tips, and strategies for modern recruitment and career growth. All Industry Insights Product Company News Tips & Guides Featured The State of AI in Recruiting: 2025 Edition How AI is transforming talent acquisition, from screening to onboarding. What recruiters need to know to stay ahead. CMO 6/1/2025 5 min read Read Article 📰 Rekrut AI Insights Product Understanding OmniScore: The Candidate Credit Score A deep dive into HireLoop's OmniScore system — how it ",
+    "shot": "public__blog.png"
+  },
+  {
+    "module": "public",
+    "name": "contact",
+    "url": "/contact",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/contact",
+    "title": "Contact Us — We Would Love to Hear From You — Rekrut AI",
+    "text": "Rekrut AI Back to home Contact Let us talk Whether you are a recruiter looking to transform your hiring process, a candidate with feedback, or a journalist interested in our story — we would love to hear from you. Email hello@rekrutai.co For general inquiries Phone +91 80 1234 5678 India HQ Office Bangalore, India Remote-first, global team Support Hours Mon – Fri, 9AM – 6PM IST Pro plans get priority Send us a message Name Email Company (optional) Subject Message Send message Follow us Stay upda",
+    "shot": "public__contact.png"
+  },
+  {
+    "module": "public",
+    "name": "compare",
+    "url": "/compare",
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /compare -> 404"
+    ],
+    "docStatus": 404,
+    "finalUrl": "/compare",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Back Compare Companies Select companies to compare their TrustScore factors side-by-side. See response rates, interview experience, and more before you apply. Search companies to compare",
+    "shot": "public__compare.png"
+  },
+  {
+    "module": "public",
+    "name": "leaderboard",
+    "url": "/leaderboard",
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /leaderboard -> 404",
+      "GET /api/trustscore/leaderboard -> 500"
+    ],
+    "docStatus": 404,
+    "finalUrl": "/leaderboard",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Company TrustScore Leaderboard Compare companies by their TrustScore — a composite of candidate feedback, response rates, interview experience, and hiring transparency. 0 companies ranked Failed to load leaderboard Failed to get leaderboard Retry No companies found No companies have enough data to be ranked yet.",
+    "shot": "public__leaderboard.png"
+  },
+  {
+    "module": "public",
+    "name": "privacy-policy",
+    "url": "/privacy",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/privacy",
+    "title": "Privacy Policy — How We Protect Your Data — Rekrut AI",
+    "text": "Rekrut AI Back to home Legal Privacy Policy Last updated: October 15, 2026 1. Introduction Rekrut AI (\"we\", \"our\", or \"us\") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our AI-native recruitment platform and related services (collectively, the \"Service\"). We operate globally with our primary operations in India. By using the Service, you consent to the practices described in this policy. If you do",
+    "shot": "public__privacy-policy.png"
+  },
+  {
+    "module": "public",
+    "name": "terms",
+    "url": "/terms",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/terms",
+    "title": "Terms of Service — Rekrut AI",
+    "text": "Rekrut AI Back to home Legal Terms of Service Last updated: October 15, 2026 1. Acceptance of Terms By accessing or using the Rekrut AI platform and services (the \"Service\"), you agree to be bound by these Terms of Service (\"Terms\"). If you do not agree to these Terms, you may not use the Service. These Terms constitute a legally binding agreement between you and Rekrut AI (\"we\", \"our\", or \"us\"). We reserve the right to modify these Terms at any time. We will notify you of material changes via e",
+    "shot": "public__terms.png"
+  },
+  {
+    "module": "public",
+    "name": "biometric-policy",
+    "url": "/privacy/biometric-policy",
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /privacy/biometric-policy -> 404"
+    ],
+    "docStatus": 404,
+    "finalUrl": "/privacy/biometric-policy",
+    "title": "Biometric Privacy Policy — How We Handle Your Biometric Data — Rekrut AI",
+    "text": "Rekrut AI Back to Privacy Policy Legal Biometric Privacy Policy Last updated: October 15, 2026 DRAFT — This policy is pending legal counsel review before it takes effect. Content may change. 1. What We Collect When you participate in a video interview or AI screening on Rekrut AI, we may collect the following biometric data — but only after you give explicit written consent: Face data: Facial geometry measurements (landmark positions) extracted from your video feed. We do NOT store raw video fra",
+    "shot": "public__biometric-policy.png"
+  },
+  {
+    "module": "M1-auth",
+    "name": "login",
+    "url": "/login",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/login",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Rekrut AI Don't have an account? Sign up Sign in Welcome back — pick up where you left off Email Password Remember me Forgot password? Sign in Or sign in with Google LinkedIn SSL Secured Trusted by 2,000+ companies SOC 2 Type II compliant · GDPR ready · AES-256 encryption Welcome back! Sign in to access your dashboard, track applications, and continue your interview practice. Job Seeker Find your next role Employer Hire top talent",
+    "shot": "M1-auth__login.png"
+  },
+  {
+    "module": "M1-auth",
+    "name": "register",
+    "url": "/register",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/register",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Rekrut AI Already have an account? Sign in Create an account Join thousands of professionals finding their next opportunity I am a Job Seeker Find AI-matched jobs & practice interviews Employer Post jobs, screen candidates & hire faster Full name Email Password Sign up Or sign up with Google LinkedIn SSL Secured Trusted by 2,000+ companies SOC 2 Type II compliant · GDPR ready · AES-256 encryption Your next chapter starts here Create your account to start matching with AI-recommended jobs, practi",
+    "shot": "M1-auth__register.png"
+  },
+  {
+    "module": "M1-auth",
+    "name": "forgot-password",
+    "url": "/forgot-password",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/forgot-password",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Rekrut AI Reset your password Enter your email address and we'll send you a link to reset your password Email Send reset link Back to sign in SSL Secured Trusted by 2,000+ companies",
+    "shot": "M1-auth__forgot-password.png"
+  },
+  {
+    "module": "M2-companies",
+    "name": "careers-page-1186-1187",
+    "url": "/careers/qa-corp-2026-2",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "Failed to load career page: Error: Session expired\n    at N (http://localhost:3000/assets/index-BRf9XP4t.js:3:6218)\n    at async s (http://localhost:3000/assets/career-page-BVIGPUsQ.js:1:1292)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/careers/default -> 401"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/login",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Rekrut AI Don't have an account? Sign up Sign in Welcome back — pick up where you left off Email Password Remember me Forgot password? Sign in Or sign in with Google LinkedIn SSL Secured Trusted by 2,000+ companies SOC 2 Type II compliant · GDPR ready · AES-256 encryption Welcome back! Sign in to access your dashboard, track applications, and continue your interview practice. Job Seeker Find your next role Employer Hire top talent",
+    "shot": "M2-companies__careers-page-1186-1187.png"
+  },
+  {
+    "module": "M2-companies",
+    "name": "public-company-page-1189",
+    "url": "/company/qa-corp-2026-2",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/company/public/qa-corp-2026-2 -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/company/qa-corp-2026-2",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Failed to load company profile This company profile doesn't exist or has been removed. Browse Jobs",
+    "shot": "M2-companies__public-company-page-1189.png"
+  }
+]
