@@ -1,0 +1,47 @@
+{
+  "compare": {
+    "requested": "/compare",
+    "finalUrl": "http://localhost:3000/compare",
+    "docStatus": 200,
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "hasRootContent": true,
+    "isNotFoundText": false,
+    "textExcerpt": "Back\nCompare Companies\n\nSelect companies to compare their TrustScore factors side-by-side. See response rates, interview experience, and more before you apply.\n\nSearch companies to compare"
+  },
+  "leaderboard": {
+    "requested": "/leaderboard",
+    "finalUrl": "http://localhost:3000/leaderboard",
+    "docStatus": 200,
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "hasRootContent": true,
+    "isNotFoundText": false,
+    "textExcerpt": "Company TrustScore Leaderboard\n\nCompare companies by their TrustScore — a composite of candidate feedback, response rates, interview experience, and hiring transparency.\n\n0 companies ranked\nNo companies found\n\nNo companies have enough data to be ranked yet."
+  },
+  "biometricPolicy": {
+    "requested": "/privacy/biometric-policy",
+    "finalUrl": "http://localhost:3000/privacy/biometric-policy",
+    "docStatus": 200,
+    "title": "Biometric Privacy Policy — How We Handle Your Biometric Data — Rekrut AI",
+    "hasRootContent": true,
+    "isNotFoundText": false,
+    "textExcerpt": "Rekrut AI\nBack to Privacy Policy\nLegal\nBiometric Privacy Policy\n\nLast updated: October 17, 2026\n\nDRAFT — This policy is pending legal counsel review before it takes effect. Content may change.\n\n1. What We Collect\nWhen you participate in a video interview or AI screening on Rekrut AI, we may collect the following biometric data — but only after you give explicit written consent:\n\nFace data: Facial geometry measurements (landmark positions) extracted from your video feed. We do NOT store raw video frames for biometric purposes beyond the session recording retention described below.\n\nVoice data: Acoustic measurements extracted from your audio — pitch range, speech rate, pause patterns, and voice energy. We do NOT label emotions or infer emotional states.\n\nBehavioral measurements: Gaze direction, blink rate, and head pose — used to detect integrity signals such as reading from a screen or the presence of multiple people. These are measurements, not judgments.\n2. Why We Collect It\nWe collect biometric data for these specific purposes only:\n\n• Identity verification: Confirming you are the person who applied (face match + liveness check).\n• Interview integrity: Detecting deepfakes, AI-generated answers, and proxy test-takers through multi-signal behavioral analysis.\n• Fairness calibration: A 60-second warm-up measures your personal baseline so integrity signals are compared against YOUR normal patterns, not a universal standard.\n\nWe never use biometric data for advertising, profilin"
+  },
+  "aptitudeTests": {
+    "requested": "/aptitude-tests",
+    "finalUrl": "http://localhost:3000/login",
+    "docStatus": 200,
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "hasRootContent": true,
+    "isNotFoundText": false,
+    "textExcerpt": "Rekrut AI\n\nDon't have an account? Sign up\n\nSign in\n\nWelcome back — pick up where you left off\n\nEmail\nPassword\nRemember me\nForgot password?\nSign in\nSSL Secured\nTrusted by 2,000+ companies\n\nSOC 2 Type II compliant · GDPR ready · AES-256 encryption\n\nWelcome back!\n\nSign in to access your dashboard, track applications, and continue your interview practice.\n\nJob Seeker\n\nFind your next role\n\nEmployer\n\nHire top talent"
+  },
+  "unknown": {
+    "requested": "/quinn1225-definitely-unknown-xyz",
+    "finalUrl": "http://localhost:3000/quinn1225-definitely-unknown-xyz",
+    "docStatus": 404,
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "hasRootContent": false,
+    "isNotFoundText": true,
+    "textExcerpt": "!\n404\nPage Not Found\n\nThe page you're looking for doesn't exist or has been moved.\n\nGo Home\nGo Back"
+  }
+}

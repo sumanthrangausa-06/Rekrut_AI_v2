@@ -1,0 +1,8 @@
+Server log excerpt — Quinn #1225 AFTER run, tested commit b3cee5c33cd7994919166cb1d5e4d8abd52c3765, private PG 55451
+Health during run: GET /health -> 200 {"status":"ok","db":{"connected":true},"commit":"b3cee5c33cd7994919166cb1d5e4d8abd52c3765"}
+Full health body is recorded in evidence/api-probe.json (health field).
+Boot lines (from logs/server.log):
+[db] Pool config: connectionString postgresql://postgres@***:55451/rekrut_after_1225, ssl false
+Rekrut AI running on port 3000
+[admin] Admin credentials loaded from env vars
+[ai-provider] Verification results persisted to DB
