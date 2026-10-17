@@ -716,7 +716,7 @@ export function RecruiterDashboard() {
 		async function loadActivityFeed() {
 			try {
 				const res = await apiCall<{ success: boolean; activities: FeedActivityItem[] }>(
-					'/api/recruiter/activity',
+					'/recruiter/activity',
 				);
 				setFeedActivities(res.activities || []);
 			} catch {
