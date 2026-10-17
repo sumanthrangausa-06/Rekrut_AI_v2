@@ -6,9 +6,14 @@ const pool = require('../lib/db');
 
 const router = express.Router();
 
-// Check if user is a recruiter
+// Check if user is a recruiter-tier user. 'employer' (company owner) is
+// included to match every sibling guard — lib/auth.js requireApprovedRecruiter,
+// routes/communications.js, routes/notifications.js, routes/panels.js (#1222).
 function requireRecruiter(req, res, next) {
-	if (!req.user.company_id || !['recruiter', 'hiring_manager', 'admin'].includes(req.user.role)) {
+	if (
+		!req.user.company_id ||
+		!['recruiter', 'hiring_manager', 'employer', 'admin'].includes(req.user.role)
+	) {
 		return res.status(403).json({ error: 'Recruiter access required' });
 	}
 	next();
