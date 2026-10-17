@@ -80,6 +80,11 @@ const UNVERIFIED_1314 = [
 	'two high-growth startups',
 	'First AI matching engine deployed',
 	'OmniScore & TrustScore launched',
+	// Reviewer Low (PR #1319): guard the bare past-tense launch words too,
+	// so the tense fix cannot silently regress while the product is
+	// pre-launch. The page currently contains neither word anywhere.
+	'deployed',
+	'launched',
 ];
 
 describe('about page verified history (#1314)', () => {
