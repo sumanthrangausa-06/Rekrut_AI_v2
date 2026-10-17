@@ -476,4 +476,57 @@ describe('consentService.getConsentHistory', () => {
 		const history = await consentService.getConsentHistory(7);
 		expect(history).toHaveLength(2);
 	});
+
+	// #1317: a decline row (granted_at NULL, withdrawn_at set) must never be
+	// misread as granted-then-withdrawn. Every row carries a derived status.
+	test('decline row (never granted) is labelled declined — never granted', async () => {
+		db.query.mockResolvedValueOnce({
+			rows: [
+				{
+					id: 1,
+					consent_type: 'recording',
+					granted_at: null,
+					withdrawn_at: '2026-10-10T01:00:00Z',
+				},
+			],
+		});
+
+		const [row] = await consentService.getConsentHistory(7);
+		expect(row.status).toBe('declined');
+		expect(row.status_label).toBe('declined — never granted');
+	});
+
+	test('current grant is labelled granted', async () => {
+		db.query.mockResolvedValueOnce({
+			rows: [
+				{
+					id: 2,
+					consent_type: 'recording',
+					granted_at: '2026-10-10T00:00:00Z',
+					withdrawn_at: null,
+				},
+			],
+		});
+
+		const [row] = await consentService.getConsentHistory(7);
+		expect(row.status).toBe('granted');
+		expect(row.status_label).toBe('granted');
+	});
+
+	test('granted-then-withdrawn is labelled withdrawn (not declined)', async () => {
+		db.query.mockResolvedValueOnce({
+			rows: [
+				{
+					id: 3,
+					consent_type: 'recording',
+					granted_at: '2026-10-10T00:00:00Z',
+					withdrawn_at: '2026-10-11T00:00:00Z',
+				},
+			],
+		});
+
+		const [row] = await consentService.getConsentHistory(7);
+		expect(row.status).toBe('withdrawn');
+		expect(row.status_label).toBe('withdrawn');
+	});
 });
