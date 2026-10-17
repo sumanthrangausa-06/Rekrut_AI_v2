@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth } from '@/contexts/auth-context';
 import { apiCall } from '@/lib/api';
 
 interface LinkedInTip {
@@ -49,17 +50,25 @@ interface LinkedInTipsResult {
 }
 
 export function LinkedInOptimizerPage() {
+	const { user } = useAuth();
+	const userId = user?.id;
 	const [loading, setLoading] = useState(true);
 	const [result, setResult] = useState<LinkedInTipsResult | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [activeTab, setActiveTab] = useState('tips');
 
 	const loadTips = useCallback(async () => {
+		// #1227: the tips route is GET /api/linkedin/tips/:candidateId behind
+		// requireOwnCandidate — only fire once our own id is known.
+		if (!userId) {
+			setLoading(false);
+			return;
+		}
 		setLoading(true);
 		setError(null);
 		try {
 			const res = await apiCall<LinkedInTipsResult & { success: boolean; error?: string }>(
-				'/profile-enhancement/linkedin-tips',
+				`/linkedin/tips/${userId}`,
 			);
 			if (res.success) {
 				setResult(res);
@@ -71,7 +80,7 @@ export function LinkedInOptimizerPage() {
 		} finally {
 			setLoading(false);
 		}
-	}, []);
+	}, [userId]);
 
 	useEffect(() => {
 		loadTips();
