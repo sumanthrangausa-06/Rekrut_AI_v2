@@ -506,6 +506,7 @@ router.post('/login', rateLimits.strict, async (req, res) => {
 				email: user.email,
 				name: user.name,
 				role: user.role,
+				company_id: user.company_id,
 				is_paid: user.is_paid,
 				avatar_url: user.avatar_url,
 			},
