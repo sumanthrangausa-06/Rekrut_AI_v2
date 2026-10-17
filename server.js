@@ -601,34 +601,12 @@ try {
 	console.warn('[server] Activity logger not available:', err.message);
 }
 
-// API Routes - Email Queue (admin only)
+// Email Queue: the API routes (GET /api/admin/email-queue, POST
+// /api/admin/email-queue/retry) live in routes/admin.js since #1224 —
+// they were defined here behind JWT-only auth, which 401'd the
+// env-admin cookie session. Only the queue processor stays here.
 const emailQueue = require('./lib/email-queue');
 const { sendTemplatedEmail } = require('./lib/email-service');
-const { authMiddleware } = require('./lib/auth');
-
-app.get('/api/admin/email-queue', authMiddleware, async (req, res) => {
-	if (req.user.role !== 'admin') {
-		return res.status(403).json({ error: 'Admin access required' });
-	}
-	try {
-		const stats = await emailQueue.getStats();
-		res.json({ stats });
-	} catch (_err) {
-		res.status(500).json({ error: 'Failed to get queue stats' });
-	}
-});
-
-app.post('/api/admin/email-queue/retry', authMiddleware, async (req, res) => {
-	if (req.user.role !== 'admin') {
-		return res.status(403).json({ error: 'Admin access required' });
-	}
-	try {
-		const retried = await emailQueue.retryFailed();
-		res.json({ retried: retried.length });
-	} catch (_err) {
-		res.status(500).json({ error: 'Failed to retry failed emails' });
-	}
-});
 
 // Start email queue processor
 emailQueue.startProcessor(async (email) => {

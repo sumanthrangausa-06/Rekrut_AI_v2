@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../lib/db');
-const { optionalAuth, authMiddleware } = require('../lib/auth');
+const { optionalAuth, authMiddleware, requireRole } = require('../lib/auth');
+const { bridgeAdminSession, skipIfAdminSession } = require('./admin');
 const { analyticsCache } = require('../lib/analytics-cache');
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -49,8 +50,18 @@ router.post('/events', optionalAuth, async (req, res) => {
 	}
 });
 
-// Get analytics dashboard data (authenticated recruiters only)
-router.get('/dashboard', authMiddleware, async (req, res) => {
+// Get analytics dashboard data — platform-wide aggregates, admin only.
+// #1224: the only consumer is the admin analytics page, but the gate was
+// JWT-only authMiddleware, so the env-admin cookie session 401'd. The
+// bridge accepts that session; JWT users now also need the admin role
+// (previously any authenticated user could read platform aggregates —
+// tightened, not loosened).
+router.get(
+	'/dashboard',
+	bridgeAdminSession,
+	skipIfAdminSession(authMiddleware),
+	skipIfAdminSession(requireRole('admin')),
+	async (req, res) => {
 	try {
 		const { startDate, endDate } = parseDateRange(req.query);
 		const { page, limit, offset } = parsePagination(req.query);
@@ -232,6 +243,7 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
 		console.error('Error fetching analytics:', error);
 		res.status(500).json({ error: 'Failed to fetch analytics data' });
 	}
-});
+	},
+);
 
 module.exports = router;

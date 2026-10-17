@@ -27,6 +27,7 @@ try {
 
 // ─── Rate Limiting (distributed via PostgreSQL) ─────────────────────────────
 const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-limiter');
+const emailQueue = require('../lib/email-queue');
 
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
 const MAX_ATTEMPTS = 5;
@@ -100,33 +101,46 @@ async function initAdminCredentials() {
 initAdminCredentials();
 
 // ─── Middleware ──────────────────────────────────────────────────────────────
+
+// #1224: single source for env-admin session validity, shared by
+// requireAdmin and bridgeAdminSession. Returns 'none' when there is no
+// admin session, 'expired' when one existed but timed out (session
+// cleared, 401 already sent — caller must stop), 'ok' when valid
+// (activity timestamp refreshed).
+function checkAdminSession(req, res) {
+	if (!req.session?.isAdmin) return 'none';
+	// Admin session timeout enforcement
+	const ADMIN_IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+	const ADMIN_ABSOLUTE_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours
+	const now = Date.now();
+	const lastActivity = req.session.lastAdminActivity
+		? new Date(req.session.lastAdminActivity).getTime()
+		: now;
+	const loginAt = req.session.adminLoginAt ? new Date(req.session.adminLoginAt).getTime() : now;
+
+	if (now - lastActivity > ADMIN_IDLE_TIMEOUT) {
+		req.session.isAdmin = false;
+		req.session.adminLoginAt = null;
+		req.session.lastAdminActivity = null;
+		res.status(401).json({ error: 'Admin session expired due to inactivity' });
+		return 'expired';
+	}
+	if (now - loginAt > ADMIN_ABSOLUTE_TIMEOUT) {
+		req.session.isAdmin = false;
+		req.session.adminLoginAt = null;
+		req.session.lastAdminActivity = null;
+		res.status(401).json({ error: 'Admin session expired (absolute timeout)' });
+		return 'expired';
+	}
+	req.session.lastAdminActivity = new Date().toISOString();
+	return 'ok';
+}
+
 async function requireAdmin(req, res, next) {
 	// Path 1: Already authenticated via admin login
-	if (req.session?.isAdmin) {
-		// Admin session timeout enforcement
-		const ADMIN_IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-		const ADMIN_ABSOLUTE_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours
-		const now = Date.now();
-		const lastActivity = req.session.lastAdminActivity
-			? new Date(req.session.lastAdminActivity).getTime()
-			: now;
-		const loginAt = req.session.adminLoginAt ? new Date(req.session.adminLoginAt).getTime() : now;
-
-		if (now - lastActivity > ADMIN_IDLE_TIMEOUT) {
-			req.session.isAdmin = false;
-			req.session.adminLoginAt = null;
-			req.session.lastAdminActivity = null;
-			return res.status(401).json({ error: 'Admin session expired due to inactivity' });
-		}
-		if (now - loginAt > ADMIN_ABSOLUTE_TIMEOUT) {
-			req.session.isAdmin = false;
-			req.session.adminLoginAt = null;
-			req.session.lastAdminActivity = null;
-			return res.status(401).json({ error: 'Admin session expired (absolute timeout)' });
-		}
-		req.session.lastAdminActivity = new Date().toISOString();
-		return next();
-	}
+	const sessionStatus = checkAdminSession(req, res);
+	if (sessionStatus === 'ok') return next();
+	if (sessionStatus === 'expired') return;
 
 	// Path 2: Bridge — JWT-authenticated user with admin role gets auto-elevated
 	const token = req.headers.authorization?.split(' ')[1] || req.session?.token;
@@ -151,6 +165,35 @@ async function requireAdmin(req, res, next) {
 	}
 
 	return res.status(401).json({ error: 'Admin authentication required' });
+}
+
+// #1224 (D11): the env-admin holds ONLY a cookie session (isAdmin) — no
+// JWT, no users row — so APIs gated purely by JWT authMiddleware 401'd
+// the legitimate admin session. bridgeAdminSession runs BEFORE the JWT
+// middleware on those APIs: a valid env-admin session (same timeouts as
+// requireAdmin Path 1) is bridged to a synthetic admin req.user and the
+// JWT chain is skipped via skipIfAdminSession; anything else falls
+// through to the existing JWT chain completely unchanged. This adds an
+// already-trusted credential; it removes no check — no session and no
+// JWT still 401s downstream, and a non-admin JWT is still denied by the
+// downstream role check.
+function bridgeAdminSession(req, res, next) {
+	const sessionStatus = checkAdminSession(req, res);
+	if (sessionStatus === 'expired') return; // 401 already sent
+	if (sessionStatus === 'ok') {
+		req.adminSession = true;
+		if (!req.user) {
+			// The env-admin has no users row; id stays null (audit rows
+			// written for env-admin views carry a null actor id, never a
+			// fabricated user id).
+			req.user = { id: null, role: 'admin', envAdmin: true };
+		}
+	}
+	return next();
+}
+
+function skipIfAdminSession(middleware) {
+	return (req, res, next) => (req.adminSession ? next() : middleware(req, res, next));
 }
 
 // ─── Routes ─────────────────────────────────────────────────────────────────
@@ -244,6 +287,47 @@ router.get('/me', (req, res) => {
 
 	return res.status(401).json({ authenticated: false });
 });
+
+// GET /api/admin/email-queue — queue stats (admin only)
+// POST /api/admin/email-queue/retry — retry failed emails (admin only)
+// #1224: these handlers lived in server.js behind JWT-only
+// authMiddleware, which 401'd the env-admin cookie session. They live in
+// the admin router now, gated by the admin-session bridge + the same JWT
+// chain and inline admin check as before. The queue processor itself
+// stays in server.js.
+router.get(
+	'/email-queue',
+	bridgeAdminSession,
+	skipIfAdminSession(authMiddleware),
+	async (req, res) => {
+		if (req.user.role !== 'admin') {
+			return res.status(403).json({ error: 'Admin access required' });
+		}
+		try {
+			const stats = await emailQueue.getStats();
+			res.json({ stats });
+		} catch (_err) {
+			res.status(500).json({ error: 'Failed to get queue stats' });
+		}
+	},
+);
+
+router.post(
+	'/email-queue/retry',
+	bridgeAdminSession,
+	skipIfAdminSession(authMiddleware),
+	async (req, res) => {
+		if (req.user.role !== 'admin') {
+			return res.status(403).json({ error: 'Admin access required' });
+		}
+		try {
+			const retried = await emailQueue.retryFailed();
+			res.json({ retried: retried.length });
+		} catch (_err) {
+			res.status(500).json({ error: 'Failed to retry failed emails' });
+		}
+	},
+);
 
 // GET /api/admin/revenue — admin-only revenue funnel metrics
 router.get('/revenue', requireAdmin, async (req, res) => {
@@ -522,8 +606,11 @@ const { pseudonymizeCandidateId, VALID_ACTIONS: AUDIT_ACTIONS } = require('../li
 // GET /api/admin/biometric-audit — paginated audit entries with filters
 router.get(
 	'/biometric-audit',
-	authMiddleware,
-	requireRole('admin', 'hiring_manager'),
+	// #1224: env-admin cookie session bridges in as role 'admin' (global
+	// view, same as a JWT admin); JWT admin/hiring_manager path unchanged.
+	bridgeAdminSession,
+	skipIfAdminSession(authMiddleware),
+	skipIfAdminSession(requireRole('admin', 'hiring_manager')),
 	rateLimits.admin,
 	async (req, res) => {
 		try {
@@ -2668,3 +2755,5 @@ router.get('/agents/stats', requireAdmin, async (_req, res) => {
 
 module.exports = router;
 module.exports.requireAdmin = requireAdmin;
+module.exports.bridgeAdminSession = bridgeAdminSession;
+module.exports.skipIfAdminSession = skipIfAdminSession;
