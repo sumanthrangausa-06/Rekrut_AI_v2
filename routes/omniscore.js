@@ -400,7 +400,10 @@ router.get('/mutual-matches', authMiddleware, async (req, res) => {
 			const candidateStrength =
 				candidateScores.total_score == null ? 0 : (candidateScores.total_score - 300) / 550; // 0-1 scale
 			const companyStrength = row.company_trust_score == null ? 0 : row.company_trust_score / 1000; // 0-1 scale
-			const matchStrength = (row.match_score || 50) / 100; // 0-1 scale
+			// #1271: a NULL match_score (applied but never matched) contributes
+			// 0 strength — never the old || 50 fallback that invented a
+			// mid-strength match. A real 0 stays 0; real values pass through.
+			const matchStrength = row.match_score == null ? 0 : row.match_score / 100; // 0-1 scale
 
 			// Mutual fit: geometric mean of all three signals
 			const mutualFit = Math.round(
@@ -421,7 +424,10 @@ router.get('/mutual-matches', authMiddleware, async (req, res) => {
 				signals: {
 					your_score: `OmniScore ${candidateScores.total_score ?? 'N/A'} (${candidateScores.tier_label ?? 'Insufficient data'})`,
 					company_score: `TrustScore ${row.company_trust_score || 'N/A'} (${row.company_trust_score == null ? 'Insufficient data' : row.company_tier || 'new'})`,
-					skill_match: `${Math.round(row.match_score || 0)}% match`,
+					skill_match:
+						row.match_score == null
+							? 'Insufficient data'
+							: `${Math.round(row.match_score)}% match`,
 				},
 			};
 		});
