@@ -20,6 +20,19 @@
  * write is the GAP-G strip inside erasePersonalData, whose own trigger
  * call then removes any row resurrected by earlier steps.
  *
+ * One-time cleanup (privacy engineer Note N1 on PR #1292): the guard
+ * above only PREVENTS new resurrections. CSI rows already resurrected
+ * on the live DB before this guard existed persist — tombstone-parity
+ * content (name='Deleted User', skills=[], omni_score=0), unsurfaceable
+ * in search because search joins filter deleted_at IS NULL, but they
+ * should be cleaned rather than left behind. Since p3e has not landed
+ * anywhere yet, the cleanup is folded into p3e itself: up() runs a
+ * second, idempotent statement deleting every CSI row whose user is
+ * tombstoned. Idempotent — re-runs delete nothing once clean.
+ * Before/after counts on the live DB ride the next promotion and are
+ * recorded on #1163; the migration itself logs the deleted row count
+ * (rowCount) when it runs.
+ *
  * Ordering (the #1282 trap): migrate.js runs files in lexical filename
  * sort. sync_candidate_search_index is last re-defined by
  * p3b_candidate_search.js (262's copy is byte-identical), so a numbered
@@ -120,6 +133,16 @@ CREATE OR REPLACE FUNCTION sync_candidate_search_index(p_user_id INTEGER)
       $$ LANGUAGE plpgsql;
     `);
 
+		// Privacy N1 cleanup: remove CSI rows resurrected before this
+		// guard existed (tombstoned users only; live rows untouched).
+		const cleanup = await client.query(`
+DELETE FROM candidate_search_index
+WHERE user_id IN (SELECT id FROM users WHERE deleted_at IS NOT NULL);
+    `);
+
+		console.log(
+			`Migration p3e cleanup: deleted ${cleanup.rowCount ?? 0} pre-existing resurrected candidate_search_index row(s) for tombstoned users`,
+		);
 		console.log('Migration p3e completed: sync_candidate_search_index skips tombstoned (deleted_at) users');
 	},
 };

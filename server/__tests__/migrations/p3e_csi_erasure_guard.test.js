@@ -66,6 +66,25 @@ describe('p3e_csi_erasure_guard migration', () => {
 		expect(src).toMatch(/FROM candidate_embeddings ce/i);
 	});
 
+	test('cleanup (privacy N1): up() emits a DELETE removing pre-existing resurrected CSI rows for tombstoned users', () => {
+		expect(src).toMatch(
+			/DELETE FROM candidate_search_index\s+WHERE user_id IN \(SELECT id FROM users WHERE deleted_at IS NOT NULL\)/i,
+		);
+		// The cleanup targets tombstones (deleted_at IS NOT NULL), not all rows.
+		const cleanupIdx = src.search(
+			/DELETE FROM candidate_search_index\s+WHERE user_id IN/i,
+		);
+		expect(cleanupIdx).toBeGreaterThan(0);
+		expect(src.slice(cleanupIdx)).toMatch(/deleted_at IS NOT NULL/i);
+		// It runs after the guard function is (re)created, in its own query.
+		const fnIdx = src.search(/CREATE OR REPLACE FUNCTION sync_candidate_search_index/i);
+		expect(cleanupIdx).toBeGreaterThan(fnIdx);
+		const queryCalls = src.match(/client\.query/g) || [];
+		expect(queryCalls.length).toBeGreaterThanOrEqual(2);
+		// The deleted count is logged (rowCount) for the #1163 live-DB record.
+		expect(src).toMatch(/cleanup\.rowCount/);
+	});
+
 	test('touches nothing else: no drop, no trigger changes, no data rewrite outside the guard', () => {
 		expect(src).not.toMatch(/DROP TABLE/i);
 		expect(src).not.toMatch(/CREATE TRIGGER/i);
