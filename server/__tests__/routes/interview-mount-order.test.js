@@ -203,17 +203,54 @@ describe('#1220: /api/interviews/history mount order', () => {
 		expect(res.body.interviews).toEqual([]);
 	});
 
-	// NOT asserted here: GET /scheduling-preferences (routes/interviews.js)
-	// is shadowed TWICE — by the events validator above AND by this router's
-	// own GET /:id, which is registered before it. Fixing that second shadow
-	// is outside #1220's scope; it is reported on the issue for Lead instead
-	// of being codified as expected-broken or silently fixed here.
+	// #1254: GET /scheduling-preferences (routes/interviews.js) was shadowed
+	// TWICE — by the events validator above AND by this router's own
+	// GET /:id, registered before it. #1220/PR #1253 fixed the events half;
+	// #1254 moves the literal route above GET /:id in routes/interviews.js.
+	// Asserted in the #1254 describe block below.
 
 	test('GET /<unknown literal> ends as 404 Interview not found (not 400, not 500)', async () => {
 		const app = buildApp();
 		const res = await request(app)
 			.get('/api/interviews/not-a-real-route')
 			.set('x-test-user-id', '7');
+
+		expect(res.status).toBe(404);
+		expect(res.body.error).toBe('Interview not found');
+	});
+});
+
+describe('#1254: /api/interviews/scheduling-preferences intra-router shadow', () => {
+	const CANDIDATE = { id: 7, email: 'cand@test.com', role: 'candidate', company_id: null };
+
+	beforeEach(() => {
+		global.__testUsers = { 2: RECRUITER, 7: CANDIDATE };
+	});
+
+	test('GET /scheduling-preferences reaches its own handler (not GET /:id)', async () => {
+		const app = buildApp();
+		const res = await request(app)
+			.get('/api/interviews/scheduling-preferences')
+			.set('x-test-user-id', '7');
+
+		// The bug: interviews.js' own GET /:id is registered before
+		// GET /scheduling-preferences, so the literal is captured as an
+		// interview id and the /^\d+$/ guard answers 404
+		// "Interview not found" instead of the preferences payload.
+		// With the mocked db returning no rows, the real handler answers
+		// 200 with its documented default preferences.
+		expect(res.status).toBe(200);
+		expect(res.body.success).toBe(true);
+		expect(res.body.preferences).toMatchObject({
+			timezone: 'America/New_York',
+			buffer_minutes: 15,
+			preferred_duration: 60,
+		});
+	});
+
+	test('GET /<numeric id> still reaches GET /:id (404 when no row)', async () => {
+		const app = buildApp();
+		const res = await request(app).get('/api/interviews/123').set('x-test-user-id', '7');
 
 		expect(res.status).toBe(404);
 		expect(res.body.error).toBe('Interview not found');

@@ -471,6 +471,9 @@ app.use((_req, res, next) => {
 
 app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '50mb' }));
+// #1268: clear 400 contract error for body-parse failures on
+// POST /api/career-diagnosis only (see routes/profile-enhancement.js).
+app.use(profileEnhancementRoutes.careerDiagnosisBodyParseError);
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 

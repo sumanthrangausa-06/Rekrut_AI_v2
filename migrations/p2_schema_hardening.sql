@@ -4,6 +4,36 @@
 -- Pre-condition: P0 (FK fixes) and P1 (interview flow) already applied
 
 -- ============================================================
+-- SECTION 0 (#1141): drop views/trigger that depend on columns altered below
+-- ============================================================
+-- On a fresh DB this file runs AFTER migrations 236-240 created
+-- unified_interviews, v_candidate_full_profile and v_unified_assessments,
+-- and PostgreSQL refuses ALTER COLUMN TYPE on any column a view depends
+-- on (0A000), even when the column is already text (migration 047 widened
+-- most of these before the views existed). Full collision set, verified
+-- via pg_depend against every (table, column) pair altered in this file:
+-- exactly these three views (16 column dependencies); no other view,
+-- and nothing depends on these three views. They are dropped here and
+-- recreated verbatim in SECTION 4 at the end of this file, from their
+-- owning migrations (237_unified_interviews_view_slot_ids,
+-- 240_extend_candidate_full_profile_view, 240_v_unified_assessments).
+-- On DBs where this file already ran,
+-- migrate.js skips it entirely (_migrations holds the filename), so this
+-- section is unreachable there.
+DROP VIEW IF EXISTS v_unified_assessments;
+DROP VIEW IF EXISTS v_candidate_full_profile;
+DROP VIEW IF EXISTS unified_interviews;
+
+-- Same class, one trigger: trg_sync_csi_users (migrations 262/265) is
+-- AFTER UPDATE OF name, avatar_url ON users WHEN (NEW.role = ...) — the
+-- UPDATE OF / WHEN column references make ALTER COLUMN TYPE on
+-- users.name / users.role fail with the trigger variant of 0A000.
+-- Verified via pg_depend: it is the ONLY trigger whose referenced
+-- columns this file alters. Dropped here, recreated in SECTION 4 with
+-- migration 265's exact definition (p3d later re-applies it identically).
+DROP TRIGGER IF EXISTS trg_sync_csi_users ON users;
+
+-- ============================================================
 -- SECTION 1: screening_sessions timestamp → timestamptz
 -- ============================================================
 ALTER TABLE screening_sessions ALTER COLUMN invited_at TYPE timestamptz USING invited_at AT TIME ZONE 'UTC';
@@ -3051,3 +3081,134 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RAISE NOTICE 'Could not add constraint: %', SQLERRM;
 END $$;
+
+-- ============================================================
+-- SECTION 4 (#1141): recreate the views dropped in SECTION 0
+-- ============================================================
+-- Definitions are verbatim from the owning migrations (the final
+-- version of each view in the numbered chain): unified_interviews
+-- from 237_unified_interviews_view_slot_ids.js, v_candidate_full_profile
+-- from 240_extend_candidate_full_profile_view.js, v_unified_assessments
+-- from 240_v_unified_assessments.js. Do not edit them here — change the
+-- owning migration's successor instead. The trigger is migration 265's
+-- exact definition (identical to p3d's, which runs after this file).
+
+CREATE TRIGGER trg_sync_csi_users
+        AFTER UPDATE OF name, avatar_url ON users
+        FOR EACH ROW
+        WHEN (NEW.role = 'candidate')
+        EXECUTE FUNCTION trigger_sync_candidate_search_index_users();
+
+CREATE OR REPLACE VIEW unified_interviews AS
+      SELECT
+        s.id,
+        s.candidate_id,
+        s.recruiter_id,
+        s.company_id,
+        s.job_id,
+        s.scheduled_at::timestamptz AS scheduled_at,
+        s.duration_minutes,
+        s.status,
+        s.meeting_link,
+        s.interview_type,
+        s.notes,
+        'system_a'::text AS source_system,
+        NULL::jsonb AS proposed_slots
+      FROM scheduled_interviews s
+      UNION ALL
+      SELECT
+        e.id,
+        e.candidate_id,
+        e.recruiter_id,
+        ja.company_id,
+        ja.job_id,
+        e.scheduled_at,
+        e.duration_minutes,
+        e.status,
+        COALESCE(e.meeting_link, e.livekit_room_url) AS meeting_link,
+        'video'::varchar(50) AS interview_type,
+        e.notes,
+        'system_b'::text AS source_system,
+        (
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'id', p.id,
+              'start', p.slot_start,
+              'end', p.slot_end,
+              'status', p.status
+            )
+            ORDER BY p.slot_start
+          )
+          FROM proposed_slots p
+          WHERE p.interview_event_id = e.id
+        ) AS proposed_slots
+      FROM interview_events e
+      LEFT JOIN job_applications ja ON ja.id = e.job_application_id;
+
+CREATE OR REPLACE VIEW v_candidate_full_profile AS
+      SELECT
+        u.id,
+        u.name,
+        u.email,
+        u.avatar_url,
+        cp.headline,
+        cp.bio,
+        cp.location,
+        cp.photo_url,
+        cp.years_experience,
+        cp.resume_url,
+        cp.availability,
+        os.total_score AS omni_score,
+        os.score_tier,
+        (SELECT COUNT(*) FROM candidate_skills cs WHERE cs.user_id = u.id)::integer AS skill_count,
+        (SELECT COUNT(*) FROM work_experience we WHERE we.user_id = u.id)::integer AS experience_count,
+        (SELECT COUNT(*) FROM education e WHERE e.user_id = u.id)::integer AS education_count,
+        cp.linkedin_url,
+        cp.github_url,
+        cp.phone,
+        (SELECT COUNT(*) FILTER (WHERE cs.is_verified) FROM candidate_skills cs WHERE cs.user_id = u.id)::integer AS skill_verified_count
+      FROM users u
+      LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+      LEFT JOIN omni_scores os ON os.user_id = u.id;
+
+CREATE OR REPLACE VIEW v_unified_assessments AS
+			SELECT
+				ata.id,
+				ata.candidate_id AS user_id,
+				'aptitude'::text AS source_system,
+				ata.test_id AS source_id,
+				at.title AS title,
+				ata.score::numeric AS score,
+				ata.max_score::numeric AS max_score,
+				ata.status::text AS status,
+				ata.started_at,
+				ata.completed_at
+			FROM aptitude_test_attempts ata
+			LEFT JOIN aptitude_tests at ON at.id = ata.test_id
+			UNION ALL
+			SELECT
+				sa.id,
+				sa.user_id,
+				'skill'::text AS source_system,
+				sa.skill_id AS source_id,
+				sa.title AS title,
+				sa.score::numeric AS score,
+				sa.max_score::numeric AS max_score,
+				CASE WHEN sa.completed_at IS NOT NULL THEN 'completed' ELSE 'in_progress' END::text AS status,
+				sa.started_at,
+				sa.completed_at
+			FROM skill_assessments sa
+			UNION ALL
+			SELECT
+				jaa.id,
+				jaa.candidate_id AS user_id,
+				'job_assessment'::text AS source_system,
+				jaa.assessment_id AS source_id,
+				ja.title AS title,
+				jaa.composite_score AS score,
+				NULL::numeric AS max_score,
+				jaa.status::text AS status,
+				jaa.started_at,
+				jaa.completed_at
+			FROM job_assessment_attempts jaa
+			LEFT JOIN job_assessments ja ON ja.id = jaa.assessment_id;

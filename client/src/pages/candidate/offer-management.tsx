@@ -29,7 +29,7 @@ interface Offer {
 	candidate_email: string;
 	title: string;
 	job_title: string | null;
-	salary: number;
+	salary: number | null;
 	start_date: string | null;
 	status: 'draft' | 'sent' | 'accepted' | 'declined';
 	benefits: string | null;
@@ -299,7 +299,7 @@ export function OfferManagementPage() {
 												{offer.title || offer.job_title || 'N/A'}
 											</td>
 											<td className="px-4 py-4 text-muted-foreground">
-												${offer.salary.toLocaleString()}
+												{offer.salary != null ? `$${Number(offer.salary).toLocaleString()}` : '—'}
 											</td>
 											<td className="px-4 py-4 text-muted-foreground">
 												{offer.start_date ? new Date(offer.start_date).toLocaleDateString() : 'TBD'}

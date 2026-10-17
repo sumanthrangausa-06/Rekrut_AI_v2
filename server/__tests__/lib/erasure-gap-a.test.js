@@ -78,6 +78,7 @@ function freshState() {
 			{ object_key: FRAME_B, interview_id: 11 },
 		],
 		heldSessionCompany: null,
+		gapAHoldLookupFails: false,
 		transcriptRowCount: 2,
 	};
 }
@@ -87,6 +88,12 @@ async function route(sql, params = []) {
 	// Legal-hold queries first: the legal_holds query itself contains an
 	// interview_sessions subquery (candidate company attribution, #915).
 	if (sql.includes('FROM legal_holds')) {
+		// #1197: session-scoped consults (params[2] = the session's company)
+		// are GAP-A-only in erasureService — throwing there isolates the
+		// GAP-A contained consult from the entry gate and other partitions.
+		if (state.gapAHoldLookupFails && params[2] === 99) {
+			throw new Error('simulated GAP-A hold lookup failure');
+		}
 		if (state.heldSessionCompany != null && params[2] === state.heldSessionCompany) {
 			return { rows: [{ id: 900, user_id: null, company_id: state.heldSessionCompany }], rowCount: 1 };
 		}
@@ -281,6 +288,42 @@ describe('GAP-A (c): recording objects + frames', () => {
 		expect(result.recordingsHeld).toBe(1);
 		expect(result.sessionsHeld).toBe(1);
 		expect(result.recordingsLedgered).toBe(2);
+	});
+
+	test('#1197: GAP-A hold-check failure logs (message only) and still fails closed as held', async () => {
+		state.gapAHoldLookupFails = true;
+		const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+		try {
+			const client = { query: jest.fn(route) };
+			const result = await erasePersonalData(7, { client });
+
+			// Operator parity: the contained consult must NOT be silent —
+			// a GAP-A-prefixed log carrying the error message only.
+			const gapALogs = errSpy.mock.calls.filter(
+				(args) => typeof args[0] === 'string' && args[0].includes('GAP-A'),
+			);
+			// Exactly 3: session 11, recording 22 (session 11), frame B
+			// (session 11) — one log per failing GAP-A consult.
+			expect(gapALogs.length).toBe(3);
+			for (const args of gapALogs) {
+				expect(args).toHaveLength(2);
+				expect(args[0]).toMatch(/legal-hold check failed — failing closed/);
+				expect(args[1]).toBe('simulated GAP-A hold lookup failure');
+				// No subjects / ids / row values beyond the error message.
+				expect(String(args[0])).not.toMatch(/99|55|userId|sessionId/);
+			}
+
+			// Behaviour unchanged: error ≡ held (fail-closed). Session 11
+			// (the failing consult) is preserved; session 12 is stripped.
+			expect(result.sessionsHeld).toBe(1);
+			const strip = findCall(/UPDATE interview_sessions/i);
+			expect(strip.params[1]).toEqual([12]);
+			expect(result.recordingsHeld).toBe(1);
+			expect(result.framesHeld).toBe(1);
+			expect(result.gapAHeldSkips).toBe(3);
+		} finally {
+			errSpy.mockRestore();
+		}
 	});
 });
 

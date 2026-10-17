@@ -22,30 +22,32 @@
  *      varchar -> text.
  *   3. `v_candidate_full_profile` exists and is selectable.
  *
- * Known sibling defect (#1141, out of scope for #894): after the numbered
- * chain completes, the run currently halts at `p2_schema_hardening.sql`, so
- * `node migrate.js` itself exits 1 on a fresh DB. This script therefore does
- * NOT assert the migrate exit code by default. Once #1141 lands, set
- * STRICT_FULL_RUN=1 to also assert exit 0 to head — that one env flip is the
- * "full exit-0-to-head" assertion.
+ * #1141 fixed the fresh-path halt in `p2_schema_hardening.sql` (and the
+ * same-class halt in `p3_schema_optimizations`), so a fresh run now exits
+ * 0 to head. This script still does NOT assert the migrate exit code by
+ * default; set STRICT_FULL_RUN=1 to also assert exit 0 to head — that one
+ * env flip is the "full exit-0-to-head" assertion.
  */
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { Client } = require('pg');
 
-// `types` = acceptable final data_types after the full chain (see header:
-// migration 047 widens the three URL/phone varchars to text, as on live).
+// Expected final shape after the full chain (measured on a fresh-DB run,
+// #1141). `type` is the chain-final data_type asserted STRICTLY — migration
+// 047 widens the three URL/phone varchars to text, so 'character varying'
+// is a failure, not an alternative. All nine columns are nullable with no
+// character_maximum_length; defaults are as listed (null = no default).
 const EXPECTED_COLUMNS = {
-  bio: { types: ['text'] },
-  phone: { types: ['text', 'character varying'] },
-  github_url: { types: ['text', 'character varying'] },
-  photo_url: { types: ['text', 'character varying'] },
-  salary_min: { types: ['integer'] },
-  salary_max: { types: ['integer'] },
-  preferred_job_types: { types: ['jsonb'] },
-  preferred_locations: { types: ['jsonb'] },
-  years_experience: { types: ['integer'] },
+  bio: { type: 'text', nullable: true, default: null },
+  phone: { type: 'text', nullable: true, default: null },
+  github_url: { type: 'text', nullable: true, default: null },
+  photo_url: { type: 'text', nullable: true, default: null },
+  salary_min: { type: 'integer', nullable: true, default: null },
+  salary_max: { type: 'integer', nullable: true, default: null },
+  preferred_job_types: { type: 'jsonb', nullable: true, default: `'["full-time"]'::jsonb` },
+  preferred_locations: { type: 'jsonb', nullable: true, default: `'[]'::jsonb` },
+  years_experience: { type: 'integer', nullable: true, default: '0' },
 };
 
 function numberedMigrationNames() {
@@ -82,7 +84,7 @@ async function main() {
   } catch (e) {
     migrateExit = e.status ?? 1;
   }
-  console.log(`migrate.js exit code: ${migrateExit} (non-zero expected until #1141 fixes the p2 fresh-path halt)`);
+  console.log(`migrate.js exit code: ${migrateExit} (0 expected since #1141; asserted only under STRICT_FULL_RUN=1)`);
   if (process.env.STRICT_FULL_RUN === '1' && migrateExit !== 0) {
     fail('STRICT_FULL_RUN: migrate.js did not exit 0');
   }
@@ -98,19 +100,24 @@ async function main() {
     if (missing.length === 0) ok(`all ${expected.length} numbered migrations applied (through 259)`);
     else fail(`numbered migrations missing: ${missing.join(', ')}`);
 
-    // 3. Nine 004-parity columns present, with chain-final types.
+    // 3. Nine 004-parity columns present, with chain-final types, defaults,
+    //    nullability and (absence of) length limits — all asserted strictly.
     const cols = await client.query(
-      `SELECT column_name, data_type
+      `SELECT column_name, data_type, is_nullable, column_default, character_maximum_length
          FROM information_schema.columns
         WHERE table_name = 'candidate_profiles'`,
     );
     const byName = new Map(cols.rows.map((r) => [r.column_name, r]));
     for (const [name, want] of Object.entries(EXPECTED_COLUMNS)) {
       const got = byName.get(name);
-      if (!got) fail(`candidate_profiles.${name} missing`);
-      else if (!want.types.includes(got.data_type)) {
-        fail(`candidate_profiles.${name} type is ${got.data_type}, want one of ${want.types.join('/')}`);
-      } else ok(`candidate_profiles.${name} present (${got.data_type})`);
+      if (!got) { fail(`candidate_profiles.${name} missing`); continue; }
+      const problems = [];
+      if (got.data_type !== want.type) problems.push(`type is ${got.data_type}, want ${want.type}`);
+      if ((got.is_nullable === 'YES') !== want.nullable) problems.push(`is_nullable is ${got.is_nullable}, want ${want.nullable ? 'YES' : 'NO'}`);
+      if (got.column_default !== want.default) problems.push(`default is ${got.column_default}, want ${want.default}`);
+      if (got.character_maximum_length !== null) problems.push(`character_maximum_length is ${got.character_maximum_length}, want none`);
+      if (problems.length) fail(`candidate_profiles.${name}: ${problems.join('; ')}`);
+      else ok(`candidate_profiles.${name} present (${got.data_type}, nullable, default ${got.column_default})`);
     }
 
     // 4. View exists and is selectable.

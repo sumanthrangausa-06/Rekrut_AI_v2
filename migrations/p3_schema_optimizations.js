@@ -7,6 +7,19 @@ module.exports = {
 		// 6 partial indexes + 7 unique constraints
 		// =============================================
 
+		// #1141: same fresh-DB defect class as p2_schema_hardening.sql.
+		// Part 2's timestamptz conversions alter started_at/completed_at on
+		// job_assessment_attempts and skill_assessments, which
+		// v_unified_assessments (migration 240) depends on — PostgreSQL
+		// refuses with 0A000 on a fresh DB, where this file runs after 240.
+		// Verified via pg_depend: that is the ONLY view/trigger collision
+		// for this file's alters. Drop it here, recreate it verbatim
+		// (migration 240's exact definition) at the end of up(). On DBs
+		// where this migration already ran, migrate.js skips it entirely
+		// (_migrations holds 'p3_schema_optimizations'), so this is
+		// unreachable there.
+		await db.query(`DROP VIEW IF EXISTS v_unified_assessments`);
+
 		// Helper to check if table exists
 		async function tableExists(tableName) {
 			const result = await db.query(
@@ -401,6 +414,52 @@ module.exports = {
 			await safeCreateIndex(sql);
 		}
 		console.log('P3 Part 4 complete: unique constraints');
+
+		// #1141: recreate v_unified_assessments verbatim from migration
+		// 240_v_unified_assessments.js (dropped at the top of up()).
+		await db.query(`
+			CREATE OR REPLACE VIEW v_unified_assessments AS
+			SELECT
+				ata.id,
+				ata.candidate_id AS user_id,
+				'aptitude'::text AS source_system,
+				ata.test_id AS source_id,
+				at.title AS title,
+				ata.score::numeric AS score,
+				ata.max_score::numeric AS max_score,
+				ata.status::text AS status,
+				ata.started_at,
+				ata.completed_at
+			FROM aptitude_test_attempts ata
+			LEFT JOIN aptitude_tests at ON at.id = ata.test_id
+			UNION ALL
+			SELECT
+				sa.id,
+				sa.user_id,
+				'skill'::text AS source_system,
+				sa.skill_id AS source_id,
+				sa.title AS title,
+				sa.score::numeric AS score,
+				sa.max_score::numeric AS max_score,
+				CASE WHEN sa.completed_at IS NOT NULL THEN 'completed' ELSE 'in_progress' END::text AS status,
+				sa.started_at,
+				sa.completed_at
+			FROM skill_assessments sa
+			UNION ALL
+			SELECT
+				jaa.id,
+				jaa.candidate_id AS user_id,
+				'job_assessment'::text AS source_system,
+				jaa.assessment_id AS source_id,
+				ja.title AS title,
+				jaa.composite_score AS score,
+				NULL::numeric AS max_score,
+				jaa.status::text AS status,
+				jaa.started_at,
+				jaa.completed_at
+			FROM job_assessment_attempts jaa
+			LEFT JOIN job_assessments ja ON ja.id = jaa.assessment_id
+		`);
 
 		console.log('[migration] P3 schema optimizations complete');
 	},
