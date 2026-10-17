@@ -308,6 +308,13 @@ router.post(
 router.get(
 	'/:id',
 	authMiddleware,
+	// #1220: a non-numeric single segment is not an interview-event id at
+	// all — it is a literal route owned by a router mounted after this one
+	// (e.g. GET /history in routes/interviews.js). The isInt validator below
+	// 400s without calling next(), so without this fall-through those routes
+	// are unreachable. Numeric segments (incl. '0', which isInt{min:1} then
+	// rejects as today) stay on the validator path unchanged.
+	(req, _res, next) => (/^\d+$/.test(req.params.id) ? next() : next('router')),
 	[param('id').isInt({ min: 1 }).withMessage('Valid interview ID required')],
 	handleValidationErrors,
 	async (req, res, next) => {
