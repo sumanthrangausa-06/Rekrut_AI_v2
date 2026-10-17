@@ -91,6 +91,8 @@ jest.mock('../../../services/auditLogService', () => ({
 
 const mockExplainDecisionForJob = jest.fn();
 const mockGetConsentHistory = jest.fn();
+const mockGetBiasMetricsForJob = jest.fn();
+const mockCalculateFourFifthsRule = jest.fn();
 jest.mock('../../../services/euComplianceService', () => ({
 	explainDecisionForJob: (...args) => mockExplainDecisionForJob(...args),
 	getConsentHistory: (...args) => mockGetConsentHistory(...args),
@@ -98,7 +100,7 @@ jest.mock('../../../services/euComplianceService', () => ({
 	getJobRiskClassification: jest.fn(),
 	listJobRiskClassifications: jest.fn(async () => ({ rows: [] })),
 	calculateBiasMetricsForJob: jest.fn(async () => []),
-	getBiasMetricsForJob: jest.fn(async () => []),
+	getBiasMetricsForJob: (...args) => mockGetBiasMetricsForJob(...args),
 	listFlaggedBiasMetrics: jest.fn(async () => ({ rows: [] })),
 	recordHumanOverride: jest.fn(),
 	getOverridesForJob: jest.fn(async () => ({ rows: [] })),
@@ -119,7 +121,7 @@ jest.mock('../../../services/biasDetection', () => ({
 		distributionAnalysis: { anomalies: [] },
 	})),
 	getReports: jest.fn(async () => []),
-	calculateFourFifthsRule: jest.fn(async () => ({})),
+	calculateFourFifthsRule: (...args) => mockCalculateFourFifthsRule(...args),
 }));
 
 const db = require('../../../lib/db');
@@ -275,6 +277,10 @@ beforeEach(() => {
 	mockAuditQuery.mockResolvedValue([{ id: 1, action_type: 'login' }]);
 	mockAuditExportLogs.mockResolvedValue([{ id: 1, action_type: 'login' }]);
 	mockGetConsentHistory.mockResolvedValue({ history: [{ id: 1 }], total: 1 });
+	mockGetBiasMetricsForJob.mockResolvedValue([
+		{ job_id: 50, metric_type: 'selection_rate', flagged: false },
+	]);
+	mockCalculateFourFifthsRule.mockResolvedValue({ job_id: 50, four_fifths_results: [] });
 	// #920 service-contract mock: an honest implementation of the ruled
 	// contract — when the caller passes a companyId the service returns
 	// only that company's events and the scoped total; otherwise the
@@ -696,5 +702,74 @@ describe('services/auditLogService.getCandidateDecisions (actual module) — com
 		const res = await actualAuditLogService.getCandidateDecisions(21, { limit: 500, offset: 0 });
 		expect(res.total).toBe(AUDIT_EVENTS.length);
 		expect(res.rows.map((r) => r.id)).toEqual([1, 2, 3]);
+	});
+});
+
+describe('bias endpoints — job↔company authorisation (#1112)', () => {
+	const metricsUrl = '/api/compliance/bias/metrics/50';
+	const fourFifthsUrl = '/api/compliance/bias/four-fifths/50';
+
+	test.each([
+		['recruiter', 11],
+		['employer', 13],
+		['hiring_manager', 15],
+	])('GET /bias/metrics/:jobId: foreign-company %s → 403, service never reached', async (_l, uid) => {
+		const res = await request(app).get(metricsUrl).set(as(uid));
+		expect(res.status).toBe(403);
+		expect(mockGetBiasMetricsForJob).not.toHaveBeenCalled();
+	});
+
+	test.each([
+		['recruiter', 11],
+		['employer', 13],
+		['hiring_manager', 15],
+	])('GET /bias/four-fifths/:jobId: foreign-company %s → 403, service never reached', async (_l, uid) => {
+		const res = await request(app).get(fourFifthsUrl).set(as(uid));
+		expect(res.status).toBe(403);
+		expect(mockCalculateFourFifthsRule).not.toHaveBeenCalled();
+	});
+
+	test('candidate → 403 on both endpoints, services never reached', async () => {
+		expect((await request(app).get(metricsUrl).set(as(21))).status).toBe(403);
+		expect((await request(app).get(fourFifthsUrl).set(as(21))).status).toBe(403);
+		expect(mockGetBiasMetricsForJob).not.toHaveBeenCalled();
+		expect(mockCalculateFourFifthsRule).not.toHaveBeenCalled();
+	});
+
+	test('hiring role with company_id = null → 403 fail-closed on both endpoints', async () => {
+		expect((await request(app).get(metricsUrl).set(as(16))).status).toBe(403);
+		expect((await request(app).get(fourFifthsUrl).set(as(16))).status).toBe(403);
+		expect(mockGetBiasMetricsForJob).not.toHaveBeenCalled();
+		expect(mockCalculateFourFifthsRule).not.toHaveBeenCalled();
+	});
+
+	test('non-existent job → 403 for a non-admin (fail-closed), services never reached', async () => {
+		expect((await request(app).get('/api/compliance/bias/metrics/9999').set(as(10))).status).toBe(403);
+		expect((await request(app).get('/api/compliance/bias/four-fifths/9999').set(as(10))).status).toBe(403);
+		expect(mockGetBiasMetricsForJob).not.toHaveBeenCalled();
+		expect(mockCalculateFourFifthsRule).not.toHaveBeenCalled();
+	});
+
+	test('owning-company recruiter → 200 on both endpoints', async () => {
+		const metrics = await request(app).get(metricsUrl).set(as(10));
+		expect(metrics.status).toBe(200);
+		expect(metrics.body.metrics).toHaveLength(1);
+		expect(mockGetBiasMetricsForJob).toHaveBeenCalledWith(50);
+		const ff = await request(app).get(fourFifthsUrl).set(as(10));
+		expect(ff.status).toBe(200);
+		expect(ff.body.job_id).toBe(50);
+		expect(mockCalculateFourFifthsRule).toHaveBeenCalledWith(50, expect.any(Array));
+	});
+
+	test('owning-company hiring_manager → 200; admin → 200 on both endpoints (not job-scoped)', async () => {
+		expect((await request(app).get(metricsUrl).set(as(14))).status).toBe(200);
+		expect((await request(app).get(fourFifthsUrl).set(as(14))).status).toBe(200);
+		expect((await request(app).get(metricsUrl).set(as(1))).status).toBe(200);
+		expect((await request(app).get(fourFifthsUrl).set(as(1))).status).toBe(200);
+	});
+
+	test('unauthenticated → 401 on both endpoints', async () => {
+		expect((await request(app).get(metricsUrl)).status).toBe(401);
+		expect((await request(app).get(fourFifthsUrl)).status).toBe(401);
 	});
 });

@@ -20,6 +20,27 @@ function canAccessUserRecord(req, userId) {
 	return { ok: false, status: 403, error: 'You can only access your own compliance data' };
 }
 
+// #1112: bias/adverse-impact results for a job are visible only to a
+// platform admin or a hiring role whose company owns the job — the
+// audience /bias/flagged and /bias/analyze already use in this router.
+// Ownership follows the /explain/job idiom (jobs lookup, fail-closed on
+// a null company_id or a missing job); denied callers get 403 before
+// any bias service is reached.
+async function canAccessJobBias(req, jobId) {
+	if (!['admin', 'employer', 'recruiter', 'hiring_manager'].includes(req.user?.role)) {
+		return { ok: false, status: 403, error: 'Insufficient permissions' };
+	}
+	if (req.user?.role === 'admin') {
+		return { ok: true };
+	}
+	const jobResult = await pool.query('SELECT company_id FROM jobs WHERE id = $1', [jobId]);
+	const job = jobResult.rows[0];
+	if (!job || req.user?.company_id == null || Number(req.user.company_id) !== Number(job.company_id)) {
+		return { ok: false, status: 403, error: 'Access denied' };
+	}
+	return { ok: true };
+}
+
 /**
  * GDPR COMPLIANCE ENDPOINTS
  */
@@ -1032,6 +1053,11 @@ router.get('/bias/metrics/:jobId', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'Valid job ID required' });
 		}
 
+		const access = await canAccessJobBias(req, jobId);
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
+		}
+
 		const metrics = await EuComplianceService.getBiasMetricsForJob(jobId);
 		res.json({ success: true, metrics });
 	} catch (error) {
@@ -1074,6 +1100,11 @@ router.get('/bias/four-fifths/:jobId', authMiddleware, async (req, res) => {
 		const jobId = parseInt(req.params.jobId, 10);
 		if (!Number.isInteger(jobId)) {
 			return res.status(400).json({ error: 'Valid job ID required' });
+		}
+
+		const access = await canAccessJobBias(req, jobId);
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
 		}
 
 		const { selectionStatuses } = req.query;
