@@ -46,7 +46,10 @@ const ANSWERS = [{ question: 'How do you prefer to solve problems?', answer: 'An
 function buildApp({ strict = true, withParseErrorHandler = true } = {}) {
 	const app = express();
 	app.use(express.json({ limit: '50mb', strict }));
-	if (withParseErrorHandler && typeof profileEnhancement.careerDiagnosisBodyParseError === 'function') {
+	if (
+		withParseErrorHandler &&
+		typeof profileEnhancement.careerDiagnosisBodyParseError === 'function'
+	) {
 		app.use(profileEnhancement.careerDiagnosisBodyParseError);
 	}
 	app.use('/api', router);
@@ -63,7 +66,9 @@ describe('POST /api/career-diagnosis body contract (#1268)', () => {
 	});
 
 	it('control: plain object body with quizAnswers → 200', async () => {
-		const res = await request(buildApp()).post('/api/career-diagnosis').send({ quizAnswers: ANSWERS });
+		const res = await request(buildApp())
+			.post('/api/career-diagnosis')
+			.send({ quizAnswers: ANSWERS });
 		expect(res.status).toBe(200);
 		expect(res.body.success).toBe(true);
 	});
@@ -91,7 +96,9 @@ describe('POST /api/career-diagnosis body contract (#1268)', () => {
 		expect(res.status).toBe(400);
 		expect(res.body).toEqual({ error: 'Request body must be a JSON object' });
 		// The tolerant outcome would have inserted a diagnosis; it must not.
-		const inserts = pool.query.mock.calls.filter(([sql]) => sql.includes('INSERT INTO career_diagnoses'));
+		const inserts = pool.query.mock.calls.filter(([sql]) =>
+			sql.includes('INSERT INTO career_diagnoses'),
+		);
 		expect(inserts).toHaveLength(0);
 	});
 
