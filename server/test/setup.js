@@ -133,7 +133,7 @@ jest.mock('../../lib/db', () => {
 		}
 
 		// Auth routes: SELECT refresh token
-		if (normalized.includes('select rt.*, u.email, u.role, u.name from refresh_tokens')) {
+		if (normalized.includes('select rt.*, u.email, u.role, u.name, u.company_id from refresh_tokens')) {
 			return { rows: [], rowCount: 0 };
 		}
 
