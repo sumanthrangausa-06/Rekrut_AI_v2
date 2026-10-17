@@ -311,7 +311,7 @@ export function RecruiterJobApplicantsPage() {
 		setScreeningData(null);
 		try {
 			const data = await apiCall<ScreeningResponseData>(
-				`/api/questionnaire/response-by-application/${applicationId}`,
+				`/questionnaire/response-by-application/${applicationId}`,
 			);
 			setScreeningData(data);
 			if (data.override) {
