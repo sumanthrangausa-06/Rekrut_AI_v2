@@ -92,6 +92,7 @@ jest.mock('../../../services/auditLogService', () => ({
 const mockExplainDecisionForJob = jest.fn();
 const mockGetConsentHistory = jest.fn();
 const mockGetBiasMetricsForJob = jest.fn();
+const mockCalculateBiasMetricsForJob = jest.fn();
 const mockCalculateFourFifthsRule = jest.fn();
 jest.mock('../../../services/euComplianceService', () => ({
 	explainDecisionForJob: (...args) => mockExplainDecisionForJob(...args),
@@ -99,7 +100,7 @@ jest.mock('../../../services/euComplianceService', () => ({
 	classifyJobRisk: jest.fn(),
 	getJobRiskClassification: jest.fn(),
 	listJobRiskClassifications: jest.fn(async () => ({ rows: [] })),
-	calculateBiasMetricsForJob: jest.fn(async () => []),
+	calculateBiasMetricsForJob: (...args) => mockCalculateBiasMetricsForJob(...args),
 	getBiasMetricsForJob: (...args) => mockGetBiasMetricsForJob(...args),
 	listFlaggedBiasMetrics: jest.fn(async () => ({ rows: [] })),
 	recordHumanOverride: jest.fn(),
@@ -281,6 +282,7 @@ beforeEach(() => {
 		{ job_id: 50, metric_type: 'selection_rate', flagged: false },
 	]);
 	mockCalculateFourFifthsRule.mockResolvedValue({ job_id: 50, four_fifths_results: [] });
+	mockCalculateBiasMetricsForJob.mockResolvedValue([]);
 	// #920 service-contract mock: an honest implementation of the ruled
 	// contract — when the caller passes a companyId the service returns
 	// only that company's events and the scoped total; otherwise the
@@ -771,5 +773,25 @@ describe('bias endpoints — job↔company authorisation (#1112)', () => {
 	test('unauthenticated → 401 on both endpoints', async () => {
 		expect((await request(app).get(metricsUrl)).status).toBe(401);
 		expect((await request(app).get(fourFifthsUrl)).status).toBe(401);
+	});
+});
+
+describe('POST /bias/analyze/:jobId — same ownership gate (security-reviewer HIGH residual on #1112)', () => {
+	const url = '/api/compliance/bias/analyze/50';
+	test('foreign-company recruiter → 403, calculate service never reached', async () => {
+		const res = await request(app).post(url).set(as(11)).send({});
+		expect(res.status).toBe(403);
+		expect(mockCalculateBiasMetricsForJob).not.toHaveBeenCalled();
+	});
+	test('owning-company recruiter → 200, service reached; admin → 200', async () => {
+		const own = await request(app).post(url).set(as(10)).send({});
+		expect(own.status).toBe(200);
+		expect(mockCalculateBiasMetricsForJob).toHaveBeenCalledWith(50, expect.any(Object));
+		expect((await request(app).post(url).set(as(1)).send({})).status).toBe(200);
+	});
+	test('candidate → 403 (existing role gate), service never reached', async () => {
+		const res = await request(app).post(url).set(as(21)).send({});
+		expect(res.status).toBe(403);
+		expect(mockCalculateBiasMetricsForJob).not.toHaveBeenCalled();
 	});
 });

@@ -23,9 +23,11 @@ function canAccessUserRecord(req, userId) {
 // #1112: bias/adverse-impact results for a job are visible only to a
 // platform admin or a hiring role whose company owns the job — the
 // audience /bias/flagged and /bias/analyze already use in this router.
-// Ownership follows the /explain/job idiom (jobs lookup, fail-closed on
-// a null company_id or a missing job); denied callers get 403 before
-// any bias service is reached.
+// Ownership uses the /explain/job lookup shape (jobs table, fail-closed
+// on a null company_id or a missing job); the denial status is 403 per
+// #1112's spec — identical for missing and foreign jobs, so neither
+// endpoint is an existence oracle — and it fires before any bias
+// service is reached.
 async function canAccessJobBias(req, jobId) {
 	if (!['admin', 'employer', 'recruiter', 'hiring_manager'].includes(req.user?.role)) {
 		return { ok: false, status: 403, error: 'Insufficient permissions' };
@@ -1017,6 +1019,14 @@ router.post('/bias/analyze/:jobId', authMiddleware, async (req, res) => {
 		const jobId = parseInt(req.params.jobId, 10);
 		if (!Number.isInteger(jobId)) {
 			return res.status(400).json({ error: 'Valid job ID required' });
+		}
+
+		// #1112 (security-reviewer HIGH residual): this POST returns the
+		// same bias metrics the gated GETs read back, so the ownership
+		// gate applies here too — otherwise it bypasses them entirely.
+		const access = await canAccessJobBias(req, jobId);
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
 		}
 
 		const { selectionStatuses } = req.body;
