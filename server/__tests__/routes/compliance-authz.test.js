@@ -94,6 +94,7 @@ const mockGetConsentHistory = jest.fn();
 const mockGetBiasMetricsForJob = jest.fn();
 const mockCalculateBiasMetricsForJob = jest.fn();
 const mockCalculateFourFifthsRule = jest.fn();
+const mockGetOverrideById = jest.fn();
 jest.mock('../../../services/euComplianceService', () => ({
 	explainDecisionForJob: (...args) => mockExplainDecisionForJob(...args),
 	getConsentHistory: (...args) => mockGetConsentHistory(...args),
@@ -105,7 +106,7 @@ jest.mock('../../../services/euComplianceService', () => ({
 	listFlaggedBiasMetrics: jest.fn(async () => ({ rows: [] })),
 	recordHumanOverride: jest.fn(),
 	getOverridesForJob: jest.fn(async () => ({ rows: [] })),
-	getOverrideById: jest.fn(),
+	getOverrideById: (...args) => mockGetOverrideById(...args),
 	setRetentionPolicy: jest.fn(),
 	executePurge: jest.fn(async () => []),
 	recordConsent: jest.fn(),
@@ -286,6 +287,14 @@ beforeEach(() => {
 	]);
 	mockCalculateFourFifthsRule.mockResolvedValue({ job_id: 50, four_fifths_results: [] });
 	mockCalculateBiasMetricsForJob.mockResolvedValue([]);
+	// #1113: override 200 is about candidate 21, on job 50 (company A),
+	// recorded by recruiter A. Override 201 is on the same company-A job
+	// but was recorded by recruiter B (actor-self case).
+	const overrides = new Map([
+		[200, { id: 200, application_id: 100, user_id: 21, job_id: 50, overridden_by: 10, reason: 'OVERRIDE_REASON_INTERNAL' }],
+		[201, { id: 201, application_id: 100, user_id: 21, job_id: 50, overridden_by: 11, reason: 'OVERRIDE_REASON_INTERNAL' }],
+	]);
+	mockGetOverrideById.mockImplementation(async (id) => overrides.get(Number(id)) || null);
 	// #920 service-contract mock: an honest implementation of the ruled
 	// contract — when the caller passes a companyId the service returns
 	// only that company's events and the scoped total; otherwise the
@@ -803,5 +812,57 @@ describe('POST /bias/analyze/:jobId — same ownership gate (security-reviewer H
 		const res = await request(app).post(url).set(as(21)).send({});
 		expect(res.status).toBe(403);
 		expect(mockCalculateBiasMetricsForJob).not.toHaveBeenCalled();
+	});
+});
+
+describe('GET /overrides/:id — company linkage authorisation (#1113)', () => {
+	const url = '/api/compliance/overrides/200';
+
+	test.each([
+		['recruiter', 11],
+		['employer', 13],
+		['hiring_manager', 15],
+	])('unrelated-company %s → 403, no override fields in response', async (_l, uid) => {
+		const res = await request(app).get(url).set(as(uid));
+		expect(res.status).toBe(403);
+		expect(JSON.stringify(res.body)).not.toContain('OVERRIDE_REASON_INTERNAL');
+	});
+
+	test('candidate the override is about → 403 (internal hiring record, no shaped variant)', async () => {
+		const res = await request(app).get(url).set(as(21));
+		expect(res.status).toBe(403);
+		expect(JSON.stringify(res.body)).not.toContain('OVERRIDE_REASON_INTERNAL');
+	});
+
+	test('hiring role with company_id = null → 403 fail-closed', async () => {
+		const res = await request(app).get(url).set(as(16));
+		expect(res.status).toBe(403);
+	});
+
+	test('owning-company recruiter → 200 with the override', async () => {
+		const res = await request(app).get(url).set(as(10));
+		expect(res.status).toBe(200);
+		expect(res.body.override.id).toBe(200);
+		expect(res.body.override.reason).toBe('OVERRIDE_REASON_INTERNAL');
+	});
+
+	test('owning-company hiring_manager → 200; admin → 200', async () => {
+		expect((await request(app).get(url).set(as(14))).status).toBe(200);
+		expect((await request(app).get(url).set(as(1))).status).toBe(200);
+	});
+
+	test("the override's own actor (overridden_by) → 200 even from another company (record self)", async () => {
+		const res = await request(app).get('/api/compliance/overrides/201').set(as(11));
+		expect(res.status).toBe(200);
+		expect(res.body.override.id).toBe(201);
+	});
+
+	test('non-existent override → 404 unchanged', async () => {
+		const res = await request(app).get('/api/compliance/overrides/9999').set(as(10));
+		expect(res.status).toBe(404);
+	});
+
+	test('unauthenticated → 401', async () => {
+		expect((await request(app).get(url)).status).toBe(401);
 	});
 });

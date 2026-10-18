@@ -1304,6 +1304,32 @@ router.get('/overrides/:id', authMiddleware, async (req, res) => {
 			return res.status(404).json({ error: 'Override not found' });
 		}
 
+		// #1113: human_overrides has no company_id — its company linkage
+		// runs through job_id → jobs.company_id. Load-then-check is the
+		// /risk-classify/:jobId shape in this router: admin, the record's
+		// own actor (overridden_by), or a hiring role whose company owns
+		// the override's job (fail-closed on a null company_id). The
+		// candidate the override is about is not an audience — the reason
+		// is an internal hiring record with no shaped variant.
+		const isAdmin = req.user?.role === 'admin';
+		const isActorSelf = req.user?.id != null && Number(req.user.id) === Number(override.overridden_by);
+		let isOwningHiring = false;
+		if (!isAdmin && !isActorSelf) {
+			if (
+				['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) &&
+				req.user?.company_id != null
+			) {
+				const jobResult = await pool.query('SELECT company_id FROM jobs WHERE id = $1', [
+					override.job_id,
+				]);
+				const job = jobResult.rows[0];
+				isOwningHiring = !!job && Number(req.user.company_id) === Number(job.company_id);
+			}
+			if (!isOwningHiring) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
+		}
+
 		res.json({ success: true, override });
 	} catch (error) {
 		console.error('[compliance/overrides/:id] Failed:', error.message);
