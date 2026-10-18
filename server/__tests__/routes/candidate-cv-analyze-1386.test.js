@@ -89,6 +89,10 @@ const PARSED_RESUME = {
 	education: [{ institution: 'Example University', degree: 'BS', field: 'Statistics' }],
 };
 
+// MED-2 (ai-engineer review): overall_score (72) is deliberately NOT the
+// mean of the section scores (80+74+61+69+66 = 350, mean 70), so a
+// regression that recomputes overall from the sections instead of
+// persisting the provider's value verbatim would fail the success test.
 const VALID_ANALYSIS = {
 	overall_score: 72,
 	section_scores: [
@@ -101,7 +105,7 @@ const VALID_ANALYSIS = {
 			recommendations: ['Add job keywords naturally'],
 		},
 		{ name: 'Formatting & Layout', score: 69, impact: 'Low', recommendations: ['Align dates'] },
-		{ name: 'Education', score: 76, impact: 'Low', recommendations: ['Add honours'] },
+		{ name: 'Education', score: 66, impact: 'Low', recommendations: ['Add honours'] },
 	],
 	recommendations: [
 		{ section: 'Experience', impact: 'Highest', text: 'Quantify outcomes' },
@@ -159,6 +163,7 @@ describe('#1386 POST /cv/analyze — success path', () => {
 		expect(updates).toHaveLength(1);
 		const [, params] = updates[0];
 		expect(params[0]).toBe(7);
+		// Provider's overall verbatim: 72, NOT the sections' mean (70).
 		expect(params[1]).toBe(72);
 		const sections = JSON.parse(params[2]);
 		expect(sections.map((s) => s.name)).toEqual([
@@ -168,7 +173,8 @@ describe('#1386 POST /cv/analyze — success path', () => {
 			'Formatting & Layout',
 			'Education',
 		]);
-		expect(sections.map((s) => s.score)).toEqual([80, 74, 61, 69, 76]);
+		expect(sections.map((s) => s.score)).toEqual([80, 74, 61, 69, 66]);
+		expect(sections.reduce((sum, s) => sum + s.score, 0) / sections.length).toBe(70);
 		const recs = JSON.parse(params[3]);
 		expect(recs).toEqual(VALID_ANALYSIS.recommendations);
 	});
@@ -223,6 +229,56 @@ describe('#1386 POST /cv/analyze — honest failure path', () => {
 		const deletes = callsMatching(/DELETE FROM cv_analyses/i);
 		expect(deletes).toHaveLength(1);
 		expect(deletes[0][1]).toEqual([7]);
+		expect(callsMatching(/UPDATE cv_analyses/i)).toHaveLength(0);
+	});
+
+	test('provider succeeds but the completed-UPDATE rejects → row deleted, 503 retryable', async () => {
+		// MED-2: pins the inner-catch path the ai-engineer confirmed — a DB
+		// failure while persisting a REAL analysis must not leave a dangling
+		// 'pending' row behind, and the client gets the retryable 503.
+		mockQuery.mockImplementation(async (sql) => {
+			if (/FROM parsed_resumes/i.test(sql)) {
+				return { rows: [{ id: 99, parsed_data: PARSED_RESUME }] };
+			}
+			if (/INSERT INTO cv_analyses/i.test(sql)) {
+				return { rows: [{ id: 7 }] };
+			}
+			if (/UPDATE cv_analyses/i.test(sql)) {
+				throw new Error('db write failed');
+			}
+			return { rows: [] };
+		});
+
+		const res = await request(makeApp()).post('/api/candidate/cv/analyze').send({});
+
+		expect(res.status).toBe(503);
+		expect(res.body).toEqual({
+			error: 'CV analysis is temporarily unavailable. Please try again in a moment.',
+			retryable: true,
+		});
+		expect(mockChat).toHaveBeenCalledTimes(1);
+		const deletes = callsMatching(/DELETE FROM cv_analyses/i);
+		expect(deletes).toHaveLength(1);
+		expect(deletes[0][1]).toEqual([7]);
+	});
+
+	test('empty parsed_data → 400 EMPTY_DOCUMENT, provider never called, nothing persisted', async () => {
+		// MED-2: the branch mirroring /cv-review's EMPTY_DOCUMENT precedent
+		// was untested — an uploaded-but-unparsed document must not reach
+		// the provider or persist any score row.
+		mockQuery.mockImplementation(async (sql) => {
+			if (/FROM parsed_resumes/i.test(sql)) {
+				return { rows: [{ id: 99, parsed_data: {} }] };
+			}
+			return { rows: [] };
+		});
+
+		const res = await request(makeApp()).post('/api/candidate/cv/analyze').send({});
+
+		expect(res.status).toBe(400);
+		expect(res.body.code).toBe('EMPTY_DOCUMENT');
+		expect(mockChat).not.toHaveBeenCalled();
+		expect(callsMatching(/INSERT INTO cv_analyses/i)).toHaveLength(0);
 		expect(callsMatching(/UPDATE cv_analyses/i)).toHaveLength(0);
 	});
 
