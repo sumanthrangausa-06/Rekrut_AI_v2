@@ -44,6 +44,22 @@ const upload = multer({
 	limits: { fileSize: 50 * 1024 * 1024 },
 });
 
+// #1372: one score coercion for the whole mock-end flow — a numeric
+// string ("7", a real LLM output shape) is a real score; anything else
+// (missing, null, "N/A", NaN) is null (unscored). Used at every persist /
+// practice-history / background-blend site so a genuinely scored session
+// can never be silently erased by a Number.isFinite(string) mismatch,
+// and an unscored one can never acquire a default.
+function finiteScore(value) {
+	const numeric =
+		typeof value === 'number'
+			? value
+			: typeof value === 'string' && value.trim() !== ''
+				? Number(value)
+				: NaN;
+	return Number.isFinite(numeric) ? numeric : null;
+}
+
 // Helper: Race a promise against a timeout to prevent hanging when AI providers are slow.
 // The AI provider chain can take 9×15s = 135s worst case; Render kills requests at ~30s.
 // This ensures we hit the scripted fallback BEFORE the request is killed.
@@ -1040,10 +1056,12 @@ router.post('/mock/:sessionId/end', authMiddleware, requireBiometricConsent('bio
 				console.warn(
 					`[mock-end] AI feedback generation failed (${feedbackErr.message}), using basic feedback`,
 				);
-				// Generate basic feedback without AI when rate-limited
+				// #1372: basic feedback without AI carries NO scores — a
+				// failed AI call produces null (insufficient data), never a
+				// fabricated 5 for the overall or any sub-score.
 				feedback = {
-					overall_score: 5,
-					interview_readiness: 'almost_ready',
+					overall_score: null,
+					interview_readiness: null,
 					summary: `You completed a ${session.target_role} mock interview with ${candidateTurns.length} response(s). AI-powered detailed feedback is temporarily unavailable — try again later for in-depth analysis.`,
 					strengths: [
 						'You showed up and practiced — that alone puts you ahead of most candidates.',
@@ -1053,15 +1071,15 @@ router.post('/mock/:sessionId/end', authMiddleware, requireBiometricConsent('bio
 					],
 					question_scores: [],
 					star_method_usage: {
-						score: 5,
+						score: null,
 						feedback: 'Detailed STAR analysis unavailable at this time.',
 					},
 					communication_quality: {
-						score: 5,
+						score: null,
 						feedback: 'Detailed communication analysis unavailable at this time.',
 					},
 					technical_depth: {
-						score: 5,
+						score: null,
 						feedback: 'Detailed technical analysis unavailable at this time.',
 					},
 					top_tip: 'Practice makes perfect. Come back and try again for AI-powered feedback!',
@@ -1070,11 +1088,16 @@ router.post('/mock/:sessionId/end', authMiddleware, requireBiometricConsent('bio
 		}
 
 		// Step 2: Save and return text feedback immediately
+		// #1372: normalize once (coerces a real numeric-string score,
+		// nulls anything unscored) and persist that — never `|| 5`. This
+		// also covers cached_feedback, which bypasses the lib's own
+		// normalization.
+		feedback.overall_score = finiteScore(feedback.overall_score);
 		await pool.query(
 			`UPDATE mock_interview_sessions
        SET status = 'completed', overall_score = $1, overall_feedback = $2, completed_at = NOW()
        WHERE id = $3`,
-			[feedback.overall_score || 5, JSON.stringify(feedback), sessionId],
+			[feedback.overall_score, JSON.stringify(feedback), sessionId],
 		);
 
 		// BUG FIX #29: Compute dominant category from ACTUALLY ASKED questions with correct type mapping
@@ -1126,22 +1149,29 @@ router.post('/mock/:sessionId/end', authMiddleware, requireBiometricConsent('bio
 		}
 
 		// Save as practice_session for stats (with correct category)
+		// #1372: practice_sessions.score is INTEGER NOT NULL (migration 007),
+		// so an unscored session (AI failed / no overall_score) gets NO
+		// practice-history row — minting one would require inventing the
+		// number. The mock session row above records completion with a
+		// NULL overall_score instead.
 		try {
-			await pool.query(
-				`INSERT INTO practice_sessions
+			if (finiteScore(feedback.overall_score) != null) {
+				await pool.query(
+					`INSERT INTO practice_sessions
          (user_id, question_id, question, category, response_text, score, coaching_data, response_type, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
-				[
-					req.user.id,
-					`mock-${sessionId}`,
-					`Mock Interview: ${session.target_role}`,
-					dominantCategory,
-					candidateText,
-					Math.round(feedback.overall_score || 5),
-					JSON.stringify(feedback),
-					'voice',
-				],
-			);
+					[
+						req.user.id,
+						`mock-${sessionId}`,
+						`Mock Interview: ${session.target_role}`,
+						dominantCategory,
+						candidateText,
+						Math.round(finiteScore(feedback.overall_score)),
+						JSON.stringify(feedback),
+						'voice',
+					],
+				);
+			}
 		} catch (psErr) {
 			console.error('Failed to save mock session to practice_sessions:', psErr.message);
 		}
@@ -1212,6 +1242,9 @@ router.post('/mock/:sessionId/end', authMiddleware, requireBiometricConsent('bio
 				if (videoAnalysis) {
 					feedback.presentation = {
 						score: videoAnalysis.overall_presentation ?? null,
+						// #1372 (specialist LOW): keep the speech-inferred
+						// flag on this rebuilt section, as the lib assembly does.
+						_inferred_from_speech: videoAnalysis._inferred_from_speech === true,
 						eye_contact: videoAnalysis.eye_contact ?? { score: null, feedback: '' },
 						facial_expressions: videoAnalysis.facial_expressions ?? { score: null, feedback: '' },
 						body_language: videoAnalysis.body_language ?? { score: null, feedback: '' },
@@ -1261,30 +1294,51 @@ router.post('/mock/:sessionId/end', authMiddleware, requireBiometricConsent('bio
 				}
 
 				// Recalculate score with presentation/voice
+				// #1372: blend ONLY real scores. A missing text score is
+				// null — never the `|| 5` base this used — and a lone real
+				// presentation/voice sub-score survives as a sub-score
+				// only; it cannot mint an overall on its own.
 				if (videoAnalysis || voiceAnalysis) {
-					const textScore = feedback.overall_score || 5;
-					const presScore = videoAnalysis?.overall_presentation ?? textScore;
-					const voiceScore = voiceAnalysis?.overall_voice_score || textScore;
-					feedback.overall_score =
-						Math.round((textScore * 0.5 + presScore * 0.25 + voiceScore * 0.25) * 10) / 10;
+					const textScore = finiteScore(feedback.overall_score);
+					const presScore = finiteScore(videoAnalysis?.overall_presentation);
+					const voiceScore = finiteScore(voiceAnalysis?.overall_voice_score);
+					if (textScore != null) {
+						const parts = [
+							[textScore, 0.5],
+							...(presScore != null ? [[presScore, 0.25]] : []),
+							...(voiceScore != null ? [[voiceScore, 0.25]] : []),
+						];
+						const weightSum = parts.reduce((sum, [, w]) => sum + w, 0);
+						feedback.overall_score =
+							Math.round(
+								(parts.reduce((sum, [s, w]) => sum + s * w, 0) / weightSum) * 10,
+							) / 10;
+					} else {
+						feedback.overall_score = null;
+					}
 				}
 
 				// Update DB with enriched feedback
 				await pool.query(
 					`UPDATE mock_interview_sessions SET overall_score = $1, overall_feedback = $2 WHERE id = $3`,
-					[feedback.overall_score, JSON.stringify(feedback), bgSessionId],
+					[finiteScore(feedback.overall_score), JSON.stringify(feedback), bgSessionId],
 				);
 				// Also update the practice_sessions record so history view shows enriched data
+				// #1372: only when a real overall score exists — the row was
+				// never created for an unscored session (score is NOT NULL),
+				// and its score must never be overwritten with a default.
 				try {
-					await pool.query(
-						`UPDATE practice_sessions SET coaching_data = $1, score = $2 WHERE question_id = $3 AND user_id = $4`,
-						[
-							JSON.stringify(feedback),
-							Math.round(feedback.overall_score || 5),
-							`mock-${bgSessionId}`,
-							bgUserId,
-						],
-					);
+					if (finiteScore(feedback.overall_score) != null) {
+						await pool.query(
+							`UPDATE practice_sessions SET coaching_data = $1, score = $2 WHERE question_id = $3 AND user_id = $4`,
+							[
+								JSON.stringify(feedback),
+								Math.round(finiteScore(feedback.overall_score)),
+								`mock-${bgSessionId}`,
+								bgUserId,
+							],
+						);
+					}
 				} catch (psUpdateErr) {
 					console.warn('[mock-end-bg] Failed to update practice_sessions:', psUpdateErr.message);
 				}
@@ -1298,22 +1352,24 @@ router.post('/mock/:sessionId/end', authMiddleware, requireBiometricConsent('bio
 		// SAFETY NET: Always mark session completed even if everything else fails
 		try {
 			const sessionId = req.params.sessionId;
+			// #1372: the safety net completes the session but scores
+			// NOTHING — null overall and sub-scores, never a persisted 5.
 			const safetyFeedback = {
-				overall_score: 5,
-				interview_readiness: 'almost_ready',
+				overall_score: null,
+				interview_readiness: null,
 				summary:
 					'Your interview feedback could not be fully generated due to a temporary issue. Please try another interview — your practice still counts!',
 				strengths: ['You showed up and practiced'],
 				improvements: ['Try again for detailed AI feedback'],
 				question_scores: [],
-				star_method_usage: { score: 5, feedback: 'Unavailable' },
-				communication_quality: { score: 5, feedback: 'Unavailable' },
-				technical_depth: { score: 5, feedback: 'Unavailable' },
+				star_method_usage: { score: null, feedback: 'Unavailable' },
+				communication_quality: { score: null, feedback: 'Unavailable' },
+				technical_depth: { score: null, feedback: 'Unavailable' },
 				top_tip: 'Keep practicing — consistency is key!',
 			};
 			await pool.query(
-				`UPDATE mock_interview_sessions SET status = 'completed', overall_score = 5, overall_feedback = $1, completed_at = NOW() WHERE id = $2 AND status = 'in_progress'`,
-				[JSON.stringify(safetyFeedback), sessionId],
+				`UPDATE mock_interview_sessions SET status = 'completed', overall_score = $1, overall_feedback = $2, completed_at = NOW() WHERE id = $3 AND status = 'in_progress'`,
+				[null, JSON.stringify(safetyFeedback), sessionId],
 			);
 			return res.json({
 				success: true,
