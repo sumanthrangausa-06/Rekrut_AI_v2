@@ -172,6 +172,16 @@ describe('legal-hold admin API', () => {
 		expect(res.body.error).toMatch(/must be an integer/);
 	});
 
+	test('#1416: an out-of-int4-range hold id is surfaced as 400 via the INVALID_HOLD_ID mapping, never a buried 500', async () => {
+		const err = new Error('legalHold.releaseHold: holdId must be an integer id (received 2147483648)');
+		err.code = 'INVALID_HOLD_ID';
+		err.status = 400;
+		legalHold.releaseHold.mockRejectedValue(err);
+		const res = await request(makeApp()).post('/api/admin/legal-holds/2147483648/release').send({});
+		expect(res.status).toBe(400);
+		expect(res.body.error).toMatch(/must be an integer/);
+	});
+
 	test('admin releases a hold: 200 with released row', async () => {
 		legalHold.releaseHold.mockResolvedValue({ id: 5, released_at: new Date().toISOString(), released_by: 'x' });
 		const res = await request(makeApp()).post('/api/admin/legal-holds/5/release').send({});

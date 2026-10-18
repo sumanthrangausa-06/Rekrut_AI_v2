@@ -426,6 +426,39 @@ describe('legalHold place/release + audit', () => {
 		expect(holds).toHaveLength(2);
 	});
 
+	// ── #1416: releaseHold's holdId reaches `WHERE id = $2` against the
+	// SERIAL (int4) legal_holds.id with NO normalisation — the route's
+	// parseInt guard passes 2147483648, so on real PG the UPDATE raises
+	// 22P02 and the route buries it as a generic 500. Same family
+	// #1404/#1409 closed for placeHold: typed 400 BEFORE any DB query.
+	test.each([[2147483648], ['2147483648'], ['abc'], [7.5], ['7.5']])(
+		'#1416: releaseHold rejects out-of-shape holdId %p with a typed 400 and queries nothing',
+		async (bad) => {
+			db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+			const err = await releaseHold({ holdId: bad, releasedBy: 'admin-2' }).catch((e) => e);
+			expect(err).toBeInstanceOf(Error);
+			expect(err.code).toBe('INVALID_HOLD_ID');
+			expect(err.status).toBe(400);
+			expect(err.message).toMatch(/must be an integer/);
+			expect(db.query).not.toHaveBeenCalled();
+			expect(auditLogService.logEvent).not.toHaveBeenCalled();
+		},
+	);
+
+	test('#1416: int4 max 2147483647 is valid shape for holdId — passes validation and reaches the UPDATE', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		await expect(releaseHold({ holdId: 2147483647, releasedBy: 'admin-2' })).resolves.toBeNull();
+		expect(db.query).toHaveBeenCalled();
+	});
+
+	test('#1416: integer-shaped string hold ids are normalised, valid ids unaffected', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		const row = await placeHold({ userId: 7, reason: 'litigation X', setBy: 'admin-1' });
+		const released = await releaseHold({ holdId: String(row.id), releasedBy: 'admin-2' });
+		expect(released.id).toBe(row.id);
+		expect(released.released_at).toBeTruthy();
+	});
+
 	test('releaseHold stamps released_by/at, audits, and unblocks isHeld', async () => {
 		const { isHeld } = require('../../../lib/legalHold');
 		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
