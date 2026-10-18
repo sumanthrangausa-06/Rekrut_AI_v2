@@ -3,6 +3,10 @@
 // via auditLogService, but migration 129's CHECK only allows
 // ('candidate','job','company','user'), so every audit INSERT would throw
 // check_violation. Extend the CHECK (backward-compatible: existing rows unaffected).
+// #1329: the constraint lookup uses pg_constraint contype='c' (genuine CHECK
+// only) — on PG18, information_schema surfaces NOT NULL constraints as CHECK,
+// so the old lookup could select the entity_type not-null pseudo-CHECK,
+// drop it, and collide on the re-add (same defect as #1155, fixed in 257).
 
 async function up(client) {
 	await client.query(`
@@ -10,11 +14,12 @@ async function up(client) {
 		DECLARE
 			chk_name TEXT;
 		BEGIN
-			SELECT constraint_name INTO chk_name
-			FROM information_schema.table_constraints
-			WHERE table_name = 'compliance_audit_trail'
-				AND constraint_type = 'CHECK'
-				AND constraint_name LIKE '%entity_type%'
+			SELECT con.conname INTO chk_name
+			FROM pg_constraint con
+			JOIN pg_class rel ON rel.oid = con.conrelid
+			WHERE rel.relname = 'compliance_audit_trail'
+				AND con.contype = 'c'
+				AND con.conname LIKE '%entity_type%'
 			LIMIT 1;
 
 			IF chk_name IS NOT NULL THEN
