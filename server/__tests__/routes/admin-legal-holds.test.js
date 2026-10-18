@@ -160,6 +160,18 @@ describe('legal-hold admin API', () => {
 		expect(res.body.error).toMatch(/must be an integer/);
 	});
 
+	test('#1409: an out-of-int4-range company id is surfaced as 400 via the same INVALID_SUBJECT_ID mapping', async () => {
+		const err = new Error('legalHold.placeHold: companyId must be an integer id (received 2147483648)');
+		err.code = 'INVALID_SUBJECT_ID';
+		err.status = 400;
+		legalHold.placeHold.mockRejectedValue(err);
+		const res = await request(makeApp())
+			.post('/api/admin/legal-holds')
+			.send({ companyId: 2147483648, reason: 'litigation' });
+		expect(res.status).toBe(400);
+		expect(res.body.error).toMatch(/must be an integer/);
+	});
+
 	test('admin releases a hold: 200 with released row', async () => {
 		legalHold.releaseHold.mockResolvedValue({ id: 5, released_at: new Date().toISOString(), released_by: 'x' });
 		const res = await request(makeApp()).post('/api/admin/legal-holds/5/release').send({});
