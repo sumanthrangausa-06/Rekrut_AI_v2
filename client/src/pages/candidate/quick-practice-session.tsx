@@ -415,6 +415,11 @@ export function QuickPracticeSessionPage() {
 		setSubmitting(true);
 		setSubmitError(null);
 
+		// Delay before the single auto-retry. The resolved/AbortError retry
+		// paths keep the historical 2000ms; a thrown retryable 503 (#1371)
+		// overrides this with the server's retryAfterMs (fallback 3000ms).
+		let retryDelayMs = 2000;
+
 		// Inner function for the actual API call (allows retry)
 		const doSubmit = async (attempt: number): Promise<boolean> => {
 			const abortController = new AbortController();
@@ -461,6 +466,16 @@ export function QuickPracticeSessionPage() {
 				);
 				return true; // don't retry on other responses
 			} catch (err: any) {
+				// #1371: a real 503 THROWS through apiCall — it never reaches
+				// the resolved-value retryable check above. Since #1369 the
+				// thrown error preserves the server's status / retryable /
+				// retryAfterMs, so honour the retry signal here: on attempt 1,
+				// wait retryAfterMs (fallback 3000ms) and retry once. If the
+				// retry also fails, the branches below surface the honest error.
+				if (attempt === 1 && err.status === 503 && err.retryable === true) {
+					retryDelayMs = typeof err.retryAfterMs === 'number' ? err.retryAfterMs : 3000;
+					return false; // signal retry needed
+				}
 				if (err.name === 'AbortError' || abortController.signal.aborted) {
 					if (attempt === 1) return false; // retry on timeout
 					setSubmitError(
@@ -479,8 +494,9 @@ export function QuickPracticeSessionPage() {
 		// Attempt 1
 		const done = await doSubmit(1);
 		if (!done) {
-			// Auto-retry once after a brief pause
-			await new Promise((r) => setTimeout(r, 2000));
+			// Auto-retry once after a brief pause (retryDelayMs — 2000ms by
+			// default, or the server's retryAfterMs for a thrown 503, #1371)
+			await new Promise((r) => setTimeout(r, retryDelayMs));
 			await doSubmit(2);
 		}
 		setSubmitting(false);
