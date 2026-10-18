@@ -53,6 +53,47 @@ async function logAudit(screeningId, action, actorId, inputs, outputs, metadata 
 	);
 }
 
+// #1145: compliance_audit_trail is the accountability record that survives
+// erasure of the screening tables (#813 D-1), so a failed write must not be
+// console-only. Retry once (transient DB blip / hash-chain current_hash
+// collision), then write a durable dead-letter marker into
+// ai_screening_audit_logs (action 'compliance_audit_failed') that ops can
+// query and replay, and report failure via the return value so callers can
+// flag the response. Never throws: the screening / review itself succeeded
+// and must not hard-fail on an audit fault.
+// ponytail: dead-letter lives in ai_screening_audit_logs, which D-1 erases —
+// markers must be drained before/with erasure; upgrade path is a dedicated
+// outbox table + replay worker if marker volume ever justifies it.
+async function logComplianceEvent(event, screeningId) {
+	try {
+		await auditLogService.logEvent(event);
+		return true;
+	} catch (_firstErr) {
+		try {
+			await auditLogService.logEvent(event);
+			return true;
+		} catch (err) {
+			console.error(
+				'[compliance-audit] logEvent failed after retry; writing dead-letter marker:',
+				err.message,
+			);
+			try {
+				await logAudit(screeningId, 'compliance_audit_failed', event.actorId ?? null, null, null, {
+					event_type: event.eventType,
+					entity_id: event.entityId ?? null,
+					// Code/name only: this metadata is readable via the
+					// screening audit-log GET; the full message stays in the
+					// server log above (specialist review note, #1145).
+					error: String(err.code || err.name || 'logEvent_failed'),
+				});
+			} catch (markerErr) {
+				console.error('[compliance-audit] dead-letter marker ALSO failed:', markerErr.message);
+			}
+			return false;
+		}
+	}
+}
+
 async function verifyRecruiterOwnsJob(userId, jobId) {
 	const result = await pool.query(
 		`SELECT j.id, j.company_id, u.company_id as user_company_id
@@ -243,9 +284,9 @@ router.post(
 				{ fit_score: screeningResult.fit_score, recommendation: screeningResult.recommendation },
 			);
 
-			// ─── Compliance audit trail (Issue #136) ───────────────────────
-			try {
-				await auditLogService.logEvent({
+			// ─── Compliance audit trail (Issue #136; reliability #1145) ───
+			const auditOk = await logComplianceEvent(
+				{
 					eventType: auditLogService.EVENT_TYPES.AI_DECISION,
 					entityType: auditLogService.ENTITY_TYPES.CANDIDATE,
 					entityId: candidateId,
@@ -266,10 +307,9 @@ router.post(
 						model_version: 'recruiter-screener-v1',
 					},
 					req,
-				});
-			} catch (e) {
-				console.error('[compliance-audit] AI decision log failed (non-blocking):', e.message);
-			}
+				},
+				screeningId,
+			);
 
 			// Also log to legacy screening_logs for backward compatibility
 			try {
@@ -284,6 +324,7 @@ router.post(
 
 			res.json({
 				success: true,
+				...(auditOk ? {} : { compliance_audit_pending: true }),
 				screening_id: screeningId,
 				candidate: {
 					id: candidate.id,
@@ -498,6 +539,7 @@ router.post(
 
 			// Store results and build response
 			const storedResults = [];
+			let batchAuditPending = false;
 			for (let i = 0; i < batchResults.length; i++) {
 				const result = batchResults[i];
 				const candidate = candidates[i];
@@ -516,9 +558,9 @@ router.post(
 					batch: true,
 				});
 
-				// ─── Compliance audit trail (Issue #136) ───────────────────
-				try {
-					await auditLogService.logEvent({
+				// ─── Compliance audit trail (Issue #136; reliability #1145) ─
+				const batchAuditOk = await logComplianceEvent(
+					{
 						eventType: auditLogService.EVENT_TYPES.AI_DECISION,
 						entityType: auditLogService.ENTITY_TYPES.CANDIDATE,
 						entityId: candidate.id,
@@ -537,13 +579,10 @@ router.post(
 							model_version: 'recruiter-screener-v1',
 						},
 						req,
-					});
-				} catch (e) {
-					console.error(
-						'[compliance-audit] Batch AI decision log failed (non-blocking):',
-						e.message,
-					);
-				}
+					},
+					screeningId,
+				);
+				if (!batchAuditOk) batchAuditPending = true;
 
 				storedResults.push({
 					screening_id: screeningId,
@@ -558,6 +597,7 @@ router.post(
 
 			res.json({
 				success: true,
+				...(batchAuditPending ? { compliance_audit_pending: true } : {}),
 				job: { id: job.id, title: job.title },
 				screenings: storedResults,
 				total_processed: candidates.length,
@@ -600,9 +640,10 @@ router.post(
 			}
 
 			// Get screening and verify ownership via job
-			const screeningResult = await pool.query(`SELECT job_id FROM ai_screenings WHERE id = $1`, [
-				screeningId,
-			]);
+			const screeningResult = await pool.query(
+				`SELECT job_id, candidate_id FROM ai_screenings WHERE id = $1`,
+				[screeningId],
+			);
 			if (screeningResult.rows.length === 0) {
 				return res.status(404).json({ error: 'Screening not found' });
 			}
@@ -636,9 +677,9 @@ router.post(
 			// Audit log
 			await logAudit(screeningId, 'human_review', req.user.id, null, null, { decision, reason });
 
-			// ─── Compliance audit trail (Issue #136) ───────────────────────
-			try {
-				await auditLogService.logEvent({
+			// ─── Compliance audit trail (Issue #136; anchor + reliability #1145)
+			const auditOk = await logComplianceEvent(
+				{
 					eventType: auditLogService.EVENT_TYPES.HUMAN_OVERRIDE,
 					entityType: auditLogService.ENTITY_TYPES.CANDIDATE,
 					entityId: screeningResult.rows[0]?.candidate_id || null,
@@ -653,13 +694,13 @@ router.post(
 						original_ai_status: 'pending',
 					},
 					req,
-				});
-			} catch (e) {
-				console.error('[compliance-audit] Human override log failed (non-blocking):', e.message);
-			}
+				},
+				screeningId,
+			);
 
 			res.json({
 				success: true,
+				...(auditOk ? {} : { compliance_audit_pending: true }),
 				review: reviewResult.rows[0],
 				message: 'Human review submitted successfully',
 			});
