@@ -145,7 +145,11 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 					[existingCompany.id],
 				);
 				if (ownerEmailResult.rows.length > 0) {
-					await emailService.sendEmailAsync({
+					// #1359: truly non-blocking — do NOT await. sendEmailAsync
+					// wraps a Brevo fetch with no timeout; awaiting it here
+					// withheld the 202 response below indefinitely when the
+					// email send stalled (same defect class as #1353).
+					void emailService.sendEmailAsync({
 						to: ownerEmailResult.rows[0].email,
 						templateName: 'recruiter_join_request',
 						templateData: {
@@ -162,6 +166,13 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 							requester_id: user.id,
 							trigger: 'recruiter_join_request',
 						},
+					}).catch((emailErr) => {
+						// sendEmailAsync already swallows send failures; this
+						// guards the fire-and-forget promise itself.
+						console.error(
+							'[company/register] Owner email notification error:',
+							emailErr?.message || emailErr,
+						);
 					});
 				}
 			} catch (emailErr) {
@@ -1024,8 +1035,9 @@ router.post(
 			invalidateUserCache(target.id);
 
 			// ─── Issue #157: Email notification to suspended user ───
+			// #1359: truly non-blocking — do NOT await (see :148 note).
 			try {
-				await emailService.sendEmailAsync({
+				void emailService.sendEmailAsync({
 					to: target.email,
 					templateName: 'account_suspended',
 					templateData: {
@@ -1039,6 +1051,13 @@ router.post(
 						actor_id: req.user.id,
 						trigger: 'team_member_suspended',
 					},
+				}).catch((emailErr) => {
+					// sendEmailAsync already swallows send failures; this
+					// guards the fire-and-forget promise itself.
+					console.error(
+						'[company/suspend] Email notification error:',
+						emailErr?.message || emailErr,
+					);
 				});
 			} catch (emailErr) {
 				console.error('[company/suspend] Email notification error:', emailErr.message);
@@ -1179,8 +1198,9 @@ router.post(
 				target.id,
 			]);
 
+			// #1359: truly non-blocking — do NOT await (see :148 note).
 			try {
-				await emailService.sendEmailAsync({
+				void emailService.sendEmailAsync({
 					to: target.email,
 					templateName: 'account_suspended',
 					templateData: {
@@ -1194,6 +1214,13 @@ router.post(
 						actor_id: req.user.id,
 						trigger: 'team_member_suspended',
 					},
+				}).catch((emailErr) => {
+					// sendEmailAsync already swallows send failures; this
+					// guards the fire-and-forget promise itself.
+					console.error(
+						'[company/suspend] Email notification error:',
+						emailErr?.message || emailErr,
+					);
 				});
 			} catch (emailErr) {
 				console.error('[company/suspend] Email notification error:', emailErr.message);
