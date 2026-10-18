@@ -20,35 +20,46 @@
 //   - migrations/013: retention registry row only (1825 days) — no DDL.
 //   - Writers: NONE. No INSERT/UPDATE into assessment_results exists in
 //     the codebase today; the table is read-only legacy-shaped data.
-// Specialist review (ecc/database-reviewer, STOP 1 on #1336):
-//   - score NUMERIC(5,2): readers render it as a percentage and fractional
-//     scores occur (88.5) — INTEGER would silently truncate them.
-//   - skill_name NULLABLE: with no writer in the codebase, NOT NULL would
-//     be an invented constraint that could reject a legitimate future
-//     writer (e.g. a general/non-skill result row).
+// Specialist review (ecc/database-reviewer, STOP 1 on #1336 — corrected
+// attribution: an early summary misstated two of these positions; the
+// specialist's delivered verdict, adopted here, is):
+//   - score INTEGER: every sibling score column is INTEGER
+//     (skill_assessments.score, candidate_skills.verified_score,
+//     score_appeals); no evidenced writer produces fractional scores;
+//     and node-pg returns NUMERIC as a string, which would corrupt the
+//     compliance SELECT * export ("85.00" instead of 85). No range
+//     CHECK — the scale is unproven (cf. skill_assessments.max_score).
+//   - skill_name NOT NULL: it is the row's identity; the reader
+//     subquery filters score IS NOT NULL but not skill_name, so a
+//     nullable column could emit {"skill": null, …} into the screener
+//     prompt. A general/unnamed result belongs in omni_scores, not here.
 //   - No updated_at (append-only rows; nothing reads or writes one), no
 //     skill_id/session_id FK, max_score or passed (nothing references
 //     them — a future writer story can add what it actually needs).
 //   - user_id ON DELETE CASCADE: matches skill_assessments (migration
 //     004) and the platform convention for user-owned result rows; the
 //     retention purge and erasure paths assume user-attributable rows.
+//     (Cascade does not fire on soft-delete; the missing erasureService
+//     family for this table is a separate follow-up, not this story.)
+//   - Post-state assertion (below): per the 268/269 precedent, verify
+//     the required columns exist with the expected type families so a
+//     wrong-shaped pre-existing table fails LOUD here instead of
+//     silently no-oping and returning later as a fresh-install 500.
 // Indexes: user_id serves both reader subqueries, the compliance export
 // and the legal-hold predicate; created_at serves the retention purge's
 // range predicate. CREATE TABLE IF NOT EXISTS makes this a no-op on DBs
 // where the table was created out-of-band (live), while fresh installs
 // gain the table. Additive only — no existing structure changes.
 //
-// Live-shape honesty (independent review, PR for #1336): on a DB where
-// the table pre-exists out-of-band, this migration does NOT reconcile a
-// divergent live shape (e.g. a differently-typed score column) — no
-// in-repo evidence documents the live shape, and altering a live table
-// is outside this story's additive boundary; reconciliation, if ever
-// evidenced, is a separate gated story. What this migration DOES
-// guarantee on such a DB: it cannot abort the migrate.js chain. The
-// index creations below are column-guarded — if a pre-existing table
-// somehow lacked user_id or created_at, the index is skipped with a
-// warning instead of raising (an unguarded CREATE INDEX on a missing
-// column would roll back 270 and abort every later migration).
+// Live-shape honesty (independent review + STOP 1 specialist, PR for
+// #1336): on a DB where the table pre-exists out-of-band, this migration
+// does NOT reconcile a divergent live shape — no in-repo evidence
+// documents the live shape, and altering a live table is outside this
+// story's additive boundary; reconciliation, if ever evidenced, is a
+// separate gated story. Instead, the post-state assertion below fails
+// loud on divergence, at the promotion gate, where a human decides.
+// The index creations are column-guarded so that the assertion — with
+// its precise message — is what raises, not a raw index error.
 // =============================================================================
 
 module.exports = {
@@ -58,8 +69,8 @@ module.exports = {
       CREATE TABLE IF NOT EXISTS assessment_results (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        skill_name VARCHAR(255),
-        score NUMERIC(5,2),
+        skill_name VARCHAR(255) NOT NULL,
+        score INTEGER,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
@@ -82,6 +93,37 @@ module.exports = {
             ON assessment_results(created_at);
         ELSE
           RAISE WARNING '270_assessment_results: assessment_results.created_at missing — created_at index skipped';
+        END IF;
+      END
+      $$;
+    `);
+
+		// Post-state assertion (268/269 precedent): the required columns
+		// must exist with the expected type families — on a fresh install
+		// this verifies our own CREATE; on a DB with a pre-existing
+		// out-of-band table it fails loud on shape drift instead of
+		// recording success over the wrong shape. migrate.js wraps up()
+		// + the _migrations insert in one transaction, so a RAISE rolls
+		// back and records nothing.
+		await client.query(`
+      DO $$
+      DECLARE
+        bad TEXT;
+      BEGIN
+        SELECT string_agg(missing, ', ') INTO bad FROM (
+          SELECT 'id:integer' AS missing WHERE NOT EXISTS (
+            SELECT 1 FROM information_schema.columns WHERE table_name='assessment_results' AND column_name='id' AND data_type='integer')
+          UNION ALL SELECT 'user_id:integer' WHERE NOT EXISTS (
+            SELECT 1 FROM information_schema.columns WHERE table_name='assessment_results' AND column_name='user_id' AND data_type='integer')
+          UNION ALL SELECT 'skill_name:character varying' WHERE NOT EXISTS (
+            SELECT 1 FROM information_schema.columns WHERE table_name='assessment_results' AND column_name='skill_name' AND data_type IN ('character varying','text'))
+          UNION ALL SELECT 'score:integer' WHERE NOT EXISTS (
+            SELECT 1 FROM information_schema.columns WHERE table_name='assessment_results' AND column_name='score' AND data_type='integer')
+          UNION ALL SELECT 'created_at:timestamp' WHERE NOT EXISTS (
+            SELECT 1 FROM information_schema.columns WHERE table_name='assessment_results' AND column_name='created_at' AND data_type LIKE 'timestamp%')
+        ) s;
+        IF bad IS NOT NULL THEN
+          RAISE EXCEPTION '270_assessment_results post-state: missing/mistyped columns: %', bad;
         END IF;
       END
       $$;
