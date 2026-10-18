@@ -3290,7 +3290,7 @@ router.post('/applications/auto-apply', authMiddleware, rateLimits.standard, asy
 // ============= AUTO-APPLY PROFILE MANAGEMENT (#83) =============
 
 // Activate auto-apply with GDPR consent
-router.post('/auto-apply/activate', authMiddleware, async (req, res) => {
+router.post('/auto-apply/activate', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
 		const { gdpr_consent, profile_data } = req.body;
 
@@ -3325,7 +3325,7 @@ router.post('/auto-apply/activate', authMiddleware, async (req, res) => {
 });
 
 // Deactivate auto-apply
-router.post('/auto-apply/deactivate', authMiddleware, async (req, res) => {
+router.post('/auto-apply/deactivate', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
 		await pool.query(
 			`
@@ -3362,7 +3362,7 @@ router.get('/auto-apply/status', authMiddleware, async (req, res) => {
 });
 
 // Update auto-apply profile data
-router.put('/auto-apply/profile', authMiddleware, async (req, res) => {
+router.put('/auto-apply/profile', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
 		const { profile_data } = req.body;
 		if (!profile_data || typeof profile_data !== 'object') {
