@@ -456,7 +456,8 @@ router.post(
 			!coaching ||
 			typeof coaching !== 'object' ||
 			typeof coaching.overall_score !== 'number' ||
-			!Number.isFinite(coaching.overall_score)
+			!Number.isFinite(coaching.overall_score) ||
+			coaching._content_failed === true
 		) {
 			// #1357: no usable analysis — return a truthful, retryable error
 			// (the same 503 shape this route's catch block uses for timeout /
@@ -465,9 +466,14 @@ router.post(
 			// violates the no-fake-scores rule. A shapeless object ({} / [])
 			// or one without a numeric overall_score is equally invalid —
 			// the frontend would render it as a blank "/10" verdict.
+			// Fix-forward: lib/qp-ai.js never returns null on total provider
+			// failure — its partial fallback returns a well-formed object
+			// flagged _content_failed:true with overall_score derived from
+			// the local speech-pattern score alone. Content was never
+			// analysed, so that object is not a usable analysis either.
 			// No session row is written.
 			console.warn(
-				`[QP] AI analysis returned null/invalid (type: ${coaching === null ? 'null' : typeof coaching}, overall_score: ${coaching?.overall_score}) — returning retryable 503`,
+				`[QP] AI analysis returned null/invalid/content-failed (type: ${coaching === null ? 'null' : typeof coaching}, overall_score: ${coaching?.overall_score}, _content_failed: ${coaching?._content_failed}) — returning retryable 503`,
 			);
 			return res.status(503).json({
 				error: 'AI analysis is temporarily unavailable. Please try again in a moment.',
