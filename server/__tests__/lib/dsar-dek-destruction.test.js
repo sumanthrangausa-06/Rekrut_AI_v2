@@ -180,6 +180,7 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			autoApplyProfileDeleted: false, // #813
 			aiScreeningAuditLogsDeleted: 0, // #813
 			aiScreeningHumanReviewsDeleted: 0, // #813
+			complianceAuditMarkersDrained: 0, // #1337
 			applicationKeyedRowsHeld: 0, // #813
 			applicationKeyedHeldDetails: [], // #813
 			autoApplyConsentTombstone: null, // #813
@@ -446,6 +447,7 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			autoApplyProfileDeleted: false, // #813
 			aiScreeningAuditLogsDeleted: 0, // #813
 			aiScreeningHumanReviewsDeleted: 0, // #813
+			complianceAuditMarkersDrained: 0, // #1337
 			applicationKeyedRowsHeld: 0, // #813
 			applicationKeyedHeldDetails: [], // #813
 			autoApplyConsentTombstone: null, // #813
