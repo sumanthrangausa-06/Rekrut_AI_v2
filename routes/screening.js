@@ -194,8 +194,17 @@ router.post('/batch', authMiddleware, async (req, res) => {
 			return res.json({ success: true, screenings: [], message: 'No candidates to screen' });
 		}
 
-		// Batch screening
-		const screenings = await screener.screenCandidatesBatch(candidates, job, {
+		// Batch screening — normalise the raw jobs row exactly as the
+		// single /analyze path above (and ai-screener's getJobForScreening)
+		// does: the scorer reads required_skills/min_years, never the DB
+		// column names skills_required/min_years_experience (#1366).
+		const jobData = {
+			...job,
+			required_skills: job.skills_required || [],
+			preferred_skills: job.preferred_skills || [],
+			min_years: job.min_years_experience || 0,
+		};
+		const screenings = await screener.screenCandidatesBatch(candidates, jobData, {
 			subscriptionId: req.user.id,
 		});
 
