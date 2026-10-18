@@ -537,12 +537,19 @@ router.post(
 				subscriptionId: req.user.id,
 			});
 
-			// Store results and build response
+			// Store results and build response — pair by candidate_id (#1346):
+			// batchResults are sorted by fit_score, so index pairing would
+			// persist each result (and its audit events) under the wrong
+			// candidate. A result naming no known candidate is skipped.
+			// (Positional fallback only for legacy results without a
+			// candidate_id; the lib now always sets it.)
+			const candidatesById = new Map(candidates.map((c) => [c.id, c]));
 			const storedResults = [];
 			let batchAuditPending = false;
 			for (let i = 0; i < batchResults.length; i++) {
 				const result = batchResults[i];
-				const candidate = candidates[i];
+				const candidate =
+					result.candidate_id != null ? candidatesById.get(result.candidate_id) : candidates[i];
 				if (!candidate) continue;
 
 				const applicationId = await findOrCreateApplication(candidate.id, jobId);
