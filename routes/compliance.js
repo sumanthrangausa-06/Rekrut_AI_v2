@@ -1259,10 +1259,80 @@ router.post('/overrides', authMiddleware, async (req, res) => {
 				.json({ error: 'applicationId, userId, jobId, and reason are required' });
 		}
 
+		// Strict Number() coercion, mirroring canAccessUserRecord in this
+		// file (security-reviewer LOW-1 on #1327): parseInt would silently
+		// alias "100abc" / 100.9 / [100] to 100; Number() rejects those,
+		// while a legitimate string "100" stays accepted (the #1111 LOW-3
+		// coercion precedent).
+		const applicationIdInt = Number(applicationId);
+		const userIdInt = Number(userId);
+		const jobIdInt = Number(jobId);
+		if (
+			!Number.isInteger(applicationIdInt) ||
+			applicationIdInt <= 0 ||
+			!Number.isInteger(userIdInt) ||
+			userIdInt <= 0 ||
+			!Number.isInteger(jobIdInt) ||
+			jobIdInt <= 0
+		) {
+			return res
+				.status(400)
+				.json({ error: 'applicationId, userId, and jobId must be valid IDs' });
+		}
+
+		// #1327 (security-reviewer HIGH-R2 on #1113): write-side gate —
+		// this handler previously trusted body IDs, so a foreign-company
+		// hiring user could CREATE an override against another company's
+		// candidate. Company gate first, reusing the exact #1113
+		// GET /overrides/job shape: non-admin callers must be a hiring
+		// role of the company that owns the job (fail-closed 403 on a
+		// missing job or a null company_id on either side); admin is
+		// not job-scoped, as in the sibling read gates.
+		const isAdmin = req.user?.role === 'admin';
+		const jobResult = await pool.query('SELECT company_id FROM jobs WHERE id = $1', [jobIdInt]);
+		const job = jobResult.rows[0];
+		if (
+			!isAdmin &&
+			(!job ||
+				job.company_id == null ||
+				req.user?.company_id == null ||
+				Number(req.user.company_id) !== Number(job.company_id))
+		) {
+			return res.status(403).json({ error: 'Access denied' });
+		}
+
+		// Consistency: the body IDs must describe one real application —
+		// application.job_id === jobId, application.candidate_id ===
+		// userId, and the application's company must agree with the
+		// job's company where both are recorded. Missing and mismatched
+		// applications are the same uniform 400 (no existence oracle),
+		// and the check runs before the service call, so a denied or
+		// inconsistent body never reaches the INSERT. This applies to
+		// admin too: consistency is a data-integrity check, not a
+		// company-scoping one.
+		const appResult = await pool.query(
+			'SELECT candidate_id, company_id, job_id FROM job_applications WHERE id = $1',
+			[applicationIdInt],
+		);
+		const application = appResult.rows[0];
+		if (
+			!job ||
+			!application ||
+			Number(application.job_id) !== jobIdInt ||
+			Number(application.candidate_id) !== userIdInt ||
+			(application.company_id != null &&
+				job?.company_id != null &&
+				Number(application.company_id) !== Number(job.company_id))
+		) {
+			return res
+				.status(400)
+				.json({ error: 'applicationId, userId, and jobId are inconsistent' });
+		}
+
 		const override = await EuComplianceService.recordHumanOverride({
-			applicationId: parseInt(applicationId, 10),
-			userId: parseInt(userId, 10),
-			jobId: parseInt(jobId, 10),
+			applicationId: applicationIdInt,
+			userId: userIdInt,
+			jobId: jobIdInt,
 			originalScore: originalScore !== undefined ? parseFloat(originalScore) : null,
 			newScore: newScore !== undefined ? parseFloat(newScore) : null,
 			originalStatus: originalStatus || null,
@@ -1274,7 +1344,7 @@ router.post('/overrides', authMiddleware, async (req, res) => {
 		res.status(201).json({ success: true, override });
 	} catch (error) {
 		console.error('[compliance/overrides] Failed:', error.message);
-		res.status(500).json({ error: error.message || 'Failed to record override' });
+		res.status(500).json({ error: 'Failed to record override' });
 	}
 });
 
