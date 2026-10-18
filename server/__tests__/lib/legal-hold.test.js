@@ -60,6 +60,8 @@ let holds;
 let userCompany;
 let candidateSessionCompanies;
 let holdCheckError;
+let existingUserIds;
+let existingCompanyIds;
 
 function activeHoldMatches(uid, cids, anySessionBranch = true) {
 	const cidList = (Array.isArray(cids) ? cids : [cids]).filter((c) => c != null);
@@ -77,6 +79,20 @@ function activeHoldMatches(uid, cids, anySessionBranch = true) {
 }
 
 function routeLegalHolds(sql, params = []) {
+	// #918: placeHold subject-existence lookups (PK lookups on users /
+	// companies). Matched on the statement PREFIX only — the legal_holds
+	// query itself contains a `FROM users WHERE id` subquery and must
+	// NOT be intercepted here.
+	if (sql.trimStart().startsWith('SELECT id FROM users')) {
+		return existingUserIds.has(params[0])
+			? { rows: [{ id: params[0] }], rowCount: 1 }
+			: { rows: [], rowCount: 0 };
+	}
+	if (sql.trimStart().startsWith('SELECT id FROM companies')) {
+		return existingCompanyIds.has(params[0])
+			? { rows: [{ id: params[0] }], rowCount: 1 }
+			: { rows: [], rowCount: 0 };
+	}
 	if (sql.includes('INSERT INTO legal_holds')) {
 		const row = {
 			id: holds.length + 1,
@@ -124,6 +140,8 @@ beforeEach(() => {
 	userCompany = {}; // candidates: users.company_id IS NULL (see header)
 	candidateSessionCompanies = {};
 	holdCheckError = null;
+	existingUserIds = new Set([7]); // #918: subjects that exist for placeHold
+	existingCompanyIds = new Set([3]);
 	auditLogService.logEvent.mockResolvedValue({ id: 'audit-1' });
 });
 
@@ -299,6 +317,49 @@ describe('legalHold place/release + audit', () => {
 		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
 		await expect(placeHold({ reason: 'x', setBy: 'a' })).rejects.toThrow(/subject/);
 		await expect(placeHold({ userId: 7, setBy: 'a' })).rejects.toThrow(/reason/);
+	});
+
+	// ── #918 (Lex F-5): the subject must EXIST — a transposed ID must fail
+	// loudly and write NO hold row (a silent hold protects nobody).
+	test('#918: placeHold rejects a NON-EXISTENT user id loudly and writes no hold row', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		const err = await placeHold({ userId: 999, reason: 'litigation X', setBy: 'admin-1' }).catch((e) => e);
+		expect(err).toBeInstanceOf(Error);
+		expect(err.message).toMatch(/user 999 does not exist/);
+		expect(err.code).toBe('SUBJECT_NOT_FOUND');
+		expect(holds).toHaveLength(0);
+		expect(auditLogService.logEvent).not.toHaveBeenCalled();
+	});
+
+	test('#918: placeHold rejects a NON-EXISTENT company id loudly and writes no hold row', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		const err = await placeHold({ companyId: 999, reason: 'litigation X', setBy: 'admin-1' }).catch((e) => e);
+		expect(err).toBeInstanceOf(Error);
+		expect(err.message).toMatch(/company 999 does not exist/);
+		expect(err.code).toBe('SUBJECT_NOT_FOUND');
+		expect(holds).toHaveLength(0);
+		expect(auditLogService.logEvent).not.toHaveBeenCalled();
+	});
+
+	test('#918: placeHold rejects when BOTH subjects are supplied and either one is missing', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		await expect(
+			placeHold({ userId: 7, companyId: 999, reason: 'x', setBy: 'a' }),
+		).rejects.toThrow(/company 999 does not exist/);
+		await expect(
+			placeHold({ userId: 999, companyId: 3, reason: 'x', setBy: 'a' }),
+		).rejects.toThrow(/user 999 does not exist/);
+		expect(holds).toHaveLength(0);
+	});
+
+	test('#918: valid company-only and user+company holds are unaffected', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		const companyOnly = await placeHold({ companyId: 3, reason: 'company hold', setBy: 'admin-1' });
+		expect(companyOnly.company_id).toBe(3);
+		const both = await placeHold({ userId: 7, companyId: 3, reason: 'both hold', setBy: 'admin-1' });
+		expect(both.user_id).toBe(7);
+		expect(both.company_id).toBe(3);
+		expect(holds).toHaveLength(2);
 	});
 
 	test('releaseHold stamps released_by/at, audits, and unblocks isHeld', async () => {

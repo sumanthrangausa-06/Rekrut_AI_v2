@@ -136,6 +136,18 @@ describe('legal-hold admin API', () => {
 		expect(legalHold.placeHold).not.toHaveBeenCalled();
 	});
 
+	test('#918: a non-existent subject is surfaced as 404 with the reason, never a silent success or a buried 500', async () => {
+		const err = new Error('legalHold.placeHold: subject user 999 does not exist');
+		err.code = 'SUBJECT_NOT_FOUND';
+		err.status = 404;
+		legalHold.placeHold.mockRejectedValue(err);
+		const res = await request(makeApp())
+			.post('/api/admin/legal-holds')
+			.send({ userId: 999, reason: 'litigation' });
+		expect(res.status).toBe(404);
+		expect(res.body.error).toMatch(/user 999 does not exist/);
+	});
+
 	test('admin releases a hold: 200 with released row', async () => {
 		legalHold.releaseHold.mockResolvedValue({ id: 5, released_at: new Date().toISOString(), released_by: 'x' });
 		const res = await request(makeApp()).post('/api/admin/legal-holds/5/release').send({});
