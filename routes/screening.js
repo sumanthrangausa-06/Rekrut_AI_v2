@@ -356,6 +356,22 @@ router.post('/compare', authMiddleware, async (req, res) => {
 	try {
 		const { candidate1_id, candidate2_id, job_id } = req.body;
 
+		if (!candidate1_id || !candidate2_id || !job_id) {
+			return res.status(400).json({ error: 'candidate1_id, candidate2_id and job_id are required' });
+		}
+
+		// Verify recruiter owns this job (parity with /analyze, /batch and /questions)
+		const jobCheck = await pool.query(
+			'SELECT * FROM jobs WHERE id = $1 AND company_id = (SELECT company_id FROM users WHERE id = $2)',
+			[job_id, req.user.id],
+		);
+
+		if (jobCheck.rows.length === 0) {
+			return res.status(403).json({ error: 'You do not have access to this job' });
+		}
+
+		const job = jobCheck;
+
 		// Get both candidates
 		const candidates = await Promise.all([
 			pool.query(
@@ -378,9 +394,7 @@ router.post('/compare', authMiddleware, async (req, res) => {
 			),
 		]);
 
-		const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [job_id]);
-
-		if (!candidates[0].rows.length || !candidates[1].rows.length || !job.rows.length) {
+		if (!candidates[0].rows.length || !candidates[1].rows.length) {
 			return res.status(404).json({ error: 'Candidate(s) or job not found' });
 		}
 
