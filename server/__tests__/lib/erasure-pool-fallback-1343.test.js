@@ -60,6 +60,15 @@ describe('#1343 erasePersonalData — transaction client is required (no pool fa
 		['empty options', {}],
 		['client: undefined', { client: undefined }],
 		['client: null', { client: null }],
+		// The guard's second clause: a present but query-less "client".
+		['client without query', { client: {} }],
+		['client with non-function query', { client: { query: 1 } }],
+		['client as a string', { client: 'x' }],
+		// Review HIGH (#1343): the lib/db pool singleton itself — a Pool
+		// HAS .query, so shape alone would let the autocommit void back
+		// in. `pool` here is the (mocked) lib/db module, the same object
+		// erasureService would receive in production.
+		['the pool itself as client', { client: pool }],
 	])('rejects fail-closed when called with %s, and never touches the pool', async (_label, opts) => {
 		const err = await erasureService.erasePersonalData(7, opts).catch((e) => e);
 		expect(err).toBeInstanceOf(Error);
@@ -70,7 +79,7 @@ describe('#1343 erasePersonalData — transaction client is required (no pool fa
 		expect(pool.query).not.toHaveBeenCalled();
 	});
 
-	test('control: a caller-supplied client is accepted (guard does not block the transactional path)', async () => {
+	test('control: a caller-supplied query-capable client is not blocked by the guard (mocked shape check only — the real transactional path is proven by the real-DB E2E in the PR)', async () => {
 		const client = makeClient();
 		const result = await erasureService.erasePersonalData(7, { client });
 		expect(result).toBeTruthy();
