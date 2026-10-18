@@ -151,6 +151,7 @@ describe('#1145 human-review compliance audit', () => {
 		// ...but the failure is durable and caller-visible.
 		expect(deadLetterInserts().length).toBe(1);
 		const markerParams = deadLetterInserts()[0][1];
+		expect(markerParams[0]).toBe(SCREENING_ID);
 		const metadata = JSON.parse(markerParams[5]);
 		expect(metadata.event_type).toBe('human_override');
 		expect(metadata.entity_id).toBe(CANDIDATE_ID);
@@ -182,6 +183,7 @@ describe('#1145 batch-screening compliance audit', () => {
 		expect(res.body.success).toBe(true);
 		expect(res.body.compliance_audit_pending).toBe(true);
 		expect(deadLetterInserts().length).toBe(1);
+		expect(deadLetterInserts()[0][1][0]).toBe(SCREENING_ID);
 		const metadata = JSON.parse(deadLetterInserts()[0][1][5]);
 		expect(metadata.event_type).toBe('ai_decision');
 		expect(metadata.entity_id).toBe(CANDIDATE_ID);
@@ -195,6 +197,7 @@ describe('#1145 single-screening compliance audit', () => {
 		expect(res.status).toBe(200);
 		expect(res.body.success).toBe(true);
 		expect(deadLetterInserts().length).toBe(1);
+		expect(deadLetterInserts()[0][1][0]).toBe(SCREENING_ID);
 		const metadata = JSON.parse(deadLetterInserts()[0][1][5]);
 		expect(metadata.event_type).toBe('ai_decision');
 		expect(metadata.entity_id).toBe(CANDIDATE_ID);

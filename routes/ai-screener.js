@@ -55,8 +55,8 @@ async function logAudit(screeningId, action, actorId, inputs, outputs, metadata 
 
 // #1145: compliance_audit_trail is the accountability record that survives
 // erasure of the screening tables (#813 D-1), so a failed write must not be
-// console-only. Retry once (transient DB blip / hash-chain current_hash
-// collision), then write a durable dead-letter marker into
+// console-only. Retry once (transient DB blip / hash-chain head race in
+// auditLogService.getLastHash), then write a durable dead-letter marker into
 // ai_screening_audit_logs (action 'compliance_audit_failed') that ops can
 // query and replay, and report failure via the return value so callers can
 // flag the response. Never throws: the screening / review itself succeeded
