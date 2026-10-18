@@ -352,6 +352,35 @@ describe('legalHold place/release + audit', () => {
 		expect(holds).toHaveLength(0);
 	});
 
+	// ── #1404: a NON-INTEGER subject id must fail as a typed 400 BEFORE any
+	// DB query — on real PG it raises 22P02 in the #918 existence lookup and
+	// the admin route buries that as a generic 500.
+	test.each([
+		['userId', 'abc'],
+		['userId', 7.5],
+		['userId', '7.5'],
+		['companyId', 'abc'],
+		['companyId', 7.5],
+		['companyId', '7.5'],
+	])('#1404: placeHold rejects non-integer %s %p with a typed 400 and writes no hold row', async (field, bad) => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		const err = await placeHold({ [field]: bad, reason: 'litigation X', setBy: 'admin-1' }).catch((e) => e);
+		expect(err).toBeInstanceOf(Error);
+		expect(err.code).toBe('INVALID_SUBJECT_ID');
+		expect(err.status).toBe(400);
+		expect(err.message).toMatch(/must be an integer/);
+		expect(holds).toHaveLength(0);
+		expect(db.query).not.toHaveBeenCalled();
+		expect(auditLogService.logEvent).not.toHaveBeenCalled();
+	});
+
+	test('#1404: integer-shaped string subject ids are normalised, valid ids unaffected', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		const row = await placeHold({ userId: '7', reason: 'litigation X', setBy: 'admin-1' });
+		expect(row.user_id).toBe(7);
+		expect(holds).toHaveLength(1);
+	});
+
 	test('#918: valid company-only and user+company holds are unaffected', async () => {
 		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
 		const companyOnly = await placeHold({ companyId: 3, reason: 'company hold', setBy: 'admin-1' });

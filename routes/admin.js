@@ -2386,6 +2386,10 @@ router.post('/legal-holds', requireAdmin, async (req, res) => {
 		if (error.code === 'SUBJECT_NOT_FOUND') {
 			return res.status(404).json({ error: error.message });
 		}
+		// #1404: a non-integer subject id is likewise the caller's error.
+		if (error.code === 'INVALID_SUBJECT_ID') {
+			return res.status(400).json({ error: error.message });
+		}
 		res.status(500).json({ error: 'Failed to place legal hold' });
 	}
 });

@@ -148,6 +148,18 @@ describe('legal-hold admin API', () => {
 		expect(res.body.error).toMatch(/user 999 does not exist/);
 	});
 
+	test('#1404: a non-integer subject id is surfaced as 400 with the reason, never a buried 500', async () => {
+		const err = new Error('legalHold.placeHold: userId must be an integer id (received "abc")');
+		err.code = 'INVALID_SUBJECT_ID';
+		err.status = 400;
+		legalHold.placeHold.mockRejectedValue(err);
+		const res = await request(makeApp())
+			.post('/api/admin/legal-holds')
+			.send({ userId: 'abc', reason: 'litigation' });
+		expect(res.status).toBe(400);
+		expect(res.body.error).toMatch(/must be an integer/);
+	});
+
 	test('admin releases a hold: 200 with released row', async () => {
 		legalHold.releaseHold.mockResolvedValue({ id: 5, released_at: new Date().toISOString(), released_by: 'x' });
 		const res = await request(makeApp()).post('/api/admin/legal-holds/5/release').send({});
