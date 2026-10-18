@@ -231,7 +231,9 @@ describeIfDb('legal hold (real DB, migration 258)', () => {
 	});
 
 	// ── #1409 (real DB): int4 range bound in the normaliser ─────────────────
-	test('#1409 (real DB): ids above int4 max fail as typed 400 before any query; int4 max is valid shape (404)', async () => {
+	// #1417: the symmetric lower bound is pinned here too — below-min fails
+	// as the same typed 400, and INT4_MIN itself is valid shape (404).
+	test('#1409/#1417 (real DB): ids outside int4 range fail as typed 400 before any query; int4 max/min are valid shape (404)', async () => {
 		const countAll = async () => {
 			const { rows } = await pool.query('SELECT COUNT(*)::int AS c FROM legal_holds');
 			return rows[0].c;
@@ -240,6 +242,8 @@ describeIfDb('legal hold (real DB, migration 258)', () => {
 		for (const [field, arg] of [
 			['userId', { userId: 2147483648 }],
 			['companyId', { companyId: 2147483648 }],
+			['userId', { userId: -2147483649 }],
+			['companyId', { companyId: -2147483649 }],
 		]) {
 			const err = await legalHold
 				.placeHold({ ...arg, reason: 'int4 overflow', setBy: 'it-admin' }, pool)
@@ -250,9 +254,11 @@ describeIfDb('legal hold (real DB, migration 258)', () => {
 		for (const [field, arg] of [
 			['userId', { userId: 2147483647 }],
 			['companyId', { companyId: 2147483647 }],
+			['userId', { userId: -2147483648 }],
+			['companyId', { companyId: -2147483648 }],
 		]) {
 			const err = await legalHold
-				.placeHold({ ...arg, reason: 'int4 max', setBy: 'it-admin' }, pool)
+				.placeHold({ ...arg, reason: 'int4 bound', setBy: 'it-admin' }, pool)
 				.catch((e) => e);
 			// Valid shape: reaches the #918 existence check, which 404s —
 			// no 22P02, no 500-class escape, no hold row.
