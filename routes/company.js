@@ -141,7 +141,7 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 			// ─── Issue #104: Email notification to company owner ───
 			try {
 				const ownerEmailResult = await pool.query(
-					`SELECT email, name FROM users WHERE company_id = $1 AND role = 'employer' ORDER BY created_at ASC LIMIT 1`,
+					`SELECT id, email, name FROM users WHERE company_id = $1 AND role = 'employer' ORDER BY created_at ASC LIMIT 1`,
 					[existingCompany.id],
 				);
 				if (ownerEmailResult.rows.length > 0) {
@@ -1390,8 +1390,12 @@ router.post(
 			}
 
 			// ─── Email notification to new owner ───
+			// #1385: truly non-blocking — do NOT await. sendOwnershipTransferEmail
+			// wraps sendEmailAsync, whose Brevo fetch has no timeout; awaiting it
+			// here withheld the success response below indefinitely when the
+			// email send stalled (same defect class as #1353/#1359).
 			try {
-				await emailService.sendOwnershipTransferEmail({
+				void emailService.sendOwnershipTransferEmail({
 					to: target.email,
 					name: target.name,
 					companyName: company.name,
@@ -1401,6 +1405,13 @@ router.post(
 						actor_id: req.user.id,
 						trigger: 'ownership_transferred',
 					},
+				}).catch((emailErr) => {
+					// sendEmailAsync already swallows send failures; this
+					// guards the fire-and-forget promise itself.
+					console.error(
+						'[company/transfer-ownership] Email notification error:',
+						emailErr?.message || emailErr,
+					);
 				});
 			} catch (emailErr) {
 				console.error('[company/transfer-ownership] Email notification error:', emailErr.message);
