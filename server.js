@@ -497,6 +497,48 @@ function generateCsrfToken(req, res, next) {
 	next();
 }
 
+// #1328: public mutating entry points whose callers legitimately have no
+// session/JWT credential keep today's 403 CSRF_INVALID on CSRF failure.
+// Their credential, where any, travels in the URL/body/signature (screening
+// session token, verification ?token=, Stripe signature), or the caller is a
+// public form flow that fetches a CSRF token first (refresh/forgot/reset,
+// admin login, company register, guest checkout, guest job audio, referral
+// tracking). A NEW public mutating route that belongs here must be added
+// explicitly; protected routes need no entry — absence fails safe (denied).
+// Deliberately NOT here: /api/billing/cancel-subscription — its handler
+// 401-gates on req.user (routes/billing.js), so it is a protected route.
+function isCsrfPreservedPublicPost(path) {
+	return (
+		path === '/api/auth/refresh' ||
+		path === '/api/auth/forgot-password' ||
+		path === '/api/auth/reset-password' ||
+		path === '/api/admin/login' ||
+		path === '/api/company/register' ||
+		path === '/api/billing/webhook' ||
+		path === '/api/billing/checkout-session' ||
+		path === '/api/billing/confirm-session' ||
+		path === '/api/referrals/track' ||
+		path === '/api/referrals/attribution' ||
+		path.startsWith('/api/interviews/screening/session/') ||
+		/^\/api\/jobs\/[^/]+\/audio$/.test(path) ||
+		/^\/api\/verification-requests\/[^/]+\/respond$/.test(path)
+	);
+}
+
+// #1328: does the request carry ANY credential form this app accepts?
+// Bearer is handled by the exemption inside csrfProtection below. Presence
+// only — validity is the route auth layer's job; a request carrying a
+// (possibly invalid) credential is "credentialed" for status semantics and
+// keeps 403 on CSRF failure, exactly as before.
+function hasAnyCredential(req) {
+	return Boolean(
+		req.headers['x-api-key'] ||
+			req.headers['stripe-signature'] ||
+			req.session?.token ||
+			req.session?.isAdmin,
+	);
+}
+
 // CSRF validation: skip safe methods and /csrf-token endpoint
 function csrfProtection(req, res, next) {
 	if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
@@ -540,6 +582,17 @@ function csrfProtection(req, res, next) {
 			hasHeader: !!headerToken,
 			match: cookieToken === headerToken,
 		});
+		// #1328: CSRF runs before route auth, so an unauthenticated POST to a
+		// protected route would otherwise be misreported as a CSRF failure.
+		// Convention: no credential of any kind + CSRF failure + protected
+		// route => 401, so clients see the auth problem, not a CSRF problem.
+		// Any credentialed request (or a preserved public entry point) keeps
+		// the 403 — CSRF protection is NOT weakened for authenticated users.
+		if (!hasAnyCredential(req) && !isCsrfPreservedPublicPost(req.path)) {
+			return res
+				.status(401)
+				.json({ error: 'Authentication required', code: 'AUTH_REQUIRED' });
+		}
 		return res.status(403).json({ error: 'CSRF token validation failed', code: 'CSRF_INVALID' });
 	}
 	next();
@@ -554,9 +607,6 @@ app.get('/csrf-token', (req, res) => {
 
 // GET /metrics — Prometheus scrape endpoint (no auth required)
 app.get('/metrics', prometheus.metricsHandler);
-
-// Apply CSRF protection to all subsequent state-changing routes
-app.use(csrfProtection);
 
 // Validate session secret before configuring session middleware
 const sessionSecret = process.env.SESSION_SECRET;
@@ -587,6 +637,14 @@ app.use(
 		},
 	}),
 );
+
+// Apply CSRF protection to all subsequent state-changing routes.
+// #1328: registered AFTER session middleware (it used to run before it) so
+// csrfProtection can read req.session and tell a credentialed session user
+// from an anonymous request. All route mounts are below this line, so every
+// state-changing route is still covered; only /csrf-token and /metrics
+// (both GET, registered above) sit outside it, as before.
+app.use(csrfProtection);
 
 // Metrics middleware — tracks request counts, latency, error rates per endpoint
 try {
