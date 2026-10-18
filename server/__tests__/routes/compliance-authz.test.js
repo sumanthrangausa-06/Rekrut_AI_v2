@@ -127,6 +127,7 @@ jest.mock('../../../services/biasDetection', () => ({
 	calculateFourFifthsRule: (...args) => mockCalculateFourFifthsRule(...args),
 }));
 
+const appealInserts = [];
 const db = require('../../../lib/db');
 
 const COMPANY_A = 5;
@@ -195,6 +196,10 @@ db.query.mockImplementation(async (sql, params = []) => {
 		const offset = params[idx++] ?? 0;
 		const sliced = rows.slice(offset, offset + limit);
 		return { rows: sliced, rowCount: sliced.length };
+	}
+	if (normalized.startsWith('insert into score_appeals')) {
+		appealInserts.push(params);
+		return { rows: [{ id: 900 }], rowCount: 1 };
 	}
 	if (normalized.includes('from consent_records where user_id =')) {
 		const rows =
@@ -277,6 +282,7 @@ beforeEach(() => {
 		23: CONVERTED_RECRUITER,
 	};
 	jest.clearAllMocks();
+	appealInserts.length = 0;
 	mockExplainDecision.mockResolvedValue(JSON.parse(JSON.stringify(FULL_EXPLANATION)));
 	mockExplainOmniScore.mockResolvedValue({ overall_score: 72, score_breakdown: {} });
 	mockExplainDecisionForJob.mockResolvedValue({ user_id: 21, job_id: 50, factor_breakdowns: [] });
@@ -903,5 +909,66 @@ describe('GET /overrides/job/:jobId — same company gate (security-reviewer HIG
 		const res = await request(app).get(url).set(as(21));
 		expect(res.status).toBe(403);
 		expect(mockGetOverridesForJob).not.toHaveBeenCalled();
+	});
+});
+
+describe('POST /appeal — body userId ownership (#1111)', () => {
+	const url = '/api/compliance/appeal';
+	const bodyFor = (userId) => ({ userId, scoreType: 'omniscore', originalScore: 42, appealReason: 'please review' });
+
+	test('candidate filing an appeal AS another user → 403, no INSERT reaches the DB', async () => {
+		const res = await request(app).post(url).set(as(22)).send(bodyFor(21));
+		expect(res.status).toBe(403);
+		expect(appealInserts).toHaveLength(0);
+	});
+
+	test('recruiter filing an appeal as a candidate → 403, no INSERT', async () => {
+		const res = await request(app).post(url).set(as(10)).send(bodyFor(21));
+		expect(res.status).toBe(403);
+		expect(appealInserts).toHaveLength(0);
+	});
+
+	test('self → 200, INSERT carries the caller’s own ID', async () => {
+		const res = await request(app).post(url).set(as(21)).send(bodyFor(21));
+		expect(res.status).toBe(200);
+		expect(res.body.success).toBe(true);
+		expect(res.body.appealId).toBe(900);
+		expect(appealInserts).toHaveLength(1);
+		expect(appealInserts[0][0]).toBe(21);
+	});
+
+	test('admin filing for another user → 200 (helper’s established admin path, as on GET /appeal/:userId), audit metadata records the acting admin (LOW-1)', async () => {
+		const res = await request(app).post(url).set(as(1)).send(bodyFor(21));
+		expect(res.status).toBe(200);
+		expect(appealInserts).toHaveLength(1);
+		expect(appealInserts[0][0]).toBe(21);
+		expect(mockAuditLog).toHaveBeenCalledWith(
+			expect.objectContaining({ metadata: expect.objectContaining({ actor_id: 1 }) }),
+		);
+	});
+
+	test('self with a STRING userId "21" → 200, INSERT param is the normalized number 21 (LOW-3 coercion lock)', async () => {
+		const res = await request(app).post(url).set(as(21)).send(bodyFor('21'));
+		expect(res.status).toBe(200);
+		expect(appealInserts).toHaveLength(1);
+		expect(appealInserts[0][0]).toBe(21);
+	});
+
+	test('non-integer userId → 400 (helper shape), no INSERT', async () => {
+		const res = await request(app).post(url).set(as(21)).send(bodyFor('abc'));
+		expect(res.status).toBe(400);
+		expect(appealInserts).toHaveLength(0);
+	});
+
+	test('missing required fields → 400 unchanged, no INSERT', async () => {
+		const res = await request(app).post(url).set(as(21)).send({ userId: 21 });
+		expect(res.status).toBe(400);
+		expect(appealInserts).toHaveLength(0);
+	});
+
+	test('unauthenticated → 401, no INSERT', async () => {
+		const res = await request(app).post(url).send(bodyFor(21));
+		expect(res.status).toBe(401);
+		expect(appealInserts).toHaveLength(0);
 	});
 });
