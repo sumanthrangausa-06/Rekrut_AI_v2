@@ -113,3 +113,67 @@ describe('#1414 qp-provider cascade client construction', () => {
 		expect(src).not.toContain('groq_llama_70b');
 	});
 });
+
+/**
+ * #1414 follow-up (reviewer MEDIUM on PR #1423) — malformed HTTPS_PROXY must
+ * not crash qp-provider at startup. _initClients() runs from the singleton
+ * constructor, so an unguarded `new HttpsProxyAgent(proxyUrl)` throws
+ * ERR_INVALID_URL at module load for every importer (lib/qp-ai.js,
+ * routes/quick-practice.js). Mirrors the #1418 guard merged into
+ * lib/ai-provider.js by PR #1421: try/catch, fall back to no agent (direct
+ * egress, the pre-#1406 behaviour), fixed warning string that NEVER
+ * includes the proxy URL (which can embed credentials).
+ */
+describe('#1414 qp-provider malformed proxy guard', () => {
+	let warnSpy;
+	let logSpy;
+	let errorSpy;
+
+	beforeEach(() => {
+		warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+		logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+		errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+	});
+
+	afterEach(() => {
+		jest.restoreAllMocks();
+	});
+
+	const allLogged = () =>
+		[warnSpy, logSpy, errorSpy]
+			.flatMap((spy) => spy.mock.calls)
+			.map((args) => args.map(String).join(' '))
+			.join('\n');
+
+	test('malformed HTTPS_PROXY: module loads, clients construct with no agent', () => {
+		const svc = loadProvider({ ...PROXY_ENV, HTTPS_PROXY: '::bad url::' });
+		for (const name of CLIENT_NAMES) {
+			expect(svc.clients[name]).toBeDefined();
+			expect(svc.clients[name].httpAgent).toBeFalsy();
+		}
+	});
+
+	test('malformed https_proxy (lowercase): module loads, clients construct with no agent', () => {
+		const { HTTPS_PROXY, ...rest } = PROXY_ENV;
+		const svc = loadProvider({ ...rest, https_proxy: '::bad url::' });
+		for (const name of CLIENT_NAMES) {
+			expect(svc.clients[name]).toBeDefined();
+			expect(svc.clients[name].httpAgent).toBeFalsy();
+		}
+	});
+
+	test('credential-bearing malformed proxy: fixed warning logged, no credential string in any log channel', () => {
+		const malformed = 'http://proxyuser:secretpass@::bad';
+		const svc = loadProvider({ ...PROXY_ENV, HTTPS_PROXY: malformed });
+		for (const name of CLIENT_NAMES) {
+			expect(svc.clients[name]).toBeDefined();
+			expect(svc.clients[name].httpAgent).toBeFalsy();
+		}
+		const warned = warnSpy.mock.calls.map((args) => args.map(String).join(' ')).join('\n');
+		expect(warned).toMatch(/Ignoring invalid HTTPS_PROXY/);
+		const logged = allLogged();
+		expect(logged).not.toContain(malformed);
+		expect(logged).not.toContain('secretpass');
+		expect(logged).not.toContain('proxyuser');
+	});
+});
