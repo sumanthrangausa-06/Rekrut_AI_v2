@@ -34,9 +34,21 @@
 //     retention purge and erasure paths assume user-attributable rows.
 // Indexes: user_id serves both reader subqueries, the compliance export
 // and the legal-hold predicate; created_at serves the retention purge's
-// range predicate. CREATE TABLE/INDEX IF NOT EXISTS makes this a no-op
-// on DBs where the table was created out-of-band (live), while fresh
-// installs gain the table. Additive only — no existing structure changes.
+// range predicate. CREATE TABLE IF NOT EXISTS makes this a no-op on DBs
+// where the table was created out-of-band (live), while fresh installs
+// gain the table. Additive only — no existing structure changes.
+//
+// Live-shape honesty (independent review, PR for #1336): on a DB where
+// the table pre-exists out-of-band, this migration does NOT reconcile a
+// divergent live shape (e.g. a differently-typed score column) — no
+// in-repo evidence documents the live shape, and altering a live table
+// is outside this story's additive boundary; reconciliation, if ever
+// evidenced, is a separate gated story. What this migration DOES
+// guarantee on such a DB: it cannot abort the migrate.js chain. The
+// index creations below are column-guarded — if a pre-existing table
+// somehow lacked user_id or created_at, the index is skipped with a
+// warning instead of raising (an unguarded CREATE INDEX on a missing
+// column would roll back 270 and abort every later migration).
 // =============================================================================
 
 module.exports = {
@@ -52,13 +64,27 @@ module.exports = {
       )
     `);
 
+		// Column-guarded index creation (see header): never let an index
+		// on a hypothetically-absent column abort the migration chain.
 		await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_assessment_results_user_id
-        ON assessment_results(user_id)
-    `);
-		await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_assessment_results_created_at
-        ON assessment_results(created_at)
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'assessment_results' AND column_name = 'user_id') THEN
+          CREATE INDEX IF NOT EXISTS idx_assessment_results_user_id
+            ON assessment_results(user_id);
+        ELSE
+          RAISE WARNING '270_assessment_results: assessment_results.user_id missing — user_id index skipped';
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'assessment_results' AND column_name = 'created_at') THEN
+          CREATE INDEX IF NOT EXISTS idx_assessment_results_created_at
+            ON assessment_results(created_at);
+        ELSE
+          RAISE WARNING '270_assessment_results: assessment_results.created_at missing — created_at index skipped';
+        END IF;
+      END
+      $$;
     `);
 
 		console.log('Migration 270: assessment_results table created (or already present)');
