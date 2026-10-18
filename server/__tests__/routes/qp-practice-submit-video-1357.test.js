@@ -146,6 +146,69 @@ describe('#1357 POST /practice/submit-video — no fabricated scores', () => {
 		},
 	);
 
+	// Fix-forward (Quinn E2E FAIL, comment 6247054598): the REAL lib shape on
+	// total provider failure is not null — lib/qp-ai.js assembles a coaching
+	// object with _content_failed:true and overall_score set from the local
+	// speech-pattern communication score. That object passed the #1363 guard.
+	test('real lib shape on total provider failure (_content_failed:true, overall_score 4) → 503 retryable, no session row', async () => {
+		qpAi.analyzeVideoInterviewResponse.mockResolvedValue({
+			overall_score: 4,
+			_content_failed: true,
+			content: {
+				score: 0,
+				_failed: true,
+				improvements: ['Content analysis failed — please try again'],
+			},
+			communication: { score: 4 },
+			presentation: { score: null },
+		});
+
+		const res = await request(app).post('/api/interviews/practice/submit-video').send(BODY);
+
+		expect(res.status).toBe(503);
+		expect(res.body.success).not.toBe(true);
+		expect(res.body.retryable).toBe(true);
+		expect(res.body.retryAfterMs).toBe(3000);
+		expect(res.body.error).toMatch(/try again/i);
+		expect(res.body.coaching).toBeUndefined();
+		expect(inserts()).toHaveLength(0);
+	});
+
+	test('assembly-crash fallback shape (_content_failed:true, overall_score 0) → 503 retryable, no session row', async () => {
+		qpAi.analyzeVideoInterviewResponse.mockResolvedValue({
+			overall_score: 0,
+			_content_failed: true,
+			content: { score: 0, _failed: true },
+			communication: { score: 4 },
+			presentation: { score: null },
+		});
+
+		const res = await request(app).post('/api/interviews/practice/submit-video').send(BODY);
+
+		expect(res.status).toBe(503);
+		expect(res.body.retryable).toBe(true);
+		expect(res.body.coaching).toBeUndefined();
+		expect(inserts()).toHaveLength(0);
+	});
+
+	test('genuine analysis with _content_failed:false → 200 with its real score, session row written', async () => {
+		qpAi.analyzeVideoInterviewResponse.mockResolvedValue({
+			overall_score: 7,
+			_content_failed: false,
+			content: { score: 7, _failed: false },
+			communication: { score: 7 },
+			presentation: { score: 7 },
+		});
+
+		const res = await request(app).post('/api/interviews/practice/submit-video').send(BODY);
+
+		expect(res.status).toBe(200);
+		expect(res.body.success).toBe(true);
+		expect(res.body.coaching.overall_score).toBe(7);
+		expect(inserts()).toHaveLength(1);
+		expect(inserts()[0][1][5]).toBe(7);
+	});
+
 	test('valid analysis with a real overall_score of 0 → stored as 0, not overwritten with 5', async () => {
 		qpAi.analyzeVideoInterviewResponse.mockResolvedValue({
 			overall_score: 0,
