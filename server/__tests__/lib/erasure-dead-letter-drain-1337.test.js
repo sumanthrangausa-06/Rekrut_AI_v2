@@ -41,6 +41,7 @@ process.env.BIOMETRIC_ENCRYPTION_KEY =
 	'0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
 const erasureService = require('../../../lib/erasureService');
+const { computeHash } = require('../../../services/auditLogService');
 
 function makeClient(scenario = {}) {
 	const s = {
@@ -78,6 +79,7 @@ function makeClient(scenario = {}) {
 					throw err;
 				}
 				s.trailInserts.push({ sql, params });
+				s.chainHead = params[9]; // current_hash of the row just written
 				return { rows: [{ id: 900 + s.trailInserts.length }], rowCount: 1 };
 			}
 			if (/dead_letter_marker_id/i.test(sql)) {
@@ -86,7 +88,7 @@ function makeClient(scenario = {}) {
 					: { rows: [], rowCount: 0 };
 			}
 			if (/current_hash/i.test(sql)) {
-				return { rows: [{ current_hash: 'prevhash' }], rowCount: 1 };
+				return { rows: [{ current_hash: s.chainHead || 'prevhash' }], rowCount: 1 };
 			}
 			return { rows: [], rowCount: 0 };
 		}
@@ -220,6 +222,17 @@ describe('#1337 erasePersonalData — dead-letter drain before D-1 delete', () =
 		expect(payload.original_event_failed_at).toBe('2026-10-01T10:00:00.000Z');
 		expect(payload.original_payload_stored).toBe(false);
 		expect(payload.fields_missing).toEqual(expect.arrayContaining(['actor_role', 'company_id']));
+		// Reviewer note N1: the indeterminate single-vs-batch flag is named.
+		expect(payload.fields_missing).toContain('batch');
+		// Reviewer note N2: hash chain is genuinely constructed — previous
+		// hash is the chain head the fake served, current hash recomputes
+		// exactly via auditLogService.computeHash over the inserted
+		// values, and created_at is the replay time (never backdated to
+		// the marker's failure time).
+		expect(p[8]).toBe('prevhash');
+		expect(p[9]).toBe(computeHash(p[8], p[0], p[2], p[3], payload, p[10]));
+		expect(p[10]).not.toBe('2026-10-01T10:00:00.000Z');
+		expect(Date.parse(p[10])).toBeGreaterThan(Date.parse('2026-10-01T10:00:00.000Z'));
 		// Drain happens BEFORE the D-1 delete of the marker table.
 		const sqls = client.query.mock.calls.map(([s]) => s);
 		const insertIdx = sqls.findIndex((s) => /INSERT INTO compliance_audit_trail/i.test(s));
@@ -315,6 +328,40 @@ describe('#1337 erasePersonalData — dead-letter drain before D-1 delete', () =
 		expect(result.complianceAuditMarkersDrained).toBe(1);
 		expect(client._s.trailInserts).toHaveLength(0);
 		expect(result.aiScreeningsDeleted).toBe(true);
+	});
+
+	test('(h) two markers drain sequentially: the second replay chains onto the first', async () => {
+		const client = makeClient({
+			appRows: APPS,
+			aiScreenings: [
+				{ id: 23, application_id: 11, job_id: 51 },
+				{ id: 24, application_id: 11, job_id: 52 },
+			],
+			auditLogCount: 2,
+			markers: [
+				AI_MARKER,
+				{
+					id: 44,
+					screening_id: 24,
+					actor_id: 9,
+					metadata: { event_type: 'ai_decision', entity_id: 7, error: '57P01' },
+					created_at: '2026-10-03T10:00:00.000Z',
+				},
+			],
+			screeningDetails: new Map([
+				[23, SCREENING_DETAIL],
+				[24, { ...SCREENING_DETAIL, id: 24, job_id: 52, fit_score: 40, recommendation: 'hold' }],
+			]),
+		});
+		const result = await erasureService.erasePersonalData(7, { client });
+		expect(result.complianceAuditMarkersDrained).toBe(2);
+		expect(client._s.trailInserts).toHaveLength(2);
+		const [first, second] = client._s.trailInserts;
+		expect(first.params[8]).toBe('prevhash');
+		// Marker 2's previous_hash is marker 1's current_hash — the
+		// drain re-reads the chain head per marker inside the tx.
+		expect(second.params[8]).toBe(first.params[9]);
+		expect(JSON.parse(second.params[7]).dead_letter_marker_id).toBe(44);
 	});
 
 	test('(g) human_override marker with no surviving review row aborts fail-closed (cannot reconstruct faithfully)', async () => {
