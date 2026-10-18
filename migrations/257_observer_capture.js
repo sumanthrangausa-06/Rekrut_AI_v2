@@ -12,8 +12,10 @@
 //
 // Changes:
 //   1. recording_objects: object_type CHECK widened with 'observer_audio'
-//      (constraint looked up by name via information_schema, migration-254
-//      pattern) + registration_state column ('pending'|'confirmed',
+//      (constraint looked up by name via pg_constraint, contype='c' —
+//      #1155: information_schema surfaces PG18 NOT NULL constraints as
+//      pseudo-CHECKs whose names can match the LIKE fragment)
+//      + registration_state column ('pending'|'confirmed',
 //      default 'confirmed' — legacy rows are born confirmed).
 //   2. data_retention_policies: ('observer_audio', 30 days, auto_delete)
 //      — D-1: captured audio is recording-class data with a 30-day
@@ -57,11 +59,12 @@ async function dropCheckByName(client, table, nameFragment) {
 		DECLARE
 			chk_name TEXT;
 		BEGIN
-			SELECT constraint_name INTO chk_name
-			FROM information_schema.table_constraints
-			WHERE table_name = '${table}'
-				AND constraint_type = 'CHECK'
-				AND constraint_name LIKE '%${nameFragment}%'
+			SELECT con.conname INTO chk_name
+			FROM pg_constraint con
+			JOIN pg_class rel ON rel.oid = con.conrelid
+			WHERE rel.relname = '${table}'
+				AND con.contype = 'c'
+				AND con.conname LIKE '%${nameFragment}%'
 			LIMIT 1;
 
 			IF chk_name IS NOT NULL THEN
