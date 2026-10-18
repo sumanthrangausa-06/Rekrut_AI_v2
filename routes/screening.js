@@ -295,13 +295,29 @@ router.post('/questions', authMiddleware, async (req, res) => {
 	try {
 		const { candidate_id, job_id } = req.body;
 
-		// Get candidate and job data (simplified)
-		const [candidate, job] = await Promise.all([
-			pool.query('SELECT * FROM candidate_profiles WHERE user_id = $1', [candidate_id]),
-			pool.query('SELECT * FROM jobs WHERE id = $1', [job_id]),
-		]);
+		if (!candidate_id || !job_id) {
+			return res.status(400).json({ error: 'candidate_id and job_id are required' });
+		}
 
-		if (!candidate.rows.length || !job.rows.length) {
+		// Verify recruiter owns this job (parity with /analyze and /batch)
+		const jobCheck = await pool.query(
+			'SELECT * FROM jobs WHERE id = $1 AND company_id = (SELECT company_id FROM users WHERE id = $2)',
+			[job_id, req.user.id],
+		);
+
+		if (jobCheck.rows.length === 0) {
+			return res.status(403).json({ error: 'You do not have access to this job' });
+		}
+
+		const job = jobCheck;
+
+		// Get candidate data (simplified)
+		const candidate = await pool.query(
+			'SELECT * FROM candidate_profiles WHERE user_id = $1',
+			[candidate_id],
+		);
+
+		if (!candidate.rows.length) {
 			return res.status(404).json({ error: 'Candidate or job not found' });
 		}
 
