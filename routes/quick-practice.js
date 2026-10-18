@@ -309,9 +309,22 @@ router.post('/practice/submit', authMiddleware, async (req, res) => {
 			? resolved.key_points
 			: ['Content quality', 'Structure', 'Clarity', 'Relevance'];
 
-		const analysis = await analyzeInterviewResponse(question, response_text, keyPoints, {
-			subscriptionId: req.user.stripe_subscription_id,
-		});
+		// #1352: a provider/analysis failure must be a truthful, retryable 503 —
+		// not a generic 500 the frontend could only surface via alert() (which
+		// rendered as a silent no-op). Same shape submit-video already uses.
+		// No practice_sessions row is written for an analysis that never ran.
+		let analysis;
+		try {
+			analysis = await analyzeInterviewResponse(question, response_text, keyPoints, {
+				subscriptionId: req.user.stripe_subscription_id,
+			});
+		} catch (analysisErr) {
+			console.error('[QP] Text analysis failed:', analysisErr.message);
+			return res.status(503).json({
+				error: 'AI coaching is temporarily unavailable. Please try again in a moment.',
+				retryable: true,
+			});
+		}
 
 		let coaching;
 		try {
