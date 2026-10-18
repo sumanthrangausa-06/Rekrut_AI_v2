@@ -191,4 +191,34 @@ describeIfDb('consentService.recordConsent (real DB — #1306)', () => {
 			).rejects.toThrow(/violates check constraint/);
 		});
 	});
+
+	// #1318 (reviewer Low on #1316): the widened 268 CHECK must keep
+	// rejecting the nonsense states in-suite, not only in PR-body manual
+	// evidence — (NULL, NULL) via the untouched companion check, and
+	// withdrawn earlier than granted via the widened ordering check.
+	describe('post-268 nonsense states still rejected — #1318', () => {
+		beforeEach(async () => {
+			await buildSchema(SHAPES[0]);
+		});
+
+		test('(granted_at NULL, withdrawn_at NULL) insert is rejected', async () => {
+			await expect(
+				pool.query(
+					`INSERT INTO consent_receipts
+					   (interview_session_id, candidate_id, consent_type, consent_text_version, consent_text_hash, granted_at, withdrawn_at)
+					 VALUES (42, 7, 'biometric_practice', '1.0', 'hash', NULL, NULL)`,
+				),
+			).rejects.toThrow(/violates check constraint/);
+		});
+
+		test('withdrawn_at earlier than granted_at insert is rejected', async () => {
+			await expect(
+				pool.query(
+					`INSERT INTO consent_receipts
+					   (interview_session_id, candidate_id, consent_type, consent_text_version, consent_text_hash, granted_at, withdrawn_at)
+					 VALUES (42, 7, 'biometric_practice', '1.0', 'hash', '2026-01-02T00:00:00Z', '2026-01-01T00:00:00Z')`,
+				),
+			).rejects.toThrow(/violates check constraint/);
+		});
+	});
 });

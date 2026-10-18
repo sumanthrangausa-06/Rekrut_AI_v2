@@ -36,6 +36,28 @@
 // CHECK — it still matches the definition pattern — and re-adds the
 // same constraint. Fresh installs: migrate.js runs files in lexical
 // order, so 268 runs after 244 (table creation).
+//
+// Hardening (#1318, ecc/database-reviewer on PR #1316): discover-by-
+// definition was fail-SILENT — pg_get_constraintdef renders the stored
+// expression tree and does not canonicalise comparison direction, so a
+// logically identical re-spelling (e.g. granted_at <= withdrawn_at)
+// matches 0 rows, nothing was dropped, the widened ADD succeeded
+// alongside the old CHECK, and the migration recorded as applied while
+// declines still failed. Now fail-LOUD, in three layers:
+//   1. Loop-drop EVERY constraint matching the discovery pattern (a
+//      single SELECT INTO silently picks an arbitrary row when the
+//      duplicate state it should prevent is already present).
+//   2. RAISE if zero ordering CHECKs matched — keyed on "none at all",
+//      never on old-vs-new shape (the widened def also matches the
+//      pattern, so re-runs stay idempotent).
+//   3. Post-ADD assertion on final state: among consent_receipts CHECKs
+//      naming both columns AND carrying a comparison operator (broader
+//      than discovery — spelling-agnostic), exactly one may exist and it
+//      must be the widened shape (its def contains 'granted_at IS NULL',
+//      which the old shape's 'granted_at IS NOT NULL' does not contain
+//      as a substring). migrate.js wraps up() + the _migrations insert
+//      in one transaction, so a RAISE rolls back and records nothing.
+// Migration 269 repairs DBs that already ran the pre-hardening 268.
 // =============================================================================
 
 module.exports = {
@@ -44,20 +66,29 @@ module.exports = {
 		await client.query(`
       DO $$
       DECLARE
-        chk_name TEXT;
+        r RECORD;
+        found INT := 0;
       BEGIN
         -- Match the ordering CHECK by its definition: only this constraint
         -- on consent_receipts contains 'withdrawn_at', 'granted_at' AND
         -- '>=' (the companion NOT-NULL check has no '>=').
-        SELECT conname INTO chk_name
-        FROM pg_constraint
-        WHERE conrelid = 'consent_receipts'::regclass
-          AND contype = 'c'
-          AND pg_get_constraintdef(oid) LIKE '%withdrawn_at%'
-          AND pg_get_constraintdef(oid) LIKE '%granted_at%'
-          AND pg_get_constraintdef(oid) LIKE '%>=%';
-        IF chk_name IS NOT NULL THEN
-          EXECUTE format('ALTER TABLE consent_receipts DROP CONSTRAINT %I', chk_name);
+        FOR r IN
+          SELECT conname
+          FROM pg_constraint
+          WHERE conrelid = 'consent_receipts'::regclass
+            AND contype = 'c'
+            AND pg_get_constraintdef(oid) LIKE '%withdrawn_at%'
+            AND pg_get_constraintdef(oid) LIKE '%granted_at%'
+            AND pg_get_constraintdef(oid) LIKE '%>=%'
+        LOOP
+          EXECUTE format('ALTER TABLE consent_receipts DROP CONSTRAINT %I', r.conname);
+          found := found + 1;
+        END LOOP;
+        -- Fail loud (#1318): zero matches means the live definition does
+        -- not render as expected — abort instead of adding the widened
+        -- CHECK alongside an undropped old one.
+        IF found = 0 THEN
+          RAISE EXCEPTION '268_consent_receipts_decline: no consent_receipts ordering CHECK matched the discovery pattern (withdrawn_at + granted_at + >=) — definition drift suspected, aborting';
         END IF;
       END
       $$;
@@ -67,6 +98,37 @@ module.exports = {
       ALTER TABLE consent_receipts
         ADD CONSTRAINT consent_receipts_withdrawn_after_grant
         CHECK (withdrawn_at IS NULL OR granted_at IS NULL OR withdrawn_at >= granted_at)
+    `);
+
+		await client.query(`
+      DO $$
+      DECLARE
+        widened INT;
+        old_shape INT;
+      BEGIN
+        -- Post-state assertion (#1318): exactly one ordering CHECK, and it
+        -- must be the widened shape. The operator filter (any of >, <)
+        -- is deliberately broader than the discovery pattern so a
+        -- re-spelled old CHECK cannot survive unnoticed; the companion
+        -- NOT-NULL check carries no operator and is excluded.
+        SELECT
+          count(*) FILTER (WHERE def LIKE '%granted_at IS NULL%'),
+          count(*) FILTER (WHERE def NOT LIKE '%granted_at IS NULL%')
+        INTO widened, old_shape
+        FROM (
+          SELECT pg_get_constraintdef(oid) AS def
+          FROM pg_constraint
+          WHERE conrelid = 'consent_receipts'::regclass
+            AND contype = 'c'
+            AND pg_get_constraintdef(oid) LIKE '%withdrawn_at%'
+            AND pg_get_constraintdef(oid) LIKE '%granted_at%'
+            AND (pg_get_constraintdef(oid) LIKE '%>%' OR pg_get_constraintdef(oid) LIKE '%<%')
+        ) s;
+        IF widened <> 1 OR old_shape <> 0 THEN
+          RAISE EXCEPTION '268_consent_receipts_decline post-state: expected exactly 1 widened ordering CHECK and 0 old-shape, got widened=% old_shape=%', widened, old_shape;
+        END IF;
+      END
+      $$;
     `);
 
 		console.log(
