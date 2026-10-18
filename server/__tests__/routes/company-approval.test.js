@@ -85,9 +85,9 @@ jest.mock('../../../lib/db', () => {
 			return { rows: [], rowCount: 0 };
 		}
 
-		// Users: SELECT email,name by company_id + employer role
+		// Users: SELECT id,email,name by company_id + employer role (#1385 Minor 3: id now selected)
 		if (
-			normalized.includes('select email, name from users where company_id =') &&
+			normalized.includes('select id, email, name from users where company_id =') &&
 			normalized.includes("role = 'employer'")
 		) {
 			const companyId = params[0];

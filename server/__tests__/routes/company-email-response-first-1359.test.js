@@ -49,7 +49,7 @@ jest.mock('../../../lib/db', () => ({
 		}
 		if (
 			normalized.includes('select id from users where company_id =') ||
-			normalized.includes('select email, name from users where company_id =')
+			normalized.includes('select id, email, name from users where company_id =')
 		) {
 			return { rows: [{ id: 10, email: 'owner@acme.com', name: 'Owner' }], rowCount: 1 };
 		}
