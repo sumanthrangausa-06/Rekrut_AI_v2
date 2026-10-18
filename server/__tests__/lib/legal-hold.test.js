@@ -378,11 +378,17 @@ describe('legalHold place/release + audit', () => {
 	// #1404's shape check but is not a valid int4 id — it must fail as the
 	// same typed 400 BEFORE any DB query, on BOTH subject types. The int4
 	// max itself is valid shape and must reach the existence check (404).
+	// #1417: the symmetric LOWER bound (INT4_MIN = -2,147,483,648) is pinned
+	// the same way — below-min rejected, the min itself valid shape (404).
 	test.each([
 		['userId', 2147483648],
 		['userId', '2147483648'],
 		['companyId', 2147483648],
 		['companyId', '2147483648'],
+		['userId', -2147483649],
+		['userId', '-2147483649'],
+		['companyId', -2147483649],
+		['companyId', '-2147483649'],
 	])('#1409: placeHold rejects out-of-int4-range %s %p with a typed 400 and writes no hold row', async (field, bad) => {
 		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
 		const err = await placeHold({ [field]: bad, reason: 'litigation X', setBy: 'admin-1' }).catch((e) => e);
@@ -404,6 +410,21 @@ describe('legalHold place/release + audit', () => {
 			expect(err.code).toBe('SUBJECT_NOT_FOUND');
 			expect(err.status).toBe(404);
 			expect(err.message).toMatch(/2147483647 does not exist/);
+			expect(db.query).toHaveBeenCalled();
+			expect(holds).toHaveLength(0);
+		},
+	);
+
+	test.each([['userId'], ['companyId']])(
+		'#1417: int4 min -2147483648 is valid shape for %s — passes validation and reaches the existence check',
+		async (field) => {
+			db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+			const err = await placeHold({ [field]: -2147483648, reason: 'litigation X', setBy: 'admin-1' }).catch(
+				(e) => e,
+			);
+			expect(err.code).toBe('SUBJECT_NOT_FOUND');
+			expect(err.status).toBe(404);
+			expect(err.message).toMatch(/-2147483648 does not exist/);
 			expect(db.query).toHaveBeenCalled();
 			expect(holds).toHaveLength(0);
 		},
@@ -431,7 +452,7 @@ describe('legalHold place/release + audit', () => {
 	// parseInt guard passes 2147483648, so on real PG the UPDATE raises
 	// 22P02 and the route buries it as a generic 500. Same family
 	// #1404/#1409 closed for placeHold: typed 400 BEFORE any DB query.
-	test.each([[2147483648], ['2147483648'], ['abc'], [7.5], ['7.5']])(
+	test.each([[2147483648], ['2147483648'], [-2147483649], ['-2147483649'], ['abc'], [7.5], ['7.5']])(
 		'#1416: releaseHold rejects out-of-shape holdId %p with a typed 400 and queries nothing',
 		async (bad) => {
 			db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
@@ -448,6 +469,12 @@ describe('legalHold place/release + audit', () => {
 	test('#1416: int4 max 2147483647 is valid shape for holdId — passes validation and reaches the UPDATE', async () => {
 		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
 		await expect(releaseHold({ holdId: 2147483647, releasedBy: 'admin-2' })).resolves.toBeNull();
+		expect(db.query).toHaveBeenCalled();
+	});
+
+	test('#1417: int4 min -2147483648 is valid shape for holdId — passes validation and reaches the UPDATE', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		await expect(releaseHold({ holdId: -2147483648, releasedBy: 'admin-2' })).resolves.toBeNull();
 		expect(db.query).toHaveBeenCalled();
 	});
 
