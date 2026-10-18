@@ -398,16 +398,25 @@ router.post('/appeal', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'Missing required fields' });
 		}
 
+		// #1111: same canAccessUserRecord guard as GET /appeal/:userId
+		// below — an appeal is filed by (or for, by an admin) its subject,
+		// never by an unrelated authenticated user supplying another ID.
+		const access = canAccessUserRecord(req, userId);
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
+		}
+		const targetUserId = access.targetId;
+
 		const result = await pool.query(
 			`INSERT INTO score_appeals (user_id, score_type, original_score, appeal_reason)
        VALUES ($1, $2, $3, $4)
        RETURNING id`,
-			[userId, scoreType, originalScore, appealReason],
+			[targetUserId, scoreType, originalScore, appealReason],
 		);
 
 		await AuditLogger.log({
 			actionType: 'score_appeal_submitted',
-			userId,
+			userId: targetUserId,
 			targetType: 'appeal',
 			targetId: result.rows[0].id,
 			metadata: { score_type: scoreType, original_score: originalScore },
