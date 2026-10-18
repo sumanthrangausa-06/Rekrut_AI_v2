@@ -15,9 +15,11 @@
  *    verified replacement exists in that list, so the entries are REMOVED,
  *    exactly as #1406 removed them from ai-provider.js.
  *
- * qp-provider reads DIRECT env keys (it does not use AI_KEYS_JSON /
- * getAiKey): POLSIA_API_KEY, OPENAI_API_KEY (+OPENAI_BASE_URL),
- * NVIDIA_NIM_API_KEY, GROQ_API_KEY, CEREBRAS_API_KEY.
+ * qp-provider reads DIRECT env keys: POLSIA_API_KEY, OPENAI_API_KEY
+ * (+OPENAI_BASE_URL), GROQ_API_KEY, CEREBRAS_API_KEY. NIM is the exception
+ * since #1424: it mirrors ai-provider via getAiKey('nvidia','NIM_API_KEY')
+ * (AI_KEYS_JSON first, then NIM_API_KEY; the legacy NVIDIA_NIM_API_KEY name
+ * is no longer read — see qp-provider-nim-groq-1424.test.js).
  *
  * Only lib/db is stubbed (the singleton constructor fire-and-forgets a
  * persisted-state load). The REAL SDK constructors run — client
@@ -42,6 +44,8 @@ const ENV_KEYS = [
 	'OPENAI_BASE_URL',
 	'OPENAI_API_KEY',
 	'NVIDIA_NIM_API_KEY',
+	'NIM_API_KEY',
+	'AI_KEYS_JSON',
 	'NIM_BASE_URL',
 	'GROQ_API_KEY',
 	'CEREBRAS_API_KEY',
@@ -73,7 +77,7 @@ const PROXY_ENV = {
 	POLSIA_API_KEY: tk('polsia'),
 	OPENAI_BASE_URL: 'https://example.test/v1',
 	OPENAI_API_KEY: tk('openai'),
-	NVIDIA_NIM_API_KEY: tk('nim'),
+	NIM_API_KEY: tk('nim'),
 	GROQ_API_KEY: tk('groq'),
 	CEREBRAS_API_KEY: tk('cerebras'),
 };
