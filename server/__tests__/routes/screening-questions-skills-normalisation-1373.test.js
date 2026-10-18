@@ -141,4 +141,35 @@ describe('#1373 POST /api/screening/questions (routes/screening.js) skills norma
 		// line reads "2 years vs 0+ required".
 		expect(prompt).toContain('Experience level: 2 years vs 7+ required');
 	});
+
+	// #1380 (PR #1374 review LOW-1): pin the defaults branches of the
+	// /questions normalisation — a jobs row whose DB columns are null
+	// must normalise to required_skills [] and min_years 0
+	// (routes/screening.js: `skills_required || []`,
+	// `min_years_experience || 0`), not propagate null into the prompt.
+	test('null skills_required / min_years_experience fall back to the [] / 0 defaults', async () => {
+		currentJob = {
+			...RAW_JOB,
+			skills_required: null,
+			preferred_skills: null,
+			min_years_experience: null,
+		};
+
+		const res = await request(makeApp())
+			.post('/api/screening/questions')
+			.send({ candidate_id: CANDIDATE_ID, job_id: JOB_ID });
+
+		expect(res.status).toBe(200);
+		expect(res.body.success).toBe(true);
+		expect(res.body.questions).toHaveLength(1);
+
+		expect(chat).toHaveBeenCalledTimes(1);
+		const prompt = chat.mock.calls[0][0];
+		// [] default: no required skills, so nothing can be missing.
+		expect(prompt).toContain('Missing skills: None');
+		expect(prompt).not.toContain('Missing skills: React, GraphQL');
+		// 0 default: candidate's 2 years against no minimum.
+		expect(prompt).toContain('Experience level: 2 years vs 0+ required');
+		expect(prompt).not.toContain('7+ required');
+	});
 });
