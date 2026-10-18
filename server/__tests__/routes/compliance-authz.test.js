@@ -95,6 +95,7 @@ const mockGetBiasMetricsForJob = jest.fn();
 const mockCalculateBiasMetricsForJob = jest.fn();
 const mockCalculateFourFifthsRule = jest.fn();
 const mockGetOverrideById = jest.fn();
+const mockGetOverridesForJob = jest.fn();
 jest.mock('../../../services/euComplianceService', () => ({
 	explainDecisionForJob: (...args) => mockExplainDecisionForJob(...args),
 	getConsentHistory: (...args) => mockGetConsentHistory(...args),
@@ -105,7 +106,7 @@ jest.mock('../../../services/euComplianceService', () => ({
 	getBiasMetricsForJob: (...args) => mockGetBiasMetricsForJob(...args),
 	listFlaggedBiasMetrics: jest.fn(async () => ({ rows: [] })),
 	recordHumanOverride: jest.fn(),
-	getOverridesForJob: jest.fn(async () => ({ rows: [] })),
+	getOverridesForJob: (...args) => mockGetOverridesForJob(...args),
 	getOverrideById: (...args) => mockGetOverrideById(...args),
 	setRetentionPolicy: jest.fn(),
 	executePurge: jest.fn(async () => []),
@@ -293,8 +294,14 @@ beforeEach(() => {
 	const overrides = new Map([
 		[200, { id: 200, application_id: 100, user_id: 21, job_id: 50, overridden_by: 10, reason: 'OVERRIDE_REASON_INTERNAL' }],
 		[201, { id: 201, application_id: 100, user_id: 21, job_id: 50, overridden_by: 11, reason: 'OVERRIDE_REASON_INTERNAL' }],
+		[202, { id: 202, application_id: 100, user_id: 21, job_id: 9999, overridden_by: 10, reason: 'OVERRIDE_REASON_INTERNAL' }],
+		[203, { id: 203, application_id: 100, user_id: 21, job_id: 51, overridden_by: 10, reason: 'OVERRIDE_REASON_INTERNAL' }],
 	]);
 	mockGetOverrideById.mockImplementation(async (id) => overrides.get(Number(id)) || null);
+	mockGetOverridesForJob.mockResolvedValue({
+		rows: [{ id: 200, job_id: 50, reason: 'OVERRIDE_REASON_INTERNAL' }],
+		total: 1,
+	});
 	// #920 service-contract mock: an honest implementation of the ruled
 	// contract — when the caller passes a companyId the service returns
 	// only that company's events and the scoped total; otherwise the
@@ -846,15 +853,26 @@ describe('GET /overrides/:id — company linkage authorisation (#1113)', () => {
 		expect(res.body.override.reason).toBe('OVERRIDE_REASON_INTERNAL');
 	});
 
-	test('owning-company hiring_manager → 200; admin → 200', async () => {
+	test('owning-company hiring_manager → 200; owning-company employer → 200; admin → 200', async () => {
 		expect((await request(app).get(url).set(as(14))).status).toBe(200);
+		expect((await request(app).get(url).set(as(12))).status).toBe(200);
 		expect((await request(app).get(url).set(as(1))).status).toBe(200);
 	});
 
-	test("the override's own actor (overridden_by) → 200 even from another company (record self)", async () => {
+	test("the override's actor from ANOTHER company → 403 (security-reviewer MEDIUM-1: actor-self dropped — its only incremental reach was cross-company/changed-role; a same-company actor passes via the owning-company path)", async () => {
 		const res = await request(app).get('/api/compliance/overrides/201').set(as(11));
-		expect(res.status).toBe(200);
-		expect(res.body.override.id).toBe(201);
+		expect(res.status).toBe(403);
+		expect(JSON.stringify(res.body)).not.toContain('OVERRIDE_REASON_INTERNAL');
+	});
+
+	test('override whose job row is missing → 403 fail-closed', async () => {
+		const res = await request(app).get('/api/compliance/overrides/202').set(as(10));
+		expect(res.status).toBe(403);
+	});
+
+	test("override whose job has company_id = null → 403 fail-closed (explicit null guard, not coercion)", async () => {
+		const res = await request(app).get('/api/compliance/overrides/203').set(as(10));
+		expect(res.status).toBe(403);
 	});
 
 	test('non-existent override → 404 unchanged', async () => {
@@ -864,5 +882,26 @@ describe('GET /overrides/:id — company linkage authorisation (#1113)', () => {
 
 	test('unauthenticated → 401', async () => {
 		expect((await request(app).get(url)).status).toBe(401);
+	});
+});
+
+describe('GET /overrides/job/:jobId — same company gate (security-reviewer HIGH-R1 residual on #1113)', () => {
+	const url = '/api/compliance/overrides/job/50';
+	test('foreign-company recruiter → 403, service never reached', async () => {
+		const res = await request(app).get(url).set(as(11));
+		expect(res.status).toBe(403);
+		expect(mockGetOverridesForJob).not.toHaveBeenCalled();
+	});
+	test('owning-company recruiter → 200; admin → 200 (not job-scoped)', async () => {
+		const own = await request(app).get(url).set(as(10));
+		expect(own.status).toBe(200);
+		expect(own.body.total).toBe(1);
+		expect(mockGetOverridesForJob).toHaveBeenCalledWith(50, expect.any(Object));
+		expect((await request(app).get(url).set(as(1))).status).toBe(200);
+	});
+	test('candidate → 403 (existing role gate), service never reached', async () => {
+		const res = await request(app).get(url).set(as(21));
+		expect(res.status).toBe(403);
+		expect(mockGetOverridesForJob).not.toHaveBeenCalled();
 	});
 });

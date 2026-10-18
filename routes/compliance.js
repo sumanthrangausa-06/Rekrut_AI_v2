@@ -1276,6 +1276,22 @@ router.get('/overrides/job/:jobId', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'Valid job ID required' });
 		}
 
+		// #1113 (security-reviewer HIGH-R1): same company gate as
+		// /overrides/:id — this list returns the same records in bulk, so
+		// a foreign-company hiring user is denied before the service call.
+		if (req.user?.role !== 'admin') {
+			const jobResult = await pool.query('SELECT company_id FROM jobs WHERE id = $1', [jobId]);
+			const job = jobResult.rows[0];
+			if (
+				!job ||
+				job.company_id == null ||
+				req.user?.company_id == null ||
+				Number(req.user.company_id) !== Number(job.company_id)
+			) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
+		}
+
 		const { limit, offset } = req.query;
 		const result = await EuComplianceService.getOverridesForJob(jobId, {
 			limit: limit ? parseInt(limit, 10) : 100,
@@ -1306,15 +1322,17 @@ router.get('/overrides/:id', authMiddleware, async (req, res) => {
 
 		// #1113: human_overrides has no company_id — its company linkage
 		// runs through job_id → jobs.company_id. Load-then-check is the
-		// /risk-classify/:jobId shape in this router: admin, the record's
-		// own actor (overridden_by), or a hiring role whose company owns
-		// the override's job (fail-closed on a null company_id). The
+		// /risk-classify/:jobId shape in this router: admin, or a hiring
+		// role whose company owns the override's job (fail-closed on a
+		// null company_id on either side, or a missing job). The
 		// candidate the override is about is not an audience — the reason
-		// is an internal hiring record with no shaped variant.
+		// is an internal hiring record with no shaped variant. An
+		// actor-self (overridden_by) allowance was dropped at security
+		// review (MEDIUM-1): its only reach beyond the owning-company
+		// path was cross-company / changed-role access.
 		const isAdmin = req.user?.role === 'admin';
-		const isActorSelf = req.user?.id != null && Number(req.user.id) === Number(override.overridden_by);
 		let isOwningHiring = false;
-		if (!isAdmin && !isActorSelf) {
+		if (!isAdmin) {
 			if (
 				['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) &&
 				req.user?.company_id != null
@@ -1323,7 +1341,10 @@ router.get('/overrides/:id', authMiddleware, async (req, res) => {
 					override.job_id,
 				]);
 				const job = jobResult.rows[0];
-				isOwningHiring = !!job && Number(req.user.company_id) === Number(job.company_id);
+				isOwningHiring =
+					!!job &&
+					job.company_id != null &&
+					Number(req.user.company_id) === Number(job.company_id);
 			}
 			if (!isOwningHiring) {
 				return res.status(403).json({ error: 'Access denied' });
