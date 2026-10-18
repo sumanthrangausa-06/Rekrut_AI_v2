@@ -440,7 +440,13 @@ describe('erasePersonalData under hold', () => {
 		const sqls = client.query.mock.calls.map((c) => c[0]);
 		expect(sqls.some((s) => s.includes('candidate_data_keys'))).toBe(false); // DEK untouched
 		expect(sqls.some((s) => s.includes('DELETE FROM'))).toBe(false);
-		expect(sqls).toHaveLength(1); // the hold check is the FIRST and only statement
+		// #1396: the tx-guard probe (SAVEPOINT + RELEASE, no data access)
+		// precedes the hold check, which remains the first and only DATA
+		// statement — nothing else ran before the erasure aborted.
+		expect(sqls).toHaveLength(3);
+		expect(sqls[0]).toMatch(/^SAVEPOINT erasure_tx_guard_probe/i);
+		expect(sqls[1]).toMatch(/^RELEASE SAVEPOINT erasure_tx_guard_probe/i);
+		expect(sqls[2]).toMatch(/FROM legal_holds/i);
 	});
 
 	test('company hold also blocks erasure of a company member', async () => {

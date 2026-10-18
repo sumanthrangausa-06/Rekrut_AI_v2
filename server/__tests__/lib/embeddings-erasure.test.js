@@ -43,6 +43,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 		const client = { query: jest.fn() };
 		// DEK destroy succeeds, then embeddings DELETE.
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard SAVEPOINT probe (in-transaction caller)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard RELEASE SAVEPOINT
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
 			.mockResolvedValueOnce({ rowCount: 1 }) // embeddings DELETE
@@ -322,6 +324,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 	test('embeddings DELETE runs even when no DEK exists (independent)', async () => {
 		const client = { query: jest.fn() };
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard SAVEPOINT probe (in-transaction caller)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard RELEASE SAVEPOINT
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 0 }) // destroyDEK: DEKNotFound
 			.mockResolvedValueOnce({ rowCount: 1 }) // Gate A: DEK tombstone INSERT (pre-existing chain gap, repaired #799)
@@ -595,6 +599,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 	test('embeddingsDeleted=false when no embeddings row existed', async () => {
 		const client = { query: jest.fn() };
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard SAVEPOINT probe (in-transaction caller)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard RELEASE SAVEPOINT
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
 			.mockResolvedValueOnce({ rowCount: 0 }) // embeddings DELETE: no row
@@ -861,6 +867,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 	test('embeddings DELETE failure propagates (caller rolls back)', async () => {
 		const client = { query: jest.fn() };
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard SAVEPOINT probe (in-transaction caller)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard RELEASE SAVEPOINT
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
 			.mockRejectedValueOnce(new Error('embeddings delete failed')); // embeddings DELETE fails
@@ -874,6 +882,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 	test('search-index DELETE runs even when no embeddings row existed (twin-copy gap)', async () => {
 		const client = { query: jest.fn() };
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard SAVEPOINT probe (in-transaction caller)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard RELEASE SAVEPOINT
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 0 }) // destroyDEK: DEKNotFound
 			.mockResolvedValueOnce({ rowCount: 1 }) // Gate A: DEK tombstone INSERT (pre-existing chain gap, repaired #799)
@@ -1141,6 +1151,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 		const db = require('../../../lib/db');
 		const client = { query: jest.fn() };
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard SAVEPOINT probe (in-transaction caller)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard RELEASE SAVEPOINT
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 0 }) // DEKNotFound
 			.mockResolvedValueOnce({ rowCount: 1 }) // Gate A: DEK tombstone INSERT (pre-existing chain gap, repaired #799)
