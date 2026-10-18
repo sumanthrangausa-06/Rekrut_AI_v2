@@ -199,15 +199,27 @@ router.post('/batch', authMiddleware, async (req, res) => {
 			subscriptionId: req.user.id,
 		});
 
-		// Combine with candidate info
-		const results = screenings.map((s, i) => ({
-			candidate: {
-				id: candidates[i].id,
-				name: candidates[i].name,
-				omni_score: candidates[i].omni_score,
-			},
-			...s,
-		}));
+		// Combine with candidate info — pair by candidate_id (#1346):
+		// screenings are sorted by fit_score, so index pairing misattributes
+		// results. A result naming no known candidate is dropped, never
+		// attached to the wrong person. (Positional fallback only for
+		// legacy results without a candidate_id; the lib now always sets it.)
+		const candidatesById = new Map(candidates.map((c) => [c.id, c]));
+		const results = screenings.flatMap((s, i) => {
+			const candidate =
+				s.candidate_id != null ? candidatesById.get(s.candidate_id) : candidates[i];
+			if (!candidate) return [];
+			return [
+				{
+					candidate: {
+						id: candidate.id,
+						name: candidate.name,
+						omni_score: candidate.omni_score,
+					},
+					...s,
+				},
+			];
+		});
 
 		res.json({
 			success: true,
