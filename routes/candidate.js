@@ -996,73 +996,84 @@ router.post('/resume/apply', authMiddleware, async (req, res) => {
 
 // ============= CV REVIEW / ANALYSIS =============
 
-// Helper: generate realistic mock CV analysis
-function generateMockAnalysis() {
-	const sections = [
-		{
-			name: 'Experience',
-			score: Math.floor(Math.random() * 25) + 65, // 65-90
-			impact: 'Highest',
-			recommendations: [
-				'Quantify achievements with metrics (e.g., "increased revenue by 20%")',
-				'Use strong action verbs at the beginning of each bullet point',
-				'Include 3-5 bullet points per role with clear outcomes',
-			],
-		},
-		{
-			name: 'Skills',
-			score: Math.floor(Math.random() * 30) + 60, // 60-90
-			impact: 'Medium',
-			recommendations: [
-				'Group skills by category (e.g., Technical, Soft Skills, Languages)',
-				'Prioritize skills mentioned in target job descriptions',
-				'Remove outdated or irrelevant skills to keep the list focused',
-			],
-		},
-		{
-			name: 'ATS & Recruiter Optimization',
-			score: Math.floor(Math.random() * 35) + 55, // 55-90
-			impact: 'Highest',
-			recommendations: [
-				'Include relevant keywords from the job posting naturally',
-				'Avoid tables, headers/footers, and graphics that confuse ATS parsers',
-				'Use standard section headings like "Work Experience" and "Education"',
-			],
-		},
-		{
-			name: 'Formatting & Layout',
-			score: Math.floor(Math.random() * 30) + 60, // 60-90
-			impact: 'Low',
-			recommendations: [
-				'Maintain consistent spacing and alignment throughout',
-				'Use a clean, professional font (e.g., Arial, Calibri, Helvetica)',
-				'Keep the resume to 1-2 pages for optimal readability',
-			],
-		},
-		{
-			name: 'Education',
-			score: Math.floor(Math.random() * 20) + 70, // 70-90
-			impact: 'Low',
-			recommendations: [
-				'Include relevant coursework or certifications if applicable',
-				'List GPA only if it is 3.5 or above and recent',
-				'Add honors, awards, or extracurriculars that demonstrate leadership',
-			],
-		},
-	];
+// #1386: real CV analysis output contract. The five sections, in display
+// order — provider output missing any of them is invalid, not partial data.
+const CV_ANALYSIS_SECTIONS = [
+	'Experience',
+	'Skills',
+	'ATS & Recruiter Optimization',
+	'Formatting & Layout',
+	'Education',
+];
 
-	const overallScore = Math.round(sections.reduce((sum, s) => sum + s.score, 0) / sections.length);
+function clampCvScore(value) {
+	const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+	if (typeof n !== 'number' || !Number.isFinite(n)) return null;
+	return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function normalizeCvImpact(value) {
+	if (typeof value !== 'string') return null;
+	const t = value.trim().toLowerCase();
+	if (t === 'highest' || t === 'high') return 'Highest';
+	if (t === 'medium') return 'Medium';
+	if (t === 'low') return 'Low';
+	return null;
+}
+
+// Validate + normalize a provider CV analysis into the persisted shape.
+// Returns null for anything unparseable/invalid — the caller treats null
+// as provider failure (no score is ever invented or defaulted here).
+function validateCvAnalysis(data) {
+	if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+
+	const overallScore = clampCvScore(data.overall_score);
+	if (overallScore === null) return null;
+	if (!Array.isArray(data.section_scores)) return null;
+
+	const byName = new Map();
+	for (const section of data.section_scores) {
+		if (!section || typeof section !== 'object') continue;
+		if (!CV_ANALYSIS_SECTIONS.includes(section.name)) continue;
+		const score = clampCvScore(section.score);
+		const impact = normalizeCvImpact(section.impact);
+		if (score === null || impact === null) return null;
+		const recommendations = Array.isArray(section.recommendations)
+			? section.recommendations
+					.filter((r) => typeof r === 'string' && r.trim())
+					.map((r) => r.trim())
+			: [];
+		byName.set(section.name, { name: section.name, score, impact, recommendations });
+	}
+	if (byName.size !== CV_ANALYSIS_SECTIONS.length) return null;
+	const sectionScores = CV_ANALYSIS_SECTIONS.map((name) => byName.get(name));
+
+	let recommendations;
+	if (Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+		recommendations = [];
+		for (const rec of data.recommendations) {
+			if (!rec || typeof rec !== 'object') continue;
+			if (typeof rec.text !== 'string' || !rec.text.trim()) continue;
+			if (!CV_ANALYSIS_SECTIONS.includes(rec.section)) continue;
+			recommendations.push({
+				section: rec.section,
+				impact: normalizeCvImpact(rec.impact) || byName.get(rec.section).impact,
+				text: rec.text.trim(),
+			});
+		}
+		if (recommendations.length === 0) return null;
+	} else {
+		// Provider gave per-section recommendations only — restructure them
+		// into the flat shape (provider text, never invented text).
+		recommendations = sectionScores.flatMap((s) =>
+			s.recommendations.map((text) => ({ section: s.name, impact: s.impact, text })),
+		);
+	}
 
 	return {
 		overall_score: overallScore,
-		section_scores: sections,
-		recommendations: sections.flatMap((s) =>
-			s.recommendations.map((r) => ({
-				section: s.name,
-				impact: s.impact,
-				text: r,
-			})),
-		),
+		section_scores: sectionScores,
+		recommendations,
 	};
 }
 
@@ -1082,7 +1093,7 @@ router.post('/cv/analyze', authMiddleware, async (req, res) => {
 
 		// Check user has uploaded documents (parsed_resumes)
 		const docs = await pool.query(
-			'SELECT id FROM parsed_resumes WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+			'SELECT id, parsed_data FROM parsed_resumes WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
 			[req.user.id],
 		);
 
@@ -1094,6 +1105,14 @@ router.post('/cv/analyze', authMiddleware, async (req, res) => {
 		}
 
 		const documentId = docs.rows[0].id;
+		const parsedData = docs.rows[0].parsed_data;
+		const cvContent = parsedData ? JSON.stringify(parsedData) : '';
+		if (!cvContent.trim() || cvContent === '{}' || cvContent === 'null') {
+			return res.status(400).json({
+				error: 'Document has no parsed content. Please upload a valid CV.',
+				code: 'EMPTY_DOCUMENT',
+			});
+		}
 
 		// Create analysis record in pending state
 		const result = await pool.query(
@@ -1107,47 +1126,78 @@ router.post('/cv/analyze', authMiddleware, async (req, res) => {
 
 		const analysisId = result.rows[0].id;
 
-		// Async mock analysis — complete immediately in MVP
-		setImmediate(async () => {
-			try {
-				const mock = generateMockAnalysis();
-				await pool.query(
-					`
-					UPDATE cv_analyses
-					SET status = 'completed',
-						overall_score = $2,
-						section_scores = $3,
-						recommendations = $4,
-						updated_at = NOW()
-					WHERE id = $1
-					`,
-					[
-						analysisId,
-						mock.overall_score,
-						JSON.stringify(mock.section_scores),
-						JSON.stringify(mock.recommendations),
-					],
-				);
-				console.log(
-					`[CV Review] Mock analysis completed for user ${req.user.id}, analysis ${analysisId}`,
-				);
-			} catch (asyncErr) {
-				console.error(
-					`[CV Review] Async mock analysis failed for analysis ${analysisId}:`,
-					asyncErr.message,
-				);
-				try {
-					await pool.query(
-						"UPDATE cv_analyses SET status = 'failed', updated_at = NOW() WHERE id = $1",
-						[analysisId],
-					);
-				} catch (markErr) {
-					console.error('[CV Review] Failed to mark analysis as failed:', markErr.message);
-				}
-			}
-		});
+		// #1386: synchronous REAL analysis via the provider cascade (same
+		// plumbing as POST /cv-review in this file). On any failure the
+		// pending row is deleted — no score is persisted for an analysis
+		// that never ran (#1352/#1357 honest-failure contract).
+		try {
+			const { chat, safeParseJSON } = require('../lib/polsia-ai');
+			const prompt = `You are an expert CV/resume reviewer. Analyze the following CV and score it.
 
-		res.json({ success: true, analysis_id: analysisId, status: 'pending' });
+CV CONTENT (parsed resume data):
+${cvContent.substring(0, 12000)}
+
+Provide your analysis as a JSON object with exactly this structure:
+{
+  "overall_score": <integer 0-100>,
+  "section_scores": [
+    { "name": "<section name>", "score": <integer 0-100>, "impact": "<Highest|Medium|Low>", "recommendations": ["<specific recommendation>", "..."] }
+  ],
+  "recommendations": [
+    { "section": "<section name>", "impact": "<Highest|Medium|Low>", "text": "<specific recommendation>" }
+  ]
+}
+
+Score exactly these five sections, using these exact names: "Experience", "Skills", "ATS & Recruiter Optimization", "Formatting & Layout", "Education". Base every score and recommendation only on the CV content above. Be constructive and specific. Only return the JSON object, no other text.`;
+
+			const aiResponse = await chat(prompt, {
+				task: 'cv-analyze',
+				module: 'candidate',
+				feature: 'cv_review',
+			});
+
+			const analysis = validateCvAnalysis(safeParseJSON(aiResponse));
+			if (!analysis) {
+				throw new Error('CV analysis provider returned unparseable or invalid output');
+			}
+
+			await pool.query(
+				`
+				UPDATE cv_analyses
+				SET status = 'completed',
+					overall_score = $2,
+					section_scores = $3,
+					recommendations = $4,
+					updated_at = NOW()
+				WHERE id = $1
+				`,
+				[
+					analysisId,
+					analysis.overall_score,
+					JSON.stringify(analysis.section_scores),
+					JSON.stringify(analysis.recommendations),
+				],
+			);
+			console.log(
+				`[CV Review] Analysis completed for user ${req.user.id}, analysis ${analysisId}`,
+			);
+		} catch (analysisErr) {
+			console.error(
+				`[CV Review] Analysis failed for analysis ${analysisId}:`,
+				analysisErr.message,
+			);
+			try {
+				await pool.query('DELETE FROM cv_analyses WHERE id = $1', [analysisId]);
+			} catch (deleteErr) {
+				console.error('[CV Review] Failed to delete pending analysis:', deleteErr.message);
+			}
+			return res.status(503).json({
+				error: 'CV analysis is temporarily unavailable. Please try again in a moment.',
+				retryable: true,
+			});
+		}
+
+		res.json({ success: true, analysis_id: analysisId, status: 'completed' });
 	} catch (err) {
 		console.error('CV analyze error:', err);
 		res.status(500).json({ error: 'Failed to start CV analysis' });
