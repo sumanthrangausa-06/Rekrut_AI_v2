@@ -3188,7 +3188,7 @@ router.get('/applications', authMiddleware, async (req, res) => {
 });
 
 // Auto-apply to a job (Pro feature, rate-limited) — uses stored auto-apply profile
-router.post('/applications/auto-apply', authMiddleware, async (req, res) => {
+router.post('/applications/auto-apply', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
 		const { job_id } = req.body;
 		if (!job_id) {
@@ -3386,7 +3386,7 @@ router.post('/jobs/:id/auto-apply', authMiddleware, rateLimits.standard, async (
 });
 
 // Withdraw an application
-router.put('/applications/:id/withdraw', authMiddleware, async (req, res) => {
+router.put('/applications/:id/withdraw', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
 		// Verify application belongs to candidate and is withdrawable
 		const existing = await pool.query(
