@@ -937,8 +937,18 @@ describe('POST /appeal — body userId ownership (#1111)', () => {
 		expect(appealInserts[0][0]).toBe(21);
 	});
 
-	test('admin filing for another user → 200 (helper’s established admin path, as on GET /appeal/:userId)', async () => {
+	test('admin filing for another user → 200 (helper’s established admin path, as on GET /appeal/:userId), audit metadata records the acting admin (LOW-1)', async () => {
 		const res = await request(app).post(url).set(as(1)).send(bodyFor(21));
+		expect(res.status).toBe(200);
+		expect(appealInserts).toHaveLength(1);
+		expect(appealInserts[0][0]).toBe(21);
+		expect(mockAuditLog).toHaveBeenCalledWith(
+			expect.objectContaining({ metadata: expect.objectContaining({ actor_id: 1 }) }),
+		);
+	});
+
+	test('self with a STRING userId "21" → 200, INSERT param is the normalized number 21 (LOW-3 coercion lock)', async () => {
+		const res = await request(app).post(url).set(as(21)).send(bodyFor('21'));
 		expect(res.status).toBe(200);
 		expect(appealInserts).toHaveLength(1);
 		expect(appealInserts[0][0]).toBe(21);

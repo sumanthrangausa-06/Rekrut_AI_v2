@@ -419,7 +419,14 @@ router.post('/appeal', authMiddleware, async (req, res) => {
 			userId: targetUserId,
 			targetType: 'appeal',
 			targetId: result.rows[0].id,
-			metadata: { score_type: scoreType, original_score: originalScore },
+			metadata: {
+				score_type: scoreType,
+				original_score: originalScore,
+				// #1111 (security-reviewer LOW-1): an admin filing for
+				// another user is recorded as the actor, so the audit row
+				// is not indistinguishable from the subject filing.
+				...(req.user?.id !== targetUserId ? { actor_id: req.user?.id } : {}),
+			},
 			req,
 		});
 
