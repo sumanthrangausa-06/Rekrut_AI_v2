@@ -28,6 +28,14 @@
  *   GHOST TABLES: omniscore_results and mutual_matches have zero
  *   in-repo writers (STOP 1 §3) — the DELETEs are still issued.
  *
+ * #1340: assessment_results (migration 270) joins this family — same
+ * shape (user_id only, no company_id, no child FKs, no writers),
+ * Lex classification ERASE under legal hold (STOP 1, issue #1340,
+ * comment 6245744960): migration 013's 1825-day registry row is a
+ * retention-purge rule for live accounts, not a keep-after-erasure
+ * classification. Its per-row consult is findActiveHold({userId,
+ * companyId: null}) — identical to skill_assessments.
+ *
  * Modelled on gap-d-erasure.test.js (SQL-routing fake). Mocked suite:
  * real-DB verification is staging-QA-carried (STOP 1 §5).
  */
@@ -65,6 +73,21 @@ function makeClient(scenario = {}) {
 		mutualMatches: [],
 		screeningLogs: [],
 		skillAssessments: [],
+		assessmentResults: [],
+		// #1340: user-scoped (null-company) hold behaviour for the
+		// post-gate consults of company-less families. The whole-erasure
+		// gate is the FIRST legal_holds query; these counters apply to
+		// the next N null-company consults only, so later families in
+		// the long erasure flow keep their default no-hold behaviour.
+		// ROTATION HAZARD (privacy review, PR for #1340): the #1340
+		// held/failed tests assume assessment_results' consults are the
+		// FIRST post-gate null-company consults — true only while no
+		// company-less family with rows in those focused scenarios runs
+		// earlier in the flow. If the call is ever moved, or an earlier
+		// company-less family gains rows there, make the consults
+		// unambiguous (scenario-key the router) instead of counting.
+		holdNullCompanyConsults: 0,
+		errorNullCompanyConsults: 0,
 		attempts: [],
 		conversations: [],
 		sessions: [],
@@ -76,14 +99,26 @@ function makeClient(scenario = {}) {
 		...scenario,
 	};
 	const client = { query: jest.fn() };
+	let legalHoldCalls = 0;
+	let nullCompanyConsults = 0;
 	client.query.mockImplementation(async (sql, params = []) => {
 		// Legal holds: entry gate + per-row consults.
 		// findActiveHold params: [uid, explicitCompanyId, sessionCompanyId].
 		if (/FROM legal_holds/i.test(sql)) {
+			legalHoldCalls++;
 			if (s.gateHeld) {
 				return { rows: [{ id: 42, user_id: 7, company_id: null }], rowCount: 1 };
 			}
 			const companyId = params[1];
+			if (companyId == null && legalHoldCalls > 1) {
+				nullCompanyConsults++;
+				if (nullCompanyConsults <= (s.errorNullCompanyConsults || 0)) {
+					throw new Error('legal-hold lookup unavailable');
+				}
+				if (nullCompanyConsults <= (s.holdNullCompanyConsults || 0)) {
+					return { rows: [{ id: 98, user_id: 7, company_id: null }], rowCount: 1 };
+				}
+			}
 			if (companyId != null) {
 				if (s.errorCompanies.has(companyId)) {
 					throw new Error('legal-hold lookup unavailable');
@@ -109,6 +144,7 @@ function makeClient(scenario = {}) {
 		if (/FROM mutual_matches/i.test(sql)) return { rows: s.mutualMatches, rowCount: s.mutualMatches.length };
 		if (/FROM screening_logs/i.test(sql)) return { rows: s.screeningLogs, rowCount: s.screeningLogs.length };
 		if (/FROM skill_assessments/i.test(sql)) return { rows: s.skillAssessments, rowCount: s.skillAssessments.length };
+		if (/FROM assessment_results/i.test(sql)) return { rows: s.assessmentResults, rowCount: s.assessmentResults.length };
 		if (/FROM assessment_conversations/i.test(sql)) return { rows: s.conversations, rowCount: s.conversations.length };
 		if (/FROM job_assessment_attempts/i.test(sql)) return { rows: s.attempts, rowCount: s.attempts.length };
 		if (/FROM assessment_events/i.test(sql)) return { rows: s.events, rowCount: s.events.length };
@@ -133,6 +169,7 @@ const GAP_B_TABLES = [
 	'mutual_matches',
 	'screening_logs',
 	'skill_assessments',
+	'assessment_results',
 	'job_assessment_attempts',
 	'assessment_conversations',
 	'assessment_sessions',
@@ -154,6 +191,7 @@ function fullScenario() {
 			{ id: 52, company_id: null },
 		],
 		skillAssessments: [{ id: 61 }, { id: 62 }],
+		assessmentResults: [{ id: 201 }, { id: 202 }],
 		// Attempt 72 sits under the company-99 hold → preserved, and its
 		// conversation (82) follows the parent's partition.
 		attempts: [
@@ -197,11 +235,19 @@ describe('#1121 GAP-B erasePersonalData — score & assessment leftovers', () =>
 			mutualMatches: 1,
 			screeningLogs: 2,
 			skillAssessments: 2,
+			assessmentResults: 2,
 			jobAssessmentAttempts: 1,
 			assessmentConversations: 2,
 			assessmentSessions: 2,
 			assessmentEvents: 2,
 		});
+		// #1340: this family's SQL is pinned (privacy review note) — a
+		// future unscoped DELETE must fail here, not pass on the router.
+		const arSelect = callsMatching(client, /SELECT id FROM assessment_results/i)[0];
+		expect(arSelect[1]).toEqual([7]);
+		const arDelete = callsMatching(client, /DELETE FROM assessment_results/i)[0];
+		expect(arDelete[0]).toMatch(/WHERE user_id = \$1 AND id = ANY\(\$2\)/i);
+		expect(arDelete[1]).toEqual([7, [201, 202]]);
 		// Held survivals disclosed: mutual_matches row 42, attempt 72,
 		// and attempt 72's conversation 82.
 		expect(result.gapB.rowsHeld).toBe(3);
@@ -343,6 +389,52 @@ describe('#1121 GAP-B erasePersonalData — score & assessment leftovers', () =>
 		expect(result.gapB.heldTables).toEqual([]);
 	});
 
+	test('#1340 assessment_results: user-scoped (null-company) hold preserves rows + counts them held, never deleted', async () => {
+		// assessment_results rows carry no company_id, so their per-row
+		// consult is findActiveHold({userId, companyId: null}) — the
+		// first two post-gate null-company consults in this focused
+		// scenario are exactly this family's two rows.
+		const client = makeClient({
+			assessmentResults: [{ id: 201 }, { id: 202 }],
+			holdNullCompanyConsults: 2,
+		});
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		expect(callsMatching(client, /DELETE FROM assessment_results/i)).toHaveLength(0);
+		expect(result.gapB.assessmentResults).toBe(0);
+		expect(result.gapB.rowsHeld).toBe(2);
+		expect(result.gapB.heldTables).toEqual(['assessment_results']);
+		expect(result.gapB.holdLookupFailed).toBe(0);
+	});
+
+	test('#1340 assessment_results: hold-lookup failure fails closed — rows skipped, counted lookup-failed (#1154, never held)', async () => {
+		const client = makeClient({
+			assessmentResults: [{ id: 201 }, { id: 202 }],
+			errorNullCompanyConsults: 2,
+		});
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		expect(callsMatching(client, /DELETE FROM assessment_results/i)).toHaveLength(0);
+		expect(result.gapB.assessmentResults).toBe(0);
+		expect(result.gapB.rowsHeld).toBe(0);
+		expect(result.gapB.heldTables).toEqual([]);
+		expect(result.gapB.holdLookupFailed).toBe(2);
+		expect(result.gapB.lookupFailedTables).toEqual(['assessment_results']);
+	});
+
+	test('#1340 assessment_results: idempotent re-run — second erasure deletes nothing and does not throw', async () => {
+		const scenario = { assessmentResults: [{ id: 201 }, { id: 202 }] };
+		const client = makeClient(scenario);
+		const first = await erasureService.erasePersonalData(7, { client });
+		expect(first.gapB.assessmentResults).toBe(2);
+		// Simulate the post-delete DB state (the router holds the same
+		// array reference): a re-run selects zero rows.
+		scenario.assessmentResults.length = 0;
+		const second = await erasureService.erasePersonalData(7, { client });
+		expect(second.gapB.assessmentResults).toBe(0);
+		expect(callsMatching(client, /DELETE FROM assessment_results/i)).toHaveLength(1);
+	});
+
 	test('whole-erasure gate: an active hold aborts before any GAP-B statement (LegalHoldError, zero deletes)', async () => {
 		const client = makeClient({ ...fullScenario(), gateHeld: true });
 		const err = await erasureService.erasePersonalData(7, { client }).catch((e) => e);
@@ -361,6 +453,7 @@ describe('#1121 GAP-B erasePersonalData — score & assessment leftovers', () =>
 			mutualMatches: 0,
 			screeningLogs: 0,
 			skillAssessments: 0,
+			assessmentResults: 0,
 			jobAssessmentAttempts: 0,
 			assessmentConversations: 0,
 			assessmentSessions: 0,
