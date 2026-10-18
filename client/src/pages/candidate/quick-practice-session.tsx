@@ -110,6 +110,10 @@ export function QuickPracticeSessionPage() {
 	const [consentStartError, setConsentStartError] = useState<string | null>(null);
 	const [responseText, setResponseText] = useState('');
 	const [submitting, setSubmitting] = useState(false);
+	// #1352: inline error for the text submit path. The handler previously had
+	// no else for !res.success and showed thrown errors only via alert(), so
+	// every failure rendered as a silent no-op.
+	const [submitError, setSubmitError] = useState<string | null>(null);
 	const [coaching, setCoaching] = useState<VideoCoaching | null>(null);
 	// Phase 3 (#447): tracks when Web Speech API is absent so the UI can
 	// show the typed-answer fallback message.
@@ -480,6 +484,7 @@ export function QuickPracticeSessionPage() {
 		}
 
 		setSubmitting(true);
+		setSubmitError(null);
 		const abortController = new AbortController();
 		const fetchTimeout = setTimeout(() => abortController.abort(), 35000);
 		try {
@@ -497,14 +502,20 @@ export function QuickPracticeSessionPage() {
 				},
 			);
 
-			if (res.success) {
+			if (res.success && res.coaching) {
 				setTextCoaching(res.coaching);
+			} else {
+				// #1352: HTTP 200 with success:false / no coaching was previously
+				// swallowed by the missing else — the click looked like a no-op.
+				setSubmitError(
+					'We could not get AI coaching for that response. Please try again.',
+				);
 			}
 		} catch (err: any) {
 			if (err.name === 'AbortError' || abortController.signal.aborted) {
-				alert('Analysis is taking longer than expected. Please try again.');
+				setSubmitError('Analysis is taking longer than expected. Please try again.');
 			} else {
-				alert(err.message || 'Failed to get AI coaching. Please try again.');
+				setSubmitError(err.message || 'Failed to get AI coaching. Please try again.');
 			}
 		} finally {
 			clearTimeout(fetchTimeout);
@@ -1143,7 +1154,10 @@ export function QuickPracticeSessionPage() {
 									<label className="text-sm font-medium">Your Response</label>
 									<Textarea
 										value={responseText}
-										onChange={(e) => setResponseText(e.target.value)}
+										onChange={(e) => {
+											setResponseText(e.target.value);
+											if (submitError) setSubmitError(null);
+										}}
 										placeholder="Take your time to craft a thoughtful response. Use the STAR method (Situation, Task, Action, Result) for behavioral questions..."
 										rows={8}
 										className="resize-y"
@@ -1156,6 +1170,15 @@ export function QuickPracticeSessionPage() {
 											<CheckCircle className="h-3.5 w-3.5 text-green-500" />
 										)}
 									</div>
+
+									{submitError && (
+										<div
+											role="alert"
+											className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700"
+										>
+											{submitError}
+										</div>
+									)}
 
 									<div className="flex gap-2 mt-3">
 										<Button
