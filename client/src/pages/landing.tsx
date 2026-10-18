@@ -568,7 +568,7 @@ function HeroSection() {
 							</div>
 							<div className="flex-1 flex justify-center">
 								<div className="bg-background rounded-md px-3 py-1 text-xs text-muted-foreground max-w-xs truncate">
-									rekrutai.co/dashboard
+									Rekrut AI · Dashboard
 								</div>
 							</div>
 						</div>

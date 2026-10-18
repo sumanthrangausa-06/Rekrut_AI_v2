@@ -135,7 +135,7 @@ Business Transfers: If Rekrut AI is involved in a merger, acquisition, or asset 
 
 • Encryption at rest (AES-256) and in transit (TLS 1.3) for all sensitive data.
 • Role-based access controls and regular security audits.
-• SOC 2 Type II compliant infrastructure providers.
+• SOC 2 Type II in progress — certification has not yet been completed.
 • Regular vulnerability scanning and penetration testing.
 • Incident response plan and 24/7 monitoring.
 

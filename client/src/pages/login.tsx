@@ -302,7 +302,7 @@ export function LoginPage() {
 								</div>
 								{/* TODO(copy): Replace with actual partner logos or testimonials */}
 								<p className="mt-2 text-center text-[10px] text-muted-foreground/60">
-									SOC 2 Type II compliant &middot; GDPR ready &middot; AES-256 encryption
+									SOC 2 Type II in progress &middot; GDPR ready &middot; AES-256 encryption
 								</p>
 							</div>
 
