@@ -174,7 +174,13 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 						);
 						const owner = ownerResult.rows[0];
 						if (owner) {
-							await emailService.sendEmailAsync({
+							// #1353: truly non-blocking — do NOT await. sendEmailAsync
+							// wraps a Brevo fetch with no timeout; awaiting it here
+							// withheld the 202 response below indefinitely when the
+							// email send stalled, hanging the signup UI on
+							// 'Creating account...' even though the account and
+							// join request were already created.
+							void emailService.sendEmailAsync({
 								to: owner.email,
 								templateName: 'recruiter_join_request',
 								templateData: {
@@ -199,6 +205,13 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 									requester_id: user.id,
 									trigger: 'join_request_created',
 								},
+							}).catch((emailErr) => {
+								// sendEmailAsync already swallows send failures; this
+								// guards the fire-and-forget promise itself.
+								console.error(
+									'[auth] Failed to send recruiter join request email (non-blocking):',
+									emailErr?.message || emailErr,
+								);
 							});
 						}
 					} catch (emailErr) {
