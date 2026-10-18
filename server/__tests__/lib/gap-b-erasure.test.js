@@ -22,8 +22,9 @@
  *   partition exactly — cascades are never assumed.
  *   LEGAL HOLD: whole-erasure gate first (shipped), then a per-row
  *   findActiveHold({userId, companyId}) consult per family, fail-closed
- *   on lookup error (row skipped, counted in gapB.rowsHeld, table named
- *   in gapB.heldTables — #1116 disclosure).
+ *   on lookup error (row skipped, counted in gapB.holdLookupFailed,
+ *   table named in gapB.lookupFailedTables — #1154 truthfulness;
+ *   gapB.rowsHeld/heldTables name GENUINE holds only, #1116 disclosure).
  *   GHOST TABLES: omniscore_results and mutual_matches have zero
  *   in-repo writers (STOP 1 §3) — the DELETEs are still issued.
  *
@@ -295,7 +296,7 @@ describe('#1121 GAP-B erasePersonalData — score & assessment leftovers', () =>
 		);
 	});
 
-	test('per-row hold-lookup failure fails closed: row skipped + counted, erasure does not throw', async () => {
+	test('per-row hold-lookup failure fails closed: row skipped + counted as lookup-failed (#1154 — never as held), erasure does not throw', async () => {
 		const scenario = {
 			screeningLogs: [
 				{ id: 51, company_id: 4 },
@@ -308,8 +309,38 @@ describe('#1121 GAP-B erasePersonalData — score & assessment leftovers', () =>
 
 		expect(callsMatching(client, /DELETE FROM screening_logs/i)[0][1]).toEqual([7, [52]]);
 		expect(result.gapB.screeningLogs).toBe(1);
-		expect(result.gapB.rowsHeld).toBeGreaterThanOrEqual(1);
-		expect(result.gapB.heldTables).toContain('screening_logs');
+		// #1154 truthfulness: preserved, but NOT a legal hold.
+		expect(result.gapB.rowsHeld).toBe(0);
+		expect(result.gapB.heldTables).toEqual([]);
+		expect(result.gapB.holdLookupFailed).toBe(1);
+		expect(result.gapB.lookupFailedTables).toEqual(['screening_logs']);
+	});
+
+	test('#1154 child split: conversations of a lookup-failed attempt count as lookup-failed, never as held', async () => {
+		const scenario = {
+			attempts: [
+				{ id: 71, company_id: 4 },
+				{ id: 73, company_id: 3 },
+			],
+			conversations: [
+				{ id: 81, attempt_id: 71 },
+				{ id: 83, attempt_id: 73 },
+			],
+			errorCompanies: new Set([4]),
+		};
+		const client = makeClient(scenario);
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		expect(callsMatching(client, /DELETE FROM assessment_conversations/i)[0][1]).toEqual([[73]]);
+		expect(callsMatching(client, /DELETE FROM job_assessment_attempts/i)[0][1]).toEqual([7, [73]]);
+		expect(result.gapB.jobAssessmentAttempts).toBe(1);
+		expect(result.gapB.holdLookupFailed).toBe(2);
+		expect(result.gapB.lookupFailedTables).toEqual([
+			'job_assessment_attempts',
+			'assessment_conversations',
+		]);
+		expect(result.gapB.rowsHeld).toBe(0);
+		expect(result.gapB.heldTables).toEqual([]);
 	});
 
 	test('whole-erasure gate: an active hold aborts before any GAP-B statement (LegalHoldError, zero deletes)', async () => {
