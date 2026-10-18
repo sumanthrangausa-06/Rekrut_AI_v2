@@ -4532,14 +4532,17 @@ Only return JSON.`;
 			scoredJobs = jobs.rows.map((job) => {
 				const reqText = (job.requirements || '').toLowerCase();
 				const matchCount = candidateSkillNames.filter((s) => reqText.includes(s)).length;
+				// #1377: no candidate skills means relevance cannot be
+				// calculated — null ("insufficient data"), never a
+				// fabricated mid-range 50. Nulls sort last below.
 				const relevance =
 					candidateSkillNames.length > 0
 						? Math.round((matchCount / candidateSkillNames.length) * 100)
-						: 50;
+						: null;
 				return { ...job, relevance_score: relevance };
 			});
 
-			scoredJobs.sort((a, b) => b.relevance_score - a.relevance_score);
+			scoredJobs.sort((a, b) => (b.relevance_score ?? -1) - (a.relevance_score ?? -1));
 		}
 
 		res.json({
@@ -4634,11 +4637,14 @@ Only return JSON.`;
 			parsed = JSON.parse(result);
 		} catch {
 			const m = result.match(/\{[\s\S]*\}/);
+			// #1377: unparseable AI output means the review did NOT happen —
+			// completeness is null and the application is not certified
+			// ready; never a fabricated 50 plus a fabricated "ready".
 			parsed = m
 				? JSON.parse(m[0])
 				: {
-						ready_to_submit: true,
-						completeness_score: 50,
+						ready_to_submit: false,
+						completeness_score: null,
 						issues: [],
 						strengths: [],
 						suggestions: [],
@@ -4725,14 +4731,29 @@ Only return JSON.`;
 			parsed = JSON.parse(result);
 		} catch {
 			const m = result.match(/\{[\s\S]*\}/);
+			// #1377: unparseable AI output means the resume was NOT scored —
+			// overall_score is null, never a fabricated 50 (which used to be
+			// persisted as 20 real OmniScore points below).
 			parsed = m
 				? JSON.parse(m[0])
-				: { overall_score: 50, sections: {}, top_improvements: [], ats_friendly: false };
+				: { overall_score: null, sections: {}, top_improvements: [], ats_friendly: false };
 		}
 
-		// Feed resume score into OmniScore
-		try {
-			const resumePoints = Math.round((parsed.overall_score / 100) * 40); // Max 40 points for resume quality
+		// Feed resume score into OmniScore — only a real score may write
+		// points: a JSON number or a strictly numeric string, in the
+		// contract range 0-100. Null/missing/boolean/array/out-of-range
+		// values write nothing (Number(null)===0 and Number(true)===1
+		// must never become points).
+		const rawScore = parsed.overall_score;
+		const resumeScore =
+			typeof rawScore === 'number'
+				? rawScore
+				: typeof rawScore === 'string' && rawScore.trim() !== ''
+					? Number(rawScore)
+					: NaN;
+		if (Number.isFinite(resumeScore) && resumeScore >= 0 && resumeScore <= 100) {
+			try {
+				const resumePoints = Math.round((resumeScore / 100) * 40); // Max 40 points for resume quality
 			await pool.query(
 				`
         INSERT INTO score_components (user_id, component_type, source_type, points, max_points, metadata)
@@ -4743,10 +4764,11 @@ Only return JSON.`;
 				[req.user.id, resumePoints, JSON.stringify({ ai_score: parsed.overall_score })],
 			);
 
-			// Recalculate OmniScore
-			await omniscoreService.calculateScore(req.user.id);
-		} catch (scoreErr) {
-			console.error('OmniScore update from resume score (non-fatal):', scoreErr.message);
+				// Recalculate OmniScore
+				await omniscoreService.calculateScore(req.user.id);
+			} catch (scoreErr) {
+				console.error('OmniScore update from resume score (non-fatal):', scoreErr.message);
+			}
 		}
 
 		res.json({ success: true, score: parsed });

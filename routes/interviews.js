@@ -407,11 +407,18 @@ router.get('/:id/analysis', authMiddleware, async (req, res) => {
 			[req.params.id],
 		);
 
-		// Calculate aggregate presentation score for OmniScore
+		// Calculate aggregate presentation score for OmniScore.
+		// #1377: average only rows carrying a real score — a NULL
+		// presentation_score is "insufficient data", never a 0 in the
+		// average; the aggregate stays null when no row has a real score.
 		let avgPresentationScore = null;
 		if (analysis.rows.length > 0) {
-			const scores = analysis.rows.map((row) => parseFloat(row.presentation_score || 0));
-			avgPresentationScore = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+			const scores = analysis.rows
+				.map((row) => parseFloat(row.presentation_score))
+				.filter((s) => Number.isFinite(s));
+			if (scores.length > 0) {
+				avgPresentationScore = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+			}
 		}
 
 		res.json({
