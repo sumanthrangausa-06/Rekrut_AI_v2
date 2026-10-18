@@ -2408,6 +2408,11 @@ router.post('/legal-holds/:id/release', requireAdmin, async (req, res) => {
 		res.json({ success: true, hold });
 	} catch (error) {
 		console.error('[admin/legal-holds] release error:', error.message);
+		// #1416: an out-of-int4-range / non-integer hold id is the caller's
+		// error — surface it (400 + the reason) instead of a generic 500.
+		if (error.code === 'INVALID_HOLD_ID') {
+			return res.status(400).json({ error: error.message });
+		}
 		res.status(500).json({ error: 'Failed to release legal hold' });
 	}
 });
