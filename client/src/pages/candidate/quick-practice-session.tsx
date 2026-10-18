@@ -473,7 +473,13 @@ export function QuickPracticeSessionPage() {
 				// wait retryAfterMs (fallback 3000ms) and retry once. If the
 				// retry also fails, the branches below surface the honest error.
 				if (attempt === 1 && err.status === 503 && err.retryable === true) {
-					retryDelayMs = typeof err.retryAfterMs === 'number' ? err.retryAfterMs : 3000;
+					// #1378: clamp retryAfterMs before it reaches setTimeout —
+					// typeof NaN is 'number', and a negative/huge value must
+					// not pass through. Sane range 0–15000ms, fallback 3000.
+					retryDelayMs =
+						typeof err.retryAfterMs === 'number' && Number.isFinite(err.retryAfterMs)
+							? Math.min(15000, Math.max(0, err.retryAfterMs))
+							: 3000;
 					return false; // signal retry needed
 				}
 				if (err.name === 'AbortError' || abortController.signal.aborted) {
