@@ -37,7 +37,12 @@ async function canAccessJobBias(req, jobId) {
 	}
 	const jobResult = await pool.query('SELECT company_id FROM jobs WHERE id = $1', [jobId]);
 	const job = jobResult.rows[0];
-	if (!job || req.user?.company_id == null || Number(req.user.company_id) !== Number(job.company_id)) {
+	if (
+		!job ||
+		job.company_id == null ||
+		req.user?.company_id == null ||
+		Number(req.user.company_id) !== Number(job.company_id)
+	) {
 		return { ok: false, status: 403, error: 'Access denied' };
 	}
 	return { ok: true };

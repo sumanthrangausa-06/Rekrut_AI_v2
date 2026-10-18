@@ -142,7 +142,10 @@ const applications = new Map([
 	[102, { id: 102, candidate_id: 1, company_id: COMPANY_A, job_id: 50 }],
 	[103, { id: 103, candidate_id: 23, company_id: COMPANY_A, job_id: 50 }],
 ]);
-const jobs = new Map([[50, { id: 50, company_id: COMPANY_A }]]);
+const jobs = new Map([
+	[50, { id: 50, company_id: COMPANY_A }],
+	[51, { id: 51, company_id: null }],
+]);
 
 // #920: candidate 21's compliance_audit_trail events span two companies —
 // two events for company A (the linked company) and one for company B.
@@ -741,6 +744,13 @@ describe('bias endpoints — job↔company authorisation (#1112)', () => {
 	test('hiring role with company_id = null → 403 fail-closed on both endpoints', async () => {
 		expect((await request(app).get(metricsUrl).set(as(16))).status).toBe(403);
 		expect((await request(app).get(fourFifthsUrl).set(as(16))).status).toBe(403);
+		expect(mockGetBiasMetricsForJob).not.toHaveBeenCalled();
+		expect(mockCalculateFourFifthsRule).not.toHaveBeenCalled();
+	});
+
+	test('job with company_id = null → 403 fail-closed (explicit null guard), services never reached', async () => {
+		expect((await request(app).get('/api/compliance/bias/metrics/51').set(as(10))).status).toBe(403);
+		expect((await request(app).get('/api/compliance/bias/four-fifths/51').set(as(10))).status).toBe(403);
 		expect(mockGetBiasMetricsForJob).not.toHaveBeenCalled();
 		expect(mockCalculateFourFifthsRule).not.toHaveBeenCalled();
 	});
