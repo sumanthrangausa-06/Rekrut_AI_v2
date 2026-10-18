@@ -297,6 +297,19 @@ export async function apiCall<T = unknown>(url: string, options: ApiCallOptions 
 		// degradation on 404 when a backend endpoint is not yet deployed).
 		(error as Error & { status?: number }).status = res.status;
 
+		// #1365: preserve the server's retry signal. Retryable failures are
+		// thrown (never resolved), so without this a caller's
+		// auto-retry-on-503 check can never see retryable/retryAfterMs —
+		// e.g. routes/quick-practice.js 503 { retryable: true,
+		// retryAfterMs: 3000 }. Attach only when the server actually sent
+		// them; never invent a default.
+		if (typeof errorData.retryable === 'boolean') {
+			(error as Error & { retryable?: boolean }).retryable = errorData.retryable;
+		}
+		if (typeof errorData.retryAfterMs === 'number') {
+			(error as Error & { retryAfterMs?: number }).retryAfterMs = errorData.retryAfterMs;
+		}
+
 		// Consent gate (S-011): redirect to consent screens on 403 consent errors.
 		// CONSENT_WITHDRAWN is excluded — the caller shows an inline message instead.
 		if (res.status === 403 && isConsentErrorCode(code) && shouldRedirectForConsentCode(code)) {
