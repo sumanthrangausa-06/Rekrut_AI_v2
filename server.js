@@ -2223,7 +2223,7 @@ app.use(
 const KNOWN_ROUTES = [
 	// Public routes
 	'^/$',
-	'^/(login|register|forgot-password|reset-password)$',
+	'^/(login|register|signup|forgot-password|reset-password)$',
 	'^/(test-camera|pricing|payment-success)$',
 	'^/(ref|leaderboard|compare)$',
 	'^/screening/[^/]+$',
