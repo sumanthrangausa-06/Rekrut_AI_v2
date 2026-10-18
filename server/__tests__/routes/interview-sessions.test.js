@@ -1186,7 +1186,25 @@ describe('POST /api/interviews/interview-sessions/trigger', () => {
 		const app = buildApp();
 		const res = await trigger(app, 3);
 
-		expect(res.status).toBe(403);
+		// #924: foreign-owned must be indistinguishable from non-existent (404),
+		// never 403 — a 403-vs-404 split is an existence oracle.
+		expect(res.status).toBe(404);
+		expect(mockNotifyUser).not.toHaveBeenCalled();
+	});
+
+	it('returns identical 404 status + body for a foreign application and a non-existent application (#924)', async () => {
+		global.__testUsers[3] = { id: 3, email: 'other@test.com', role: 'recruiter', company_id: 9 };
+		const app = buildApp();
+
+		const foreign = await trigger(app, 3);
+		const missing = await trigger(app, 3, { application_id: 999 });
+
+		expect(foreign.status).toBe(404);
+		expect(missing.status).toBe(404);
+		expect(foreign.body).toEqual(missing.body);
+		expect(foreign.body).toEqual({ error: 'Application not found' });
+		// No session is created and nobody is notified in either case.
+		expect(sessions.size).toBe(0);
 		expect(mockNotifyUser).not.toHaveBeenCalled();
 	});
 
