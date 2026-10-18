@@ -91,6 +91,8 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 	test('returns { shredded: true } and audits when a DEK is destroyed', async () => {
 		const client = { query: jest.fn() };
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard SAVEPOINT probe (in-transaction caller)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard RELEASE SAVEPOINT
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
 			.mockResolvedValueOnce({ rowCount: 0 }) // embeddings DELETE: no row
@@ -359,6 +361,8 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 	test('returns { shredded: false } on DEKNotFound (no DEK → not an error)', async () => {
 		const client = { query: jest.fn() };
 		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard SAVEPOINT probe (in-transaction caller)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard RELEASE SAVEPOINT
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
 			.mockResolvedValueOnce({ rowCount: 0 }) // destroyDEK: DEKNotFound
 			.mockResolvedValueOnce({ rowCount: 1 }) // Gate A: DEK tombstone INSERT (pre-existing chain gap, repaired #799)
@@ -625,13 +629,16 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 	});
 
 	test('rethrows non-DEKNotFound errors (caller rolls back)', async () => {
-		// #799: the FIRST query is now the legal-hold check, and it is
-		// fail-closed — a DB error there aborts the erasure with a typed
-		// LegalHoldError (nothing is deleted), which the caller rolls
-		// back exactly like any other erasure error.
+		// #799 made the legal-hold check the first DATA query, fail-closed.
+		// #1396: the first statement is now the transaction-state probe,
+		// which precedes the hold check; a DB error there also aborts the
+		// erasure before anything is deleted (fail-closed), propagating
+		// raw — the caller rolls back exactly like any other erasure
+		// error. (The hold-check stage's own LEGAL_HOLD fail-closed
+		// semantics remain covered by the legal-hold suites.)
 		const client = { query: jest.fn().mockRejectedValue(new Error('db down')) };
 		const err = await erasePersonalData(7, { client }).catch((e) => e);
-		expect(err.code).toBe('LEGAL_HOLD');
+		expect(err.message).toBe('db down');
 		expect(biometricAudit.logAccess).not.toHaveBeenCalled();
 	});
 
@@ -643,6 +650,8 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 		const client = {
 			query: jest
 				.fn()
+				.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard SAVEPOINT probe (in-transaction caller)
+				.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1396: tx-guard RELEASE SAVEPOINT
 				.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799 legal-hold check: no hold
 				.mockRejectedValueOnce(new Error('dek db down')), // destroyDEK UPDATE fails
 		};
