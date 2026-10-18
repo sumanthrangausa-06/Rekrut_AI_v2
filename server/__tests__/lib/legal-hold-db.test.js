@@ -67,6 +67,8 @@ describeIfDb('legal hold (real DB, migration 258)', () => {
 	});
 
 	test('place → isHeld true → purge predicate matches → release → isHeld false', async () => {
+		// #918: the subject must exist before a hold can be placed on it.
+		await pool.query('INSERT INTO users (id, company_id) VALUES (424242, NULL) ON CONFLICT (id) DO NOTHING');
 		const hold = await legalHold.placeHold(
 			{ userId: 424242, reason: 'integration litigation hold', setBy: 'it-admin' },
 			pool,
@@ -198,7 +200,51 @@ describeIfDb('legal hold (real DB, migration 258)', () => {
 		await expect(legalHold.findActiveHold({ sessionId: 999999 }, pool)).rejects.toThrow(/not found/);
 	});
 
+	// ── #918 (Lex F-5): placeHold verifies the subject exists (real DB) ─────
+	test('#918 (real DB): non-existent user / company subjects fail loudly and write NO hold row', async () => {
+		const countFor = async (col, id) => {
+			const { rows } = await pool.query(`SELECT COUNT(*)::int AS c FROM legal_holds WHERE ${col} = $1`, [id]);
+			return rows[0].c;
+		};
+		await expect(
+			legalHold.placeHold({ userId: 999001, reason: 'ghost user', setBy: 'it-admin' }, pool),
+		).rejects.toThrow(/user 999001 does not exist/);
+		expect(await countFor('user_id', 999001)).toBe(0);
+
+		await expect(
+			legalHold.placeHold({ companyId: 999002, reason: 'ghost company', setBy: 'it-admin' }, pool),
+		).rejects.toThrow(/company 999002 does not exist/);
+		expect(await countFor('company_id', 999002)).toBe(0);
+
+		// Both supplied, one missing: still a hard error, still no row.
+		// (User seeded here so this test is self-contained — reviewer note.)
+		await pool.query(
+			'INSERT INTO users (id, company_id) VALUES (515152, NULL) ON CONFLICT (id) DO NOTHING',
+		);
+		await expect(
+			legalHold.placeHold({ userId: 515152, companyId: 999002, reason: 'half ghost', setBy: 'it-admin' }, pool),
+		).rejects.toThrow(/company 999002 does not exist/);
+		const { rows } = await pool.query(
+			'SELECT COUNT(*)::int AS c FROM legal_holds WHERE user_id = 515152 AND company_id = 999002',
+		);
+		expect(rows[0].c).toBe(0);
+	});
+
+	test('#918 (real DB): a valid user+company hold still places', async () => {
+		await pool.query('INSERT INTO companies (id) VALUES (777) ON CONFLICT (id) DO NOTHING');
+		await pool.query('INSERT INTO users (id, company_id) VALUES (424242, NULL) ON CONFLICT (id) DO NOTHING');
+		const hold = await legalHold.placeHold(
+			{ userId: 424242, companyId: 777, reason: 'integration #918 both-subject hold', setBy: 'it-admin' },
+			pool,
+		);
+		expect(hold.user_id).toBe(424242);
+		expect(hold.company_id).toBe(777);
+		await legalHold.releaseHold({ holdId: hold.id, releasedBy: 'it-admin' }, pool);
+	});
+
 	test('Lex F-1 (real DB): the conflict record and the place audit actually land in compliance_audit_trail', async () => {
+		// #918: the subject must exist before a hold can be placed on it.
+		await pool.query('INSERT INTO users (id, company_id) VALUES (424243, NULL) ON CONFLICT (id) DO NOTHING');
 		const hold = await legalHold.placeHold(
 			{ userId: 424243, reason: 'integration conflict hold', setBy: 'it-admin' },
 			pool,

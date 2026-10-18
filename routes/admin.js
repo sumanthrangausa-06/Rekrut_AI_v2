@@ -2381,6 +2381,11 @@ router.post('/legal-holds', requireAdmin, async (req, res) => {
 		res.status(201).json({ success: true, hold });
 	} catch (error) {
 		console.error('[admin/legal-holds] place error:', error.message);
+		// #918: a non-existent subject is the caller's error — surface it
+		// (404 + the reason) instead of burying it in a generic 500.
+		if (error.code === 'SUBJECT_NOT_FOUND') {
+			return res.status(404).json({ error: error.message });
+		}
 		res.status(500).json({ error: 'Failed to place legal hold' });
 	}
 });
