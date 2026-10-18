@@ -413,6 +413,7 @@ export function QuickPracticeSessionPage() {
 		}
 
 		setSubmitting(true);
+		setSubmitError(null);
 
 		// Inner function for the actual API call (allows retry)
 		const doSubmit = async (attempt: number): Promise<boolean> => {
@@ -441,7 +442,7 @@ export function QuickPracticeSessionPage() {
 					},
 				});
 
-				if (res.success) {
+				if (res.success && res.coaching) {
 					setCoaching(res.coaching);
 					stopCamera();
 						return true;
@@ -450,15 +451,24 @@ export function QuickPracticeSessionPage() {
 				if ((res as any).retryable && attempt === 1) {
 					return false; // signal retry needed
 				}
+				// #1357: !success / missing coaching was previously swallowed —
+				// doSubmit returned true with no error shown and the click
+				// rendered as a no-op (the silent branch #1352 fixed for text).
+				// Show the truthful error inline instead.
+				setSubmitError(
+					(res as any).error ||
+						'We could not get AI coaching for that response. Please try again.',
+				);
 				return true; // don't retry on other responses
 			} catch (err: any) {
 				if (err.name === 'AbortError' || abortController.signal.aborted) {
 					if (attempt === 1) return false; // retry on timeout
-					alert(
+					setSubmitError(
 						'Analysis is taking longer than expected. Please try again — the AI may need a moment.',
 					);
 				} else {
-					alert(err.message || 'Failed to get AI coaching. Please try again.');
+					// #1357: inline role="alert" (the #1352 pattern), not only alert()
+					setSubmitError(err.message || 'Failed to get AI coaching. Please try again.');
 				}
 				return true; // don't retry after showing error
 			} finally {
@@ -747,6 +757,16 @@ export function QuickPracticeSessionPage() {
 							{/* Video Recording Mode */}
 							{responseMode === 'video' && (
 								<div className="mt-4 space-y-4">
+									{/* #1357: video submit failures surface inline (role="alert"),
+									    same pattern #1352 added for text mode. */}
+									{submitError && (
+										<div
+											role="alert"
+											className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700"
+										>
+											{submitError}
+										</div>
+									)}
 									{/* Phase 3 (#447): typed-answer fallback when Web Speech API absent */}
 									{speechNotSupported && (
 										<p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
