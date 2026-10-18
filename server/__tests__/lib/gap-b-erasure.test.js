@@ -241,6 +241,13 @@ describe('#1121 GAP-B erasePersonalData — score & assessment leftovers', () =>
 			assessmentSessions: 2,
 			assessmentEvents: 2,
 		});
+		// #1340: this family's SQL is pinned (privacy review note) — a
+		// future unscoped DELETE must fail here, not pass on the router.
+		const arSelect = callsMatching(client, /SELECT id FROM assessment_results/i)[0];
+		expect(arSelect[1]).toEqual([7]);
+		const arDelete = callsMatching(client, /DELETE FROM assessment_results/i)[0];
+		expect(arDelete[0]).toMatch(/WHERE user_id = \$1 AND id = ANY\(\$2\)/i);
+		expect(arDelete[1]).toEqual([7, [201, 202]]);
 		// Held survivals disclosed: mutual_matches row 42, attempt 72,
 		// and attempt 72's conversation 82.
 		expect(result.gapB.rowsHeld).toBe(3);
@@ -413,6 +420,19 @@ describe('#1121 GAP-B erasePersonalData — score & assessment leftovers', () =>
 		expect(result.gapB.heldTables).toEqual([]);
 		expect(result.gapB.holdLookupFailed).toBe(2);
 		expect(result.gapB.lookupFailedTables).toEqual(['assessment_results']);
+	});
+
+	test('#1340 assessment_results: idempotent re-run — second erasure deletes nothing and does not throw', async () => {
+		const scenario = { assessmentResults: [{ id: 201 }, { id: 202 }] };
+		const client = makeClient(scenario);
+		const first = await erasureService.erasePersonalData(7, { client });
+		expect(first.gapB.assessmentResults).toBe(2);
+		// Simulate the post-delete DB state (the router holds the same
+		// array reference): a re-run selects zero rows.
+		scenario.assessmentResults.length = 0;
+		const second = await erasureService.erasePersonalData(7, { client });
+		expect(second.gapB.assessmentResults).toBe(0);
+		expect(callsMatching(client, /DELETE FROM assessment_results/i)).toHaveLength(1);
 	});
 
 	test('whole-erasure gate: an active hold aborts before any GAP-B statement (LegalHoldError, zero deletes)', async () => {
