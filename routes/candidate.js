@@ -3455,10 +3455,23 @@ router.put('/applications/:id/withdraw', authMiddleware, rateLimits.standard, as
 				.json({ error: `Cannot withdraw an application with status: ${app.status}` });
 		}
 
+		// #929: status predicate makes the terminal check atomic — a
+		// recruiter transition landing after the SELECT above cannot be
+		// overwritten; a 0-row update is that race lost → 400, as below.
 		const result = await pool.query(
-			`UPDATE job_applications SET status = 'withdrawn', updated_at = NOW() WHERE id = $1 RETURNING ${CANDIDATE_APPLICATION_COLUMNS}`,
+			`UPDATE job_applications SET status = 'withdrawn', updated_at = NOW() WHERE id = $1 AND status NOT IN ('withdrawn','hired','rejected') RETURNING ${CANDIDATE_APPLICATION_COLUMNS}`,
 			[req.params.id],
 		);
+
+		if (result.rows.length === 0) {
+			const current = await pool.query(
+				`SELECT id, status FROM job_applications WHERE id = $1 AND candidate_id = $2`,
+				[req.params.id, req.user.id],
+			);
+			return res.status(400).json({
+				error: `Cannot withdraw an application with status: ${current.rows[0]?.status ?? app.status}`,
+			});
+		}
 
 		res.json({ success: true, application: toCandidateApplication(result.rows[0]) });
 	} catch (err) {
@@ -3519,10 +3532,21 @@ router.put('/applications/:id/status', authMiddleware, rateLimits.standard, asyn
 			});
 		}
 
+		// #929: same atomic status predicate as the withdraw sibling.
 		const result = await pool.query(
-			`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING ${CANDIDATE_APPLICATION_COLUMNS}`,
+			`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 AND status NOT IN ('withdrawn','hired','rejected') RETURNING ${CANDIDATE_APPLICATION_COLUMNS}`,
 			[status, req.params.id],
 		);
+
+		if (result.rows.length === 0) {
+			const current = await pool.query(
+				`SELECT id, status FROM job_applications WHERE id = $1 AND candidate_id = $2`,
+				[req.params.id, req.user.id],
+			);
+			return res.status(400).json({
+				error: `Cannot withdraw an application with status: ${current.rows[0]?.status ?? existing.rows[0].status}`,
+			});
+		}
 
 		res.json({ success: true, application: toCandidateApplication(result.rows[0]) });
 	} catch (err) {
