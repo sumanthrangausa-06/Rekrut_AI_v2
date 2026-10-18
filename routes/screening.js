@@ -305,9 +305,21 @@ router.post('/questions', authMiddleware, async (req, res) => {
 			return res.status(404).json({ error: 'Candidate or job not found' });
 		}
 
+		// Normalise the raw jobs row exactly as the single /analyze path
+		// above (and the fixed /batch path) does: the question generator
+		// reads required_skills/min_years, never the DB column names
+		// skills_required/min_years_experience (#1373, follow-up to #1366).
+		const jobRow = job.rows[0];
+		const jobData = {
+			...jobRow,
+			required_skills: jobRow.skills_required || [],
+			preferred_skills: jobRow.preferred_skills || [],
+			min_years: jobRow.min_years_experience || 0,
+		};
+
 		const questions = await screener.generateTailoredInterviewQuestions(
 			candidate.rows[0],
-			job.rows[0],
+			jobData,
 		);
 
 		res.json({
