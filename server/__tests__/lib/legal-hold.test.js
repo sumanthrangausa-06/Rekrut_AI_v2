@@ -374,6 +374,41 @@ describe('legalHold place/release + audit', () => {
 		expect(auditLogService.logEvent).not.toHaveBeenCalled();
 	});
 
+	// ── #1409: an integer ABOVE the Postgres int4 max (2,147,483,647) passes
+	// #1404's shape check but is not a valid int4 id — it must fail as the
+	// same typed 400 BEFORE any DB query, on BOTH subject types. The int4
+	// max itself is valid shape and must reach the existence check (404).
+	test.each([
+		['userId', 2147483648],
+		['userId', '2147483648'],
+		['companyId', 2147483648],
+		['companyId', '2147483648'],
+	])('#1409: placeHold rejects out-of-int4-range %s %p with a typed 400 and writes no hold row', async (field, bad) => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		const err = await placeHold({ [field]: bad, reason: 'litigation X', setBy: 'admin-1' }).catch((e) => e);
+		expect(err).toBeInstanceOf(Error);
+		expect(err.code).toBe('INVALID_SUBJECT_ID');
+		expect(err.status).toBe(400);
+		expect(holds).toHaveLength(0);
+		expect(db.query).not.toHaveBeenCalled();
+		expect(auditLogService.logEvent).not.toHaveBeenCalled();
+	});
+
+	test.each([['userId'], ['companyId']])(
+		'#1409: int4 max 2147483647 is valid shape for %s — passes validation and reaches the existence check',
+		async (field) => {
+			db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+			const err = await placeHold({ [field]: 2147483647, reason: 'litigation X', setBy: 'admin-1' }).catch(
+				(e) => e,
+			);
+			expect(err.code).toBe('SUBJECT_NOT_FOUND');
+			expect(err.status).toBe(404);
+			expect(err.message).toMatch(/2147483647 does not exist/);
+			expect(db.query).toHaveBeenCalled();
+			expect(holds).toHaveLength(0);
+		},
+	);
+
 	test('#1404: integer-shaped string subject ids are normalised, valid ids unaffected', async () => {
 		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
 		const row = await placeHold({ userId: '7', reason: 'litigation X', setBy: 'admin-1' });

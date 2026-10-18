@@ -230,6 +230,38 @@ describeIfDb('legal hold (real DB, migration 258)', () => {
 		expect(rows[0].c).toBe(0);
 	});
 
+	// ── #1409 (real DB): int4 range bound in the normaliser ─────────────────
+	test('#1409 (real DB): ids above int4 max fail as typed 400 before any query; int4 max is valid shape (404)', async () => {
+		const countAll = async () => {
+			const { rows } = await pool.query('SELECT COUNT(*)::int AS c FROM legal_holds');
+			return rows[0].c;
+		};
+		const before = await countAll();
+		for (const [field, arg] of [
+			['userId', { userId: 2147483648 }],
+			['companyId', { companyId: 2147483648 }],
+		]) {
+			const err = await legalHold
+				.placeHold({ ...arg, reason: 'int4 overflow', setBy: 'it-admin' }, pool)
+				.catch((e) => e);
+			expect(err.code).toBe('INVALID_SUBJECT_ID');
+			expect(err.status).toBe(400);
+		}
+		for (const [field, arg] of [
+			['userId', { userId: 2147483647 }],
+			['companyId', { companyId: 2147483647 }],
+		]) {
+			const err = await legalHold
+				.placeHold({ ...arg, reason: 'int4 max', setBy: 'it-admin' }, pool)
+				.catch((e) => e);
+			// Valid shape: reaches the #918 existence check, which 404s —
+			// no 22P02, no 500-class escape, no hold row.
+			expect(err.code).toBe('SUBJECT_NOT_FOUND');
+			expect(err.status).toBe(404);
+		}
+		expect(await countAll()).toBe(before);
+	});
+
 	test('#918 (real DB): a valid user+company hold still places', async () => {
 		await pool.query('INSERT INTO companies (id) VALUES (777) ON CONFLICT (id) DO NOTHING');
 		await pool.query('INSERT INTO users (id, company_id) VALUES (424242, NULL) ON CONFLICT (id) DO NOTHING');
