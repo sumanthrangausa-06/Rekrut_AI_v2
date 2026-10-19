@@ -823,9 +823,10 @@ async function _encryptRecordingOnce(recording, storagePath, durationSeconds, fi
 	// Download the landed plaintext (counting stream aborts over the cap
 	// when the egress size is unknown). Already-encrypted re-runs resume.
 	let alreadyEncrypted = false;
+	let plain = null;
 	try {
 		const existingEnc = await sessionRecordingStore.recordingObjectExists(encLocation);
-		const plain = await sessionRecordingStore
+		plain = await sessionRecordingStore
 			.downloadRecordingObject(storagePath, { maxBytes: MAX })
 			.catch((err) => {
 				if (err.code === 'NOT_FOUND' && existingEnc) {
@@ -862,6 +863,11 @@ async function _encryptRecordingOnce(recording, storagePath, durationSeconds, fi
 		err.plaintextDeleted = plaintextDeleted;
 		err.encUploaded = encUploaded;
 		throw err;
+	} finally {
+		// #1200: zero the downloaded plaintext after use (DEK zeroing
+		// habit; best-effort — JS GC may copy buffers). Runs on success
+		// and on every throw out of the download/encrypt/upload section.
+		if (plain) plain.fill(0);
 	}
 
 	try {
