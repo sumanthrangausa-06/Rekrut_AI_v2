@@ -53,7 +53,7 @@ modules:
     prod_version:    "1.0"
     status: in-flight             # Train 2 (cv-review v2.0), released by Sumanth 2026-10-19
     last_train_date: "2026-10-18"
-    train_pr: "TRAIN-2-PENDING"
+    train_pr: "PR #1467"
     train_commit: "007a6552"
     tag: null
 
