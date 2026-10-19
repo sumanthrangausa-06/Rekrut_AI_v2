@@ -27,7 +27,8 @@ function toCandidateSafeMatchResult(result) {
 	// values — the two allowlisted JSONB skill lists are passed only as
 	// string arrays, so a future writer storing objects/free text in
 	// those columns cannot pass it through to candidates verbatim.
-	const skillList = (v) => (Array.isArray(v) ? v.filter((s) => typeof s === 'string') : v);
+	const skillList = (v) =>
+		v === undefined ? undefined : Array.isArray(v) ? v.filter((s) => typeof s === 'string') : [];
 	return {
 		weighted_score: result.weighted_score,
 		similarity_score: result.similarity_score,

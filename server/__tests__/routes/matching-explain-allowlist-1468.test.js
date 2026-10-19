@@ -198,6 +198,21 @@ describe('GET /api/matching/explain/:candidateId/:jobId (#1468)', () => {
 		expect(JSON.stringify(res.body)).not.toContain('CANARY_TRUSTSCORE_TEXT');
 	});
 
+	test('(i) candidate-self: non-array skill lists fail closed to [] (review nit, PR #1478)', async () => {
+		mockExplainMatch.mockResolvedValue({
+			...CANARY_ROW,
+			matching_skills: 'CANARY_SKILL_STRING',
+			missing_skills: { note: 'CANARY_SKILL_OBJECT' },
+		});
+		const res = await request(makeApp()).get('/api/matching/explain/21/42').set(as(21));
+		expect(res.status).toBe(200);
+		expect(res.body.match_result.matching_skills).toEqual([]);
+		expect(res.body.match_result.missing_skills).toEqual([]);
+		const body = JSON.stringify(res.body);
+		expect(body).not.toContain('CANARY_SKILL_STRING');
+		expect(body).not.toContain('CANARY_SKILL_OBJECT');
+	});
+
 	test('(f) admin caller keeps the full record', async () => {
 		const res = await request(makeApp()).get('/api/matching/explain/21/42').set(as(1));
 		expect(res.status).toBe(200);
