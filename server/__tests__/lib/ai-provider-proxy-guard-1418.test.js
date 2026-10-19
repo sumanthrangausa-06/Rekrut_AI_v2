@@ -109,7 +109,7 @@ describe('#1418 malformed proxy guard', () => {
 		for (const name of CLIENT_NAMES) {
 			expect(svc.clients[name]).toBeDefined();
 			const agent = svc.clients[name].httpAgent;
-			expect(agent?.constructor?.name).toBe('HttpsProxyAgent');
+			expect(agent?.constructor?.name).toBe('NoProxyHttpsProxyAgent'); // #1445 subclass of HttpsProxyAgent
 			expect(String(agent.proxy)).toContain('127.0.0.1:18080');
 		}
 	});
