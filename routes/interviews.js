@@ -2921,11 +2921,14 @@ router.post('/screening/send', authMiddleware, requireRole('admin', 'employer', 
 		const session = result.rows[0];
 
 		// Update application screening status and auto-advance pipeline status
-		// from 'applied' to 'screening' (don't override manual moves)
+		// from 'applied' to 'screening' (don't override manual moves).
+		// #923: the UPDATE itself carries the company predicate so the
+		// write stays self-defending even if the guarding lookup above
+		// is ever reordered or removed.
 		if (application_id) {
 			await pool.query(
-				`UPDATE job_applications SET screening_status = 'invited', status = CASE WHEN status = 'applied' THEN 'screening' ELSE status END, updated_at = NOW() WHERE id = $1`,
-				[application_id],
+				`UPDATE job_applications SET screening_status = 'invited', status = CASE WHEN status = 'applied' THEN 'screening' ELSE status END, updated_at = NOW() WHERE id = $1 AND company_id = $2`,
+				[application_id, req.user.company_id],
 			);
 		}
 
