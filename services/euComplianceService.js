@@ -388,13 +388,11 @@ class EuComplianceService {
 		return upsert.rows[0];
 	}
 
-	static async getExplanationForJob(userId, jobId) {
-		const result = await pool.query(
-			`SELECT * FROM ai_decision_explanations WHERE user_id = $1 AND job_id = $2`,
-			[userId, jobId],
-		);
-		return result.rows[0] || null;
-	}
+	// #1462: getExplanationForJob was deleted — it returned cached
+	// ai_decision_explanations rows raw with no weights_hash check and had
+	// zero callers. Use explainDecisionForJob above: it serves a cached row
+	// only when its weights_hash matches the effective hash, and regenerates
+	// (overwriting) stale rows instead of serving them.
 
 	// ── Human Oversight ──────────────────────────────────────────────────
 
