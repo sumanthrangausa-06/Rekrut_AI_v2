@@ -4540,7 +4540,7 @@ router.post('/ai/match-explanation', authMiddleware, rateLimits.ai, async (req, 
 		// Get match data from match_results (already calculated by matching engine)
 		const matchData = await pool.query(
 			`
-      SELECT mr.*, j.title, j.company, j.requirements, j.description, j.location, j.salary_range
+      SELECT mr.weighted_score, mr.similarity_score, mr.match_level, mr.matching_skills, mr.missing_skills, j.title, j.company, j.requirements, j.description, j.location, j.salary_range
       FROM match_results mr
       JOIN jobs j ON j.id = mr.job_id
       WHERE mr.candidate_id = $1 AND mr.job_id = $2
@@ -4579,7 +4579,6 @@ Weighted Score: ${match?.weighted_score || 'N/A'}
 Similarity Score: ${match?.similarity_score || 'N/A'}
 Matching Skills: ${JSON.stringify(match?.matching_skills || [])}
 Missing Skills: ${JSON.stringify(match?.missing_skills || [])}
-Match Explanation: ${JSON.stringify(match?.match_explanation || {})}
 
 Return JSON:
 {
