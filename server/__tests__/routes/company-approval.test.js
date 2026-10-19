@@ -922,7 +922,7 @@ describe('Company Approval Workflow (Issue #104)', () => {
 			const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
 			const next = jest.fn();
 
-			requireApprovedRecruiter(req, res, next);
+			await requireApprovedRecruiter(req, res, next);
 
 			expect(res.status).toHaveBeenCalledWith(403);
 			expect(res.json).toHaveBeenCalledWith(
