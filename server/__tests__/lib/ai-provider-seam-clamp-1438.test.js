@@ -36,6 +36,17 @@
  * Pins marked † are regression pins: they pass on pristine dev and
  * must keep passing. All other pins are RED on pristine dev
  * (5ab54d37c) for the reason stated in each pin.
+ *
+ * #1442 (follow-up from the PR #1440 ai-engineer review): the #1438
+ * pins above prove out-of-range values fall back, but nothing pinned
+ * the EXACT boundary values of the `<=` clamps — a refactor to `<`
+ * would pass every pin above while breaking legitimate boundary
+ * overrides. The final describe block pins the boundaries as
+ * ACCEPTED (in-range) behaviour: perProviderTimeoutMs = 10x the
+ * modality default, totalTimeoutMs = 10x the modality total default,
+ * and reserveMs = the effective perProviderTimeoutMs. Each #1442 pin
+ * is GREEN on current dev and goes RED if its clamp's `<=` becomes
+ * `<` (mutation-verified by Nova, mutation not committed).
  */
 jest.mock('../../../lib/db', () => ({
 	query: jest.fn(async () => ({ rows: [] })),
@@ -268,5 +279,113 @@ describe('#1438 reserveMs seam — invalid override falls back to the 750ms defa
 		expect(nextStart).not.toBeNull();
 		expect(nextStart).toBeGreaterThanOrEqual(1100);
 		expect(nextStart).toBeLessThanOrEqual(1650);
+	}, 15000);
+});
+
+describe('#1442 exact-boundary pins — boundary values are ACCEPTED (<= clamps, not <)', () => {
+	test('perProviderTimeoutMs = exactly 10x default (80000) is accepted: slow first leg (8500ms) still serves', async () => {
+		// Safety sequential, total 10,000: funded slice with the
+		// boundary per-provider value = min(80000, 10000 − 750) =
+		// 9,250ms, so slowFirst's 8,500ms answer serves. If the
+		// boundary were rejected (fallback 8000, or a `<` clamp), the
+		// slice would be min(8000, 9250) = 8,000ms, slowFirst would
+		// be cut, and lastLeg would serve.
+		const svc = svcWithChain(['slowFirst', 'lastLeg']);
+		const calls = [];
+		const result = await svc.execute(
+			'safety',
+			async (pk) => {
+				calls.push(pk);
+				if (pk === 'slowFirst') return delayed(8500, 'from-slowFirst');
+				return 'from-lastLeg';
+			},
+			'default',
+			{ totalTimeoutMs: 10000, perProviderTimeoutMs: 80000 },
+		);
+		expect(result).toBe('from-slowFirst');
+		expect(calls).not.toContain('lastLeg');
+	}, 20000);
+
+	test('totalTimeoutMs = exactly 10x llm default (120000) is accepted: race cap is min(6000, 40000)=6000, so a 4500ms raced leg wins the race', async () => {
+		// Race cap = min(perProviderTimeoutMs, floor(total/3)).
+		// Boundary total accepted → cap = min(6000, 40000) = 6,000ms
+		// and slowRace's 4,500ms answer wins the race. If the
+		// boundary were rejected (fallback llm total 12,000, or a
+		// `<` clamp), the cap would be min(6000, 4000) = 4,000ms,
+		// slowRace would be cut, and the sequential leg would serve.
+		const svc = svcWithChain(['slowRace', 'hangB', 'hangC', 'seqD']);
+		const result = await svc.execute(
+			'llm',
+			async (pk) => {
+				if (pk === 'slowRace') return delayed(4500, 'from-slowRace');
+				if (pk === 'seqD') return 'from-seqD';
+				return hang();
+			},
+			'default',
+			{ totalTimeoutMs: 120000, perProviderTimeoutMs: 6000 },
+		);
+		expect(result).toBe('from-slowRace');
+	}, 15000);
+
+	test('reserveMs = exactly the effective perProviderTimeoutMs (2000) is accepted: exhaustion-regime slice cuts hanging first leg at ~1000ms', async () => {
+		// Total 3,000 / per-provider 2,000 / 3 legs. Boundary reserve
+		// accepted (2000): 3000 <= 2000×3 → EXHAUSTION regime, slice =
+		// min(2000, 3000, max(750, floor(3000/3))) = 1,000ms. If the
+		// boundary were rejected (fallback 750, or a `<` clamp):
+		// 3000 > 750×3 → FUNDED, slice = min(2000, 3000 − 750×2) =
+		// 1,500ms and nextLeg would start at ~1,500ms instead.
+		const svc = svcWithChain(['hangFirst', 'nextLeg', 'tailLeg']);
+		const start = Date.now();
+		let nextStart = null;
+		const calls = [];
+		const result = await svc.execute(
+			'safety',
+			async (pk) => {
+				calls.push(pk);
+				if (pk === 'nextLeg') {
+					nextStart = Date.now() - start;
+					return 'from-nextLeg';
+				}
+				return hang();
+			},
+			'default',
+			{ totalTimeoutMs: 3000, perProviderTimeoutMs: 2000, reserveMs: 2000 },
+		);
+		expect(result).toBe('from-nextLeg');
+		expect(calls).not.toContain('tailLeg');
+		expect(nextStart).not.toBeNull();
+		expect(nextStart).toBeGreaterThanOrEqual(900);
+		expect(nextStart).toBeLessThanOrEqual(1400);
+	}, 15000);
+
+	test('reserveMs = exactly the effective perProviderTimeoutMs at its own 10x ceiling (80000) is accepted: exhaustion-regime slice cuts hanging first leg at ~1000ms', async () => {
+		// Same arithmetic as the previous pin, but the effective
+		// per-provider value is itself the 80,000 boundary:
+		// reserve 80,000 <= effective 80,000 → accepted → EXHAUSTION
+		// (3000 <= 80000×3), slice = min(80000, 3000, max(750,
+		// floor(3000/3))) = 1,000ms. Rejected on either clamp → the
+		// 750 fallback gives the FUNDED 1,500ms slice instead.
+		const svc = svcWithChain(['hangFirst', 'nextLeg', 'tailLeg']);
+		const start = Date.now();
+		let nextStart = null;
+		const calls = [];
+		const result = await svc.execute(
+			'safety',
+			async (pk) => {
+				calls.push(pk);
+				if (pk === 'nextLeg') {
+					nextStart = Date.now() - start;
+					return 'from-nextLeg';
+				}
+				return hang();
+			},
+			'default',
+			{ totalTimeoutMs: 3000, perProviderTimeoutMs: 80000, reserveMs: 80000 },
+		);
+		expect(result).toBe('from-nextLeg');
+		expect(calls).not.toContain('tailLeg');
+		expect(nextStart).not.toBeNull();
+		expect(nextStart).toBeGreaterThanOrEqual(900);
+		expect(nextStart).toBeLessThanOrEqual(1400);
 	}, 15000);
 });
