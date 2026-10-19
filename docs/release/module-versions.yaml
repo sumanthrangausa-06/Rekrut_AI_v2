@@ -30,7 +30,7 @@ modules:
     prod_version:    "1.0"
     status: in-flight             # Train 1 (trust-foundation v1.1), released by Sumanth 2026-10-19
     last_train_date: "2026-10-18"
-    train_pr: "seed: promotion #2"
+    train_pr: "PR #1465"
     train_commit: "007a6552"
     tag: null
 
@@ -41,7 +41,7 @@ modules:
     prod_version:    "1.0"
     status: in-flight             # Train 1 (trust-foundation v1.1), released by Sumanth 2026-10-19
     last_train_date: "2026-10-18"
-    train_pr: "seed: promotion #2"
+    train_pr: "PR #1465"
     train_commit: "007a6552"
     tag: null
 
