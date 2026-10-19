@@ -7,6 +7,45 @@ const { AuditLogger } = auditLogService;
 const BiasDetection = require('../services/biasDetection');
 const { explainOmniScore, explainDecision } = require('../services/scoreExplainer');
 
+// #927: candidate-safe projection of a decision explanation (privacy
+// seat, STOP 1 on #927; S-087 toCandidateSafeReport precedent). The
+// candidate-self audience of GET /explain/decision receives ONLY the
+// fields enumerated here, constructed key by key at every level —
+// never a spread with deletions: explainDecision() is fed by
+// `SELECT ja.*`, so under a denylist any future column or service
+// field would reach candidates by default. The privacy seat owns
+// this list at the PR gate. Two cautions for future editors:
+// (1) this projection controls KEYS, not values — a new factor type
+// or template that writes internal data into factors[].explanation
+// free text needs privacy review before it ships; (2) fields are the
+// candidate's own (name/email, the job applied to, the decision and
+// its timing, their own OmniScores, and the explanation factors) —
+// recruiter_notes and every other internal field stay server-side.
+function toCandidateSafeDecisionExplanation(explanation) {
+	const candidate = explanation.candidate || {};
+	const job = explanation.job || {};
+	const decision = explanation.decision || {};
+	return {
+		application_id: explanation.application_id,
+		candidate: { name: candidate.name, email: candidate.email },
+		job: { title: job.title },
+		decision: { status: decision.status, decided_at: decision.decided_at },
+		omniscore_at_apply: explanation.omniscore_at_apply,
+		current_omniscore: explanation.current_omniscore,
+		factors: Array.isArray(explanation.factors)
+			? explanation.factors.map((f) => {
+					const factor = f || {};
+					return {
+						factor: factor.factor,
+						value: factor.value,
+						impact: factor.impact,
+						explanation: factor.explanation,
+					};
+				})
+			: explanation.factors,
+	};
+}
+
 function canAccessUserRecord(req, userId) {
 	const targetId = Number(userId);
 	if (!Number.isInteger(targetId)) {
@@ -651,19 +690,19 @@ router.get('/explain/decision/:applicationId', authMiddleware, async (req, res) 
 
 		// Audience shaping (S-097, privacy seat; S-087 toCandidateSafeReport
 		// precedent — shape at the route boundary): a candidate audience
-		// never receives recruiter_notes, an internal hiring-team field.
-		// Fix round (privacy F1 / security F-3, Lead's ruling): shape on
-		// the authorisation identity, not the role string — a self-applicant
-		// whose account role is no longer `candidate` (e.g. converted to
-		// recruiter) is still the candidate audience for their own
-		// application. Recruiter/employer-of-record and admin callers
-		// (an admin keeps the full record even when they are the applicant)
-		// keep the full record unchanged.
+		// receives only the allowlist projection in
+		// toCandidateSafeDecisionExplanation (#927 — the previous denylist
+		// deleted only recruiter_notes and let every other current and
+		// future field ride). Fix round (privacy F1 / security F-3, Lead's
+		// ruling): shape on the authorisation identity, not the role
+		// string — a self-applicant whose account role is no longer
+		// `candidate` (e.g. converted to recruiter) is still the candidate
+		// audience for their own application. Recruiter/employer-of-record
+		// and admin callers (an admin keeps the full record even when they
+		// are the applicant) keep the full record unchanged.
 		let explanation = rawExplanation;
 		if (isCandidateSelf && !isAdmin && rawExplanation?.decision) {
-			const candidateDecision = { ...rawExplanation.decision };
-			delete candidateDecision.recruiter_notes;
-			explanation = { ...rawExplanation, decision: candidateDecision };
+			explanation = toCandidateSafeDecisionExplanation(rawExplanation);
 		}
 
 		await AuditLogger.log({
