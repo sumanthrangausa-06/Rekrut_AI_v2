@@ -58,8 +58,8 @@ async function detectMetadataAnomalies(fileBuffer, documentType) {
 		const mimeType = detectMimeType(fileBuffer);
 
 		if (mimeType === 'application/pdf') {
-			const pdfParse = require('pdf-parse');
-			const pdfData = await pdfParse(fileBuffer);
+			const { parsePdf } = require('../lib/pdf-extract');
+			const pdfData = await parsePdf(fileBuffer);
 			const info = pdfData.info || {};
 
 			// Check for editing software fingerprints
