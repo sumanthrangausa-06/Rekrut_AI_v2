@@ -165,6 +165,20 @@ db.query.mockImplementation(async (text, params = []) => {
 		const row = sessions.get(Number(params[0]));
 		return { rows: row ? [{ ...row }] : [], rowCount: row ? 1 : 0 };
 	}
+	// #1452: legalHold.findActiveHold resolves a session by this exact shape
+	// before consulting legal_holds. Unresolvable sessions must return no
+	// rows — legalHold is fail-closed and treats the miss as "held".
+	if (normalized.startsWith('select candidate_id, company_id from interview_sessions where id = $1')) {
+		const row = sessions.get(Number(params[0]));
+		return {
+			rows: row ? [{ candidate_id: row.candidate_id, company_id: row.company_id }] : [],
+			rowCount: row ? 1 : 0,
+		};
+	}
+	// #1452: no legal holds exist in this in-memory world.
+	if (normalized.includes('from legal_holds')) {
+		return { rows: [], rowCount: 0 };
+	}
 	if (normalized.startsWith('update interview_sessions set frame_analysis = $1 where id = $2')) {
 		const row = sessions.get(Number(params[1]));
 		if (row) row.frame_analysis = maybeParse(params[0]);
@@ -221,6 +235,22 @@ db.query.mockImplementation(async (text, params = []) => {
 		);
 		return { rows: rows.map((r) => ({ ...r })), rowCount: rows.length };
 	}
+	// #1452: S-077 (#760) purge SELECT — per-row, JOINed to interview_events
+	// for candidate attribution. Fixture rows carry no interview_event, so
+	// candidate_id is null, exactly as the LEFT JOIN would produce.
+	if (normalized.includes('from interview_recordings ir')) {
+		const now = new Date();
+		const rows = [...recordings.values()]
+			.filter((r) => r.status !== 'deleted' && new Date(r.retention_expires_at) < now)
+			.sort((a, b) => new Date(a.retention_expires_at) - new Date(b.retention_expires_at))
+			.map((r) => ({
+				id: r.id,
+				storage_path: r.storage_path ?? null,
+				candidate_id: null,
+				interview_session_id: r.interview_session_id ?? null,
+			}));
+		return { rows, rowCount: rows.length };
+	}
 	if (normalized.startsWith("update interview_recordings set status = 'completed'")) {
 		const row = recordings.get(Number(params[0]));
 		if (row) {
@@ -230,6 +260,16 @@ db.query.mockImplementation(async (text, params = []) => {
 		return { rows: [], rowCount: row ? 1 : 0 };
 	}
 	if (normalized.startsWith("update interview_recordings set status = 'deleted'")) {
+		// #1452: S-077 purge updates ONE row by id; honour $1 instead of the
+		// old #322 bulk sweep so a wrong-id update cannot pass silently.
+		if (normalized.includes('where id = $1')) {
+			const row = recordings.get(Number(params[0]));
+			if (row) {
+				row.status = 'deleted';
+				row.updated_at = new Date().toISOString();
+			}
+			return { rows: [], rowCount: row ? 1 : 0 };
+		}
 		let count = 0;
 		const now = new Date();
 		for (const row of recordings.values()) {
@@ -275,6 +315,17 @@ db.query.mockImplementation(async (text, params = []) => {
 	}
 
 	// ── interview_transcripts ──
+	// #1452: Q1 fix in the live purge path anonymises transcripts per recording.
+	if (normalized.startsWith("update interview_transcripts set text = '[purged]'")) {
+		let count = 0;
+		for (const t of transcripts) {
+			if (Number(t.recording_id) === Number(params[0])) {
+				t.text = '[purged]';
+				count++;
+			}
+		}
+		return { rows: [], rowCount: count };
+	}
 	if (normalized.startsWith('insert into interview_transcripts')) {
 		const row = {
 			id: nextTranscriptId++,
@@ -536,25 +587,52 @@ describe('POST /api/interviews/interview-sessions/:id/complete — transcripts',
 describe('retention', () => {
 	it('purgeExpiredRecordings soft-deletes recordings past retention_expires_at', async () => {
 		const EuComplianceService = require('../../../services/euComplianceService');
-		recordings.set(1, {
-			id: 1,
-			interview_session_id: 9,
+		// #1452: recordings must link to SEEDED sessions — the #799 legal-hold
+		// check resolves the session and fails closed (held) when it cannot.
+		const expiredSession = seedSession();
+		const liveSession = seedSession();
+		// Recording ids deliberately offset from session ids (reviewer note):
+		// aligned id spaces would let an id-type mix-up pass silently.
+		recordings.set(101, {
+			id: 101,
+			interview_session_id: expiredSession.id,
 			status: 'completed',
 			retention_expires_at: new Date(Date.now() - 1000).toISOString(),
 		});
-		recordings.set(2, {
-			id: 2,
-			interview_session_id: 10,
+		recordings.set(102, {
+			id: 102,
+			interview_session_id: liveSession.id,
 			status: 'completed',
 			retention_expires_at: new Date(Date.now() + 86400000).toISOString(),
 		});
-		nextRecordingId = 3;
+		nextRecordingId = 103;
 
-		const result = await EuComplianceService.purgeExpiredRecordings();
+		// #1452: S-077 made dryRun the default (dry-run first, live only on
+		// explicit opt-in — same call shape as the retention neighbour suites).
+		const result = await EuComplianceService.purgeExpiredRecordings({ dryRun: false });
 
 		expect(result.deletedCount).toBe(1);
-		expect(recordings.get(1).status).toBe('deleted');
-		expect(recordings.get(2).status).toBe('completed');
+		expect(recordings.get(101).status).toBe('deleted');
+		expect(recordings.get(102).status).toBe('completed');
+	});
+
+	it('purgeExpiredRecordings fails closed when the session cannot be resolved (legal hold)', async () => {
+		const EuComplianceService = require('../../../services/euComplianceService');
+		// Session 999 is never seeded: legalHold cannot verify hold status,
+		// so the row must be treated as held and survive the purge (#799).
+		recordings.set(101, {
+			id: 101,
+			interview_session_id: 999,
+			status: 'completed',
+			retention_expires_at: new Date(Date.now() - 1000).toISOString(),
+		});
+		nextRecordingId = 102;
+
+		const result = await EuComplianceService.purgeExpiredRecordings({ dryRun: false });
+
+		expect(result.deletedCount).toBe(0);
+		expect(result.heldSkips).toBe(1);
+		expect(recordings.get(101).status).toBe('completed');
 	});
 
 	it('setSessionRecordingsRetentionAfterDecision sets decision + 30 days', async () => {
