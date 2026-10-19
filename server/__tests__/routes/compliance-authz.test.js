@@ -474,6 +474,56 @@ describe('GET /explain/decision/:applicationId — object-level authz', () => {
 		expect(shared.factors[0].internal_factor_source).toBe('INJECTED_FACTOR_FIELD');
 	});
 
+	// #1457: candidate-self shaping is UNCONDITIONAL — a missing/falsy
+	// `decision` must not skip the allowlist (the service sets it today,
+	// but the projection must not depend on that).
+	test('candidate-self → shaping still applies when decision is missing: injected fields never reach the candidate (#1457)', async () => {
+		const noDecision = JSON.parse(JSON.stringify(POLLUTED_EXPLANATION));
+		delete noDecision.decision;
+		mockExplainDecision.mockResolvedValue(noDecision);
+
+		const res = await request(app).get('/api/compliance/explain/decision/100').set(as(21));
+		expect(res.status).toBe(200);
+		const body = JSON.stringify(res.body);
+		expect(body).not.toContain('INJECTED_');
+		expect(body).not.toContain('recruiter_notes');
+		expect(Object.keys(res.body.explanation).sort()).toEqual(
+			[
+				'application_id',
+				'candidate',
+				'current_omniscore',
+				'decision',
+				'factors',
+				'job',
+				'omniscore_at_apply',
+			].sort(),
+		);
+		// Missing decision projects to the allowlisted decision shape (empty
+		// after JSON serialisation), never to the raw service object.
+		expect(res.body.explanation.decision).toEqual({});
+		expect(res.body.explanation.factors).toEqual([
+			{
+				factor: 'Low OmniScore',
+				value: 55,
+				impact: 'negative',
+				explanation: 'OmniScore of 55 was below the competitive threshold of 60',
+			},
+		]);
+	});
+
+	// #1457: a non-array `factors` value must not pass through verbatim —
+	// it bypasses the per-factor allowlist mapping. Coerce to [].
+	test('candidate-self → non-array factors is coerced to [] in the projection (#1457)', async () => {
+		const badFactors = JSON.parse(JSON.stringify(POLLUTED_EXPLANATION));
+		badFactors.factors = 'SECRET_NON_ARRAY_FACTORS';
+		mockExplainDecision.mockResolvedValue(badFactors);
+
+		const res = await request(app).get('/api/compliance/explain/decision/100').set(as(21));
+		expect(res.status).toBe(200);
+		expect(JSON.stringify(res.body)).not.toContain('SECRET_NON_ARRAY_FACTORS');
+		expect(res.body.explanation.factors).toEqual([]);
+	});
+
 	test('recruiter-of-record → allowlist does NOT apply: the full service result rides unchanged (#927)', async () => {
 		mockExplainDecision.mockResolvedValue(JSON.parse(JSON.stringify(POLLUTED_EXPLANATION)));
 		const res = await request(app).get('/api/compliance/explain/decision/100').set(as(10));
