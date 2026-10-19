@@ -162,9 +162,11 @@ async function extractTextFromFile(buffer, mimetype) {
 // lookup → parseResume under the existing 30s Promise.race → the
 // terminal-status UPDATEs. Returns { status, parsedData } and NEVER
 // throws — every path lands a truthful terminal status:
-//   'completed' (parsed_data written), 'uploaded' (extracted text ≤50
-//   chars), or 'failed' (extraction/parse exception). Callers decide what
-// a non-completed parse means for their response; for /profile/resume it
+//   'completed' (parsed_data written) or 'failed' (extraction/parse
+//   exception, or extracted text ≤50 chars — #1477: 'uploaded' is not
+//   in chk_parsed_resumes_status, so short text lands 'failed'
+//   directly). Callers decide what a non-completed parse means for
+//   their response; for /profile/resume it
 // must stay non-fatal to the upload (STOP 1 binding AC on #1471).
 async function parseResumeRecord({ buffer, mimetype, userId, resumeId }) {
 	let parsedData = null;
@@ -200,16 +202,19 @@ async function parseResumeRecord({ buffer, mimetype, userId, resumeId }) {
 			return { status: 'completed', parsedData };
 		}
 
-		console.log('Extracted text too short - marking as uploaded');
+		// #1477: 'uploaded' violates chk_parsed_resumes_status (allowed:
+		// pending/processing/completed/failed) — write the honest terminal
+		// 'failed' directly instead of via the catch path.
+		console.log('Extracted text too short - marking as failed');
 		await pool.query(
 			`
           UPDATE parsed_resumes
-          SET parsing_status = 'uploaded', parsed_at = NOW()
+          SET parsing_status = 'failed', parsed_at = NOW()
           WHERE id = $1
         `,
 			[resumeId],
 		);
-		return { status: 'uploaded', parsedData: null };
+		return { status: 'failed', parsedData: null };
 	} catch (parseErr) {
 		console.error('Resume parsing failed (non-fatal):', parseErr.message);
 		try {
