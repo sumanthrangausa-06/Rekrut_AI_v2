@@ -50,6 +50,15 @@ jest.mock('../../../services/auditLogService', () => ({
 	AuditLogger: { log: jest.fn(async () => {}) },
 }));
 
+// #1479: non-self hiring-side callers must now pass the object-authorization
+// relationship check (own/company job + candidate applied). This suite's
+// recruiter/admin callers model RELATED callers, so the relationship query
+// resolves with a row. The denial side is pinned by
+// matching-explain-authz-1479.test.js.
+jest.mock('../../../lib/db', () => ({
+	query: jest.fn(async () => ({ rows: [{ ok: 1 }] })),
+}));
+
 const matchingRoutes = require('../../../routes/matching');
 
 function makeApp() {
@@ -152,7 +161,7 @@ describe('GET /api/matching/explain/:candidateId/:jobId (#1468)', () => {
 		expect(res.body.match_result.explanation).toBeUndefined();
 	});
 
-	test('(c) recruiter caller keeps the full record unchanged', async () => {
+	test('(c) related recruiter caller keeps the full record unchanged (#1479: premise narrowed from any recruiter to a related one)', async () => {
 		const res = await request(makeApp()).get('/api/matching/explain/21/42').set(as(10));
 		expect(res.status).toBe(200);
 		expect(res.body.match_result).toEqual(CANARY_ROW);

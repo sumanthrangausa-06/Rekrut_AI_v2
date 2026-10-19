@@ -169,6 +169,36 @@ router.get('/explain/:candidateId/:jobId', authMiddleware, async (req, res) => {
 			return res.status(403).json({ error: 'Not authorized' });
 		}
 
+		// Object authorization (#1479): a non-self, non-admin caller must be
+		// hiring-side AND related to this candidate+job pair — the job is
+		// theirs (or their company's, per the /stats convention below) and
+		// the candidate has applied to it. Any other authenticated role
+		// could previously read any candidate's full match record.
+		const isSelf = Number(req.user.id) === candidateId;
+		if (!isSelf && req.user.role !== 'admin') {
+			if (!['recruiter', 'hiring_manager', 'employer'].includes(req.user.role)) {
+				return res.status(403).json({ error: 'Not authorized' });
+			}
+			const pool = require('../lib/db');
+			const rel = await pool.query(
+				`SELECT 1
+				 FROM jobs j
+				 WHERE j.id = $1
+				   AND (j.user_id = $2 OR (j.company_id IS NOT NULL AND j.company_id IN (
+				     SELECT company_id FROM users WHERE id = $2 AND company_id IS NOT NULL
+				   )))
+				   AND EXISTS (
+				     SELECT 1 FROM job_applications ja
+				     WHERE ja.job_id = j.id AND ja.candidate_id = $3
+				   )
+				 LIMIT 1`,
+				[jobId, req.user.id, candidateId],
+			);
+			if (rel.rows.length === 0) {
+				return res.status(403).json({ error: 'Not authorized' });
+			}
+		}
+
 		const explanation = await explainMatch(candidateId, jobId);
 
 		// Log AI explanation generation for compliance
