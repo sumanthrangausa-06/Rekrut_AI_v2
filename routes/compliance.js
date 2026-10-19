@@ -42,7 +42,7 @@ function toCandidateSafeDecisionExplanation(explanation) {
 						explanation: factor.explanation,
 					};
 				})
-			: explanation.factors,
+			: [],
 	};
 }
 
@@ -745,7 +745,10 @@ router.get('/explain/decision/:applicationId', authMiddleware, async (req, res) 
 		// and admin callers (an admin keeps the full record even when they
 		// are the applicant) keep the full record unchanged.
 		let explanation = rawExplanation;
-		if (isCandidateSelf && !isAdmin && rawExplanation?.decision) {
+		// #1457: shaping is unconditional for a candidate-self caller — it
+		// must not depend on the service result carrying a `decision`
+		// field (an allowlist that only sometimes applies is a leak).
+		if (isCandidateSelf && !isAdmin) {
 			explanation = toCandidateSafeDecisionExplanation(rawExplanation);
 		}
 
