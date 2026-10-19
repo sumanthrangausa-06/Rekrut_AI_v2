@@ -48,6 +48,11 @@ const ENV_KEYS = [
 	'https_proxy',
 	'HTTP_PROXY',
 	'http_proxy',
+	// #1445: the dispatcher now honours NO_PROXY — the suite must control it,
+	// or an ambient no_proxy (e.g. a proxy-egress dev host listing 127.0.0.1)
+	// would correctly bypass and defeat the proxied-fetch pins below.
+	'NO_PROXY',
+	'no_proxy',
 	'AI_KEYS_JSON',
 	'NIM_API_KEY',
 	'NVIDIA_NIM_API_KEY',
@@ -79,15 +84,6 @@ function loadModule(rel, env) {
 	for (const k of ENV_KEYS) delete process.env[k];
 	Object.assign(process.env, env);
 	return require(rel);
-}
-
-function dispatcherProxyUri(dispatcher) {
-	const sym = Object.getOwnPropertySymbols(dispatcher).find(
-		(s) => s.description === 'proxy agent options',
-	);
-	if (!sym) return null;
-	const v = dispatcher[sym];
-	return typeof v === 'string' ? v : v?.uri || JSON.stringify(v);
 }
 
 beforeAll(async () => {
@@ -145,15 +141,18 @@ afterEach(() => {
 });
 
 describe('#1419 raw-fetch proxy (shared global dispatcher)', () => {
-	test('(a) valid HTTPS_PROXY: global dispatcher is a ProxyAgent for that proxy', () => {
+	test('(a) valid HTTPS_PROXY: global dispatcher is the proxy dispatcher for that proxy', () => {
 		loadModule('../../../lib/ai-provider', {
 			...KEY_ENV,
 			HTTPS_PROXY: `http://127.0.0.1:${proxyPort}`,
 		});
 		const d = getGlobalDispatcher();
 		expect(d).not.toBe(originalDispatcher);
-		expect(d.constructor.name).toBe('ProxyAgent');
-		expect(dispatcherProxyUri(d)).toContain(`127.0.0.1:${proxyPort}`);
+		// #1445: a bare ProxyAgent ignores NO_PROXY, so the dispatcher is now
+		// undici's EnvHttpProxyAgent configured with the same proxy; its inner
+		// agents are symbol-keyed (no 'proxy agent options' surface), so the
+		// proxy target is pinned behaviourally by the counted fetch below.
+		expect(d.constructor.name).toBe('EnvHttpProxyAgent');
 	});
 
 	test('(a) valid HTTPS_PROXY: a real fetch is counted through the proxy', async () => {
@@ -178,7 +177,7 @@ describe('#1419 raw-fetch proxy (shared global dispatcher)', () => {
 			HTTPS_PROXY: `http://127.0.0.1:${proxyPort}`,
 		});
 		const agent = polsia.anthropic?.httpAgent;
-		expect(agent?.constructor?.name).toBe('HttpsProxyAgent');
+		expect(agent?.constructor?.name).toBe('NoProxyHttpsProxyAgent'); // #1445 subclass
 		expect(String(agent.proxy)).toContain(`127.0.0.1:${proxyPort}`);
 		// The OpenAI client is not exported; pin its construction in source so
 		// the spread cannot silently drop out (behavioural pin above covers

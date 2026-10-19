@@ -28,7 +28,7 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
-const { HttpsProxyAgent } = require('https-proxy-agent');
+const { NoProxyHttpsProxyAgent } = require('../../../lib/proxy-env');
 
 jest.mock('../../../lib/db', () => ({
 	query: jest.fn(async () => ({ rows: [] })),
@@ -93,7 +93,8 @@ describe('#1414 qp-provider cascade client construction', () => {
 			// NB: not toBeInstanceOf — jest.resetModules() gives lib/qp-provider
 			// a fresh copy of https-proxy-agent, so identity differs while the
 			// class (and the proxy it points at) is the same. (Same note as #1406.)
-			expect(agent?.constructor?.name).toBe(HttpsProxyAgent.name);
+			// #1445: the agent is the NO_PROXY-aware subclass of HttpsProxyAgent
+			expect(agent?.constructor?.name).toBe(NoProxyHttpsProxyAgent.name);
 			expect(String(agent.proxy)).toContain('127.0.0.1:18080');
 		}
 	});
