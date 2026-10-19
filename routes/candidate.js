@@ -5064,9 +5064,76 @@ router.get('/documents', authMiddleware, async (req, res) => {
 });
 
 // POST /api/candidate/documents/upload — upload a document for the authenticated candidate (Issue #109)
-router.post('/documents/upload', authMiddleware, async (req, res) => {
+// #1472: multipart requests (the Documents page sends FormData, field `file`)
+// are parsed by multer first; JSON {name,url} requests fall through unchanged.
+const parseDocumentFile = (req, res, next) => {
+	if (req.is('multipart/form-data')) {
+		return upload.single('file')(req, res, next);
+	}
+	return next();
+};
+router.post('/documents/upload', authMiddleware, parseDocumentFile, async (req, res) => {
 	try {
 		const userId = req.user.id;
+
+		// Multipart branch (#1472): store the file via the existing uploadToB2
+		// plumbing and INSERT into the same `documents` table GET /documents reads.
+		if (req.file) {
+			let fileUrl;
+			try {
+				const result = await uploadToB2({
+					buffer: req.file.buffer,
+					mimetype: req.file.mimetype,
+					filename: req.file.originalname,
+					prefix: 'documents',
+				});
+				fileUrl = result.url;
+			} catch (uploadErr) {
+				return res.status(502).json({ error: uploadErr.message, code: uploadErr.code || 'UNKNOWN' });
+			}
+
+			await pool.query(`
+				CREATE TABLE IF NOT EXISTS documents (
+					id SERIAL PRIMARY KEY,
+					user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+					name VARCHAR(500) NOT NULL,
+					type VARCHAR(50) DEFAULT 'other',
+					url TEXT,
+					size INTEGER DEFAULT 0,
+					status VARCHAR(50) DEFAULT 'pending',
+					fraud_score NUMERIC(3,2),
+					oer_text TEXT,
+					oer_confidence NUMERIC(4,3),
+					document_score INTEGER,
+					verification_details JSONB DEFAULT '{}',
+					created_at TIMESTAMP DEFAULT NOW()
+				)
+			`);
+
+			const result = await pool.query(
+				`INSERT INTO documents (user_id, name, type, url, size, status)
+				 VALUES ($1, $2, $3, $4, $5, 'pending')
+				 RETURNING *`,
+				[userId, req.file.originalname, req.body?.type || 'other', fileUrl, req.file.size || 0],
+			);
+
+			const d = result.rows[0];
+			return res.json({
+				document: {
+					id: String(d.id),
+					name: d.name,
+					type: d.type || 'other',
+					url: d.url || '',
+					size: parseInt(d.size, 10) || 0,
+					uploadedAt: d.created_at ? new Date(d.created_at).toISOString() : new Date().toISOString(),
+					status: 'pending',
+				},
+			});
+		}
+		if (req.is('multipart/form-data')) {
+			return res.status(400).json({ error: 'No file uploaded' });
+		}
+
 		const { name, type, url, size } = req.body;
 
 		if (!name || !url) {
