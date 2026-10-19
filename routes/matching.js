@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('node:crypto');
 const { authMiddleware, requireRole } = require('../lib/auth');
+const pool = require('../lib/db');
 const { AuditLogger } = require('../services/auditLogService');
 const {
 	findMatchingJobs,
@@ -164,9 +165,57 @@ router.get('/explain/:candidateId/:jobId', authMiddleware, async (req, res) => {
 		const candidateId = parseInt(req.params.candidateId, 10);
 		const jobId = parseInt(req.params.jobId, 10);
 
+		if (!Number.isInteger(candidateId) || !Number.isInteger(jobId)) {
+			return res.status(400).json({ error: 'Valid candidate ID and job ID required' });
+		}
+
 		// Authorization: candidates can only see their own explanations
 		if (req.user.role === 'candidate' && req.user.id !== candidateId) {
 			return res.status(403).json({ error: 'Not authorized' });
+		}
+
+		// Object-level authorisation (#1479; FS-145/#1100 convention —
+		// reference implementation: routes/compliance.js GET
+		// /explain/job/:jobId/candidate/:candidateId, the same
+		// candidate×job resource). Candidate-self (identity, #927) and
+		// admin bypass the object checks; every other caller must be a
+		// hiring role tied to this exact candidate×job pair:
+		//   1. the caller's company owns the job — a missing job, a null
+		//      company_id on either side, or a company mismatch are the
+		//      same 404, so foreign jobs cannot be distinguished from
+		//      non-existent ones;
+		//   2. the candidate has an application for this job with the
+		//      caller's company (job_applications linkage) — owning a
+		//      job the candidate never applied to is not a relationship
+		//      with the candidate.
+		// Both checks run before explainMatch(): a denied caller never
+		// reaches the service.
+		const isAdmin = req.user.role === 'admin';
+		const isSelf = Number(req.user.id) === candidateId;
+		if (!isAdmin && !isSelf) {
+			const isHiringRole = ['employer', 'recruiter', 'hiring_manager'].includes(req.user.role);
+			if (!isHiringRole) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
+
+			const jobResult = await pool.query('SELECT company_id FROM jobs WHERE id = $1', [jobId]);
+			const job = jobResult.rows[0];
+			if (
+				!job ||
+				req.user.company_id == null ||
+				job.company_id == null ||
+				Number(req.user.company_id) !== Number(job.company_id)
+			) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
+
+			const linkage = await pool.query(
+				'SELECT 1 FROM job_applications WHERE candidate_id = $1 AND job_id = $2 AND company_id = $3 LIMIT 1',
+				[candidateId, jobId, req.user.company_id],
+			);
+			if (linkage.rows.length === 0) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
 		}
 
 		const explanation = await explainMatch(candidateId, jobId);

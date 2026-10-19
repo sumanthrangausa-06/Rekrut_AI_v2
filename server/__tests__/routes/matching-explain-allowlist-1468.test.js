@@ -50,6 +50,25 @@ jest.mock('../../../services/auditLogService', () => ({
 	AuditLogger: { log: jest.fn(async () => {}) },
 }));
 
+// #1479: the explain route now enforces object-level authorisation — a
+// hiring caller must own the job and have an application linkage. Job 42
+// belongs to company 5 and candidate 21 has an application for it there,
+// which makes the recruiter fixture below a RELATED recruiter.
+const db = require('../../../lib/db');
+db.query.mockImplementation(async (sql, params = []) => {
+	const normalized = sql.toLowerCase().replace(/\s+/g, ' ').trim();
+	if (normalized.startsWith('select company_id from jobs')) {
+		return Number(params[0]) === 42
+			? { rows: [{ company_id: 5 }], rowCount: 1 }
+			: { rows: [], rowCount: 0 };
+	}
+	if (normalized.startsWith('select 1 from job_applications')) {
+		const linked = Number(params[0]) === 21 && Number(params[1]) === 42 && Number(params[2]) === 5;
+		return { rows: linked ? [{ '?column?': 1 }] : [], rowCount: linked ? 1 : 0 };
+	}
+	return { rows: [], rowCount: 0 };
+});
+
 const matchingRoutes = require('../../../routes/matching');
 
 function makeApp() {
@@ -106,7 +125,7 @@ describe('GET /api/matching/explain/:candidateId/:jobId (#1468)', () => {
 			21: { id: 21, role: 'candidate', email: 'cand@example.com' },
 			22: { id: 22, role: 'candidate', email: 'other@example.com' },
 			24: { id: 24, role: 'employer', email: 'self-role-changed@example.com' },
-			10: { id: 10, role: 'recruiter', email: 'recruiter@example.com' },
+			10: { id: 10, role: 'recruiter', email: 'recruiter@example.com', company_id: 5 },
 			1: { id: 1, role: 'admin', email: 'admin@example.com' },
 		};
 		mockExplainMatch.mockResolvedValue(CANARY_ROW);
@@ -152,7 +171,7 @@ describe('GET /api/matching/explain/:candidateId/:jobId (#1468)', () => {
 		expect(res.body.match_result.explanation).toBeUndefined();
 	});
 
-	test('(c) recruiter caller keeps the full record unchanged', async () => {
+	test('(c) related recruiter caller keeps the full record unchanged (#1479 gate passes)', async () => {
 		const res = await request(makeApp()).get('/api/matching/explain/21/42').set(as(10));
 		expect(res.status).toBe(200);
 		expect(res.body.match_result).toEqual(CANARY_ROW);
