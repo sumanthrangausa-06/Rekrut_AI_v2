@@ -296,6 +296,12 @@ async function explainDecisionForJob(userId, jobId, applicationId) {
 /**
  * Explain why a specific score decision was made
  * (e.g., why a candidate was rejected)
+ *
+ * Returns the FULL record, including decision.recruiter_notes (#927):
+ * any caller serving a candidate audience must shape the result with
+ * an allowlist projection at the route boundary (see
+ * toCandidateSafeDecisionExplanation in routes/compliance.js) — never
+ * pass this object to a candidate as-is.
  */
 async function explainDecision(applicationId) {
 	try {
