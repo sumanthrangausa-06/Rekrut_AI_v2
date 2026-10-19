@@ -25,6 +25,30 @@
  *    remainingMs : min(perProviderTimeoutMs, remainingMs,
  *    max(750, floor(remainingMs/legsLeft))), recomputed per leg from
  *    actual elapsed; the loop-top total-budget break stays.
+ *
+ * MECHANISM CHANGE (Quinn AFTER FAIL fix, PR #1436 second commit —
+ * Lead synthesis in hidden_files/1420-fix-design/): the sequential
+ * fair-share slice above is REPLACED by a reserve-based slice.
+ * Quinn Pass A showed fair-share cutting the only working provider
+ * (groq_gpt_oss, mid-tail at index 9 of 11) at 3,750ms — exactly its
+ * remaining/legsLeft share — while a verified-dead leg sat behind it.
+ * New rule (RESERVE_MS = 750, callMeta.reserveMs test seam):
+ *  - Last leg: effectiveTimeout = remainingMs (unchanged).
+ *  - Funded regime (remainingMs > RESERVE_MS × legsLeft):
+ *    effectiveTimeout = min(perProviderTimeoutMs,
+ *    remainingMs − RESERVE_MS × legsAfter), legsAfter = legsLeft − 1.
+ *  - Exhaustion regime (remainingMs ≤ RESERVE_MS × legsLeft): the
+ *    fair-share formula above (protects the final-leg attempt when
+ *    the budget can no longer fund the reserves).
+ * Pins R1–R4 below pin the new rule. R1/R2 are RED on the first
+ * PR #1436 head (51d3f10d4, fair-share). R3 is a † regression pin
+ * (green under both formulas, labelled as such). R4 is the
+ * exhaustion guard: green on the shipped fair-share head and on the
+ * reserve+fallback formula; its red state is against the LITERAL
+ * floored reserve candidate (max(750, remaining − 750×legsAfter)
+ * with no fallback), where a 750ms floor against 600ms remaining
+ * swallows the whole budget and the loop-top break skips the last
+ * leg — the #1428-style honesty label for a non-standard red state.
  *  - Testability (ai-engineer §3 requirement, Lead STOP 1): execute()
  *    accepts a budget override via callMeta.totalTimeoutMs /
  *    callMeta.perProviderTimeoutMs; production defaults are unchanged
@@ -255,7 +279,7 @@ describe('#1420 Rule A — verification demotion in getAvailableChain()', () => 
 	});
 });
 
-describe('#1420 budget — race cap + sequential fair-share (callMeta override)', () => {
+describe('#1420 budget — race cap + sequential slice (fair-share, then reserve-based per mechanism change in header)', () => {
 	test('pin 10: hanging raced + hanging sequential legs; fast groq-position final leg IS attempted and returns within budget', async () => {
 		const svc = svcWithChain(['raceA', 'raceB', 'raceC', 'hangD', 'groqFinal']);
 		const start = Date.now();
@@ -403,6 +427,119 @@ describe('#1420 budget — race cap + sequential fair-share (callMeta override)'
 		expect(caught.allProvidersFailed).toBe(true);
 		expect(caught.triedProviders).toEqual(['legA', 'legB', 'legC', 'legD']);
 		expect(typeof caught.totalElapsedMs).toBe('number');
+	}, 15000);
+
+	test('R1 (anchor, Quinn Pass A reconstruction): 11-leg chain, groq-position leg (index 9, NOT last) resolving at 4,000ms MUST serve', async () => {
+		// Predecessors fail FAST (the Pass A regime: 401/402/404/410).
+		// On fair-share (51d3f10d4) groqPosition's slice is
+		// floor(~6000/2) = ~3,000ms < 4,000ms → cut, result lost → RED.
+		// On reserve its slice is min(5000, ~6000 − 750) = 5,000ms → serves.
+		const chain = [
+			'raceA', 'raceB', 'raceC', 'seqD', 'seqE', 'seqF', 'seqG',
+			'seqH', 'seqI', 'groqPosition', 'lastLeg',
+		];
+		const svc = svcWithChain(chain);
+		const calls = [];
+		const start = Date.now();
+		const result = await svc.execute(
+			'llm',
+			async (pk) => {
+				calls.push(pk);
+				if (pk === 'groqPosition') return delayed(4000, 'from-groqPosition');
+				if (pk === 'lastLeg') throw statusErr(404);
+				throw statusErr(503);
+			},
+			'default',
+			{ totalTimeoutMs: 6000, perProviderTimeoutMs: 5000 },
+		);
+		expect(result).toBe('from-groqPosition');
+		expect(calls).not.toContain('lastLeg');
+		expect(Date.now() - start).toBeLessThan(6000);
+	}, 15000);
+
+	test('R2: reserve bound — a hanging leg is cut at remaining − reserveMs × legsAfter, not at its fair share', async () => {
+		// 'safety' raceCount is 1 → purely sequential. reserveMs seam 250:
+		// hangFirst (legsLeft 3, legsAfter 2) funded slice =
+		// min(2000, 1800 − 250×2) = 1,300ms. Fair-share would cut it at
+		// max(750, floor(1800/3)) = 750ms → nextLeg would start ~750ms.
+		const svc = svcWithChain(['hangFirst', 'nextLeg', 'tailLeg']);
+		const start = Date.now();
+		let nextStart = null;
+		const calls = [];
+		const result = await svc.execute(
+			'safety',
+			async (pk) => {
+				calls.push(pk);
+				if (pk === 'nextLeg') {
+					nextStart = Date.now() - start;
+					return 'from-nextLeg';
+				}
+				return hang();
+			},
+			'default',
+			{ totalTimeoutMs: 1800, perProviderTimeoutMs: 2000, reserveMs: 250 },
+		);
+		expect(result).toBe('from-nextLeg');
+		expect(calls).not.toContain('tailLeg');
+		expect(nextStart).not.toBeNull();
+		expect(nextStart).toBeGreaterThanOrEqual(1100);
+		expect(nextStart).toBeLessThanOrEqual(1650);
+	}, 15000);
+
+	test('† R3: all-hang 11-leg chain → EVERY leg attempted, honest failure, within budget (regression — green under both formulas)', async () => {
+		const chain = [
+			'raceA', 'raceB', 'raceC', 'seqD', 'seqE', 'seqF', 'seqG',
+			'seqH', 'seqI', 'groqPosition', 'lastLeg',
+		];
+		const svc = svcWithChain(chain);
+		const start = Date.now();
+		let caught;
+		try {
+			await svc.execute('llm', async () => hang(), 'default', {
+				totalTimeoutMs: 3000,
+				perProviderTimeoutMs: 350,
+				reserveMs: 100,
+			});
+		} catch (err) {
+			caught = err;
+		}
+		expect(caught).toBeDefined();
+		expect(caught.allProvidersFailed).toBe(true);
+		expect(caught.triedProviders).toEqual(chain);
+		expect(Date.now() - start).toBeLessThanOrEqual(3000 + 500);
+	}, 15000);
+
+	test('R4: exhaustion guard — non-last leg reached with remaining 600, legsLeft 2 → last leg still attempted', async () => {
+		// 'safety' → sequential only. At penult: remaining ≈600 ≤
+		// 750 × legsLeft (2) → exhaustion regime. The slice is capped
+		// (perProvider seam 300) below the remaining budget, so a
+		// hanging penult is cut and the last leg gets a real attempt
+		// instead of the loop-top break skipping it. Green on shipped
+		// fair-share and on reserve+fallback; red against the literal
+		// floored reserve (see suite header).
+		const svc = svcWithChain(['penult', 'lastLeg']);
+		const start = Date.now();
+		let lastStart = null;
+		let caught;
+		try {
+			await svc.execute(
+				'safety',
+				async (pk) => {
+					if (pk === 'lastLeg') lastStart = Date.now() - start;
+					return hang();
+				},
+				'default',
+				{ totalTimeoutMs: 600, perProviderTimeoutMs: 300 },
+			);
+		} catch (err) {
+			caught = err;
+		}
+		expect(caught).toBeDefined();
+		expect(caught.allProvidersFailed).toBe(true);
+		expect(caught.triedProviders).toEqual(['penult', 'lastLeg']);
+		expect(lastStart).not.toBeNull();
+		expect(lastStart).toBeLessThan(600);
+		expect(Date.now() - start).toBeLessThanOrEqual(600 + 400);
 	}, 15000);
 
 	test('† pin 16: a leg that timed out in call 1 is circuit-open and absent from call 2 chain (cross-call regression)', async () => {
