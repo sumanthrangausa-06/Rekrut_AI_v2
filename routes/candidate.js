@@ -5067,10 +5067,22 @@ router.get('/documents', authMiddleware, async (req, res) => {
 // #1472: multipart requests (the Documents page sends FormData, field `file`)
 // are parsed by multer first; JSON {name,url} requests fall through unchanged.
 const parseDocumentFile = (req, res, next) => {
-	if (req.is('multipart/form-data')) {
-		return upload.single('file')(req, res, next);
+	if (!req.is('multipart/form-data')) {
+		return next();
 	}
-	return next();
+	// Map multer errors to honest JSON (mirrors handleMulterError in
+	// routes/voice.js) instead of forwarding them as opaque 500s.
+	return upload.single('file')(req, res, (err) => {
+		if (!err) {
+			return next();
+		}
+		if (err.code === 'LIMIT_FILE_SIZE') {
+			return res
+				.status(413)
+				.json({ error: 'File too large', message: 'Document exceeds 10MB limit' });
+		}
+		return res.status(400).json({ error: 'File upload error' });
+	});
 };
 router.post('/documents/upload', authMiddleware, parseDocumentFile, async (req, res) => {
 	try {

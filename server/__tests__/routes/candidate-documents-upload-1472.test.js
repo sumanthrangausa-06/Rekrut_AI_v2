@@ -163,6 +163,35 @@ describe('POST /api/candidate/documents/upload — multipart branch (#1472)', ()
 		expect(mockUploadToB2).not.toHaveBeenCalled();
 		expect(docRows).toHaveLength(0);
 	});
+
+	test('file under a wrong field name is a 400 JSON error, not a 500', async () => {
+		const res = await request(makeApp())
+			.post('/api/candidate/documents/upload')
+			.attach('document', Buffer.from('%PDF-1.4 fake'), {
+				filename: 'resume.pdf',
+				contentType: 'application/pdf',
+			});
+		expect(res.status).toBe(400);
+		expect(res.body.error).toBe('File upload error');
+		expect(mockUploadToB2).not.toHaveBeenCalled();
+		expect(docRows).toHaveLength(0);
+	});
+
+	test('storage failure is a 502 {error, code} and stores no row', async () => {
+		mockUploadToB2.mockRejectedValueOnce(
+			Object.assign(new Error('storage unavailable'), { code: 'STORAGE_DOWN' }),
+		);
+		const res = await request(makeApp())
+			.post('/api/candidate/documents/upload')
+			.field('type', 'other')
+			.attach('file', Buffer.from('%PDF-1.4 fake'), {
+				filename: 'resume.pdf',
+				contentType: 'application/pdf',
+			});
+		expect(res.status).toBe(502);
+		expect(res.body).toEqual({ error: 'storage unavailable', code: 'STORAGE_DOWN' });
+		expect(docRows).toHaveLength(0);
+	});
 });
 
 describe('POST /api/candidate/documents/upload — JSON branch unchanged (#1472)', () => {
