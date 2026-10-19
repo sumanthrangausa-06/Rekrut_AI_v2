@@ -24,26 +24,26 @@ modules:
     tag: null                     # pre-train-system; no tag exists
 
   consent-privacy:
-    current_version: "1.0"        # Train 1 takes this to 1.1
+    current_version: "1.1"
     dev_version:     "1.1"
-    staging_version: "1.0"
+    staging_version: "1.1"
     prod_version:    "1.0"
-    status: in-flight             # Train 1 (trust-foundation v1.1), released by Sumanth 2026-10-19
-    last_train_date: "2026-10-18"
+    status: current
+    last_train_date: "2026-10-19"
     train_pr: "PR #1465"
-    train_commit: "007a6552"
-    tag: null
+    train_commit: "63b9684a1e04f1aec83db500645426f2580190d3"
+    tag: "staging/consent-privacy@v1.1"
 
   landing-honesty:
-    current_version: "1.0"        # Train 1 takes this to 1.1
+    current_version: "1.1"
     dev_version:     "1.1"
-    staging_version: "1.0"
+    staging_version: "1.1"
     prod_version:    "1.0"
-    status: in-flight             # Train 1 (trust-foundation v1.1), released by Sumanth 2026-10-19
-    last_train_date: "2026-10-18"
+    status: current
+    last_train_date: "2026-10-19"
     train_pr: "PR #1465"
-    train_commit: "007a6552"
-    tag: null
+    train_commit: "63b9684a1e04f1aec83db500645426f2580190d3"
+    tag: "staging/landing-honesty@v1.1"
 
   cv-review:
     current_version: "1.0"        # staging runs the pre-analyser version;
