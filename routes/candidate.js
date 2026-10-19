@@ -155,6 +155,81 @@ async function extractTextFromFile(buffer, mimetype) {
 	}
 }
 
+// ============= RESUME PARSE LIFECYCLE (#1471) =============
+
+// Shared parse lifecycle for a parsed_resumes row that already exists at
+// parsing_status='processing'. Owns: extractTextFromFile → subscription
+// lookup → parseResume under the existing 30s Promise.race → the
+// terminal-status UPDATEs. Returns { status, parsedData } and NEVER
+// throws — every path lands a truthful terminal status:
+//   'completed' (parsed_data written), 'uploaded' (extracted text ≤50
+//   chars), or 'failed' (extraction/parse exception). Callers decide what
+// a non-completed parse means for their response; for /profile/resume it
+// must stay non-fatal to the upload (STOP 1 binding AC on #1471).
+async function parseResumeRecord({ buffer, mimetype, userId, resumeId }) {
+	let parsedData = null;
+	try {
+		const resumeText = await extractTextFromFile(buffer, mimetype);
+
+		if (resumeText && resumeText.trim().length > 50) {
+			// Get user's subscription for tracking
+			const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
+				userId,
+			]);
+			const subscriptionId = user.rows[0]?.stripe_subscription_id;
+
+			// Parse with AI, with a 30-second timeout
+			const parsePromise = parseResume(resumeText.substring(0, 15000), { subscriptionId });
+			const timeoutPromise = new Promise((_, reject) =>
+				setTimeout(() => reject(new Error('AI parsing timeout')), 30000),
+			);
+
+			parsedData = await Promise.race([parsePromise, timeoutPromise]);
+
+			// Update the record with parsed data
+			await pool.query(
+				`
+          UPDATE parsed_resumes
+          SET parsed_data = $1, parsing_status = 'completed', parsed_at = NOW()
+          WHERE id = $2
+        `,
+				[JSON.stringify(parsedData), resumeId],
+			);
+
+			console.log(`Successfully parsed ${mimetype} resume for user ${userId}`);
+			return { status: 'completed', parsedData };
+		}
+
+		console.log('Extracted text too short - marking as uploaded');
+		await pool.query(
+			`
+          UPDATE parsed_resumes
+          SET parsing_status = 'uploaded', parsed_at = NOW()
+          WHERE id = $1
+        `,
+			[resumeId],
+		);
+		return { status: 'uploaded', parsedData: null };
+	} catch (parseErr) {
+		console.error('Resume parsing failed (non-fatal):', parseErr.message);
+		try {
+			await pool.query(
+				`
+        UPDATE parsed_resumes
+        SET parsing_status = 'failed', parsed_at = NOW()
+        WHERE id = $1
+      `,
+				[resumeId],
+			);
+		} catch (updateErr) {
+			// Never-throws contract: even the terminal UPDATE failing is
+			// reported via the return value, not an exception.
+			console.error('Failed to mark resume as failed:', updateErr.message);
+		}
+		return { status: 'failed', parsedData: null };
+	}
+}
+
 // ============= PROFILE MANAGEMENT =============
 
 // Get candidate profile
@@ -478,7 +553,8 @@ router.post('/profile/photo', authMiddleware, upload.single('photo'), async (req
 	}
 });
 
-// Upload profile resume (simple — stores file, no AI parsing or auto-apply)
+// Upload profile resume (stores file + parses via parseResumeRecord;
+// NO auto-apply — that stays exclusive to /resume/upload, #1471)
 router.post('/profile/resume', authMiddleware, upload.single('resume'), async (req, res) => {
 	try {
 		if (!req.file) {
@@ -515,8 +591,9 @@ router.post('/profile/resume', authMiddleware, upload.single('resume'), async (r
 			});
 		}
 
+		let resumeId;
 		try {
-			await pool.query(
+			const inserted = await pool.query(
 				`
 				INSERT INTO parsed_resumes (user_id, original_filename, file_url, parsing_status)
 				VALUES ($1, $2, $3, 'processing')
@@ -524,6 +601,7 @@ router.post('/profile/resume', authMiddleware, upload.single('resume'), async (r
 				`,
 				[req.user.id, req.file.originalname, resumeUrl],
 			);
+			resumeId = inserted.rows[0].id;
 
 			// Update profile with resume URL
 			await pool.query(
@@ -542,7 +620,23 @@ router.post('/profile/resume', authMiddleware, upload.single('resume'), async (r
 			});
 		}
 
-		res.json({ success: true, resume_url: resumeUrl, resume_filename: req.file.originalname });
+		// #1471: run the shared parse lifecycle synchronously so the row
+		// never strands at 'processing'. The helper never throws and a
+		// parse failure must NOT fail the upload (binding AC) — the row
+		// lands in a truthful terminal status and we still return 200.
+		const parseResult = await parseResumeRecord({
+			buffer: req.file.buffer,
+			mimetype: req.file.mimetype,
+			userId: req.user.id,
+			resumeId,
+		});
+
+		res.json({
+			success: true,
+			resume_url: resumeUrl,
+			resume_filename: req.file.originalname,
+			parsing_status: parseResult.status,
+		});
 	} catch (err) {
 		console.error('Profile resume upload error:', err);
 		res.status(500).json({ error: 'Failed to upload resume', code: 'UNKNOWN' });
@@ -616,47 +710,28 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
 			[req.user.id, fileUrl],
 		);
 
-		// Extract text from the resume (supports PDF, DOCX, and plain text)
-		let parsedData = null;
-		try {
-			// Extract text from the file buffer
-			const resumeText = await extractTextFromFile(req.file.buffer, req.file.mimetype);
+		// Parse via the shared lifecycle (#1471): parseResumeRecord owns
+		// extract → parse (30s race) → terminal-status UPDATEs and never
+		// throws. Its 'completed' UPDATE lands BEFORE auto-apply below, so
+		// the auto-apply mutation of parsedData._applySummary still happens
+		// after the DB write, exactly as the old inline code ordered it.
+		const parseResult = await parseResumeRecord({
+			buffer: req.file.buffer,
+			mimetype: req.file.mimetype,
+			userId: req.user.id,
+			resumeId: resumeRecord.rows[0].id,
+		});
+		const parsedData = parseResult.parsedData;
 
-			if (resumeText && resumeText.trim().length > 50) {
-				// Get user's subscription for tracking
-				const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
-					req.user.id,
-				]);
-				const subscriptionId = user.rows[0]?.stripe_subscription_id;
+		if (parseResult.status === 'completed' && parsedData) {
+			// ====== AUTO-APPLY parsed data to profile ======
+			try {
+				const applySummary = { profile: false, experience: 0, education: 0, skills: 0 };
 
-				// Parse with AI, with a 30-second timeout
-				const parsePromise = parseResume(resumeText.substring(0, 15000), { subscriptionId });
-				const timeoutPromise = new Promise((_, reject) =>
-					setTimeout(() => reject(new Error('AI parsing timeout')), 30000),
-				);
-
-				parsedData = await Promise.race([parsePromise, timeoutPromise]);
-
-				// Update the record with parsed data
-				await pool.query(
-					`
-          UPDATE parsed_resumes
-          SET parsed_data = $1, parsing_status = 'completed', parsed_at = NOW()
-          WHERE id = $2
-        `,
-					[JSON.stringify(parsedData), resumeRecord.rows[0].id],
-				);
-
-				console.log(`Successfully parsed ${req.file.mimetype} resume for user ${req.user.id}`);
-
-				// ====== AUTO-APPLY parsed data to profile ======
-				try {
-					const applySummary = { profile: false, experience: 0, education: 0, skills: 0 };
-
-					// 1. Apply contact/profile info
-					if (parsedData.contact) {
-						await pool.query(
-							`
+				// 1. Apply contact/profile info
+				if (parsedData.contact) {
+					await pool.query(
+						`
               INSERT INTO candidate_profiles (user_id, headline, bio, location, phone, linkedin_url, github_url, portfolio_url, years_experience)
               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
               ON CONFLICT (user_id) DO UPDATE SET
@@ -671,183 +746,162 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
                 updated_at = NOW()
               RETURNING *
             `,
-							[
-								req.user.id,
-								normalizeTextField(
-									parsedData.contact.headline || parsedData.contact.title,
-									120,
-									'Headline',
-								),
-								normalizeTextField(parsedData.contact.bio, 2000, 'Bio'),
-								normalizeTextField(parsedData.contact.location, 120, 'Location'),
-								normalizeTextField(parsedData.contact.phone, 40, 'Phone'),
-								normalizeUrlField(
-									parsedData.contact.linkedin_url || parsedData.contact.linkedin,
-									'LinkedIn URL',
-								),
-								normalizeUrlField(
-									parsedData.contact.github_url || parsedData.contact.github,
-									'GitHub URL',
-								),
-								normalizeUrlField(
-									parsedData.contact.portfolio_url || parsedData.contact.website,
-									'Portfolio URL',
-								),
-								normalizePositiveInteger(
-									parsedData.contact.years_experience,
-									'years_experience',
-									80,
-								),
-							],
+						[
+							req.user.id,
+							normalizeTextField(
+								parsedData.contact.headline || parsedData.contact.title,
+								120,
+								'Headline',
+							),
+							normalizeTextField(parsedData.contact.bio, 2000, 'Bio'),
+							normalizeTextField(parsedData.contact.location, 120, 'Location'),
+							normalizeTextField(parsedData.contact.phone, 40, 'Phone'),
+							normalizeUrlField(
+								parsedData.contact.linkedin_url || parsedData.contact.linkedin,
+								'LinkedIn URL',
+							),
+							normalizeUrlField(
+								parsedData.contact.github_url || parsedData.contact.github,
+								'GitHub URL',
+							),
+							normalizeUrlField(
+								parsedData.contact.portfolio_url || parsedData.contact.website,
+								'Portfolio URL',
+							),
+							normalizePositiveInteger(
+								parsedData.contact.years_experience,
+								'years_experience',
+								80,
+							),
+						],
+					);
+					applySummary.profile = true;
+
+					// Update user name/email if empty
+					if (parsedData.contact.name) {
+						await pool.query(
+							`UPDATE users SET name = $1 WHERE id = $2 AND (name IS NULL OR name = '')`,
+							[parsedData.contact.name, req.user.id],
 						);
-						applySummary.profile = true;
-
-						// Update user name/email if empty
-						if (parsedData.contact.name) {
-							await pool.query(
-								`UPDATE users SET name = $1 WHERE id = $2 AND (name IS NULL OR name = '')`,
-								[parsedData.contact.name, req.user.id],
-							);
-						}
 					}
+				}
 
-					// 2. Apply work experience (with dedup: skip if same company+title exists)
-					if (parsedData.experience && Array.isArray(parsedData.experience)) {
-						for (let i = 0; i < parsedData.experience.length; i++) {
-							const exp = parsedData.experience[i];
-							if (!exp.company || !exp.title) continue;
+				// 2. Apply work experience (with dedup: skip if same company+title exists)
+				if (parsedData.experience && Array.isArray(parsedData.experience)) {
+					for (let i = 0; i < parsedData.experience.length; i++) {
+						const exp = parsedData.experience[i];
+						if (!exp.company || !exp.title) continue;
 
-							// Check for duplicate
-							const existing = await pool.query(
-								`SELECT id FROM work_experience WHERE user_id = $1 AND LOWER(company_name) = LOWER($2) AND LOWER(title) = LOWER($3)`,
-								[req.user.id, exp.company, exp.title],
-							);
-							if (existing.rows.length > 0) continue;
+						// Check for duplicate
+						const existing = await pool.query(
+							`SELECT id FROM work_experience WHERE user_id = $1 AND LOWER(company_name) = LOWER($2) AND LOWER(title) = LOWER($3)`,
+							[req.user.id, exp.company, exp.title],
+						);
+						if (existing.rows.length > 0) continue;
 
-							await pool.query(
-								`
+						await pool.query(
+							`
                 INSERT INTO work_experience (user_id, company_name, title, location, start_date, end_date, is_current, description, achievements, skills_used, order_index)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
               `,
-								[
-									req.user.id,
-									exp.company,
-									exp.title,
-									exp.location || null,
-									exp.start_date
-										? new Date(
-												exp.start_date.length === 4
-													? `${exp.start_date}-01-01`
-													: `${exp.start_date}-01`,
-											)
-										: null,
-									exp.end_date && exp.end_date !== 'Present'
-										? new Date(
-												exp.end_date.length === 4 ? `${exp.end_date}-01-01` : `${exp.end_date}-01`,
-											)
-										: null,
-									exp.is_current || exp.end_date === 'Present',
-									exp.description || null,
-									JSON.stringify(exp.achievements || []),
-									JSON.stringify(exp.skills_used || []),
-									i,
-								],
-							);
-							applySummary.experience++;
-						}
+							[
+								req.user.id,
+								exp.company,
+								exp.title,
+								exp.location || null,
+								exp.start_date
+									? new Date(
+											exp.start_date.length === 4
+												? `${exp.start_date}-01-01`
+												: `${exp.start_date}-01`,
+										)
+									: null,
+								exp.end_date && exp.end_date !== 'Present'
+									? new Date(
+											exp.end_date.length === 4 ? `${exp.end_date}-01-01` : `${exp.end_date}-01`,
+										)
+									: null,
+								exp.is_current || exp.end_date === 'Present',
+								exp.description || null,
+								JSON.stringify(exp.achievements || []),
+								JSON.stringify(exp.skills_used || []),
+								i,
+							],
+						);
+						applySummary.experience++;
 					}
+				}
 
-					// 3. Apply education (with dedup: skip if same institution+degree exists)
-					if (parsedData.education && Array.isArray(parsedData.education)) {
-						for (let i = 0; i < parsedData.education.length; i++) {
-							const edu = parsedData.education[i];
-							if (!edu.institution) continue;
+				// 3. Apply education (with dedup: skip if same institution+degree exists)
+				if (parsedData.education && Array.isArray(parsedData.education)) {
+					for (let i = 0; i < parsedData.education.length; i++) {
+						const edu = parsedData.education[i];
+						if (!edu.institution) continue;
 
-							// Check for duplicate
-							const existing = await pool.query(
-								`SELECT id FROM education WHERE user_id = $1 AND LOWER(institution) = LOWER($2) AND LOWER(COALESCE(degree, '')) = LOWER(COALESCE($3, ''))`,
-								[req.user.id, edu.institution, edu.degree || ''],
-							);
-							if (existing.rows.length > 0) continue;
+						// Check for duplicate
+						const existing = await pool.query(
+							`SELECT id FROM education WHERE user_id = $1 AND LOWER(institution) = LOWER($2) AND LOWER(COALESCE(degree, '')) = LOWER(COALESCE($3, ''))`,
+							[req.user.id, edu.institution, edu.degree || ''],
+						);
+						if (existing.rows.length > 0) continue;
 
-							await pool.query(
-								`
+						await pool.query(
+							`
                 INSERT INTO education (user_id, institution, degree, field_of_study, start_date, end_date, gpa, achievements, order_index)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
               `,
-								[
-									req.user.id,
-									edu.institution,
-									edu.degree || null,
-									edu.field || null,
-									edu.start_date ? new Date(`${edu.start_date}-01-01`) : null,
-									edu.end_date && edu.end_date !== 'Present'
-										? new Date(`${edu.end_date}-01-01`)
-										: null,
-									edu.gpa || null,
-									JSON.stringify(edu.achievements || []),
-									i,
-								],
-							);
-							applySummary.education++;
-						}
+							[
+								req.user.id,
+								edu.institution,
+								edu.degree || null,
+								edu.field || null,
+								edu.start_date ? new Date(`${edu.start_date}-01-01`) : null,
+								edu.end_date && edu.end_date !== 'Present'
+									? new Date(`${edu.end_date}-01-01`)
+									: null,
+								edu.gpa || null,
+								JSON.stringify(edu.achievements || []),
+								i,
+							],
+						);
+						applySummary.education++;
 					}
+				}
 
-					// 4. Apply skills (upsert — won't duplicate due to UNIQUE constraint)
-					if (parsedData.skills && Array.isArray(parsedData.skills)) {
-						for (const skill of parsedData.skills) {
-							if (!skill.name) continue;
-							try {
-								// Coerce string level names to integers
-								let skillLevel = skill.level || 3;
-								if (typeof skillLevel === 'string') {
-									const lvlMap = { beginner: 1, basic: 2, intermediate: 3, advanced: 4, expert: 5 };
-									skillLevel = lvlMap[skillLevel.toLowerCase()] || parseInt(skillLevel, 10) || 3;
-								}
-								skillLevel = Math.max(1, Math.min(5, parseInt(skillLevel, 10) || 3));
-								await pool.query(
-									`
+				// 4. Apply skills (upsert — won't duplicate due to UNIQUE constraint)
+				if (parsedData.skills && Array.isArray(parsedData.skills)) {
+					for (const skill of parsedData.skills) {
+						if (!skill.name) continue;
+						try {
+							// Coerce string level names to integers
+							let skillLevel = skill.level || 3;
+							if (typeof skillLevel === 'string') {
+								const lvlMap = { beginner: 1, basic: 2, intermediate: 3, advanced: 4, expert: 5 };
+								skillLevel = lvlMap[skillLevel.toLowerCase()] || parseInt(skillLevel, 10) || 3;
+							}
+							skillLevel = Math.max(1, Math.min(5, parseInt(skillLevel, 10) || 3));
+							await pool.query(
+								`
                   INSERT INTO candidate_skills (user_id, skill_name, category, level)
                   VALUES ($1, $2, $3, $4)
                   ON CONFLICT (user_id, skill_name) DO UPDATE SET
                     category = COALESCE(NULLIF($3, ''), candidate_skills.category),
                     level = GREATEST(candidate_skills.level, $4)
                 `,
-									[req.user.id, skill.name, skill.category || 'technical', skillLevel],
-								);
-								applySummary.skills++;
-							} catch (skillErr) {
-								console.error('Skip skill insert:', skillErr.message);
-							}
+								[req.user.id, skill.name, skill.category || 'technical', skillLevel],
+							);
+							applySummary.skills++;
+						} catch (skillErr) {
+							console.error('Skip skill insert:', skillErr.message);
 						}
 					}
-
-					parsedData._applySummary = applySummary;
-					console.log(`Auto-applied resume data for user ${req.user.id}:`, applySummary);
-				} catch (applyErr) {
-					console.error('Auto-apply resume data failed (non-fatal):', applyErr.message);
 				}
-			} else {
-				console.log('Extracted text too short - marking as uploaded');
-				await pool.query(
-					`
-          UPDATE parsed_resumes
-          SET parsing_status = 'uploaded', parsed_at = NOW()
-          WHERE id = $1
-        `,
-					[resumeRecord.rows[0].id],
-				);
+
+				parsedData._applySummary = applySummary;
+				console.log(`Auto-applied resume data for user ${req.user.id}:`, applySummary);
+			} catch (applyErr) {
+				console.error('Auto-apply resume data failed (non-fatal):', applyErr.message);
 			}
-		} catch (parseErr) {
-			console.error('Resume parsing failed (non-fatal):', parseErr.message);
-			await pool.query(
-				`
-        UPDATE parsed_resumes
-        SET parsing_status = 'failed', parsed_at = NOW()
-        WHERE id = $1
-      `,
-				[resumeRecord.rows[0].id],
-			);
 		}
 
 		res.json({
@@ -1119,7 +1173,7 @@ router.post('/cv/analyze', authMiddleware, async (req, res) => {
 
 		// Check user has uploaded documents (parsed_resumes)
 		const docs = await pool.query(
-			'SELECT id, parsed_data FROM parsed_resumes WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+			'SELECT id, parsed_data, parsing_status, created_at FROM parsed_resumes WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
 			[req.user.id],
 		);
 
@@ -1134,6 +1188,35 @@ router.post('/cv/analyze', authMiddleware, async (req, res) => {
 		const parsedData = docs.rows[0].parsed_data;
 		const cvContent = parsedData ? JSON.stringify(parsedData) : '';
 		if (!cvContent.trim() || cvContent === '{}' || cvContent === 'null') {
+			// #1471: a latest row still 'processing' with no parsed content
+			// is "not parsed yet", not an invalid CV. Synchronous parse
+			// (plus the 30s race in parseResumeRecord) can never legitimately
+			// still be running after 5 minutes — the #1407 staleness guard —
+			// so an older row is stranded: flip it to the truthful terminal
+			// 'failed' state and direct a re-upload. A younger row may be
+			// genuinely in flight in another request: no state change.
+			if (docs.rows[0].parsing_status === 'processing') {
+				const createdAtMs = docs.rows[0].created_at
+					? new Date(docs.rows[0].created_at).getTime()
+					: NaN;
+				const isStale = Number.isFinite(createdAtMs) && Date.now() - createdAtMs > 5 * 60 * 1000;
+				if (isStale) {
+					await pool.query(
+						`UPDATE parsed_resumes
+						 SET parsing_status = 'failed', parsed_at = NOW()
+						 WHERE id = $1 AND parsing_status = 'processing'`,
+						[documentId],
+					);
+					return res.status(400).json({
+						error: 'Your resume could not be parsed. Please upload your CV again.',
+						code: 'RESUME_NOT_PARSED',
+					});
+				}
+				return res.status(400).json({
+					error: 'Your resume is still processing — try again in a moment.',
+					code: 'RESUME_NOT_PARSED',
+				});
+			}
 			return res.status(400).json({
 				error: 'Document has no parsed content. Please upload a valid CV.',
 				code: 'EMPTY_DOCUMENT',
