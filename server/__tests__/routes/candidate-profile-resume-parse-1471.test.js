@@ -12,7 +12,8 @@
  *    with the 30s race → terminal-status UPDATEs) lives in ONE helper,
  *    parseResumeRecord, used by BOTH upload handlers. It returns
  *    { status, parsedData } and never throws: every path lands
- *    'completed' / 'uploaded' (text ≤50 chars) / 'failed' (exception).
+ *    'completed' / 'failed' (exception, or text ≤50 chars — #1477 retired
+ *    the unwritable 'uploaded' status; short text lands 'failed' directly).
  *  - /profile/resume calls the helper after its INSERT. Parse failure is
  *    NON-FATAL to the upload: response stays 200 with the row in a
  *    terminal status. Response keeps { success, resume_url,
@@ -133,8 +134,6 @@ function installUploadDb() {
 				resumeRow.parsing_status = 'completed';
 				// Snapshot exactly what was written to the DB at write time.
 				resumeRow.parsed_data = JSON.parse(params[0]);
-			} else if (/parsing_status = 'uploaded'/i.test(sql)) {
-				resumeRow.parsing_status = 'uploaded';
 			} else if (/parsing_status = 'failed'/i.test(sql)) {
 				if (/AND parsing_status = 'processing'/i.test(sql)) {
 					if (resumeRow.parsing_status === 'processing') resumeRow.parsing_status = 'failed';
@@ -207,7 +206,7 @@ describe('#1471 POST /profile/resume — parses via the shared lifecycle', () =>
 		expect(resumeRow.parsed_data).toEqual(PARSED);
 	});
 
-	test('extraction yields ≤50 chars → still 200, row terminal uploaded, never processing', async () => {
+	test('extraction yields ≤50 chars → still 200, row terminal failed (#1477), never processing', async () => {
 		mockPdfParse.mockResolvedValue({ text: 'Too short' });
 
 		const res = await request(makeApp())
@@ -216,8 +215,8 @@ describe('#1471 POST /profile/resume — parses via the shared lifecycle', () =>
 
 		expect(res.status).toBe(200);
 		expect(res.body.success).toBe(true);
-		expect(res.body.parsing_status).toBe('uploaded');
-		expect(resumeRow.parsing_status).toBe('uploaded');
+		expect(res.body.parsing_status).toBe('failed');
+		expect(resumeRow.parsing_status).toBe('failed');
 		expect(mockParseResume).not.toHaveBeenCalled();
 	});
 
@@ -301,13 +300,13 @@ describe('#1471 POST /cv/analyze — stranded processing rows', () => {
 	});
 
 	test('non-processing status with empty parsed_data keeps EMPTY_DOCUMENT behaviour', async () => {
-		installAnalyzeDb({ status: 'uploaded', ageMinutes: 60, parsedData: {} });
+		installAnalyzeDb({ status: 'failed', ageMinutes: 60, parsedData: {} });
 
 		const res = await request(makeApp()).post('/api/candidate/cv/analyze').send({});
 
 		expect(res.status).toBe(400);
 		expect(res.body.code).toBe('EMPTY_DOCUMENT');
-		expect(resumeRow.parsing_status).toBe('uploaded');
+		expect(resumeRow.parsing_status).toBe('failed');
 		expect(mockChat).not.toHaveBeenCalled();
 	});
 });
