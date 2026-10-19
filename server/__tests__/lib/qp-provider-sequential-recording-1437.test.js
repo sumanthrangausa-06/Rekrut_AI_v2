@@ -35,6 +35,13 @@
  *
  * Pins marked † are regression pins: they pass on pristine dev and
  * must keep passing. All other pins are RED on pristine dev.
+ *
+ * #1441 — the source pin below no longer anchors on the first
+ * indexOf('if (this.isRetryable(err))') (fragile: a second site
+ * added above the sequential one would silently re-anchor it).
+ * It anchors on the unique sequential marker
+ * `failedProvider = providerKey` and asserts uniqueness of both
+ * the marker and the branch, so duplication fails loudly.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -165,10 +172,25 @@ describe('#1437 sequential phase (execute): recording is gated on _shouldRecordF
 
 	test('source pin: sequential branch gates recordFailure on _shouldRecordFailure', () => {
 		const src = fs.readFileSync(path.join(__dirname, '../../../lib/qp-provider.js'), 'utf8');
-		// The sequential site is the isRetryable branch that sets
-		// failedProvider; it must wrap both recording calls in the gate.
-		const seqIdx = src.indexOf('if (this.isRetryable(err))');
+		// #1441: anchor on the sequential-only marker, NOT on the
+		// first indexOf('if (this.isRetryable(err))'). The marker
+		// `failedProvider = providerKey` is the first statement
+		// inside the sequential branch and occurs nowhere else (the
+		// race fallthrough assigns `failedProvider =
+		// raceProviders[...]`). The uniqueness assertions make a
+		// future second site fail loudly here instead of silently
+		// re-anchoring this pin to the wrong site.
+		const marker = 'failedProvider = providerKey';
+		expect(src.split(marker).length - 1).toBe(1);
+		const branchNeedle = 'if (this.isRetryable(err))';
+		expect(src.split(branchNeedle).length - 1).toBe(1);
+		const markerIdx = src.indexOf(marker);
+		expect(markerIdx).toBeGreaterThan(-1);
+		// The enclosing branch is the isRetryable if immediately
+		// before the marker (the marker is its first statement).
+		const seqIdx = src.lastIndexOf(branchNeedle, markerIdx);
 		expect(seqIdx).toBeGreaterThan(-1);
+		expect(markerIdx - seqIdx).toBeLessThan(100);
 		const seqBlock = src.slice(seqIdx, seqIdx + 600);
 		expect(seqBlock).toContain('if (this._shouldRecordFailure(err))');
 		expect(seqBlock).toContain('this.recordFailure(providerKey, modality, err)');
