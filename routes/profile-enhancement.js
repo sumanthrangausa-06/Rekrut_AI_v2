@@ -14,7 +14,7 @@
 
 const express = require('express');
 const multer = require('multer');
-const pdfParse = require('pdf-parse');
+const { parsePdf } = require('../lib/pdf-extract');
 const mammoth = require('mammoth');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
@@ -56,7 +56,7 @@ function requireOwnCandidate(req, res, next) {
 
 async function extractTextFromFile(buffer, mimetype) {
 	if (mimetype === 'application/pdf') {
-		const result = await pdfParse(buffer);
+		const result = await parsePdf(buffer);
 		return result.text || '';
 	}
 	if (
