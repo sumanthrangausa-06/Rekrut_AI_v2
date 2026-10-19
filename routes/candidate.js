@@ -1055,9 +1055,15 @@ function validateCvAnalysis(data) {
 			if (!rec || typeof rec !== 'object') continue;
 			if (typeof rec.text !== 'string' || !rec.text.trim()) continue;
 			if (!CV_ANALYSIS_SECTIONS.includes(rec.section)) continue;
+			// #1407 LOW-1: fail closed like every other field in this
+			// validator — a recommendation with a missing/invalid impact
+			// invalidates the analysis instead of silently inheriting the
+			// parent section's impact.
+			const impact = normalizeCvImpact(rec.impact);
+			if (impact === null) return null;
 			recommendations.push({
 				section: rec.section,
-				impact: normalizeCvImpact(rec.impact) || byName.get(rec.section).impact,
+				impact,
 				text: rec.text.trim(),
 			});
 		}
@@ -1075,6 +1081,26 @@ function validateCvAnalysis(data) {
 		section_scores: sectionScores,
 		recommendations,
 	};
+}
+
+// #1407: POST /cv/analyze runs synchronously (LLM cascade caps at 12s), so
+// a row still 'pending' after 5 minutes can only be a dangling row from a
+// process that died mid-call. Flip such rows to the truthful terminal
+// 'failed' state (no scores are ever written) when they are read — the
+// poll/list reads below are where a dangling row would otherwise spin or
+// linger forever. Best-effort: a sweep failure must not break the read.
+async function failStalePendingCvAnalyses(userId) {
+	try {
+		await pool.query(
+			`UPDATE cv_analyses
+			 SET status = 'failed', updated_at = NOW()
+			 WHERE user_id = $1 AND status = 'pending'
+			   AND created_at < NOW() - INTERVAL '5 minutes'`,
+			[userId],
+		);
+	} catch (err) {
+		console.error('[CV Review] Stale pending sweep failed:', err.message);
+	}
 }
 
 // Trigger CV analysis (async-style)
@@ -1207,6 +1233,7 @@ Score exactly these five sections, using these exact names: "Experience", "Skill
 // Get analysis result by ID
 router.get('/cv/analysis/:id', authMiddleware, async (req, res) => {
 	try {
+		await failStalePendingCvAnalyses(req.user.id);
 		const result = await pool.query(
 			`
 			SELECT id, user_id, document_id, status, overall_score, section_scores, recommendations, created_at, updated_at
@@ -1244,6 +1271,7 @@ router.get('/cv/analysis/:id', authMiddleware, async (req, res) => {
 // List user's analyses with pagination
 router.get('/cv/analyses', authMiddleware, async (req, res) => {
 	try {
+		await failStalePendingCvAnalyses(req.user.id);
 		const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
 		const offset = parseInt(req.query.offset, 10) || 0;
 
