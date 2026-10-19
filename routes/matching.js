@@ -162,10 +162,19 @@ router.get(
  */
 router.get('/explain/:candidateId/:jobId', authMiddleware, async (req, res) => {
 	try {
-		const candidateId = parseInt(req.params.candidateId, 10);
-		const jobId = parseInt(req.params.jobId, 10);
+		// Strict parsing (security seat, STOP 1 on #1479): Number(), not
+		// parseInt — parseInt aliases '12abc' → 12 and '1.5' → 1 (the
+		// aliasing the #1327 comment in compliance.js flags). Validation
+		// runs before every authorisation comparison.
+		const candidateId = Number(req.params.candidateId);
+		const jobId = Number(req.params.jobId);
 
-		if (!Number.isInteger(candidateId) || !Number.isInteger(jobId)) {
+		if (
+			!Number.isInteger(candidateId) ||
+			!Number.isInteger(jobId) ||
+			candidateId <= 0 ||
+			jobId <= 0
+		) {
 			return res.status(400).json({ error: 'Valid candidate ID and job ID required' });
 		}
 
@@ -179,15 +188,17 @@ router.get('/explain/:candidateId/:jobId', authMiddleware, async (req, res) => {
 		// /explain/job/:jobId/candidate/:candidateId, the same
 		// candidate×job resource). Candidate-self (identity, #927) and
 		// admin bypass the object checks; every other caller must be a
-		// hiring role tied to this exact candidate×job pair:
+		// hiring role tied to the candidate and the job:
 		//   1. the caller's company owns the job — a missing job, a null
 		//      company_id on either side, or a company mismatch are the
 		//      same 404, so foreign jobs cannot be distinguished from
 		//      non-existent ones;
-		//   2. the candidate has an application for this job with the
-		//      caller's company (job_applications linkage) — owning a
-		//      job the candidate never applied to is not a relationship
-		//      with the candidate.
+		//   2. the candidate is linked to the caller's company by a
+		//      job_applications row (candidate×company linkage — the
+		//      compliance shape, FS-145 F-1 option (a) as ruled there;
+		//      a link via a different job of the same company counts,
+		//      deliberately: tightening to job-specific linkage would
+		//      have to move both endpoints together).
 		// Both checks run before explainMatch(): a denied caller never
 		// reaches the service.
 		const isAdmin = req.user.role === 'admin';
@@ -210,8 +221,8 @@ router.get('/explain/:candidateId/:jobId', authMiddleware, async (req, res) => {
 			}
 
 			const linkage = await pool.query(
-				'SELECT 1 FROM job_applications WHERE candidate_id = $1 AND job_id = $2 AND company_id = $3 LIMIT 1',
-				[candidateId, jobId, req.user.company_id],
+				'SELECT 1 FROM job_applications WHERE candidate_id = $1 AND company_id = $2 LIMIT 1',
+				[candidateId, req.user.company_id],
 			);
 			if (linkage.rows.length === 0) {
 				return res.status(403).json({ error: 'Access denied' });

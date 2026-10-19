@@ -18,12 +18,14 @@
  *     1. job ownership — SELECT company_id FROM jobs; missing job, null
  *        caller company_id, null job company_id, or company mismatch
  *        → 404 'Job not found' (foreign ≡ missing, no existence oracle)
- *     2. application linkage — SELECT 1 FROM job_applications for the
- *        exact (candidate_id, job_id, company_id) triple → no row is
- *        403 'Access denied' (security-review tightening vs compliance's
- *        candidate×company linkage: this resource IS a candidate×job
- *        pair, so owning the job plus an application to a DIFFERENT job
- *        of the same company does not suffice)
+ *     2. application linkage — SELECT 1 FROM job_applications for
+ *        (candidate_id, company_id) → no row is 403 'Access denied'.
+ *        Candidate×company, mirroring compliance exactly (FS-145 F-1
+ *        option (a), as ruled there): a candidate linked to the company
+ *        via a DIFFERENT job of the same company passes deliberately —
+ *        pinned below as convention parity, not accident. Tightening
+ *        to job-specific linkage would have to move both endpoints
+ *        together (privacy seat, STOP 1 on #1479).
  *     both checks run BEFORE explainMatch(); a denied caller never
  *     reaches the service and no record field leaks (canaries asserted)
  * - any other authenticated role → 403
@@ -79,8 +81,14 @@ const JOBS = new Map([
 	[43, { company_id: 6 }],
 	[44, { company_id: null }],
 ]);
-// The ONLY application row: candidate 21 applied to job 42 (company 5).
-const APPLICATIONS = [{ candidate_id: 21, job_id: 42, company_id: 5 }];
+// Application rows: candidate 21 applied to job 42 (company 5) and to
+// job 43 (company 6) — the company-6 row exists so the ownership-first
+// pin can prove a foreign job 404s even when candidate×company linkage
+// to the CALLER's company exists.
+const APPLICATIONS = [
+	{ candidate_id: 21, job_id: 42, company_id: 5 },
+	{ candidate_id: 21, job_id: 43, company_id: 6 },
+];
 
 const dbCalls = [];
 function installDbMock() {
@@ -95,8 +103,7 @@ function installDbMock() {
 			const linked = APPLICATIONS.some(
 				(a) =>
 					Number(a.candidate_id) === Number(params[0]) &&
-					Number(a.job_id) === Number(params[1]) &&
-					Number(a.company_id) === Number(params[2]),
+					Number(a.company_id) === Number(params[1]),
 			);
 			return { rows: linked ? [{ '?column?': 1 }] : [], rowCount: linked ? 1 : 0 };
 		}
@@ -130,8 +137,11 @@ const USERS = {
 	17: { id: 17, role: 'recruiter', email: 'rstr@example.com', company_id: '5' },
 	21: { id: 21, role: 'candidate', email: 'cand@example.com', company_id: null },
 	22: { id: 22, role: 'candidate', email: 'other@example.com', company_id: null },
-	// Converted account: applied as candidate 24, account role is now employer.
-	24: { id: 24, role: 'employer', email: 'conv@example.com', company_id: 6 },
+	// Converted account: applied as candidate 24, account role is now
+	// recruiter at company 6 — self by identity, before the hiring branch.
+	24: { id: 24, role: 'recruiter', email: 'conv@example.com', company_id: 6 },
+	// Unlisted role value (deny-by-default pin; non-self candidateId).
+	30: { id: 30, role: 'auditor', email: 'aud@example.com', company_id: 5 },
 };
 
 const FULL_ROW = {
@@ -193,19 +203,37 @@ describe('GET /api/matching/explain/:candidateId/:jobId (#1479)', () => {
 		expect(mockExplainMatch).not.toHaveBeenCalled();
 	});
 
-	test('gate B: owns the job, candidate applied to a DIFFERENT job of the same company → 403, no leak, service never reached', async () => {
-		// Candidate 21 has an application with company 5 (job 42) — a
-		// candidate×company linkage would PASS here. Job-specific linkage
-		// must deny: no application ties candidate 21 to job 52.
+	test('convention parity: owns the job, candidate linked to the company via a DIFFERENT job → 200 (candidate×company linkage, F-1 option (a))', async () => {
+		// Candidate 21 applied to job 42 (company 5), not job 52 — but
+		// job 52 is also company 5's, and the convention's linkage is
+		// candidate×company, so this passes deliberately (mirroring
+		// compliance /explain/job; pinned so the parity is a decision,
+		// not an accident).
 		const res = await request(app).get('/api/matching/explain/21/52').set(as(10));
-		expect(res.status).toBe(403);
-		expect(res.body).toEqual({ error: 'Access denied' });
-		expectNoLeak(res);
+		expect(res.status).toBe(200);
+		expect(res.body.match_result).toEqual(FULL_ROW);
 	});
 
 	test('owns the job, candidate never applied to that company at all → 403, service never reached', async () => {
 		const res = await request(app).get('/api/matching/explain/22/42').set(as(10));
 		expect(res.status).toBe(403);
+		expectNoLeak(res);
+	});
+
+	test('non-existent candidate under an owned job → same 403 as an unlinked one (no candidate-existence oracle)', async () => {
+		const unlinked = await request(app).get('/api/matching/explain/22/42').set(as(10));
+		const missing = await request(app).get('/api/matching/explain/99/42').set(as(10));
+		expect(missing.status).toBe(403);
+		expect(missing.body).toEqual(unlinked.body);
+		expect(mockExplainMatch).not.toHaveBeenCalled();
+	});
+
+	test('foreign job DESPITE candidate×caller-company linkage existing → 404 (ownership precedes linkage)', async () => {
+		// Candidate 21 IS linked to company 6 (job 43), but job 42
+		// belongs to company 5 — recruiter B still gets the 404.
+		const res = await request(app).get('/api/matching/explain/21/42').set(as(11));
+		expect(res.status).toBe(404);
+		expect(res.body).toEqual({ error: 'Job not found' });
 		expectNoLeak(res);
 	});
 
@@ -262,7 +290,7 @@ describe('GET /api/matching/explain/:candidateId/:jobId (#1479)', () => {
 		expect(dbCalls).toHaveLength(0);
 	});
 
-	test('identity-self whose role changed (employer, own id) → 200 shaped, no DB gate queries', async () => {
+	test('identity-self whose role changed (recruiter, own id) → 200 shaped, no DB gate queries', async () => {
 		mockExplainMatch.mockResolvedValue({ ...FULL_ROW, candidate_id: 24 });
 		const res = await request(app).get('/api/matching/explain/24/42').set(as(24));
 		expect(res.status).toBe(200);
@@ -296,6 +324,42 @@ describe('GET /api/matching/explain/:candidateId/:jobId (#1479)', () => {
 		expect(mockExplainMatch).toHaveBeenCalledWith(21, 9999);
 	});
 
+	test('admin-self (id === candidateId) → 200 FULL record, not shaped (#1457 parity)', async () => {
+		const res = await request(app).get('/api/matching/explain/1/42').set(as(1));
+		expect(res.status).toBe(200);
+		expect(res.body.match_result).toEqual(FULL_ROW);
+		expect(dbCalls).toHaveLength(0);
+	});
+
+	test('candidate-self with a non-existent job → 200 shaped (self is not job-scoped)', async () => {
+		const res = await request(app).get('/api/matching/explain/21/9999').set(as(21));
+		expect(res.status).toBe(200);
+		expect(Object.keys(res.body.match_result).sort()).toEqual([
+			'match_level',
+			'matching_skills',
+			'missing_skills',
+			'similarity_score',
+			'weighted_score',
+		]);
+		expect(dbCalls).toHaveLength(0);
+	});
+
+	test('unlisted role (deny-by-default) → 403, service never reached', async () => {
+		const res = await request(app).get('/api/matching/explain/21/42').set(as(30));
+		expect(res.status).toBe(403);
+		expect(res.body).toEqual({ error: 'Access denied' });
+		expectNoLeak(res);
+	});
+
+	test('guard query failure → 500 fail-closed, service never reached', async () => {
+		db.query.mockImplementationOnce(async () => {
+			throw new Error('db down');
+		});
+		const res = await request(app).get('/api/matching/explain/21/42').set(as(10));
+		expect(res.status).toBe(500);
+		expect(mockExplainMatch).not.toHaveBeenCalled();
+	});
+
 	test('unauthenticated → 401, service never reached', async () => {
 		const res = await request(app).get('/api/matching/explain/21/42');
 		expect(res.status).toBe(401);
@@ -311,6 +375,21 @@ describe('GET /api/matching/explain/:candidateId/:jobId (#1479)', () => {
 
 	test('non-numeric jobId → 400 before any DB query or service call', async () => {
 		const res = await request(app).get('/api/matching/explain/21/xyz').set(as(10));
+		expect(res.status).toBe(400);
+		expect(dbCalls).toHaveLength(0);
+		expect(mockExplainMatch).not.toHaveBeenCalled();
+	});
+
+	// Strict parsing (security seat, STOP 1): parseInt would alias
+	// '12abc' → 12 and '1.5' → 1; Number() + integer + positivity
+	// rejects all of these as 400 before any query or service call.
+	test.each([
+		'12abc',
+		'1.5',
+		'0',
+		'-3',
+	])('garbage candidateId %s → 400, no DB queries, service never reached', async (bad) => {
+		const res = await request(app).get(`/api/matching/explain/${bad}/42`).set(as(10));
 		expect(res.status).toBe(400);
 		expect(dbCalls).toHaveLength(0);
 		expect(mockExplainMatch).not.toHaveBeenCalled();

@@ -63,7 +63,7 @@ db.query.mockImplementation(async (sql, params = []) => {
 			: { rows: [], rowCount: 0 };
 	}
 	if (normalized.startsWith('select 1 from job_applications')) {
-		const linked = Number(params[0]) === 21 && Number(params[1]) === 42 && Number(params[2]) === 5;
+		const linked = Number(params[0]) === 21 && Number(params[1]) === 5;
 		return { rows: linked ? [{ '?column?': 1 }] : [], rowCount: linked ? 1 : 0 };
 	}
 	return { rows: [], rowCount: 0 };
