@@ -248,12 +248,19 @@ class EuComplianceService {
 	 * @param {{ userId: number, jobId: number, applicationId?: number, weightsHash?: string }} options
 	 */
 	static async explainDecisionForJob({ userId, jobId, applicationId, weightsHash }) {
-		// Check cache first
+		// Check cache first — #1458: serve a cached row ONLY when it carries
+		// the effective weights hash. Rows written under the old shape (e.g.
+		// 'default-v1' / 'v1-default', with a Cultural Fit factor sourced from
+		// the phantom candidate_job_matches) must never be served as
+		// new-shape; they fall through, are regenerated, and the upsert below
+		// overwrites them. (The previous `!weightsHash` condition returned ANY
+		// cached row to the route, which passes no hash.)
+		const effectiveHash = weightsHash || 'v2-match-results';
 		const cached = await pool.query(
 			`SELECT * FROM ai_decision_explanations WHERE user_id = $1 AND job_id = $2`,
 			[userId, jobId],
 		);
-		if (cached.rows.length > 0 && (!weightsHash || cached.rows[0].weights_hash === weightsHash)) {
+		if (cached.rows.length > 0 && cached.rows[0].weights_hash === effectiveHash) {
 			return cached.rows[0];
 		}
 
@@ -276,10 +283,17 @@ class EuComplianceService {
 		]);
 		const job = jobResult.rows[0] || {};
 
+		// #1458: re-sourced from match_results (the real, written match store);
+		// candidate_job_matches never existed. Only honest persisted columns:
+		// no persisted skill-match score exists, match_results.experience_score
+		// is never written (always 0 — sourcing it would fabricate a measured
+		// 0), there is no cultural-fit source, and match_explanation is a
+		// recruiter-side artifact embedding company TrustScore text that must
+		// never reach a candidate-reachable path (privacy seat, #1458 STOP 1).
 		const matchResult = await pool.query(
-			`SELECT overall_match_score, skill_match_score, experience_match_score, cultural_match_score,
-              skills_matched, skills_missing, match_explanation
-       FROM candidate_job_matches
+			`SELECT weighted_score AS overall_match_score,
+              matching_skills AS skills_matched, missing_skills AS skills_missing
+       FROM match_results
        WHERE candidate_id = $1 AND job_id = $2`,
 			[userId, jobId],
 		);
@@ -291,14 +305,12 @@ class EuComplianceService {
 			parseFloat(score.overall_score) || parseFloat(match.overall_match_score) || 0;
 
 		// Technical factor
-		if (score.technical_score !== undefined || match.skill_match_score !== undefined) {
+		if (score.technical_score !== undefined || match.skills_matched !== undefined) {
 			factorBreakdowns.push({
 				factor: 'Technical Skills',
 				weight: 0.4,
-				score: parseFloat(score.technical_score) || parseFloat(match.skill_match_score) || 0,
-				contribution: (
-					(parseFloat(score.technical_score) || parseFloat(match.skill_match_score) || 0) * 0.4
-				).toFixed(2),
+				score: parseFloat(score.technical_score) || 0,
+				contribution: ((parseFloat(score.technical_score) || 0) * 0.4).toFixed(2),
 				explanation: match.skills_matched
 					? `Matched skills: ${Array.isArray(match.skills_matched) ? match.skills_matched.join(', ') : match.skills_matched}`
 					: 'Based on technical assessment and resume parsing',
@@ -318,32 +330,23 @@ class EuComplianceService {
 			});
 		}
 
-		// Experience factor
-		if (score.experience_score !== undefined || match.experience_match_score !== undefined) {
+		// Experience factor (#1458: omniscore-side only — the match-side
+		// fallback column was never written, so it fabricated a measured 0)
+		if (score.experience_score !== undefined) {
 			factorBreakdowns.push({
 				factor: 'Experience Match',
 				weight: 0.2,
-				score: parseFloat(score.experience_score) || parseFloat(match.experience_match_score) || 0,
-				contribution: (
-					(parseFloat(score.experience_score) || parseFloat(match.experience_match_score) || 0) *
-					0.2
-				).toFixed(2),
+				score: parseFloat(score.experience_score) || 0,
+				contribution: ((parseFloat(score.experience_score) || 0) * 0.2).toFixed(2),
 				explanation: `Relevance to ${job.title || 'this role'} based on work history`,
 				data_source: 'score_components',
 			});
 		}
 
-		// Cultural fit
-		if (match.cultural_match_score !== undefined) {
-			factorBreakdowns.push({
-				factor: 'Cultural Fit',
-				weight: 0.1,
-				score: parseFloat(match.cultural_match_score) || 0,
-				contribution: ((parseFloat(match.cultural_match_score) || 0) * 0.1).toFixed(2),
-				explanation: match.match_explanation || 'Alignment with company values and team dynamics',
-				data_source: 'candidate_job_matches',
-			});
-		}
+		// #1458: the Cultural Fit factor is dropped, not remapped — it has no
+		// real source (never fabricate it from mutual_matches.mutual_fit_score).
+		// Weights are NOT renormalised (STOP 1 on #1458): the surviving
+		// 0.4/0.3/0.2 sum to 0.9, and overall_score is computed independently.
 
 		// Add component-level detail
 		const componentDetails = components.rows.map((c) => ({
@@ -367,7 +370,7 @@ class EuComplianceService {
 			generated_at: new Date().toISOString(),
 		};
 
-		const hash = weightsHash || 'default-v1';
+		const hash = effectiveHash;
 		const upsert = await pool.query(
 			`INSERT INTO ai_decision_explanations (user_id, job_id, application_id, overall_score, factor_breakdowns, weights_hash, generated_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())

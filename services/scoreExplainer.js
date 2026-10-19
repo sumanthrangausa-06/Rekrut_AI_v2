@@ -203,10 +203,19 @@ async function explainDecisionForJob(userId, jobId, applicationId) {
 	const jobResult = await pool.query('SELECT title, requirements FROM jobs WHERE id = $1', [jobId]);
 	const job = jobResult.rows[0] || {};
 
+	// #1458: re-sourced from match_results (the real, written match store).
+	// candidate_job_matches never existed. Only honest persisted columns are
+	// selected: weighted_score is the headline match score and the JSONB skill
+	// lists feed the explanation text. There is NO persisted skill-match or
+	// experience-match score to fall back to (match_results.experience_score
+	// is never written — always 0), and no cultural-fit source at all, so the
+	// Cultural Fit factor is dropped rather than fabricated. Weights are NOT
+	// renormalised (STOP 1 on #1458): the surviving 0.4/0.3/0.2 sum to 0.9 and
+	// overall_score is computed independently, never as their sum.
 	const matchResult = await pool.query(
-		`SELECT overall_match_score, skill_match_score, experience_match_score, cultural_match_score,
-              skills_matched, skills_missing, match_explanation
-       FROM candidate_job_matches WHERE candidate_id = $1 AND job_id = $2`,
+		`SELECT weighted_score AS overall_match_score,
+              matching_skills AS skills_matched, missing_skills AS skills_missing
+       FROM match_results WHERE candidate_id = $1 AND job_id = $2`,
 		[userId, jobId],
 	);
 	const match = matchResult.rows[0] || {};
@@ -218,10 +227,8 @@ async function explainDecisionForJob(userId, jobId, applicationId) {
 	factorBreakdowns.push({
 		factor: 'Technical Skills',
 		weight: 0.4,
-		score: parseFloat(score.technical_score) || parseFloat(match.skill_match_score) || 0,
-		contribution: (
-			(parseFloat(score.technical_score) || parseFloat(match.skill_match_score) || 0) * 0.4
-		).toFixed(2),
+		score: parseFloat(score.technical_score) || 0,
+		contribution: ((parseFloat(score.technical_score) || 0) * 0.4).toFixed(2),
 		explanation: match.skills_matched
 			? `Matched skills: ${Array.isArray(match.skills_matched) ? match.skills_matched.join(', ') : match.skills_matched}`
 			: 'Based on technical assessment and resume parsing',
@@ -240,21 +247,10 @@ async function explainDecisionForJob(userId, jobId, applicationId) {
 	factorBreakdowns.push({
 		factor: 'Experience Match',
 		weight: 0.2,
-		score: parseFloat(score.experience_score) || parseFloat(match.experience_match_score) || 0,
-		contribution: (
-			(parseFloat(score.experience_score) || parseFloat(match.experience_match_score) || 0) * 0.2
-		).toFixed(2),
+		score: parseFloat(score.experience_score) || 0,
+		contribution: ((parseFloat(score.experience_score) || 0) * 0.2).toFixed(2),
 		explanation: `Relevance to ${job.title || 'this role'} based on work history`,
 		data_source: 'score_components',
-	});
-
-	factorBreakdowns.push({
-		factor: 'Cultural Fit',
-		weight: 0.1,
-		score: parseFloat(match.cultural_match_score) || 0,
-		contribution: ((parseFloat(match.cultural_match_score) || 0) * 0.1).toFixed(2),
-		explanation: match.match_explanation || 'Alignment with company values and team dynamics',
-		data_source: 'candidate_job_matches',
 	});
 
 	const explanation = {
@@ -276,10 +272,12 @@ async function explainDecisionForJob(userId, jobId, applicationId) {
 		generated_at: new Date().toISOString(),
 	};
 
-	// Cache
+	// Cache (#1458: hash bumped to v2-match-results — rows written under the
+	// old shape must never be served as new-shape; the euComplianceService
+	// cache read only serves rows carrying the current hash).
 	await pool.query(
 		`INSERT INTO ai_decision_explanations (user_id, job_id, application_id, overall_score, factor_breakdowns, weights_hash, generated_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, 'v1-default', NOW(), NOW())
+       VALUES ($1, $2, $3, $4, $5, 'v2-match-results', NOW(), NOW())
        ON CONFLICT (user_id, job_id) DO UPDATE SET
          application_id = EXCLUDED.application_id,
          overall_score = EXCLUDED.overall_score,
@@ -326,15 +324,26 @@ async function explainDecision(applicationId) {
 		const application = app.rows[0];
 
 		// Get matching score if available
+		// #1458: candidate_job_matches never existed (no migration creates it,
+		// nothing writes it) — this query 500'd every authorised call. The real
+		// match store is match_results; this function consumes only its headline
+		// score and the missing-skills list, so only those two are selected.
+		// match_explanation is deliberately NOT selected: it is a recruiter-side
+		// JSONB artifact embedding company TrustScore text (privacy seat, #1458
+		// STOP 1) and must never reach a candidate-reachable path.
 		const matchResult = await pool.query(
 			`
-        SELECT overall_match_score, skill_match_score, experience_match_score, cultural_match_score,
-               match_explanation, skills_matched, skills_missing
-        FROM candidate_job_matches
+        SELECT weighted_score AS overall_match_score, missing_skills AS skills_missing
+        FROM match_results
         WHERE candidate_id = $1 AND job_id = $2
       `,
 			[application.candidate_id, application.job_id],
 		);
+
+		// #1458 (interim honesty, #1152 owns the JOIN's disposition): with no
+		// omniscore_results row the LEFT JOIN yields NULL and parseFloat(NULL)
+		// is NaN — surface null (insufficient data), never NaN.
+		const parsedCurrentOmniscore = parseFloat(application.overall_score);
 
 		const explanation = {
 			application_id: applicationId,
@@ -351,7 +360,7 @@ async function explainDecision(applicationId) {
 				recruiter_notes: application.recruiter_notes,
 			},
 			omniscore_at_apply: parseFloat(application.omniscore_at_apply),
-			current_omniscore: parseFloat(application.overall_score),
+			current_omniscore: Number.isFinite(parsedCurrentOmniscore) ? parsedCurrentOmniscore : null,
 			factors: [],
 		};
 
@@ -377,12 +386,22 @@ async function explainDecision(applicationId) {
 					});
 				}
 
-				if (match.skills_missing && match.skills_missing.length > 0) {
+				// missing_skills is JSONB: the pg driver returns it parsed, but
+				// normalise defensively so a string form cannot throw on .join.
+				let skillsMissing = match.skills_missing;
+				if (typeof skillsMissing === 'string') {
+					try {
+						skillsMissing = JSON.parse(skillsMissing);
+					} catch {
+						skillsMissing = [];
+					}
+				}
+				if (Array.isArray(skillsMissing) && skillsMissing.length > 0) {
 					explanation.factors.push({
 						factor: 'Missing Required Skills',
-						value: match.skills_missing,
+						value: skillsMissing,
 						impact: 'negative',
-						explanation: `Candidate lacks: ${match.skills_missing.join(', ')}`,
+						explanation: `Candidate lacks: ${skillsMissing.join(', ')}`,
 					});
 				}
 			}
