@@ -348,13 +348,13 @@ export function CVReviewPage() {
 						<div>
 							<h2 className="text-lg font-semibold">Upload Your CV First</h2>
 							<p className="text-sm text-muted-foreground mt-1 max-w-md">
-								We couldn't find a CV on file. Please upload your resume to the Documents section
-								first, then come back to analyze it.
+								We couldn't find a CV on file. Please upload your resume via Profile → Settings →
+								Upload Resume first, then come back to analyze it.
 							</p>
 						</div>
-						<Button onClick={() => navigate('/candidate/documents')} className="gap-2">
+						<Button onClick={() => navigate('/candidate/profile')} className="gap-2">
 							<Upload className="h-4 w-4" />
-							Go to Documents
+							Go to Profile
 						</Button>
 						<Button variant="ghost" size="sm" onClick={handleReset}>
 							Go Back
