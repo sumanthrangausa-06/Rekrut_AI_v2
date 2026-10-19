@@ -207,11 +207,18 @@ router.get('/explain/:candidateId/:jobId', authMiddleware, async (req, res) => {
 			req,
 		});
 
+		// Audience shaping (#1468, privacy seat; #927 fix-round ruling):
+		// shape on authorisation identity (self && !admin), not on
+		// role === 'candidate' alone — a self-applicant whose account role
+		// has changed is still the candidate audience. Other callers
+		// (recruiter / hiring roles / admin) keep the full record.
+		const isCandidateSelf = Number(req.user.id) === candidateId && req.user.role !== 'admin';
+
 		res.json({
 			success: true,
 			candidate_id: candidateId,
 			job_id: jobId,
-			match_result: explanation,
+			match_result: isCandidateSelf ? toCandidateSafeMatchResult(explanation) : explanation,
 			transparency_note:
 				'Our matching algorithm uses semantic analysis of skills and experience, combined with OmniScore and TrustScore for fairness and quality.',
 		});
