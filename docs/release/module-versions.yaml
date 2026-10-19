@@ -48,13 +48,12 @@ modules:
   cv-review:
     current_version: "1.0"        # staging runs the pre-analyser version;
                                   # journey proven on dev 2026-10-18.
-                                  # Train 2 takes this to 2.0 (major).
     dev_version:     "2.0"
     staging_version: "1.0"
     prod_version:    "1.0"
-    status: current
+    status: in-flight             # Train 2 (cv-review v2.0), released by Sumanth 2026-10-19
     last_train_date: "2026-10-18"
-    train_pr: "seed: promotion #2"
+    train_pr: "TRAIN-2-PENDING"
     train_commit: "007a6552"
     tag: null
 
