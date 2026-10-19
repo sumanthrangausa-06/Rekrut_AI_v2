@@ -541,10 +541,15 @@ router.get(
 			// decrypt failure (that would be a downgrade path). Access was
 			// checked above (canAccessRecording) BEFORE any decrypt;
 			// decryption uses the existing DEK only, in memory, no-store.
-			// Destroyed-DEK/tamper and storage failures are indistinct.
+			// Destroyed-DEK/tamper and storage failures are indistinct
+			// (#1200: raw S3 failures from the decrypt path propagate
+			// uncoded and land on the 403 below — no distinct storage
+			// signal. Only CONFIG_ERROR, which this path genuinely
+			// produces when RECORDING_STORAGE_* is unset, is a 503.)
 			if (livekitService.isEncryptedRecording(recording, storagePath)) {
+				let plaintext = null;
 				try {
-					const plaintext = await livekitService.fetchDecryptedRecording(recording);
+					plaintext = await livekitService.fetchDecryptedRecording(recording);
 					res.set('Content-Type', 'video/mp4');
 					res.set('Content-Length', String(plaintext.length));
 					res.set('Cache-Control', 'no-store');
@@ -557,13 +562,14 @@ router.get(
 					if (decryptErr.code === 'RECORDING_TOO_LARGE') {
 						return res.status(413).json({ error: 'Recording too large' });
 					}
-					if (
-						decryptErr.code === 'STORAGE_UNAVAILABLE' ||
-						decryptErr.code === 'CONFIG_ERROR'
-					) {
+					if (decryptErr.code === 'CONFIG_ERROR') {
 						return res.status(503).json({ error: 'Recording temporarily unavailable' });
 					}
 					return res.status(403).json({ error: 'Recording access denied' });
+				} finally {
+					// #1200: zero the decrypted plaintext after use (DEK
+					// zeroing habit; best-effort — JS GC may copy buffers).
+					if (plaintext) plaintext.fill(0);
 				}
 			}
 

@@ -249,6 +249,53 @@ describe('sessionRecordingStore AAD (new namespace, integer-validated)', () => {
 	});
 });
 
+describe('sessionRecordingStore key-prefix allowlist (#1200 item 3)', () => {
+	test('accepts egress keys under rekrut-recordings/ in s3, https and bare forms', () => {
+		expect(sessionRecordingStore.parseRecordingLocation(LOC)).toEqual({
+			bucket: 'test-bucket',
+			key: PLAIN_KEY,
+		});
+		expect(
+			sessionRecordingStore.parseRecordingLocation(
+				`https://test.r2.local/test-bucket/${PLAIN_KEY}.enc`,
+			),
+		).toEqual({ bucket: 'test-bucket', key: `${PLAIN_KEY}.enc` });
+		expect(sessionRecordingStore.parseRecordingLocation(PLAIN_KEY)).toEqual({
+			bucket: null,
+			key: PLAIN_KEY,
+		});
+	});
+	test('rejects keys outside the rekrut-recordings/ prefix, failing closed', () => {
+		for (const loc of [
+			's3://test-bucket/secret/file.mp4',
+			's3://test-bucket/rekrut-recordings-evil/x.mp4',
+			'https://test.r2.local/test-bucket/other-bucket-object.mp4',
+			'candidates/7/resume.pdf',
+			'/etc/passwd',
+		]) {
+			let caught = null;
+			try {
+				sessionRecordingStore.parseRecordingLocation(loc);
+			} catch (e) {
+				caught = e;
+			}
+			expect(caught).toMatchObject({ code: 'INVALID_LOCATION' });
+		}
+	});
+	test('object operations inherit the allowlist via _keyForLocation', async () => {
+		await expect(
+			sessionRecordingStore.downloadRecordingObject('s3://test-bucket/secret/file.mp4'),
+		).rejects.toMatchObject({ code: 'INVALID_LOCATION' });
+		let caught = null;
+		try {
+			sessionRecordingStore.encLocationFor('s3://test-bucket/secret/file.mp4');
+		} catch (e) {
+			caught = e;
+		}
+		expect(caught).toMatchObject({ code: 'INVALID_LOCATION' });
+	});
+});
+
 describe('completeRecordingRecord — happy paths', () => {
 	test('session-flow: completes only via encrypted path; absent DEK mints; plaintext deleted; registry + marker set', async () => {
 		const rec = seedRecording();
@@ -275,6 +322,26 @@ describe('completeRecordingRecord — happy paths', () => {
 		// And the envelope genuinely decrypts back to the plaintext
 		const plain = await livekitService.fetchDecryptedRecording(row);
 		expect(plain.equals(PLAIN)).toBe(true);
+	});
+
+	test('#1200 item 2: downloaded plaintext buffer is zeroed after use in the completion path', async () => {
+		// Observe zeroing via Buffer.prototype.fill: record the pre-fill
+		// content of every fill(0) call during completion; the downloaded
+		// plaintext (Buffer.concat copy of PLAIN) must be among them.
+		const zeroedSnapshots = [];
+		const origFill = Buffer.prototype.fill;
+		Buffer.prototype.fill = function (value, ...rest) {
+			if (value === 0) zeroedSnapshots.push(this.toString());
+			return origFill.call(this, value, ...rest);
+		};
+		try {
+			const rec = seedRecording();
+			const result = await livekitService.completeRecordingRecord(rec.id, LOC, 120, PLAIN.length);
+			expect(result.completed).toBe(true);
+		} finally {
+			Buffer.prototype.fill = origFill;
+		}
+		expect(zeroedSnapshots).toContain(PLAIN.toString());
 	});
 
 	test('event-flow: candidate via interview_events.candidate_id; existing DEK reused (no re-mint)', async () => {
