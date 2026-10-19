@@ -12,6 +12,31 @@ const {
 
 const router = express.Router();
 
+// #1468: candidate-safe projection of an explainMatch() result (privacy
+// seat, STOP 1 on #1468; #1458/#1463 precedent). explainMatch() returns
+// the raw match_results row (SELECT *) — or, on its on-demand branch, an
+// object nesting the same explanation — whose match_explanation /
+// explanation carries recruiter-side artifacts (company TrustScore and
+// OmniScore boost text) alongside trustscore_at_match /
+// omniscore_at_match. A candidate-self caller receives ONLY the fields
+// enumerated here, constructed key by key — never a spread with
+// deletions, so a future match_results column cannot leak by default.
+function toCandidateSafeMatchResult(result) {
+	if (!result || typeof result !== 'object') return result;
+	// Privacy review note (#1468): the projection controls keys, not
+	// values — the two allowlisted JSONB skill lists are passed only as
+	// string arrays, so a future writer storing objects/free text in
+	// those columns cannot pass it through to candidates verbatim.
+	const skillList = (v) => (Array.isArray(v) ? v.filter((s) => typeof s === 'string') : v);
+	return {
+		weighted_score: result.weighted_score,
+		similarity_score: result.similarity_score,
+		match_level: result.match_level,
+		matching_skills: skillList(result.matching_skills),
+		missing_skills: skillList(result.missing_skills),
+	};
+}
+
 // Secure error response helper
 function sendError(res, err, consolePrefix) {
 	const ref = crypto.randomUUID();
@@ -161,11 +186,18 @@ router.get('/explain/:candidateId/:jobId', authMiddleware, async (req, res) => {
 			req,
 		});
 
+		// Audience shaping (#1468, privacy seat; #927 fix-round ruling):
+		// shape on authorisation identity (self && !admin), not on
+		// role === 'candidate' alone — a self-applicant whose account role
+		// has changed is still the candidate audience. Other callers
+		// (recruiter / hiring roles / admin) keep the full record.
+		const isCandidateSelf = Number(req.user.id) === candidateId && req.user.role !== 'admin';
+
 		res.json({
 			success: true,
 			candidate_id: candidateId,
 			job_id: jobId,
-			match_result: explanation,
+			match_result: isCandidateSelf ? toCandidateSafeMatchResult(explanation) : explanation,
 			transparency_note:
 				'Our matching algorithm uses semantic analysis of skills and experience, combined with OmniScore and TrustScore for fairness and quality.',
 		});
