@@ -1,0 +1,71 @@
+# docs/release/module-versions.yaml
+# Release truth for module trains. Canonical copy: staging branch.
+# staging_version / prod_version / status / last_train are Relay-owned.
+# dev_version is supplied by Lead in the train manifest and verified
+# by Relay against the live dev tip before the manifest freezes.
+# A version counts as "on staging" ONLY when status: current, i.e.
+# the train deployed AND passed the per-module staging retest.
+# Anything else (in-flight, failed, aborted) is not a promotion.
+#
+# Seeded 2026-10-19 by Relay (first commit) with Train 1 in flight.
+# Seed values per module-trains design (2026-10-18) section 1/2.4:
+# v1.0 where the module journey is proven, v0.x where it is not.
+
+modules:
+  auth-accounts:
+    current_version: "1.0"        # journey proven on dev; live since promotion #2
+    dev_version:     "1.0"
+    staging_version: "1.0"
+    prod_version:    "1.0"
+    status: current
+    last_train_date: "2026-10-18" # registry seed date
+    train_pr: "seed: promotion #2"
+    train_commit: "007a6552"      # staging tip at promotion #2
+    tag: null                     # pre-train-system; no tag exists
+
+  consent-privacy:
+    current_version: "1.0"        # Train 1 takes this to 1.1
+    dev_version:     "1.1"
+    staging_version: "1.0"
+    prod_version:    "1.0"
+    status: in-flight             # Train 1 (trust-foundation v1.1), released by Sumanth 2026-10-19
+    last_train_date: "2026-10-18"
+    train_pr: "PR #1465"
+    train_commit: "007a6552"
+    tag: null
+
+  landing-honesty:
+    current_version: "1.0"        # Train 1 takes this to 1.1
+    dev_version:     "1.1"
+    staging_version: "1.0"
+    prod_version:    "1.0"
+    status: in-flight             # Train 1 (trust-foundation v1.1), released by Sumanth 2026-10-19
+    last_train_date: "2026-10-18"
+    train_pr: "PR #1465"
+    train_commit: "007a6552"
+    tag: null
+
+  cv-review:
+    current_version: "1.0"        # staging runs the pre-analyser version;
+                                  # journey proven on dev 2026-10-18.
+                                  # Train 2 takes this to 2.0 (major).
+    dev_version:     "2.0"
+    staging_version: "1.0"
+    prod_version:    "1.0"
+    status: current
+    last_train_date: "2026-10-18"
+    train_pr: "seed: promotion #2"
+    train_commit: "007a6552"
+    tag: null
+
+  jobs-careers:
+    current_version: "0.1"        # live on staging but journey UNPROVEN —
+                                  # v0.x per the starting-version rule
+    dev_version:     "0.1"
+    staging_version: "0.1"
+    prod_version:    "0.1"
+    status: current
+    last_train_date: "2026-10-18"
+    train_pr: "seed: promotion #2"
+    train_commit: "007a6552"
+    tag: null

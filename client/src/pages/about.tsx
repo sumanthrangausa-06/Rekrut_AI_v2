@@ -36,7 +36,7 @@ const values = [
 		icon: Shield,
 		title: 'Radical Transparency',
 		description:
-			'TrustScore and OmniScore exist because hiring should not be a black box. We give both sides the data they need to make informed decisions.',
+			'Trust Score and OmniScore exist because hiring should not be a black box. We give both sides the data they need to make informed decisions.',
 	},
 	{
 		icon: Handshake,
@@ -56,7 +56,7 @@ const founders = [
 	{
 		name: 'Ranga Sumanth',
 		role: 'Co-Founder & CEO',
-		bio: 'Previously led talent acquisition at two high-growth startups. Ranga built Rekrut AI after watching recruiters drown in spreadsheets and candidates ghosted by opaque ATS systems.',
+		bio: 'Ranga built Rekrut AI after watching recruiters drown in spreadsheets and candidates ghosted by opaque ATS systems.',
 		avatar: 'RS',
 		social: 'linkedin',
 	},
@@ -71,9 +71,8 @@ const founders = [
 
 const milestones = [
 	{ year: '2026', event: 'Rekrut AI founded in India as HireLoop', icon: Rocket },
-	{ year: '2026', event: 'First AI matching engine deployed', icon: Zap },
-	{ year: '2026', event: 'OmniScore & TrustScore launched', icon: Award },
-	{ year: '2026', event: 'Global expansion with multi-region support', icon: Globe },
+	{ year: '2026', event: 'First AI matching engine built', icon: Zap },
+	{ year: '2026', event: 'OmniScore & Trust Score built', icon: Award },
 ];
 
 function Header() {
@@ -183,13 +182,13 @@ export function AboutPage() {
 									Make every hire a great match
 								</h2>
 								<p className="mt-4 text-lg text-muted-foreground">
-									The average company takes 42 days to fill a role. Candidates send 100+
-									applications and hear back from fewer than 10. We exist to fix both sides of this
+									Hiring takes too long, and candidates are left in the dark — applications
+									go out and replies rarely come back. We exist to fix both sides of this
 									broken equation.
 								</p>
 								<p className="mt-4 text-lg text-muted-foreground">
 									By combining AI matching, two-sided scoring, and a unified workflow from sourcing
-									to onboarding, we help teams hire 40% faster while giving candidates the
+									to onboarding, we help teams hire with far less busywork while giving candidates the
 									transparency they deserve.
 								</p>
 								<div className="mt-8 flex flex-wrap gap-3">
@@ -211,9 +210,9 @@ export function AboutPage() {
 											<Target className="h-6 w-6 text-primary" />
 										</div>
 										<p className="mt-4 font-heading text-2xl sm:text-2xl sm:text-2xl sm:text-3xl font-bold text-primary">
-											40%
+											AI Matching
 										</p>
-										<p className="mt-1 text-sm text-muted-foreground">Faster time-to-hire</p>
+										<p className="mt-1 text-sm text-muted-foreground">Candidates matched to roles by skills and fit</p>
 									</CardContent>
 								</Card>
 								<Card className="border-0 bg-card shadow-sm">
@@ -222,9 +221,9 @@ export function AboutPage() {
 											<Heart className="h-6 w-6 text-green-600" />
 										</div>
 										<p className="mt-4 font-heading text-2xl sm:text-3xl font-bold text-green-600">
-											3x
+											Two-Sided Scoring
 										</p>
-										<p className="mt-1 text-sm text-muted-foreground">Better candidate matches</p>
+										<p className="mt-1 text-sm text-muted-foreground">OmniScore for candidates, Trust Score for companies — shown in job context</p>
 									</CardContent>
 								</Card>
 								<Card className="border-0 bg-card shadow-sm">
@@ -233,9 +232,9 @@ export function AboutPage() {
 											<Globe className="h-6 w-6 text-amber-600" />
 										</div>
 										<p className="mt-4 font-heading text-2xl sm:text-3xl font-bold text-amber-600">
-											15+
+											Unified Workflow
 										</p>
-										<p className="mt-1 text-sm text-muted-foreground">Countries supported</p>
+										<p className="mt-1 text-sm text-muted-foreground">Sourcing, interviews, and onboarding in one place</p>
 									</CardContent>
 								</Card>
 								<Card className="border-0 bg-card shadow-sm">
@@ -244,9 +243,9 @@ export function AboutPage() {
 											<Users className="h-6 w-6 text-purple-600" />
 										</div>
 										<p className="mt-4 font-heading text-2xl sm:text-3xl font-bold text-purple-600">
-											50K+
+											Candidate Transparency
 										</p>
-										<p className="mt-1 text-sm text-muted-foreground">Candidates matched</p>
+										<p className="mt-1 text-sm text-muted-foreground">Candidates see where they stand at every step</p>
 									</CardContent>
 								</Card>
 							</div>

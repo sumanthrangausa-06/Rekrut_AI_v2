@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AdminAuthGuard } from '@/components/admin-auth-guard';
 import { ErrorBoundary, RouteErrorBoundary } from '@/components/error-boundary';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
@@ -165,6 +165,12 @@ const CandidateBackgroundCheckPage = lazy(() =>
 const CandidateInterviewSessionPage = lazy(() =>
 	import('@/pages/candidate/InterviewSession').then((m) => ({ default: m.default })),
 );
+// /signup is a common alias for the real /register route (#1354); preserve
+// the query string because register reads role/returnTo params from it.
+function SignupRedirect() {
+	const { search } = useLocation();
+	return <Navigate to={`/register${search}`} replace />;
+}
 // Legacy /screening/:token links forward to the unified interview session page (#322)
 function ScreeningTokenRedirect() {
 	const { token } = useParams<{ token: string }>();
@@ -560,6 +566,7 @@ function AppRoutes() {
 			<Route path="/" element={<LandingPage />} />
 			<Route path="/login" element={<LoginPage />} />
 			<Route path="/register" element={<RegisterPage />} />
+			<Route path="/signup" element={<SignupRedirect />} />
 			<Route path="/ref" element={<ReferralLandingPage />} />
 			<Route path="/forgot-password" element={<ForgotPasswordPage />} />
 			<Route path="/reset-password" element={<ResetPasswordPage />} />

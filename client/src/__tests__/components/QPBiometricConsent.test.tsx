@@ -9,6 +9,12 @@
  * Text mode is exempt (no frames = no consent needed) — this component
  * only renders in the video path.
  *
+ * #1306: apiCall prepends '/api' itself (lib/api.ts) — the path argument
+ * must be '/consent/record'. The previous version of this test mocked
+ * apiCall and asserted '/api/consent/record', encoding the double-/api
+ * 404 bug as correct behaviour. The server round-trip is proven by the
+ * real-DB integration test (server/__tests__/lib/consentService.integration.test.js).
+ *
  * H1 (UX architect): the component carries no local declined UI — the
  * parent renders the declined panel on onDeclined(). The component must
  * not promise anything about backend enforcement it cannot verify.
@@ -38,7 +44,7 @@ function mockSuccess() {
 		if (String(url).includes('/consent/texts/biometric_practice')) {
 			return CONSENT_TEXT;
 		}
-		if (String(url).includes('/api/consent/record')) {
+		if (String(url) === '/consent/record') {
 			expect(options?.method).toBe('POST');
 			return { id: 1, type: 'biometric_practice', accepted: true };
 		}
@@ -101,7 +107,7 @@ describe('QPBiometricConsent', () => {
 
 		await waitFor(() => {
 			expect(mockApiCall).toHaveBeenCalledWith(
-				'/api/consent/record',
+				'/consent/record',
 				expect.objectContaining({
 					method: 'POST',
 					body: expect.objectContaining({
@@ -149,7 +155,7 @@ describe('QPBiometricConsent', () => {
 
 		await waitFor(() => {
 			expect(mockApiCall).toHaveBeenCalledWith(
-				'/api/consent/record',
+				'/consent/record',
 				expect.objectContaining({
 					body: expect.objectContaining({ accepted: false }),
 				}),

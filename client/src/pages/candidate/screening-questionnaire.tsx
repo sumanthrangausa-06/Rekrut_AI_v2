@@ -122,7 +122,7 @@ export function ScreeningQuestionnairePage() {
 	// ─── Load results helper ─────────────────────────────────────────────
 	const loadResults = useCallback(async (rid: number) => {
 		try {
-			const data = await apiCall<ResultResponse>(`/api/questionnaire/result/${rid}`);
+			const data = await apiCall<ResultResponse>(`/questionnaire/result/${rid}`);
 			setResultDetail(data);
 		} catch {
 			// ignore
@@ -136,7 +136,7 @@ export function ScreeningQuestionnairePage() {
 		setLoading(true);
 		setError('');
 		try {
-			const data = await apiCall<QuestionnaireResponse>(`/api/questionnaire/candidate/${jobId}`);
+			const data = await apiCall<QuestionnaireResponse>(`/questionnaire/candidate/${jobId}`);
 			setQuestionnaire(data.questionnaire);
 
 			// If there's an existing response with answers, restore them
@@ -186,7 +186,7 @@ export function ScreeningQuestionnairePage() {
 		if (Object.keys(currentAnswers).length === 0) return;
 		setSaving(true);
 		try {
-			await apiCall<SaveResponse>('/api/questionnaire/save', {
+			await apiCall<SaveResponse>('/questionnaire/save', {
 				method: 'POST',
 				body: { response_id: responseId, answers: currentAnswers },
 			});
@@ -217,7 +217,7 @@ export function ScreeningQuestionnairePage() {
 		if (!jobId) return;
 		setLoading(true);
 		try {
-			const data = await apiCall<StartResponse>('/api/questionnaire/start', {
+			const data = await apiCall<StartResponse>('/questionnaire/start', {
 				method: 'POST',
 				body: { job_id: jobId },
 			});
@@ -284,7 +284,7 @@ export function ScreeningQuestionnairePage() {
 		setSubmitting(true);
 		try {
 			const toSave = getCurrentAnswersForSave();
-			const data = await apiCall<SubmitResponse>('/api/questionnaire/submit', {
+			const data = await apiCall<SubmitResponse>('/questionnaire/submit', {
 				method: 'POST',
 				body: { response_id: responseId, answers: toSave },
 			});
