@@ -377,3 +377,39 @@ describe('A3: candidate report endpoint', () => {
 		expect(res.status).toBe(404);
 	});
 });
+
+describe('A4: unavailable report marker survives the candidate-safe projection (#1512)', () => {
+	it('GET /report passes note + analysis_unavailable + null scores to the candidate', async () => {
+		mockGenerateReport.mockResolvedValue({
+			overall_score: null,
+			recommendation: null,
+			recommendation_reasoning: 'AI analysis unavailable — no score or recommendation assigned.',
+			analysis_unavailable: true,
+			note: 'AI analysis unavailable — no score or recommendation assigned.',
+			strengths: [],
+			red_flags: [],
+			dimension_scores: {},
+			key_moments: [],
+			question_scores: [],
+		});
+		const app = buildApp();
+		const created = await createSession(app);
+		const id = created.body.session.id;
+		await startAndRespond(app, id);
+		await request(app)
+			.post(`/api/interviews/interview-sessions/${id}/complete`)
+			.set('x-test-user-id', '1')
+			.send();
+
+		const res = await request(app)
+			.get(`/api/interviews/interview-sessions/${id}/report`)
+			.set('x-test-user-id', '1')
+			.send();
+
+		expect(res.status).toBe(200);
+		expect(res.body.report.overall_score).toBeNull();
+		expect(res.body.report.recommendation).toBeNull();
+		expect(res.body.report.analysis_unavailable).toBe(true);
+		expect(res.body.report.note).toMatch(/AI analysis unavailable/);
+	});
+});
