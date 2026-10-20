@@ -594,20 +594,23 @@ Return JSON only:
 		}
 	}
 
-	// Provide fallback scores for any failed evaluators
-	for (const type of evaluatorTypes) {
-		if (!evaluations[type]) {
-			evaluations[type] = {
-				score: 50,
-				breakdown: {},
-				reasoning: 'AI evaluation unavailable — using neutral score',
-				key_observations: ['Evaluator was unable to process this response'],
-			};
-		}
+	// #1505: a failed evaluator is persisted honestly — no row at all.
+	// interview_evaluations.score is NOT NULL (migration 041) and the display
+	// subqueries in routes/interviews.js read the latest row, so a NULL-score
+	// row could mask real scores; absence is the honest state. Never persist
+	// a fabricated "neutral" score for a measurement that never happened.
+	const succeededTypes = evaluatorTypes.filter(
+		(type) => evaluations[type] && typeof evaluations[type].score === 'number',
+	);
+	const failedTypes = evaluatorTypes.filter((type) => !succeededTypes.includes(type));
+	if (failedTypes.length > 0) {
+		console.error(
+			`[multi-eval] Evaluator(s) unavailable, no score persisted for: ${failedTypes.join(', ')}`,
+		);
 	}
 
-	// Save individual evaluations
-	for (const type of evaluatorTypes) {
+	// Save individual evaluations — successful lenses only
+	for (const type of succeededTypes) {
 		await pool.query(
 			`INSERT INTO interview_evaluations
        (interview_id, screening_session_id, candidate_id, job_id, company_id, evaluator_type, score, max_score, breakdown, reasoning)
@@ -626,18 +629,34 @@ Return JSON only:
 		);
 	}
 
-	// Synthesis: weighted composite
-	const techScore = evaluations.technical.score || 50;
-	const cultureScore = evaluations.culture.score || 50;
-	const expScore = evaluations.experience.score || 50;
-	const compositeScore = Math.round(techScore * 0.4 + cultureScore * 0.3 + expScore * 0.3);
+	// No successful lens => no composite and no OmniScore feed. Unavailability
+	// is a state, not a score (#1505).
+	if (succeededTypes.length === 0) {
+		return { evaluations, composite: null };
+	}
+
+	// Synthesis: weighted composite from successful lenses only, with the
+	// 0.4/0.3/0.3 weights renormalised over the lenses present. A missing lens
+	// persists as NULL (the composite columns are nullable, migration 041) —
+	// never a fallback number. Presence, not truthiness: a real 0 counts.
+	const weights = { technical: 0.4, culture: 0.3, experience: 0.3 };
+	const weightSum = succeededTypes.reduce((sum, type) => sum + weights[type], 0);
+	const lensScore = (type) => (succeededTypes.includes(type) ? evaluations[type].score : null);
+	const techScore = lensScore('technical');
+	const cultureScore = lensScore('culture');
+	const expScore = lensScore('experience');
+	const compositeScore = Math.round(
+		succeededTypes.reduce((sum, type) => sum + evaluations[type].score * weights[type], 0) /
+			weightSum,
+	);
 
 	// Recommendation logic
+	const showScore = (v) => (v === null ? 'unavailable' : v);
 	let recommendation = 'consider';
 	let recReasoning = '';
 	if (compositeScore >= 75) {
 		recommendation = 'strong_hire';
-		recReasoning = `Strong candidate (${compositeScore}/100). Technical: ${techScore}, Culture: ${cultureScore}, Experience: ${expScore}.`;
+		recReasoning = `Strong candidate (${compositeScore}/100). Technical: ${showScore(techScore)}, Culture: ${showScore(cultureScore)}, Experience: ${showScore(expScore)}.`;
 	} else if (compositeScore >= 60) {
 		recommendation = 'hire';
 		recReasoning = `Solid candidate (${compositeScore}/100) with room for growth. Worth advancing to next round.`;
@@ -647,6 +666,9 @@ Return JSON only:
 	} else {
 		recommendation = 'no_hire';
 		recReasoning = `Below threshold (${compositeScore}/100). Significant gaps identified.`;
+	}
+	if (failedTypes.length > 0) {
+		recReasoning += ` Note: ${failedTypes.join(', ')} evaluation unavailable — composite is based on the remaining evaluator(s) only.`;
 	}
 
 	// Save composite score
