@@ -56,6 +56,7 @@ function setupPurge(cfg) {
 			return { rows: [], rowCount: 0 };
 		}
 		if (/FILTER \(WHERE status/.test(sql)) {
+			if (cfg.countsFailPool?.has(params[0])) throw new Error('pool counts boom');
 			const a = cfg.agg?.[params[0]] || { eligible_deleted: 0, failed: 0, pending: 0 };
 			return { rows: [a], rowCount: 1 };
 		}
@@ -78,6 +79,7 @@ function setupPurge(cfg) {
 				return { rows: [], rowCount: 0 };
 			}
 			if (/FILTER \(WHERE status/.test(sql)) {
+				if (cfg.countsFailClient?.has(params[0])) throw new Error('client counts boom');
 				const a = cfg.agg?.[params[0]] || { eligible_deleted: 0, failed: 0, pending: 0 };
 				return { rows: [a], rowCount: 1 };
 			}
@@ -304,6 +306,107 @@ describe('#1128 purgeDrainedStorageDeletions (D-1..D-6)', () => {
 		expect(sqls.some((s) => /INSERT INTO audit_logs/.test(s))).toBe(false);
 		expect(res.usersPurged).toBe(0);
 		expect(res.usersSkipped).toBe(1);
+	});
+});
+
+
+describe('#1176 purge reporting completeness (skip-path counts + containment)', () => {
+	beforeEach(() => jest.resetAllMocks());
+
+	test('in-tx held path contributes retained failed/pending exactly once', async () => {
+		setupPurge({
+			candidates: [7],
+			heldClient: new Set([7]),
+			locked: { 7: [ROW(11), ROW(12)] },
+			agg: { 7: { eligible_deleted: 2, failed: 3, pending: 4 } },
+		});
+		const res = await erasureService.purgeDrainedStorageDeletions();
+		expect(res.perUser[0]).toMatchObject({ status: 'held', retainedHeld: 2, retainedFailed: 3, retainedPending: 4 });
+		expect(res.ledgerRowsRetainedFailed).toBe(3);
+		expect(res.ledgerRowsRetainedPending).toBe(4);
+		expect(res.ledgerRowsRetainedHeld).toBe(2);
+		expect(res.ledgerRowsPurged).toBe(0);
+	});
+
+	test('advisory-lock-lost skip contributes retained failed/pending exactly once', async () => {
+		setupPurge({
+			candidates: [7],
+			locked: { 7: [ROW(11)] },
+			agg: { 7: { eligible_deleted: 1, failed: 2, pending: 1 } },
+			advisoryLocked: false,
+		});
+		const res = await erasureService.purgeDrainedStorageDeletions();
+		expect(res.usersSkipped).toBe(1);
+		expect(res.ledgerRowsRetainedFailed).toBe(2);
+		expect(res.ledgerRowsRetainedPending).toBe(1);
+		expect(res.perUser[0]).toMatchObject({ retainedFailed: 2, retainedPending: 1 });
+	});
+
+	test('zero-locked-rows skip contributes retained failed/pending exactly once', async () => {
+		setupPurge({
+			candidates: [7],
+			locked: { 7: [] },
+			agg: { 7: { eligible_deleted: 0, failed: 5, pending: 6 } },
+		});
+		const res = await erasureService.purgeDrainedStorageDeletions();
+		expect(res.usersSkipped).toBe(1);
+		expect(res.ledgerRowsRetainedFailed).toBe(5);
+		expect(res.ledgerRowsRetainedPending).toBe(6);
+		expect(res.perUser[0]).toMatchObject({ retainedFailed: 5, retainedPending: 6 });
+	});
+
+	test('pre-pass countsFor failure is contained per-user: user errors, run continues, no counts fabricated', async () => {
+		setupPurge({
+			candidates: [7, 8],
+			throwPool: new Set([7]),
+			countsFailPool: new Set([7]),
+			locked: { 8: [ROW(21)] },
+			agg: { 7: { eligible_deleted: 2, failed: 9, pending: 9 }, 8: { eligible_deleted: 1, failed: 0, pending: 0 } },
+		});
+		const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+		const res = await erasureService.purgeDrainedStorageDeletions();
+		errSpy.mockRestore();
+		expect(res.perUser.find((u) => u.userId === 7).status).toBe('error');
+		expect(res.perUser.find((u) => u.userId === 8).status).toBe('purged');
+		expect(res.ledgerRowsPurged).toBe(1);
+		expect(res.ledgerRowsRetainedFailed).toBe(0);
+		expect(res.ledgerHoldLookupFailed).toBe(0);
+		expect(res.usersSkipped).toBe(1);
+	});
+
+	test('counts failure on the in-tx held skip path fails closed: error, nothing counted', async () => {
+		setupPurge({
+			candidates: [7],
+			heldClient: new Set([7]),
+			countsFailClient: new Set([7]),
+			locked: { 7: [ROW(11), ROW(12)] },
+			agg: { 7: { eligible_deleted: 2, failed: 3, pending: 4 } },
+		});
+		const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+		const res = await erasureService.purgeDrainedStorageDeletions();
+		errSpy.mockRestore();
+		expect(res.perUser[0].status).toBe('error');
+		expect(res.ledgerRowsRetainedFailed).toBe(0);
+		expect(res.ledgerRowsRetainedPending).toBe(0);
+		expect(res.ledgerRowsPurged).toBe(0);
+		expect(res.usersSkipped).toBe(1);
+	});
+});
+
+describe('#1176 purge log prefix (server.js)', () => {
+	const fs = require('node:fs');
+	const path = require('node:path');
+	const src = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'server.js'), 'utf8');
+
+	test('purge counters are NOT under the retention DRY-RUN/LIVE mode label; purge has its own log line', () => {
+		const modeLine = src.split('\n').find((l) => l.includes('${mode}:'));
+		expect(modeLine).toBeDefined();
+		expect(modeLine).not.toContain('storage_ledger_purged');
+		const purgeIdx = src.indexOf('storage_ledger_purged=');
+		expect(purgeIdx).toBeGreaterThan(-1);
+		const purgeStmt = src.slice(src.lastIndexOf('console.log(', purgeIdx), purgeIdx);
+		expect(purgeStmt).toContain('[erasure]');
+		expect(purgeStmt).not.toContain('${mode}');
 	});
 });
 

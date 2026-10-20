@@ -1119,10 +1119,18 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 				`registry=${reg.purgedCount} (storage=${reg.storageDeleted}), templates=${tpl.deletedCount}, ` +
 				`observer_reports=${obs.deletedCount}, speech_measurements=${speechMeas.deletedCount}, ` +
 				`capture_intents_reconciled=${recon.rowsRetired}, test_capture_purged=${testPurge.objectsDeleted}, ` +
-				`storage_sweep_deleted=${storageSweep.deleted} (failed=${storageSweep.failed}, held=${storageSweep.heldSkips}), ` +
-				`storage_ledger_purged=${ledgerPurge.ledgerRowsPurged} (users=${ledgerPurge.usersPurged}, held=${ledgerPurge.ledgerRowsRetainedHeld}, lookup_failed=${ledgerPurge.ledgerHoldLookupFailed}), ` +
 				// #799: held rows are visibly skipped in the run report, never silently retained.
 				`held_skips=${(storageSweep.heldSkips || 0) + (rec.heldSkips || 0) + (reg.heldSkips || 0) + (tpl.heldSkips || 0) + (obs.heldSkips || 0) + (speechMeas.heldSkips || 0) + (testPurge.heldSkips || 0) + (recon.heldSkips || 0)}`,
+			);
+			// #1176 (security O-4): the storage-deletion ledger sweep +
+			// purge run LIVE in both retention modes (erasure completion,
+			// D-7/#1172 above) — they get their OWN log line and prefix so
+			// operators reading logs alone never mistake the live purge
+			// counters for the retention DRY-RUN/LIVE mode above.
+			console.log(
+				`[erasure] storage-ledger sweep+purge (LIVE, independent of retention mode): ` +
+				`storage_sweep_deleted=${storageSweep.deleted} (failed=${storageSweep.failed}, held=${storageSweep.heldSkips}), ` +
+				`storage_ledger_purged=${ledgerPurge.ledgerRowsPurged} (users=${ledgerPurge.usersPurged}, held=${ledgerPurge.ledgerRowsRetainedHeld}, lookup_failed=${ledgerPurge.ledgerHoldLookupFailed})`,
 			);
 		} catch (err) {
 			console.error('[retention] Failed:', err.message);
