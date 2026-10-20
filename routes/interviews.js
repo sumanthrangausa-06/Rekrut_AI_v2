@@ -2005,7 +2005,7 @@ router.post(
 					if (asrResult?.text) {
 						transcribedText = asrResult.text.trim();
 						console.log(
-							`[voice-respond] ASR transcription: "${transcribedText.substring(0, 100)}..."`,
+							`[voice-respond] ASR transcription: ${transcribedText.length} chars`,
 						);
 					} else if (clientTranscript.length >= 10) {
 						// ASR returned nothing — use client transcript
@@ -2020,7 +2020,7 @@ router.post(
 						transcribedText = clientTranscript;
 						usedFallback = true;
 						console.log(
-							`[voice-respond] Using client SpeechRecognition fallback: "${transcribedText.substring(0, 100)}..."`,
+							`[voice-respond] Using client SpeechRecognition fallback: ${transcribedText.length} chars`,
 						);
 					}
 				}
@@ -2042,7 +2042,9 @@ router.post(
 			// transcripts are real speech, not Whisper hallucinations.
 			const { isHallucination } = filterWhisperHallucination(transcribedText);
 			if (isHallucination && !usedFallback) {
-				console.log(`[voice-respond] Filtered Whisper hallucination: "${transcribedText}"`);
+				console.log(
+					`[voice-respond] Filtered Whisper hallucination: ${transcribedText.length} chars (content not logged)`,
+				);
 				// Try client transcript before rejecting
 				if (clientTranscript.length >= 10) {
 					transcribedText = clientTranscript;
@@ -3301,7 +3303,9 @@ router.post(
 				// Phase 1 (#447): use shared transcription module.
 				const { isHallucination } = filterWhisperHallucination(transcribedText);
 				if (isHallucination) {
-					console.log(`[screening-voice] Filtered Whisper hallucination: "${transcribedText}"`);
+					console.log(
+					`[screening-voice] Filtered Whisper hallucination: ${transcribedText.length} chars (content not logged)`,
+				);
 					transcribedText = '';
 				}
 			}
