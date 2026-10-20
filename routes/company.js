@@ -1381,8 +1381,14 @@ router.post(
 						new_owner_id: newOwnerId,
 						new_owner_email: target.email,
 						new_owner_name: target.name,
-						old_owner_role_change: { from: 'owner', to: 'recruiter' },
-						new_owner_role_change: { from: target.role, to: 'owner' },
+						// Issue #1196: RBAC (user_roles) and users.role changes are
+						// recorded separately — the old fields mixed the two
+						// vocabularies and implied a users.role delta for the new
+						// owner that never happens (#1140).
+						old_owner_rbac_role_change: { from: 'owner', to: null },
+						old_owner_users_role_change: { from: req.user.role, to: 'recruiter' },
+						new_owner_rbac_role_change: { from: null, to: 'owner' },
+						new_owner_users_role_change: { from: target.role, to: target.role },
 					},
 				});
 			} catch (auditErr) {
