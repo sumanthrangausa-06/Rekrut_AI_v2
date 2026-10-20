@@ -30,18 +30,25 @@ const SSN_RE = /\b\d{3}-\d{2}-\d{4}\b/g;
 // the value may be quoted. A candidate is redacted only when its key is
 // credential-bearing BY COMPONENT (isCredentialKey) — a plain substring
 // match over-redacts benign compounds (session_count, tokenizer_count).
+// Documented trade (round 5): `token_count` DOES redact — `token` is a
+// credential component (fail-closed collateral, accepted);
+// `tokenizer_count` survives because `tokenizer` is not `token`, and
+// `session_count` survives because `session` qualifies only as head.
 const KV_CRED_RE =
 	/(["']?)([A-Za-z][A-Za-z0-9_-]*)\1(\s*)(=|%3d|:)(\s*)(?!\/\/)("[^"]*"|'[^']*'|[^\s;&]+)/gi;
 // Sensitive key COMPONENTS (split on _ / - / camelCase, exact match):
 // session_id qualifies via `id`, secret_key via `key`, token_id via
 // `id`. `session` is NOT sensitive by itself (session_count is a count,
 // not a credential) — it qualifies only as the head (last) component,
-// where the value IS a session (app_session, session: …).
+// where the value IS a session (app_session, session: …). Round 5:
+// aligned with the object-key sensitive list below (pass, authorization,
+// ssn, iban, email, phone, bearer, verification were object-key-only).
 const KV_SENSITIVE_COMPONENTS = new Set([
 	'token',
 	'secret',
 	'password',
 	'passwd',
+	'pass',
 	'pwd',
 	'pw',
 	'cookie',
@@ -51,12 +58,23 @@ const KV_SENSITIVE_COMPONENTS = new Set([
 	'hash',
 	'id',
 	'auth',
+	'authorization',
 	'credential',
 	'credentials',
 	'otp',
 	'pin',
 	'jwt',
+	'ssn',
+	'iban',
+	'email',
+	'phone',
+	'bearer',
+	'verification',
 ]);
+// Concatenated sensitive names whose split components do not qualify on
+// their own (card_number → card/number): matched on the canonical
+// (separator-stripped) key, exact match only.
+const KV_SENSITIVE_CANONICAL = new Set(['privatekey', 'accesskey', 'cardnumber', 'signedurl']);
 
 function isCredentialKey(key: string): boolean {
 	const parts = key
@@ -65,12 +83,13 @@ function isCredentialKey(key: string): boolean {
 		.split(/[_\-\s]+/)
 		.filter(Boolean);
 	return (
-		parts.some((p) => KV_SENSITIVE_COMPONENTS.has(p)) || parts[parts.length - 1] === 'session'
+		parts.some((p) => KV_SENSITIVE_COMPONENTS.has(p)) ||
+		parts[parts.length - 1] === 'session' ||
+		KV_SENSITIVE_CANONICAL.has(canonical(key))
 	);
 }
 
-function kvCredReplacer(
-	match: string,
+function kvReplacement(
 	quote: string,
 	key: string,
 	pre: string,
@@ -78,9 +97,36 @@ function kvCredReplacer(
 	post: string,
 	value: string,
 ): string {
-	if (!isCredentialKey(key)) return match;
 	const vq = value.startsWith('"') ? '"' : value.startsWith("'") ? "'" : '';
 	return `${quote}${key}${quote}${pre}${sep}${post}${vq}${REDACTED}${vq}`;
+}
+
+// Manual exec-loop scan (round 5, PR #1497 BLOCK 6287065039 Class A):
+// the value class [^\s;&]+ can consume a following `key<sep>` span
+// (e.g. `failed:` swallowing `refresh_token:`, `params=` swallowing
+// `access_token=`). With String.replace, a non-credential match is
+// returned unchanged and the scan has already advanced PAST the
+// swallowed credential pair, which is then never visited. Here a
+// non-credential match emits nothing and the scan resumes right after
+// its key+separator — inside the value region — so a nested credential
+// pair is always reached. Match indices strictly increase each
+// iteration (a credential match is consumed whole; a non-credential
+// match restarts past its own key start), so the loop terminates.
+function scrubKvCreds(s: string): string {
+	const re = new RegExp(KV_CRED_RE.source, 'gi');
+	let out = '';
+	let cursor = 0;
+	let m: RegExpExecArray | null;
+	while ((m = re.exec(s)) !== null) {
+		const [match, quote, key, pre, sep, post, value] = m;
+		if (isCredentialKey(key)) {
+			out += s.slice(cursor, m.index) + kvReplacement(quote, key, pre, sep, post, value);
+			cursor = m.index + match.length;
+		} else {
+			re.lastIndex = m.index + quote.length + key.length + quote.length + pre.length + sep.length;
+		}
+	}
+	return out + s.slice(cursor);
 }
 const SK_KEY_RE = /\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]+|\bsk-[A-Za-z0-9_-]{10,}/g;
 const LONG_TEXT_LIMIT = 100;
@@ -200,15 +246,15 @@ function redactUrl(url: string): string {
 }
 
 function scrubString(value: string): string {
-	return value
+	const head = value
 		.replace(URL_RE, (url) => redactUrl(url))
 		.replace(URI_USERINFO_RE, `$1${REDACTED}@`)
 		.replace(SK_KEY_RE, REDACTED)
 		.replace(BEARER_RE, `Bearer ${REDACTED}`)
 		.replace(BASIC_RE, `Basic ${REDACTED}`)
 		.replace(JWT_RE, REDACTED)
-		.replace(VENDOR_TOKEN_RE, REDACTED)
-		.replace(KV_CRED_RE, kvCredReplacer)
+		.replace(VENDOR_TOKEN_RE, REDACTED);
+	return scrubKvCreds(head)
 		.replace(CARD_RE, REDACTED)
 		.replace(PHONE_RE, REDACTED)
 		.replace(ENCODED_EMAIL_RE, REDACTED)

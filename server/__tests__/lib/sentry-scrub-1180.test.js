@@ -597,3 +597,115 @@ describe('#1180 scrubber — PR #1497 BLOCK regressions (round 4)', () => {
 		expect(s).toContain('the token count was three today');
 	});
 });
+
+// ─── Round 5: security-reviewer BLOCK on PR #1497 (comment 6287065039) ─────
+// Class A — VALUE-SWALLOWING: a non-credential first pair (failed: /
+// Error: / params= / data=) consumed the following credential pair in
+// its value, and the global scan advanced past it, so the credential
+// was never visited. Class B — `pass` and `authorization` are in the
+// object-key sensitive list but were missing from the KV component set.
+describe('#1180 scrubber — PR #1497 BLOCK regressions (round 5)', () => {
+	let scrubSentryEvent;
+	beforeAll(() => {
+		({ scrubSentryEvent } = require('../../../lib/sentry-scrub'));
+	});
+	const blob = (ev) => JSON.stringify(scrubSentryEvent(ev, {}));
+
+	test('Class A colon prefix: OAuth failed: refresh_token: <value> does not survive (message + contexts)', () => {
+		const ev = {
+			message: 'OAuth failed: refresh_token: R5AVAL111 end',
+			contexts: { x: { note: 'OAuth failed: refresh_token: R5AVAL112 done' } },
+		};
+		const out = blob(ev);
+		expect(out).not.toContain('R5AVAL111');
+		expect(out).not.toContain('R5AVAL112');
+		expect(out).toContain('refresh_token: [REDACTED]');
+	});
+	test('Class A colon prefix + equals pair: Error: session_id= / Request failed: api_token= do not survive', () => {
+		const ev = {
+			message: 'Error: session_id=R5BVAL111 end',
+			contexts: { x: { note: 'Request failed: api_token=R5BVAL222 end' } },
+		};
+		const out = blob(ev);
+		expect(out).not.toContain('R5BVAL111');
+		expect(out).not.toContain('R5BVAL222');
+	});
+	test('Class A nested assignment: params=access_token= / data=api_token= do not survive (message + tags + triple nest)', () => {
+		const ev = {
+			message: 'x params=access_token=R5CVAL111 end data=api_token=R5CVAL222 end',
+			tags: { t: 'params=access_token=R5CVAL333' },
+			contexts: { x: { note: 'params=data=api_token=R5CVAL444 end' } },
+		};
+		const out = blob(ev);
+		for (const v of ['R5CVAL111', 'R5CVAL222', 'R5CVAL333', 'R5CVAL444'])
+			expect(out).not.toContain(v);
+	});
+	test('Class B component gaps: pass= and authorization: / authorization= (raw, no Bearer) do not survive', () => {
+		const ev = {
+			message: 'x pass=R5DVAL111 end authorization: R5DVAL222 end',
+			contexts: { x: { note: 'authorization=R5DVAL333 end' } },
+		};
+		const out = blob(ev);
+		for (const v of ['R5DVAL111', 'R5DVAL222', 'R5DVAL333']) expect(out).not.toContain(v);
+	});
+	test('component alignment with the object-key list: ssn / iban / email / phone / bearer / verification_code / card_number / signed_url do not survive', () => {
+		// Each pair in its OWN short string: a combined string would exceed
+		// the 100-char wholesale-redaction limit and pass vacuously.
+		const ev = {
+			contexts: {
+				x: {
+					a: 'ssn=R5EVAL111',
+					b: 'iban=R5EVAL222',
+					c: 'email=R5EVAL333',
+					d: 'phone=R5EVAL444',
+					e: 'bearer=R5EVAL555',
+					f: 'verification_code=R5EVAL666',
+					g: 'card_number=R5EVAL777',
+					h: 'signed_url=R5EVAL888',
+				},
+			},
+		};
+		const out = blob(ev);
+		for (const v of [
+			'R5EVAL111',
+			'R5EVAL222',
+			'R5EVAL333',
+			'R5EVAL444',
+			'R5EVAL555',
+			'R5EVAL666',
+			'R5EVAL777',
+			'R5EVAL888',
+		])
+			expect(out).not.toContain(v);
+	});
+	test('round-5 false-positive guards stay untouched (counts + prose)', () => {
+		const ev = {
+			message: 'metrics session_count=3 and nlp tokenizer_count=42 done',
+			contexts: {
+				x: {
+					a: 'the token count was three today',
+					b: 'the hash brown recipe is great',
+					c: 'author: John wrote this',
+					d: 'monkey: business as usual',
+					e: 'password strength: strong overall',
+				},
+			},
+		};
+		const s = blob(ev);
+		for (const keep of [
+			'session_count=3',
+			'tokenizer_count=42',
+			'the token count was three today',
+			'the hash brown recipe is great',
+			'John wrote this',
+			'business as usual',
+			'strong overall',
+		])
+			expect(s).toContain(keep);
+	});
+	test('documented fail-closed collateral: token_count=9 IS redacted (token component), unlike tokenizer_count', () => {
+		const s = blob({ message: 'metrics token_count=9 done' });
+		expect(s).toContain('token_count=[REDACTED]');
+		expect(s).not.toContain('token_count=9');
+	});
+});
