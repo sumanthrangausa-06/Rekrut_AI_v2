@@ -58,6 +58,136 @@ describe('omniscore factor hasData flags', () => {
 		expect(result.hasData).toBe(false);
 	});
 
+	describe('#793 interview_evaluations feed interview_performance', () => {
+		test('evaluations-only input moves the factor (AC2)', () => {
+			const d = emptyData();
+			const result = calcInterviewPerformance({
+				...d,
+				evaluations: [
+					{ score: 80, max_score: 100 },
+					{ score: 60, max_score: 100 },
+					{ score: 70, max_score: 100 },
+				],
+			});
+			expect(result.hasData).toBe(true);
+			// avg 70/100 -> 70 * 0.5 = 35 of the 50-point interview half
+			expect(result.raw).toBe(35);
+			expect(result.details.join(' ')).toMatch(/interview evaluations/);
+		});
+
+		test('fallback-only evaluations behave as no data (filtered upstream)', () => {
+			// The SQL in fetchCandidateData excludes rows whose reasoning is
+			// 'AI evaluation unavailable — using neutral score'; the calculator
+			// therefore receives [] for a fallback-only candidate.
+			const d = emptyData();
+			const result = calcInterviewPerformance({ ...d, evaluations: [] });
+			expect(result.hasData).toBe(false);
+			expect(result.raw).toBe(0);
+		});
+
+		test('missing evaluations field defaults to no evaluations (fixture guard)', () => {
+			const result = calcInterviewPerformance(emptyData());
+			expect(result.hasData).toBe(false);
+			expect(result.raw).toBe(0);
+		});
+
+		test('non-100 max_score is normalised to the 0-100 scale', () => {
+			const d = emptyData();
+			const result = calcInterviewPerformance({
+				...d,
+				evaluations: [{ score: 4, max_score: 5 }],
+			});
+			expect(result.hasData).toBe(true);
+			expect(result.raw).toBe(40); // 4/5 = 80 -> 80 * 0.5
+		});
+
+		test('string scores from pg NUMERIC are coerced', () => {
+			const d = emptyData();
+			const result = calcInterviewPerformance({
+				...d,
+				evaluations: [{ score: '80.00', max_score: '100.00' }],
+			});
+			expect(result.hasData).toBe(true);
+			expect(result.raw).toBe(40);
+		});
+
+		test('evaluations win over feedback — no double count', () => {
+			const d = emptyData();
+			const result = calcInterviewPerformance({
+				...d,
+				evaluations: [{ score: 80, max_score: 100 }],
+				interviews: [
+					{ outcome: 'completed', feedback: JSON.stringify({ overall_score: 5 }) },
+				],
+			});
+			// eval half only: 80 * 0.5 = 40; feedback path (5*10=50) must NOT add
+			expect(result.raw).toBe(40);
+		});
+
+		test('evaluations add to practice half without changing its math', () => {
+			const d = emptyData();
+			const result = calcInterviewPerformance({
+				...d,
+				practice: [{ score: 8 }],
+				evaluations: [
+					{ score: 80, max_score: 100 },
+					{ score: 60, max_score: 100 },
+					{ score: 70, max_score: 100 },
+				],
+			});
+			expect(result.raw).toBe(75); // practice 40 + evaluations 35
+		});
+
+		test('regression: practice-only fixture produces exact prior raw/details', () => {
+			const d = emptyData();
+			const result = calcInterviewPerformance({ ...d, practice: [{ score: 8 }] });
+			expect(result.raw).toBe(40);
+			expect(result.hasData).toBe(true);
+		});
+
+		test('regression: feedback-only fixture produces exact prior raw', () => {
+			const d = emptyData();
+			const result = calcInterviewPerformance({
+				...d,
+				interviews: [
+					{ outcome: 'completed', feedback: JSON.stringify({ overall_score: 4 }) },
+				],
+			});
+			expect(result.raw).toBe(40); // 4/5 scale -> 4*10
+			expect(result.hasData).toBe(true);
+		});
+
+		test('regression: completed-count fallback unchanged when no evaluations/feedback', () => {
+			const d = emptyData();
+			const result = calcInterviewPerformance({
+				...d,
+				interviews: [{ outcome: 'completed', feedback: null }],
+			});
+			expect(result.raw).toBe(10);
+		});
+
+		test('AC3: evaluations do not change any other factor', () => {
+			const d = emptyData();
+			const withEvals = {
+				...d,
+				skills: [{ is_verified: true }],
+				// fixed end_date: calcExperienceQuality otherwise uses new Date()
+				// and two calls drift at the 1e-10 level, unrelated to #793
+				experience: [{ title: 'Dev', start_date: '2020-01-01', end_date: '2022-01-01' }],
+				education: [{ degree: 'BSc' }],
+				evaluations: [{ score: 90, max_score: 100 }],
+			};
+			const without = { ...withEvals, evaluations: [] };
+			expect(calcVerifiedSkills(withEvals)).toEqual(calcVerifiedSkills(without));
+			expect(calcExperienceQuality(withEvals).raw).toBe(calcExperienceQuality(without).raw);
+			expect(calcEducationCredentials(withEvals)).toEqual(calcEducationCredentials(without));
+			expect(calcReliabilitySignals(withEvals)).toEqual(calcReliabilitySignals(without));
+			expect(calcSoftSkills(withEvals)).toEqual(calcSoftSkills(without));
+			expect(calcMarketDemand(withEvals)).toEqual(calcMarketDemand(without));
+			expect(calcGrowthTrajectory(withEvals)).toEqual(calcGrowthTrajectory(without));
+		});
+	});
+
 	test('factors flag hasData=true when they consume real input', () => {
 		const d = emptyData();
 		expect(calcVerifiedSkills({ ...d, skills: [{ is_verified: true }] }).hasData).toBe(true);
