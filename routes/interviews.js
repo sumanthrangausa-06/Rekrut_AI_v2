@@ -3719,7 +3719,7 @@ router.post('/evaluate', authMiddleware, async (req, res) => {
 		if (interview_id) {
 			await pool.query(
 				`UPDATE scheduled_interviews SET ai_evaluation = $1, ai_composite_score = $2, updated_at = NOW() WHERE id = $3`,
-				[JSON.stringify(result), result.composite.composite_score, interview_id],
+				[JSON.stringify(result), result.composite?.composite_score ?? null, interview_id],
 			);
 		}
 
