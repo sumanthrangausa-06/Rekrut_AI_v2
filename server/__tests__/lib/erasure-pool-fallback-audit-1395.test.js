@@ -218,11 +218,15 @@ describe('#1395 purgeDrainedStorageDeletions — self-transactional; the pool is
 					],
 					rowCount: 1,
 				};
+			// #1178: DELETE matched before legal_holds — the purge
+			// DELETE itself now contains a legal_holds subquery (the
+			// statement-time hold predicate), so a legal_holds-first
+			// match would swallow it and fake a 0-row delete.
+			if (/DELETE FROM pending_storage_deletions/.test(sql)) return { rows: [], rowCount: 1 };
 			if (/FROM legal_holds/.test(sql)) return { rows: [], rowCount: 0 };
 			if (/FILTER \(WHERE status/.test(sql))
 				return { rows: [{ eligible_deleted: 1, failed: 0, pending: 0 }], rowCount: 1 };
 			if (/INSERT INTO audit_logs/.test(sql)) return { rows: [], rowCount: 1 };
-			if (/DELETE FROM pending_storage_deletions/.test(sql)) return { rows: [], rowCount: 1 };
 			throw new Error(`unexpected client query: ${sql.slice(0, 80)}`);
 		});
 		return client;
