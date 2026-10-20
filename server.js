@@ -15,9 +15,17 @@ require('dotenv').config();
 // ─── Sentry Error Tracking ───────────────────────────────────────────────
 // Initialize BEFORE express app so request handlers are instrumented
 const Sentry = require('@sentry/node');
+const { scrubSentryEvent } = require('./lib/sentry-scrub');
 if (process.env.SENTRY_DSN) {
 	Sentry.init({
 		dsn: process.env.SENTRY_DSN,
+		// #1180: pre-enablement hardening — no event leaves unsanitised
+		// (credentials, emails, IPs, signed URLs, bodies, transcript text).
+		// Sample rates left at 1.0 deliberately: that is an observability
+		// tradeoff for a future enablement decision, not a privacy control;
+		// beforeSend + beforeSendTransaction govern payload safety at any rate.
+		beforeSend: (event) => scrubSentryEvent(event),
+		beforeSendTransaction: (event) => scrubSentryEvent(event),
 		tracesSampleRate: 1.0,
 		profilesSampleRate: 1.0,
 		environment: process.env.NODE_ENV || 'development',
