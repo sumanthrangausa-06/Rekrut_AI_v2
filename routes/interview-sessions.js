@@ -754,7 +754,9 @@ router.post(
 				// Phase 1 (#447): use shared transcription module.
 				const { isHallucination } = filterWhisperHallucination(candidateText);
 				if (isHallucination) {
-					console.log(`[interview-sessions] Filtered Whisper hallucination: "${candidateText}"`);
+					console.log(
+						`[interview-sessions] Filtered Whisper hallucination: ${candidateText.length} chars (content not logged)`,
+					);
 					candidateText = '';
 					hasAudio = false;
 				}

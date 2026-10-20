@@ -1625,7 +1625,7 @@ router.post('/forgot-password', rateLimits.strict, async (req, res) => {
 				userId: user.id,
 				metadata: { token: resetToken },
 			});
-			console.log(`[email] Password reset email sent to ${email}`);
+			console.log(`[email] Password reset email sent to ${emailService.maskEmailForLog(email)}`);
 		} catch (emailErr) {
 			console.error('Failed to send reset email:', emailErr);
 			// Don't fail the request, just log the error
