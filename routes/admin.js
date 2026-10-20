@@ -2200,10 +2200,35 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 				);
 			}
 
+			// #1500: disclose held survivals AS A CLASS — count + family
+			// label ONLY. Never held-row details (applicationKeyedHeldDetails
+			// ids/reasons, gap heldTables contents, company, content) in this
+			// persisted note. Absent/undefined counts are 0; when every held
+			// count is 0 the note is byte-identical to the pre-#1500 format.
+			const heldDisclosure = [
+				[erasure?.jobApplicationRowsHeld, 'job application'],
+				[erasure?.applicationKeyedRowsHeld, 'application-keyed'],
+				[erasure?.threatIntelRowsHeld, 'threat-intel'],
+				[erasure?.applicationIpRowsHeld, 'application IP capture'],
+				[erasure?.sessionsHeld, 'interview session'],
+				[erasure?.recordingsHeld, 'interview recording'],
+				[erasure?.framesHeld, 'recording frame'],
+			]
+				.filter(([n]) => n > 0)
+				.map(([n, label]) => `; ${n} ${label} row(s) retained under legal hold`)
+				.join('');
+			// GAP-B..H families are distinct from the top-level counts above
+			// (GAP-A IS the sessions/recordings/frames counts; no gapA object).
+			const gapDisclosure = ['B', 'C', 'D', 'E', 'F', 'G', 'H']
+				.map((x) => [x, erasure?.[`gap${x}`]?.rowsHeld])
+				.filter(([, n]) => n > 0)
+				.map(([x, n]) => `; ${n} held row(s) in erasure family GAP-${x} retained under legal hold`)
+				.join('');
+
 			const note =
 				dr.user_id == null
 					? 'Fulfilled with anomaly: user row hard-deleted out-of-band (app never hard-deletes users); DEK-store cleanup unverified — manual review advised'
-					: `Fulfilled by admin: DEK shredded=${erasure.shredded}, embeddings=${erasure.embeddingsDeleted}, searchIndex=${erasure.searchIndexDeleted}${erasure.jobApplicationRowsHeld > 0 ? `; ${erasure.jobApplicationRowsHeld} job application row(s) retained under legal hold` : ''}`;
+					: `Fulfilled by admin: DEK shredded=${erasure.shredded}, embeddings=${erasure.embeddingsDeleted}, searchIndex=${erasure.searchIndexDeleted}${heldDisclosure}${gapDisclosure}`;
 			const notes = dr.notes ? `${dr.notes}\n${note}` : note;
 
 			await client.query(
