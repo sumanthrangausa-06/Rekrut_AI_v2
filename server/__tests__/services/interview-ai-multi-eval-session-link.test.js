@@ -113,4 +113,27 @@ describe('runMultiEvaluation session link (#1504)', () => {
 			expect(params[params.length - 1]).toBeNull();
 		}
 	});
+
+	// PR #1509 BLOCK (reviewer comment 6295077159): the observer
+	// (qa-extraction) caller now supplies only interviewSessionId — no
+	// interviewId, no screeningSessionId. The OmniScore feed must use
+	// that session id (integer, the base source_id) as source_id;
+	// falling through to `screening-${screeningSessionId}` produced the
+	// literal 'screening-undefined', which PG rejects for the INTEGER
+	// score_components.source_id (mig 001), silently losing the component.
+	test('observer-shaped context feeds OmniScore with the session id, never screening-undefined', async () => {
+		allLensesSucceed();
+
+		const { screeningSessionId: _omit, ...observerContext } = {
+			...BASE_CONTEXT,
+			interviewSessionId: 900,
+		};
+		await runMultiEvaluation(7, 11, 3, observerContext);
+
+		expect(mockAddInterviewComponent).toHaveBeenCalledTimes(1);
+		const [candidateArg, sourceArg] = mockAddInterviewComponent.mock.calls[0];
+		expect(candidateArg).toBe(7);
+		expect(sourceArg).toBe(900);
+		expect(sourceArg).not.toBe('screening-undefined');
+	});
 });

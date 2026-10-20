@@ -131,6 +131,26 @@ describe('POST /evaluate screening branch — session link (#1504)', () => {
 		expect(ctx.interviewSessionId).toBe(900);
 	});
 
+	// Non-blocking note on PR #1509 review: pin the resolver's
+	// candidate scoping — the interview_sessions lookup must be
+	// parameterised with [invite_token, candidate_id], not token alone.
+	test('resolver query is candidate-scoped: params are [invite_token, candidate_id]', async () => {
+		mockDb({ unifiedId: 900 });
+
+		const res = await request(makeApp())
+			.post('/api/interviews/evaluate')
+			.send({ screening_session_id: 42 });
+
+		expect(res.status).toBe(200);
+		const resolverCalls = db.query.mock.calls.filter(([sql]) =>
+			sql.replace(/\s+/g, ' ').trim().toLowerCase().includes('from interview_sessions'),
+		);
+		expect(resolverCalls).toHaveLength(1);
+		const [sql, params] = resolverCalls[0];
+		expect(sql).toMatch(/candidate_id/);
+		expect(params).toEqual([SCREENING_ROW.invite_token, SCREENING_ROW.candidate_id]);
+	});
+
 	test('unmatched token: interviewSessionId is NULL, never a guessed id', async () => {
 		mockDb({ unifiedId: null });
 

@@ -709,7 +709,7 @@ Return JSON only:
 	try {
 		await omniscoreService.addInterviewComponent(
 			candidateId,
-			interviewId || `screening-${screeningSessionId}`,
+			interviewId || interviewSessionId || `screening-${screeningSessionId}`,
 			compositeScore / 10,
 		);
 		console.log(
