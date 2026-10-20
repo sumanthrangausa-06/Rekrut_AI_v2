@@ -325,3 +325,20 @@ describe('#1177 invariants', () => {
 		expect(JSON.stringify(out)).not.toMatch(/sha256|digest|hash/i);
 	});
 });
+
+describe('#1177 dictionary-hazard keys (privacy S-35)', () => {
+	test('a `constructor` key is an ordinary field and survives untouched', () => {
+		const out = sanitizeErasureResult({ constructor: 'keep-me', keep: 1 });
+		expect(out).toEqual({ constructor: 'keep-me', keep: 1 });
+		expect(Object.keys(out).sort()).toEqual(['constructor', 'keep']);
+	});
+
+	test('a `__proto__` key is preserved as an own property and pollutes nothing', () => {
+		const input = JSON.parse('{"__proto__":{"x":1},"keep":1}');
+		const out = sanitizeErasureResult(input);
+		expect(Object.prototype.hasOwnProperty.call(out, '__proto__')).toBe(true);
+		expect(out['__proto__']).toEqual({ x: 1 });
+		expect(out.keep).toBe(1);
+		expect({}.x).toBeUndefined();
+	});
+});
