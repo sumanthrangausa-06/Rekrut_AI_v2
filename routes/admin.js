@@ -2224,11 +2224,27 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 				.filter(([, n]) => n > 0)
 				.map(([x, n]) => `; ${n} held row(s) in erasure family GAP-${x} retained under legal hold`)
 				.join('');
+			// #1502 F-1: rows preserved fail-closed because the hold consult
+			// ERRORED (gap{X}.holdLookupFailed) — no hold was confirmed, so
+			// this class must NOT say "legal hold". Count + family label
+			// only; never lookupFailedTables names or row details.
+			const holdVerificationDisclosure = ['B', 'C', 'D', 'E', 'F', 'G', 'H']
+				.map((x) => [x, erasure?.[`gap${x}`]?.holdLookupFailed])
+				.filter(([, n]) => n > 0)
+				.map(([x, n]) => `; ${n} row(s) in erasure family GAP-${x} retained pending hold verification`)
+				.join('');
+			// #1502 F-2: recordings preserved whole because they could not
+			// be decrypted (top-level recordingsUndecryptable) — erasure of
+			// those recordings is incomplete, not held.
+			const undecryptableDisclosure =
+				erasure?.recordingsUndecryptable > 0
+					? `; ${erasure.recordingsUndecryptable} interview recording(s) retained — undecryptable, erasure incomplete`
+					: '';
 
 			const note =
 				dr.user_id == null
 					? 'Fulfilled with anomaly: user row hard-deleted out-of-band (app never hard-deletes users); DEK-store cleanup unverified — manual review advised'
-					: `Fulfilled by admin: DEK shredded=${erasure.shredded}, embeddings=${erasure.embeddingsDeleted}, searchIndex=${erasure.searchIndexDeleted}${heldDisclosure}${gapDisclosure}`;
+					: `Fulfilled by admin: DEK shredded=${erasure.shredded}, embeddings=${erasure.embeddingsDeleted}, searchIndex=${erasure.searchIndexDeleted}${heldDisclosure}${gapDisclosure}${holdVerificationDisclosure}${undecryptableDisclosure}`;
 			const notes = dr.notes ? `${dr.notes}\n${note}` : note;
 
 			await client.query(
