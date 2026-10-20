@@ -283,6 +283,16 @@ router.post('/bias/analyze', authMiddleware, async (req, res) => {
 	try {
 		const report = await BiasDetection.generateReport();
 
+		// #1517: no scored candidates — no report was persisted, so there
+		// is nothing to audit-log; return the insufficient-data result.
+		if (report.insufficient_data) {
+			return res.json({
+				success: true,
+				insufficient_data: true,
+				report,
+			});
+		}
+
 		await AuditLogger.log({
 			actionType: 'bias_analysis_generated',
 			userId: req.user?.id,
@@ -364,10 +374,27 @@ router.post('/fairness/audit', authMiddleware, async (_req, res) => {
       GROUP BY status
     `);
 
+		// #1517: zero scored candidates means there is nothing to audit.
+		// Never persist a fairness_audits row carrying a score — return an
+		// explicit insufficient-data result (no score, no issues count).
+		if (demographics.rows.length === 0) {
+			return res.json({
+				success: true,
+				insufficient_data: true,
+				auditId: null,
+				fairnessScore: null,
+				issues_found: null,
+				summary: {
+					score_distribution: scoreDistribution.rows,
+					demographics: demographics.rows,
+					appeals: appeals.rows,
+				},
+			});
+		}
+
 		// Calculate overall fairness score (simplified metric)
 		const avgScores = demographics.rows.map((r) => parseFloat(r.avg_score));
-		const fairnessScore =
-			avgScores.length > 0 ? 100 - (Math.max(...avgScores) - Math.min(...avgScores)) : 100;
+		const fairnessScore = 100 - (Math.max(...avgScores) - Math.min(...avgScores));
 
 		const result = await pool.query(
 			`INSERT INTO fairness_audits
