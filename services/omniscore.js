@@ -155,6 +155,19 @@ async function fetchCandidateData(userId) {
 			[userId],
 		);
 
+		// Real interview evaluations (#793) — the three AI evaluator lenses
+		// written by runMultiEvaluation. Fabricated neutral-50 fallback rows
+		// (AI failure) are excluded: counting them would import a fake number.
+		const evaluationsRes = await client.query(
+			`SELECT score, max_score, evaluator_type, created_at
+			 FROM interview_evaluations
+			 WHERE candidate_id = $1
+			   AND score IS NOT NULL
+			   AND COALESCE(max_score, 100) > 0
+			   AND (reasoning IS NULL OR reasoning <> 'AI evaluation unavailable — using neutral score')`,
+			[userId],
+		);
+
 		// Job applications
 		const appsRes = await client.query(
 			`SELECT status, applied_at, updated_at
@@ -201,6 +214,7 @@ async function fetchCandidateData(userId) {
 			jobAssessments: jobAssessmentsRes.rows,
 			practice: practiceRes.rows,
 			interviews: interviewsRes.rows,
+			evaluations: evaluationsRes.rows,
 			applications: appsRes.rows,
 			projects: projectsRes.rows,
 			docs: docsRes.rows,
@@ -298,7 +312,27 @@ function calcInterviewPerformance(data) {
 		})
 		.filter((s) => s > 0);
 
-	if (feedbackScores.length > 0) {
+	// Real interview evaluations (#793) take precedence over legacy feedback:
+	// one interview must never be double-counted from two sources.
+	// ponytail: row-level average; per-session grouping is the upgrade path
+	// if lens dropout becomes common.
+	const evalScores = (data.evaluations || [])
+		.map((e) => {
+			const s = Number(e.score);
+			const m = Number(e.max_score ?? 100) || 100;
+			if (!Number.isFinite(s) || m <= 0) return null;
+			return clamp((s / m) * 100, 0, 100);
+		})
+		.filter((s) => s !== null);
+
+	if (evalScores.length > 0) {
+		const avgEval = evalScores.reduce((a, b) => a + b, 0) / evalScores.length;
+		const evalPts = Math.min(50, avgEval * 0.5); // 0-100 scale → 0-50
+		score += evalPts;
+		details.push(
+			`${evalScores.length} interview evaluations, avg ${avgEval.toFixed(1)}/100 (+${evalPts.toFixed(1)})`,
+		);
+	} else if (feedbackScores.length > 0) {
 		const avgFb = feedbackScores.reduce((a, b) => a + b, 0) / feedbackScores.length;
 		const fbPts = Math.min(50, avgFb * 10); // 0-5 scale → 0-50
 		score += fbPts;
@@ -313,7 +347,8 @@ function calcInterviewPerformance(data) {
 		details.push('No completed interviews yet');
 	}
 
-	const hasData = practiceScores.length > 0 || completedInterviews.length > 0;
+	const hasData =
+		practiceScores.length > 0 || evalScores.length > 0 || completedInterviews.length > 0;
 
 	return {
 		raw: clamp(score, 0, 100),
