@@ -2203,7 +2203,7 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 			const note =
 				dr.user_id == null
 					? 'Fulfilled with anomaly: user row hard-deleted out-of-band (app never hard-deletes users); DEK-store cleanup unverified — manual review advised'
-					: `Fulfilled by admin: DEK shredded=${erasure.shredded}, embeddings=${erasure.embeddingsDeleted}, searchIndex=${erasure.searchIndexDeleted}`;
+					: `Fulfilled by admin: DEK shredded=${erasure.shredded}, embeddings=${erasure.embeddingsDeleted}, searchIndex=${erasure.searchIndexDeleted}${erasure.jobApplicationRowsHeld > 0 ? `; ${erasure.jobApplicationRowsHeld} job application row(s) retained under legal hold` : ''}`;
 			const notes = dr.notes ? `${dr.notes}\n${note}` : note;
 
 			await client.query(
