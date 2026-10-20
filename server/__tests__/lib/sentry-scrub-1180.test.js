@@ -532,3 +532,68 @@ describe('#1180 scrubber — security probe regressions', () => {
 		expect(JSON.stringify(out)).not.toContain('polluted1180');
 	});
 });
+
+// ─── Round 4: security-reviewer BLOCK on PR #1497 (comment 6286766149) ─────
+// The key=value pattern only fired when a sensitive keyword was the LAST
+// component before `=`. Colon separators, keyword-FIRST compounds and
+// URL-encoded equals leaked verbatim in free-text strings. The fix thinks
+// in components: a compound is credential-bearing when a component is a
+// sensitive noun (token/secret/password/key/hash/id/auth/credential/…);
+// `session` alone is not one (session_id qualifies via `id`), and benign
+// compounds (session_count, tokenizer_count) must stay untouched.
+describe('#1180 scrubber — PR #1497 BLOCK regressions (round 4)', () => {
+	let scrubSentryEvent;
+	beforeAll(() => {
+		({ scrubSentryEvent } = require('../../../lib/sentry-scrub'));
+	});
+	const blob = (ev) => JSON.stringify(scrubSentryEvent(ev, {}));
+
+	test('colon-separated credentials in strings do not survive (message / contexts / tags)', () => {
+		const ev = {
+			message: 'oauth refresh_token: COLVAL111 failed password: COLVAL222',
+			contexts: { x: { a: 'client_secret: COLVAL333', b: 'api_token : COLVAL444' } },
+			tags: { t: 'refresh_token: COLVAL555' },
+		};
+		const out = blob(ev);
+		for (const v of ['COLVAL111', 'COLVAL222', 'COLVAL333', 'COLVAL444', 'COLVAL555'])
+			expect(out).not.toContain(v);
+	});
+	test('JSON-style quoted colon credentials do not survive', () => {
+		const ev = {
+			message: "body {'access_token': 'JSONVAL111'} and {\"client_secret\": \"JSONVAL222\"} end",
+		};
+		const out = blob(ev);
+		expect(out).not.toContain('JSONVAL111');
+		expect(out).not.toContain('JSONVAL222');
+	});
+	test('keyword-FIRST compounds with = do not survive (session_id / secret_key / token_id / password_hash / tokenId)', () => {
+		const ev = {
+			message:
+				'ids session_id=KFVAL111 secret_key=KFVAL222 token_id=KFVAL333 password_hash=KFVAL444 tokenId=KFVAL555 end',
+			contexts: { x: { a: 'session_id=KFVAL666' } },
+		};
+		const out = blob(ev);
+		for (const v of ['KFVAL111', 'KFVAL222', 'KFVAL333', 'KFVAL444', 'KFVAL555', 'KFVAL666'])
+			expect(out).not.toContain(v);
+	});
+	test('URL-encoded equals (%3D) credentials do not survive, standalone and inside a URL query string', () => {
+		const ev = {
+			message:
+				'enc api_token%3DENCVAL111 end and https://app.example.com/cb?api_token%3DENCVAL222&x=1 done',
+			contexts: { x: { a: 'refresh_token%3dENCVAL333' } },
+		};
+		const out = blob(ev);
+		for (const v of ['ENCVAL111', 'ENCVAL222', 'ENCVAL333']) expect(out).not.toContain(v);
+	});
+	test('false-positive guards: session_count / tokenizer_count / token-count prose stay untouched', () => {
+		const ev = {
+			message: 'metrics session_count=3 retries=2 and nlp tokenizer_count=42 done',
+			contexts: { x: { note: 'the session resumed and the token count was three today' } },
+		};
+		const out = scrubSentryEvent(ev, {});
+		const s = JSON.stringify(out);
+		expect(s).toContain('session_count=3');
+		expect(s).toContain('tokenizer_count=42');
+		expect(s).toContain('the token count was three today');
+	});
+});

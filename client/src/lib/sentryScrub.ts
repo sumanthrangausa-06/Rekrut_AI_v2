@@ -25,8 +25,63 @@ const URL_RE = /(?:https?:\/\/|\/)[^\s"']+/g;
 const URI_USERINFO_RE = /([a-z][a-z0-9+.-]*:\/\/)[^/@\s"']+@/gi;
 const IPV6_RE = /\b(?:(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}|[0-9a-fA-F]{0,4}::[0-9a-fA-F:]{1,24})\b/g;
 const SSN_RE = /\b\d{3}-\d{2}-\d{4}\b/g;
+// key<sep>value candidates in free text: sep is `=`, `:` or the
+// URL-encoded `%3D` (any case); the key may be quoted (JSON style) and
+// the value may be quoted. A candidate is redacted only when its key is
+// credential-bearing BY COMPONENT (isCredentialKey) — a plain substring
+// match over-redacts benign compounds (session_count, tokenizer_count).
 const KV_CRED_RE =
-	/([A-Za-z0-9_-]*?(?:password|passwd|pwd|pw|cookie|secret|token|session|sid|apikey|api[-_]?key))\s*=\s*[^\s;&]+/gi;
+	/(["']?)([A-Za-z][A-Za-z0-9_-]*)\1(\s*)(=|%3d|:)(\s*)(?!\/\/)("[^"]*"|'[^']*'|[^\s;&]+)/gi;
+// Sensitive key COMPONENTS (split on _ / - / camelCase, exact match):
+// session_id qualifies via `id`, secret_key via `key`, token_id via
+// `id`. `session` is NOT sensitive by itself (session_count is a count,
+// not a credential) — it qualifies only as the head (last) component,
+// where the value IS a session (app_session, session: …).
+const KV_SENSITIVE_COMPONENTS = new Set([
+	'token',
+	'secret',
+	'password',
+	'passwd',
+	'pwd',
+	'pw',
+	'cookie',
+	'sid',
+	'apikey',
+	'key',
+	'hash',
+	'id',
+	'auth',
+	'credential',
+	'credentials',
+	'otp',
+	'pin',
+	'jwt',
+]);
+
+function isCredentialKey(key: string): boolean {
+	const parts = key
+		.replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+		.toLowerCase()
+		.split(/[_\-\s]+/)
+		.filter(Boolean);
+	return (
+		parts.some((p) => KV_SENSITIVE_COMPONENTS.has(p)) || parts[parts.length - 1] === 'session'
+	);
+}
+
+function kvCredReplacer(
+	match: string,
+	quote: string,
+	key: string,
+	pre: string,
+	sep: string,
+	post: string,
+	value: string,
+): string {
+	if (!isCredentialKey(key)) return match;
+	const vq = value.startsWith('"') ? '"' : value.startsWith("'") ? "'" : '';
+	return `${quote}${key}${quote}${pre}${sep}${post}${vq}${REDACTED}${vq}`;
+}
 const SK_KEY_RE = /\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]+|\bsk-[A-Za-z0-9_-]{10,}/g;
 const LONG_TEXT_LIMIT = 100;
 const MAX_DEPTH = 8;
@@ -153,7 +208,7 @@ function scrubString(value: string): string {
 		.replace(BASIC_RE, `Basic ${REDACTED}`)
 		.replace(JWT_RE, REDACTED)
 		.replace(VENDOR_TOKEN_RE, REDACTED)
-		.replace(KV_CRED_RE, `$1=${REDACTED}`)
+		.replace(KV_CRED_RE, kvCredReplacer)
 		.replace(CARD_RE, REDACTED)
 		.replace(PHONE_RE, REDACTED)
 		.replace(ENCODED_EMAIL_RE, REDACTED)
