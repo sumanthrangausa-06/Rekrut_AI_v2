@@ -345,4 +345,53 @@ describe('POST /api/admin/compliance/data-requests/:id/fulfill', () => {
 
 		expect(pool.query).not.toHaveBeenCalled();
 	});
+
+	// #1116: the human-readable fulfilment note must disclose held
+	// job-application rows — the structured audit metadata already carries
+	// jobApplicationRowsHeld, but the note named only shredded/embeddings/
+	// searchIndex, reading as a plain complete fulfilment.
+	test('#1116: note discloses held job-application rows when jobApplicationRowsHeld > 0', async () => {
+		pool.query.mockResolvedValueOnce({ rows: [PENDING_DELETION] });
+		const client = mockClient();
+		pool.connect.mockResolvedValueOnce(client);
+		erasePersonalData.mockResolvedValueOnce({
+			shredded: true,
+			embeddingsDeleted: true,
+			searchIndexDeleted: false,
+			jobApplicationsRedacted: false,
+			jobApplicationRowsHeld: 2,
+		});
+
+		await request(makeApp())
+			.post('/api/admin/compliance/data-requests/10/fulfill')
+			.expect(200);
+
+		const updateCall = client.query.mock.calls.find(([sql]) =>
+			/UPDATE data_requests[\s\S]*SET/.test(sql),
+		);
+		expect(updateCall[1][1]).toMatch(/2 job application row\(s\) retained under legal hold/i);
+	});
+
+	test('#1116: note unchanged (no held-rows disclosure) when jobApplicationRowsHeld is 0', async () => {
+		pool.query.mockResolvedValueOnce({ rows: [PENDING_DELETION] });
+		const client = mockClient();
+		pool.connect.mockResolvedValueOnce(client);
+		erasePersonalData.mockResolvedValueOnce({
+			shredded: true,
+			embeddingsDeleted: true,
+			searchIndexDeleted: false,
+			jobApplicationsRedacted: true,
+			jobApplicationRowsHeld: 0,
+		});
+
+		await request(makeApp())
+			.post('/api/admin/compliance/data-requests/10/fulfill')
+			.expect(200);
+
+		const updateCall = client.query.mock.calls.find(([sql]) =>
+			/UPDATE data_requests[\s\S]*SET/.test(sql),
+		);
+		expect(updateCall[1][1]).toMatch(/Fulfilled by admin: DEK shredded=true/);
+		expect(updateCall[1][1]).not.toMatch(/retained under legal hold/i);
+	});
 });
