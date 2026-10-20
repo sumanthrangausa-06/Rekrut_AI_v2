@@ -345,6 +345,19 @@ class BiasDetection {
 			BiasDetection.analyzeScoreDistribution(),
 		]);
 
+		// #1517: zero scored candidates means there is nothing to audit.
+		// Never persist a bias_reports row that reads as a clean audit on
+		// no data — return an explicit insufficient-data result instead.
+		if (distributionAnalysis.total_candidates === 0) {
+			return {
+				reportId: null,
+				insufficient_data: true,
+				demographicAnalysis,
+				distributionAnalysis,
+				recommendations: [],
+			};
+		}
+
 		const recommendations = [];
 
 		// Generate recommendations based on findings
