@@ -140,6 +140,13 @@ describeIfDb('migration 271 evaluator_type union CHECK (#1508, real DB)', () => 
 		await pool.query('DELETE FROM _migrations WHERE name = $1', [MIGRATION_NAME]);
 	}
 
+	async function migrationRecorded() {
+		const { rows } = await pool.query('SELECT 1 FROM _migrations WHERE name = $1', [
+			MIGRATION_NAME,
+		]);
+		return rows.length > 0;
+	}
+
 	// The writer's exact INSERT (services/interview-ai.js runMultiEvaluation):
 	// same column list, same parameter shape, $6 = evaluator_type.
 	async function writerInsert(evaluatorType) {
@@ -245,6 +252,56 @@ describeIfDb('migration 271 evaluator_type union CHECK (#1508, real DB)', () => 
 		expect(checks).toHaveLength(1);
 		expect(checks[0].conname).toBe('chk_evaluations_evaluator_type');
 		expect(await writerInsert('experience')).toBeNull();
+	}, 300000);
+
+	test('unexpected name: an evaluator CHECK under a non-canonical name is still found by definition and replaced', async () => {
+		// Rows first (see state A): the old CHECK validates existing rows.
+		await pool.query('DELETE FROM interview_evaluations');
+		await pool.query(
+			'ALTER TABLE interview_evaluations DROP CONSTRAINT chk_evaluations_evaluator_type',
+		);
+		await pool.query(
+			`ALTER TABLE interview_evaluations ADD CONSTRAINT legacy_eval_type_guard
+         CHECK (evaluator_type IN ('ai', 'human', 'panel'))`,
+		);
+		expect(await writerInsert('technical')).not.toBeNull();
+
+		await deleteMigrationRow();
+		const run = await runMigrate();
+		expect(run.code).toBe(0);
+		const checks = await evaluatorChecks();
+		expect(checks).toHaveLength(1);
+		expect(checks[0].conname).toBe('chk_evaluations_evaluator_type');
+		for (const v of UNION_VALUES) {
+			expect(checks[0].def).toContain(v);
+		}
+		expect(await writerInsert('technical')).toBeNull();
+	}, 300000);
+
+	test('loud failure: a pre-existing out-of-union row blocks the ADD — non-zero exit, nothing recorded, rolled back', async () => {
+		await pool.query(
+			'ALTER TABLE interview_evaluations DROP CONSTRAINT chk_evaluations_evaluator_type',
+		);
+		await pool.query(
+			`INSERT INTO interview_evaluations (candidate_id, evaluator_type, score, reasoning)
+       VALUES ($1, 'bogus', 10, 'out-of-union row')`,
+			[candidateId],
+		);
+
+		await deleteMigrationRow();
+		const run = await runMigrate();
+		// The p2 swallow must NOT be repeated: the failure is loud, the
+		// migration is not recorded as applied, and the DB is left as it was.
+		expect(run.code).not.toBe(0);
+		expect(await migrationRecorded()).toBe(false);
+		expect(await evaluatorChecks()).toHaveLength(0);
+
+		// Recovery is a retry after the data question is resolved — and it works.
+		await pool.query("DELETE FROM interview_evaluations WHERE evaluator_type = 'bogus'");
+		const retry = await runMigrate();
+		expect(retry.code).toBe(0);
+		expect(await migrationRecorded()).toBe(true);
+		expect(await evaluatorChecks()).toHaveLength(1);
 	}, 300000);
 
 	test('healthy DB: 271 re-run (row deleted, union CHECK already present) is a no-op in effect', async () => {
