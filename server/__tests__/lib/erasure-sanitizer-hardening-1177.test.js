@@ -78,9 +78,14 @@ describe('#1177 list carriers are type-agnostic', () => {
 		expect('storageKeys' in out).toBe(false);
 	});
 
-	test('storageKeys as undefined -> 0, count still emitted', () => {
+	// Review F-2 + Lead ruling (fix round, PR #1488): an undefined list
+	// carrier is ABSENT (JSON semantics + base parity) — carrier key
+	// removed, NO count emitted. This row previously pinned undefined→0;
+	// that behaviour change vs base is what F-2 reversed. null still → 0.
+	test('storageKeys as undefined -> absent: no count emitted', () => {
 		const out = sanitizeErasureResult({ storageKeys: undefined });
-		expect(out.storageKeysCount).toBe(0);
+		expect('storageKeysCount' in out).toBe(false);
+		expect(out.storageKeysCount).toBeUndefined();
 		expect('storageKeys' in out).toBe(false);
 	});
 
@@ -340,5 +345,79 @@ describe('#1177 dictionary-hazard keys (privacy S-35)', () => {
 		expect(out['__proto__']).toEqual({ x: 1 });
 		expect(out.keep).toBe(1);
 		expect({}.x).toBeUndefined();
+	});
+});
+
+describe('#1177 fix round — F-1 Date preservation (review BLOCK)', () => {
+	test('tombstone with a real Date: consentDate is its ISO string (base parity)', () => {
+		const out = sanitizeErasureResult({
+			autoApplyConsentTombstone: {
+				profileExisted: true,
+				gdprConsent: true,
+				consentDate: new Date('2026-01-02T03:04:05Z'),
+			},
+		});
+		expect(out.autoApplyConsentTombstone.consentDate).toBe('2026-01-02T03:04:05.000Z');
+		expect(out.autoApplyConsentTombstone.profileExisted).toBe(true);
+		expect(out.autoApplyConsentTombstone.gdprConsent).toBe(true);
+	});
+
+	test('Date nested in a sub-object maps to its ISO string', () => {
+		const out = sanitizeErasureResult({ nested: { deep: { when: new Date('2025-06-07T08:09:10Z') } } });
+		expect(out.nested.deep.when).toBe('2025-06-07T08:09:10.000Z');
+	});
+
+	test('Date inside an array maps to its ISO string', () => {
+		const out = sanitizeErasureResult({ stamps: [new Date('2024-03-04T05:06:07Z'), 'plain'] });
+		expect(out.stamps).toEqual(['2024-03-04T05:06:07.000Z', 'plain']);
+	});
+});
+
+describe('#1177 fix round — F-2 undefined carrier is absent (Lead ruling)', () => {
+	test('undefined list carrier: no storageKeysCount key at all', () => {
+		const out = sanitizeErasureResult({ storageKeys: undefined, keep: 1 });
+		expect(Object.keys(out)).toEqual(['keep']);
+		expect('storageKeysCount' in out).toBe(false);
+	});
+
+	test('null list carrier: storageKeysCount 0 still emitted', () => {
+		const out = sanitizeErasureResult({ storageKeys: null, keep: 1 });
+		expect(out.storageKeysCount).toBe(0);
+		expect('storageKeys' in out).toBe(false);
+		expect(out.keep).toBe(1);
+	});
+
+	test('undefined nonPatternStorageUrls: no nonPatternStorageUrlCount key', () => {
+		const out = sanitizeErasureResult({ gapC: { nonPatternStorageUrls: undefined } });
+		expect('nonPatternStorageUrlCount' in out.gapC).toBe(false);
+		expect('nonPatternStorageUrls' in out.gapC).toBe(false);
+	});
+});
+
+describe('#1177 fix round — reviewer probes locked in', () => {
+	test.each([
+		'https://evilamazonaws.com/cv/secret.pdf',
+		'https://amazonaws.com.evil.com/cv/secret.pdf',
+	])('evil-host value %s survives the sweep', (value) => {
+		const out = sanitizeErasureResult({ note: value, keep: 1 });
+		expect(out.note).toBe(value);
+		expect(out.keep).toBe(1);
+	});
+
+	test('carriers nested array-in-array are sanitised', () => {
+		const out = sanitizeErasureResult({ items: [[{ storageKeys: [KEY, KEY] }]] });
+		expect(out.items).toEqual([[{ storageKeysCount: 2 }]]);
+		expect(JSON.stringify(out)).not.toContain(KEY);
+	});
+
+	test('circular reference 3 levels deep: returns {} and never throws', () => {
+		const a = { keep: 1 };
+		a.b = { c: {} };
+		a.b.c.root = a;
+		let out;
+		expect(() => {
+			out = sanitizeErasureResult(a);
+		}).not.toThrow();
+		expect(out).toEqual({});
 	});
 });
