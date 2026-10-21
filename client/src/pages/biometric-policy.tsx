@@ -58,7 +58,6 @@ Behavioral measurements: Gaze direction, blink rate, and head pose — used to d
 
 • Identity verification: Confirming you are the person who applied (face match + liveness check).
 • Interview integrity: Detecting deepfakes, AI-generated answers, and proxy test-takers through multi-signal behavioral analysis.
-• Fairness calibration: A 60-second warm-up measures your personal baseline so integrity signals are compared against YOUR normal patterns, not a universal standard.
 
 We never use biometric data for advertising, profiling unrelated to hiring, or any purpose not listed here.`,
 	},

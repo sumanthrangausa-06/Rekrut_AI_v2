@@ -40,6 +40,14 @@ describe('BiometricPolicyPage (S-056)', () => {
 		expect(screen.getByText(/why we collect/i)).toBeInTheDocument();
 	});
 
+	it('does not promise the spec-only 60-second calibration warm-up (FS-140, #1095)', () => {
+		renderAt('/privacy/biometric-policy');
+		// No warm-up/calibration-baseline feature exists in the product;
+		// the policy page must not promise one.
+		expect(screen.queryByText(/60-second warm-up/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/personal baseline/i)).not.toBeInTheDocument();
+	});
+
 	it('describes retention periods per data type', () => {
 		renderAt('/privacy/biometric-policy');
 		expect(screen.getByRole('heading', { name: /retention/i })).toBeInTheDocument();
