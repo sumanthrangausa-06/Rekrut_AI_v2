@@ -834,11 +834,15 @@ router.post(
 					company: req.user.company_name,
 				});
 
-				await trustscoreService.addJobAuthenticityComponent(
-					req.user.company_id,
-					job.id,
-					analysis.overall_score,
-				);
+				// #1570: only a real numeric score may enter the Trust Score —
+				// a missing/non-numeric overall_score skips the component.
+				if (Number.isFinite(analysis.overall_score)) {
+					await trustscoreService.addJobAuthenticityComponent(
+						req.user.company_id,
+						job.id,
+						analysis.overall_score,
+					);
+				}
 
 				// Issue #143: Invalidate analytics cache on new job
 				analyticsCache.invalidatePatterns([

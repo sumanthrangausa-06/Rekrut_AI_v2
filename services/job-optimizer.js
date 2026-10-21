@@ -49,26 +49,23 @@ Only return the JSON object, no other text.`;
 	try {
 		return JSON.parse(response);
 	} catch (_e) {
-		const match = response.match(/\{[\s\S]*\}/);
+		const match = typeof response === 'string' && response.match(/\{[\s\S]*\}/);
 		if (match) {
-			return JSON.parse(match[0]);
+			try {
+				return JSON.parse(match[0]);
+			} catch (_extractErr) {
+				// fall through to the honest unavailable error below
+			}
 		}
-		return {
-			authenticity_score: 50,
-			completeness_score: 50,
-			clarity_score: 50,
-			overall_score: 50,
-			issues: [
-				{
-					severity: 'medium',
-					issue: 'Could not fully analyze',
-					suggestion: 'Please provide more details',
-				},
-			],
-			strengths: [],
-			missing_elements: ['detailed description', 'clear requirements', 'salary information'],
-			improvement_suggestions: [],
-		};
+		// #1570: no analysis happened — never fabricate neutral-50 scores
+		// (overall_score flows into the company Trust Score in job-create).
+		// Throw the AI-unavailable error both callers already handle
+		// (precedent #1345): /jobs/analyze -> honest 500; job-create catch
+		// -> job created with the Trust Score component skipped.
+		const parseErr = new Error('Failed to analyze job posting');
+		parseErr.code = 'AI_PROVIDER_UNAVAILABLE';
+		parseErr.statusCode = 503;
+		throw parseErr;
 	}
 }
 
