@@ -150,7 +150,10 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 			},
 			interviews: interviewData.rows,
 			assessments: assessmentData.rows,
-			profile: profileData.rows[0],
+			// #1540 (Lex ruling, Option 2): explicit null states "we hold no
+			// profile for you" — an absent key would silently drop from the
+			// JSON bundle and read as a gap in the subject's record.
+			profile: profileData.rows[0] ?? null,
 			consents: consentData.rows,
 			audit_trail: auditData.rows,
 			exported_at: new Date().toISOString(),
