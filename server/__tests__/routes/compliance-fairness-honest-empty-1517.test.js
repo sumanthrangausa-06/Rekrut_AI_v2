@@ -62,7 +62,10 @@ function makeApp() {
 	return app;
 }
 
-// scenario: 'empty' (omniscore_results has no rows — its real state) | 'data'
+// scenario: 'empty' (no scored candidates) | 'data'
+// #1522 note: the readers were repointed from omniscore_results to
+// omni_scores (converted scale); the mock routes on the live table name.
+// This suite's honest-empty assertions are unchanged.
 let scenario = 'empty';
 const fairnessInserts = [];
 const biasInserts = [];
@@ -104,10 +107,10 @@ function installPoolMock() {
 			return { rows: [{ id: 77 }] };
 		}
 		if (s.includes('from score_appeals')) return { rows: [] };
-		if (s.includes('from omniscore_results') && s.includes('group by bucket')) {
+		if (s.includes('from omni_scores') && s.includes('group by bucket')) {
 			return { rows: scenario === 'data' ? DATA_DISTRIBUTION : [] };
 		}
-		if (s.includes('from omniscore_results') && s.includes('group by score_bucket')) {
+		if (s.includes('from omni_scores') && s.includes('group by score_bucket')) {
 			return { rows: scenario === 'data' ? DATA_SCORE_DIST : [] };
 		}
 		if (s.includes('from candidate_profiles') && s.includes('percentile_cont')) {
