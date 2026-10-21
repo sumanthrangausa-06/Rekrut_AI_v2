@@ -196,13 +196,22 @@ async function explainOmniScore(userId) {
  * that never ran and is dropped, not converted — Rex §5.2.)
  */
 function generateCalculationExplanation(totalScore, factorBreakdown) {
+	// Honesty gate (PR #1531 BLOCK 6307320338): a null contribution means
+	// that factor has no data — substituting 0 and asserting the sum
+	// equality fabricates a decomposition (e.g. a document-verification
+	// row carrying total_score only). Only render the equality when all
+	// 8 factor contributions are present; otherwise state the total is
+	// the stored OmniScore and the decomposition is unavailable.
+	const hasMissingFactor = factorBreakdown.some((f) => f.contribution === null);
 	return {
 		formula:
 			'OmniScore = 300 + \u03a3 (factor score \u00f7 100 \u00d7 factor weight) \u00d7 550 across 8 factors (scale 300\u2013850)',
 		scale: '300-850',
-		calculation: `${totalScore} = 300 + ${factorBreakdown
-			.map((f) => (f.contribution === null ? 0 : f.contribution))
-			.join(' + ')} (the 8 factor contributions below)`,
+		calculation: hasMissingFactor
+			? `${totalScore} is the stored OmniScore. A full factor decomposition is unavailable because some factor data is missing \u2014 factors with no data have no contribution (see the breakdown below).`
+			: `${totalScore} = 300 + ${factorBreakdown
+					.map((f) => f.contribution)
+					.join(' + ')} (the 8 factor contributions below)`,
 		breakdown: factorBreakdown.map((f) =>
 			f.score === null
 				? `${f.label}: no data \u2014 no contribution`

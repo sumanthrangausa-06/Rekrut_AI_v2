@@ -89,6 +89,18 @@ const SCORED_ROW = {
 // Rex §3.2 anchor fixture: a known total of 612 normalises to 56.7.
 const ANCHOR_ROW = { ...SCORED_ROW, total_score: 612 };
 const NULL_TOTAL_ROW = { ...SCORED_ROW, total_score: null };
+// Review BLOCK on PR #1531 (comment 6307320338): a partial factor_scores
+// row — the reviewer's exact reproduction. Only verified_skills (50 -> 69)
+// and soft_skills (60 -> 33) are present; the other six factors have no
+// data. Reachable on real rows: services/document-verification.js writes
+// omni_scores rows with total_score + resume_score only.
+const PARTIAL_ROW = {
+	...SCORED_ROW,
+	total_score: 500,
+	factor_scores: { verified_skills: 50, soft_skills: 60 },
+};
+// Same block, empty factor_scores: no factor data at all, total present.
+const EMPTY_FACTORS_ROW = { ...SCORED_ROW, total_score: 350, factor_scores: {} };
 
 const HISTORY_ROWS = [
 	{
@@ -111,7 +123,8 @@ const COMPONENT_ROWS = [
 	},
 ];
 
-// scenario: 'scored' | 'anchor' | 'null-total' | 'missing'
+// scenario: 'scored' | 'anchor' | 'null-total' | 'missing' |
+// 'partial-factors' | 'empty-factors'
 let scenario = 'scored';
 const seenSql = [];
 
@@ -123,6 +136,8 @@ function installPoolMock() {
 			if (scenario === 'missing') return { rows: [] };
 			if (scenario === 'null-total') return { rows: [NULL_TOTAL_ROW] };
 			if (scenario === 'anchor') return { rows: [ANCHOR_ROW] };
+			if (scenario === 'partial-factors') return { rows: [PARTIAL_ROW] };
+			if (scenario === 'empty-factors') return { rows: [EMPTY_FACTORS_ROW] };
 			return { rows: [SCORED_ROW] };
 		}
 		if (s.includes('from score_components')) return { rows: COMPONENT_ROWS };
@@ -275,5 +290,72 @@ describe('#1523 no-data honesty — insufficient data, never a 500', () => {
 		const res = await request(makeApp()).get('/api/compliance/explain/omniscore/7');
 		expect(res.status).toBe(200);
 		expect(res.body.explanation.insufficient_data).toBe(true);
+	});
+});
+
+describe('#1523 partial/empty factor_scores — no fabricated decomposition (PR #1531 BLOCK 6307320338)', () => {
+	test('partial factor_scores: no 0-substituted false equality, honest stored-total explanation', async () => {
+		scenario = 'partial-factors';
+		const explanation = await explainOmniScore(7);
+		// The total exists, so this is NOT the insufficient-data path.
+		expect(explanation.insufficient_data).toBe(false);
+		expect(explanation.overall_score).toBe(500);
+		// Present factors keep their real contributions; missing factors
+		// stay null — never 0.
+		expect(factorByKey(explanation, 'verified_skills')).toMatchObject({
+			score: 50,
+			contribution: 69,
+		});
+		expect(factorByKey(explanation, 'soft_skills')).toMatchObject({
+			score: 60,
+			contribution: 33,
+		});
+		expect(factorByKey(explanation, 'interview_performance')).toMatchObject({
+			score: null,
+			contribution: null,
+		});
+		// The block: current code renders
+		// "500 = 300 + 69 + 0 + 0 + 0 + 0 + 33 + 0 + 0" (RHS = 402).
+		// No equality form may be rendered while any contribution is null.
+		const calculation = explanation.how_calculated.calculation;
+		expect(calculation).not.toMatch(/=\s*300\s*\+/);
+		expect(calculation).not.toMatch(/500\s*=/);
+		// Honest replacement: the total is the stored OmniScore and a
+		// full decomposition is unavailable because factor data is missing.
+		expect(calculation).toMatch(/500/);
+		expect(calculation).toMatch(/stored OmniScore/);
+		expect(calculation).toMatch(/missing/);
+		// The per-factor breakdown lines stay honest on the same payload.
+		expect(explanation.how_calculated.breakdown.join(' ')).toMatch(
+			/no data — no contribution/,
+		);
+	});
+
+	test('empty factor_scores: no 0-substituted false equality, honest stored-total explanation', async () => {
+		scenario = 'empty-factors';
+		const explanation = await explainOmniScore(7);
+		expect(explanation.insufficient_data).toBe(false);
+		expect(explanation.overall_score).toBe(350);
+		expect(explanation.factor_breakdown).toHaveLength(8);
+		for (const factor of explanation.factor_breakdown) {
+			expect(factor.score).toBeNull();
+			expect(factor.contribution).toBeNull();
+		}
+		const calculation = explanation.how_calculated.calculation;
+		expect(calculation).not.toMatch(/=\s*300\s*\+/);
+		expect(calculation).not.toMatch(/350\s*=/);
+		expect(calculation).toMatch(/350/);
+		expect(calculation).toMatch(/stored OmniScore/);
+		expect(calculation).toMatch(/missing/);
+	});
+
+	test('route: partial factor_scores user gets 200 with no false equality', async () => {
+		scenario = 'partial-factors';
+		const res = await request(makeApp()).get('/api/compliance/explain/omniscore/7');
+		expect(res.status).toBe(200);
+		expect(res.body.explanation.insufficient_data).toBe(false);
+		expect(res.body.explanation.overall_score).toBe(500);
+		expect(res.body.explanation.how_calculated.calculation).not.toMatch(/=\s*300\s*\+/);
+		expect(res.body.explanation.how_calculated.calculation).toMatch(/stored OmniScore/);
 	});
 });
