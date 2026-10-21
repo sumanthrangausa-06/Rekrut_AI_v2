@@ -1,25 +1,61 @@
 const pool = require('../lib/db');
+const { FACTOR_WEIGHTS, FACTOR_META } = require('./omniscore');
 
 /**
  * Score Explainability Service
  * Provides transparent explanations for OmniScore and assessment results
  */
 
+function numOrNull(value) {
+	if (value === null || value === undefined) return null;
+	const parsed = parseFloat(value);
+	return Number.isFinite(parsed) ? parsed : null;
+}
+
+// A factor's contribution to the total, in total-scale points — the
+// engine's own arithmetic (services/omniscore.js): total = 300 +
+// Σ (raw/100 × weight) × 550.
+function factorContribution(raw, weight) {
+	if (raw === null) return null;
+	return Math.round((raw / 100) * weight * 550);
+}
+
 /**
  * Generate a human-readable explanation for a user's OmniScore
  */
 async function explainOmniScore(userId) {
 	try {
-		// Get current score
-		const scoreResult = await pool.query('SELECT * FROM omniscore_results WHERE user_id = $1', [
-			userId,
-		]);
-
-		if (scoreResult.rows.length === 0) {
-			throw new Error('No OmniScore found for this user');
-		}
+		// #1152-B (R1): repointed from the never-written omniscore_results
+		// table to the live omni_scores store. Pass-through scales (Rex
+		// scale decision 2026-10-20, §4 R1): total_score is native
+		// 300–850, factor values are native 0–100. A row can exist with a
+		// NULL total (#1192: NULL = no data), so "row exists" is never
+		// "score exists".
+		const scoreResult = await pool.query(
+			`SELECT total_score, technical_score, behavior_score, factor_scores
+       FROM omni_scores WHERE user_id = $1`,
+			[userId],
+		);
 
 		const score = scoreResult.rows[0];
+		const totalScore = score ? numOrNull(score.total_score) : null;
+
+		if (totalScore === null) {
+			// Honest insufficient-data (#1517 precedent): a payload, not a
+			// throw — the route used to surface this case as a 500.
+			return {
+				overall_score: null,
+				overall_score_normalized: null,
+				score_scale: '300-850',
+				insufficient_data: true,
+				message: 'Insufficient data — no OmniScore has been calculated for this user yet.',
+				score_breakdown: null,
+				factor_breakdown: [],
+				recent_changes: [],
+				how_calculated: null,
+				improvement_factors: [],
+			};
+		}
 
 		// Get score components breakdown
 		const components = await pool.query(
@@ -32,7 +68,7 @@ async function explainOmniScore(userId) {
 			[userId],
 		);
 
-		// Get score history
+		// Get score history (values are already total-scale — pass-through)
 		const history = await pool.query(
 			`
         SELECT previous_score, new_score, change_amount, change_reason, component_type, created_at
@@ -57,58 +93,92 @@ async function explainOmniScore(userId) {
 			}
 		});
 
-		// Calculate contributions
-		const _totalPoints = components.rows.reduce((sum, c) => sum + parseFloat(c.points_earned), 0);
+		// factor_scores JSONB: the pg driver returns it parsed, but
+		// normalise defensively so a string form cannot throw.
+		let factorScores = score.factor_scores || {};
+		if (typeof factorScores === 'string') {
+			try {
+				factorScores = JSON.parse(factorScores);
+			} catch {
+				factorScores = {};
+			}
+		}
+
+		// The real 8-factor breakdown (replaces the fabricated 40/30/30
+		// formula, dropped per Rex §5.2 — it described a model that
+		// never ran).
+		const factorBreakdown = Object.entries(FACTOR_WEIGHTS).map(([key, weight]) => {
+			const raw = numOrNull(factorScores[key]);
+			return {
+				factor: key,
+				label: (FACTOR_META[key] && FACTOR_META[key].label) || key,
+				score: raw,
+				weight,
+				contribution: factorContribution(raw, weight),
+			};
+		});
+		const factorByKey = Object.fromEntries(factorBreakdown.map((f) => [f.factor, f]));
+
+		const technicalScore = numOrNull(score.technical_score);
+		const behavioralScore = numOrNull(score.behavior_score);
+		const experienceScore = factorByKey.experience_quality.score;
+		// behavior_score is a composite: the average of the Reliability
+		// Signals and Soft Skills factor raws (omniscore.js
+		// calculateScore), so its true combined weight is their sum.
+		const behavioralWeight = FACTOR_WEIGHTS.reliability_signals + FACTOR_WEIGHTS.soft_skills;
+
+		const componentList = (list) =>
+			list.map((c) => ({
+				source: c.source_type,
+				points: parseFloat(c.points_earned),
+				weight: parseFloat(c.weight),
+				date: c.created_at,
+				details: c.metadata,
+			}));
 
 		const explanation = {
-			overall_score: parseFloat(score.overall_score),
+			overall_score: totalScore,
+			// Labelled secondary index (Rex §3.2): the only normalised
+			// value in this payload, converted once here — the headline
+			// above stays native 300–850.
+			overall_score_normalized: Math.round(((totalScore - 300) / 5.5) * 10) / 10,
+			score_scale: '300-850',
+			insufficient_data: false,
 			score_breakdown: {
 				technical: {
-					score: parseFloat(score.technical_score),
-					weight: 0.4,
-					contribution: parseFloat(score.technical_score) * 0.4,
-					components: componentsByType.technical.map((c) => ({
-						source: c.source_type,
-						points: parseFloat(c.points_earned),
-						weight: parseFloat(c.weight),
-						date: c.created_at,
-						details: c.metadata,
-					})),
+					label: 'Technical (Verified Skills factor)',
+					score: technicalScore,
+					weight: FACTOR_WEIGHTS.verified_skills,
+					contribution: factorContribution(technicalScore, FACTOR_WEIGHTS.verified_skills),
+					components: componentList(componentsByType.technical),
 				},
 				behavioral: {
-					score: parseFloat(score.behavioral_score),
-					weight: 0.3,
-					contribution: parseFloat(score.behavioral_score) * 0.3,
-					components: componentsByType.behavioral.map((c) => ({
-						source: c.source_type,
-						points: parseFloat(c.points_earned),
-						weight: parseFloat(c.weight),
-						date: c.created_at,
-						details: c.metadata,
-					})),
+					// Labelled as the composite it is, never as an
+					// assessment score (Rex §5.4).
+					label: 'Behavioral (composite of Reliability Signals and Soft Skills factors)',
+					score: behavioralScore,
+					weight: behavioralWeight,
+					contribution: factorContribution(behavioralScore, behavioralWeight),
+					components: componentList(componentsByType.behavioral),
 				},
 				experience: {
-					score: parseFloat(score.experience_score),
-					weight: 0.3,
-					contribution: parseFloat(score.experience_score) * 0.3,
-					components: componentsByType.experience.map((c) => ({
-						source: c.source_type,
-						points: parseFloat(c.points_earned),
-						weight: parseFloat(c.weight),
-						date: c.created_at,
-						details: c.metadata,
-					})),
+					label: 'Experience (Experience Quality factor)',
+					score: experienceScore,
+					weight: FACTOR_WEIGHTS.experience_quality,
+					contribution: factorContribution(experienceScore, FACTOR_WEIGHTS.experience_quality),
+					components: componentList(componentsByType.experience),
 				},
 			},
+			factor_breakdown: factorBreakdown,
 			recent_changes: history.rows.map((h) => ({
 				date: h.created_at,
-				previous: parseFloat(h.previous_score),
-				new: parseFloat(h.new_score),
-				change: parseFloat(h.change_amount),
+				previous: numOrNull(h.previous_score),
+				new: numOrNull(h.new_score),
+				change: numOrNull(h.change_amount),
 				reason: h.change_reason,
 				component: h.component_type,
 			})),
-			how_calculated: generateCalculationExplanation(score),
+			how_calculated: generateCalculationExplanation(totalScore, factorBreakdown),
 			improvement_factors: generateImprovementFactors(componentsByType),
 		};
 
@@ -120,17 +190,33 @@ async function explainOmniScore(userId) {
 }
 
 /**
- * Generate plain-English explanation of how the score is calculated
+ * Generate plain-English explanation of how the score is calculated —
+ * the engine's real formula: 300 + Σ (factor ÷ 100 × weight) × 550
+ * across the 8 factors. (The previous 40/30/30 text described a model
+ * that never ran and is dropped, not converted — Rex §5.2.)
  */
-function generateCalculationExplanation(score) {
+function generateCalculationExplanation(totalScore, factorBreakdown) {
+	// Honesty gate (PR #1531 BLOCK 6307320338): a null contribution means
+	// that factor has no data — substituting 0 and asserting the sum
+	// equality fabricates a decomposition (e.g. a document-verification
+	// row carrying total_score only). Only render the equality when all
+	// 8 factor contributions are present; otherwise state the total is
+	// the stored OmniScore and the decomposition is unavailable.
+	const hasMissingFactor = factorBreakdown.some((f) => f.contribution === null);
 	return {
-		formula: 'Overall Score = (Technical × 40%) + (Behavioral × 30%) + (Experience × 30%)',
-		calculation: `${score.overall_score} = (${score.technical_score} × 0.4) + (${score.behavioral_score} × 0.3) + (${score.experience_score} × 0.3)`,
-		breakdown: [
-			`Technical contribution: ${(score.technical_score * 0.4).toFixed(1)} points`,
-			`Behavioral contribution: ${(score.behavioral_score * 0.3).toFixed(1)} points`,
-			`Experience contribution: ${(score.experience_score * 0.3).toFixed(1)} points`,
-		],
+		formula:
+			'OmniScore = 300 + \u03a3 (factor score \u00f7 100 \u00d7 factor weight) \u00d7 550 across 8 factors (scale 300\u2013850)',
+		scale: '300-850',
+		calculation: hasMissingFactor
+			? `${totalScore} is the stored OmniScore. A full factor decomposition is unavailable because some factor data is missing \u2014 factors with no data have no contribution (see the breakdown below).`
+			: `${totalScore} = 300 + ${factorBreakdown
+					.map((f) => f.contribution)
+					.join(' + ')} (the 8 factor contributions below)`,
+		breakdown: factorBreakdown.map((f) =>
+			f.score === null
+				? `${f.label}: no data \u2014 no contribution`
+				: `${f.label} contribution: ${f.contribution} of 550 points (score ${f.score} \u00d7 ${Math.round(f.weight * 100)}% weight)`,
+		),
 	};
 }
 
