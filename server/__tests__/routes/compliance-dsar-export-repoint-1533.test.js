@@ -22,6 +22,15 @@
  * bundle stays `omniscore: []` — that is the red state.
  * The HL-003 dev E2E (real DB, real HTTP) is Quinn's gate after
  * independent review; it is not replaced here.
+ *
+ * #1537 hardening (follow-up from #1534 review): the mock now also
+ * records the params argument, and two pins are added —
+ *  F1: each omni_scores-family query must be scoped
+ *      `WHERE user_id = $1` with params exactly [targetUserId];
+ *  F2: the bundle's top-level key set is asserted exactly, so a
+ *      supplemental score key beside `omniscore` (forbidden by Lex's
+ *      #1528 ruling: replace, never supplement) fails the suite.
+ * F3 (ORDER BY) intentionally not pinned — see STOP 1 on #1537.
  */
 const express = require('express');
 const request = require('supertest');
@@ -64,6 +73,11 @@ function makeApp() {
 }
 
 const USER_ROW = { id: 7, email: 'subject@example.com', role: 'candidate' };
+
+// #1537: a profile row is seeded so `profile` (rows[0]) serialises —
+// with no profile row it is `undefined` and JSON drops the key, which
+// would make the F2 top-level key-set pin scenario-dependent.
+const PROFILE_ROW = { id: 31, user_id: 7, headline: 'Data Analyst' };
 
 // A row exactly as held in omni_scores (migrations 001 + 077): native
 // total on the 300–850 scale, factor columns + factor_scores JSONB native
@@ -124,10 +138,12 @@ const SNAPSHOT_ROWS = [
 // scenario: 'populated' | 'empty' | 'null-total'
 let scenario = 'populated';
 const seenSql = [];
+const seenCalls = [];
 
 function installPoolMock() {
-	pool.query.mockImplementation(async (sql) => {
+	pool.query.mockImplementation(async (sql, params) => {
 		seenSql.push(sql);
+		seenCalls.push({ sql, params });
 		const s = sql.toLowerCase();
 		if (s.includes('from omni_scores')) {
 			if (scenario === 'empty') return { rows: [] };
@@ -140,6 +156,7 @@ function installPoolMock() {
 		if (s.includes('from score_snapshots')) {
 			return { rows: scenario === 'empty' ? [] : SNAPSHOT_ROWS };
 		}
+		if (s.includes('from candidate_profiles')) return { rows: [PROFILE_ROW] };
 		if (s.includes('from users')) return { rows: [USER_ROW] };
 		// Pre-fix code reads omniscore_results: no route above matches it,
 		// so it lands here with [] — the red state.
@@ -153,6 +170,7 @@ beforeEach(() => {
 	jest.clearAllMocks();
 	scenario = 'populated';
 	seenSql.length = 0;
+	seenCalls.length = 0;
 	installPoolMock();
 });
 
@@ -204,5 +222,33 @@ describe('#1533 POST /gdpr/export — omniscore re-sourced from the live family 
 	test('auth gate preserved: exporting another user is still 403', async () => {
 		const res = await request(makeApp()).post('/api/compliance/gdpr/export').send({ userId: 999 });
 		expect(res.status).toBe(403);
+	});
+
+	// #1537 F1: pin WHERE user_id scoping + params for the new family queries.
+	test('#1537 F1: omni_scores-family queries are scoped WHERE user_id = $1 with params [7]', async () => {
+		const res = await request(makeApp()).post('/api/compliance/gdpr/export').send({ userId: 7 });
+		expect(res.status).toBe(200);
+		for (const table of ['omni_scores', 'score_history', 'score_snapshots']) {
+			const call = seenCalls.find((c) => new RegExp(`from ${table}\\b`, 'i').test(c.sql));
+			expect(call).toBeDefined();
+			expect(call.sql).toMatch(/where\s+user_id\s*=\s*\$1/i);
+			expect(call.params).toEqual([7]);
+		}
+	});
+
+	// #1537 F2: pin the bundle's exact top-level key set (Lex #1528: replace, never supplement).
+	test('#1537 F2: bundle top-level keys are exactly the expected set — no supplemental score key', async () => {
+		const res = await request(makeApp()).post('/api/compliance/gdpr/export').send({ userId: 7 });
+		expect(res.status).toBe(200);
+		expect(Object.keys(res.body.data).sort()).toEqual([
+			'assessments',
+			'audit_trail',
+			'consents',
+			'exported_at',
+			'interviews',
+			'omniscore',
+			'profile',
+			'user',
+		]);
 	});
 });
