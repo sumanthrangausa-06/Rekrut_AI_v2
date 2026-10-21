@@ -840,40 +840,15 @@ Requirements:
 	} catch (error) {
 		console.error('Error generating AI question:', error);
 
-		// Fallback: try any question from the bank
-		const fallbackResult = await client.query(`
-      SELECT * FROM assessment_questions
-      ORDER BY RANDOM()
-      LIMIT 1
-    `);
-
-		if (fallbackResult.rows.length > 0) {
-			return fallbackResult.rows[0];
-		}
-
-		// Last resort: create a hardcoded question
-		const fallbackInsert = await client.query(
-			`
-      INSERT INTO assessment_questions
-      (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds)
-      VALUES ($1, $2, 'multiple_choice', $3, $4, $5, $6, 90)
-      RETURNING *
-    `,
-			[
-				skillName,
-				difficulty,
-				`Which of the following best describes a key concept in ${skillName}?`,
-				JSON.stringify([
-					`A fundamental principle of ${skillName} that enables modularity`,
-					`A deprecated feature that is no longer recommended`,
-					`A testing framework specific to ${skillName}`,
-					`A build tool used exclusively in ${skillName} projects`,
-				]),
-				`A fundamental principle of ${skillName} that enables modularity`,
-				`Understanding core principles is essential for working effectively with ${skillName}.`,
-			],
-		);
-		return fallbackInsert.rows[0];
+		// #1573: fail honestly. Never serve a bank question outside the
+		// requested skill/difficulty as a substitute, and never INSERT
+		// templated/boilerplate content into assessment_questions as if it
+		// were a real question. Returning null makes both callers roll back
+		// and surface their explicit error state ('Failed to generate
+		// questions. Please try again.' / 'Failed to generate next
+		// question') — a retry can succeed; a fabricated question served in
+		// a scored assessment can never be un-taken.
+		return null;
 	}
 }
 
