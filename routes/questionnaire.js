@@ -137,11 +137,11 @@ Return ONLY a JSON object with this exact structure:
 		};
 	}
 
-	// Fallback if parsing fails
-	return {
-		score: 50,
-		explanation: 'AI evaluation could not be parsed. Default score applied.',
-	};
+	// #1571: parsing failed — no evaluation happened, so mint NO score.
+	// Returning null lets the caller skip this question exactly as it does
+	// when chat() throws; a fabricated default would be stored and averaged
+	// as if it had been measured.
+	return null;
 }
 
 // ─── Recruiter Endpoints ──────────────────────────────────────────────────
@@ -742,12 +742,22 @@ router.post('/submit', authMiddleware, async (req, res) => {
 			const evaluations = [];
 			let totalScore = 0;
 			let evaluatedCount = 0;
+			let attemptedCount = 0;
 
 			for (const question of shortTextQuestions) {
 				const answer = finalAnswers[question.id];
 				if (answer !== undefined && String(answer).trim().length > 0) {
+					attemptedCount++;
 					try {
 						const evalResult = await evaluateAnswer(question, answer, job);
+						if (!evalResult) {
+							// #1571: unparseable AI response — skip this question,
+							// no score is recorded for it.
+							console.error(
+								`[questionnaire/submit] AI eval unparseable for Q${question.id} — skipped, no score recorded`,
+							);
+							continue;
+						}
 						evaluations.push({
 							question_id: question.id,
 							score: evalResult.score,
@@ -790,6 +800,13 @@ router.post('/submit', authMiddleware, async (req, res) => {
 					status = 'rejected';
 					aiExplanation = `Candidate scored ${overallScore}/100, below the passing threshold of ${passThreshold}.`;
 				}
+			} else if (attemptedCount > 0) {
+				// #1571: answers were submitted but every AI evaluation failed —
+				// leave the response honestly unevaluated (status stays
+				// 'completed', overallScore stays null) instead of flipping it
+				// to a fabricated pass/fail outcome.
+				aiExplanation =
+					'AI evaluation could not be completed for the submitted answers. No score has been recorded.';
 			} else {
 				// No short_text answers to evaluate — auto-pass if no knockouts
 				status = 'evaluated';
