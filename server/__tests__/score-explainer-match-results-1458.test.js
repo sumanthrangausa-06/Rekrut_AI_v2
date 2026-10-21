@@ -5,9 +5,10 @@
  * writes it) 500'd every authorised call to both explain endpoints on a fresh
  * install. The fix selects only real, written match_results columns:
  *   - explainDecision: weighted_score AS overall_match_score + missing_skills AS skills_missing
- *   - ForJob siblings: + matching_skills AS skills_matched; the Cultural Fit
- *     factor (no real source) is dropped, not remapped; the never-written
- *     match experience_score and the phantom match_explanation are dropped.
+ *   - ForJob sibling (scoreExplainer.explainDecisionForJob) was retired
+ *     in #1527 (R2 dead-code removal, zero callers); its tests went with it.
+ *     The EuComplianceService.explainDecisionForJob tests below are a
+ *     different, live function and remain.
  * Cached ai_decision_explanations rows move to weights_hash 'v2-match-results'
  * and the eu cache read only serves rows carrying the effective hash.
  *
@@ -37,7 +38,7 @@ jest.mock('../../services/auditLogService', () => ({
 }));
 
 const pool = require('../../lib/db');
-const { explainDecision, explainDecisionForJob } = require('../../services/scoreExplainer');
+const { explainDecision } = require('../../services/scoreExplainer'); // #1527: explainDecisionForJob retired (R2, zero callers)
 const EuComplianceService = require('../../services/euComplianceService');
 
 const APP_ROW = {
@@ -129,74 +130,6 @@ describe('#1458 explainDecision sources match data from match_results', () => {
 		routeMock({ appRow: { ...APP_ROW, status: 'applied', omniscore_at_apply: 55 } });
 		const out = await explainDecision(1);
 		expect(out.factors).toEqual([]);
-	});
-});
-
-describe('#1458 explainDecisionForJob drops Cultural Fit (no renormalise)', () => {
-	test('three factors only, weights 0.4/0.3/0.2, no fabricated cultural score', async () => {
-		pool.query.mockImplementation(async (sql) => {
-			queries.push({ sql });
-			if (sql.includes('FROM omniscore_results'))
-				return {
-					rows: [
-						{
-							overall_score: '80',
-							technical_score: '70',
-							behavioral_score: '60',
-							experience_score: '50',
-						},
-					],
-				};
-			if (sql.includes('FROM score_components')) return { rows: [] };
-			if (sql.includes('FROM jobs WHERE id')) return { rows: [{ title: 'Platform Engineer' }] };
-			if (sql.includes('FROM match_results'))
-				return {
-					rows: [
-						{
-							overall_match_score: '55.00',
-							skills_matched: ['JavaScript'],
-							skills_missing: ['Go'],
-						},
-					],
-				};
-			if (sql.includes('FROM candidate_job_matches')) return { rows: [] };
-			if (sql.includes('INSERT INTO ai_decision_explanations')) return { rows: [] };
-			return { rows: [] };
-		});
-		const out = await explainDecisionForJob(1, 1, 1);
-		const names = out.factor_breakdowns.map((f) => f.factor);
-		expect(names).toEqual(['Technical Skills', 'Behavioral Fit', 'Experience Match']);
-		expect(names).not.toContain('Cultural Fit');
-		// don't-renormalise: surviving weights sum to 0.9, not re-based to 1.0
-		const sum = out.factor_breakdowns.reduce((s, f) => s + f.weight, 0);
-		expect(sum).toBeCloseTo(0.9, 5);
-		// scores from honest sources only: omniscore row, never the never-written match column
-		const tech = out.factor_breakdowns.find((f) => f.factor === 'Technical Skills');
-		expect(tech.score).toBe(70);
-		expect(tech.explanation).toBe('Matched skills: JavaScript');
-		expect(tech.data_source).not.toBe('candidate_job_matches');
-		const exp = out.factor_breakdowns.find((f) => f.factor === 'Experience Match');
-		expect(exp.score).toBe(50);
-		// overall keeps its existing fallback chain, not a renormalised sum
-		expect(out.overall_score).toBe(80);
-		// no factor text mentions the internal trust artifact
-		expect(JSON.stringify(out)).not.toContain('candidate_job_matches');
-	});
-
-	test('cache write stamps the new weights hash', async () => {
-		pool.query.mockImplementation(async (sql) => {
-			queries.push({ sql });
-			if (sql.includes('FROM omniscore_results')) return { rows: [] };
-			if (sql.includes('FROM score_components')) return { rows: [] };
-			if (sql.includes('FROM jobs WHERE id')) return { rows: [{ title: 'Platform Engineer' }] };
-			if (sql.includes('FROM match_results')) return { rows: [] };
-			if (sql.includes('INSERT INTO ai_decision_explanations')) return { rows: [] };
-			return { rows: [] };
-		});
-		await explainDecisionForJob(1, 1, 1);
-		const insert = queries.find((q) => q.sql.includes('INSERT INTO ai_decision_explanations'));
-		expect(insert.sql).toContain('v2-match-results');
-		expect(insert.sql).not.toContain('v1-default');
 	});
 });
 
