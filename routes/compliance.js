@@ -338,29 +338,36 @@ router.post('/fairness/audit', authMiddleware, async (_req, res) => {
 	try {
 		const auditDate = new Date().toISOString().split('T')[0];
 
-		// Get score distribution
+		// Get score distribution.
+		// #1522 (Rex #1152 §3.2/§4 R8): repointed from the never-written
+		// omniscore_results to live omni_scores. total_score is native
+		// 300-850 (NULL = no data); buckets and averages run over the
+		// normalised value (total_score - 300) / 5.5 AS overall_score_norm,
+		// converted once at this SQL boundary, so bucket labels and the
+		// fairnessScore formula below keep their 0-100 meaning (on native
+		// totals, 100 - (max - min) would run to -450).
 		const scoreDistribution = await pool.query(`
       SELECT
-        FLOOR(overall_score / 10) * 10 as bucket,
+        FLOOR(((total_score - 300) / 5.5) / 10) * 10 as bucket,
         COUNT(*) as count,
-        AVG(overall_score) as avg_score
-      FROM omniscore_results
-      WHERE overall_score IS NOT NULL
+        AVG((total_score - 300) / 5.5) as avg_score
+      FROM omni_scores
+      WHERE total_score IS NOT NULL
       GROUP BY bucket
       ORDER BY bucket
     `);
 
-		// Get demographic breakdowns
+		// Get demographic breakdowns (avg_score is overall_score_norm, above)
 		const demographics = await pool.query(`
       SELECT
         cd.gender,
         cd.ethnicity,
         COUNT(*) as total,
-        AVG(os.overall_score) as avg_score
+        AVG((os.total_score - 300) / 5.5) as avg_score
       FROM candidate_profiles cp
       LEFT JOIN candidate_demographics cd ON cd.user_id = cp.user_id
-      LEFT JOIN omniscore_results os ON os.user_id = cp.user_id
-      WHERE os.overall_score IS NOT NULL
+      LEFT JOIN omni_scores os ON os.user_id = cp.user_id
+      WHERE os.total_score IS NOT NULL
       GROUP BY cd.gender, cd.ethnicity
     `);
 
