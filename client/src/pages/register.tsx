@@ -223,7 +223,7 @@ export function RegisterPage() {
 						<div className="mb-8">
 							<h2 className="font-heading text-2xl font-bold">Create an account</h2>
 							<p className="mt-1 text-sm text-muted-foreground">
-								Join thousands of professionals finding their next opportunity
+								Find your next opportunity on Rekrut AI
 							</p>
 						</div>
 

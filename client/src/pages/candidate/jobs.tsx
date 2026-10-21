@@ -782,7 +782,7 @@ export function CandidateJobsPage() {
 		<div className="min-h-[calc(100dvh-4rem)] flex flex-col overflow-hidden">
 			<SEO
 				title="Find Your Next Job — AI-Powered Job Matching"
-				description="Browse thousands of AI-matched jobs on Rekrut AI. Filter by location, salary, remote work, and more. Get personalized job recommendations based on your skills."
+				description="Browse AI-matched jobs on Rekrut AI. Filter by location, salary, remote work, and more. Get personalized job recommendations based on your skills."
 				canonical="/candidate/jobs"
 			/>
 
