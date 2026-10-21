@@ -7,72 +7,6 @@ const pool = require('../lib/db');
 // biome-ignore lint/complexity/noStaticOnlyClass: Service pattern with static methods for backward compatibility
 class BiasDetection {
 	/**
-	 * Analyze demographic parity for a SPECIFIC job posting.
-	 * Per Stanford research: aggregated audits hide adverse impact.
-	 */
-	static async analyzeDemographicParityForJob(jobId) {
-		try {
-			const scoresByDemographics = await pool.query(
-				`
-        SELECT
-          cd.gender,
-          cd.ethnicity,
-          cd.age_group,
-          COUNT(*) as total_candidates,
-          AVG(os.overall_score) as avg_score,
-          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY os.overall_score) as median_score,
-          MIN(os.overall_score) as min_score,
-          MAX(os.overall_score) as max_score,
-          STDDEV(os.overall_score) as score_stddev
-        FROM job_applications ja
-        JOIN candidate_demographics cd ON cd.user_id = ja.candidate_id
-        LEFT JOIN omniscore_results os ON os.user_id = ja.candidate_id
-        WHERE ja.job_id = $1 AND os.overall_score IS NOT NULL
-        GROUP BY cd.gender, cd.ethnicity, cd.age_group
-      `,
-				[jobId],
-			);
-
-			const findings = {
-				by_gender: BiasDetection._calculateDisparity(
-					scoresByDemographics.rows.filter((r) => r.gender),
-					'gender',
-				),
-				by_ethnicity: BiasDetection._calculateDisparity(
-					scoresByDemographics.rows.filter((r) => r.ethnicity),
-					'ethnicity',
-				),
-				by_age: BiasDetection._calculateDisparity(
-					scoresByDemographics.rows.filter((r) => r.age_range),
-					'age_range',
-				),
-			};
-
-			const flaggedPatterns = [];
-			Object.entries(findings).forEach(([category, data]) => {
-				if (data.groups && data.max_avg_score - data.min_avg_score > 10) {
-					flaggedPatterns.push({
-						category,
-						issue: 'significant_score_gap',
-						gap: data.max_avg_score - data.min_avg_score,
-						details: `${data.max_group} scores ${(data.max_avg_score - data.min_avg_score).toFixed(1)} points higher than ${data.min_group}`,
-					});
-				}
-			});
-
-			return {
-				findings,
-				flaggedPatterns,
-				rawData: scoresByDemographics.rows,
-				job_id: jobId,
-			};
-		} catch (error) {
-			console.error('Per-job demographic parity analysis failed:', error);
-			throw error;
-		}
-	}
-
-	/**
 	 * Calculate the four-fifths rule (80% rule) for a specific job posting.
 	 * Selection rate of minority group / selection rate of majority group.
 	 * Flag if ratio < 0.80.
@@ -154,43 +88,6 @@ class BiasDetection {
 			console.error('Four-fifths rule calculation failed:', error);
 			throw error;
 		}
-	}
-
-	/**
-	 * Generate a per-job bias report (not aggregated)
-	 */
-	static async generatePerJobReport(jobId) {
-		const [demographicAnalysis, fourFifthsAnalysis] = await Promise.all([
-			BiasDetection.analyzeDemographicParityForJob(jobId),
-			BiasDetection.calculateFourFifthsRule(jobId),
-		]);
-
-		const recommendations = [];
-		if (demographicAnalysis.flaggedPatterns.length > 0) {
-			recommendations.push({
-				priority: 'high',
-				action: 'Review scoring algorithm for demographic bias in this job posting',
-				details: `Found ${demographicAnalysis.flaggedPatterns.length} significant score disparities`,
-			});
-		}
-		if (fourFifthsAnalysis.four_fifths_results.some((r) => r.flagged)) {
-			recommendations.push({
-				priority: 'high',
-				action: 'Adverse impact detected under four-fifths rule',
-				details: `Flagged attributes: ${fourFifthsAnalysis.four_fifths_results
-					.filter((r) => r.flagged)
-					.map((r) => r.attribute)
-					.join(', ')}`,
-			});
-		}
-
-		return {
-			job_id: jobId,
-			demographicAnalysis,
-			fourFifthsAnalysis,
-			recommendations,
-			generated_at: new Date().toISOString(),
-		};
 	}
 
 	/**
