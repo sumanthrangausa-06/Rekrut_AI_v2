@@ -48,6 +48,25 @@ describe('BiometricPolicyPage (S-056)', () => {
 		expect(screen.queryByText(/personal baseline/i)).not.toBeInTheDocument();
 	});
 
+	it('does not claim unshipped face-match/liveness, 24-hour ID deletion, or armed 90-day deletion (#1555)', () => {
+		renderAt('/privacy/biometric-policy');
+		// No face-comparison or liveness implementation exists in the product.
+		expect(screen.queryByText(/face match/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/liveness/i)).not.toBeInTheDocument();
+		// Government ID images are NOT deleted within 24 hours (verification
+		// retention is 90 days, with no automated deletion job).
+		expect(screen.queryByText(/24 hours/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/government id images/i)).not.toBeInTheDocument();
+		// The retention purge is not armed, so the page must not present
+		// 90-day deletion as an accomplished/automatic fact.
+		expect(screen.queryByText(/deleted 90 days/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/90 days after the hiring decision/i)).not.toBeInTheDocument();
+		// The true recording anchors must be stated instead.
+		expect(screen.getByText(/30 days after the hiring decision/i)).toBeInTheDocument();
+		// The honest disclosure that replaces it must be present.
+		expect(screen.getByText(/automated deletion at expiry is not yet enabled/i)).toBeInTheDocument();
+	});
+
 	it('describes retention periods per data type', () => {
 		renderAt('/privacy/biometric-policy');
 		expect(screen.getByRole('heading', { name: /retention/i })).toBeInTheDocument();

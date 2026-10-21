@@ -56,7 +56,7 @@ Behavioral measurements: Gaze direction, blink rate, and head pose — used to d
 		title: '2. Why We Collect It',
 		content: `We collect biometric data for these specific purposes only:
 
-• Identity verification: Confirming you are the person who applied (face match + liveness check).
+• Identity verification: Confirming you are the person who applied.
 • Interview integrity: Detecting deepfakes, AI-generated answers, and proxy test-takers through multi-signal behavioral analysis.
 
 We never use biometric data for advertising, profiling unrelated to hiring, or any purpose not listed here.`,
@@ -66,9 +66,8 @@ We never use biometric data for advertising, profiling unrelated to hiring, or a
 		title: '3. Retention Periods',
 		content: `We retain biometric data only as long as necessary, and never longer than the law requires:
 
-• Raw video/audio recordings: Deleted 90 days after the hiring decision is finalized.
-• Government ID images: Deleted within 24 hours of identity verification.
-• Face/voice embeddings (mathematical templates): Deleted when the associated recording is deleted (90 days post-decision).
+• Raw video/audio recordings: Each recording carries a retention expiry — 90 days after it was recorded, or 30 days after the hiring decision for session recordings. Automated deletion at expiry is not yet enabled, so a recording may be kept longer until deletion runs — you can request deletion at any time (see Your Rights below).
+• Face/voice embeddings (mathematical templates): Kept for up to 90 days from creation; automated deletion at expiry is not yet enabled, as above.
 • Per-turn behavioral measurements: Deleted with the video recording.
 • Aggregated assessment results (scores, not raw biometrics): Retained per our data retention schedule.
 • Biometric consent receipts: Retained for 5 years as proof of consent (required by Illinois BIPA).
