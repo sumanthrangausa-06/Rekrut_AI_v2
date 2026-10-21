@@ -72,7 +72,7 @@ async function http(method, path, body, token) {
     const after = await http('GET', '/api/company/profile', null, S.rToken);
     const prof = after.json.company || after.json.profile || after.json;
     const desc = prof.description || prof.about || null;
-    const ok = after.status === 200 && !!prof && (desc === 'JourneyCorp builds data teams.' || put.status === 200);
+    const ok = after.status === 200 && !!prof && desc === 'JourneyCorp builds data teams.';
     rec('2_company_setup_reads_back', ok ? 'PASS' : 'FAIL', { beforeStatus: before.status, putStatus: put.status, putBody: put.json, afterStatus: after.status, companyName: prof.name || null, descriptionReadBack: desc });
   } catch (e) { rec('2_company_setup_reads_back', 'FAIL', { error: e.message }); }
 
@@ -142,7 +142,7 @@ async function http(method, path, body, token) {
     const candidateSees = Array.isArray(offers) && offers.some((o) => o.id === S.offerId || o.job_id === S.jobId);
     const appRow = (await db.query('SELECT status FROM job_applications WHERE id=$1', [S.applicationId])).rows[0];
     const offerRow = S.offerId ? (await db.query('SELECT id, status FROM offers WHERE id=$1', [S.offerId])).rows[0] : null;
-    const ok = toOffered.status === 200 && appRow?.status === 'offered' && !!S.offerId && (candidateSees || (send.status === 200 && !!offerRow));
+    const ok = toOffered.status === 200 && appRow?.status === 'offered' && !!S.offerId && candidateSees;
     rec('7_decision_offer_reaches_candidate', ok ? 'PASS' : 'FAIL', { toOfferedStatus: toOffered.status, applicationStatus: appRow?.status || null, offerCreateStatus: offer.status, offerId: S.offerId || null, offerDbRow: offerRow || null, sendStatus: send.status, candidateOffersStatus: candOffers.status, candidateSeesOffer: candidateSees });
   } catch (e) { rec('7_decision_offer_reaches_candidate', 'FAIL', { error: e.message }); }
 

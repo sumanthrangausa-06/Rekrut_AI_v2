@@ -149,7 +149,13 @@ function makePdf(lines) {
   try {
     const omni = await http('GET', '/api/candidate/omniscore', null, S.cToken);
     const body = JSON.stringify(omni.json);
-    const scoreVal = omni.json.score ?? omni.json.omniscore ?? omni.json.overall_score ?? omni.json.data?.score ?? null;
+    // The real API shape is { omniscore: { total_score, ...components } } —
+    // reading the whole object here made the fabrication check dead code
+    // (review BLOCK #1 on PR #1592). Extract the numeric total itself.
+    const omniObj = omni.json.omniscore && typeof omni.json.omniscore === 'object' ? omni.json.omniscore : null;
+    const scoreVal = omniObj
+      ? (omniObj.total_score ?? omniObj.totalScore ?? null)
+      : (omni.json.score ?? omni.json.overall_score ?? omni.json.data?.score ?? omni.json.data?.total_score ?? null);
     const honestMarkers = /insufficient|no data|not enough|has_data"?\s*:\s*false/i.test(body);
     // A brand-new candidate with (at most) a CV has no interview/assessment
     // history: a confident-looking numeric OmniScore with no basis is the
@@ -161,11 +167,17 @@ function makePdf(lines) {
     const an = await http('POST', '/api/candidate/cv/analyze', {}, S.cToken);
     const afterRows = (await db.query('SELECT id, status, overall_score FROM cv_analyses WHERE user_id=$1 ORDER BY id DESC LIMIT 1', [S.candidateId])).rows;
     const after = afterRows[0];
+    // DB read-back count after the call — the 403 branch must prove no row
+    // was persisted, not just claim it (review BLOCK #2 on PR #1592).
+    const afterCount = (await db.query('SELECT COUNT(*)::int AS n FROM cv_analyses WHERE user_id=$1', [S.candidateId])).rows[0].n;
     if (an.status === 200 && after && typeof after.overall_score === 'number') {
       rec('5b_cv_analyze_real_score', 'PASS', { status: an.status, analysisId: after.id, overallScore: after.overall_score });
     } else if (an.status === 403 && an.json.code === 'UPGRADE_REQUIRED') {
       // Honest paywall state — the user is told the truth, nothing fabricated.
-      rec('5b_cv_analyze_real_score', 'PASS', { status: 403, verdict_note: 'honest UPGRADE_REQUIRED state; no analysis row/score fabricated', newRows: afterRows.length && after.id > 0 ? 'see db' : 'none', rowsBefore: before });
+      // PASS only if the row count is unchanged: a persisted (scored) row on
+      // this path is fabrication and must FAIL.
+      const noFabrication = afterCount === before;
+      rec('5b_cv_analyze_real_score', noFabrication ? 'PASS' : 'FAIL', { status: 403, verdict_note: noFabrication ? 'honest UPGRADE_REQUIRED state; no analysis row/score fabricated (DB row count unchanged)' : 'a cv_analyses row was persisted on the UPGRADE_REQUIRED path — fabrication', rowsBefore: before, rowsAfter: afterCount, latestRow: after || null });
     } else if ([400, 500, 502, 503].includes(an.status)) {
       const fakePersisted = after && typeof after.overall_score === 'number';
       rec('5b_cv_analyze_real_score', fakePersisted ? 'FAIL' : 'BLOCKED', { status: an.status, body: an.json, verdict_note: fakePersisted ? 'a score was persisted for an analysis that never ran — fabrication' : 'provider-dependent step failed honestly; no fabricated score persisted (provider-key MAJOR)', latestRow: after || null });
@@ -209,7 +221,7 @@ function makePdf(lines) {
     const recRow = receipts.find((r) => r.consent_type === 'recording');
     const bioRow = receipts.find((r) => r.consent_type === 'biometric');
     const grantTruthful = recRow && recRow.granted === true;
-    const declineTruthful = bioRow && bioRow.granted === false; // a decline must never carry a grant timestamp
+    const declineTruthful = bioRow && bioRow.granted === false && bioRow.withdrawn === true; // a decline must never carry a grant timestamp, and must record the withdrawal
     const ok = !!S.sessionId && text.status === 200 && grant.status === 201 && decline.status === 201 && grantTruthful && declineTruthful;
     rec('8_consent_grant_and_decline_truthful', ok ? 'PASS' : 'FAIL', { sessionStatus: sess.status, sessionId: S.sessionId, textStatus: text.status, grantStatus: grant.status, declineStatus: decline.status, statusEndpoint: statusRes.json, dbReceipts: receipts });
   } catch (e) { rec('8_consent_grant_and_decline_truthful', 'FAIL', { error: e.message }); }
