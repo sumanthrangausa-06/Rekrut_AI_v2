@@ -249,13 +249,13 @@ class EuComplianceService {
 	 */
 	static async explainDecisionForJob({ userId, jobId, applicationId, weightsHash }) {
 		// Check cache first — #1458: serve a cached row ONLY when it carries
-		// the effective weights hash. Rows written under the old shape (e.g.
-		// 'default-v1' / 'v1-default', with a Cultural Fit factor sourced from
-		// the phantom candidate_job_matches) must never be served as
-		// new-shape; they fall through, are regenerated, and the upsert below
-		// overwrites them. (The previous `!weightsHash` condition returned ANY
-		// cached row to the route, which passes no hash.)
-		const effectiveHash = weightsHash || 'v2-match-results';
+		// the effective weights hash. Rows written under an older shape must
+		// never be served as new-shape; they fall through, are regenerated,
+		// and the upsert below overwrites them. #1525 bumps the hash to
+		// 'v3-omni-scores-split': every row written by the pre-repoint shape
+		// (headline mixed from the dead omniscore_results table and the
+		// match score) is stale by construction and regenerates.
+		const effectiveHash = weightsHash || 'v3-omni-scores-split';
 		const cached = await pool.query(
 			`SELECT * FROM ai_decision_explanations WHERE user_id = $1 AND job_id = $2`,
 			[userId, jobId],
@@ -264,11 +264,17 @@ class EuComplianceService {
 			return cached.rows[0];
 		}
 
-		// Build explanation from existing tables
-		const scoreResult = await pool.query(`SELECT * FROM omniscore_results WHERE user_id = $1`, [
-			userId,
-		]);
-		const score = scoreResult.rows[0] || {};
+		// #1525 (Rex scale decision §4 R4, Lead+Lex disposition): repoint
+		// from the never-written omniscore_results table to omni_scores.
+		// Presence is keyed on the row and on total_score NOT NULL —
+		// never on !== undefined against a {} default.
+		const scoreResult = await pool.query(
+			`SELECT total_score, technical_score, behavior_score, factor_scores
+       FROM omni_scores WHERE user_id = $1`,
+			[userId],
+		);
+		const score = scoreResult.rows[0] || null;
+		const hasTotal = score !== null && score.total_score !== null && score.total_score !== undefined;
 
 		const components = await pool.query(
 			`SELECT component_type, source_type, points, max_points, weight, metadata, created_at
@@ -297,56 +303,87 @@ class EuComplianceService {
        WHERE candidate_id = $1 AND job_id = $2`,
 			[userId, jobId],
 		);
-		const match = matchResult.rows[0] || {};
+		const match = matchResult.rows[0] || null;
+		const hasMatch =
+			match !== null &&
+			match.overall_match_score !== null &&
+			match.overall_match_score !== undefined;
+		const overallMatchScore = hasMatch ? parseFloat(match.overall_match_score) : null;
 
-		// Build weighted factor breakdowns
+		// #1525 condition 2: persist NOTHING when neither a non-NULL total
+		// nor a match exists — return an honest insufficient-data result
+		// instead of the old overall_score: 0 explanation row.
+		if (!hasTotal && !hasMatch) {
+			return {
+				user_id: userId,
+				job_id: jobId,
+				application_id: applicationId || null,
+				overall_score: null,
+				score_scale: '300-850',
+				overall_match_score: null,
+				factor_breakdowns: [],
+				insufficient_data: true,
+				job_title: job.title,
+				generated_at: new Date().toISOString(),
+			};
+		}
+
+		// #1525 split semantics: the headline is ONLY the omni_scores
+		// total_score pass-through (native 300-850). The match score is
+		// NEVER a fallback for it — it travels under its own name only.
+		const overallScore = hasTotal ? parseFloat(score.total_score) : null;
+
+		// Factor breakdowns — pass-through 0-100 values, no weights and
+		// no contribution formula (the 0.4/0.3/0.2 formula described a
+		// model that never ran; dropped per Rex §4 R4). OmniScore-derived
+		// factors require a non-NULL total; a factor with no real source
+		// value is omitted, never rendered as a measured 0.
 		const factorBreakdowns = [];
-		const overallScore =
-			parseFloat(score.overall_score) || parseFloat(match.overall_match_score) || 0;
+		if (hasTotal) {
+			if (score.technical_score !== null && score.technical_score !== undefined) {
+				factorBreakdowns.push({
+					factor: 'Technical Skills',
+					score: parseFloat(score.technical_score),
+					explanation:
+						match && match.skills_matched
+							? `Matched skills: ${Array.isArray(match.skills_matched) ? match.skills_matched.join(', ') : match.skills_matched}`
+							: 'Based on technical assessment and resume parsing',
+					data_source: 'omni_scores.technical_score',
+				});
+			}
 
-		// Technical factor
-		if (score.technical_score !== undefined || match.skills_matched !== undefined) {
-			factorBreakdowns.push({
-				factor: 'Technical Skills',
-				weight: 0.4,
-				score: parseFloat(score.technical_score) || 0,
-				contribution: ((parseFloat(score.technical_score) || 0) * 0.4).toFixed(2),
-				explanation: match.skills_matched
-					? `Matched skills: ${Array.isArray(match.skills_matched) ? match.skills_matched.join(', ') : match.skills_matched}`
-					: 'Based on technical assessment and resume parsing',
-				data_source: 'score_components',
-			});
+			// behavior_score is a computed composite (reliability +
+			// soft-skills average), not an assessment "behavioral_score"
+			// — labelled as what it is (Rex §5.4).
+			if (score.behavior_score !== null && score.behavior_score !== undefined) {
+				factorBreakdowns.push({
+					factor: 'Behavioral Fit',
+					score: parseFloat(score.behavior_score),
+					explanation:
+						'Composite of reliability and soft-skills signals from the OmniScore engine',
+					data_source: 'omni_scores.behavior_score',
+				});
+			}
+
+			// Experience is a factor_scores factor (experience_quality),
+			// never an "experience_score" column — no such column exists.
+			const experienceQuality =
+				score.factor_scores && typeof score.factor_scores === 'object'
+					? score.factor_scores.experience_quality
+					: undefined;
+			if (experienceQuality !== null && experienceQuality !== undefined) {
+				factorBreakdowns.push({
+					factor: 'Experience Match',
+					score: parseFloat(experienceQuality),
+					explanation: `Relevance to ${job.title || 'this role'} based on work history`,
+					data_source: 'omni_scores.factor_scores.experience_quality',
+				});
+			}
 		}
 
-		// Behavioral factor
-		if (score.behavioral_score !== undefined) {
-			factorBreakdowns.push({
-				factor: 'Behavioral Fit',
-				weight: 0.3,
-				score: parseFloat(score.behavioral_score) || 0,
-				contribution: ((parseFloat(score.behavioral_score) || 0) * 0.3).toFixed(2),
-				explanation: 'Derived from interview responses and personality indicators',
-				data_source: 'omniscore_results',
-			});
-		}
-
-		// Experience factor (#1458: omniscore-side only — the match-side
-		// fallback column was never written, so it fabricated a measured 0)
-		if (score.experience_score !== undefined) {
-			factorBreakdowns.push({
-				factor: 'Experience Match',
-				weight: 0.2,
-				score: parseFloat(score.experience_score) || 0,
-				contribution: ((parseFloat(score.experience_score) || 0) * 0.2).toFixed(2),
-				explanation: `Relevance to ${job.title || 'this role'} based on work history`,
-				data_source: 'score_components',
-			});
-		}
-
-		// #1458: the Cultural Fit factor is dropped, not remapped — it has no
-		// real source (never fabricate it from mutual_matches.mutual_fit_score).
-		// Weights are NOT renormalised (STOP 1 on #1458): the surviving
-		// 0.4/0.3/0.2 sum to 0.9, and overall_score is computed independently.
+		// #1458: the Cultural Fit factor stays dropped, not remapped — it
+		// has no real source (never fabricate it from
+		// mutual_matches.mutual_fit_score).
 
 		// Add component-level detail
 		const componentDetails = components.rows.map((c) => ({
@@ -364,6 +401,8 @@ class EuComplianceService {
 			job_id: jobId,
 			application_id: applicationId || null,
 			overall_score: overallScore,
+			score_scale: '300-850',
+			overall_match_score: overallMatchScore,
 			factor_breakdowns: factorBreakdowns,
 			component_details: componentDetails,
 			job_title: job.title,
