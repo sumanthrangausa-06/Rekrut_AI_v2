@@ -16,7 +16,7 @@
  */
 
 const mockState = { skills: [], experience: [], education: [] };
-const captured = { updateParams: null, snapshotParams: [] };
+const mockCaptured = { updateParams: null, snapshotParams: [] };
 
 const mockClientQuery = jest.fn(async (sql) => {
 	if (sql.includes('candidate_skills')) return { rows: mockState.skills };
@@ -29,11 +29,11 @@ jest.mock('../../lib/db', () => ({
 	connect: jest.fn(async () => ({ query: (...a) => mockClientQuery(...a), release: jest.fn() })),
 	query: jest.fn(async (sql, params = []) => {
 		if (sql.includes('UPDATE omni_scores')) {
-			captured.updateParams = params;
+			mockCaptured.updateParams = params;
 			return { rows: [] };
 		}
 		if (sql.includes('INSERT INTO score_snapshots')) {
-			captured.snapshotParams.push(params);
+			mockCaptured.snapshotParams.push(params);
 			return { rows: [] };
 		}
 		if (sql.includes('COUNT(*) FILTER')) return { rows: [{ percentile: '63.6' }] };
@@ -59,11 +59,11 @@ const FACTOR_KEYS = [
 function restoreMocks() {
 	pool.query.mockImplementation(async (sql, params = []) => {
 		if (sql.includes('UPDATE omni_scores')) {
-			captured.updateParams = params;
+			mockCaptured.updateParams = params;
 			return { rows: [] };
 		}
 		if (sql.includes('INSERT INTO score_snapshots')) {
-			captured.snapshotParams.push(params);
+			mockCaptured.snapshotParams.push(params);
 			return { rows: [] };
 		}
 		if (sql.includes('COUNT(*) FILTER')) return { rows: [{ percentile: '63.6' }] };
@@ -85,8 +85,8 @@ beforeEach(() => {
 	mockState.skills = [];
 	mockState.experience = [];
 	mockState.education = [];
-	captured.updateParams = null;
-	captured.snapshotParams = [];
+	mockCaptured.updateParams = null;
+	mockCaptured.snapshotParams = [];
 	jest.clearAllMocks();
 	restoreMocks();
 });
@@ -107,8 +107,8 @@ describe('#1538 persisted factor_scores — mixed candidate (experience present,
 	test('UPDATE payload: data factor is the rounded number, no-data factors are null', async () => {
 		mockState.experience = [EXP];
 		await calculateScore(USER);
-		expect(captured.updateParams).not.toBeNull();
-		const factors = JSON.parse(captured.updateParams[6]);
+		expect(mockCaptured.updateParams).not.toBeNull();
+		const factors = JSON.parse(mockCaptured.updateParams[6]);
 		expect(Object.keys(factors).sort()).toEqual([...FACTOR_KEYS].sort());
 		expect(factors.experience_quality).toBe(10);
 		expect(factors.education_credentials).toBeNull();
@@ -117,14 +117,14 @@ describe('#1538 persisted factor_scores — mixed candidate (experience present,
 		// hasData=false, so it must persist null, not the default-driven 85.
 		expect(factors.reliability_signals).toBeNull();
 		// A candidate with data keeps a numeric total.
-		expect(typeof captured.updateParams[0]).toBe('number');
+		expect(typeof mockCaptured.updateParams[0]).toBe('number');
 	});
 
 	test('snapshot INSERT payload: same null mapping as the UPDATE (both write sites)', async () => {
 		mockState.experience = [EXP];
 		await calculateScore(USER);
-		expect(captured.snapshotParams).toHaveLength(1);
-		const factors = JSON.parse(captured.snapshotParams[0][2]);
+		expect(mockCaptured.snapshotParams).toHaveLength(1);
+		const factors = JSON.parse(mockCaptured.snapshotParams[0][2]);
 		expect(Object.keys(factors).sort()).toEqual([...FACTOR_KEYS].sort());
 		expect(factors.experience_quality).toBe(10);
 		expect(factors.education_credentials).toBeNull();
@@ -145,13 +145,13 @@ describe('#1538 persisted factor_scores — all-no-data candidate', () => {
 	test('UPDATE payload: all 8 keys present, every value null, total_score NULL', async () => {
 		const score = await calculateScore(USER);
 		expect(score.total_score).toBeNull();
-		expect(captured.updateParams).not.toBeNull();
-		expect(captured.updateParams[0]).toBeNull();
-		const factors = JSON.parse(captured.updateParams[6]);
+		expect(mockCaptured.updateParams).not.toBeNull();
+		expect(mockCaptured.updateParams[0]).toBeNull();
+		const factors = JSON.parse(mockCaptured.updateParams[6]);
 		expect(Object.keys(factors).sort()).toEqual([...FACTOR_KEYS].sort());
 		for (const key of FACTOR_KEYS) expect(factors[key]).toBeNull();
 		// Existing honesty behaviour, unchanged: no snapshot is written for a
 		// no-data candidate (a snapshot would re-create the fabricated verdict).
-		expect(captured.snapshotParams).toHaveLength(0);
+		expect(mockCaptured.snapshotParams).toHaveLength(0);
 	});
 });
