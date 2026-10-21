@@ -271,113 +271,6 @@ function generateImprovementFactors(componentsByType) {
 }
 
 /**
- * Explain a decision for a specific candidate-job pair with weighted factor breakdowns.
- * Caches result in ai_decision_explanations.
- */
-async function explainDecisionForJob(userId, jobId, applicationId) {
-	const scoreResult = await pool.query('SELECT * FROM omniscore_results WHERE user_id = $1', [
-		userId,
-	]);
-	const score = scoreResult.rows[0] || {};
-
-	const components = await pool.query(
-		`SELECT component_type, source_type, points, max_points, weight, metadata, created_at
-       FROM score_components WHERE user_id = $1 ORDER BY created_at DESC`,
-		[userId],
-	);
-
-	const jobResult = await pool.query('SELECT title, requirements FROM jobs WHERE id = $1', [jobId]);
-	const job = jobResult.rows[0] || {};
-
-	// #1458: re-sourced from match_results (the real, written match store).
-	// candidate_job_matches never existed. Only honest persisted columns are
-	// selected: weighted_score is the headline match score and the JSONB skill
-	// lists feed the explanation text. There is NO persisted skill-match or
-	// experience-match score to fall back to (match_results.experience_score
-	// is never written — always 0), and no cultural-fit source at all, so the
-	// Cultural Fit factor is dropped rather than fabricated. Weights are NOT
-	// renormalised (STOP 1 on #1458): the surviving 0.4/0.3/0.2 sum to 0.9 and
-	// overall_score is computed independently, never as their sum.
-	const matchResult = await pool.query(
-		`SELECT weighted_score AS overall_match_score,
-              matching_skills AS skills_matched, missing_skills AS skills_missing
-       FROM match_results WHERE candidate_id = $1 AND job_id = $2`,
-		[userId, jobId],
-	);
-	const match = matchResult.rows[0] || {};
-
-	const overallScore =
-		parseFloat(score.overall_score) || parseFloat(match.overall_match_score) || 0;
-	const factorBreakdowns = [];
-
-	factorBreakdowns.push({
-		factor: 'Technical Skills',
-		weight: 0.4,
-		score: parseFloat(score.technical_score) || 0,
-		contribution: ((parseFloat(score.technical_score) || 0) * 0.4).toFixed(2),
-		explanation: match.skills_matched
-			? `Matched skills: ${Array.isArray(match.skills_matched) ? match.skills_matched.join(', ') : match.skills_matched}`
-			: 'Based on technical assessment and resume parsing',
-		data_source: 'score_components',
-	});
-
-	factorBreakdowns.push({
-		factor: 'Behavioral Fit',
-		weight: 0.3,
-		score: parseFloat(score.behavioral_score) || 0,
-		contribution: ((parseFloat(score.behavioral_score) || 0) * 0.3).toFixed(2),
-		explanation: 'Derived from interview responses and personality indicators',
-		data_source: 'omniscore_results',
-	});
-
-	factorBreakdowns.push({
-		factor: 'Experience Match',
-		weight: 0.2,
-		score: parseFloat(score.experience_score) || 0,
-		contribution: ((parseFloat(score.experience_score) || 0) * 0.2).toFixed(2),
-		explanation: `Relevance to ${job.title || 'this role'} based on work history`,
-		data_source: 'score_components',
-	});
-
-	const explanation = {
-		user_id: userId,
-		job_id: jobId,
-		application_id: applicationId || null,
-		overall_score: overallScore,
-		job_title: job.title,
-		factor_breakdowns: factorBreakdowns,
-		component_details: components.rows.map((c) => ({
-			component_type: c.component_type,
-			source_type: c.source_type,
-			points: parseFloat(c.points),
-			max_points: parseFloat(c.max_points),
-			weight: parseFloat(c.weight),
-			metadata: c.metadata,
-			date: c.created_at,
-		})),
-		generated_at: new Date().toISOString(),
-	};
-
-	// Cache (#1458: hash bumped to v2-match-results — rows written under the
-	// old shape must never be served as new-shape; the euComplianceService
-	// cache read only serves rows carrying the current hash).
-	await pool.query(
-		`INSERT INTO ai_decision_explanations (user_id, job_id, application_id, overall_score, factor_breakdowns, weights_hash, generated_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, 'v2-match-results', NOW(), NOW())
-       ON CONFLICT (user_id, job_id) DO UPDATE SET
-         application_id = EXCLUDED.application_id,
-         overall_score = EXCLUDED.overall_score,
-         factor_breakdowns = EXCLUDED.factor_breakdowns,
-         weights_hash = EXCLUDED.weights_hash,
-         generated_at = EXCLUDED.generated_at,
-         updated_at = NOW()`,
-		[userId, jobId, applicationId || null, overallScore, JSON.stringify(explanation)],
-	);
-
-	return explanation;
-}
-
-/**
  * Explain why a specific score decision was made
  * (e.g., why a candidate was rejected)
  *
@@ -513,6 +406,5 @@ async function explainDecision(applicationId) {
 
 module.exports = {
 	explainOmniScore,
-	explainDecisionForJob,
 	explainDecision,
 };
