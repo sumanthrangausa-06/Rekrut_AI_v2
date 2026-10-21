@@ -86,6 +86,42 @@ describe('BiometricPolicyPage (S-056)', () => {
 		expect(screen.getByText(/not deleted with the video recording/i)).toBeInTheDocument();
 	});
 
+	it('does not claim unshipped gaze/blink/head-pose measurement, biometric identity verification, or unverified infra specifics (#1565)', () => {
+		renderAt('/privacy/biometric-policy');
+		// §1: no gaze/blink/head-pose measurement is shipped; the Observer is
+		// presence-only and the legacy video-analyzer is deleted (below).
+		expect(screen.queryByText(/Behavioral measurements: Gaze/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/Gaze direction, blink rate, and head pose — used to detect/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/used to detect integrity signals/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/Facial geometry measurements/i)).not.toBeInTheDocument();
+		// The honest statement of what is NOT measured must be present.
+		expect(screen.getByText(/not measured/i)).toBeInTheDocument();
+		// §2: identity verification in the product is document/ID-number based,
+		// not a purpose for collecting biometric measurements.
+		expect(screen.queryByText(/Identity verification: Confirming you are the person who applied/i)).not.toBeInTheDocument();
+		// §4: no backup cycle or object-storage lifecycle config is evidenced in-repo.
+		expect(screen.queryByText(/30-day cycle/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/lifecycle rules provide a backstop/i)).not.toBeInTheDocument();
+		// §5: response-time figures are legal/operational characterisations, unverified.
+		expect(screen.queryByText(/within 30 days \(GDPR\)/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/45 days \(CCPA\)/i)).not.toBeInTheDocument();
+		expect(screen.getByText(/time required by the law that applies to you/i)).toBeInTheDocument();
+		// §6: TLS version/fallback specifics are provider-side, not evidenced in-repo.
+		expect(screen.queryByText(/TLS 1\.3/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/no fallback to older protocols/i)).not.toBeInTheDocument();
+		expect(screen.getByText(/TLS encryption in transit/i)).toBeInTheDocument();
+	});
+
+	it('ships no legacy video-analyzer with a fabricated Math.random measurement fallback (#1565)', () => {
+		// The legacy analyzer was dead code (no page loads it) whose fallback
+		// invented an eye-contact score; the file must not ship at all.
+		const fs = require('node:fs');
+		const path = require('node:path');
+		// Vitest runs from client/, so the repo root is one level up.
+		const analyzerPath = path.join(process.cwd(), '../public/js/video-analyzer.js');
+		expect(fs.existsSync(analyzerPath)).toBe(false);
+	});
+
 	it('describes retention periods per data type', () => {
 		renderAt('/privacy/biometric-policy');
 		expect(screen.getByRole('heading', { name: /retention/i })).toBeInTheDocument();
