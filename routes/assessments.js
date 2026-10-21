@@ -481,6 +481,11 @@ router.post('/answer', authMiddleware, async (req, res) => {
 		let isCorrect = false;
 		let scorePoints = 0;
 		let aiFeedback = null;
+		// #1572: short-answer evaluation outcome. evaluationScore stays null
+		// and evaluationStatus 'pending_manual_review' when no evaluation
+		// happened — the answer is recorded, never scored by default.
+		let evaluationScore = null;
+		let evaluationStatus = null;
 
 		if (question.question_type === 'multiple_choice') {
 			isCorrect = answer === question.correct_answer;
@@ -492,26 +497,59 @@ router.post('/answer', authMiddleware, async (req, res) => {
 				answer,
 				question.explanation,
 			);
-			isCorrect = evaluation.score >= 70;
-			scorePoints = Math.round((evaluation.score / 100) * (question.difficulty_level || 2) * 15);
-			aiFeedback = evaluation.feedback;
+			if (evaluation) {
+				evaluationScore = evaluation.score;
+				evaluationStatus = 'evaluated';
+				isCorrect = evaluation.score >= 70;
+				scorePoints = Math.round((evaluation.score / 100) * (question.difficulty_level || 2) * 15);
+				aiFeedback = evaluation.feedback;
 
-			// Log AI explanation generation for compliance
-			await AuditLogger.log({
-				actionType: 'ai_explanation_generated',
-				userId: userId,
-				targetType: 'assessment_question',
-				targetId: questionId,
-				metadata: {
-					session_id: sessionId,
-					question_type: 'short_answer',
-					ai_score: evaluation.score,
-					model_version: 'adaptive-assessment-v1',
-					confidence: evaluation.score / 100,
-					explanation_type: 'answer_evaluation',
-				},
-				req: null,
-			});
+				// Log AI explanation generation for compliance
+				await AuditLogger.log({
+					actionType: 'ai_explanation_generated',
+					userId: userId,
+					targetType: 'assessment_question',
+					targetId: questionId,
+					metadata: {
+						session_id: sessionId,
+						question_type: 'short_answer',
+						ai_score: evaluation.score,
+						model_version: 'adaptive-assessment-v1',
+						confidence: evaluation.score / 100,
+						explanation_type: 'answer_evaluation',
+					},
+					req: null,
+				});
+			} else {
+				// #1572: no evaluation happened — record the answer as
+				// unevaluated: no score, no points, not correct or incorrect,
+				// and NO ai_score/confidence in the audit trail. The failure
+				// itself is logged explicitly instead.
+				evaluationStatus = 'pending_manual_review';
+				isCorrect = null;
+				aiFeedback =
+					'Unable to evaluate automatically. Your answer has been recorded for manual review.';
+				// NOTE: the event name deliberately does NOT start with
+				// 'ai_'. The admin compliance readers (routes/admin.js)
+				// sweep `action_type LIKE 'ai_%'` as AI *decisions* and
+				// COALESCE a missing confidence to 0.85 — a failed
+				// evaluation is not an AI decision and must not resurface
+				// there with a fabricated confidence.
+				await AuditLogger.log({
+					actionType: 'assessment_evaluation_failed',
+					userId: userId,
+					targetType: 'assessment_question',
+					targetId: questionId,
+					metadata: {
+						session_id: sessionId,
+						question_type: 'short_answer',
+						evaluation_status: 'pending_manual_review',
+						model_version: 'adaptive-assessment-v1',
+						explanation_type: 'answer_evaluation',
+					},
+					req: null,
+				});
+			}
 		}
 
 		// Check for time anomaly (too fast)
@@ -533,6 +571,8 @@ router.post('/answer', authMiddleware, async (req, res) => {
 			answer,
 			isCorrect,
 			scorePoints,
+			score: evaluationScore,
+			evaluationStatus,
 			timeTaken,
 			timestamp: new Date(),
 			aiFeedback,
@@ -541,13 +581,23 @@ router.post('/answer', authMiddleware, async (req, res) => {
 		const newScore = (session.score || 0) + scorePoints;
 		const currentQuestionIndex = (session.current_question_index || 0) + 1;
 
-		// Adaptive difficulty: increase if correct and no time anomaly, decrease if wrong
+		// Adaptive difficulty: increase if correct and no time anomaly, decrease if wrong.
+		// #1572: an unevaluated answer (isCorrect null) moves difficulty NEITHER
+		// way — the candidate is not penalised for an evaluation failure.
 		let newDifficulty = session.current_difficulty || 2;
-		if (isCorrect && !isTimeAnomaly && newDifficulty < 5) {
+		if (isCorrect === true && !isTimeAnomaly && newDifficulty < 5) {
 			newDifficulty += 1;
-		} else if (!isCorrect && newDifficulty > 1) {
+		} else if (isCorrect === false && newDifficulty > 1) {
 			newDifficulty -= 1;
 		}
+
+		// #1572: unevaluated answers are "Pending manual review", never "Incorrect".
+		const answerFeedback =
+			evaluationStatus === 'pending_manual_review'
+				? 'Pending manual review'
+				: isCorrect
+					? 'Correct!'
+					: 'Incorrect';
 
 		const maxDifficultyReached = Math.max(session.max_difficulty_reached || 2, newDifficulty);
 		const timeAnomalies = (session.time_anomalies || 0) + (isTimeAnomaly ? 1 : 0);
@@ -579,7 +629,7 @@ router.post('/answer', authMiddleware, async (req, res) => {
 			return res.json({
 				completed: true,
 				score: newScore,
-				feedback: isCorrect ? 'Correct!' : 'Incorrect',
+				feedback: answerFeedback,
 				explanation: question.explanation,
 				aiFeedback,
 			});
@@ -627,7 +677,7 @@ router.post('/answer', authMiddleware, async (req, res) => {
 
 		res.json({
 			completed: false,
-			feedback: isCorrect ? 'Correct!' : 'Incorrect',
+			feedback: answerFeedback,
 			explanation: question.explanation,
 			aiFeedback,
 			nextQuestion: {
@@ -855,14 +905,29 @@ Score guide: 90-100=excellent, 70-89=good, 50-69=partial, below 50=incorrect`;
 		if (cleanResponse.startsWith('```')) {
 			cleanResponse = cleanResponse.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
 		}
-		return JSON.parse(cleanResponse);
+		const parsed = JSON.parse(cleanResponse);
+		// #1572: a reply without a real numeric score in the promised 0–100
+		// range is not an evaluation — minting points from it (or NaN, or a
+		// confidence of 1.5 / −0.2 in the audit log) would fabricate a
+		// result. Reject, never clamp: a clamped value is also a score the
+		// AI never gave.
+		if (
+			!parsed ||
+			typeof parsed.score !== 'number' ||
+			!Number.isFinite(parsed.score) ||
+			parsed.score < 0 ||
+			parsed.score > 100
+		) {
+			return null;
+		}
+		return parsed;
 	} catch (error) {
 		console.error('Error evaluating answer:', error);
-		return {
-			score: 50,
-			feedback:
-				'Unable to evaluate automatically. Your answer has been recorded for manual review.',
-		};
+		// #1572: evaluation failed — return null so the caller records the
+		// answer as unevaluated (pending manual review). NEVER a default
+		// score: a fabricated 50 was credited into the session total and
+		// audit-logged as an AI score with confidence 0.5.
+		return null;
 	}
 }
 
