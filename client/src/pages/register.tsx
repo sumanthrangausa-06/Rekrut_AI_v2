@@ -476,10 +476,6 @@ export function RegisterPage() {
 										<Shield className="h-3.5 w-3.5 text-emerald-500" />
 										<span>SSL Secured</span>
 									</div>
-									<div className="flex items-center gap-1.5">
-										<Users className="h-3.5 w-3.5 text-emerald-500" />
-										<span>Trusted by 2,000+ companies</span>
-									</div>
 								</div>
 								<p className="mt-2 text-center text-[10px] text-muted-foreground/60">
 									SOC 2 Type II in progress &middot; GDPR ready &middot; AES-256 encryption
@@ -530,7 +526,7 @@ export function RegisterPage() {
 					</h3>
 					<p className="text-white/80 text-lg max-w-sm mx-auto leading-relaxed">
 						{isRecruiterRole
-							? 'Join 2,000+ companies using AI to find, screen, and hire the best candidates in record time.'
+							? 'Use AI to find, screen, and hire the best candidates.'
 							: 'Create your account to start matching with AI-recommended jobs, practice mock interviews, and build your OmniScore.'}
 					</p>
 
