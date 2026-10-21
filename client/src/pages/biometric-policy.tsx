@@ -57,7 +57,7 @@ Behavioral measurements: Gaze direction, blink rate, and head pose — used to d
 		content: `We collect biometric data for these specific purposes only:
 
 • Identity verification: Confirming you are the person who applied.
-• Interview integrity: Detecting deepfakes, AI-generated answers, and proxy test-takers through multi-signal behavioral analysis.
+• Interview integrity: Supporting a fair interview process — when the AI Observer is enabled for a session and you have consented, it is present during the interview and its presence is recorded for the hiring team.
 
 We never use biometric data for advertising, profiling unrelated to hiring, or any purpose not listed here.`,
 	},
@@ -68,9 +68,9 @@ We never use biometric data for advertising, profiling unrelated to hiring, or a
 
 • Raw video/audio recordings: Each recording carries a retention expiry — 90 days after it was recorded, or 30 days after the hiring decision for session recordings. Automated deletion at expiry is not yet enabled, so a recording may be kept longer until deletion runs — you can request deletion at any time (see Your Rights below).
 • Face/voice embeddings (mathematical templates): Kept for up to 90 days from creation; automated deletion at expiry is not yet enabled, as above.
-• Per-turn behavioral measurements: Deleted with the video recording.
+• Per-turn behavioral measurements: Observer speech measurements are kept for up to 30 days from when they were recorded, under their own retention rule — they are not deleted with the video recording. Automated deletion at expiry is not yet enabled, as above.
 • Aggregated assessment results (scores, not raw biometrics): Retained per our data retention schedule.
-• Biometric consent receipts: Retained for 5 years as proof of consent (required by Illinois BIPA).
+• Biometric consent receipts: Retained as part of your consent record, so we can show what you consented to and when.
 
 If you withdraw consent mid-process, collection stops immediately and already-collected data enters the deletion pipeline.`,
 	},

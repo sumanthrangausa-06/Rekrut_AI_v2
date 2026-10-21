@@ -67,6 +67,25 @@ describe('BiometricPolicyPage (S-056)', () => {
 		expect(screen.getByText(/automated deletion at expiry is not yet enabled/i)).toBeInTheDocument();
 	});
 
+	it('does not claim unshipped deepfake/AI-answer/proxy detection, a 5-year BIPA consent-receipt rule, or recording-linked per-turn deletion (#1558)', () => {
+		renderAt('/privacy/biometric-policy');
+		// §2: no deepfake / AI-generated-answer / proxy detection is shipped;
+		// the Observer's shipped state is presence-only (Gate A dormant).
+		expect(screen.queryByText(/deepfake/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/AI-generated answers/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/proxy test-takers/i)).not.toBeInTheDocument();
+		// §3: no 5-year consent-receipt retention rule exists in code, and no
+		// BIPA retention requirement has been established (counsel territory).
+		expect(screen.queryByText(/Retained for 5 years/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/required by Illinois BIPA/i)).not.toBeInTheDocument();
+		expect(screen.getByText(/Retained as part of your consent record/i)).toBeInTheDocument();
+		// §3: observer speech measurements purge on their own 30-day rule
+		// (observer_audio policy), not with the video recording.
+		expect(screen.queryByText(/measurements: Deleted with the video recording/i)).not.toBeInTheDocument();
+		expect(screen.getByText(/kept for up to 30 days from when they were recorded/i)).toBeInTheDocument();
+		expect(screen.getByText(/not deleted with the video recording/i)).toBeInTheDocument();
+	});
+
 	it('describes retention periods per data type', () => {
 		renderAt('/privacy/biometric-policy');
 		expect(screen.getByRole('heading', { name: /retention/i })).toBeInTheDocument();
