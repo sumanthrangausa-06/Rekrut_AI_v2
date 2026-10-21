@@ -268,7 +268,15 @@ Return JSON with:
 		return {
 			tamper_detected: analysis.tamper_detected || false,
 			flagged_areas: flaggedAreas,
-			confidence: analysis.confidence || 50,
+			// #1569: never fabricate a confidence — a missing field is null
+			// (unmeasured), and a real measured 0 stays 0.
+			confidence:
+				typeof analysis.confidence === 'number' &&
+				Number.isFinite(analysis.confidence) &&
+				analysis.confidence >= 0 &&
+				analysis.confidence <= 100
+					? analysis.confidence
+					: null,
 			reasoning: analysis.reasoning || '',
 		};
 	} catch (error) {
@@ -581,19 +589,31 @@ async function calculateAuthenticityScore(_extractedData, documentType, fileUrl)
 
 		const analysis = JSON.parse(response.choices[0].message.content);
 
+		// #1569: a measured score is a finite number on the 0-100 scale —
+		// preserve it exactly (a real 0 is the most suspicious result,
+		// never upgrade it). Anything else — missing, non-numeric, or
+		// off-scale — means no valid measurement happened: honest null.
+		const measured = (v) =>
+			typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100 ? v : null;
+		const authenticityScore = measured(analysis.authenticity_score);
+
 		return {
-			authenticity_score: analysis.authenticity_score || 50,
+			authenticity_score: authenticityScore,
 			fraud_flags: analysis.fraud_flags || [],
-			confidence_score: analysis.confidence || 50,
+			confidence_score: measured(analysis.confidence),
 			ai_analysis: analysis,
+			analysis_unavailable: authenticityScore === null,
 		};
 	} catch (error) {
 		console.error('Authenticity scoring error:', error);
+		// #1569: analysis failed — no score exists. Return null with an
+		// explicit unavailable state; never a fabricated mid-range 50.
 		return {
-			authenticity_score: 50,
+			authenticity_score: null,
 			fraud_flags: ['analysis_failed'],
-			confidence_score: 0,
+			confidence_score: null,
 			ai_analysis: { error: error.message },
+			analysis_unavailable: true,
 		};
 	}
 }
@@ -719,6 +739,11 @@ async function checkProfileConsistency(extractedData, userId) {
  * Calculate document score impact on OmniScore
  */
 function calculateScoreImpact(documentType, authenticityScore, fraudFlags, inconsistencies) {
+	// #1569: no real score -> no OmniScore impact until one exists.
+	if (typeof authenticityScore !== 'number' || !Number.isFinite(authenticityScore)) {
+		return 0;
+	}
+
 	const baseImpact = DOCUMENT_CONFIGS[documentType]?.score_impact || 50;
 
 	// Reduce impact based on fraud flags
@@ -814,6 +839,18 @@ async function verifyDocument(documentId, userId) {
 			...visualTamperResult.flagged_areas.map((f) => `${f.type}: ${f.details}`),
 		];
 
+		// #1569: no real authenticity score — the document can neither pass
+		// nor fail the fraud thresholds. It takes the honest pending path
+		// (pending_review + human review queue below), never 'verified'.
+		// NB: `null < 40` coerces to true in JS, so the unavailable case
+		// must be branched explicitly, never left to comparison coercion.
+		const analysisUnavailable =
+			authenticityResult.analysis_unavailable === true ||
+			authenticityResult.authenticity_score == null;
+		if (analysisUnavailable) {
+			allFraudFlags.push('analysis_unavailable');
+		}
+
 		// Determine fraud risk level — incorporate tamper detection
 		let fraudRisk = 'low';
 		const hasHighSeverityTamper =
@@ -824,12 +861,13 @@ async function verifyDocument(documentId, userId) {
 			visualTamperResult.flagged_areas.some((f) => f.severity === 'medium');
 
 		if (
-			authenticityResult.authenticity_score < 40 ||
+			(!analysisUnavailable && authenticityResult.authenticity_score < 40) ||
 			duplicateResult.is_duplicate ||
 			hasHighSeverityTamper
 		) {
 			fraudRisk = 'high';
 		} else if (
+			analysisUnavailable ||
 			authenticityResult.authenticity_score < 70 ||
 			allFraudFlags.length > 3 ||
 			hasMediumSeverityTamper
@@ -986,6 +1024,7 @@ async function verifyDocument(documentId, userId) {
 			score_impact: scoreImpact,
 			fraud_risk: fraudRisk,
 			authenticity_score: authenticityResult.authenticity_score,
+			analysis_unavailable: analysisUnavailable,
 			tamper_flags: metadataFlags,
 			visual_tamper: visualTamperResult,
 		};
