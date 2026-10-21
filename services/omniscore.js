@@ -830,6 +830,18 @@ async function getOrCreateScore(userId) {
 	return result.rows[0];
 }
 
+// #1538: the persisted factor_scores shape, shared by both write sites in
+// calculateScore() (omni_scores UPDATE + score_snapshots INSERT) so the two
+// can never drift. A factor with no underlying data persists as JSON null —
+// the honest "insufficient data" — never a flattened number (its raw is a
+// default or 0, not a measurement). A measured factor persists as its
+// rounded raw, so a genuine measured 0 stays distinguishable from null.
+function persistedFactorScores(factors) {
+	return Object.fromEntries(
+		Object.entries(factors).map(([k, v]) => [k, v.hasData ? Math.round(v.raw) : null]),
+	);
+}
+
 /**
  * Calculate score on-demand (deterministic). Does NOT require explicit checkin.
  */
@@ -892,9 +904,7 @@ async function calculateScore(userId) {
 			resume_score,
 			behavior_score,
 			noData ? null : dbTierFromLabel(tier),
-			JSON.stringify(
-				Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)])),
-			),
+			JSON.stringify(persistedFactorScores(factors)),
 			peerPercentile,
 			JSON.stringify(fraudSignals),
 			userId,
@@ -915,9 +925,7 @@ async function calculateScore(userId) {
 			[
 				userId,
 				total,
-				JSON.stringify(
-					Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)])),
-				),
+				JSON.stringify(persistedFactorScores(factors)),
 				peerPercentile,
 			],
 		);
