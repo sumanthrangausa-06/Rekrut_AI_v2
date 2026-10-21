@@ -189,7 +189,9 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 		verifyDocument(document.id, userId)
 			.then(async (verificationResult) => {
 				console.log(`[candidate-documents] Document ${document.id} verified:`, verificationResult);
-				if (verificationResult.fraud_risk !== 'high') {
+				// #1569: never apply OmniScore impact when no real
+				// authenticity score exists (analysis unavailable).
+				if (verificationResult.fraud_risk !== 'high' && !verificationResult.analysis_unavailable) {
 					await applyDocumentScoresToOmniScore(userId);
 				}
 			})
