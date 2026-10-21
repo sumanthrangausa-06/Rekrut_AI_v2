@@ -283,21 +283,17 @@ describe('#1533 POST /gdpr/export — omniscore re-sourced from the live family 
 	// `?? null` is undefined when the row is absent and JSON
 	// serialisation silently drops the `user` key. Explicit null makes
 	// the bundle's key set invariant by construction.
-	test('#1544: user-absent user — user is null and the top-level key set is unchanged', async () => {
+	//
+	// #1548 SUPERSESSION (team contract, Lead/Rex/Lex): Quinn's HL-003
+	// run on #1547 proved this scenario cannot produce a bundle over
+	// real HTTP at all — an absent target 500'd on the data_requests FK
+	// before res.json. The contract is now 404 for an absent target, so
+	// the #1544 expectation below is updated from 200/user:null to 404.
+	// The `?? null` hardening stays in the handler as defence in depth.
+	test('#1544/#1548: user-absent user — 404 User not found (supersedes the 200 user:null bundle)', async () => {
 		scenario = 'user-absent';
 		const res = await request(makeApp()).post('/api/compliance/gdpr/export').send({ userId: 7 });
-		expect(res.status).toBe(200);
-		expect(Object.prototype.hasOwnProperty.call(res.body.data, 'user')).toBe(true);
-		expect(res.body.data.user).toBeNull();
-		expect(Object.keys(res.body.data).sort()).toEqual([
-			'assessments',
-			'audit_trail',
-			'consents',
-			'exported_at',
-			'interviews',
-			'omniscore',
-			'profile',
-			'user',
-		]);
+		expect(res.status).toBe(404);
+		expect(res.body).toEqual({ error: 'User not found' });
 	});
 });
