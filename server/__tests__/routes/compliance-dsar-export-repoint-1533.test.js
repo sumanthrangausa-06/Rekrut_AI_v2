@@ -135,7 +135,7 @@ const SNAPSHOT_ROWS = [
 	},
 ];
 
-// scenario: 'populated' | 'empty' | 'null-total'
+// scenario: 'populated' | 'empty' | 'null-total' | 'profile-less' | 'user-absent'
 let scenario = 'populated';
 const seenSql = [];
 const seenCalls = [];
@@ -159,7 +159,9 @@ function installPoolMock() {
 		if (s.includes('from candidate_profiles')) {
 			return { rows: scenario === 'profile-less' ? [] : [PROFILE_ROW] };
 		}
-		if (s.includes('from users')) return { rows: [USER_ROW] };
+		if (s.includes('from users')) {
+			return { rows: scenario === 'user-absent' ? [] : [USER_ROW] };
+		}
 		// Pre-fix code reads omniscore_results: no route above matches it,
 		// so it lands here with [] — the red state.
 		return { rows: [] };
@@ -264,6 +266,29 @@ describe('#1533 POST /gdpr/export — omniscore re-sourced from the live family 
 		expect(res.status).toBe(200);
 		expect(Object.prototype.hasOwnProperty.call(res.body.data, 'profile')).toBe(true);
 		expect(res.body.data.profile).toBeNull();
+		expect(Object.keys(res.body.data).sort()).toEqual([
+			'assessments',
+			'audit_trail',
+			'consents',
+			'exported_at',
+			'interviews',
+			'omniscore',
+			'profile',
+			'user',
+		]);
+	});
+
+	// #1544 (follow-up from the privacy review of #1543, finding F-2):
+	// same shape as #1540 for `user` — `userData.rows[0]` without
+	// `?? null` is undefined when the row is absent and JSON
+	// serialisation silently drops the `user` key. Explicit null makes
+	// the bundle's key set invariant by construction.
+	test('#1544: user-absent user — user is null and the top-level key set is unchanged', async () => {
+		scenario = 'user-absent';
+		const res = await request(makeApp()).post('/api/compliance/gdpr/export').send({ userId: 7 });
+		expect(res.status).toBe(200);
+		expect(Object.prototype.hasOwnProperty.call(res.body.data, 'user')).toBe(true);
+		expect(res.body.data.user).toBeNull();
 		expect(Object.keys(res.body.data).sort()).toEqual([
 			'assessments',
 			'audit_trail',
