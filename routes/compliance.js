@@ -105,9 +105,22 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 
 		// Gather all user data
 		const userData = await pool.query('SELECT * FROM users WHERE id = $1', [targetUserId]);
-		const omniscoreData = await pool.query('SELECT * FROM omniscore_results WHERE user_id = $1', [
+		// #1533 (R7, Lex ruling on #1528): the score section is re-sourced
+		// from the live omni_scores family — omniscore_results was never
+		// written, so the old read exported [] for every user. Rows are
+		// exported raw/native (no normalisation): total_score stays on
+		// its native 300-850 scale, factors on 0-100; a NULL total stays
+		// null, and no row exports as score: null (honest absence).
+		const omniScoreData = await pool.query('SELECT * FROM omni_scores WHERE user_id = $1', [
 			targetUserId,
 		]);
+		const scoreHistoryData = await pool.query('SELECT * FROM score_history WHERE user_id = $1', [
+			targetUserId,
+		]);
+		const scoreSnapshotsData = await pool.query(
+			'SELECT * FROM score_snapshots WHERE user_id = $1',
+			[targetUserId],
+		);
 		const interviewData = await pool.query('SELECT * FROM interviews WHERE user_id = $1', [
 			targetUserId,
 		]);
@@ -126,7 +139,15 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 
 		const exportData = {
 			user: userData.rows[0],
-			omniscore: omniscoreData.rows,
+			// Replaced in place per Lex's #1528 ruling — never supplemented:
+			// one score section, structured by source table, with the
+			// scale_note annotation (annotation, not alteration).
+			omniscore: {
+				score: omniScoreData.rows[0] ?? null,
+				score_history: scoreHistoryData.rows,
+				score_snapshots: scoreSnapshotsData.rows,
+				scale_note: 'total 300-850, factors 0-100',
+			},
 			interviews: interviewData.rows,
 			assessments: assessmentData.rows,
 			profile: profileData.rows[0],
