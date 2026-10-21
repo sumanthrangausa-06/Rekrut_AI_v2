@@ -60,6 +60,9 @@ describe('BiometricPolicyPage (S-056)', () => {
 		// The retention purge is not armed, so the page must not present
 		// 90-day deletion as an accomplished/automatic fact.
 		expect(screen.queryByText(/deleted 90 days/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/90 days after the hiring decision/i)).not.toBeInTheDocument();
+		// The true recording anchors must be stated instead.
+		expect(screen.getByText(/30 days after the hiring decision/i)).toBeInTheDocument();
 		// The honest disclosure that replaces it must be present.
 		expect(screen.getByText(/automated deletion at expiry is not yet enabled/i)).toBeInTheDocument();
 	});

@@ -66,8 +66,8 @@ We never use biometric data for advertising, profiling unrelated to hiring, or a
 		title: '3. Retention Periods',
 		content: `We retain biometric data only as long as necessary, and never longer than the law requires:
 
-• Raw video/audio recordings: Kept for up to 90 days after the hiring decision is finalized. Automated deletion at expiry is not yet enabled, so a recording may be kept longer until deletion runs — you can request deletion at any time (see Your Rights below).
-• Face/voice embeddings (mathematical templates): Deleted when the associated recording is deleted.
+• Raw video/audio recordings: Each recording carries a retention expiry — 90 days after it was recorded, or 30 days after the hiring decision for session recordings. Automated deletion at expiry is not yet enabled, so a recording may be kept longer until deletion runs — you can request deletion at any time (see Your Rights below).
+• Face/voice embeddings (mathematical templates): Kept for up to 90 days from creation; automated deletion at expiry is not yet enabled, as above.
 • Per-turn behavioral measurements: Deleted with the video recording.
 • Aggregated assessment results (scores, not raw biometrics): Retained per our data retention schedule.
 • Biometric consent receipts: Retained for 5 years as proof of consent (required by Illinois BIPA).
