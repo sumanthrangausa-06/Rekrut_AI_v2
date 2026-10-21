@@ -6,7 +6,6 @@ import {
 	EyeOff,
 	Lock,
 	Shield,
-	Users,
 } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -124,10 +123,6 @@ export function ResetPasswordPage() {
 								<Shield className="h-3.5 w-3.5 text-emerald-500" />
 								<span>SSL Secured</span>
 							</div>
-							<div className="flex items-center gap-1.5">
-								<Users className="h-3.5 w-3.5 text-emerald-500" />
-								<span>Trusted by 2,000+ companies</span>
-							</div>
 						</div>
 					</div>
 				</div>
@@ -238,10 +233,6 @@ export function ResetPasswordPage() {
 						<div className="flex items-center gap-1.5">
 							<Shield className="h-3.5 w-3.5 text-emerald-500" />
 							<span>SSL Secured</span>
-						</div>
-						<div className="flex items-center gap-1.5">
-							<Users className="h-3.5 w-3.5 text-emerald-500" />
-							<span>Trusted by 2,000+ companies</span>
 						</div>
 					</div>
 				</div>
