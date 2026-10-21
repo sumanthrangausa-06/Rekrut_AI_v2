@@ -452,10 +452,13 @@ router.get(
 				return res.status(403).json({ error: 'Not authorized' });
 			}
 
-			// Fetch transcript summary
+			// Fetch transcript summary — #802: purged tombstones (text =
+			// '[purged]', written by euComplianceService) are absent content,
+			// never counted as live segments.
 			const transcriptRes = await pool.query(
 				`SELECT COUNT(*) as segment_count, MAX(created_at) as last_transcript_at
-				 FROM interview_transcripts WHERE recording_id = $1`,
+				 FROM interview_transcripts WHERE recording_id = $1
+				 AND text IS DISTINCT FROM '[purged]'`,
 				[recordingId],
 			);
 			const transcriptSummary = transcriptRes.rows[0];
@@ -745,10 +748,13 @@ router.get(
 				return res.status(403).json({ error: 'Not authorized' });
 			}
 
+			// #802: purged tombstones render as absence — never serialise
+			// the '[purged]' sentinel to clients.
 			const transcriptRes = await pool.query(
 				`SELECT id, speaker_identity, text, start_time_ms, end_time_ms, confidence, created_at
 				 FROM interview_transcripts
 				 WHERE recording_id = $1
+				 AND text IS DISTINCT FROM '[purged]'
 				 ORDER BY start_time_ms`,
 				[recordingId],
 			);
