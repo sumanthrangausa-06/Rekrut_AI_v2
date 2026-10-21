@@ -266,6 +266,19 @@ router.post('/gdpr/consent', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'Missing required fields' });
 		}
 
+		// #1550: no data subject = no consent to record. Without this
+		// check an admin recording consent for a non-existent id 500'd
+		// on the consent_records FK — and a consent record for a
+		// non-existent subject must never be attempted at all. The
+		// check sits before the insert and AuditLogger.log so no
+		// consent/audit rows are attempted for absent targets.
+		// Non-admins never reach here for foreign ids
+		// (canAccessUserRecord 403s first) — no oracle.
+		const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [targetUserId]);
+		if (userCheck.rows.length === 0) {
+			return res.status(404).json({ error: 'User not found' });
+		}
+
 		const result = await pool.query(
 			`INSERT INTO consent_records (user_id, consent_type, consented, consented_at, ip_address)
        VALUES ($1, $2, $3, $4, $5)
