@@ -138,7 +138,9 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 		]);
 
 		const exportData = {
-			user: userData.rows[0],
+			// #1544: same ?? null hardening as profile (#1540) — an absent
+			// row must export as explicit null, never a dropped key.
+			user: userData.rows[0] ?? null,
 			// Replaced in place per Lex's #1528 ruling — never supplemented:
 			// one score section, structured by source table, with the
 			// scale_note annotation (annotation, not alteration).
