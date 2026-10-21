@@ -300,7 +300,7 @@ function ProblemSolutionSection() {
 						</li>
 						<li className="flex items-start gap-2">
 							<span className="text-red-400 mt-0.5">•</span>
-							<span>Compete with thousands of applicants for posted roles</span>
+							<span>Compete with other applicants for posted roles</span>
 						</li>
 						<li className="flex items-start gap-2">
 							<span className="text-red-400 mt-0.5">•</span>
