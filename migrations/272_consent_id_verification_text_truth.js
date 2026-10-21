@@ -24,24 +24,42 @@
 // The corrected text keeps the "DRAFT — pending legal counsel review"
 // marking the 244 seed carries.
 //
+// Review BLOCK corrections (PR #1560, comment 6320517942):
+//   1. NO deletion timeframe of any kind. The first version of this text
+//      said "Deletion is completed within 30 days" — unsupported: no code
+//      implements a completion SLA; deletion-on-request is a manual email
+//      route. biometric-policy.tsx (#1556) supports only RESPONDING to
+//      deletion requests within 30 days (GDPR) / 45 days (CCPA), and
+//      respond ≠ completed. Per the STOP 1 Lex premise (no timeframe the
+//      system does not perform), §3 states the route and no deadline.
+//   2. SELFIE DISCLOSED. routes/verification.js REQUIRES both id_document
+//      and selfie (400 if the selfie is missing) and stores
+//      selfie_encrypted_url in the same verification_requests row under
+//      the same 90-day expires_at. Review is manual only (admin
+//      approve/reject); FACE_MATCH in lib/verification-config.js is only
+//      a status label — no automated face-matching or liveness exists.
+//      §1 therefore discloses BOTH items, their manual review, and the
+//      absence of automated face-matching/liveness; §2 retains both for
+//      90 days. EN + HI state the same facts.
+//
 // Safety: the UPDATE is idempotent (re-running writes the same text).
 // =============================================================================
 
 const ID_VERIFICATION_TEXT_EN = `DRAFT — pending legal counsel review.
 
-1. What we collect: An image of your government-issued ID, collected to verify your identity.
+1. What we collect: An image of your government-issued ID and a selfie, collected to verify your identity. Both are reviewed manually by the hiring team; no automated face-matching or liveness check is performed.
 
-2. How long we keep it: ID images are retained for 90 days from identity verification, under the verification retention schedule. The verification result (pass/fail + timestamp) is retained per the data retention schedule.
+2. How long we keep it: Your ID image and selfie are retained for 90 days from identity verification, under the verification retention schedule. The verification result (pass/fail + timestamp) is retained per the data retention schedule.
 
-3. How to delete: To request deletion of your ID image or the verification result record, email privacy@rekrutai.co. Deletion is completed within 30 days.`;
+3. How to delete: To request deletion of your ID image, selfie, or the verification result record, email privacy@rekrutai.co.`;
 
 const ID_VERIFICATION_TEXT_HI = `DRAFT — कानूनी सलाहकार की समीक्षा लंबित।
 
-1. हम क्या एकत्र करते हैं: आपकी पहचान सत्यापित करने के लिए एकत्र की गई आपके सरकारी पहचान पत्र की छवि।
+1. हम क्या एकत्र करते हैं: आपकी पहचान सत्यापित करने के लिए एकत्र की गई आपके सरकारी पहचान पत्र की छवि और एक सेल्फ़ी। दोनों की समीक्षा भर्ती टीम द्वारा मैन्युअल रूप से की जाती है; कोई स्वचालित चेहरा-मिलान या जीवंतता जांच नहीं की जाती है।
 
-2. हम इसे कितने समय तक रखते हैं: आईडी छवियां पहचान सत्यापन से 90 दिनों तक सत्यापन प्रतिधारण अनुसूची के अनुसार रखी जाती हैं। सत्यापन परिणाम (पास/फेल + टाइमस्टैम्प) डेटा प्रतिधारण अनुसूची के अनुसार रखा जाता है।
+2. हम इसे कितने समय तक रखते हैं: आपकी आईडी छवि और सेल्फ़ी पहचान सत्यापन से 90 दिनों तक सत्यापन प्रतिधारण अनुसूची के अनुसार रखी जाती हैं। सत्यापन परिणाम (पास/फेल + टाइमस्टैम्प) डेटा प्रतिधारण अनुसूची के अनुसार रखा जाता है।
 
-3. कैसे हटाएं: अपनी आईडी छवि या सत्यापन परिणाम रिकॉर्ड को हटाने का अनुरोध करने के लिए privacy@rekrutai.co पर ईमेल करें। 30 दिनों के भीतर हटाना पूर्ण किया जाता है।`;
+3. कैसे हटाएं: अपनी आईडी छवि, सेल्फ़ी या सत्यापन परिणाम रिकॉर्ड को हटाने का अनुरोध करने के लिए privacy@rekrutai.co पर ईमेल करें।`;
 
 module.exports = {
 	name: '272_consent_id_verification_text_truth',
