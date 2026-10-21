@@ -260,7 +260,7 @@ function Stepper({ currentStep }: { currentStep: number }) {
 
 function StatsStrip() {
 	const stats = [
-		{ icon: Lock, value: '85%', label: 'of jobs are hidden' },
+		{ icon: Lock, value: 'Many', label: 'roles filled before posting' },
 		{ icon: Building2, value: 'Top 10', label: 'employers matched' },
 		{ icon: Users, value: '2-3', label: 'contacts per company' },
 	];
@@ -327,7 +327,7 @@ function ProblemSolutionSection() {
 						</li>
 						<li className="flex items-start gap-2">
 							<CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
-							<span>Access the hidden job market — 85% of roles never posted</span>
+							<span>Access the hidden job market — many roles are filled through referrals and direct outreach before they are ever posted</span>
 						</li>
 						<li className="flex items-start gap-2">
 							<CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
