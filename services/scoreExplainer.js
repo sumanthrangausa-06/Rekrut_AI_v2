@@ -389,15 +389,22 @@ async function explainDecisionForJob(userId, jobId, applicationId) {
  */
 async function explainDecision(applicationId) {
 	try {
+		// #1152-C (R3): repointed from the never-written omniscore_results
+		// table to the live omni_scores store. Pass-through (Rex scale
+		// decision 2026-10-20, §4 R3): total_score is native 300–850 and
+		// becomes current_omniscore as-is; factor columns are native
+		// 0–100 (behavior_score is the reliability + soft-skills
+		// composite). experience_score is no longer selected — it was
+		// consumed nowhere in this function after #1458.
 		const app = await pool.query(
 			`
         SELECT ja.*, j.title as job_title,
                u.name as candidate_name, u.email as candidate_email,
-               os.overall_score, os.technical_score, os.behavioral_score, os.experience_score
+               os.total_score AS overall_score, os.technical_score, os.behavior_score AS behavioral_score
         FROM job_applications ja
         JOIN jobs j ON ja.job_id = j.id
         JOIN users u ON ja.candidate_id = u.id
-        LEFT JOIN omniscore_results os ON os.user_id = ja.candidate_id
+        LEFT JOIN omni_scores os ON os.user_id = ja.candidate_id
         WHERE ja.id = $1
       `,
 			[applicationId],
@@ -427,7 +434,7 @@ async function explainDecision(applicationId) {
 		);
 
 		// #1458 (interim honesty, #1152 owns the JOIN's disposition): with no
-		// omniscore_results row the LEFT JOIN yields NULL and parseFloat(NULL)
+		// omni_scores row the LEFT JOIN yields NULL and parseFloat(NULL)
 		// is NaN — surface null (insufficient data), never NaN.
 		const parsedCurrentOmniscore = parseFloat(application.overall_score);
 
@@ -452,12 +459,16 @@ async function explainDecision(applicationId) {
 
 		// Explain based on status
 		if (application.status === 'rejected') {
-			if (application.omniscore_at_apply < 60) {
+			// #1152-C behaviour change (Rex §3.3/§5.3): omniscore_at_apply
+			// has always held native 300–850 values, so the old < 60 test
+			// could never fire. 630 = 300 + 60 × 5.5 preserves the intent
+			// on the native scale — this factor now fires for real.
+			if (application.omniscore_at_apply < 630) {
 				explanation.factors.push({
 					factor: 'Low OmniScore',
 					value: application.omniscore_at_apply,
 					impact: 'negative',
-					explanation: `OmniScore of ${application.omniscore_at_apply} was below the competitive threshold of 60`,
+					explanation: `OmniScore of ${application.omniscore_at_apply} was below the competitive threshold of 630`,
 				});
 			}
 
