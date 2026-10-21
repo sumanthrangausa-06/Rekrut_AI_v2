@@ -105,6 +105,17 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 
 		// Gather all user data
 		const userData = await pool.query('SELECT * FROM users WHERE id = $1', [targetUserId]);
+
+		// #1548: no data subject = nothing to export. Without this check
+		// an admin exporting a non-existent id built a user:null bundle
+		// and then 500'd on the data_requests FK (audit_logs carries the
+		// same FK, swallowed inside AuditLogger.log). The check sits
+		// before AuditLogger.log and the insert so no audit/request rows
+		// are attempted for absent targets. Non-admins never reach here
+		// for foreign ids (canAccessUserRecord 403s first) — no oracle.
+		if (userData.rows.length === 0) {
+			return res.status(404).json({ error: 'User not found' });
+		}
 		// #1533 (R7, Lex ruling on #1528): the score section is re-sourced
 		// from the live omni_scores family — omniscore_results was never
 		// written, so the old read exported [] for every user. Rows are
