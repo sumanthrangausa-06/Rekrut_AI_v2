@@ -8,9 +8,25 @@
  * deletion job for verification_requests exists; no face-match/liveness code
  * exists for ID verification.
  *
- * Migration 272 UPDATEs the consent_texts row seeded by 244
- * (consent_type='id_verification', version='1.0') in EN + HI. 244 is already
- * applied and is NOT edited in place — fresh installs run 244 then 272.
+ * Migration 272 INSERTs a NEW consent_texts version ('id_verification',
+ * '1.1') carrying the corrected text in EN + HI. It does NOT update the
+ * 244-seeded v1.0 row: migration 245 made consent_texts append-only
+ * (trigger trg_consent_texts_no_update rejects every UPDATE/DELETE), and
+ * every current-version reader resolves by MAX(effective_from), so v1.1
+ * becomes the served text while consent_receipts stay pinned to the exact
+ * version each candidate saw. 244 is already applied and is NOT edited in
+ * place — fresh installs run 244, 245, then 272.
+ *
+ * Quinn HL-003 FAIL on PR #1560 (comment 6321198091): the first version of
+ * 272 UPDATE-d v1.0 and crashed a REAL fresh-install `node migrate.js` at
+ * 272 (exit 1) — this suite mocked the DB client, so it never saw the 245
+ * trigger (the #1306 class). The mechanics assertions below therefore pin
+ * the statement SHAPE (INSERT of v1.1 with effective_from = NOW() and
+ * ON CONFLICT DO NOTHING; no UPDATE/DELETE of consent_texts anywhere),
+ * and the migration is additionally proven against a real fresh-install
+ * database by the builder (evidence attached to PR #1560) and re-run
+ * independently by Quinn. The mock below captures statements; it is NOT
+ * the migration-mechanics proof on its own.
  *
  * This test fails on pre-fix code: the UI page contains the 24-hour claim
  * and migration 272 does not exist.
@@ -80,23 +96,40 @@ describe('#1559 migration 272 — corrected id_verification consent text', () =>
 		await migration.up(client);
 	});
 
+	const getInsert = () => calls.find((c) => /INSERT INTO consent_texts/i.test(c.sql));
+	const getTextEn = () => getInsert().params.find((p) => typeof p === 'string' && /What we collect/i.test(p));
+	const getTextHi = () => getInsert().params.find((p) => typeof p === 'string' && /हम क्या एकत्र करते हैं/.test(p));
+
 	test('exports up and down functions (migrate.js contract)', () => {
 		expect(typeof migration.up).toBe('function');
 		expect(typeof migration.down).toBe('function');
 	});
 
-	test('UPDATEs consent_texts for id_verification version 1.0 only', () => {
-		const update = calls.find((c) => /UPDATE consent_texts/i.test(c.sql));
-		expect(update).toBeDefined();
-		expect(update.sql).toMatch(/text_en/i);
-		expect(update.sql).toMatch(/text_hi/i);
-		expect(update.params).toContain('id_verification');
-		expect(update.params).toContain('1.0');
+	test('HL-003: INSERTs a NEW consent_texts version 1.1 — never UPDATEs/DELETEs the append-only table', () => {
+		const insert = getInsert();
+		expect(insert).toBeDefined();
+		// consent_texts is append-only since migration 245: any UPDATE or
+		// DELETE statement against it crashes a real migrate run.
+		for (const c of calls) {
+			expect(c.sql).not.toMatch(/UPDATE\s+consent_texts/i);
+			expect(c.sql).not.toMatch(/DELETE\s+FROM\s+consent_texts/i);
+		}
+		expect(insert.sql).toMatch(/text_en/i);
+		expect(insert.sql).toMatch(/text_hi/i);
+		expect(insert.params).toContain('id_verification');
+		expect(insert.params).toContain('1.1');
+		expect(insert.params).not.toContain('1.0');
+	});
+
+	test('HL-003: new version wins MAX(effective_from) resolution and the INSERT is idempotent', () => {
+		const insert = getInsert();
+		expect(insert.sql).toMatch(/effective_from/i);
+		expect(insert.sql).toMatch(/NOW\(\)/);
+		expect(insert.sql).toMatch(/ON CONFLICT \(consent_type, version\) DO NOTHING/i);
 	});
 
 	test('corrected EN text has no 24-hour, face-match, or liveness claim', () => {
-		const update = calls.find((c) => /UPDATE consent_texts/i.test(c.sql));
-		const textEn = update.params.find((p) => typeof p === 'string' && /What we collect/i.test(p));
+		const textEn = getTextEn();
 		expect(textEn).toBeDefined();
 		for (const claim of FALSE_CLAIMS_EN) {
 			expect(textEn).not.toMatch(claim);
@@ -104,8 +137,7 @@ describe('#1559 migration 272 — corrected id_verification consent text', () =>
 	});
 
 	test('corrected HI text has no 24-hour, face-match, or liveness claim', () => {
-		const update = calls.find((c) => /UPDATE consent_texts/i.test(c.sql));
-		const textHi = update.params.find((p) => typeof p === 'string' && /हम क्या एकत्र करते हैं/.test(p));
+		const textHi = getTextHi();
 		expect(textHi).toBeDefined();
 		for (const claim of FALSE_CLAIMS_HI) {
 			expect(textHi).not.toMatch(claim);
@@ -113,9 +145,8 @@ describe('#1559 migration 272 — corrected id_verification consent text', () =>
 	});
 
 	test('corrected texts state 90-day retention and deletion via privacy@rekrutai.co', () => {
-		const update = calls.find((c) => /UPDATE consent_texts/i.test(c.sql));
-		const textEn = update.params.find((p) => typeof p === 'string' && /What we collect/i.test(p));
-		const textHi = update.params.find((p) => typeof p === 'string' && /हम क्या एकत्र करते हैं/.test(p));
+		const textEn = getTextEn();
+		const textHi = getTextHi();
 		expect(textEn).toMatch(/90 days/);
 		expect(textEn).toMatch(/privacy@rekrutai\.co/);
 		expect(textHi).toMatch(/90 दिनों/);
@@ -123,9 +154,8 @@ describe('#1559 migration 272 — corrected id_verification consent text', () =>
 	});
 
 	test('BLOCK 1: corrected texts contain no deletion completion-timeframe claim (EN + HI)', () => {
-		const update = calls.find((c) => /UPDATE consent_texts/i.test(c.sql));
-		const textEn = update.params.find((p) => typeof p === 'string' && /What we collect/i.test(p));
-		const textHi = update.params.find((p) => typeof p === 'string' && /हम क्या एकत्र करते हैं/.test(p));
+		const textEn = getTextEn();
+		const textHi = getTextHi();
 		for (const claim of COMPLETION_CLAIMS_EN) {
 			expect(textEn).not.toMatch(claim);
 		}
@@ -138,33 +168,29 @@ describe('#1559 migration 272 — corrected id_verification consent text', () =>
 	});
 
 	test('BLOCK 2: corrected EN text discloses the selfie, manual review, and no automated face-matching/liveness', () => {
-		const update = calls.find((c) => /UPDATE consent_texts/i.test(c.sql));
-		const textEn = update.params.find((p) => typeof p === 'string' && /What we collect/i.test(p));
+		const textEn = getTextEn();
 		expect(textEn).toMatch(/selfie/i);
 		expect(textEn).toMatch(/reviewed manually/i);
 		expect(textEn).toMatch(/no automated face-matching or liveness check is performed/i);
 	});
 
 	test('BLOCK 2: corrected HI text discloses the selfie with the same facts', () => {
-		const update = calls.find((c) => /UPDATE consent_texts/i.test(c.sql));
-		const textHi = update.params.find((p) => typeof p === 'string' && /हम क्या एकत्र करते हैं/.test(p));
+		const textHi = getTextHi();
 		expect(textHi).toMatch(/सेल्फ़ी/);
 		expect(textHi).toMatch(/मैन्युअल रूप से/);
 		expect(textHi).toMatch(/कोई स्वचालित चेहरा-मिलान या जीवंतता जांच नहीं/);
 	});
 
 	test('BLOCK 2: corrected texts state BOTH the ID image and the selfie are retained 90 days', () => {
-		const update = calls.find((c) => /UPDATE consent_texts/i.test(c.sql));
-		const textEn = update.params.find((p) => typeof p === 'string' && /What we collect/i.test(p));
-		const textHi = update.params.find((p) => typeof p === 'string' && /हम क्या एकत्र करते हैं/.test(p));
+		const textEn = getTextEn();
+		const textHi = getTextHi();
 		expect(textEn).toMatch(/ID image and selfie are retained for 90 days/i);
 		expect(textHi).toMatch(/आईडी छवि और सेल्फ़ी/);
 		expect(textHi).toMatch(/90 दिनों/);
 	});
 
 	test('corrected texts keep the DRAFT pending legal counsel review marking', () => {
-		const update = calls.find((c) => /UPDATE consent_texts/i.test(c.sql));
-		const textEn = update.params.find((p) => typeof p === 'string' && /What we collect/i.test(p));
+		const textEn = getTextEn();
 		expect(textEn).toMatch(/DRAFT — pending legal counsel review/);
 	});
 });
