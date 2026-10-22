@@ -152,7 +152,7 @@ async function loadCatalogTables(userId) {
        FROM skill_assessments sa2
        JOIN assessment_sessions sess2 ON sess2.id = sa2.session_id
        WHERE sa2.user_id = $1 AND sa2.completed_at IS NOT NULL AND sess2.topic_id = agg.topic_id
-       ORDER BY sa2.completed_at DESC
+       ORDER BY sa2.completed_at DESC, sa2.id DESC
        LIMIT 1
      ) lat ON true`,
 		[userId],
@@ -1038,15 +1038,27 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 			});
 		}
 
-		// Check for active session
-		const activeSession = await client.query(
-			"SELECT id FROM assessment_sessions WHERE user_id = $1 AND skill_id = $2 AND status = 'in_progress'",
-			[userId, skill.id],
-		);
-		if (activeSession.rows.length > 0) {
+		// Check for active session. #1687 (STOP 1 ruling): when the new
+		// session's snapshot resolves a topic, the abandon is scoped to
+		// in-progress sessions of the SAME topic and abandons ALL of them —
+		// starting Topic B must never silently abandon a Topic A attempt on
+		// the same skill. A start with no topic (NULL snapshot topic) keeps
+		// the legacy skill-wide behaviour exactly (first match only).
+		const hasTopic = snapshot.topicId != null;
+		const activeSession = hasTopic
+			? await client.query(
+					"SELECT id FROM assessment_sessions WHERE user_id = $1 AND skill_id = $2 AND status = 'in_progress' AND topic_id = $3",
+					[userId, skill.id, snapshot.topicId],
+				)
+			: await client.query(
+					"SELECT id FROM assessment_sessions WHERE user_id = $1 AND skill_id = $2 AND status = 'in_progress'",
+					[userId, skill.id],
+				);
+		const sessionsToAbandon = hasTopic ? activeSession.rows : activeSession.rows.slice(0, 1);
+		for (const oldSession of sessionsToAbandon) {
 			// Abandon old session
 			await client.query("UPDATE assessment_sessions SET status = 'abandoned' WHERE id = $1", [
-				activeSession.rows[0].id,
+				oldSession.id,
 			]);
 		}
 
