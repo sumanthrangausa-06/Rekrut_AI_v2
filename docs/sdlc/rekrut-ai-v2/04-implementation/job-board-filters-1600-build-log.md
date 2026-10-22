@@ -85,3 +85,24 @@ scope here.
 - Header Sort dropdown remains UI-only (PRD §8 — separate follow-up, unchanged).
 - Server clamps `limit` to 50 in `GET /candidate/jobs` (pre-existing pagination
   behaviour; the client asks for 200). Not changed by this fix.
+
+## Delta re-reviews (marker/strip amendments)
+
+- **Delta 1 (BLOCK):** `filters=clear` was sticky in the URL and could
+  re-fire after later in-page edits; marker value `1` was too generic;
+  adopt-absent fields could blank shared state for a foreign marked URL.
+  Fixes: signals are consumed and stripped from the URL (`replace`); marker
+  namespaced to `filters=hdr1`; hdr1 URLs carry the complete header filter
+  state by protocol (documented in `jobs.tsx`). The header's URL-derived
+  active-count badge was removed — after the strip it could lie; the board's
+  JobFilterBar count is the authoritative display.
+- **Delta 2 (BLOCK):** the strip rewrote the URL unconditionally. Fix: the
+  updater no-ops (`return prev`) when the signal is already gone, so it can
+  never overwrite a concurrent param write; the clear branch resets on every
+  distinct clear navigation (no signature guard). A static pin covers the
+  guard.
+- **Regression check:** full `server/__tests__` on this branch: 24 failed /
+  2842 passed — every failing test also fails on a pristine `origin/dev`
+  baseline run (superset of 167 baseline failures in the archive-copy rig);
+  zero branch-only failures. The 7 failing suites are unrelated to this
+  change (threat-intel, assessments, candidate-autosend, score-explainer).
