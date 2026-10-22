@@ -27,6 +27,7 @@ import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/contexts/auth-context';
+import { buildHeaderApplyParams } from '@/lib/job-board-url';
 
 interface HeaderProps {
 	onMenuToggle: () => void;
@@ -94,16 +95,6 @@ function useDropdown() {
 // remote_type, experience_level, salary_min, salary_max) to /candidate/jobs;
 // jobs.tsx syncs its FilterState from those params, so the header door and
 // the in-page JobFilterBar controls always set the same filters.
-const FILTER_PARAM_KEYS = [
-	'search',
-	'location',
-	'type',
-	'remote_type',
-	'experience_level',
-	'salary_min',
-	'salary_max',
-] as const;
-
 interface JobFilterDraft {
 	search: string;
 	location: string;
@@ -164,25 +155,14 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 	}, [filterSheetOpen, location.search]);
 
 	const applyFilters = () => {
-		const params = new URLSearchParams();
-		const hasAnyFilter = FILTER_PARAM_KEYS.some((k) => filterDraft[k]);
-		// Marker: marks this URL as header-applied filter intent (#1600 B1).
-		if (hasAnyFilter) params.set('filters', 'hdr1');
-		if (filterDraft.search) params.set('search', filterDraft.search);
-		if (filterDraft.location) params.set('location', filterDraft.location);
-		if (filterDraft.type) params.set('type', filterDraft.type);
-		if (filterDraft.remote_type) params.set('remote_type', filterDraft.remote_type);
-		if (filterDraft.experience_level) params.set('experience_level', filterDraft.experience_level);
-		if (filterDraft.salary_min) params.set('salary_min', filterDraft.salary_min);
-		if (filterDraft.salary_max) params.set('salary_max', filterDraft.salary_max);
-		// Preserve the board's non-filter params (e.g. an open job drawer).
-		if (onJobBoard) {
-			const current = new URLSearchParams(location.search);
-			for (const key of ['job', 'skill']) {
-				const v = current.get(key);
-				if (v) params.set(key, v);
-			}
-		}
+		// #1634: params are built by the shared pure builder — it preserves
+		// the open-job param (`job`) but NOT `skill`: a preserved stale
+		// `?skill=` was re-applied by jobs.tsx's skill effect after the
+		// header keyword was adopted, silently clobbering that keyword.
+		const params = buildHeaderApplyParams(
+			filterDraft,
+			onJobBoard ? new URLSearchParams(location.search) : null,
+		);
 		const qs = params.toString();
 		// Applying an empty draft is an explicit clear, not a bare navigation.
 		navigate(qs ? `${jobsPathForFilters}?${qs}` : `${jobsPathForFilters}?filters=clear`);

@@ -38,6 +38,7 @@ import {
 	restoreJob,
 	unlikeJob,
 } from '@/lib/api';
+import { createUrlFilterAdoptionTracker, urlFilterSignature } from '@/lib/job-board-url';
 import { cn } from '@/lib/utils';
 
 interface Job {
@@ -285,7 +286,7 @@ export function CandidateJobsPage() {
 	// change or reload (delta review BLOCK D-B1). Marker value is namespaced
 	// (hdr1) so a future feature's generic filters=1 cannot hijack the board
 	// (delta review BLOCK D-B2).
-	const appliedUrlFilterSig = useRef('');
+	const urlFilterAdoption = useRef(createUrlFilterAdoptionTracker());
 	useEffect(() => {
 		const mode = searchParams.get('filters');
 		if (mode !== 'hdr1' && mode !== 'clear') return;
@@ -293,7 +294,12 @@ export function CandidateJobsPage() {
 		// already gone, so this never rewrites a URL that no longer carries
 		// the signal and never overwrites a concurrent param write (delta-2
 		// review BLOCK D2-B1). Returning the same params skips the navigation.
-		const stripSignal = () =>
+		// #1634: consuming the tracker here is what makes the strip final —
+		// once the signal is gone from the URL, the same values may be
+		// adopted again on a later header Apply (post-strip re-entry after
+		// in-page divergence), instead of hitting a stale signature guard.
+		const stripSignal = () => {
+			urlFilterAdoption.current.consume();
 			setSearchParams(
 				(prev) => {
 					if (!prev.has('filters')) return prev;
@@ -303,11 +309,12 @@ export function CandidateJobsPage() {
 				},
 				{ replace: true },
 			);
+		};
 		if (mode === 'clear') {
 			// No signature guard here: every distinct clear navigation must
 			// reset, even if the user set in-page filters after a prior clear.
 			// The reset is idempotent and the strip terminates the cycle.
-			appliedUrlFilterSig.current = 'clear';
+			urlFilterAdoption.current.record('clear');
 			setFilters((prev) => ({
 				...prev,
 				search: '',
@@ -331,9 +338,11 @@ export function CandidateJobsPage() {
 			salary_min: searchParams.get('salary_min') ?? '',
 			salary_max: searchParams.get('salary_max') ?? '',
 		};
-		const sig = Object.values(values).join('|');
-		if (sig !== appliedUrlFilterSig.current) {
-			appliedUrlFilterSig.current = sig;
+		// #1634: JSON signature — the old join('|') collided when values
+		// themselves contained '|' across field splits.
+		const sig = urlFilterSignature(values);
+		if (urlFilterAdoption.current.shouldAdopt(sig)) {
+			urlFilterAdoption.current.record(sig);
 			setFilters((prev) => ({
 				...prev,
 				search: values.search,
