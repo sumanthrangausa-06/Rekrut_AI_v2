@@ -147,3 +147,6 @@ files: `hidden_files/1543-run/evidence-1710/` (`unit-*.txt`,
   this build; the re-serve behaviour is pinned as-is by the new
   band-exhaustion test case.
 - No schema, no migrations, no other routes or surfaces.
+
+## Review fix (advance run 2026-10-22 15:43 PT)
+Independent review of PR #1713 (APPROVE) raised M-1 (Minor): `BANDS['constructor']`/`BANDS['hasOwnProperty']` return inherited functions whose `.length` passes the truthiness guard — unreachable via the API (band writes are `Object.hasOwn`-gated at :897 or the literal 'medium') and fail-closed, but the guard now uses `Array.isArray(bandLevels)` (the codebase's own idiom) in a follow-up commit on this PR.

@@ -2184,7 +2184,7 @@ async function generateQuestion(skillName, category, difficulty, client, exclude
 		// move current_difficulty: the §5.2 adaptation value stays exactly
 		// where /answer put it.
 		const bandLevels = BANDS[session.difficulty_band];
-		if (bandLevels && bandLevels.length > 0) {
+		if (Array.isArray(bandLevels) && bandLevels.length > 0) {
 			const widenResult = await client.query(
 				`
     SELECT * FROM assessment_questions
