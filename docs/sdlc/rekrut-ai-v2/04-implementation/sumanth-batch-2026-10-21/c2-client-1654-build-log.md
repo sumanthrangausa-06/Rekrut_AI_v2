@@ -108,3 +108,89 @@ No new dependencies; no server changes; no migration.
 - Coding appears in the format picker; with the flag OFF its pre-flight
   honestly returns servable 0 with the coding reason, so it renders the
   JT-C4 empty state and can never start — no silent substitution.
+
+## Addendum — Candidate Experience / design-ux GAP-1…GAP-6 (second commit)
+
+Implemented: GAP-1, GAP-2, GAP-3, GAP-4, GAP-6 + plain-language band
+copy. Tests: `assessment-configure-1654.test.tsx` grows to 9 (GAP-2,
+GAP-6 added) and new `assessment-take-1654.test.tsx` adds 6 (GAP-3 ×2,
+GAP-4 ×4) — RED 6 failed / 9 passed before the addendum build, GREEN
+30/30 across the four client files run (incl. api-lib suites);
+`evidence-1654c/red-addendum.log` / `green-addendum.log`. Server
+regressions unchanged (catalog 18/18, config 24/24, 1573 6/6).
+
+- **GAP-1 — implemented as specified.** The promise is never derived
+  from the catalogue list: Start is reachable only after the per-topic
+  availability endpoint confirms the candidate's actual chosen
+  {format, band, count}; the returned `reason` renders verbatim when
+  servable < promised; the only alternative count offered is the
+  labelled `largestAvailable`. (Precision note: the list's
+  `availability.available` is the §7 floor — maxCount ≥ 10 across ALL
+  configurations, `computeTopicAvailability` in routes/assessments.js —
+  not a "default config" figure; the client treats it only as "this
+  topic may be configurable", never as a promise.)
+- **GAP-2 — implemented.** The start handler branches explicitly on
+  `code === 'SETS_NOT_AVAILABLE'` (400): a dedicated state — "sets are
+  not available yet… No attempt was created" — with no Resume/offer
+  affordance, because that 400 rolls back before any session exists
+  (routes/assessments.js /start configured branch). The client never
+  sends `setId` today; the branch is pinned by test so a future set UI
+  cannot fall into the generic path. Other non-OKs keep their fields:
+  `apiCall` preserves `code`/`status`/`sessionId`/`promised`/
+  `largestAvailable` on the thrown error.
+- **GAP-3 — implemented.** `assessment-take.tsx`: a session WITH a
+  configuration snapshot renders the snapshot instructions block (chosen
+  configuration in plain language + the same rule disclosures and
+  full-screen Start/opt-out as the gate); a session WITHOUT one renders
+  the Phase B gate. Exactly one block in every state. Snapshot sources:
+  the configure flow's sessionStorage hand-off (`config` added) and the
+  server's `format`/`difficultyBand` fields on `/session/:id/current`
+  (in_progress branch) for refresh/resume. Legacy starts store no
+  config and have NULL snapshot fields → Phase B gate, unchanged.
+- **GAP-4 — implemented against the REAL response fields; two premise
+  conflicts flagged:** (a) the field is `answersGiven`, not
+  `answeredCount` (both /current branches; the take page already used
+  it) — the partial label reads "Partial — answered X of Y" from
+  `answersGiven`/`totalQuestions`, no pass/fail, no Verified badge, as
+  before. (b) **`verifiedEligible` does not exist** — grep over
+  `routes/` + `client/src/` returns zero hits; no merged response sends
+  it. The client now reads it defensively (`=== true` only) on the
+  completion path, so "Passed · Verified ✓" renders only if a future
+  server field says so; today a server-passed attempt labels "Passed".
+  (c) The "server withholds score on non-partial fail" premise also
+  does not hold for /current (it returns the score for non-partial
+  regardless of `passed`) — the client now enforces the label rule
+  itself: failed → "Not passed" badge, NO raw score text rendered.
+  (d) The real reconstruction defect the review pointed at is fixed:
+  pass/fail came from `passed || finalScore >= 60` (completed view) and
+  `(score || 0) >= 60` (showCompleted + its catch fallback) — all now
+  read the server's `passed` field only; an unreadable result renders
+  the fail labelling, never a guessed pass.
+- **GAP-5 — CONFLICT, flagged with evidence (premise wrong against the
+  merged server; NOT implemented as written).** `mixed` does NOT 400 on
+  the availability endpoint: `CONFIG_FORMATS` includes `'mixed'`
+  (routes/assessments.js:151), the endpoint validates against that list
+  (:610), and `topicServable`/`computeTopicAvailability` compute mixed
+  as the §4.6 union. Removing mixed pre-flight would delete a working
+  honest check and push every mixed shortfall to a committed-session
+  503 — the worse outcome GAP-1 exists to prevent. The client therefore
+  keeps pre-flight for mixed AND keeps the /start 503
+  `largestAvailable` handling for every format (race-proofing the
+  advisory check). If the review intends the endpoint to reject mixed,
+  that is a server-contract change for the parent to rule — the client
+  will follow the contract, not the other way round.
+- **GAP-6 — implemented; payload-shape note.** Chosen-config servable 0
+  → "cannot start this configuration" (the pre-flight empty state; no
+  Continue), regardless of the catalogue's `available` flag — pinned by
+  a test where the catalogue topic is available but the chosen Coding
+  configuration pre-flights 0. Shape note: the payload is
+  `availability.formats.mcq.easy = <number>` (a folded count), not
+  `…easy.servable`; the client reads counts only via the per-topic
+  pre-flight response, so the distinction is documentary.
+- **Band copy** is now plain candidate language in both instructions
+  blocks: "Medium — questions adapt within the Medium band only
+  (levels 2–4), based on your answers. They never move into another
+  band."
+- Incidental: one pre-existing TS error in the touched file fixed
+  (`showCompleted(current.score)` → `?? undefined`, the pattern already
+  used in runExit); tsc is clean on all touched files.

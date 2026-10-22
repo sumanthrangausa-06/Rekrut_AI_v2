@@ -64,9 +64,9 @@ const FORMATS = [
 ] as const;
 
 const BANDS = [
-	{ value: 'easy', label: 'Easy', range: 'questions adapt between levels 1 and 2' },
-	{ value: 'medium', label: 'Medium', range: 'questions adapt between levels 2 and 4' },
-	{ value: 'hard', label: 'Hard', range: 'questions adapt between levels 4 and 5' },
+	{ value: 'easy', label: 'Easy', range: 'levels 1–2' },
+	{ value: 'medium', label: 'Medium', range: 'levels 2–4' },
+	{ value: 'hard', label: 'Hard', range: 'levels 4–5' },
 ] as const;
 
 const COUNTS = [10, 25, 50, 100];
@@ -82,6 +82,9 @@ interface StartErrorState {
 	message: string;
 	sessionId?: number;
 	largestAvailable?: number;
+	// GAP-2: the 400 SETS_NOT_AVAILABLE branch — no session was created
+	// (the server rolls back), so no resume/offer affordance may render.
+	setsUnavailable?: boolean;
 }
 
 export function AssessmentConfigureFlow({
@@ -152,14 +155,33 @@ export function AssessmentConfigureFlow({
 			);
 			sessionStorage.setItem(
 				`assessment_${data.sessionId}`,
-				JSON.stringify({ question: data.question, skillName: data.skillName || subjectName }),
+				JSON.stringify({
+					question: data.question,
+					skillName: data.skillName || subjectName,
+					// GAP-3: the configuration snapshot hand-off — the take
+					// page renders its snapshot instructions block (not the
+					// Phase B gate) when this is present.
+					config: { format, difficultyBand: band, totalQuestions: count, topicName: topic.name },
+				}),
 			);
 			navigate(`/candidate/assessments/${data.sessionId}/take`);
 		} catch (err) {
 			const apiErr = err as Error & {
+				code?: string;
 				sessionId?: number;
 				largestAvailable?: number;
 			};
+			// GAP-2: branch explicitly on the 400 code — sets were rejected
+			// before any session existed, so there is nothing to resume and
+			// nothing stranded; say exactly that instead of a generic error.
+			if (apiErr.code === 'SETS_NOT_AVAILABLE') {
+				setStartError({
+					message:
+						'Assessment sets are not available yet, so this test could not be started as a set. No attempt was created — pick a configuration without a set, or try again later.',
+					setsUnavailable: true,
+				});
+				return;
+			}
 			setStartError({
 				message: apiErr.message || 'Failed to start assessment. Please try again.',
 				sessionId: apiErr.sessionId,
@@ -187,8 +209,12 @@ export function AssessmentConfigureFlow({
 							<strong>{count} questions</strong>.
 						</li>
 						<li>
-							Difficulty: <strong>{bandMeta?.label} — {bandMeta?.range}</strong>. Questions
-							adapt inside that band only.
+							Difficulty:{' '}
+							<strong>
+								{bandMeta?.label} — questions adapt within the {bandMeta?.label} band only (
+								{bandMeta?.range})
+							</strong>
+							, based on your answers. They never move into another band.
 						</li>
 						<li>
 							Expected time: up to about {Math.round((count * SECONDS_PER_QUESTION) / 60)}{' '}

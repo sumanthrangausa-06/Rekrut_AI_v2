@@ -100,7 +100,7 @@ describe('JT-C1 — configure → pre-flight → instructions → start', () => 
 		expect(await screen.findByText(/before you start/i)).toBeInTheDocument();
 		expect(screen.getByText(/Python Core/)).toBeInTheDocument();
 		expect(screen.getByText(/Multiple choice/)).toBeInTheDocument();
-		expect(screen.getByText(/Hard — questions adapt between levels 4 and 5/)).toBeInTheDocument();
+		expect(screen.getByText(/Hard — questions adapt within the Hard band only \(levels 4–5\)/)).toBeInTheDocument();
 		expect(screen.getByText(/25 questions/)).toBeInTheDocument();
 	});
 
@@ -212,6 +212,47 @@ describe('JT-C4 — honest states before start', () => {
 		// The start was NOT silently retried at a different count.
 		const startCalls = apiCallMock.mock.calls.filter((c) => c[0] === '/assessments/start');
 		expect(startCalls).toHaveLength(1);
+	});
+});
+
+describe('Addendum — GAP-6 / GAP-2', () => {
+	test('GAP-6: catalogue says available, but the CHOSEN configuration has servable 0 — cannot start it', async () => {
+		apiCallMock.mockImplementation(async (url: string) => {
+			if (url.includes('format=coding')) {
+				return availabilityResponse({
+					promised: 10,
+					servable: 0,
+					largestAvailable: 0,
+					reason: 'Coding assessments are not available yet.',
+				});
+			}
+			if (url.includes('/availability')) return availabilityResponse();
+			throw new Error(`unexpected ${url}`);
+		});
+		renderFlow();
+		// Default configuration is servable — Continue exists…
+		expect(await screen.findByRole('button', { name: /continue to instructions/i })).toBeInTheDocument();
+		// …but choosing Coding (servable 0 for this config) removes the start path.
+		fireEvent.click(screen.getByRole('button', { name: 'Coding' }));
+		expect(await screen.findByText('Coding assessments are not available yet.')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: /continue to instructions/i })).not.toBeInTheDocument();
+	});
+
+	test('GAP-2: a 400 SETS_NOT_AVAILABLE at start gets its own honest state and strands nothing', async () => {
+		const err = new Error('Assessment sets are not available yet') as Error & Record<string, unknown>;
+		Object.assign(err, { status: 400, code: 'SETS_NOT_AVAILABLE' });
+		apiCallMock.mockImplementation(async (url: string, opts?: { method?: string }) => {
+			if (url.includes('/availability')) return availabilityResponse();
+			if (url === '/assessments/start' && opts?.method === 'POST') throw err;
+			throw new Error(`unexpected ${url}`);
+		});
+		renderFlow();
+		fireEvent.click(await screen.findByRole('button', { name: /continue to instructions/i }));
+		fireEvent.click(await screen.findByRole('button', { name: 'Start Test' }));
+		expect(await screen.findByText(/sets are not available yet/i)).toBeInTheDocument();
+		expect(screen.getByText(/no attempt was created/i)).toBeInTheDocument();
+		// No session exists for this failure — no Resume affordance may appear.
+		expect(screen.queryByRole('button', { name: 'Resume attempt' })).not.toBeInTheDocument();
 	});
 });
 
