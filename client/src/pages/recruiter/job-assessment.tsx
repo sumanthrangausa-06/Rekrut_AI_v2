@@ -72,6 +72,11 @@ interface AttemptResult {
 		total_questions?: number;
 		fullscreen_auto_submit?: boolean;
 	} | null;
+	scores?: {
+		unscored?: boolean;
+		unscored_reason?: string;
+		compositeScore?: number | null;
+	} | string | null;
 	time_spent_seconds: number;
 	candidate_name: string;
 	candidate_email: string;
@@ -269,7 +274,22 @@ export function RecruiterJobAssessmentPage() {
 	// but there is nothing to score — scored_at stays NULL, so without this
 	// bucket the attempt vanished from every recruiter list. It is shown
 	// with the exited attempts, honestly labelled: not scored, no number.
-	const unscoredResults = results.filter((r) => r.status === 'completed' && !r.scored_at);
+	// Delta re-review (F4 remainder): `completed && !scored_at` alone also
+	// matches attempts still in the scoring window and attempts whose
+	// scoring failed (scored_at stays NULL by design) — candidates who DID
+	// answer. Restrict the bucket to the terminal zero-answer state using
+	// the discriminators already in the payload: completion_flags
+	// .answers_given === 0 and/or scores.unscored === true (scoreAttempt
+	// writes the latter only for zero-answer attempts).
+	const unscoredResults = results.filter((r) => {
+		if (r.status !== 'completed' || r.scored_at) return false;
+		const cf =
+			typeof r.completion_flags === 'string'
+				? JSON.parse(r.completion_flags as unknown as string)
+				: r.completion_flags;
+		const sc = typeof r.scores === 'string' ? JSON.parse(r.scores) : r.scores;
+		return cf?.answers_given === 0 || sc?.unscored === true;
+	});
 
 	return (
 		<div className="space-y-5">

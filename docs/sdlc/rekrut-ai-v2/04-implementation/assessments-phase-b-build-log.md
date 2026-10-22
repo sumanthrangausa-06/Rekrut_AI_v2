@@ -177,6 +177,16 @@ suite re-run on a fresh-install rig (empty DB built only by
   **10/10 PASS** (evidence `phase-b-evidence-green.json`, per-step
   read-backs in the PR checkpoint comment).
 
+## F4 remainder — delta re-review (PR #1641 comment 6338010785)
+
+**Persona:** Nova (micro-fix), responding to Lead's delta re-review: F1,
+F2, F3, F5, F6 and the Quinn suite fix cleared; the one remaining item
+was the recruiter "no answers" bucket over-matching.
+
+| Finding | Fix | Evidence |
+|---|---|---|
+| **F4 remainder MED — recruiter bucket false label** (`client/src/pages/recruiter/job-assessment.tsx`): `status === 'completed' && !scored_at` also matches attempts still in the scoring window and attempts whose scoring failed (`scored_at` stays NULL by design), labelling candidates who DID answer as "Submitted with no answers — not scored". | Bucket restricted to the terminal zero-answer state, exactly as the reviewer prescribed: `completed && !scored_at && (parsed completion_flags.answers_given === 0 \|\| parsed scores.unscored === true)` — both discriminators already in the results payload (`scores.unscored` is written by `scoreAttempt` only for zero-answer attempts). `AttemptResult` gains the `scores` field the payload already carried. No other surface changed. | New client test `client/src/__tests__/pages/RecruiterJobAssessmentUnscoredBucket.test.tsx` (vitest + Testing Library, real component render, mocked `apiCall` payload): (a) completed + `answers_given` 0 + `scores.unscored` → in bucket; (b) completed + answers given + `scored_at` NULL (scoring pending/failed) → NOT in bucket, name absent; (c) completed + scored → not in bucket. RED on the unfixed head: 3/3 fail (the over-match puts 2 labels on the page and renders the answered candidate under the false label). GREEN after the fix: 3/3 pass. `tsc --noEmit`: no errors in the touched files (pre-existing errors in untouched files only). Full client suite: 365 passed / 9 failed in two untouched files (`SettingsLinkedInUrl`, `CandidateInterviewsScreening`) — identical 9 failures on the unfixed head, pre-existing. |
+
 ## Out of scope / follow-ups
 
 - Conversational mode (job runner): the Exit dialog and its four outcomes
