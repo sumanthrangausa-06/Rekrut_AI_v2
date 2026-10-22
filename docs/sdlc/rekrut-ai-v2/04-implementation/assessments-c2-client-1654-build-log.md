@@ -68,3 +68,32 @@ catalogue topic keep their existing start path.
 - Journey script `e2e/journeys/assessment-c2-config.js` (JT-C1/JT-C4)
   ships in this PR for Quinn's fresh-install gate — the gate, not this
   log, is the HL-003 evidence.
+
+## Fix round 2 (independent review + GAP addendum)
+
+The independent review BLOCKED round 1 on the D2 deviation and the
+missing GAP-4 labels; its B1/BROKEN-1/BROKEN-2 claims were checked
+first-hand and disproven (adjudication on #1654). The accepted findings
+were fixed in this round (changes drafted during the Quinn gate,
+verified and landed by the parent):
+
+- **GAP-2 (D2 closed):** the start catch branches explicitly on
+  `code === 'SETS_NOT_AVAILABLE'` (api.ts attaches the server code
+  generically) — honest "sets are not available yet" state, no Resume,
+  no offer (the server rejects setId BEFORE the session insert, so
+  nothing exists to resume and nothing is stranded).
+- **GAP-3 (D1 superseded):** the take page now renders exactly ONE
+  instructions block: a session WITH a config snapshot (from /current
+  fields when present, else the configure screen's sessionStorage
+  hand-off) renders a snapshot block carrying the full rule disclosures;
+  a session WITHOUT one renders the Phase B gate. The configure screen's
+  pre-start summary remains, disclosing the next screen's rules.
+- **GAP-4 (D3 closed):** pass/fail is the server's `passed` field ONLY —
+  the previous score-derived reconstructions (`passed || score >= 60`,
+  the catch-path guess, `isPassed = passed || finalScore >= 60`) are
+  deleted. Failed attempts show "Not passed" with NO raw score text.
+  The Verified string renders only when a response field says
+  `verifiedEligible === true` (no server response sends it today, so it
+  never renders — deliberately).
+- Suites (parent-run): configure 9/9, take-1654 6/6, neighbouring
+  quick-practice 12/12 — 27/27 PASS on the final tree.
