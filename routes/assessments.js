@@ -299,6 +299,7 @@ router.get('/attempt/:attemptId/score', authMiddleware, async (req, res) => {
 // Start new assessment - accepts skillName+category OR skillId (AI RATE LIMITED)
 router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 	const client = await pool.connect();
+	let clientReleased = false;
 	try {
 		const userId = req.user.id;
 		const { skillId, skillName, category, jobId } = req.body;
@@ -393,89 +394,101 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 
 		const session = sessionResult.rows[0];
 
-		// Generate first question
-		const question = await generateQuestion(skill.skill_name, skill.category, 2, client);
+		// Phase A (#1606 FR-A7): the session commits BEFORE the first question
+		// is served. A question-supply failure can no longer roll the session
+		// back — the session stays in_progress and resumable, and /start
+		// reports the honest question-unavailable state with its id.
+		await client.query('COMMIT');
+		client.release();
+		clientReleased = true;
 
-		if (!question) {
-			await client.query('ROLLBACK');
-			return res.status(500).json({ error: 'Failed to generate questions. Please try again.' });
+		const served = await serveNextQuestion(session.id);
+		if (!served.ok) {
+			return res.status(503).json({
+				error:
+					'No questions are available for this assessment yet. Your attempt has been saved — please try again shortly.',
+				code: 'QUESTION_UNAVAILABLE',
+				retryable: true,
+				sessionId: session.id,
+				skillName: skill.skill_name,
+			});
 		}
 
-		// Record question asked
-		const questionsAsked = [
-			{ questionId: question.id, difficulty: question.difficulty_level, timestamp: new Date() },
-		];
-		await client.query(
-			'UPDATE assessment_sessions SET questions_asked = $1, current_question_index = 1 WHERE id = $2',
-			[JSON.stringify(questionsAsked), session.id],
-		);
-
-		await client.query('COMMIT');
-
-		res.json({
+		return res.json({
 			sessionId: session.id,
 			skillName: skill.skill_name,
-			question: {
-				id: question.id,
-				text: question.question_text,
-				type: question.question_type,
-				options:
-					typeof question.options === 'string' ? JSON.parse(question.options) : question.options,
-				timeLimit: question.time_limit_seconds || 120,
-				questionNumber: 1,
-				totalQuestions: 10,
-			},
+			question: served.question,
 		});
 	} catch (error) {
-		await client.query('ROLLBACK');
+		if (!clientReleased) await client.query('ROLLBACK').catch(() => {});
 		console.error('Error starting assessment:', error);
 		if (error.allProvidersFailed) {
 			return handleAIError(res, error, 'Assessment generation');
 		}
 		res.status(500).json({ error: 'Failed to start assessment' });
 	} finally {
-		client.release();
+		if (!clientReleased) client.release();
 	}
 });
 
-// Submit answer and get next question
+// Submit answer. Phase A (#1602): recording the answer, evaluating it, and
+// serving the next question are now separate steps with separate failure
+// outcomes. Previously one transaction did all three, so a next-question
+// generation failure rolled the candidate's just-recorded answer back, and
+// the passing-leg completion could deadlock against the OmniScore write
+// (#1612). The next question is served by GET /session/:sessionId/current
+// (serveNextQuestion) — this route only records and, on the final answer,
+// completes.
 router.post('/answer', authMiddleware, async (req, res) => {
-	const client = await pool.connect();
 	try {
 		const userId = req.user.id;
 		const { sessionId, questionId, answer, timeTaken } = req.body;
 
-		await client.query('BEGIN');
-
-		// Get session
-		const sessionResult = await client.query(
+		// Load session + question without holding a transaction: evaluation
+		// below may take seconds (AI cascade) and must not hold DB locks.
+		const sessionResult = await pool.query(
 			'SELECT * FROM assessment_sessions WHERE id = $1 AND user_id = $2',
 			[sessionId, userId],
 		);
 
 		if (sessionResult.rows.length === 0) {
-			await client.query('ROLLBACK');
 			return res.status(404).json({ error: 'Session not found' });
 		}
 
 		const session = sessionResult.rows[0];
 
 		if (session.status !== 'in_progress') {
-			await client.query('ROLLBACK');
-			return res.status(400).json({ error: 'Session is not active' });
+			return res
+				.status(400)
+				.json({ error: 'This attempt is already finished', code: 'ALREADY_FINISHED' });
 		}
 
 		// Get question details
-		const questionResult = await client.query('SELECT * FROM assessment_questions WHERE id = $1', [
+		const questionResult = await pool.query('SELECT * FROM assessment_questions WHERE id = $1', [
 			questionId,
 		]);
 
 		if (questionResult.rows.length === 0) {
-			await client.query('ROLLBACK');
 			return res.status(404).json({ error: 'Question not found' });
 		}
 
 		const question = questionResult.rows[0];
+
+		// Idempotency: a retried submission of an already-recorded answer
+		// (client timeout, double-click, timer + manual press) returns the
+		// recorded state — the answer is never recorded or scored twice.
+		// The one exception is a RE-SERVED question: when the bank cell is
+		// exhausted, serveNextQuestion may serve a question the session
+		// answered earlier; as the currently-outstanding question it is a
+		// NEW answer, not a retry. (Without this distinction the retry
+		// guard and the re-serve together trap the candidate on one
+		// question forever.)
+		if (isAlreadyRecorded(session, questionId)) {
+			return respondAfterRecord(res, sessionId, userId, {
+				feedback: 'Answer already recorded',
+				explanation: question.explanation,
+			});
+		}
 
 		// Evaluate answer
 		let isCorrect = false;
@@ -556,41 +569,6 @@ router.post('/answer', authMiddleware, async (req, res) => {
 		const expectedMinTime = question.question_type === 'multiple_choice' ? 5 : 15;
 		const isTimeAnomaly = timeTaken < expectedMinTime;
 
-		// Update session
-		const questionsAsked =
-			typeof session.questions_asked === 'string'
-				? JSON.parse(session.questions_asked)
-				: session.questions_asked || [];
-		const answersGiven =
-			typeof session.answers_given === 'string'
-				? JSON.parse(session.answers_given)
-				: session.answers_given || [];
-
-		answersGiven.push({
-			questionId,
-			answer,
-			isCorrect,
-			scorePoints,
-			score: evaluationScore,
-			evaluationStatus,
-			timeTaken,
-			timestamp: new Date(),
-			aiFeedback,
-		});
-
-		const newScore = (session.score || 0) + scorePoints;
-		const currentQuestionIndex = (session.current_question_index || 0) + 1;
-
-		// Adaptive difficulty: increase if correct and no time anomaly, decrease if wrong.
-		// #1572: an unevaluated answer (isCorrect null) moves difficulty NEITHER
-		// way — the candidate is not penalised for an evaluation failure.
-		let newDifficulty = session.current_difficulty || 2;
-		if (isCorrect === true && !isTimeAnomaly && newDifficulty < 5) {
-			newDifficulty += 1;
-		} else if (isCorrect === false && newDifficulty > 1) {
-			newDifficulty -= 1;
-		}
-
 		// #1572: unevaluated answers are "Pending manual review", never "Incorrect".
 		const answerFeedback =
 			evaluationStatus === 'pending_manual_review'
@@ -599,109 +577,112 @@ router.post('/answer', authMiddleware, async (req, res) => {
 					? 'Correct!'
 					: 'Incorrect';
 
-		const maxDifficultyReached = Math.max(session.max_difficulty_reached || 2, newDifficulty);
-		const timeAnomalies = (session.time_anomalies || 0) + (isTimeAnomaly ? 1 : 0);
+		// Record the answer in its OWN transaction and COMMIT it before
+		// anything else happens. The session row lock serialises concurrent
+		// submissions for this session; the duplicate re-check under the lock
+		// makes a racing retry a no-op. From the COMMIT on, the answer cannot
+		// be lost by any later failure (FR-A1).
+		const client = await pool.connect();
+		let alreadyFinished = false;
+		let alreadyRecorded = false;
+		try {
+			await client.query('BEGIN');
+			const lockedResult = await client.query(
+				'SELECT * FROM assessment_sessions WHERE id = $1 AND user_id = $2 FOR UPDATE',
+				[sessionId, userId],
+			);
+			const locked = lockedResult.rows[0];
+			if (!locked || locked.status !== 'in_progress') {
+				await client.query('ROLLBACK');
+				alreadyFinished = true;
+			} else {
+				const answersGiven = parseJsonArray(locked.answers_given);
+				if (isAlreadyRecorded(locked, questionId)) {
+					await client.query('COMMIT');
+					alreadyRecorded = true;
+				} else {
+					answersGiven.push({
+						questionId,
+						answer,
+						isCorrect,
+						scorePoints,
+						score: evaluationScore,
+						evaluationStatus,
+						timeTaken,
+						timestamp: new Date(),
+						aiFeedback,
+					});
 
-		await client.query(
-			`
+					const newScore = (locked.score || 0) + scorePoints;
+
+					// Adaptive difficulty: increase if correct and no time anomaly, decrease if wrong.
+					// #1572: an unevaluated answer (isCorrect null) moves difficulty NEITHER
+					// way — the candidate is not penalised for an evaluation failure.
+					let newDifficulty = locked.current_difficulty || 2;
+					if (isCorrect === true && !isTimeAnomaly && newDifficulty < 5) {
+						newDifficulty += 1;
+					} else if (isCorrect === false && newDifficulty > 1) {
+						newDifficulty -= 1;
+					}
+
+					const maxDifficultyReached = Math.max(locked.max_difficulty_reached || 2, newDifficulty);
+					const timeAnomalies = (locked.time_anomalies || 0) + (isTimeAnomaly ? 1 : 0);
+
+					await client.query(
+						`
       UPDATE assessment_sessions
       SET answers_given = $1, score = $2, current_question_index = $3,
           current_difficulty = $4, max_difficulty_reached = $5,
           time_anomalies = $6
       WHERE id = $7
     `,
-			[
-				JSON.stringify(answersGiven),
-				newScore,
-				currentQuestionIndex,
-				newDifficulty,
-				maxDifficultyReached,
-				timeAnomalies,
-				sessionId,
-			],
-		);
+						[
+							JSON.stringify(answersGiven),
+							newScore,
+							// current_question_index = answers recorded so far.
+							// (Pre-Phase-A this was seeded to 1 at start and then
+							// incremented, so an attempt "completed" after 9
+							// answers while its questions were numbered 1,3,4… —
+							// counts are real now: question N is answers+1.)
+							answersGiven.length,
+							newDifficulty,
+							maxDifficultyReached,
+							timeAnomalies,
+							sessionId,
+						],
+					);
+					await client.query('COMMIT');
+				}
+			}
+		} catch (error) {
+			await client.query('ROLLBACK').catch(() => {});
+			throw error;
+		} finally {
+			client.release();
+		}
 
-		// Check if assessment is complete (10 questions)
-		if (currentQuestionIndex >= 10) {
-			await completeAssessment(client, sessionId, userId);
-			await client.query('COMMIT');
-
-			return res.json({
-				completed: true,
-				score: newScore,
-				feedback: answerFeedback,
+		if (alreadyFinished) {
+			return res
+				.status(400)
+				.json({ error: 'This attempt is already finished', code: 'ALREADY_FINISHED' });
+		}
+		if (alreadyRecorded) {
+			return respondAfterRecord(res, sessionId, userId, {
+				feedback: 'Answer already recorded',
 				explanation: question.explanation,
-				aiFeedback,
 			});
 		}
-
-		// Get skill for next question
-		const skillResult = await client.query(
-			'SELECT cs.* FROM candidate_skills cs JOIN assessment_sessions ass ON cs.id = ass.skill_id WHERE ass.id = $1',
-			[sessionId],
-		);
-
-		if (skillResult.rows.length === 0) {
-			await client.query('ROLLBACK');
-			return res.status(500).json({ error: 'Skill not found for session' });
-		}
-
-		const skill = skillResult.rows[0];
-
-		// Generate next question
-		const nextQuestion = await generateQuestion(
-			skill.skill_name,
-			skill.category,
-			newDifficulty,
-			client,
-		);
-
-		if (!nextQuestion) {
-			await client.query('ROLLBACK');
-			return res.status(500).json({ error: 'Failed to generate next question' });
-		}
-
-		// Record question asked
-		questionsAsked.push({
-			questionId: nextQuestion.id,
-			difficulty: nextQuestion.difficulty_level,
-			timestamp: new Date(),
-		});
-
-		await client.query('UPDATE assessment_sessions SET questions_asked = $1 WHERE id = $2', [
-			JSON.stringify(questionsAsked),
-			sessionId,
-		]);
-
-		await client.query('COMMIT');
-
-		res.json({
-			completed: false,
+		return respondAfterRecord(res, sessionId, userId, {
 			feedback: answerFeedback,
 			explanation: question.explanation,
 			aiFeedback,
-			nextQuestion: {
-				id: nextQuestion.id,
-				text: nextQuestion.question_text,
-				type: nextQuestion.question_type,
-				options:
-					typeof nextQuestion.options === 'string'
-						? JSON.parse(nextQuestion.options)
-						: nextQuestion.options,
-				timeLimit: nextQuestion.time_limit_seconds || 120,
-				questionNumber: currentQuestionIndex + 1,
-				totalQuestions: 10,
-			},
 		});
 	} catch (error) {
-		await client.query('ROLLBACK');
 		console.error('Error submitting answer:', error);
 		if (error.allProvidersFailed) {
 			return handleAIError(res, error, 'Answer evaluation');
 		}
 		res.status(500).json({ error: 'Failed to submit answer' });
-	} finally {
-		client.release();
 	}
 });
 
@@ -750,21 +731,277 @@ router.post('/event', authMiddleware, async (req, res) => {
 	}
 });
 
-// Helper: Generate or fetch question
-async function generateQuestion(skillName, category, difficulty, client) {
+const TOTAL_QUESTIONS = 10;
+
+// True when questionId was already recorded AND is not the session's
+// currently-outstanding question (asked but not yet answered). A re-served
+// outstanding question is answerable again; any other already-answered
+// question is a duplicate submission.
+function isAlreadyRecorded(session, questionId) {
+	const questionsAsked = parseJsonArray(session.questions_asked);
+	const answersGiven = parseJsonArray(session.answers_given);
+	const outstandingId =
+		questionsAsked.length > answersGiven.length
+			? questionsAsked[questionsAsked.length - 1].questionId
+			: null;
+	return outstandingId !== questionId && answersGiven.some((a) => a.questionId === questionId);
+}
+
+function parseJsonArray(value) {
+	if (Array.isArray(value)) return value;
+	if (typeof value === 'string') {
+		try {
+			const parsed = JSON.parse(value);
+			return Array.isArray(parsed) ? parsed : [];
+		} catch {
+			return [];
+		}
+	}
+	return [];
+}
+
+function questionPayload(question, questionNumber) {
+	return {
+		id: question.id,
+		text: question.question_text,
+		type: question.question_type,
+		options: typeof question.options === 'string' ? JSON.parse(question.options) : question.options,
+		timeLimit: question.time_limit_seconds || 120,
+		questionNumber,
+		totalQuestions: TOTAL_QUESTIONS,
+	};
+}
+
+// Phase A (#1602 FR-A5 / #1606 FR-A7): serve the session's next question as a
+// NAVIGATION step, fully separate from answer recording. If a question is
+// already outstanding (asked but unanswered) it is re-served — that is what
+// makes refresh, start-retry and answer-retry all converge on this one path.
+// The session row lock serialises concurrent serves for the same session.
+// Returns { ok: true, question } or { ok: false, reason } — a generation
+// failure is a retryable navigation outcome here, never an answer loss.
+async function serveNextQuestion(sessionId) {
+	const client = await pool.connect();
+	try {
+		await client.query('BEGIN');
+		const sessionResult = await client.query(
+			'SELECT * FROM assessment_sessions WHERE id = $1 FOR UPDATE',
+			[sessionId],
+		);
+		if (sessionResult.rows.length === 0) {
+			await client.query('ROLLBACK');
+			return { ok: false, reason: 'not_found' };
+		}
+		const session = sessionResult.rows[0];
+		if (session.status !== 'in_progress') {
+			await client.query('ROLLBACK');
+			return { ok: false, reason: 'finished', status: session.status };
+		}
+		const questionsAsked = parseJsonArray(session.questions_asked);
+		const answersGiven = parseJsonArray(session.answers_given);
+
+		if (questionsAsked.length > answersGiven.length) {
+			const outstanding = await client.query('SELECT * FROM assessment_questions WHERE id = $1', [
+				questionsAsked[questionsAsked.length - 1].questionId,
+			]);
+			await client.query('COMMIT');
+			if (outstanding.rows.length === 0) return { ok: false, reason: 'question_missing' };
+			return { ok: true, question: questionPayload(outstanding.rows[0], answersGiven.length + 1) };
+		}
+
+		if (answersGiven.length >= TOTAL_QUESTIONS) {
+			await client.query('ROLLBACK');
+			return { ok: false, reason: 'awaiting_completion' };
+		}
+
+		const skillResult = await client.query('SELECT * FROM candidate_skills WHERE id = $1', [
+			session.skill_id,
+		]);
+		if (skillResult.rows.length === 0) {
+			await client.query('ROLLBACK');
+			return { ok: false, reason: 'skill_missing' };
+		}
+		const skill = skillResult.rows[0];
+
+		const question = await generateQuestion(
+			skill.skill_name,
+			skill.category,
+			session.current_difficulty || 2,
+			client,
+			questionsAsked.map((q) => q.questionId),
+		);
+		if (!question) {
+			await client.query('ROLLBACK');
+			return { ok: false, reason: 'unavailable' };
+		}
+
+		questionsAsked.push({
+			questionId: question.id,
+			difficulty: question.difficulty_level,
+			timestamp: new Date(),
+		});
+		await client.query(
+			'UPDATE assessment_sessions SET questions_asked = $1, current_question_index = $2 WHERE id = $3',
+			[JSON.stringify(questionsAsked), answersGiven.length + 1, sessionId],
+		);
+		await client.query('COMMIT');
+		return { ok: true, question: questionPayload(question, answersGiven.length + 1) };
+	} catch (error) {
+		await client.query('ROLLBACK').catch(() => {});
+		console.error('Error serving next question:', error);
+		return { ok: false, reason: 'error' };
+	} finally {
+		client.release();
+	}
+}
+
+// Phase A (#1602 FR-A3 / #1612): run completeAssessment in its OWN transaction
+// so the terminal transition is atomic and independent of answer recording.
+// Returns the completion result, or null when completion itself failed (the
+// recorded answers are safe either way; the caller surfaces a retry state).
+async function completeAssessmentTx(sessionId, userId) {
+	const client = await pool.connect();
+	let result;
+	try {
+		await client.query('BEGIN');
+		result = await completeAssessment(client, sessionId, userId);
+		await client.query('COMMIT');
+	} catch (error) {
+		await client.query('ROLLBACK').catch(() => {});
+		console.error('Error completing assessment:', error);
+		return null;
+	} finally {
+		client.release();
+	}
+
+	// #1612 Option B (see completeAssessment): post-commit side effects.
+	// The completion itself is already durable; neither failure below may
+	// change the outcome the candidate sees. Skipped entirely for an
+	// alreadyCompleted claim (the original completion ran them).
+	if (result && !result.alreadyCompleted && result.assessmentId) {
+		try {
+			await omniscoreService.addTechnicalComponent(
+				userId,
+				result.assessmentId,
+				result.score || 0,
+				100,
+			);
+			console.log(
+				`[OmniScore] Assessment ${result.assessmentId} fed into OmniScore for user ${userId} (score: ${result.score})`,
+			);
+		} catch (err) {
+			console.error(
+				'[OmniScore] Failed to update from assessment (completion already committed):',
+				err.message,
+			);
+		}
+
+		// Audit log: AI assessment graded. Written after the OmniScore
+		// attempt so a slow/hung pool path can never eat it; AuditLogger
+		// never throws (it logs its own failures).
+		await AuditLogger.log({
+			actionType: 'assessment_graded',
+			userId: userId,
+			targetType: 'skill_assessment',
+			targetId: result.assessmentId,
+			metadata: {
+				session_id: sessionId,
+				skill_id: result.skillId,
+				score: result.score || 0,
+				passed: result.passed,
+				anti_cheat_score: result.antiCheatScore,
+				model_version: 'adaptive-assessment-v1',
+				// #1584: NO confidence key — no confidence was measured for
+				// this grading, and a hard-coded 0.85/0.6 in the compliance
+				// audit trail is a fabrication (same class as #1572/#1505).
+				// The admin compliance readers surface the absence honestly.
+			},
+			req: null,
+		});
+	}
+	return result;
+}
+
+// After an answer has been committed, decide the response from the recorded
+// state alone: completed → the completion; final answer recorded but not yet
+// completed → run/retry completion; otherwise → the advance acknowledgement
+// (the client fetches the next question via /session/:id/current). Shared by
+// the /answer main path and its duplicate-submission path so a retry after a
+// timeout can never double-record or double-complete.
+async function respondAfterRecord(res, sessionId, userId, extras = {}) {
+	const sessionResult = await pool.query('SELECT * FROM assessment_sessions WHERE id = $1', [
+		sessionId,
+	]);
+	const session = sessionResult.rows[0];
+	if (!session) {
+		return res.status(404).json({ error: 'Session not found' });
+	}
+	if (session.status === 'completed') {
+		return res.json({ completed: true, answerRecorded: true, score: session.score || 0, ...extras });
+	}
+	const answersGiven = parseJsonArray(session.answers_given);
+	if (answersGiven.length >= TOTAL_QUESTIONS) {
+		const completion = await completeAssessmentTx(sessionId, userId);
+		if (completion) {
+			return res.json({
+				completed: true,
+				answerRecorded: true,
+				score: completion.score ?? session.score ?? 0,
+				...extras,
+			});
+		}
+		return res.status(503).json({
+			error:
+				'Your final answer has been saved, but finishing your results failed. Please retry — your answers are not lost.',
+			code: 'COMPLETION_PENDING',
+			retryable: true,
+			answerRecorded: true,
+		});
+	}
+	return res.json({
+		completed: false,
+		answerRecorded: true,
+		answersGiven: answersGiven.length,
+		...extras,
+	});
+}
+
+// Helper: Generate or fetch question.
+// Phase A (#1606): excludeIds lists questions already asked in the session —
+// while unserved bank rows exist at this difficulty, a session never re-serves
+// a question it already asked (a 1-row cell previously repeated forever).
+async function generateQuestion(skillName, category, difficulty, client, excludeIds = []) {
 	// Try to find existing question from bank
 	const existingResult = await client.query(
 		`
     SELECT * FROM assessment_questions
     WHERE LOWER(skill_category) = LOWER($1) AND difficulty_level = $2
+      AND NOT (id = ANY($3::int[]))
     ORDER BY RANDOM()
     LIMIT 1
   `,
-		[skillName, difficulty],
+		[skillName, difficulty, excludeIds],
 	);
 
 	if (existingResult.rows.length > 0) {
 		return existingResult.rows[0];
+	}
+
+	if (excludeIds.length > 0) {
+		// Every bank row at this difficulty was already asked in this session.
+		// Re-serving one beats failing the candidate's navigation outright;
+		// generation below remains the first choice only for an empty cell.
+		const retryResult = await client.query(
+			`
+      SELECT * FROM assessment_questions
+      WHERE LOWER(skill_category) = LOWER($1) AND difficulty_level = $2
+      ORDER BY RANDOM()
+      LIMIT 1
+    `,
+			[skillName, difficulty],
+		);
+		if (retryResult.rows.length > 0) {
+			return retryResult.rows[0];
+		}
 	}
 
 	// Generate new question using AI
@@ -843,11 +1080,12 @@ Requirements:
 		// #1573: fail honestly. Never serve a bank question outside the
 		// requested skill/difficulty as a substitute, and never INSERT
 		// templated/boilerplate content into assessment_questions as if it
-		// were a real question. Returning null makes both callers roll back
-		// and surface their explicit error state ('Failed to generate
-		// questions. Please try again.' / 'Failed to generate next
-		// question') — a retry can succeed; a fabricated question served in
-		// a scored assessment can never be un-taken.
+		// were a real question. Returning null surfaces the callers'
+		// explicit question-unavailable state — since Phase A (#1602/#1606)
+		// that state is a navigation outcome only: it never rolls back a
+		// recorded answer and never destroys a started session, and a
+		// retry can succeed; a fabricated question served in a scored
+		// assessment can never be un-taken.
 		return null;
 	}
 }
@@ -906,12 +1144,36 @@ Score guide: 90-100=excellent, 70-89=good, 50-69=partial, below 50=incorrect`;
 	}
 }
 
-// Helper: Complete assessment
+// Helper: Complete assessment.
+// Phase A (#1602 FR-A3): the terminal transition is ONE atomic status-guarded
+// UPDATE — its rowcount decides the winner of any race (double Finish,
+// timer + manual press, retry after timeout). The loser finds no row to
+// claim and gets the existing completion back instead of double-scoring.
+// Runs inside the caller's transaction (completeAssessmentTx).
 async function completeAssessment(client, sessionId, userId) {
-	const sessionResult = await client.query('SELECT * FROM assessment_sessions WHERE id = $1', [
-		sessionId,
-	]);
-	const session = sessionResult.rows[0];
+	const claim = await client.query(
+		`UPDATE assessment_sessions
+		 SET status = 'completed', completed_at = NOW()
+		 WHERE id = $1 AND status = 'in_progress'
+		 RETURNING *`,
+		[sessionId],
+	);
+
+	if (claim.rows.length === 0) {
+		const existing = await client.query(
+			`SELECT id, score, passed FROM skill_assessments
+			 WHERE session_id = $1 ORDER BY completed_at DESC LIMIT 1`,
+			[sessionId],
+		);
+		return {
+			alreadyCompleted: true,
+			assessmentId: existing.rows[0]?.id || null,
+			score: existing.rows[0]?.score ?? null,
+			passed: existing.rows[0]?.passed ?? false,
+		};
+	}
+
+	const session = claim.rows[0];
 
 	// Get skill name for the title
 	const skillResult = await client.query('SELECT skill_name FROM candidate_skills WHERE id = $1', [
@@ -927,12 +1189,6 @@ async function completeAssessment(client, sessionId, userId) {
 	antiCheatScore = Math.max(0, antiCheatScore);
 
 	const passed = (session.score || 0) >= 60 && antiCheatScore >= 50;
-
-	// Mark session complete
-	await client.query(
-		"UPDATE assessment_sessions SET status = 'completed', completed_at = NOW() WHERE id = $1",
-		[sessionId],
-	);
 
 	// Create skill assessment record
 	const assessmentResult = await client.query(
@@ -970,43 +1226,24 @@ async function completeAssessment(client, sessionId, userId) {
 		);
 	}
 
-	// Event-driven: Feed assessment score into OmniScore technical component
-	try {
-		await omniscoreService.addTechnicalComponent(
-			userId,
-			assessmentResult.rows[0].id,
-			session.score || 0,
-			100,
-		);
-		console.log(
-			`[OmniScore] Assessment ${assessmentResult.rows[0].id} fed into OmniScore for user ${userId} (score: ${session.score})`,
-		);
-	} catch (err) {
-		console.error('[OmniScore] Failed to update from assessment:', err.message);
-	}
-
-	// Audit log: AI assessment graded
-	await AuditLogger.log({
-		actionType: 'assessment_graded',
-		userId: userId,
-		targetType: 'skill_assessment',
-		targetId: assessmentResult.rows[0].id,
-		metadata: {
-			session_id: sessionId,
-			skill_id: session.skill_id,
-			score: session.score || 0,
-			passed: passed,
-			anti_cheat_score: antiCheatScore,
-			model_version: 'adaptive-assessment-v1',
-			// #1584: NO confidence key — no confidence was measured for
-			// this grading, and a hard-coded 0.85/0.6 in the compliance
-			// audit trail is a fabrication (same class as #1572/#1505).
-			// The admin compliance readers surface the absence honestly.
-		},
-		req: null,
-	});
-
-	return assessmentResult.rows[0].id;
+	// #1612 (Rex + ecc database-reviewer STOP 1 ruling — Option B): the
+	// OmniScore feed and the assessment_graded audit write do NOT happen
+	// here. This transaction holds the candidate_skills row lock (the
+	// is_verified UPDATE above), and addTechnicalComponent works on POOL
+	// connections whose calculateScore path SELECTs candidate_skills
+	// FOR UPDATE (services/omniscore.js getSkillProficiency) — calling it
+	// from inside this transaction deadlocks the request against itself.
+	// completeAssessmentTx runs both AFTER COMMIT, when no lock is held;
+	// an alreadyCompleted claim returns before them, so they fire exactly
+	// once per completion.
+	return {
+		alreadyCompleted: false,
+		assessmentId: assessmentResult.rows[0].id,
+		score: session.score || 0,
+		passed,
+		skillId: session.skill_id,
+		antiCheatScore,
+	};
 }
 
 // Get current session state (supports page refresh during assessment + completed results)
@@ -1059,48 +1296,60 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 		}
 
 		if (session.status === 'in_progress') {
-			// Find the last question that was asked
-			const questionsAsked =
-				typeof session.questions_asked === 'string'
-					? JSON.parse(session.questions_asked)
-					: session.questions_asked || [];
-			const answersGiven =
-				typeof session.answers_given === 'string'
-					? JSON.parse(session.answers_given)
-					: session.answers_given || [];
+			const answersGiven = parseJsonArray(session.answers_given);
 
-			// If there's a question asked but not yet answered, return it
-			if (questionsAsked.length > answersGiven.length) {
-				const lastAsked = questionsAsked[questionsAsked.length - 1];
-				const questionResult = await pool.query(
-					'SELECT * FROM assessment_questions WHERE id = $1',
-					[lastAsked.questionId],
-				);
-
-				if (questionResult.rows.length > 0) {
-					const q = questionResult.rows[0];
+			// Phase A recovery: every answer is recorded but completion never
+			// landed (e.g. the completion step failed after the final answer
+			// committed). Finish it now — the terminal transition is atomic,
+			// so this can never double-complete.
+			if (answersGiven.length >= TOTAL_QUESTIONS) {
+				const completion = await completeAssessmentTx(sessionId, userId);
+				if (completion) {
+					const doneResult = await pool.query(
+						`SELECT sa.score, sa.passed, sa.anti_cheat_score, sa.duration_seconds
+						 FROM skill_assessments sa
+						 WHERE sa.session_id = $1 AND sa.user_id = $2
+						 ORDER BY sa.completed_at DESC LIMIT 1`,
+						[sessionId, userId],
+					);
+					const assessment = doneResult.rows[0] || {};
 					return res.json({
-						status: 'in_progress',
+						status: 'completed',
 						skillName,
-						question: {
-							id: q.id,
-							text: q.question_text,
-							type: q.question_type,
-							options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
-							timeLimit: q.time_limit_seconds || 120,
-							questionNumber: session.current_question_index || questionsAsked.length,
-							totalQuestions: 10,
-						},
+						score: assessment.score || session.score || 0,
+						passed: assessment.passed || false,
+						antiCheatScore: assessment.anti_cheat_score ?? null,
+						durationSeconds: assessment.duration_seconds || 0,
+						maxDifficultyReached: session.max_difficulty_reached || 0,
 					});
 				}
+				return res.status(503).json({
+					status: 'in_progress',
+					skillName,
+					code: 'COMPLETION_PENDING',
+					retryable: true,
+					error:
+						'Your answers are saved, but finishing your results failed. Please retry.',
+				});
 			}
 
-			// All questions answered but session not completed - might need to generate next
-			// For now, return the state so client can handle
+			// Serve (or re-serve) the current question. This single path is
+			// what start-retry, answer-retry and page refresh all use.
+			const served = await serveNextQuestion(sessionId);
+			if (!served.ok) {
+				return res.status(503).json({
+					status: 'in_progress',
+					skillName,
+					code: 'QUESTION_UNAVAILABLE',
+					retryable: true,
+					error:
+						'Your progress is saved, but the next question is not available right now. Please retry.',
+				});
+			}
 			return res.json({
 				status: 'in_progress',
 				skillName,
-				currentQuestionIndex: session.current_question_index || 0,
+				question: served.question,
 			});
 		}
 
