@@ -445,7 +445,10 @@ function installDbMock() {
 			return { rows: [row], rowCount: 1 };
 		}
 		if (sql.includes("select id from assessment_sessions where user_id")) {
-			const rows = S.sessions.filter((s) => s.user_id === Number(params[0]) && s.skill_id === Number(params[1]) && s.status === 'in_progress');
+			let rows = S.sessions.filter((s) => s.user_id === Number(params[0]) && s.skill_id === Number(params[1]) && s.status === 'in_progress');
+			// #1687: the topic predicate applies only when the route's SQL
+			// actually carries it (same emulation rule as the C2 suite).
+			if (sql.includes('topic_id')) rows = rows.filter((s) => s.topic_id === Number(params[2]));
 			return { rows: rows.map((s) => ({ id: s.id })), rowCount: rows.length };
 		}
 		if (sql.includes("update assessment_sessions set status = 'abandoned' where id = $1")) {
