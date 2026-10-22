@@ -138,6 +138,117 @@ async function loadCatalogTables(userId) {
 	};
 }
 
+// ── #1654 (#1603 Phase C, story C2) — configured starts ───────────────────
+// The §3.6 session snapshot columns (migration 280) become load-bearing:
+// every NEW start records { subject_id, topic_id, format, difficulty_band,
+// total_questions } — chosen configurations verbatim, legacy-body starts
+// via the recorded defaults (§4.2/§8: mixed / medium / 10, start 3) — so
+// serving, the §5.2 band clamp, and completion all read ONE code path.
+// Sessions already in flight keep NULL config and finish under the rules
+// they started with (§8): total reads as 10, adaptation stays [1,5].
+const BAND_START = { easy: 1, medium: 3, hard: 4 };
+const BAND_RANGE = { easy: [1, 2], medium: [2, 4], hard: [4, 5] };
+const CONFIG_FORMATS = ['mcq', 'short_answer', 'mixed', 'coding'];
+const CONFIG_COUNTS = [10, 25, 50, 100];
+
+// Coding serving is gated OFF until the #118 disposition flips this flag
+// (design §3.5/C4). A coding start while OFF is an honest 503 (STOP 1 Q4),
+// never a silent substitution to another format.
+function assessmentsCodingEnabled() {
+	return process.env.ASSESSMENTS_CODING_ENABLED === 'true';
+}
+
+// §5.2 clamp: a band session's difficulty never leaves its band; a NULL
+// band (in-flight legacy) keeps today's unbounded [1,5].
+function clampToBand(difficulty, band) {
+	if (!band || !BAND_RANGE[band]) return Math.min(5, Math.max(1, difficulty));
+	const [lo, hi] = BAND_RANGE[band];
+	return Math.min(hi, Math.max(lo, difficulty));
+}
+
+// The promised count for a session: its snapshot, or the legacy 10.
+function sessionTotal(session) {
+	return session?.total_questions ?? LEGACY_TOTAL_QUESTIONS;
+}
+
+// Per-topic counts variant for pre-flight and the start-time re-check
+// (§4.1): the same grouped approved-only shape as loadCatalogTables'
+// counter, scoped to ONE topic — never the whole-bank load.
+async function loadTopicCounts(runner, topicId) {
+	const result = await runner.query(
+		`SELECT format, difficulty_level, COUNT(*)::int AS n
+     FROM assessment_questions
+     WHERE topic_id = $1 AND review_status = 'approved'
+     GROUP BY format, difficulty_level`,
+		[topicId],
+	);
+	return result.rows;
+}
+
+async function topicServable(runner, topicId, format, band) {
+	const availability = computeTopicAvailability(await loadTopicCounts(runner, topicId));
+	return availability.formats[format][band];
+}
+
+async function findTopicById(runner, topicId) {
+	const result = await runner.query('SELECT * FROM assessment_topics WHERE id = $1', [topicId]);
+	return result.rows[0] || null;
+}
+
+// §3.6: a subject's default topic is the one carrying its legacy skill
+// name (SF-8: exactly one per subject, partial unique index, migration 279).
+async function findDefaultTopicForSubject(runner, subjectId) {
+	const result = await runner.query(
+		`SELECT * FROM assessment_topics
+     WHERE subject_id = $1 AND legacy_skill_name IS NOT NULL
+     ORDER BY sort_order ASC, id ASC LIMIT 1`,
+		[subjectId],
+	);
+	return result.rows[0] || null;
+}
+
+async function findDefaultTopicBySkillName(runner, skillName) {
+	const result = await runner.query(
+		'SELECT * FROM assessment_topics WHERE LOWER(legacy_skill_name) = LOWER($1)',
+		[skillName],
+	);
+	return result.rows[0] || null;
+}
+
+// §3.6 subject-legacy-name → candidate_skills resolution: the exact
+// lookup-or-create the legacy /start path has always run (by id, else by
+// name, else auto-create), shared by both start bodies.
+async function resolveCandidateSkill(client, userId, { skillId, skillName, category } = {}) {
+	let skill;
+	if (skillId) {
+		const skillResult = await client.query(
+			'SELECT * FROM candidate_skills WHERE id = $1 AND user_id = $2',
+			[skillId, userId],
+		);
+		skill = skillResult.rows[0];
+	}
+	if (!skill && skillName) {
+		const existingResult = await client.query(
+			'SELECT * FROM candidate_skills WHERE user_id = $1 AND LOWER(skill_name) = LOWER($2)',
+			[userId, skillName],
+		);
+		if (existingResult.rows.length > 0) {
+			skill = existingResult.rows[0];
+		} else {
+			const insertResult = await client.query(
+				`
+          INSERT INTO candidate_skills (user_id, skill_name, category, level)
+          VALUES ($1, $2, $3, 1)
+          RETURNING *
+        `,
+				[userId, skillName, category || 'technical'],
+			);
+			skill = insertResult.rows[0];
+		}
+	}
+	return skill || null;
+}
+
 // Skill catalog - available to all candidates without pre-existing skills
 const SKILL_CATALOG = [
 	{
@@ -483,6 +594,58 @@ router.get('/catalog', authMiddleware, async (req, res) => {
 	}
 });
 
+// Pre-flight for one configuration (#1654, §4.1): what /start will
+// actually serve for this topic + format + band, from real approved-only
+// per-topic counts. largestAvailable is PER-CONFIGURATION (it equals
+// servable for the asked configuration) — never the cross-configuration
+// maxCount the catalogue reports. The instructions screen renders this
+// verbatim; /start re-checks inside its transaction (this is advisory).
+router.get('/catalog/:topicId/availability', authMiddleware, async (req, res) => {
+	try {
+		const topicId = parseInt(req.params.topicId, 10);
+		const { format, band, count } = req.query;
+		if (!Number.isInteger(topicId)) {
+			return res.status(400).json({ error: 'Invalid topic id', code: 'INVALID_TOPIC' });
+		}
+		if (!CONFIG_FORMATS.includes(format)) {
+			return res.status(400).json({ error: 'Invalid format', code: 'INVALID_FORMAT' });
+		}
+		if (!Object.hasOwn(BANDS, band)) {
+			return res.status(400).json({ error: 'Invalid difficulty band', code: 'INVALID_BAND' });
+		}
+		let promised = null;
+		if (count !== undefined) {
+			promised = parseInt(count, 10);
+			if (!Number.isInteger(promised) || promised <= 0) {
+				return res.status(400).json({ error: 'Invalid count', code: 'INVALID_COUNT' });
+			}
+		}
+		const topic = await findTopicById(pool, topicId);
+		if (!topic || topic.is_active === false) {
+			return res.status(404).json({ error: 'Topic not found', code: 'TOPIC_NOT_FOUND' });
+		}
+		if (format === 'coding' && !assessmentsCodingEnabled()) {
+			return res.json({
+				promised,
+				servable: 0,
+				largestAvailable: 0,
+				reason: 'Coding assessments are not available yet.',
+			});
+		}
+		const servable = await topicServable(pool, topicId, format, band);
+		let reason = null;
+		if (servable === 0) {
+			reason = 'No approved questions are available for this topic, format and difficulty yet.';
+		} else if (promised != null && servable < promised) {
+			reason = `Only ${servable} approved questions are available for this configuration right now.`;
+		}
+		return res.json({ promised, servable, largestAvailable: servable, reason });
+	} catch (error) {
+		console.error('Error fetching topic availability:', error);
+		res.status(500).json({ error: 'Failed to fetch availability' });
+	}
+});
+
 // Get past assessment results
 router.get('/results', authMiddleware, async (req, res) => {
 	try {
@@ -586,47 +749,129 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 	let clientReleased = false;
 	try {
 		const userId = req.user.id;
-		const { skillId, skillName, category, jobId } = req.body;
+		const body = req.body || {};
+		const { skillId, skillName, category, jobId } = body;
+		// #1654 (C2): two start bodies. The configured body names a topic
+		// and a configuration; the legacy body names a skill. Both end in
+		// the SAME §3.6 snapshot — the legacy body via the recorded
+		// defaults (§4.2/§8) — so downstream has one code path.
+		const isConfigured = body.topicId !== undefined && body.topicId !== null;
 
 		await client.query('BEGIN');
 
 		let skill;
+		let snapshot;
+		let servable = null;
 
-		if (skillId) {
-			// Legacy: lookup by ID
-			const skillResult = await client.query(
-				'SELECT * FROM candidate_skills WHERE id = $1 AND user_id = $2',
-				[skillId, userId],
-			);
-			skill = skillResult.rows[0];
-		}
-
-		if (!skill && skillName) {
-			// Look up or auto-create the skill in candidate_skills
-			const existingResult = await client.query(
-				'SELECT * FROM candidate_skills WHERE user_id = $1 AND LOWER(skill_name) = LOWER($2)',
-				[userId, skillName],
-			);
-
-			if (existingResult.rows.length > 0) {
-				skill = existingResult.rows[0];
-			} else {
-				// Auto-create the skill for this user
-				const insertResult = await client.query(
-					`
-          INSERT INTO candidate_skills (user_id, skill_name, category, level)
-          VALUES ($1, $2, $3, 1)
-          RETURNING *
-        `,
-					[userId, skillName, category || 'technical'],
-				);
-				skill = insertResult.rows[0];
+		if (isConfigured) {
+			// STOP 1 Q3: sets are schema-only until C3 — an explicit 400,
+			// never a snapshot of something we do not serve.
+			if (body.setId !== undefined && body.setId !== null) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({
+					error: 'Assessment sets are not available yet',
+					code: 'SETS_NOT_AVAILABLE',
+				});
 			}
-		}
-
-		if (!skill) {
-			await client.query('ROLLBACK');
-			return res.status(400).json({ error: 'Skill name or ID required' });
+			const topicId = parseInt(body.topicId, 10);
+			const { format, difficultyBand } = body;
+			if (!Number.isInteger(topicId)) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({ error: 'Invalid topic id', code: 'INVALID_TOPIC' });
+			}
+			if (!CONFIG_FORMATS.includes(format)) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({ error: 'Invalid format', code: 'INVALID_FORMAT' });
+			}
+			if (!Object.hasOwn(BANDS, difficultyBand)) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({ error: 'Invalid difficulty band', code: 'INVALID_BAND' });
+			}
+			const topic = await findTopicById(client, topicId);
+			if (!topic || topic.is_active === false) {
+				await client.query('ROLLBACK');
+				return res.status(404).json({ error: 'Topic not found', code: 'TOPIC_NOT_FOUND' });
+			}
+			// §3.6: the candidate_skills row is resolved by the SUBJECT's
+			// legacy skill name (via its default topic), through the same
+			// lookup-or-create the legacy path has always run — history,
+			// Verified and OmniScore keep aggregating at skill level.
+			const defaultTopic = topic.legacy_skill_name
+				? topic
+				: await findDefaultTopicForSubject(client, topic.subject_id);
+			if (!defaultTopic?.legacy_skill_name) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({
+					error: 'This topic is not available for assessment yet',
+					code: 'TOPIC_NOT_AVAILABLE',
+				});
+			}
+			skill = await resolveCandidateSkill(client, userId, {
+				skillName: defaultTopic.legacy_skill_name,
+				category,
+			});
+			if (!skill) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({ error: 'Skill name or ID required' });
+			}
+			// STOP 1 Q4: coding while ASSESSMENTS_CODING_ENABLED is OFF is
+			// the honest 503 family with a format-specific reason — never
+			// a silent substitution to another format.
+			if (format === 'coding' && !assessmentsCodingEnabled()) {
+				await client.query('ROLLBACK');
+				return res.status(503).json({
+					error: 'Coding assessments are not available yet.',
+					code: 'QUESTION_UNAVAILABLE',
+					retryable: false,
+					reason: 'coding_disabled',
+					format: 'coding',
+				});
+			}
+			snapshot = {
+				subjectId: topic.subject_id,
+				topicId: topic.id,
+				format,
+				difficultyBand,
+				totalQuestions: body.totalQuestions,
+			};
+			// Availability is re-checked INSIDE the transaction (§4.1:
+			// pre-flight is advisory; start is authoritative).
+			servable = await topicServable(client, topic.id, format, difficultyBand);
+			// STOP 1 Q1: the enum governs the choice UI; a non-enum count
+			// is accepted ONLY when it is exactly this configuration's
+			// current servable — the labelled largestAvailable offer the
+			// candidate explicitly accepted.
+			const tq = snapshot.totalQuestions;
+			const isEnumCount = CONFIG_COUNTS.includes(tq);
+			const isLabelledOffer = Number.isInteger(tq) && tq > 0 && tq === servable;
+			if (!isEnumCount && !isLabelledOffer) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({
+					error: 'Invalid total questions',
+					code: 'INVALID_COUNT',
+					largestAvailable: servable,
+				});
+			}
+		} else {
+			skill = await resolveCandidateSkill(client, userId, { skillId, skillName, category });
+			if (!skill) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({ error: 'Skill name or ID required' });
+			}
+			// §4.2/§8 recorded defaults: the skill's default topic (by its
+			// legacy name), mixed / medium / 10, start difficulty 3 (band
+			// centre — SF-9's deliberate change for NEW legacy starts;
+			// in-flight NULL-config sessions are untouched). A skill with
+			// no catalogue topic snapshots the defaults with a NULL topic
+			// and serves via the legacy skill match, as today.
+			const defaultTopic = await findDefaultTopicBySkillName(client, skill.skill_name);
+			snapshot = {
+				subjectId: defaultTopic?.subject_id ?? null,
+				topicId: defaultTopic?.id ?? null,
+				format: 'mixed',
+				difficultyBand: 'medium',
+				totalQuestions: 10,
+			};
 		}
 
 		// Retake lockout: a completed assessment inside the lockout window
@@ -663,17 +908,32 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 			]);
 		}
 
-		// Create assessment session
+		// Create assessment session — with the §3.6 configuration snapshot
+		// and the band's start difficulty (legacy-mapped starts take the
+		// medium default: start 3, §8/SF-9).
+		const startDifficulty = BAND_START[snapshot.difficultyBand];
 		const sessionResult = await client.query(
 			`
       INSERT INTO assessment_sessions
       (user_id, skill_id, job_id, status, current_difficulty, current_question_index, score,
        max_difficulty_reached, tab_switches, copy_paste_attempts, time_anomalies,
-       questions_asked, answers_given, started_at)
-      VALUES ($1, $2, $3, 'in_progress', 2, 0, 0, 2, 0, 0, 0, '[]'::jsonb, '[]'::jsonb, NOW())
+       questions_asked, answers_given, started_at,
+       subject_id, topic_id, format, difficulty_band, total_questions)
+      VALUES ($1, $2, $3, 'in_progress', $4, 0, 0, $4, 0, 0, 0, '[]'::jsonb, '[]'::jsonb, NOW(),
+              $5, $6, $7, $8, $9)
       RETURNING *
     `,
-			[userId, skill.id, jobId || null],
+			[
+				userId,
+				skill.id,
+				jobId || null,
+				startDifficulty,
+				snapshot.subjectId,
+				snapshot.topicId,
+				snapshot.format,
+				snapshot.difficultyBand,
+				snapshot.totalQuestions,
+			],
 		);
 
 		const session = sessionResult.rows[0];
@@ -685,6 +945,24 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 		await client.query('COMMIT');
 		client.release();
 		clientReleased = true;
+
+		// #1654 (§4.1): a configured start whose promised count exceeds the
+		// supply re-checked above does not serve a first question — the
+		// committed, resumable session is reported with the existing 503
+		// shape EXTENDED by the promise and the honest largestAvailable,
+		// so the client can offer the labelled smaller count (Q1).
+		if (isConfigured && servable < snapshot.totalQuestions) {
+			return res.status(503).json({
+				error:
+					'Not enough questions are available for this configuration yet. Your attempt has been saved — you can resume it, or choose the available count instead.',
+				code: 'QUESTION_UNAVAILABLE',
+				retryable: true,
+				sessionId: session.id,
+				skillName: skill.skill_name,
+				promised: snapshot.totalQuestions,
+				largestAvailable: servable,
+			});
+		}
 
 		const served = await serveNextQuestion(session.id);
 		if (!served.ok) {
@@ -927,12 +1205,16 @@ router.post('/answer', authMiddleware, async (req, res) => {
 					// Adaptive difficulty: increase if correct and no time anomaly, decrease if wrong.
 					// #1572: an unevaluated answer (isCorrect null) moves difficulty NEITHER
 					// way — the candidate is not penalised for an evaluation failure.
+					// #1654 (§5.2): the step is clamped to the locked session's
+					// band (easy [1,2] / medium [2,4] / hard [4,5]); a NULL band
+					// (in-flight legacy session, §8) keeps the unbounded [1,5].
 					let newDifficulty = locked.current_difficulty || 2;
-					if (isCorrect === true && !isTimeAnomaly && newDifficulty < 5) {
+					if (isCorrect === true && !isTimeAnomaly) {
 						newDifficulty += 1;
-					} else if (isCorrect === false && newDifficulty > 1) {
+					} else if (isCorrect === false) {
 						newDifficulty -= 1;
 					}
+					newDifficulty = clampToBand(newDifficulty, locked.difficulty_band);
 
 					const maxDifficultyReached = Math.max(locked.max_difficulty_reached || 2, newDifficulty);
 					const timeAnomalies = (locked.time_anomalies || 0) + (isTimeAnomaly ? 1 : 0);
@@ -1135,7 +1417,7 @@ router.post('/session/:sessionId/exit', authMiddleware, async (req, res) => {
 			} finally {
 				saveClient.release();
 			}
-			return res.json({ status: 'in_progress', answersGiven, totalQuestions: TOTAL_QUESTIONS });
+			return res.json({ status: 'in_progress', answersGiven, totalQuestions: sessionTotal(session) });
 		}
 
 		if (action === 'submit') {
@@ -1179,7 +1461,9 @@ router.post('/session/:sessionId/exit', authMiddleware, async (req, res) => {
 			return res.json({
 				status: 'completed',
 				answersGiven: completion.answersGiven ?? answersGiven,
-				totalQuestions: TOTAL_QUESTIONS,
+				totalQuestions: completion.totalQuestions ?? sessionTotal(session),
+				format: session.format ?? null,
+				difficultyBand: session.difficulty_band ?? null,
 				partial: completion.partial === true,
 				score: completion.score ?? null,
 				passed: completion.passed === true,
@@ -1203,7 +1487,7 @@ router.post('/session/:sessionId/exit', authMiddleware, async (req, res) => {
 		return res.json({
 			status: 'abandoned',
 			answersGiven: abandon.answersGiven,
-			totalQuestions: TOTAL_QUESTIONS,
+			totalQuestions: sessionTotal(session),
 		});
 	} catch (error) {
 		console.error('Error processing assessment exit:', error);
@@ -1211,7 +1495,10 @@ router.post('/session/:sessionId/exit', authMiddleware, async (req, res) => {
 	}
 });
 
-const TOTAL_QUESTIONS = 10;
+// The legacy promised count: in-flight sessions with a NULL snapshot
+// read as 10 (§8). Configured sessions carry their own total_questions —
+// sessionTotal() is the only reader; never compare against this directly.
+const LEGACY_TOTAL_QUESTIONS = 10;
 
 // The session's currently-outstanding question id (asked but not yet
 // answered), or null when no question is outstanding.
@@ -1248,7 +1535,7 @@ function parseJsonArray(value) {
 	return [];
 }
 
-function questionPayload(question, questionNumber) {
+function questionPayload(question, questionNumber, totalQuestions = LEGACY_TOTAL_QUESTIONS) {
 	return {
 		id: question.id,
 		text: question.question_text,
@@ -1256,7 +1543,7 @@ function questionPayload(question, questionNumber) {
 		options: typeof question.options === 'string' ? JSON.parse(question.options) : question.options,
 		timeLimit: question.time_limit_seconds || 120,
 		questionNumber,
-		totalQuestions: TOTAL_QUESTIONS,
+		totalQuestions,
 	};
 }
 
@@ -1294,10 +1581,13 @@ async function serveNextQuestion(sessionId) {
 			]);
 			await client.query('COMMIT');
 			if (outstanding.rows.length === 0) return { ok: false, reason: 'question_missing' };
-			return { ok: true, question: questionPayload(outstanding.rows[0], answersGiven.length + 1) };
+			return {
+				ok: true,
+				question: questionPayload(outstanding.rows[0], answersGiven.length + 1, sessionTotal(session)),
+			};
 		}
 
-		if (answersGiven.length >= TOTAL_QUESTIONS) {
+		if (answersGiven.length >= sessionTotal(session)) {
 			await client.query('ROLLBACK');
 			return { ok: false, reason: 'awaiting_completion' };
 		}
@@ -1317,6 +1607,7 @@ async function serveNextQuestion(sessionId) {
 			session.current_difficulty || 2,
 			client,
 			questionsAsked.map((q) => q.questionId),
+			session,
 		);
 		if (!question) {
 			await client.query('ROLLBACK');
@@ -1333,7 +1624,10 @@ async function serveNextQuestion(sessionId) {
 			[JSON.stringify(questionsAsked), answersGiven.length + 1, sessionId],
 		);
 		await client.query('COMMIT');
-		return { ok: true, question: questionPayload(question, answersGiven.length + 1) };
+		return {
+			ok: true,
+			question: questionPayload(question, answersGiven.length + 1, sessionTotal(session)),
+		};
 	} catch (error) {
 		if (client) await client.query('ROLLBACK').catch(() => {});
 		console.error('Error serving next question:', error);
@@ -1528,7 +1822,7 @@ async function respondAfterRecord(res, sessionId, userId, extras = {}) {
 			.json({ error: 'This attempt is already finished', code: 'ALREADY_FINISHED' });
 	}
 	const answersGiven = parseJsonArray(session.answers_given);
-	if (answersGiven.length >= TOTAL_QUESTIONS) {
+	if (answersGiven.length >= sessionTotal(session)) {
 		const completion = await completeAssessmentTx(sessionId, userId);
 		if (completion) {
 			return res.json({
@@ -1558,7 +1852,57 @@ async function respondAfterRecord(res, sessionId, userId, extras = {}) {
 // Phase A (#1606): excludeIds lists questions already asked in the session —
 // while unserved bank rows exist at this difficulty, a session never re-serves
 // a question it already asked (a 1-row cell previously repeated forever).
-async function generateQuestion(skillName, category, difficulty, client, excludeIds = []) {
+// #1654 (C2): a session WITH a snapshot (topic_id + format recorded) serves
+// from the scoped pool — topic + format predicate (§4.6: mixed is the
+// mcq/short_answer union, never a literal equality) + approved-only (§7
+// rule 6) — in the Q2 order: bank-first → AI generation → in-scope approved
+// re-serve → null. A NULL-config session (in-flight legacy, §8) — or a
+// legacy-mapped session whose skill has no catalogue topic — keeps today's
+// exact skill_category path and order untouched. The format predicate is
+// interpolated from the validated snapshot enum (a closed set), never
+// from request input.
+async function generateQuestion(skillName, category, difficulty, client, excludeIds = [], session = null) {
+	const scoped = !!(session && session.topic_id != null && session.format);
+	let formatPredicate = null;
+	if (scoped) {
+		formatPredicate =
+			session.format === 'mixed' ? `format IN ('mcq','short_answer')` : `format = '${session.format}'`;
+		const existingResult = await client.query(
+			`
+    SELECT * FROM assessment_questions
+    WHERE topic_id = $1 AND ${formatPredicate} AND review_status = 'approved'
+      AND difficulty_level = $2
+      AND NOT (id = ANY($3::int[]))
+    ORDER BY RANDOM()
+    LIMIT 1
+  `,
+			[session.topic_id, difficulty, excludeIds],
+		);
+		if (existingResult.rows.length > 0) {
+			return existingResult.rows[0];
+		}
+		// Q2: for a promised configuration, fresh AI supply is tried BEFORE
+		// any duplicate is re-served; the re-serve below is the last resort.
+		const generated = await generateViaAI(skillName, category, difficulty, client, session);
+		if (generated) {
+			return generated;
+		}
+		const retryResult = await client.query(
+			`
+    SELECT * FROM assessment_questions
+    WHERE topic_id = $1 AND ${formatPredicate} AND review_status = 'approved'
+      AND difficulty_level = $2
+    ORDER BY RANDOM()
+    LIMIT 1
+  `,
+			[session.topic_id, difficulty],
+		);
+		if (retryResult.rows.length > 0) {
+			return retryResult.rows[0];
+		}
+		return null;
+	}
+
 	// Try to find existing question from bank
 	const existingResult = await client.query(
 		`
@@ -1593,8 +1937,33 @@ async function generateQuestion(skillName, category, difficulty, client, exclude
 		}
 	}
 
+	return generateViaAI(skillName, category, difficulty, client, null);
+}
+
+// The AI generation leg, shared by both serving paths. For a snapshot
+// session the question type is driven by the session's format (mcq →
+// multiple_choice only, short_answer → short_answer only, mixed → either)
+// and the INSERT writes the §3.4 provenance (topic_id, derived format,
+// source 'ai_live', review_status 'pending') — the row is returned
+// directly to its own session but is NOT servable bank supply for anyone
+// until curation approves it. Legacy (session null) keeps the historical
+// coin flip and the historical INSERT, byte for byte.
+async function generateViaAI(skillName, category, difficulty, client, session) {
+	const scoped = !!(session && session.topic_id != null && session.format);
 	// Generate new question using AI
-	const questionType = Math.random() > 0.3 ? 'multiple_choice' : 'short_answer';
+	let questionType;
+	if (!scoped) {
+		questionType = Math.random() > 0.3 ? 'multiple_choice' : 'short_answer';
+	} else if (session.format === 'mcq') {
+		questionType = 'multiple_choice';
+	} else if (session.format === 'short_answer') {
+		questionType = 'short_answer';
+	} else if (session.format === 'mixed') {
+		questionType = Math.random() > 0.3 ? 'multiple_choice' : 'short_answer';
+	} else {
+		// coding: generation is C4's runner work — bank-only until then.
+		return null;
+	}
 	const prompt = `Generate a difficulty ${difficulty}/5 technical assessment question about "${skillName}" (category: ${category}).
 
 Question type: ${questionType}
@@ -1642,25 +2011,50 @@ Requirements:
 					: JSON.stringify(questionData.options)
 				: null;
 
-		// Save to database
-		const result = await client.query(
-			`
+		// Save to database. Snapshot sessions write the §3.4 provenance so
+		// the row's origin is auditable; format is derived from the type
+		// exactly as migration 280 derived it. Legacy keeps its INSERT.
+		const derivedFormat = qType === 'multiple_choice' ? 'mcq' : qType === 'short_answer' ? 'short_answer' : 'coding';
+		const result = scoped
+			? await client.query(
+					`
+      INSERT INTO assessment_questions
+      (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds,
+       topic_id, format, source, review_status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'ai_live', 'pending')
+      RETURNING *
+    `,
+					[
+						skillName,
+						difficulty,
+						qType,
+						questionData.question_text,
+						options,
+						questionData.correct_answer || null,
+						questionData.explanation || 'See the correct answer above.',
+						questionData.time_limit_seconds || (qType === 'multiple_choice' ? 90 : 180),
+						session.topic_id,
+						derivedFormat,
+					],
+				)
+			: await client.query(
+					`
       INSERT INTO assessment_questions
       (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `,
-			[
-				skillName,
-				difficulty,
-				qType,
-				questionData.question_text,
-				options,
-				questionData.correct_answer || null,
-				questionData.explanation || 'See the correct answer above.',
-				questionData.time_limit_seconds || (qType === 'multiple_choice' ? 90 : 180),
-			],
-		);
+					[
+						skillName,
+						difficulty,
+						qType,
+						questionData.question_text,
+						options,
+						questionData.correct_answer || null,
+						questionData.explanation || 'See the correct answer above.',
+						questionData.time_limit_seconds || (qType === 'multiple_choice' ? 90 : 180),
+					],
+				);
 
 		return result.rows[0];
 	} catch (error) {
@@ -1807,7 +2201,9 @@ function pauseCreditSeconds(events, nowMs) {
 
 // Runs inside the caller's transaction (completeAssessmentTx).
 // Phase B opts: { reason?: 'candidate' | 'fullscreen_second_exit' } — a
-// completion reached with fewer than TOTAL_QUESTIONS recorded answers is a
+// completion reached with fewer than the session's promised count
+// (sessionTotal — snapshot total_questions, else the legacy 10) of recorded
+// answers is a
 // PARTIAL terminal submission (Submit & Exit / full-screen auto-submit).
 async function completeAssessment(client, sessionId, userId, opts = {}) {
 	const claim = await client.query(
@@ -1841,7 +2237,7 @@ async function completeAssessment(client, sessionId, userId, opts = {}) {
 			passed: existing.rows[0].passed,
 			partial: exFlags.partial === true,
 			answersGiven: exFlags.answers_given ?? null,
-			totalQuestions: exFlags.total_questions ?? TOTAL_QUESTIONS,
+			totalQuestions: exFlags.total_questions ?? LEGACY_TOTAL_QUESTIONS,
 			correctCount: exFlags.correct_count ?? null,
 			fullscreenAutoSubmit: exFlags.fullscreen_auto_submit === true,
 		};
@@ -1871,40 +2267,47 @@ async function completeAssessment(client, sessionId, userId, opts = {}) {
 	// row; the answered questions are read FOR UPDATE under the same lock
 	// discipline as the claim (database-reviewer STOP 1 condition — no
 	// pool-side recompute after commit).
+	// #1654 STOP 1 Q5: ONE score path for EVERY completion — partial,
+	// configured, and legacy. The non-partial branch previously wrote the
+	// RAW Σ scorePoints against max_score=100 (a proven 440-vs-100 defect
+	// on surfaces recruiters read) and decided `passed` by comparing raw
+	// points to a percentage-shaped 60. Now every completion writes
+	// score = round(Σ scorePoints / Σ maxPoints × 100) with max_score 100
+	// — the partial branch's existing §8 formula, generalised — and
+	// passed / Verified / the OmniScore feed all consume the percentage.
 	const answersGivenArr = parseJsonArray(session.answers_given);
 	const answersGivenCount = answersGivenArr.length;
-	const isPartial = answersGivenCount < TOTAL_QUESTIONS;
+	const totalQuestions = sessionTotal(session);
+	const isPartial = answersGivenCount < totalQuestions;
 	const fullscreenAutoSubmit = opts.reason === 'fullscreen_second_exit';
-	let score = session.score || 0;
-	let maxScore = 100;
+	let score = null;
+	let maxScore = null;
 	let correctCount = null;
-	if (isPartial) {
+	if (answersGivenCount === 0) {
+		// Nothing was answered: there is nothing to score — no number at
+		// all (never a fabricated 0), per the Candidate Experience ruling.
+		score = null;
+		maxScore = null;
+	} else {
 		correctCount = answersGivenArr.filter((a) => a.isCorrect === true).length;
-		if (answersGivenCount === 0) {
-			// Nothing was answered: there is nothing to score — no number at
-			// all (never a fabricated 0), per the Candidate Experience ruling.
-			score = null;
-			maxScore = null;
-		} else {
-			const qIds = [...new Set(answersGivenArr.map((a) => Number(a.questionId)).filter(Number.isInteger))];
-			const qRows = await client.query(
-				'SELECT id, difficulty_level, question_type FROM assessment_questions WHERE id = ANY($1) FOR UPDATE',
-				[qIds],
-			);
-			const qMap = new Map(qRows.rows.map((q) => [q.id, q]));
-			let maxAnswered = 0;
-			for (const a of answersGivenArr) {
-				const q = qMap.get(Number(a.questionId));
-				if (!q) continue;
-				maxAnswered += (q.difficulty_level || 2) * (q.question_type === 'short_answer' ? 15 : 10);
-			}
-			const earned = answersGivenArr.reduce((sum, a) => sum + (Number(a.scorePoints) || 0), 0);
-			score = maxAnswered > 0 ? Math.round((earned / maxAnswered) * 100) : null;
-			maxScore = maxAnswered > 0 ? 100 : null;
+		const qIds = [...new Set(answersGivenArr.map((a) => Number(a.questionId)).filter(Number.isInteger))];
+		const qRows = await client.query(
+			'SELECT id, difficulty_level, question_type FROM assessment_questions WHERE id = ANY($1) FOR UPDATE',
+			[qIds],
+		);
+		const qMap = new Map(qRows.rows.map((q) => [q.id, q]));
+		let maxAnswered = 0;
+		for (const a of answersGivenArr) {
+			const q = qMap.get(Number(a.questionId));
+			if (!q) continue;
+			maxAnswered += (q.difficulty_level || 2) * (q.question_type === 'short_answer' ? 15 : 10);
 		}
+		const earned = answersGivenArr.reduce((sum, a) => sum + (Number(a.scorePoints) || 0), 0);
+		score = maxAnswered > 0 ? Math.round((earned / maxAnswered) * 100) : null;
+		maxScore = maxAnswered > 0 ? 100 : null;
 	}
 
-	const passed = !isPartial && (session.score || 0) >= 60 && antiCheatScore >= 50;
+	const passed = !isPartial && score != null && score >= 60 && antiCheatScore >= 50;
 
 	// Create skill assessment record
 	const assessmentResult = await client.query(
@@ -1933,7 +2336,7 @@ async function completeAssessment(client, sessionId, userId, opts = {}) {
 					? {
 							partial: true,
 							answers_given: answersGivenCount,
-							total_questions: TOTAL_QUESTIONS,
+							total_questions: totalQuestions,
 							correct_count: correctCount,
 							fullscreen_auto_submit: fullscreenAutoSubmit,
 						}
@@ -1950,7 +2353,7 @@ async function completeAssessment(client, sessionId, userId, opts = {}) {
 	if (passed) {
 		await client.query(
 			'UPDATE candidate_skills SET is_verified = true, verified_at = NOW(), verified_score = $1 WHERE id = $2',
-			[session.score, session.skill_id],
+			[score, session.skill_id],
 		);
 	}
 
@@ -1973,7 +2376,7 @@ async function completeAssessment(client, sessionId, userId, opts = {}) {
 		antiCheatScore,
 		partial: isPartial,
 		answersGiven: answersGivenCount,
-		totalQuestions: TOTAL_QUESTIONS,
+		totalQuestions,
 		correctCount,
 		fullscreenAutoSubmit,
 	};
@@ -2032,7 +2435,10 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 				maxDifficultyReached: session.max_difficulty_reached || 0,
 				partial: cPartial,
 				answersGiven: cFlags.answers_given ?? parseJsonArray(session.answers_given).length,
-				totalQuestions: cFlags.total_questions ?? TOTAL_QUESTIONS,
+				totalQuestions: cFlags.total_questions ?? sessionTotal(session),
+				// #1654: the §5.2/§8 configuration label from the snapshot.
+				format: session.format ?? null,
+				difficultyBand: session.difficulty_band ?? null,
 				correctCount: cFlags.correct_count ?? null,
 				autoSubmittedFullscreen: cFlags.fullscreen_auto_submit === true,
 			});
@@ -2045,7 +2451,7 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 			// landed (e.g. the completion step failed after the final answer
 			// committed). Finish it now — the terminal transition is atomic,
 			// so this can never double-complete.
-			if (answersGiven.length >= TOTAL_QUESTIONS) {
+			if (answersGiven.length >= sessionTotal(session)) {
 				const completion = await completeAssessmentTx(sessionId, userId);
 				if (completion) {
 					const doneResult = await pool.query(
@@ -2068,7 +2474,9 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 						maxDifficultyReached: session.max_difficulty_reached || 0,
 						partial: dPartial,
 						answersGiven: dFlags.answers_given ?? answersGiven.length,
-						totalQuestions: dFlags.total_questions ?? TOTAL_QUESTIONS,
+						totalQuestions: dFlags.total_questions ?? sessionTotal(session),
+						format: session.format ?? null,
+						difficultyBand: session.difficulty_band ?? null,
 						correctCount: dFlags.correct_count ?? null,
 						autoSubmittedFullscreen: dFlags.fullscreen_auto_submit === true,
 					});
@@ -2107,6 +2515,8 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 				status: 'in_progress',
 				skillName,
 				question: served.question,
+				format: session.format ?? null,
+				difficultyBand: session.difficulty_band ?? null,
 				currentDraft: parseDraft(session.current_draft),
 				fullscreenExitsUsed: fsCount.rows[0]?.n || 0,
 			});
