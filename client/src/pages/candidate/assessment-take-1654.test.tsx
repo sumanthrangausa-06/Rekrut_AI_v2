@@ -136,6 +136,18 @@ describe('GAP-3 — exactly one instructions block', () => {
 describe('#1689 — take-page AI disclosure gated on format + format labels match configure', () => {
 	const DISCLOSURE = /Short answers are scored by AI and reviewed by a human/;
 
+	// #1699 SH-2: the exact sentence, copied verbatim from
+	// assessment-take.tsx (the snapshot list item). It is counted over
+	// the WHOLE rendered document — not one container's text — so a
+	// stray extra copy anywhere (outside the snapshot <ul>, in a
+	// post-completion block, …) fails the count instead of passing
+	// silently behind a single-element query.
+	const DISCLOSURE_SENTENCE = 'Short answers are scored by AI and reviewed by a human.';
+	function disclosureCount() {
+		const text = document.body.textContent ?? '';
+		return text.split(DISCLOSURE_SENTENCE).length - 1;
+	}
+
 	function mockSnapshot(format: string) {
 		mockCurrent({
 			status: 'in_progress',
@@ -153,6 +165,8 @@ describe('#1689 — take-page AI disclosure gated on format + format labels matc
 		render(<AssessmentTakePage />);
 		expect(await screen.findByText(/Your configuration/)).toBeInTheDocument();
 		expect(screen.queryByText(DISCLOSURE)).not.toBeInTheDocument();
+		// #1699 SH-2: whole-document count — exactly 0 copies anywhere.
+		expect(disclosureCount()).toBe(0);
 	});
 
 	test('mixed snapshot: AI-scoring disclosure rendered', async () => {
@@ -160,6 +174,8 @@ describe('#1689 — take-page AI disclosure gated on format + format labels matc
 		render(<AssessmentTakePage />);
 		expect(await screen.findByText(/Your configuration/)).toBeInTheDocument();
 		expect(screen.getByText(DISCLOSURE)).toBeInTheDocument();
+		// #1699 SH-2: whole-document count — exactly 1 copy anywhere.
+		expect(disclosureCount()).toBe(1);
 	});
 
 	test('short_answer snapshot: AI-scoring disclosure rendered', async () => {
@@ -167,10 +183,32 @@ describe('#1689 — take-page AI disclosure gated on format + format labels matc
 		render(<AssessmentTakePage />);
 		expect(await screen.findByText(/Your configuration/)).toBeInTheDocument();
 		expect(screen.getByText(DISCLOSURE)).toBeInTheDocument();
+		// #1699 SH-2: whole-document count — exactly 1 copy anywhere.
+		expect(disclosureCount()).toBe(1);
+	});
+
+	test('coding snapshot: no AI-scoring disclosure rendered', async () => {
+		// #1699 (PR #1697 review Finding 2): the gate's boundary is pinned
+		// on BOTH sides — a coding session, like an MCQ one, has no short
+		// answers, so the sentence must appear exactly 0 times in the
+		// whole rendered document.
+		mockSnapshot('coding');
+		render(<AssessmentTakePage />);
+		expect(await screen.findByText(/Your configuration/)).toBeInTheDocument();
+		expect(screen.queryByText(DISCLOSURE)).not.toBeInTheDocument();
+		expect(disclosureCount()).toBe(0);
 	});
 
 	// Format labels must match assessment-configure.tsx FORMATS verbatim
 	// (spec §0.2 wording fixed in #1679).
+	// #1699 SH-1: the cases below enumerate the take map's FULL key set —
+	// all four labels, coding included. The two maps are INDEPENDENT
+	// literals (FORMAT_LABELS in assessment-take.tsx; FORMATS in
+	// assessment-configure.tsx is not exported and neither component
+	// imports the other), so there is no shared/derived contract to pin:
+	// both key sets are exactly {mcq, short_answer, mixed, coding} —
+	// configure has no 5th key, so no absence is pinned — and parity
+	// rests only on the literal expected strings below (review Finding 8).
 	test.each([
 		['mcq', 'Multiple choice'],
 		['mixed', 'Mixed — multiple choice and written answers'],
