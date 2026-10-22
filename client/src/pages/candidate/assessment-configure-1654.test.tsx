@@ -21,7 +21,7 @@
  * regression pins — they do NOT satisfy the HL-003 E2E-on-dev gate; the
  * Quinn-runnable real-HTTP harness is e2e/journeys/assessment-c2-config.js.
  */
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const apiCallMock = vi.fn();
@@ -295,5 +295,66 @@ describe('JT-C4 — catalogue surface on the assessments page', () => {
 		mockPageApis({ subjects: [] });
 		render(<CandidateAssessmentsPage />);
 		expect(await screen.findByText(/no assessments are available yet/i)).toBeInTheDocument();
+	});
+});
+
+describe('#1679 — P1: invented time figures + stale pre-flight race', () => {
+	test('P1-1: instructions state only the per-question timer rule — no invented total time', async () => {
+		apiCallMock.mockImplementation(async (url: string) => {
+			if (url.includes('/availability')) return availabilityResponse();
+			throw new Error(`unexpected ${url}`);
+		});
+		renderFlow();
+		fireEvent.click(await screen.findByRole('button', { name: /continue to instructions/i }));
+		expect(await screen.findByText(/before you start/i)).toBeInTheDocument();
+
+		// No invented total: no "Expected time" claim, no per-question
+		// minutes figure, no total-minutes figure derived from a constant.
+		expect(screen.queryByText(/Expected time/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/minutes per question/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/up to about \d+ minutes/i)).not.toBeInTheDocument();
+
+		// Only the true per-question rule is stated.
+		expect(screen.getByText(/Each question has its own timer, shown on the question/i)).toBeInTheDocument();
+		expect(
+			screen.getByText(/When a question's time runs out, it is submitted with the answer you have chosen/i),
+		).toBeInTheDocument();
+	});
+
+	test('P1-2: a pending pre-flight for a new count hides Continue until the new response lands', async () => {
+		let resolveSecond: (value: unknown) => void = () => {};
+		const secondCall = new Promise((resolve) => {
+			resolveSecond = resolve;
+		});
+		apiCallMock.mockImplementation((url: string) => {
+			if (url.includes('count=25')) return secondCall;
+			if (url.includes('/availability')) {
+				return Promise.resolve(availabilityResponse({ promised: 10, servable: 41 }));
+			}
+			throw new Error(`unexpected ${url}`);
+		});
+		renderFlow();
+
+		// First configuration is servable — Continue is offered.
+		expect(await screen.findByRole('button', { name: /continue to instructions/i })).toBeInTheDocument();
+
+		// Candidate changes the count; the new pre-flight hangs.
+		fireEvent.click(screen.getByRole('button', { name: '25' }));
+		await waitFor(() =>
+			expect(apiCallMock).toHaveBeenCalledWith(
+				'/assessments/catalog/11/availability?format=mixed&band=medium&count=25',
+			),
+		);
+
+		// While the new check is pending, the STALE result must not keep
+		// Continue clickable for the new configuration.
+		expect(screen.queryByRole('button', { name: /continue to instructions/i })).not.toBeInTheDocument();
+
+		// When the new response lands, Continue reflects THAT response.
+		await act(async () => {
+			resolveSecond(availabilityResponse({ promised: 25, servable: 41 }));
+		});
+		expect(await screen.findByText(/exactly 25 questions/i)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /continue to instructions/i })).toBeInTheDocument();
 	});
 });
