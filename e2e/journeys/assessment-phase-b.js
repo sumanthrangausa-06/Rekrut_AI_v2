@@ -74,12 +74,19 @@ let db;
 async function register(tag, role = 'candidate') {
 	for (let attempt = 0; attempt < 8; attempt++) {
 		const r = await http('POST', '/api/auth/register', { email: `jtb${tag}${RUN}@example.com`, password: 'JourneyTest2026', name: `JT ${tag}`, role });
-		if (r.status !== 429) return { token: r.json.token || r.json.accessToken, id: r.json.user?.id, status: r.status };
+		if (r.status !== 429) return { token: r.json.token || r.json.accessToken, id: r.json.user?.id, status: r.status, email: `jtb${tag}${RUN}@example.com`, password: 'JourneyTest2026' };
 		const waitS = Math.min((r.json.retryAfter || 60) + 5, 240);
 		console.log(`register ${tag}: 429, waiting ${waitS}s`);
 		await new Promise((res) => setTimeout(res, waitS * 1000));
 	}
 	throw new Error(`register ${tag}: rate limited after retries`);
+}
+// The rig's rate-limit waits can outlast a JWT's lifetime; job legs refresh
+// their candidate's token by logging in again before use.
+async function refreshToken(user) {
+	const r = await http('POST', '/api/auth/login', { email: user.email, password: user.password });
+	if (r.json.token || r.json.accessToken) user.token = r.json.token || r.json.accessToken;
+	return user;
 }
 async function correctAnswer(qid) {
 	const q = await db.query('SELECT question_type, correct_answer FROM assessment_questions WHERE id=$1', [qid]);
@@ -278,6 +285,7 @@ async function exitSkill(token, sid, body) {
 	// ---------- JOB RUNNER setup (JT-B8/B9/B10): recruiter + published assessment + assigned attempts ----------
 	let jobCtx = null;
 	try {
+		await refreshToken(sharedJob); // JWT may have expired during the rate-limit waits
 		const rec1 = await register('rec', 'employer');
 		let recruiter = rec1;
 		if (!recruiter.token) {
@@ -371,7 +379,7 @@ async function exitSkill(token, sid, body) {
 		await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/start`, {}, c.token);
 		await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/event`, { attemptId: aid2, eventType: 'timer_pause_start', eventData: {} }, c.token);
 		await db.query(`UPDATE job_assessment_attempts SET started_at = NOW() - INTERVAL '48 minutes' WHERE id=$1`, [aid2]);
-		await db.query(`UPDATE job_assessment_attempts SET integrity_events = (SELECT jsonb_agg(CASE WHEN elem->>'type'='timer_pause_start' THEN jsonb_set(elem, '{timestamp}', to_jsonb((NOW() - INTERVAL '48 minutes')::text)) ELSE elem END) FROM jsonb_array_elements(integrity_events) elem) WHERE id=$1`, [aid2]);
+		await db.query(`UPDATE job_assessment_attempts SET integrity_events = COALESCE((SELECT jsonb_agg(CASE WHEN elem->>'type'='timer_pause_start' THEN jsonb_set(elem, '{timestamp}', to_jsonb((NOW() - INTERVAL '48 minutes')::text)) ELSE elem END) FROM jsonb_array_elements(integrity_events) elem), integrity_events) WHERE id=$1`, [aid2]);
 		await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/event`, { attemptId: aid2, eventType: 'timer_pause_end', eventData: {} }, c.token);
 		const credited = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/answer`, { attemptId: aid2, questionId: jobCtx.qids[0], answer: 'RigCorrect', timeTaken: 30 }, c.token);
 		// Control: same age, NO pause → the elapsed guard still refuses.
