@@ -67,14 +67,23 @@ which some languages do allow on interfaces; the L5 Strategy row states
 the per-order run-time selection explicitly so a singleton reading is
 not defensible.
 
-**Rig evidence (fresh-install, HL-003):** PENDING — parent-run. This
-deliverable was authored as files only (HL-007 landing rule: the author
-makes no GitHub or rig claims). The parent (Lead/Suga) runs the
-fresh-install rig on landing: empty database built only by
-`node migrate.js`, OOP per-level counts read back from the database
-(expected exactly 2/8/9/8/2; bands easy 10 / medium 25 / hard 10), and a
-second direct `up()` expected to insert 0 further rows. The parent
-fills this section with the measured result before the issue is closed.
+**Rig evidence (fresh-install, HL-003) — parent-run 2026-10-22
+(advance run 14:43 PT), measured:** throwaway PostgreSQL 16 cluster,
+databases built ONLY by `node migrate.js` from empty. RED (dev
+0d96304f8, no 289): OOP subject present, OOP topic rows 0, OOP
+questions 0. GREEN (this branch, commit e85ad9c16): migration 289 ran;
+DB read-back — topic `OOP — General` active; per-level approved MCQ
+exactly L1=2 / L2=8 / L3=9 / L4=8 / L5=2; bands easy 10 / medium 25 /
+hard 10; 0 rows with NULL topic_id. Second direct `up()`: 29 → 29
+(idempotent). `down()`: 29 → 0 questions and the topic removed (no
+references); `up()` again: restored to 29. Quinn provider-free OOP
+journey (real HTTP, server /health echoing e85ad9c16): register →
+catalog contains the OOP topic → availability servable 25 (medium) →
+start (mcq/medium/10) → 10 answers → session completed, DB read-back
+status completed + topic_id set, all served questions OOP bank rows —
+7 PASS / 0 FAIL. One journey observation filed separately as #1710
+(adaptive serving repeated one question at pool exhaustion — a
+pre-existing serving behaviour on all topics, not a bank defect).
 
 **Review history:** pending — the batch PR records the Interviewer
 review outcome when it runs.
