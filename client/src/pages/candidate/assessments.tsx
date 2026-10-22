@@ -25,8 +25,8 @@ interface SkillCatalog {
 
 interface AssessmentResult {
 	id: number;
-	score: number;
-	max_score: number;
+	score: number | null;
+	max_score: number | null;
 	passed: boolean;
 	anti_cheat_score: number;
 	duration_seconds: number;
@@ -37,6 +37,10 @@ interface AssessmentResult {
 	max_difficulty_reached: number;
 	tab_switches: number;
 	copy_paste_attempts: number;
+	behavioral_flags?:
+		| { partial?: boolean; answers_given?: number; total_questions?: number; correct_count?: number | null }
+		| string
+		| null;
 }
 
 interface AssignedAttempt {
@@ -320,14 +324,24 @@ export function CandidateAssessmentsPage() {
 						/>
 					) : (
 						<div className="space-y-3 mt-4">
-							{results.map((r) => (
+							{results.map((r) => {
+								const rf =
+									typeof r.behavioral_flags === 'string'
+										? JSON.parse(r.behavioral_flags)
+										: r.behavioral_flags || {};
+								const rPartial = rf.partial === true;
+								return (
 								<Card key={r.id}>
 									<CardContent className="p-4">
 										<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 											<div>
 												<div className="flex items-center gap-2 mb-1">
 													<h4 className="font-medium">{r.skill_name || r.title}</h4>
-													{r.passed ? (
+													{rPartial ? (
+														<Badge variant="secondary" className="gap-1">
+															Partial — answered {rf.answers_given} of {rf.total_questions}
+														</Badge>
+													) : r.passed ? (
 														<Badge variant="success" className="gap-1">
 															<CheckCircle className="h-3 w-3" /> Passed
 														</Badge>
@@ -339,7 +353,11 @@ export function CandidateAssessmentsPage() {
 												</div>
 												<div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
 													<span>
-														Score: {r.score}/{r.max_score || 100}
+														{rPartial
+															? rf.answers_given === 0
+																? 'No score — no questions answered'
+																: `${rf.correct_count ?? 0} of ${rf.answers_given} answered correct`
+															: `Score: ${r.score}/${r.max_score || 100}`}
 													</span>
 													<span className="flex items-center gap-1">
 														<Clock className="h-3 w-3" />
@@ -350,7 +368,7 @@ export function CandidateAssessmentsPage() {
 												</div>
 											</div>
 											<div className="text-right">
-												<div className="text-2xl font-bold">{r.score}%</div>
+												{!rPartial && <div className="text-2xl font-bold">{r.score}%</div>}
 												{r.anti_cheat_score < 80 && (
 													<span className="text-xs text-amber-600">
 														Integrity: {r.anti_cheat_score}%
@@ -360,7 +378,8 @@ export function CandidateAssessmentsPage() {
 										</div>
 									</CardContent>
 								</Card>
-							))}
+								);
+							})}
 						</div>
 					)}
 				</TabsContent>
