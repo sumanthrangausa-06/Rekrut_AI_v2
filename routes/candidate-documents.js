@@ -224,6 +224,42 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// GET /api/candidate/documents/stats — summary stats
+// ════════════════════════════════════════════════════════════════════════
+router.get('/stats', authMiddleware, async (req, res) => {
+	try {
+		const userId = req.user.id;
+		if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+		const stats = await pool.query(
+			`
+      SELECT
+        COUNT(DISTINCT vd.id) AS total_documents,
+        COUNT(DISTINCT CASE WHEN vd.status = 'verified' THEN vd.id END) AS verified_documents,
+        COUNT(DISTINCT CASE WHEN vd.status = 'rejected' THEN vd.id END) AS rejected_documents,
+        COUNT(DISTINCT CASE WHEN vd.status = 'pending' THEN vd.id END) AS pending_documents,
+        COUNT(DISTINCT CASE WHEN vd.status = 'expired' THEN vd.id END) AS expired_documents,
+        COUNT(DISTINCT vc.id) AS verified_credentials,
+        COALESCE(SUM(dsi.score_impact), 0) AS total_score_impact,
+        AVG(dv.authenticity_score) AS avg_authenticity_score
+      FROM verification_documents vd
+      LEFT JOIN document_verifications dv ON vd.id = dv.document_id
+      LEFT JOIN verified_credentials vc ON vc.user_id = vd.user_id
+      LEFT JOIN document_score_impacts dsi
+        ON dsi.user_id = vd.user_id AND dsi.applied_to_omniscore = true
+      WHERE vd.user_id = $1
+    `,
+			[userId],
+		);
+
+		res.json({ success: true, stats: stats.rows[0] });
+	} catch (error) {
+		console.error('[candidate-documents] Stats error:', error);
+		res.status(500).json({ error: 'Failed to retrieve stats' });
+	}
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // GET /api/candidate/documents/:id — get document details
 // ════════════════════════════════════════════════════════════════════════
 router.get('/:id', authMiddleware, async (req, res) => {
@@ -408,42 +444,6 @@ router.get('/:id/verification', authMiddleware, async (req, res) => {
 	} catch (error) {
 		console.error('[candidate-documents] Verification error:', error);
 		res.status(500).json({ error: 'Failed to retrieve verification status' });
-	}
-});
-
-// ════════════════════════════════════════════════════════════════════════
-// GET /api/candidate/documents/stats — summary stats
-// ════════════════════════════════════════════════════════════════════════
-router.get('/stats', authMiddleware, async (req, res) => {
-	try {
-		const userId = req.user.id;
-		if (!userId) return res.status(401).json({ error: 'Authentication required' });
-
-		const stats = await pool.query(
-			`
-      SELECT
-        COUNT(DISTINCT vd.id) AS total_documents,
-        COUNT(DISTINCT CASE WHEN vd.status = 'verified' THEN vd.id END) AS verified_documents,
-        COUNT(DISTINCT CASE WHEN vd.status = 'rejected' THEN vd.id END) AS rejected_documents,
-        COUNT(DISTINCT CASE WHEN vd.status = 'pending' THEN vd.id END) AS pending_documents,
-        COUNT(DISTINCT CASE WHEN vd.status = 'expired' THEN vd.id END) AS expired_documents,
-        COUNT(DISTINCT vc.id) AS verified_credentials,
-        COALESCE(SUM(dsi.score_impact), 0) AS total_score_impact,
-        COALESCE(AVG(dv.authenticity_score), 0) AS avg_authenticity_score
-      FROM verification_documents vd
-      LEFT JOIN document_verifications dv ON vd.id = dv.document_id
-      LEFT JOIN verified_credentials vc ON vc.user_id = vd.user_id
-      LEFT JOIN document_score_impacts dsi
-        ON dsi.user_id = vd.user_id AND dsi.applied_to_omniscore = true
-      WHERE vd.user_id = $1
-    `,
-			[userId],
-		);
-
-		res.json({ success: true, stats: stats.rows[0] });
-	} catch (error) {
-		console.error('[candidate-documents] Stats error:', error);
-		res.status(500).json({ error: 'Failed to retrieve stats' });
 	}
 });
 
