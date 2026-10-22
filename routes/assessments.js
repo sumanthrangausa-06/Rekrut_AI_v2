@@ -3124,8 +3124,35 @@ router.post('/generate', authMiddleware, rateLimits.ai, async (req, res) => {
 			return res.status(403).json({ error: 'Recruiter access required' });
 		}
 
-		const { jobId } = req.body;
+		const { jobId, questionCount, difficultyBand, format } = req.body;
 		if (!jobId) return res.status(400).json({ error: 'jobId is required' });
+
+		// #1655 (C2b) R1–R3: validate optional generation config BEFORE any
+		// job lookup, AI call, or write. Absent fields keep legacy behaviour.
+		if (
+			questionCount !== undefined &&
+			(!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 50)
+		) {
+			return res
+				.status(400)
+				.json({ error: 'questionCount must be a positive integer up to 50' });
+		}
+		if (difficultyBand !== undefined && !['easy', 'medium', 'hard'].includes(difficultyBand)) {
+			return res
+				.status(400)
+				.json({ error: 'difficultyBand must be one of: easy, medium, hard' });
+		}
+		if (
+			format !== undefined &&
+			!['multiple_choice', 'free_text', 'scenario_response', 'code_challenge', 'mixed'].includes(
+				format,
+			)
+		) {
+			return res.status(400).json({
+				error:
+					'format must be one of: multiple_choice, free_text, scenario_response, code_challenge, mixed',
+			});
+		}
 
 		// Get job details
 		const jobResult = await pool.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
@@ -3166,11 +3193,30 @@ router.post('/generate', authMiddleware, rateLimits.ai, async (req, res) => {
 			targetLevel = 'junior';
 		}
 
-		const difficultyRange = { junior: '1-2', mid: '2-3', senior: '3-5' }[targetLevel];
+		// #1655 R2/R4: an explicit difficultyBand overrides the title heuristic
+		// for both the stored difficulty_level and the prompt difficulty range.
+		const difficultyRange = difficultyBand
+			? { easy: '1-2', medium: '2-4', hard: '4-5' }[difficultyBand]
+			: { junior: '1-2', mid: '2-3', senior: '3-5' }[targetLevel];
 
 		// Map experience level to valid difficulty_level for DB constraint (easy/medium/mid/hard)
 		const difficultyLevel =
-			{ junior: 'easy', mid: 'medium', senior: 'hard' }[targetLevel] || 'medium';
+			difficultyBand || { junior: 'easy', mid: 'medium', senior: 'hard' }[targetLevel] || 'medium';
+
+		// #1655 R1/R4: effective question count and category proportions
+		// (≈40/27/20/13; at the default 15 these are exactly 6/4/3/2).
+		const effectiveCount = questionCount ?? 15;
+		const technicalCount = Math.round(effectiveCount * 0.4);
+		const scenarioCount = Math.round(effectiveCount * 0.27);
+		const behavioralCount = Math.round(effectiveCount * 0.2);
+		const codeChallengeCount = effectiveCount - technicalCount - scenarioCount - behavioralCount;
+
+		// #1655 R3: a single format steers every question's question_type
+		// (prompt steering only — no post-filter/retry). Absent/'mixed' = ''.
+		const formatSteering =
+			format && format !== 'mixed'
+				? `- question_type: every question must use question_type "${format}"\n`
+				: '';
 
 		// Generate assessment questions via AI
 		const prompt = `You are an expert hiring manager. Generate a comprehensive skill assessment for this job posting.
@@ -3182,15 +3228,15 @@ REQUIREMENTS: ${(job.requirements || '').substring(0, 1500)}
 JOB TYPE: ${job.job_type || 'full-time'}
 LEVEL: ${targetLevel}
 
-Generate exactly 15 assessment questions across these categories:
-- "technical" (6 questions): Test specific technical skills mentioned in requirements
-- "scenario" (4 questions): Real-world work scenarios relevant to the role
-- "behavioral" (3 questions): Soft skills, teamwork, communication, problem-solving
-- "code_challenge" (2 questions): Practical coding/analytical problems (if technical role) OR additional scenario questions (if non-technical)
+Generate exactly ${effectiveCount} assessment questions across these categories:
+- "technical" (${technicalCount} questions): Test specific technical skills mentioned in requirements
+- "scenario" (${scenarioCount} questions): Real-world work scenarios relevant to the role
+- "behavioral" (${behavioralCount} questions): Soft skills, teamwork, communication, problem-solving
+- "code_challenge" (${codeChallengeCount} questions): Practical coding/analytical problems (if technical role) OR additional scenario questions (if non-technical)
 
 For each question, include:
 - question_type: "multiple_choice", "free_text", "scenario_response", or "code_challenge"
-- difficulty_level: ${difficultyRange} (1=beginner, 5=expert)
+${formatSteering}- difficulty_level: ${difficultyRange} (1=beginner, 5=expert)
 - points: 5-20 based on difficulty and importance
 
 Rules:
@@ -3244,6 +3290,12 @@ Return ONLY valid JSON:
 			await client.query('BEGIN');
 
 			const categories = [...new Set(parsed.questions.map((q) => q.category))];
+			// #1655 R6: preserve the existing ai_config keys; record the
+			// optional config ONLY for fields the caller actually provided.
+			const aiConfig = { targetLevel, difficultyLevel, generated_at: new Date() };
+			if (format !== undefined) aiConfig.format = format;
+			if (questionCount !== undefined) aiConfig.requestedCount = questionCount;
+			if (difficultyBand !== undefined) aiConfig.difficultyBand = difficultyBand;
 			const assessmentResult = await client.query(
 				`
         INSERT INTO job_assessments (job_id, created_by, title, description, difficulty_level, question_count, categories, ai_config)
@@ -3258,13 +3310,14 @@ Return ONLY valid JSON:
 					difficultyLevel,
 					parsed.questions.length,
 					JSON.stringify(categories),
-					JSON.stringify({ targetLevel, difficultyLevel, generated_at: new Date() }),
+					JSON.stringify(aiConfig),
 				],
 			);
 
 			const assessment = assessmentResult.rows[0];
 
-			// Insert questions
+			// Insert questions (#1655 R5: storedCount counts rows actually inserted)
+			let storedQuestionCount = 0;
 			for (let i = 0; i < parsed.questions.length; i++) {
 				const q = parsed.questions[i];
 				await client.query(
@@ -3288,6 +3341,7 @@ Return ONLY valid JSON:
 						i,
 					],
 				);
+				storedQuestionCount++;
 			}
 
 			await client.query('COMMIT');
@@ -3298,9 +3352,16 @@ Return ONLY valid JSON:
 				[assessment.id],
 			);
 
-			res.json({
+			// #1655 R5: only when questionCount was provided does the response
+			// gain requestedCount/storedCount; otherwise the shape is unchanged.
+			const responseBody = {
 				assessment: { ...assessment, questions: questions.rows },
-			});
+			};
+			if (questionCount !== undefined) {
+				responseBody.requestedCount = questionCount;
+				responseBody.storedCount = storedQuestionCount;
+			}
+			res.json(responseBody);
 		} catch (err) {
 			await client.query('ROLLBACK');
 			throw err;
