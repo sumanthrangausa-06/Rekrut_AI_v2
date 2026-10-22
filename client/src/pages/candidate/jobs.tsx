@@ -267,6 +267,88 @@ export function CandidateJobsPage() {
 		}
 	}, [searchParams, filters.search]);
 
+	// #1600: the global header Filters sheet writes the board's filters as URL
+	// params — ONE filter behaviour. The params are honoured ONLY behind the
+	// header's explicit signals, so unrelated `type`/`location` params on
+	// other links can never be misread as filter intent (specialist STOP 1
+	// review, B1):
+	//   filters=hdr1  → adopt the seven fields from the URL. A hdr1 URL always
+	//                   carries the COMPLETE header filter state (absent field
+	//                   = cleared) — that completeness is the protocol.
+	//   filters=clear → the header's Clear action: reset the seven fields.
+	//   (absent)      → leave state alone. Marker absence is NOT a clear:
+	//                   `search` is shared with skill chips / AI search, and
+	//                   inferring a reset from absence wiped their intent
+	//                   (independent review BLOCK B-1).
+	// Both signals are CONSUMED AND STRIPPED from the URL (replace) as soon as
+	// they are handled, so a stale signal can never re-fire on a later param
+	// change or reload (delta review BLOCK D-B1). Marker value is namespaced
+	// (hdr1) so a future feature's generic filters=1 cannot hijack the board
+	// (delta review BLOCK D-B2).
+	const appliedUrlFilterSig = useRef('');
+	useEffect(() => {
+		const mode = searchParams.get('filters');
+		if (mode !== 'hdr1' && mode !== 'clear') return;
+		// Guarded strip: the updater returns prev untouched when the signal is
+		// already gone, so this never rewrites a URL that no longer carries
+		// the signal and never overwrites a concurrent param write (delta-2
+		// review BLOCK D2-B1). Returning the same params skips the navigation.
+		const stripSignal = () =>
+			setSearchParams(
+				(prev) => {
+					if (!prev.has('filters')) return prev;
+					const next = new URLSearchParams(prev);
+					next.delete('filters');
+					return next;
+				},
+				{ replace: true },
+			);
+		if (mode === 'clear') {
+			// No signature guard here: every distinct clear navigation must
+			// reset, even if the user set in-page filters after a prior clear.
+			// The reset is idempotent and the strip terminates the cycle.
+			appliedUrlFilterSig.current = 'clear';
+			setFilters((prev) => ({
+				...prev,
+				search: '',
+				location: '',
+				type: '',
+				remoteType: '',
+				experienceLevel: '',
+				salaryMin: 0,
+				salaryMax: 300000,
+			}));
+			setPage(1);
+			stripSignal();
+			return;
+		}
+		const values = {
+			search: searchParams.get('search') ?? '',
+			location: searchParams.get('location') ?? '',
+			type: searchParams.get('type') ?? '',
+			remote_type: searchParams.get('remote_type') ?? '',
+			experience_level: searchParams.get('experience_level') ?? '',
+			salary_min: searchParams.get('salary_min') ?? '',
+			salary_max: searchParams.get('salary_max') ?? '',
+		};
+		const sig = Object.values(values).join('|');
+		if (sig !== appliedUrlFilterSig.current) {
+			appliedUrlFilterSig.current = sig;
+			setFilters((prev) => ({
+				...prev,
+				search: values.search,
+				location: values.location,
+				type: values.type,
+				remoteType: values.remote_type,
+				experienceLevel: values.experience_level,
+				salaryMin: Number(values.salary_min) || 0,
+				salaryMax: Number(values.salary_max) || 300000,
+			}));
+			setPage(1);
+		}
+		stripSignal();
+	}, [searchParams, setSearchParams]);
+
 	// Load recent searches from localStorage
 	useEffect(() => {
 		try {
@@ -688,9 +770,19 @@ export function CandidateJobsPage() {
 			const matchExp =
 				!filters.experienceLevel ||
 				(j.experience_level || '').toLowerCase().includes(filters.experienceLevel.toLowerCase());
+			// #1600 (specialist B2): mirror the server's salary semantics exactly —
+			// the API returns salary_min/salary_max as strings ("150000.00") or
+			// NULL, and the server EXCLUDES a job whose salary bound is NULL
+			// when that filter is set. Coerce with Number() and treat NULL as
+			// no-match so the client refinement can never contradict the server.
+			const salaryMinVal = j.salary_min == null ? null : Number(j.salary_min);
+			const salaryMaxVal = j.salary_max == null ? null : Number(j.salary_max);
 			const matchSalary =
-				(!filters.salaryMin || (j.salary_max ?? 0) >= filters.salaryMin) &&
-				(!filters.salaryMax || (j.salary_min ?? 0) <= filters.salaryMax);
+				(!filters.salaryMin ||
+					(salaryMaxVal != null && !Number.isNaN(salaryMaxVal) && salaryMaxVal >= filters.salaryMin)) &&
+				(!filters.salaryMax ||
+					filters.salaryMax >= 300000 ||
+					(salaryMinVal != null && !Number.isNaN(salaryMinVal) && salaryMinVal <= filters.salaryMax));
 			const matchSkills =
 				filters.skills.length === 0 ||
 				filters.skills.some(
