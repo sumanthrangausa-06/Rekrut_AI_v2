@@ -29,7 +29,7 @@
  *       offered count.
  *
  * Read-only. Usage:
- *   DATABASE_URL=postgresql://... node scripts/audit-assessment-coverage.js
+ *   DATABASE_URL=postgresql://... node scripts/audit-assessment-coverage.js [--table=assessment_questions]
  */
 'use strict';
 
@@ -42,6 +42,29 @@ const BANDS = {
 };
 const FORMATS = ['mcq', 'short_answer', 'coding'];
 const FLOOR = 10; // §7 rule 2: smallest offered count
+
+// --table guard (fix round 1, review F4): this audit reads exactly one
+// bank table. A --table argument is accepted only when it names that
+// table; anything else exits with a clear error instead of ever reaching
+// SQL. The queries below name the table literally — no CLI value is
+// interpolated into SQL.
+const ALLOWED_TABLES = ['assessment_questions'];
+const DEFAULT_TABLE = 'assessment_questions';
+function resolveTableArg(argv) {
+	let table = DEFAULT_TABLE;
+	for (let i = 0; i < argv.length; i++) {
+		if (argv[i].startsWith('--table=')) table = argv[i].slice('--table='.length);
+		else if (argv[i] === '--table') table = argv[++i];
+	}
+	if (!ALLOWED_TABLES.includes(table)) {
+		console.error(
+			`audit-assessment-coverage: unsupported --table '${table}'. Allowed: ${ALLOWED_TABLES.join(', ')}`,
+		);
+		process.exit(2);
+	}
+	return table;
+}
+resolveTableArg(process.argv.slice(2));
 
 async function main() {
 	const topicsRes = await pool.query(`

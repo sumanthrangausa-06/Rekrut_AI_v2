@@ -38,7 +38,11 @@
 // Post-state assertion (268/270 precedent): verifies the new columns exist
 // with the expected type families, so a divergent pre-existing shape fails
 // LOUD inside migrate.js's per-file transaction instead of recording
-// success over the wrong shape.
+// success over the wrong shape. Fix round 1 (review F1): the assertion ALSO
+// verifies the CHECK vocabularies of the six CHECK-constrained columns —
+// ADD COLUMN IF NOT EXISTS silently accepts a pre-existing column whose
+// CHECK carries a divergent (or missing) vocabulary, and existence/type
+// alone cannot see that.
 //
 // down(): drops the added columns — a contraction, recorded per the
 // 274/278 convention; NOT part of this story's dev scope (design §6 step 5
@@ -210,6 +214,55 @@ module.exports = {
         ) s;
         IF bad IS NOT NULL THEN
           RAISE EXCEPTION '280_assessment_question_provenance post-state: missing/mistyped columns: %', bad;
+        END IF;
+      END
+      $$;
+    `);
+
+		// ── Post-state assertion, part 2 (fix round 1, review F1): CHECK ──
+		// vocabularies. For each CHECK-constrained column, collect the value
+		// literals of every CHECK constraint on the table whose definition
+		// references that column, and require the sorted set to EQUAL the
+		// expected vocabulary — a pre-existing column with a divergent,
+		// wider, narrower, or missing CHECK fails LOUD here and rolls the
+		// whole migration back.
+		await client.query(`
+      DO $$
+      DECLARE
+        spec RECORD;
+        actual TEXT;
+        bad TEXT := '';
+      BEGIN
+        FOR spec IN
+          SELECT * FROM (VALUES
+            ('assessment_questions', 'format',         'coding,mcq,short_answer'),
+            ('assessment_questions', 'mcq_subtype',    'concept,debugging,output_prediction,theory'),
+            ('assessment_questions', 'source',         'ai_live,ai_offline,curated,legacy,seed'),
+            ('assessment_questions', 'review_status',  'approved,pending,rejected'),
+            ('assessment_sessions',  'format',         'coding,mcq,mixed,short_answer'),
+            ('assessment_sessions',  'difficulty_band','easy,hard,medium')
+          ) AS v(tbl, col, expected)
+        LOOP
+          SELECT string_agg(lit, ',' ORDER BY lit) INTO actual FROM (
+            SELECT DISTINCT (m)[1] AS lit
+            FROM (
+              SELECT regexp_matches(pg_get_constraintdef(c.oid), '''([^'']+)''', 'g') AS m
+              FROM pg_constraint c
+              JOIN pg_class t ON t.oid = c.conrelid
+              JOIN pg_namespace n ON n.oid = t.relnamespace
+              WHERE c.contype = 'c'
+                AND n.nspname = 'public'
+                AND t.relname = spec.tbl
+                AND pg_get_constraintdef(c.oid) ~ ('\\m' || spec.col || '\\M')
+            ) d
+          ) s;
+          IF actual IS DISTINCT FROM spec.expected THEN
+            bad := bad || format(' %s.%s expected CHECK vocab [%s], found [%s];',
+              spec.tbl, spec.col, spec.expected, COALESCE(actual, 'none'));
+          END IF;
+        END LOOP;
+        IF bad <> '' THEN
+          RAISE EXCEPTION '280_assessment_question_provenance post-state: divergent CHECK vocabularies:%', bad;
         END IF;
       END
       $$;

@@ -36,6 +36,8 @@
 // EXPAND-ONLY: four new tables and their indexes; nothing existing is
 // touched. Every statement is IF NOT EXISTS / ON CONFLICT DO NOTHING, so
 // re-running up() is a no-op even outside migrate.js's _migrations guard.
+// A light post-state assertion at the end of up() (fix round 1, review
+// F7) verifies the four tables and the partial unique index exist.
 //
 // down(): drops the four tables — a contraction, recorded here per the
 // 274/278 convention; it is NOT part of this story's dev scope and any
@@ -185,6 +187,38 @@ module.exports = {
 		console.log(
 			`Migration 279: seeded ${topicsSeeded} default assessment_topics (16 expected on a fresh install)`,
 		);
+
+		// ── Post-state assertion (fix round 1, review F7; 268/270 ────────
+		// precedent, light form): the four catalogue tables and the §3.2
+		// partial unique index on legacy_skill_name must exist — CREATE
+		// ... IF NOT EXISTS over a divergent pre-existing shape must fail
+		// LOUD inside the transaction, not record success over it.
+		await client.query(`
+      DO $$
+      DECLARE
+        bad TEXT;
+      BEGIN
+        SELECT string_agg(missing, ', ') INTO bad FROM (
+          SELECT 'assessment_subjects' AS missing WHERE NOT EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name='assessment_subjects')
+          UNION ALL SELECT 'assessment_topics' WHERE NOT EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name='assessment_topics')
+          UNION ALL SELECT 'assessment_sets' WHERE NOT EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name='assessment_sets')
+          UNION ALL SELECT 'assessment_set_questions' WHERE NOT EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name='assessment_set_questions')
+          UNION ALL SELECT 'uq_assessment_topics_legacy_skill_name (partial unique index on assessment_topics.legacy_skill_name)' WHERE NOT EXISTS (
+            SELECT 1 FROM pg_index i
+            JOIN pg_class idx ON idx.oid = i.indexrelid
+            WHERE idx.relname = 'uq_assessment_topics_legacy_skill_name'
+              AND i.indisunique AND i.indpred IS NOT NULL)
+        ) s;
+        IF bad IS NOT NULL THEN
+          RAISE EXCEPTION '279_assessment_catalogue post-state: missing: %', bad;
+        END IF;
+      END
+      $$;
+    `);
 	},
 	down: async (client) => {
 		await client.query(`DROP TABLE IF EXISTS assessment_set_questions`);
