@@ -317,7 +317,11 @@ describe('POST /api/assessments/generate — optional config (#1655 C2b)', () =>
 		expect(mockAssessmentInserts[0][4]).toBe('medium');
 		expect(mockAssessmentInserts[0][5]).toBe(1);
 		const aiConfig = JSON.parse(mockAssessmentInserts[0][7]);
-		expect(Object.keys(aiConfig).sort()).toEqual(['difficultyLevel', 'generated_at', 'targetLevel']);
+		expect(Object.keys(aiConfig).sort()).toEqual([
+			'difficultyLevel',
+			'generated_at',
+			'targetLevel',
+		]);
 		expect(aiConfig.targetLevel).toBe('mid');
 		expect(aiConfig.difficultyLevel).toBe('medium');
 	});
@@ -423,7 +427,6 @@ describe('POST /api/assessments/generate — optional config (#1655 C2b)', () =>
 			mockDbCalls = [];
 			mockAssessmentInserts = [];
 			mockQuestionInserts = [];
-			// biome-ignore lint/performance/noAwaitInLoops: sequential assertions per body
 			const res = await request(app)
 				.post('/api/assessments/generate')
 				.set('x-test-user-id', '2')
@@ -436,4 +439,3 @@ describe('POST /api/assessments/generate — optional config (#1655 C2b)', () =>
 		}
 	});
 });
-
