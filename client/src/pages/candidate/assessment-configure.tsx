@@ -71,10 +71,6 @@ const BANDS = [
 
 const COUNTS = [10, 25, 50, 100];
 
-// Per-question budget the runner applies by default (assessment-take.tsx
-// falls back to 120s when a question carries no explicit limit).
-const SECONDS_PER_QUESTION = 120;
-
 type FormatValue = (typeof FORMATS)[number]['value'];
 type BandValue = (typeof BANDS)[number]['value'];
 
@@ -111,6 +107,7 @@ export function AssessmentConfigureFlow({
 	// for this configuration. Re-runs whenever the choice changes.
 	useEffect(() => {
 		let cancelled = false;
+		setFlight(null);
 		setFlightLoading(true);
 		setFlightError(null);
 		apiCall<PreFlight>(
@@ -134,7 +131,7 @@ export function AssessmentConfigureFlow({
 	}, [topic.id, format, band, count]);
 
 	const servable = flight?.servable ?? 0;
-	const canServeChosen = !!flight && servable >= count && servable > 0;
+	const canServeChosen = !flightLoading && !!flight && servable >= count && servable > 0;
 	const isShort = !!flight && servable > 0 && servable < count;
 	const isEmpty = !!flight && servable === 0;
 
@@ -217,10 +214,9 @@ export function AssessmentConfigureFlow({
 							, based on your answers. They never move into another band.
 						</li>
 						<li>
-							Expected time: up to about {Math.round((count * SECONDS_PER_QUESTION) / 60)}{' '}
-							minutes (up to {SECONDS_PER_QUESTION / 60} minutes per question). When a
-							question's time runs out, it is submitted with the answer you have chosen —
-							or recorded as unanswered — and the test moves on.
+							Each question has its own timer, shown on the question. When a question's
+							time runs out, it is submitted with the answer you have chosen — or recorded
+							as unanswered — and the test moves on.
 						</li>
 						<li>
 							This test runs in full-screen, and you can leave at any time with the Exit
