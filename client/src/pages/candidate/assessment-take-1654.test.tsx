@@ -133,6 +133,57 @@ describe('GAP-3 — exactly one instructions block', () => {
 	});
 });
 
+describe('#1689 — take-page AI disclosure gated on format + format labels match configure', () => {
+	const DISCLOSURE = /Short answers are scored by AI and reviewed by a human/;
+
+	function mockSnapshot(format: string) {
+		mockCurrent({
+			status: 'in_progress',
+			skillName: 'Python',
+			question: QUESTION,
+			format,
+			difficultyBand: 'medium',
+			currentDraft: null,
+			fullscreenExitsUsed: 0,
+		});
+	}
+
+	test('MCQ-only snapshot: no AI-scoring disclosure rendered', async () => {
+		mockSnapshot('mcq');
+		render(<AssessmentTakePage />);
+		expect(await screen.findByText(/Your configuration/)).toBeInTheDocument();
+		expect(screen.queryByText(DISCLOSURE)).not.toBeInTheDocument();
+	});
+
+	test('mixed snapshot: AI-scoring disclosure rendered', async () => {
+		mockSnapshot('mixed');
+		render(<AssessmentTakePage />);
+		expect(await screen.findByText(/Your configuration/)).toBeInTheDocument();
+		expect(screen.getByText(DISCLOSURE)).toBeInTheDocument();
+	});
+
+	test('short_answer snapshot: AI-scoring disclosure rendered', async () => {
+		mockSnapshot('short_answer');
+		render(<AssessmentTakePage />);
+		expect(await screen.findByText(/Your configuration/)).toBeInTheDocument();
+		expect(screen.getByText(DISCLOSURE)).toBeInTheDocument();
+	});
+
+	// Format labels must match assessment-configure.tsx FORMATS verbatim
+	// (spec §0.2 wording fixed in #1679).
+	test.each([
+		['mcq', 'Multiple choice'],
+		['mixed', 'Mixed — multiple choice and written answers'],
+		['short_answer', 'Written answers'],
+		['coding', 'Coding'],
+	])('format label for %s matches configure wording: %s', async (format, label) => {
+		mockSnapshot(format);
+		render(<AssessmentTakePage />);
+		expect(await screen.findByText(/Your configuration/)).toBeInTheDocument();
+		expect(screen.getByText(label)).toBeInTheDocument();
+	});
+});
+
 describe('GAP-4 — completion labels from response fields', () => {
 	test('partial: "X of Y answered", no pass/fail language, no Verified badge', async () => {
 		mockCurrent({
