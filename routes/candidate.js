@@ -5987,7 +5987,7 @@ async function mergeLinkedInProfile(userId, linkedinProfile) {
 		FROM candidate_profiles cp
 		WHERE cp.user_id = u.id AND u.id = $1
 			AND (u.avatar_url IS NULL OR TRIM(u.avatar_url) = '')
-			AND cp.photo_url IS NOT NULL
+			AND cp.photo_url IS NOT NULL AND TRIM(cp.photo_url) <> ''
 		`,
 		[userId],
 	);
