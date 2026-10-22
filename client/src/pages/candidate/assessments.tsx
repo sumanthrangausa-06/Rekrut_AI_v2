@@ -58,6 +58,10 @@ export function CandidateAssessmentsPage() {
 	const [assigned, setAssigned] = useState<AssignedAttempt[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [starting, setStarting] = useState<string | null>(null);
+	// #1606 (FR-A7): a failed start is shown inline with its reason and the
+	// honest next action — never a bare alert. When the server saved a
+	// resumable session, sessionId carries it and the action is Resume.
+	const [startError, setStartError] = useState<{ message: string; sessionId?: number } | null>(null);
 
 	const loadData = useCallback(async () => {
 		try {
@@ -82,11 +86,13 @@ export function CandidateAssessmentsPage() {
 
 	async function startAssessment(skill: SkillCatalog) {
 		setStarting(skill.catalog_name);
+		setStartError(null);
 		try {
 			const data = await apiCall<{ sessionId: number; skillName: string; question: unknown }>(
 				'/assessments/start',
 				{
 					method: 'POST',
+					timeoutMs: 30000,
 					body: {
 						skillName: skill.catalog_name,
 						category: skill.category,
@@ -103,8 +109,12 @@ export function CandidateAssessmentsPage() {
 				}),
 			);
 			navigate(`/candidate/assessments/${data.sessionId}/take`);
-		} catch (err: any) {
-			alert(err instanceof Error ? err.message : 'Failed to start assessment');
+		} catch (err) {
+			const apiErr = err as Error & { code?: string; sessionId?: number };
+			setStartError({
+				message: apiErr.message || 'Failed to start assessment. Please try again.',
+				sessionId: apiErr.sessionId,
+			});
 		} finally {
 			setStarting(null);
 		}
@@ -133,6 +143,21 @@ export function CandidateAssessmentsPage() {
 				<h1 className="font-heading text-2xl font-bold">Skill Assessments</h1>
 				<p className="text-muted-foreground">Verify your skills with AI-powered assessments</p>
 			</div>
+
+			{startError && (
+				<div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+					<span>{startError.message}</span>
+					{startError.sessionId && (
+						<Button
+							variant="outline"
+							className="min-h-[44px]"
+							onClick={() => navigate(`/candidate/assessments/${startError.sessionId}/take`)}
+						>
+							Resume attempt
+						</Button>
+					)}
+				</div>
+			)}
 
 			{/* Stats */}
 			<div className="grid gap-3 sm:grid-cols-3">
