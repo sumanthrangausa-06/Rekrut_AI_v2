@@ -290,7 +290,9 @@ Return JSON with:
 					details: `Visual tamper analysis failed: ${error.message}`,
 				},
 			],
-			confidence: 0,
+			// #1586: analysis never ran — confidence is unmeasured (null),
+			// never 0, which would assert "no tamper, 0 confidence".
+			confidence: null,
 			reasoning: '',
 		};
 	}
@@ -868,7 +870,7 @@ async function verifyDocument(documentId, userId) {
 			fraudRisk = 'high';
 		} else if (
 			analysisUnavailable ||
-			authenticityResult.authenticity_score < 70 ||
+			(!analysisUnavailable && authenticityResult.authenticity_score < 70) ||
 			allFraudFlags.length > 3 ||
 			hasMediumSeverityTamper
 		) {
@@ -1051,6 +1053,7 @@ async function applyDocumentScoresToOmniScore(userId) {
 			`
       SELECT * FROM document_score_impacts
       WHERE user_id = $1 AND applied_to_omniscore = false AND verification_status = 'verified'
+        AND authenticity_score IS NOT NULL
     `,
 			[userId],
 		);
@@ -1081,6 +1084,7 @@ async function applyDocumentScoresToOmniScore(userId) {
       UPDATE document_score_impacts
       SET applied_to_omniscore = true, applied_at = NOW()
       WHERE user_id = $1 AND applied_to_omniscore = false AND verification_status = 'verified'
+        AND authenticity_score IS NOT NULL
     `,
 			[userId],
 		);
@@ -1168,7 +1172,7 @@ async function resolveDocumentReview(documentId, reviewerId, decision, notes) {
 				`
 				UPDATE document_score_impacts
 				SET verification_status = 'verified'
-				WHERE document_id = $1
+				WHERE document_id = $1 AND authenticity_score IS NOT NULL
 				`,
 				[documentId],
 			);
