@@ -34,6 +34,15 @@
  *   JT_BASE=http://127.0.0.1:3213 JT_DB=postgresql://postgres@127.0.0.1:55439/phaseb_green \
  *   JT_OUT=./phase-b-evidence.json node assessment-phase-b.js
  * Exit code: 1 if any step FAILs, else 0.
+ *
+ * Fix round (PR #1641 review BLOCK + Quinn gate): JT-B9/JT-B10 legs now
+ * terminate each sub-leg's attempt before the next sub-leg starts (the
+ * shared candidate's /start resumes any in_progress attempt by design —
+ * #343 semantics, unchanged). Review findings are asserted inside the
+ * existing legs, step count unchanged: F1 draft-absence in the recruiter
+ * results payload (JT-B8), F3 draft cleared by the completion claim
+ * (JT-B3), F4 zero-answered Submit & Exit visible-but-unscored (JT-B8),
+ * F6 submit-vs-submit loser gets 409 ALREADY_FINISHED (JT-B7).
  */
 const fs = require('fs');
 const { Client } = require('pg');
@@ -193,6 +202,10 @@ async function exitSkill(token, sid, body) {
 			const r = await answerAndAdvance(c.token, sid, q.id, p === 'correct' ? await correctAnswer(q.id) : 'Wrong A');
 			q = r.next;
 		}
+		// F3 (fix round): park a draft on the outstanding question first —
+		// the completion claim must clear it, like the abandon/job claims do.
+		const draftSave = await exitSkill(c.token, sid, { action: 'save', draft: { questionId: q.id, answer: 'RigCorrect' } });
+		const rowWithDraft = await sessionRow(sid);
 		const sub = await exitSkill(c.token, sid, { action: 'submit' });
 		const row = await sessionRow(sid);
 		const sa = await db.query('SELECT score, max_score, passed, behavioral_flags FROM skill_assessments WHERE session_id=$1', [sid]);
@@ -213,8 +226,9 @@ async function exitSkill(token, sid, body) {
 			&& flags?.partial === true && flags?.answers_given === 3 && flags?.total_questions === 10
 			&& skill.rows[0]?.is_verified !== true && comp.rows[0].n === 0
 			&& cur.json.status === 'completed' && cur.json.partial === true && cur.json.answersGiven === 3 && cur.json.totalQuestions === 10
-			&& resumeAttempt.status === 409;
-		rec('JT-B3_submit_and_exit_partial_scoring', ok ? 'PASS' : 'FAIL', { submitStatus: sub.status, submitBody: sub.json, sessionStatus: row.status, storedScore: sa.rows[0]?.score, expectedScore, earned, maxpts, passed: sa.rows[0]?.passed, flags, isVerified: skill.rows[0]?.is_verified, omniComponents: comp.rows[0].n, currentPartial: cur.json.partial, currentAnswers: cur.json.answersGiven, resumeAfterSubmitStatus: resumeAttempt.status });
+			&& resumeAttempt.status === 409
+			&& draftSave.status === 200 && !!rowWithDraft.current_draft && row.current_draft === null;
+		rec('JT-B3_submit_and_exit_partial_scoring', ok ? 'PASS' : 'FAIL', { submitStatus: sub.status, submitBody: sub.json, sessionStatus: row.status, storedScore: sa.rows[0]?.score, expectedScore, earned, maxpts, passed: sa.rows[0]?.passed, flags, isVerified: skill.rows[0]?.is_verified, omniComponents: comp.rows[0].n, currentPartial: cur.json.partial, currentAnswers: cur.json.answersGiven, resumeAfterSubmitStatus: resumeAttempt.status, draftSaveStatus: draftSave.status, draftParkedBeforeSubmit: !!rowWithDraft.current_draft, draftClearedAfterSubmit: row.current_draft === null });
 	} catch (e) { rec('JT-B3_submit_and_exit_partial_scoring', 'FAIL', { error: e.message }); }
 
 	// ---------- JT-B4: Exit Exam — "Exited — not scored", no number anywhere, fresh attempt starts (no lockout) ----------
@@ -278,8 +292,24 @@ async function exitSkill(token, sid, body) {
 		const sa = await db.query('SELECT COUNT(*)::int AS n FROM skill_assessments WHERE session_id=$1', [sid]);
 		const afterAnswer = await http('POST', '/api/assessments/answer', { sessionId: sid, questionId: start.json.question.id, answer: 'RigCorrect', timeTaken: 30 }, c.token);
 		const consistent = (row.status === 'completed' && sa.rows[0].n === 1) || (row.status === 'abandoned' && sa.rows[0].n === 0);
-		const ok = winners.length === 1 && losers.length === 1 && consistent && afterAnswer.status === 400 && afterAnswer.json.code === 'ALREADY_FINISHED';
-		rec('JT-B7_exit_race_exactly_one_terminal', ok ? 'PASS' : 'FAIL', { submitStatus: rSubmit.status, abandonStatus: rAbandon.status, winners: winners.length, losers: losers.length, sessionStatus: row.status, skillAssessmentRows: sa.rows[0].n, answerAfterTerminalStatus: afterAnswer.status, answerAfterTerminalCode: afterAnswer.json.code });
+		// F6 (fix round): submit-vs-submit race — exactly one winner (200);
+		// the loser gets 409 ALREADY_FINISHED per design §4.3, NOT the
+		// winner's 200 completion. (Python: this candidate has no completed
+		// Python attempt, so the retake lockout cannot block the start.)
+		const start2 = await http('POST', '/api/assessments/start', { skillName: 'Python', category: 'technical' }, c.token);
+		const sid2 = start2.json.sessionId;
+		await answerAndAdvance(c.token, sid2, start2.json.question.id, await correctAnswer(start2.json.question.id));
+		const [s1, s2] = await Promise.all([
+			exitSkill(c.token, sid2, { action: 'submit' }),
+			exitSkill(c.token, sid2, { action: 'submit' }),
+		]);
+		const sWinners = [s1, s2].filter((r) => r.status === 200);
+		const sLosers = [s1, s2].filter((r) => r.status === 409 && r.json.code === 'ALREADY_FINISHED');
+		const row2 = await sessionRow(sid2);
+		const sa2 = await db.query('SELECT COUNT(*)::int AS n FROM skill_assessments WHERE session_id=$1', [sid2]);
+		const ok = winners.length === 1 && losers.length === 1 && consistent && afterAnswer.status === 400 && afterAnswer.json.code === 'ALREADY_FINISHED'
+			&& start2.status === 200 && sWinners.length === 1 && sLosers.length === 1 && row2.status === 'completed' && sa2.rows[0].n === 1;
+		rec('JT-B7_exit_race_exactly_one_terminal', ok ? 'PASS' : 'FAIL', { submitStatus: rSubmit.status, abandonStatus: rAbandon.status, winners: winners.length, losers: losers.length, sessionStatus: row.status, skillAssessmentRows: sa.rows[0].n, answerAfterTerminalStatus: afterAnswer.status, answerAfterTerminalCode: afterAnswer.json.code, submitRaceStatuses: [s1.status, s2.status], submitRaceSessionStatus: row2.status, submitRaceRows: sa2.rows[0].n });
 	} catch (e) { rec('JT-B7_exit_race_exactly_one_terminal', 'FAIL', { error: e.message }); }
 
 	// ---------- JOB RUNNER setup (JT-B8/B9/B10): recruiter + published assessment + assigned attempts ----------
@@ -320,11 +350,11 @@ async function exitSkill(token, sid, body) {
 	}
 	async function attemptRow(aid) {
 		try {
-			const r = await db.query('SELECT status, composite_score, current_draft, completion_flags, integrity_events, jsonb_array_length(answers) AS na FROM job_assessment_attempts WHERE id=$1', [aid]);
+			const r = await db.query('SELECT status, composite_score, scored_at, current_draft, completion_flags, integrity_events, jsonb_array_length(answers) AS na FROM job_assessment_attempts WHERE id=$1', [aid]);
 			return r.rows[0];
 		} catch {
 			// Pre-migration-276 schema (the RED baseline).
-			const r = await db.query(`SELECT status, composite_score, NULL AS current_draft, '{}'::jsonb AS completion_flags, '[]'::jsonb AS integrity_events, jsonb_array_length(answers) AS na FROM job_assessment_attempts WHERE id=$1`, [aid]);
+			const r = await db.query(`SELECT status, composite_score, scored_at, NULL AS current_draft, '{}'::jsonb AS completion_flags, '[]'::jsonb AS integrity_events, jsonb_array_length(answers) AS na FROM job_assessment_attempts WHERE id=$1`, [aid]);
 			return r.rows[0];
 		}
 	}
@@ -353,14 +383,48 @@ async function exitSkill(token, sid, body) {
 		await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/start`, {}, c.token);
 		const ab = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/exit`, { attemptId: aid2, action: 'abandon' }, c.token);
 		const rowAb = await attemptRow(aid2);
+		// F5 regression guard: a Save & Exit that arrives after the attempt
+		// terminated must be refused (409), never a false 200.
+		const saveLate = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/exit`, { attemptId: aid, action: 'save', draft: { questionId: jobCtx.qids[1], answer: 'RigCorrect' } }, c.token);
+		// F1 (fix round): a saved draft must NEVER reach the recruiter
+		// results payload — neither as a field nor as a leaked value. The
+		// marker answer appears nowhere else in this attempt's data.
+		const aid3 = await jobAttempt(c.id);
+		await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/start`, {}, c.token);
+		const markerSave = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/exit`, { attemptId: aid3, action: 'save', draft: { questionId: jobCtx.qids[0], answer: 'DraftMarkerF1' } }, c.token);
+		const rowMarker = await attemptRow(aid3);
+		const recViewF1 = await http('GET', `/api/assessments/job-assessment/${jobCtx.assessmentId}/results?attemptId=${aid3}`, null, jobCtx.recruiter.token);
+		const attF1 = (recViewF1.json.attempts || [])[0];
+		const draftLeaked = !!attF1 && ('current_draft' in attF1 || JSON.stringify(recViewF1.json).includes('DraftMarkerF1'));
+		const ab3 = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/exit`, { attemptId: aid3, action: 'abandon' }, c.token);
+		// F4 (fix round): Submit & Exit with ZERO answers — the attempt is
+		// completed but there is nothing to score: no number anywhere, the
+		// candidate score view says so terminally (unscored, so polling
+		// stops), and the recruiter payload still carries the attempt.
+		const aid4 = await jobAttempt(c.id);
+		await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/start`, {}, c.token);
+		const sub0 = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/exit`, { attemptId: aid4, action: 'submit' }, c.token);
+		await new Promise((r) => setTimeout(r, 2000));
+		const row0 = await attemptRow(aid4);
+		const scores0 = await db.query('SELECT scores FROM job_assessment_attempts WHERE id=$1', [aid4]);
+		const scores0Json = asJson(scores0.rows[0]?.scores) || {};
+		const scoreView0 = await http('GET', `/api/assessments/attempt/${aid4}/score`, null, c.token);
+		const recView0 = await http('GET', `/api/assessments/job-assessment/${jobCtx.assessmentId}/results?attemptId=${aid4}`, null, jobCtx.recruiter.token);
+		const att0 = (recView0.json.attempts || [])[0];
 		const ok = st.json.attemptId === aid && a1.status === 200
 			&& save.status === 200 && rowSave.status === 'in_progress' && rowSave.current_draft?.answer === 'RigCorrect'
 			&& resume.json.attemptId === aid && draftBack?.answer === 'RigCorrect' && resume.json.resumed === true
 			&& sub.status === 200 && sub.json.status === 'completed' && sub2.status === 409
 			&& rowSub.status === 'completed' && rowSub.composite_score !== null && flagsSub.partial === true && Number(flagsSub.answers_given) === 1
 			&& scoreView.json.partial === true && scoreView.json.result === null
-			&& ab.status === 200 && ab.json.status === 'abandoned' && rowAb.status === 'abandoned' && rowAb.composite_score === null;
-		rec('JT-B8_job_runner_four_outcomes', ok ? 'PASS' : 'FAIL', { startAttempt: st.json.attemptId, answerStatus: a1.status, saveStatus: save.status, draftStored: !!rowSave.current_draft, resumeDraft: draftBack ?? null, submitStatus: sub.status, submitRepeatStatus: sub2.status, submittedScore: rowSub.composite_score, submitFlags: flagsSub, scoreView: scoreView.json, abandonStatus: ab.status, abandonedScore: rowAb.composite_score });
+			&& ab.status === 200 && ab.json.status === 'abandoned' && rowAb.status === 'abandoned' && rowAb.composite_score === null
+			&& saveLate.status === 409
+			&& markerSave.status === 200 && rowMarker.current_draft?.answer === 'DraftMarkerF1'
+			&& recViewF1.status === 200 && !!attF1 && !draftLeaked && ab3.status === 200
+			&& sub0.status === 200 && sub0.json.partial === true && row0.status === 'completed' && row0.composite_score === null && row0.scored_at == null
+			&& scores0Json.unscored === true && scoreView0.json.unscored === true && scoreView0.json.partial === true && scoreView0.json.answersGiven === 0 && scoreView0.json.result === null
+			&& !!att0 && att0.status === 'completed' && att0.composite_score === null && !('current_draft' in att0);
+		rec('JT-B8_job_runner_four_outcomes', ok ? 'PASS' : 'FAIL', { startAttempt: st.json.attemptId, answerStatus: a1.status, saveStatus: save.status, draftStored: !!rowSave.current_draft, resumeDraft: draftBack ?? null, submitStatus: sub.status, submitRepeatStatus: sub2.status, submittedScore: rowSub.composite_score, submitFlags: flagsSub, scoreView: scoreView.json, abandonStatus: ab.status, abandonedScore: rowAb.composite_score, saveAfterTerminalStatus: saveLate.status, f1: { markerSaveStatus: markerSave.status, draftInDb: !!rowMarker.current_draft, recruiterViewStatus: recViewF1.status, draftLeaked }, f4: { submit0Status: sub0.status, submit0Partial: sub0.json.partial, row0Status: row0.status, row0Score: row0.composite_score, row0ScoredAt: row0.scored_at ?? null, scoresUnscored: scores0Json.unscored ?? null, scoreView0: scoreView0.json, recruiterAtt0Status: att0?.status ?? null } });
 	} catch (e) { rec('JT-B8_job_runner_four_outcomes', 'FAIL', { error: e.message }); }
 
 	// ---------- JT-B9: job runner — events RECORDED (not just acknowledged); pause credit on the whole-exam timer ----------
@@ -373,22 +437,30 @@ async function exitSkill(token, sid, body) {
 		const events = asJson(rowEv.integrity_events) || [];
 		const recorded = events.some((e) => e.type === 'fullscreen_exit_first');
 		const bogus = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/event`, { attemptId: aid, eventType: 'not_a_real_event', eventData: {} }, c.token);
+		// Suite construction (Quinn gate fix): terminate this leg's attempt
+		// before the next sub-leg — /start resumes ANY in_progress attempt
+		// for this candidate+assessment (#343 semantics), so leaving it open
+		// would silently hijack every later sub-leg's /start.
+		const cleanup1 = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/exit`, { attemptId: aid, action: 'abandon' }, c.token);
 		// Pause credit: attempt started 48 min ago (past the 45-min limit), but a
 		// pause spanning that window is credited (capped at 300s) → answer allowed.
 		const aid2 = await jobAttempt(c.id);
-		await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/start`, {}, c.token);
+		const stPause = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/start`, {}, c.token);
 		await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/event`, { attemptId: aid2, eventType: 'timer_pause_start', eventData: {} }, c.token);
 		await db.query(`UPDATE job_assessment_attempts SET started_at = NOW() - INTERVAL '48 minutes' WHERE id=$1`, [aid2]);
 		await db.query(`UPDATE job_assessment_attempts SET integrity_events = COALESCE((SELECT jsonb_agg(CASE WHEN elem->>'type'='timer_pause_start' THEN jsonb_set(elem, '{timestamp}', to_jsonb((NOW() - INTERVAL '48 minutes')::text)) ELSE elem END) FROM jsonb_array_elements(integrity_events) elem), integrity_events) WHERE id=$1`, [aid2]);
 		await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/event`, { attemptId: aid2, eventType: 'timer_pause_end', eventData: {} }, c.token);
 		const credited = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/answer`, { attemptId: aid2, questionId: jobCtx.qids[0], answer: 'RigCorrect', timeTaken: 30 }, c.token);
+		const cleanup2 = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/exit`, { attemptId: aid2, action: 'abandon' }, c.token);
 		// Control: same age, NO pause → the elapsed guard still refuses.
 		const aid3 = await jobAttempt(c.id);
-		await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/start`, {}, c.token);
+		const stControl = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/start`, {}, c.token);
 		await db.query(`UPDATE job_assessment_attempts SET started_at = NOW() - INTERVAL '48 minutes' WHERE id=$1`, [aid3]);
 		const control = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/answer`, { attemptId: aid3, questionId: jobCtx.qids[0], answer: 'RigCorrect', timeTaken: 30 }, c.token);
-		const ok = ev1.status === 200 && recorded && bogus.status === 400 && credited.status === 200 && control.status === 410;
-		rec('JT-B9_job_events_recorded_and_pause_credit', ok ? 'PASS' : 'FAIL', { eventStatus: ev1.status, eventRecorded: recorded, recordedTypes: events.map((e) => e.type), bogusStatus: bogus.status, creditedAnswerStatus: credited.status, creditedError: credited.json.error || credited.json.code, controlStatus: control.status, controlCode: control.json.code });
+		const cleanup3 = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/exit`, { attemptId: aid3, action: 'abandon' }, c.token);
+		const ok = ev1.status === 200 && recorded && bogus.status === 400 && credited.status === 200 && control.status === 410
+			&& cleanup1.status === 200 && stPause.json.attemptId === aid2 && cleanup2.status === 200 && stControl.json.attemptId === aid3 && cleanup3.status === 200;
+		rec('JT-B9_job_events_recorded_and_pause_credit', ok ? 'PASS' : 'FAIL', { eventStatus: ev1.status, eventRecorded: recorded, recordedTypes: events.map((e) => e.type), bogusStatus: bogus.status, creditedAnswerStatus: credited.status, creditedError: credited.json.error || credited.json.code, controlStatus: control.status, controlCode: control.json.code, cleanup1Status: cleanup1.status, pauseStartAttempt: stPause.json.attemptId, expectedPauseAttempt: aid2, cleanup2Status: cleanup2.status, controlStartAttempt: stControl.json.attemptId, expectedControlAttempt: aid3, cleanup3Status: cleanup3.status });
 	} catch (e) { rec('JT-B9_job_events_recorded_and_pause_credit', 'FAIL', { error: e.message }); }
 
 	// ---------- JT-B10: recruiter view of an abandoned assigned attempt ----------
@@ -399,8 +471,8 @@ async function exitSkill(token, sid, body) {
 		await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/exit`, { attemptId: aid, action: 'abandon' }, c.token);
 		const view = await http('GET', `/api/assessments/job-assessment/${jobCtx.assessmentId}/results?attemptId=${aid}`, null, jobCtx.recruiter.token);
 		const att = (view.json.attempts || [])[0];
-		const ok = !!att && att.status === 'abandoned' && (att.composite_score === null || att.composite_score === undefined) && att.scored_at === null;
-		rec('JT-B10_recruiter_sees_exited_not_scored', ok ? 'PASS' : 'FAIL', { viewStatus: view.status, attemptStatus: att?.status, compositeScore: att?.composite_score ?? null, scoredAt: att?.scored_at ?? null });
+		const ok = !!att && att.status === 'abandoned' && (att.composite_score === null || att.composite_score === undefined) && att.scored_at === null && !('current_draft' in att);
+		rec('JT-B10_recruiter_sees_exited_not_scored', ok ? 'PASS' : 'FAIL', { viewStatus: view.status, attemptStatus: att?.status, compositeScore: att?.composite_score ?? null, scoredAt: att?.scored_at ?? null, draftFieldPresent: !!att && 'current_draft' in att });
 	} catch (e) { rec('JT-B10_recruiter_sees_exited_not_scored', 'FAIL', { error: e.message }); }
 
 	const fails = steps.filter((s) => s.verdict === 'FAIL').length;

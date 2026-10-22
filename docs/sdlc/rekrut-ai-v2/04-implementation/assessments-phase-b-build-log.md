@@ -152,6 +152,31 @@ by the client review), JT-B7, JT-B8, JT-B9, JT-B10.
 - GREEN + per-leg DB read-backs: see the PR description and the checkpoint
   comments on #1604/#1605 for the final evidence JSON summary.
 
+## Fix round — independent review BLOCK (PR #1641 comment 6336827674) + Quinn gate (comment 6337072055)
+
+**Persona:** Nova (fix round), responding to Lead's independent review
+(F1–F6) and Quinn's PASS-except-blocked gate (suite legs JT-B9/JT-B10
+mis-constructed). Every gate re-applied: red-first per finding, full
+suite re-run on a fresh-install rig (empty DB built only by
+`node migrate.js`, real HTTP, DB read-backs).
+
+| Finding | Fix | Evidence |
+|---|---|---|
+| **F1 HIGH — draft recruiter-visible** via `GET /job-assessment/:id/results` (`ja.*`) | Explicit column list naming every `job_assessment_attempts` column **except `current_draft`** (verified against the live schema); the manual `POST /job-assessment/:id/score` response strips `current_draft` too (same leak, second surface). JT assertions added: JT-B8 saves a unique marker draft and asserts the recruiter payload contains neither the `current_draft` field nor the marker value; JT-B10 asserts the field's absence. | RED (unfixed product, fixed suite): JT-B8 `draftLeaked:true`, JT-B10 `draftFieldPresent:true`. GREEN: see below. |
+| **F2 HIGH — full-screen exits counted while the Exit dialog is open** | `useFullscreenPolicy` gains a `modalOpen` input (a11y BLOCK 1 applied to the Exit dialog, both runners pass `exitOpen`); an exit arriving while it is set is logged `fullscreen_exit_repeat` and never counted, never auto-submits. | Client state machine — covered by code review + `tsc` (no new errors in the touched files); the API/event side is unchanged. |
+| **F3 MED — skill completion claim kept the draft** | `completeAssessment`'s claim now sets `current_draft = NULL`, matching the abandon and job-runner claims. JT-B3 parks a draft before Submit & Exit and asserts it is cleared. | RED: JT-B3 `draftParkedBeforeSubmit:true, draftClearedAfterSubmit:false`. GREEN: see below. |
+| **F4 MED — 0-answered job Submit & Exit vanished; candidate poll burned forever** | Terminal unscored semantics, no fabricated score: `scoreAttempt`'s zero-answer branch records `scores.unscored:true` (composite/`scored_at` stay NULL) for completed partial attempts; `GET /attempt/:id/score` returns `unscored:true` for that state and `pollScore` stops on it; the recruiter page lists completed-unscored attempts beside the exited ones as "Submitted with no answers — not scored". JT-B8 asserts the whole chain. | RED: JT-B8 `scoresUnscored:null`, score view without `unscored`. GREEN: see below. |
+| **F5 MED — job exit claims guarded by status only; snapshot outside the claim** | The job exit endpoint now runs ONE transaction: the attempt row is locked `FOR UPDATE` with the ownership predicate, due-date/answers/total are read from the locked row, and save/abandon/submit claims all carry `candidate_id` in their `WHERE` with rowcount checks. The skill-side save is the same shape (checked claim in its own transaction; `exit_save` event written only on a won claim; a lost race answers 409). | Structural fix (the race window is closed by construction); JT-B8 keeps a save-after-terminal 409 regression guard; full-suite GREEN is the regression evidence. |
+| **F6 LOW — submit-vs-submit loser got 200; ExitDialog countdown side effects in an updater** | The skill exit endpoint returns 409 `ALREADY_FINISHED` when the completion claim reports `alreadyCompleted` (side effects remain exactly-once — `completeAssessmentTx` already skips them). JT-B7 gains a concurrent submit-vs-submit race asserting one 200 + one 409 + one result row. The countdown decision moved out of the `setSecondsLeft` updater: the interval reads a ref, clears itself and calls `onContinue` outside any updater, with a fired-guard. | RED: JT-B7 `submitRaceStatuses:[200,200]`. GREEN: see below. |
+| **Quinn gate — JT-B9/JT-B10 legs mis-constructed** | Suite-only fix, `/start` semantics untouched (#343 resume-in-progress preserved): each B9 sub-leg abandons its attempt before the next sub-leg starts (and start-adoption is asserted per sub-leg); B10 then runs against a candidate with no live attempt. | RED-run JT-B9 **PASS** on the *unfixed* product (proving the legs, not the product, were wrong); full suite re-run below. |
+
+- RED baseline for this round (fixed suite vs unfixed product @ d71df145,
+  fresh-install rig): **6/10** — JT-B3 (F3), JT-B7 (F6), JT-B8 (F1+F4),
+  JT-B10 (F1) fail on exactly the new assertions; JT-B9 passes.
+- GREEN: full suite re-run on the fixed code, fresh-install rig —
+  **10/10 PASS** (evidence `phase-b-evidence-green.json`, per-step
+  read-backs in the PR checkpoint comment).
+
 ## Out of scope / follow-ups
 
 - Conversational mode (job runner): the Exit dialog and its four outcomes

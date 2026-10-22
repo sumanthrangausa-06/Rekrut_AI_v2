@@ -265,6 +265,11 @@ export function RecruiterJobAssessmentPage() {
 	// are excluded from the scored results above and shown separately with
 	// an honest label: no zero, no fail, no score.
 	const exitedResults = results.filter((r) => r.status === 'abandoned');
+	// Fix round F4: a Submit & Exit with ZERO answers completes the attempt
+	// but there is nothing to score — scored_at stays NULL, so without this
+	// bucket the attempt vanished from every recruiter list. It is shown
+	// with the exited attempts, honestly labelled: not scored, no number.
+	const unscoredResults = results.filter((r) => r.status === 'completed' && !r.scored_at);
 
 	return (
 		<div className="space-y-5">
@@ -500,7 +505,7 @@ export function RecruiterJobAssessmentPage() {
 			{/* Results Tab */}
 			{tab === 'results' && (
 				<div className="space-y-3">
-					{exitedResults.length > 0 && (
+					{(exitedResults.length > 0 || unscoredResults.length > 0) && (
 						<Card>
 							<CardContent className="pt-4 space-y-2">
 								<p className="font-medium text-sm">Exited attempts</p>
@@ -511,6 +516,15 @@ export function RecruiterJobAssessmentPage() {
 											<span className="text-muted-foreground">{r.candidate_email}</span>
 										</span>
 										<Badge variant="secondary">Candidate exited — not scored</Badge>
+									</div>
+								))}
+								{unscoredResults.map((r) => (
+									<div key={r.id} className="flex items-center justify-between text-sm">
+										<span>
+											{r.candidate_name || 'Unknown'}{' '}
+											<span className="text-muted-foreground">{r.candidate_email}</span>
+										</span>
+										<Badge variant="secondary">Submitted with no answers — not scored</Badge>
 									</div>
 								))}
 							</CardContent>

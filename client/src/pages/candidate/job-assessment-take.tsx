@@ -207,6 +207,7 @@ export function JobAssessmentTakePage() {
 						const s = await apiCall<{
 							composite_score: number | null;
 							scored: boolean;
+							unscored?: boolean;
 							result: 'pass' | 'fail' | null;
 							partial?: boolean;
 							answersGiven?: number | null;
@@ -219,6 +220,15 @@ export function JobAssessmentTakePage() {
 							totalQuestions: s.totalQuestions ?? null,
 							autoSubmittedFullscreen: s.autoSubmittedFullscreen === true,
 						});
+						if (s.unscored) {
+							// Terminal and never to be scored (fix round F4:
+							// e.g. Submit & Exit with zero answers) — polling
+							// would burn every retry for a score that can
+							// never exist. The view explains the no-score
+							// state from the partial counts above.
+							setScoring(false);
+							return;
+						}
 						if (s.scored && s.composite_score != null) {
 							setFinalScore(s.composite_score);
 							setFinalResult(s.result);
@@ -355,6 +365,7 @@ export function JobAssessmentTakePage() {
 
 	const fs = useFullscreenPolicy({
 		log: logEvent,
+		modalOpen: exitOpen,
 		onSecondExit: () => {
 			void (async () => {
 				const ok = await runExit('submit', 'fullscreen_second_exit');

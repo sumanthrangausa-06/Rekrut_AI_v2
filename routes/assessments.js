@@ -286,10 +286,20 @@ router.get('/attempt/:attemptId/score', authMiddleware, async (req, res) => {
 		const sPartial = sFlags.partial === true;
 		const passed =
 			row.composite_score != null && row.composite_score >= (row.passing_score ?? 70);
+		// Fix round F4: a completed partial attempt with zero answers is
+		// terminal and will never be scored (scoreAttempt records the
+		// unscored state and returns) — say so explicitly so the
+		// candidate's pollScore stops instead of burning every retry.
+		const unscored =
+			row.status === 'completed' &&
+			!row.scored_at &&
+			sPartial &&
+			(sFlags.answers_given ?? null) === 0;
 		res.json({
 			composite_score: row.composite_score,
 			status: row.status,
 			scored: !!row.scored_at,
+			unscored,
 			// Phase B: a partial submission is neither a pass nor a fail —
 			// result stays null and the partial label carries the counts.
 			result: sPartial ? null : row.composite_score != null ? (passed ? 'pass' : 'fail') : null,
@@ -825,15 +835,40 @@ router.post('/session/:sessionId/exit', authMiddleware, async (req, res) => {
 				}
 				storedDraft = { questionId: qid, answer: draft.answer, savedAt: new Date().toISOString() };
 			}
-			await pool.query('UPDATE assessment_sessions SET current_draft = $1 WHERE id = $2 AND status = $3', [
-				storedDraft ? JSON.stringify(storedDraft) : null,
-				sessionId,
-				'in_progress',
-			]);
-			await pool.query(
-				`INSERT INTO assessment_events (session_id, event_type, event_data) VALUES ($1, 'exit_save', $2)`,
-				[sessionId, JSON.stringify({ answersGiven })],
-			);
+			// Fix round F5: the draft write is a CLAIM, not a blind write —
+			// ownership + status are in the UPDATE itself, its rowcount is
+			// checked, and the exit_save event is written in the SAME
+			// transaction only when the claim won. A save that loses a race
+			// to a terminal claim gets 409, never a false 200/event.
+			const saveClient = await pool.connect();
+			try {
+				await saveClient.query('BEGIN');
+				const claim = await saveClient.query(
+					'UPDATE assessment_sessions SET current_draft = $1 WHERE id = $2 AND user_id = $3 AND status = $4',
+					[storedDraft ? JSON.stringify(storedDraft) : null, sessionId, userId, 'in_progress'],
+				);
+				if (claim.rowCount === 0) {
+					await saveClient.query('ROLLBACK');
+					const now = await pool.query('SELECT status FROM assessment_sessions WHERE id = $1', [
+						sessionId,
+					]);
+					return res.status(409).json({
+						error: 'This attempt is already finished',
+						code: 'ALREADY_FINISHED',
+						status: now.rows[0]?.status,
+					});
+				}
+				await saveClient.query(
+					`INSERT INTO assessment_events (session_id, event_type, event_data) VALUES ($1, 'exit_save', $2)`,
+					[sessionId, JSON.stringify({ answersGiven })],
+				);
+				await saveClient.query('COMMIT');
+			} catch (saveErr) {
+				await saveClient.query('ROLLBACK').catch(() => {});
+				throw saveErr;
+			} finally {
+				saveClient.release();
+			}
 			return res.json({ status: 'in_progress', answersGiven, totalQuestions: TOTAL_QUESTIONS });
 		}
 
@@ -850,6 +885,18 @@ router.post('/session/:sessionId/exit', authMiddleware, async (req, res) => {
 					error: 'This attempt is already finished',
 					code: 'ALREADY_FINISHED',
 					status: now.rows[0]?.status,
+				});
+			}
+			if (completion.alreadyCompleted) {
+				// Fix round F6: a racing Submit & Exit already completed
+				// this attempt — the loser gets the documented 409
+				// ALREADY_FINISHED (design §4.3), not the winner's 200.
+				// Exactly-once still holds: completeAssessmentTx skipped
+				// every side effect for the alreadyCompleted claim.
+				return res.status(409).json({
+					error: 'This attempt is already finished',
+					code: 'ALREADY_FINISHED',
+					status: 'completed',
 				});
 			}
 			await pool.query(
@@ -1499,7 +1546,7 @@ function pauseCreditSeconds(events, nowMs) {
 async function completeAssessment(client, sessionId, userId, opts = {}) {
 	const claim = await client.query(
 		`UPDATE assessment_sessions
-		 SET status = 'completed', completed_at = NOW()
+		 SET status = 'completed', completed_at = NOW(), current_draft = NULL
 		 WHERE id = $1 AND status = 'in_progress'
 		 RETURNING *`,
 		[sessionId],
@@ -3100,7 +3147,34 @@ async function scoreAttempt(attemptId, assessmentId) {
 		const isPartialAttempt = attemptFlags.partial === true;
 
 		const answers = typeof att.answers === 'string' ? JSON.parse(att.answers) : att.answers || [];
-		if (answers.length === 0) return;
+		if (answers.length === 0) {
+			// Fix round F4: a completed PARTIAL attempt with zero answers
+			// has nothing to score — but it must not vanish. Record the
+			// terminal unscored state in `scores` (composite stays NULL,
+			// scored_at stays NULL: no score was ever produced, and no
+			// surface may render one). The candidate score view derives
+			// `unscored` from this state and stops polling; the recruiter
+			// lists show the attempt as submitted-with-no-answers.
+			if (att.status === 'completed' && isPartialAttempt) {
+				await pool.query(
+					`UPDATE job_assessment_attempts SET scores = $1 WHERE id = $2 AND scored_at IS NULL`,
+					[
+						JSON.stringify({
+							earnedPoints: 0,
+							totalPoints: 0,
+							compositeScore: null,
+							partial: true,
+							answers_given: 0,
+							total_questions: attemptFlags.total_questions ?? null,
+							unscored: true,
+							unscored_reason: 'no_answers',
+						}),
+						attemptId,
+					],
+				);
+			}
+			return;
+		}
 
 		// Get all questions
 		const questions = await pool.query(
@@ -3466,7 +3540,12 @@ router.post('/job-assessment/:id/score', authMiddleware, async (req, res) => {
 			attemptId,
 		]);
 
-		res.json({ attempt: result.rows[0] || null });
+		// Fix round F1 (same leak, second surface): this response returns
+		// the raw attempt row to recruiters too — the candidate's draft is
+		// owner-only and is stripped before it leaves.
+		const attemptOut = result.rows[0] || null;
+		if (attemptOut) delete attemptOut.current_draft;
+		res.json({ attempt: attemptOut });
 	} catch (error) {
 		console.error('Error scoring assessment:', error);
 		res.status(500).json({ error: 'Failed to score assessment' });
@@ -3479,8 +3558,15 @@ router.get('/job-assessment/:id/results', authMiddleware, async (req, res) => {
 		const assessmentId = req.params.id;
 		const { attemptId, candidateId } = req.query;
 
+		// Fix round F1: explicit column list — NEVER ja.*. Migration 276
+		// added job_assessment_attempts.current_draft (the candidate's
+		// stored-but-not-answered draft, design §8.2: owner-only, never
+		// recruiter-visible); a wildcard select leaks it to every caller
+		// of this endpoint, recruiters included. current_draft is the one
+		// column deliberately absent below; every other attempt field is
+		// scoring/results data this endpoint exists to serve.
 		let query =
-			'SELECT ja.*, u.name as candidate_name, u.email as candidate_email FROM job_assessment_attempts ja LEFT JOIN users u ON ja.candidate_id = u.id WHERE ja.assessment_id = $1';
+			'SELECT ja.id, ja.assessment_id, ja.candidate_id, ja.application_id, ja.status, ja.current_question_index, ja.current_difficulty, ja.answers, ja.scores, ja.composite_score, ja.category_scores, ja.ai_summary, ja.time_spent_seconds, ja.tab_switches, ja.copy_paste_attempts, ja.time_anomalies, ja.anti_cheat_score, ja.started_at, ja.completed_at, ja.scored_at, ja.created_at, ja.due_date, ja.abandoned_at, ja.completion_flags, ja.integrity_events, u.name as candidate_name, u.email as candidate_email FROM job_assessment_attempts ja LEFT JOIN users u ON ja.candidate_id = u.id WHERE ja.assessment_id = $1';
 		const params = [assessmentId];
 
 		if (attemptId) {
@@ -3796,116 +3882,142 @@ router.post('/job-assessment/:id/exit', authMiddleware, async (req, res) => {
 		}
 		const exitReason = reason === 'fullscreen_second_exit' ? 'fullscreen_second_exit' : 'candidate';
 
-		const attemptResult = await pool.query(
-			'SELECT * FROM job_assessment_attempts WHERE id = $1 AND candidate_id = $2 AND assessment_id = $3',
-			[attemptId, candidateId, assessmentId],
-		);
-		if (attemptResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Attempt not found' });
-		}
-		const attempt = attemptResult.rows[0];
-		if (attempt.status !== 'in_progress') {
-			return res.status(409).json({
-				error: 'This attempt is already finished',
-				code: 'ALREADY_FINISHED',
-				status: attempt.status,
-			});
-		}
-		const answers = parseJsonArray(attempt.answers);
-		const totalResult = await pool.query(
-			'SELECT COUNT(*)::int AS n FROM job_assessment_questions WHERE assessment_id = $1',
-			[assessmentId],
-		);
-		const totalQuestions = totalResult.rows[0].n;
-
-		// Due-date interaction (§4.2): Save & Exit is refused past the due
-		// date (nothing resumable remains); the two terminal outcomes stay
-		// allowed so the attempt is never stranded in_progress.
-		if (action === 'save' && attempt.due_date && new Date(attempt.due_date) < new Date()) {
-			return res.status(410).json({
-				error: 'This assessment assignment has expired',
-				code: 'ASSESSMENT_EXPIRED',
-			});
-		}
-
-		if (action === 'save') {
-			let storedDraft = null;
-			if (draft != null) {
-				const qid = Number(draft.questionId);
-				if (!Number.isInteger(qid) || typeof draft.answer !== 'string') {
-					return res.status(400).json({ error: 'Invalid draft', code: 'INVALID_DRAFT' });
-				}
-				const qCheck = await pool.query(
-					'SELECT id FROM job_assessment_questions WHERE id = $1 AND assessment_id = $2',
-					[qid, assessmentId],
-				);
-				if (qCheck.rows.length === 0) {
-					return res.status(400).json({
-						error: 'That question is not part of this assessment',
-						code: 'QUESTION_NOT_CURRENT',
-					});
-				}
-				storedDraft = { questionId: qid, answer: draft.answer, savedAt: new Date().toISOString() };
+		// Fix round F5: ownership, the due-date check, and the
+		// partial/answers snapshot are ALL taken inside the claim
+		// transaction, from the FOR UPDATE-locked attempt row — never
+		// from a non-transactional pre-read — and every claim UPDATE
+		// carries the ownership guard and has its rowcount checked. A
+		// concurrent /answer can no longer make the committed flags
+		// disagree with the answers actually scored, and a claim that
+		// loses its race answers 409 instead of a false 200.
+		const client = await pool.connect();
+		let submitOutcome = null;
+		try {
+			await client.query('BEGIN');
+			const locked = await client.query(
+				'SELECT * FROM job_assessment_attempts WHERE id = $1 AND candidate_id = $2 AND assessment_id = $3 FOR UPDATE',
+				[attemptId, candidateId, assessmentId],
+			);
+			if (locked.rows.length === 0) {
+				await client.query('ROLLBACK');
+				return res.status(404).json({ error: 'Attempt not found' });
 			}
-			await pool.query(
-				`UPDATE job_assessment_attempts
-				 SET current_draft = $1,
-				     integrity_events = COALESCE(integrity_events, '[]'::jsonb) || $2::jsonb
-				 WHERE id = $3 AND status = 'in_progress'`,
-				[
-					storedDraft ? JSON.stringify(storedDraft) : null,
-					JSON.stringify([
-						{ type: 'exit_save', timestamp: new Date().toISOString(), data: { answersGiven: answers.length } },
-					]),
-					attemptId,
-				],
-			);
-			return res.json({ status: 'in_progress', answersGiven: answers.length, totalQuestions });
-		}
-
-		if (action === 'abandon') {
-			const abandonEvent = {
-				type: 'exit_exam',
-				timestamp: new Date().toISOString(),
-				data: { answersGiven: answers.length, reason: exitReason },
-			};
-			const claim = await pool.query(
-				`UPDATE job_assessment_attempts
-				 SET status = 'abandoned', abandoned_at = NOW(), current_draft = NULL,
-				     integrity_events = COALESCE(integrity_events, '[]'::jsonb) || $2::jsonb
-				 WHERE id = $1 AND status = 'in_progress'
-				 RETURNING id`,
-				[attemptId, JSON.stringify([abandonEvent])],
-			);
-			if (claim.rows.length === 0) {
+			const attempt = locked.rows[0];
+			if (attempt.status !== 'in_progress') {
+				await client.query('ROLLBACK');
 				return res.status(409).json({
 					error: 'This attempt is already finished',
 					code: 'ALREADY_FINISHED',
+					status: attempt.status,
 				});
 			}
-			// composite_score stays NULL, scored_at stays NULL, scoreAttempt
-			// is never called: there is no score for this attempt, anywhere.
-			return res.json({ status: 'abandoned', answersGiven: answers.length, totalQuestions });
-		}
+			const answers = parseJsonArray(attempt.answers);
+			const totalResult = await client.query(
+				'SELECT COUNT(*)::int AS n FROM job_assessment_questions WHERE assessment_id = $1',
+				[assessmentId],
+			);
+			const totalQuestions = totalResult.rows[0].n;
 
-		// action === 'submit' — claim + flags in one transaction, then score.
-		const isPartial = answers.length < totalQuestions;
-		const flags = {
-			partial: isPartial,
-			answers_given: answers.length,
-			total_questions: totalQuestions,
-			fullscreen_auto_submit: exitReason === 'fullscreen_second_exit',
-		};
-		const client = await pool.connect();
-		let claimed = false;
-		try {
-			await client.query('BEGIN');
+			// Due-date interaction (§4.2): Save & Exit is refused past the
+			// due date (nothing resumable remains); the two terminal
+			// outcomes stay allowed so the attempt is never stranded.
+			if (action === 'save' && attempt.due_date && new Date(attempt.due_date) < new Date()) {
+				await client.query('ROLLBACK');
+				return res.status(410).json({
+					error: 'This assessment assignment has expired',
+					code: 'ASSESSMENT_EXPIRED',
+				});
+			}
+
+			if (action === 'save') {
+				let storedDraft = null;
+				if (draft != null) {
+					const qid = Number(draft.questionId);
+					if (!Number.isInteger(qid) || typeof draft.answer !== 'string') {
+						await client.query('ROLLBACK');
+						return res.status(400).json({ error: 'Invalid draft', code: 'INVALID_DRAFT' });
+					}
+					const qCheck = await client.query(
+						'SELECT id FROM job_assessment_questions WHERE id = $1 AND assessment_id = $2',
+						[qid, assessmentId],
+					);
+					if (qCheck.rows.length === 0) {
+						await client.query('ROLLBACK');
+						return res.status(400).json({
+							error: 'That question is not part of this assessment',
+							code: 'QUESTION_NOT_CURRENT',
+						});
+					}
+					storedDraft = { questionId: qid, answer: draft.answer, savedAt: new Date().toISOString() };
+				}
+				const claim = await client.query(
+					`UPDATE job_assessment_attempts
+					 SET current_draft = $1,
+					     integrity_events = COALESCE(integrity_events, '[]'::jsonb) || $2::jsonb
+					 WHERE id = $3 AND candidate_id = $4 AND status = 'in_progress'
+					 RETURNING id`,
+					[
+						storedDraft ? JSON.stringify(storedDraft) : null,
+						JSON.stringify([
+							{ type: 'exit_save', timestamp: new Date().toISOString(), data: { answersGiven: answers.length } },
+						]),
+						attemptId,
+						candidateId,
+					],
+				);
+				if (claim.rows.length === 0) {
+					await client.query('ROLLBACK');
+					return res.status(409).json({
+						error: 'This attempt is already finished',
+						code: 'ALREADY_FINISHED',
+					});
+				}
+				await client.query('COMMIT');
+				return res.json({ status: 'in_progress', answersGiven: answers.length, totalQuestions });
+			}
+
+			if (action === 'abandon') {
+				const abandonEvent = {
+					type: 'exit_exam',
+					timestamp: new Date().toISOString(),
+					data: { answersGiven: answers.length, reason: exitReason },
+				};
+				const claim = await client.query(
+					`UPDATE job_assessment_attempts
+					 SET status = 'abandoned', abandoned_at = NOW(), current_draft = NULL,
+					     integrity_events = COALESCE(integrity_events, '[]'::jsonb) || $2::jsonb
+					 WHERE id = $1 AND candidate_id = $3 AND status = 'in_progress'
+					 RETURNING id`,
+					[attemptId, JSON.stringify([abandonEvent]), candidateId],
+				);
+				if (claim.rows.length === 0) {
+					await client.query('ROLLBACK');
+					return res.status(409).json({
+						error: 'This attempt is already finished',
+						code: 'ALREADY_FINISHED',
+					});
+				}
+				await client.query('COMMIT');
+				// composite_score stays NULL, scored_at stays NULL,
+				// scoreAttempt is never called: no score, anywhere.
+				return res.json({ status: 'abandoned', answersGiven: answers.length, totalQuestions });
+			}
+
+			// action === 'submit' — claim + flags in the same transaction,
+			// computed from the locked row; scoring fires post-commit.
+			const isPartial = answers.length < totalQuestions;
+			const flags = {
+				partial: isPartial,
+				answers_given: answers.length,
+				total_questions: totalQuestions,
+				fullscreen_auto_submit: exitReason === 'fullscreen_second_exit',
+			};
 			const claim = await client.query(
 				`UPDATE job_assessment_attempts
 				 SET status = 'completed', completed_at = NOW(), current_draft = NULL,
 				     completion_flags = COALESCE(completion_flags, '{}'::jsonb) || $2::jsonb,
 				     integrity_events = COALESCE(integrity_events, '[]'::jsonb) || $3::jsonb
-				 WHERE id = $1 AND status = 'in_progress'
+				 WHERE id = $1 AND candidate_id = $4 AND status = 'in_progress'
 				 RETURNING id`,
 				[
 					attemptId,
@@ -3917,21 +4029,23 @@ router.post('/job-assessment/:id/exit', authMiddleware, async (req, res) => {
 							data: { answersGiven: answers.length, reason: exitReason, partial: isPartial },
 						},
 					]),
+					candidateId,
 				],
 			);
-			claimed = claim.rows.length > 0;
+			if (claim.rows.length === 0) {
+				await client.query('ROLLBACK');
+				return res.status(409).json({
+					error: 'This attempt is already finished',
+					code: 'ALREADY_FINISHED',
+				});
+			}
 			await client.query('COMMIT');
+			submitOutcome = { answersGiven: answers.length, totalQuestions, isPartial };
 		} catch (error) {
 			await client.query('ROLLBACK').catch(() => {});
 			throw error;
 		} finally {
 			client.release();
-		}
-		if (!claimed) {
-			return res.status(409).json({
-				error: 'This attempt is already finished',
-				code: 'ALREADY_FINISHED',
-			});
 		}
 		// Exactly once, post-commit — the same contract as the last-answer path.
 		scoreAttempt(attemptId, assessmentId).catch((err) =>
@@ -3939,9 +4053,9 @@ router.post('/job-assessment/:id/exit', authMiddleware, async (req, res) => {
 		);
 		return res.json({
 			status: 'completed',
-			answersGiven: answers.length,
-			totalQuestions,
-			partial: isPartial,
+			answersGiven: submitOutcome.answersGiven,
+			totalQuestions: submitOutcome.totalQuestions,
+			partial: submitOutcome.isPartial,
 			fullscreenAutoSubmit: exitReason === 'fullscreen_second_exit',
 			...(draft != null ? { draftExcluded: true } : {}),
 		});

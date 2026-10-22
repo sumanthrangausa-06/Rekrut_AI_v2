@@ -53,6 +53,10 @@ export function ExitDialog({
 }: ExitDialogProps) {
 	const [confirmingAbandon, setConfirmingAbandon] = useState(false);
 	const [secondsLeft, setSecondsLeft] = useState(30);
+	// Mirror of secondsLeft for the tick decision — the countdown's fire
+	// decision is made OUTSIDE any state updater (fix round F6: side
+	// effects inside an updater can double-fire under StrictMode).
+	const secondsRef = useRef(30);
 	const rootRef = useRef<HTMLDivElement>(null);
 	const continueRef = useRef<HTMLButtonElement>(null);
 	const confirmHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -61,6 +65,7 @@ export function ExitDialog({
 	useEffect(() => {
 		if (open) {
 			setConfirmingAbandon(false);
+			secondsRef.current = 30;
 			setSecondsLeft(30);
 			// Initial focus: Continue Test — the safe outcome, never Exit Exam.
 			setTimeout(() => continueRef.current?.focus(), 0);
@@ -74,19 +79,27 @@ export function ExitDialog({
 
 	// 30s auto-resume (D6) with the WCAG 2.2.1 amendment: any interaction
 	// resets the countdown, and it never fires while focus is inside.
+	// The tick reads/writes secondsRef and decides here — never inside a
+	// setState updater (fix round F6).
 	useEffect(() => {
 		if (!open) return;
+		let fired = false;
 		const id = setInterval(() => {
-			setSecondsLeft((prev) => {
-				if (prev <= 1) {
-					const root = rootRef.current;
-					if (root && root.contains(document.activeElement)) return 30;
-					clearInterval(id);
-					onContinue();
-					return 0;
+			if (fired) return;
+			if (secondsRef.current <= 1) {
+				const root = rootRef.current;
+				if (root && root.contains(document.activeElement)) {
+					secondsRef.current = 30;
+					setSecondsLeft(30);
+					return;
 				}
-				return prev - 1;
-			});
+				fired = true;
+				clearInterval(id);
+				onContinue();
+				return;
+			}
+			secondsRef.current -= 1;
+			setSecondsLeft(secondsRef.current);
 		}, 1000);
 		return () => clearInterval(id);
 	}, [open, onContinue]);
@@ -96,7 +109,10 @@ export function ExitDialog({
 		if (!open) return;
 		const root = rootRef.current;
 		if (!root) return;
-		const reset = () => setSecondsLeft(30);
+		const reset = () => {
+			secondsRef.current = 30;
+			setSecondsLeft(30);
+		};
 		const onKey = (e: KeyboardEvent) => {
 			reset();
 			if (e.key === 'Escape') {
@@ -400,6 +416,15 @@ interface UseFullscreenPolicy {
 export function useFullscreenPolicy(opts: {
 	log: (eventType: string, eventData?: Record<string, unknown>) => void;
 	onSecondExit: () => void;
+	/**
+	 * True while the Exit dialog is open (fix round F2 — a11y BLOCK 1
+	 * applies to that modal too): a full-screen exit arriving in that
+	 * state (the obvious case: Esc, which the dialog itself invites and
+	 * which the browser also uses to leave full-screen) is NEVER counted
+	 * and NEVER auto-submits — it is logged as fullscreen_exit_repeat
+	 * and counting stays suspended until the dialog closes.
+	 */
+	modalOpen?: boolean;
 }): UseFullscreenPolicy {
 	const [mode, setMode] = useState<FsMode>('off');
 	const [exitsUsed, setExitsUsed] = useState(0);
@@ -455,7 +480,14 @@ export function useFullscreenPolicy(opts: {
 		const onChange = () => {
 			if (document.fullscreenElement) return; // an entry, not an exit
 			if (leavingRef.current) return; // our own terminal navigation
-			if (modeRef.current !== 'in') return; // modal open / not in test
+			if (optsRef.current.modalOpen) {
+				// Exit dialog open (BLOCK 1, fix round F2): never counted,
+				// never an auto-submit — same repeat treatment as an exit
+				// before any question interaction since re-entry.
+				optsRef.current.log('fullscreen_exit_repeat');
+				return;
+			}
+			if (modeRef.current !== 'in') return; // warning modal open / not in test
 			if (exitsRef.current === 0) {
 				setExitsBoth(1);
 				setModeBoth('warning');

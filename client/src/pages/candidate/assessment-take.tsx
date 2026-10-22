@@ -410,6 +410,7 @@ export function AssessmentTakePage() {
 
 	const fs = useFullscreenPolicy({
 		log: logEvent,
+		modalOpen: exitOpen,
 		onSecondExit: () => {
 			void (async () => {
 				const ok = await runExit('submit', 'fullscreen_second_exit');
