@@ -23,8 +23,14 @@ interface AnswerResult {
 	explanation: string;
 	aiFeedback?: string;
 	score?: number;
+	// Phase A (#1602): /answer records the answer and acknowledges it; the
+	// next question is fetched separately via /session/:id/current, so a
+	// next-question failure can never lose or re-present a recorded answer.
+	answerRecorded?: boolean;
 	nextQuestion?: Question;
 }
+
+type ApiError = Error & { code?: string; status?: number; answerRecorded?: boolean };
 
 interface SessionCurrentResponse {
 	status: string;
@@ -45,6 +51,13 @@ export function AssessmentTakePage() {
 	const [shortAnswer, setShortAnswer] = useState('');
 	const [loading, setLoading] = useState(true);
 	const [submitting, setSubmitting] = useState(false);
+	// #1602 (FR-A1/A2): submission outcomes are inline and honest — never a
+	// bare alert, never a spinner that never resolves. submitError: the
+	// answer could not be confirmed saved; it stays on screen for retry.
+	// navNotice: the answer WAS saved; only loading the next step failed.
+	const [submitError, setSubmitError] = useState<string | null>(null);
+	const [navNotice, setNavNotice] = useState<string | null>(null);
+	const [loadError, setLoadError] = useState<string | null>(null);
 	const [completed, setCompleted] = useState(false);
 	const [finalScore, setFinalScore] = useState(0);
 	const [passed, setPassed] = useState(false);
@@ -57,7 +70,32 @@ export function AssessmentTakePage() {
 	const [maxDifficulty, setMaxDifficulty] = useState(0);
 	const startTimeRef = useRef(Date.now());
 
+	const applyCurrent = useCallback(
+		(result: SessionCurrentResponse) => {
+			if (result.status === 'completed') {
+				setCompleted(true);
+				setFinalScore(result.score || 0);
+				setPassed(result.passed || false);
+				setSkillName(result.skillName || '');
+				setAntiCheatScore(result.antiCheatScore ?? null);
+				setDurationSeconds(result.durationSeconds || 0);
+				setMaxDifficulty(result.maxDifficultyReached || 0);
+				return 'completed';
+			}
+			if (result.status === 'in_progress' && result.question) {
+				setQuestion(result.question);
+				setSkillName(result.skillName || '');
+				setTimeLeft(result.question.timeLimit || 120);
+				startTimeRef.current = Date.now();
+				return 'question';
+			}
+			return 'other';
+		},
+		[],
+	);
+
 	const loadSession = useCallback(async () => {
+		setLoadError(null);
 		try {
 			// Try sessionStorage first (set by assessments page when starting)
 			const stored = sessionStorage.getItem(`assessment_${sessionId}`);
@@ -75,40 +113,105 @@ export function AssessmentTakePage() {
 			// Fallback: fetch current session state from API (handles page refresh)
 			const result = await apiCall<SessionCurrentResponse>(
 				`/assessments/session/${sessionId}/current`,
+				{ timeoutMs: 30000 },
 			);
 
-			if (result.status === 'completed') {
-				setCompleted(true);
-				setFinalScore(result.score || 0);
-				setPassed(result.passed || false);
-				setSkillName(result.skillName || '');
-				setAntiCheatScore(result.antiCheatScore ?? null);
-				setDurationSeconds(result.durationSeconds || 0);
-				setMaxDifficulty(result.maxDifficultyReached || 0);
-			} else if (result.status === 'in_progress' && result.question) {
-				setQuestion(result.question);
-				setSkillName(result.skillName || '');
-				setTimeLeft(result.question.timeLimit || 120);
-				startTimeRef.current = Date.now();
-			} else {
+			if (applyCurrent(result) === 'other') {
 				// Session abandoned or not found
 				navigate('/candidate/assessments');
 			}
-		} catch {
-			navigate('/candidate/assessments');
+		} catch (err) {
+			const apiErr = err as ApiError;
+			if (apiErr.status === 404) {
+				navigate('/candidate/assessments');
+			} else {
+				// #1606: the session may be perfectly fine — only the question
+				// supply failed. Stay here with the reason and a Retry instead
+				// of bouncing the candidate back to the list.
+				setLoadError(
+					apiErr.message ||
+						'Your progress is saved, but this assessment could not be loaded. Please retry.',
+				);
+			}
 		} finally {
 			setLoading(false);
 		}
-	}, [sessionId, navigate]);
+	}, [sessionId, navigate, applyCurrent]);
 
 	useEffect(() => {
 		loadSession();
 	}, [loadSession]);
 
+	const showCompleted = useCallback(
+		async (fallbackScore?: number) => {
+			// Fetch full results from API for accurate display
+			try {
+				const fullResult = await apiCall<SessionCurrentResponse>(
+					`/assessments/session/${sessionId}/current`,
+					{ timeoutMs: 30000 },
+				);
+				setFinalScore(fullResult.score || fallbackScore || 0);
+				setPassed(fullResult.passed || (fullResult.score || 0) >= 60);
+				setAntiCheatScore(fullResult.antiCheatScore ?? null);
+				setDurationSeconds(fullResult.durationSeconds || 0);
+				setMaxDifficulty(fullResult.maxDifficultyReached || 0);
+			} catch {
+				setFinalScore(fallbackScore || 0);
+				setPassed((fallbackScore || 0) >= 60);
+			}
+			setCompleted(true);
+			// Redirect to results page after a short delay
+			setTimeout(() => {
+				navigate(`/candidate/assessment-results?session=${sessionId}`);
+			}, 2000);
+		},
+		[sessionId, navigate],
+	);
+
+	// After an answer is recorded, load what comes next. A failure here is a
+	// NAVIGATION outcome (FR-A5): the answer is already saved, so the
+	// candidate gets a retry affordance — never an error as the result of
+	// their submission, and never a lost answer.
+	const advanceToNext = useCallback(
+		async (timedOut = false) => {
+			try {
+				const current = await apiCall<SessionCurrentResponse>(
+					`/assessments/session/${sessionId}/current`,
+					{ timeoutMs: 30000 },
+				);
+				if (current.status === 'completed') {
+					await showCompleted(current.score);
+					return;
+				}
+				if (current.status === 'in_progress' && current.question) {
+					setNavNotice(null);
+					setQuestion(current.question);
+					setSelectedAnswer('');
+					setShortAnswer('');
+					setTimeLeft(current.question.timeLimit || 120);
+					startTimeRef.current = Date.now();
+					return;
+				}
+				setNavNotice(
+					'Your answer was saved. We could not load the next step — please retry.',
+				);
+			} catch {
+				setNavNotice(
+					timedOut
+						? 'Time expired and your answer was saved. We could not load the next question — please retry.'
+						: 'Your answer was saved. We could not load the next question — please retry.',
+				);
+			}
+		},
+		[sessionId, showCompleted],
+	);
+
 	const handleSubmit = useCallback(
 		async (timedOut = false) => {
 			if (!question || submitting) return;
 			setSubmitting(true);
+			setSubmitError(null);
+			setNavNotice(null);
 			const timeTaken = Math.round((Date.now() - startTimeRef.current) / 1000);
 			const answer = question.type === 'multiple_choice' ? selectedAnswer : shortAnswer;
 
@@ -118,8 +221,10 @@ export function AssessmentTakePage() {
 			}
 
 			try {
+				// FR-A2: bounded at 30s — the spinner always resolves.
 				const result = await apiCall<AnswerResult>('/assessments/answer', {
 					method: 'POST',
+					timeoutMs: 30000,
 					body: {
 						sessionId: Number(sessionId),
 						questionId: question.id,
@@ -129,39 +234,36 @@ export function AssessmentTakePage() {
 				});
 
 				if (result.completed) {
-					// Fetch full results from API for accurate display
-					try {
-						const fullResult = await apiCall<SessionCurrentResponse>(
-							`/assessments/session/${sessionId}/current`,
-						);
-						setFinalScore(fullResult.score || result.score || 0);
-						setPassed(fullResult.passed || (fullResult.score || 0) >= 60);
-						setAntiCheatScore(fullResult.antiCheatScore ?? null);
-						setDurationSeconds(fullResult.durationSeconds || 0);
-						setMaxDifficulty(fullResult.maxDifficultyReached || 0);
-					} catch {
-						setFinalScore(result.score || 0);
-						setPassed((result.score || 0) >= 60);
-					}
-					setCompleted(true);
-					// Redirect to results page after a short delay
-					setTimeout(() => {
-						navigate(`/candidate/assessment-results?session=${sessionId}`);
-					}, 2000);
+					await showCompleted(result.score);
 				} else if (result.nextQuestion) {
+					// Backwards-compatible shape (older server): advance inline.
 					setQuestion(result.nextQuestion);
 					setSelectedAnswer('');
 					setShortAnswer('');
 					setTimeLeft(result.nextQuestion.timeLimit || 120);
 					startTimeRef.current = Date.now();
+				} else {
+					await advanceToNext(timedOut);
 				}
-			} catch (err: any) {
-				alert(err instanceof Error ? err.message : 'Failed to submit answer');
+			} catch (err) {
+				const apiErr = err as ApiError;
+				if (apiErr.answerRecorded) {
+					// The answer reached the server; only the follow-up failed.
+					await advanceToNext(timedOut);
+				} else if (apiErr.code === 'TIMEOUT') {
+					setSubmitError(
+						'This took too long, so we could not confirm whether your answer was saved. Your answer is still on this screen — press Next to retry. It will not be counted twice.',
+					);
+				} else {
+					setSubmitError(
+						`${apiErr.message || 'Failed to submit answer.'} Your answer is still on this screen — press Next to retry.`,
+					);
+				}
 			} finally {
 				setSubmitting(false);
 			}
 		},
-		[question, selectedAnswer, shortAnswer, sessionId, submitting, navigate],
+		[question, selectedAnswer, shortAnswer, sessionId, submitting, showCompleted, advanceToNext],
 	);
 	// Timer countdown
 	useEffect(() => {
@@ -300,6 +402,24 @@ export function AssessmentTakePage() {
 		);
 	}
 
+	if (!question && loadError) {
+		return (
+			<div className="py-16 text-center px-4 sm:px-6 max-w-lg mx-auto">
+				<AlertTriangle className="mx-auto h-10 w-10 text-amber-500 mb-4" />
+				<p className="font-medium mb-2">This assessment could not be loaded</p>
+				<p className="text-muted-foreground text-sm">{loadError}</p>
+				<div className="flex gap-2 justify-center mt-4">
+					<Button className="min-h-[44px]" onClick={() => { setLoading(true); loadSession(); }}>
+						Retry
+					</Button>
+					<Button variant="outline" className="min-h-[44px]" onClick={() => navigate('/candidate/assessments')}>
+						Back to Assessments
+					</Button>
+				</div>
+			</div>
+		);
+	}
+
 	if (!question) {
 		return (
 			<div className="py-16 text-center px-4 sm:px-6">
@@ -382,23 +502,51 @@ export function AssessmentTakePage() {
 				</CardContent>
 			</Card>
 
-			{/* Submit */}
-			<div className="flex justify-end">
-				<Button
-					onClick={() => handleSubmit(false)}
-					disabled={submitting || (!selectedAnswer && !shortAnswer)}
-					className="gap-2 min-h-[44px]"
-				>
-					{submitting ? (
-						<div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-					) : question.questionNumber === question.totalQuestions ? (
-						<CheckCircle className="h-4 w-4" />
-					) : (
-						<ArrowRight className="h-4 w-4" />
-					)}
-					{question.questionNumber === question.totalQuestions ? 'Finish' : 'Next'}
-				</Button>
-			</div>
+			{/* Submission outcomes (#1602): inline, honest, always with a next action */}
+			{submitError && (
+				<div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+					<AlertTriangle className="h-4 w-4 shrink-0" />
+					<span>{submitError}</span>
+				</div>
+			)}
+			{navNotice ? (
+				<div className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+					<span className="flex items-center gap-2">
+						<AlertTriangle className="h-4 w-4 shrink-0" />
+						{navNotice}
+					</span>
+					<Button
+						variant="outline"
+						className="min-h-[44px] shrink-0"
+						disabled={submitting}
+						onClick={async () => {
+							setSubmitting(true);
+							await advanceToNext(false);
+							setSubmitting(false);
+						}}
+					>
+						{submitting ? 'Loading…' : 'Retry'}
+					</Button>
+				</div>
+			) : (
+				/* Submit */
+				<div className="flex justify-end">
+					<Button
+						onClick={() => handleSubmit(false)}
+						disabled={submitting || (!selectedAnswer && !shortAnswer)}
+						className="gap-2 min-h-[44px]"
+					>
+						{submitting ? (
+							<div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+						) : question.questionNumber === question.totalQuestions ? (
+							<CheckCircle className="h-4 w-4" />
+						) : (
+							<ArrowRight className="h-4 w-4" />
+						)}
+						{question.questionNumber === question.totalQuestions ? 'Finish' : 'Next'}
+					</Button>
+				</div>
+			)}
 
 			{isLowTime && (
 				<div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
