@@ -1,0 +1,39 @@
+[db] Pool config: {
+  "connectionString": "postgresql://postgres@***:55434/rekrut_1656",
+  "ssl": false,
+  "max": 25,
+  "idleTimeoutMillis": 30000,
+  "connectionTimeoutMillis": 10000,
+  "allowExitOnIdle": false
+}
+[token-budget] Initialized. Daily budget: 100,000 tokens
+[self-hosted-audio] STT (whisper.cpp tiny.en): not installed
+[self-hosted-audio] TTS (Piper lessac-medium): not installed
+[ai-provider] Initialized. NIM: false | Groq: false | Cerebras: false | Kimi: false
+[ai-provider] Providers: 
+[ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety
+[polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled
+PASS  createAssessmentSet returns counts — {"setId":1,"questionCount":3,"approvedCount":3}
+[rate-limiter] Distributed rate limit table 'rate_limit_buckets' ready
+PASS  explicit setId start 200 — status=200 body={"sessionId":1,"skillName":"Python","question":{"id":164,"text":"Python E2E Q3","type":"multiple_choice","options":["RigCorrect","Wrong A","Wrong B","Wrong C"],"timeLimit":90,"questionNumber":1,"total
+PASS  first served is position 1 (not lowest id) — got 164, want 164
+PASS  session snapshot records set_id
+PASS  answer 1 recorded — {"completed":false,"answerRecorded":true,"answersGiven":1,"feedback":"Correct!","explanation":"expl","aiFeedback":null}
+PASS  second served is position 2 — got 162
+PASS  third served is position 3 — got 163
+[OmniScore] Assessment 1 fed into OmniScore for user 1 (score: 100)
+PASS  set session completes at set end — {"completed":true,"answerRecorded":true,"score":100,"feedback":"Correct!","explanation":"expl","aiFeedback":null}
+PASS  unknown setId → 400 SETS_NOT_AVAILABLE — status=400
+PASS  no session created for unknown setId
+PASS  catalog progress attempts=1 — {"attempts":1,"bestScore":100,"lastScore":100,"lastAttempted":"2026-10-22T18:33:32.485Z","canRetake":false}
+PASS  catalog progress bestScore=100 lastScore=100
+PASS  catalog progress canRetake=false (just completed)
+PASS  catalog progress lastAttempted set
+PASS  retake start 200 (gate open: last completion 40d ago) — status=200 body={"sessionId":3,"skillName":"JavaScript","question":{"id":180,"text":"JavaScript E2E Q13","type":"multiple_choice","options":["RigCorrect","Wrong A","Wrong B","Wrong C"],"timeLimit":90,"questionNumber"
+PASS  retake serves a question the previous attempt did NOT ask — served 180, previous asked 168,169,170
+PASS  pool-mode retake has set_id NULL (no sets exist for JS)
+PASS  auto-pick start 200 — status=200 body={"sessionId":4,"skillName":"Python","question":{"id":164,"text":"Python E2E Q3","type":"multiple_choice","options":["RigCorrect","Wrong A","Wrong B","Wrong C"],"timeLimit":90,"questionNumber":1,"total
+PASS  auto-pick recorded the only compatible set — set_id=1, want 1
+PASS  auto-pick serves set position 1 — got 164
+
+E2E RESULT: ALL CHECKS PASSED
