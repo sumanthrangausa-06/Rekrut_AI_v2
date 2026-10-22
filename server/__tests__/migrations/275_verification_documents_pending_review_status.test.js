@@ -259,6 +259,30 @@ describeIfDb('migration 275 pending_review CHECK (#1610, real DB)', () => {
 		expect(await verifyUpdate('pending_review')).toBeNull();
 	}, 300000);
 
+	test('loud failure: a row holding an out-of-set value makes migrate.js fail, record nothing, and roll back', async () => {
+		// Reviewer SHOULD-FIX on PR #1622: the header promises loud failure —
+		// prove it in the suite, not just in review. With the CHECK absent a
+		// legacy bogus row can exist; 275's ADD must reject it, migrate.js
+		// must exit non-zero, write NO _migrations row, and leave state as-is.
+		await pool.query('ALTER TABLE verification_documents DROP CONSTRAINT chk_verification_docs_status');
+		await pool.query("UPDATE verification_documents SET status = 'legacy_bogus' WHERE id = $1", [docId]);
+		await deleteMigrationRow();
+
+		const run = await runMigrate();
+		expect(run.code).not.toBe(0);
+		expect(await migrationRecorded()).toBe(false);
+		expect(await statusChecks()).toHaveLength(0);
+		const { rows } = await pool.query('SELECT status FROM verification_documents WHERE id = $1', [docId]);
+		expect(rows[0].status).toBe('legacy_bogus');
+
+		// Cleanup: remove the bogus value, re-run — converges normally.
+		await pool.query("UPDATE verification_documents SET status = 'pending' WHERE id = $1", [docId]);
+		const run2 = await runMigrate();
+		expect(run2.code).toBe(0);
+		expect(await migrationRecorded()).toBe(true);
+		expect(await statusChecks()).toHaveLength(1);
+	}, 300000);
+
 	test('state B (CHECK absent): re-running 275 via migrate.js installs the widened CHECK (drop is a no-op)', async () => {
 		await pool.query('ALTER TABLE verification_documents DROP CONSTRAINT chk_verification_docs_status');
 		expect(await statusChecks()).toHaveLength(0);
