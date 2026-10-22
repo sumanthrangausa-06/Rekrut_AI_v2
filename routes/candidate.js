@@ -5973,6 +5973,24 @@ async function mergeLinkedInProfile(userId, linkedinProfile) {
 		`,
 		[userId, linkedinProfile.headline, linkedinProfile.summary, linkedinProfile.picture],
 	);
+
+	// 2b. One avatar value (#1638): the header reads users.avatar_url, so a
+	// photo sitting on candidate_profiles.photo_url must also fill
+	// users.avatar_url — otherwise an imported picture never reaches the
+	// header (same divergence class as #1608). Fill-gaps only, like the
+	// rest of this merge: an existing avatar is never overwritten, and the
+	// value copied is the profile's effective photo_url.
+	await pool.query(
+		`
+		UPDATE users u
+		SET avatar_url = cp.photo_url, updated_at = NOW()
+		FROM candidate_profiles cp
+		WHERE cp.user_id = u.id AND u.id = $1
+			AND (u.avatar_url IS NULL OR TRIM(u.avatar_url) = '')
+			AND cp.photo_url IS NOT NULL
+		`,
+		[userId],
+	);
 	summary.profile_updated = true;
 
 	// 3. Merge work experience (skip duplicates by company+title)
