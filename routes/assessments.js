@@ -998,7 +998,10 @@ async function completeAssessment(client, sessionId, userId) {
 			passed: passed,
 			anti_cheat_score: antiCheatScore,
 			model_version: 'adaptive-assessment-v1',
-			confidence: passed ? 0.85 : 0.6,
+			// #1584: NO confidence key — no confidence was measured for
+			// this grading, and a hard-coded 0.85/0.6 in the compliance
+			// audit trail is a fabrication (same class as #1572/#1505).
+			// The admin compliance readers surface the absence honestly.
 		},
 		req: null,
 	});
