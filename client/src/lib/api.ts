@@ -355,6 +355,16 @@ export async function apiCall<T = unknown>(url: string, options: ApiCallOptions 
 		if (typeof errorData.answerRecorded === 'boolean') {
 			(error as Error & { answerRecorded?: boolean }).answerRecorded = errorData.answerRecorded;
 		}
+		// #1654 (C2): preserve the configured-start 503 extension — the
+		// promised count and the honest largestAvailable — so the client
+		// can offer the labelled smaller count instead of a dead end.
+		if (typeof errorData.promised === 'number') {
+			(error as Error & { promised?: number }).promised = errorData.promised;
+		}
+		if (typeof errorData.largestAvailable === 'number') {
+			(error as Error & { largestAvailable?: number }).largestAvailable =
+				errorData.largestAvailable;
+		}
 
 		// Consent gate (S-011): redirect to consent screens on 403 consent errors.
 		// CONSENT_WITHDRAWN is excluded — the caller shows an inline message instead.

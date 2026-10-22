@@ -8,6 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { apiCall } from '@/lib/api';
+import {
+	AssessmentConfigureFlow,
+	type CatalogSubject,
+	type CatalogTopic,
+} from './assessment-configure';
 
 interface SkillCatalog {
 	catalog_name: string;
@@ -58,6 +63,14 @@ export function CandidateAssessmentsPage() {
 	const navigate = useNavigate();
 	const [tab, setTab] = useState('available');
 	const [skills, setSkills] = useState<SkillCatalog[]>([]);
+	// #1654 (C2): the catalogue (subjects → topics, C1 API) is the primary
+	// Available surface. null = not loaded / failed → the legacy
+	// /available list below remains the fallback (dual-read, design §6.3).
+	const [catalog, setCatalog] = useState<CatalogSubject[] | null>(null);
+	const [configuring, setConfiguring] = useState<{
+		subject: CatalogSubject;
+		topic: CatalogTopic;
+	} | null>(null);
 	const [results, setResults] = useState<AssessmentResult[]>([]);
 	const [assigned, setAssigned] = useState<AssignedAttempt[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -69,12 +82,14 @@ export function CandidateAssessmentsPage() {
 
 	const loadData = useCallback(async () => {
 		try {
-			const [skillsRes, resultsRes, assignedRes] = await Promise.allSettled([
+			const [skillsRes, resultsRes, assignedRes, catalogRes] = await Promise.allSettled([
 				apiCall<{ skills: SkillCatalog[] }>('/assessments/available'),
 				apiCall<{ results: AssessmentResult[] }>('/assessments/results'),
 				apiCall<{ attempts: AssignedAttempt[] }>('/assessments/assigned'),
+				apiCall<{ subjects: CatalogSubject[] }>('/assessments/catalog'),
 			]);
 			if (skillsRes.status === 'fulfilled') setSkills(skillsRes.value.skills || []);
+			if (catalogRes.status === 'fulfilled') setCatalog(catalogRes.value.subjects || []);
 			if (resultsRes.status === 'fulfilled') setResults(resultsRes.value.results || []);
 			if (assignedRes.status === 'fulfilled') setAssigned(assignedRes.value.attempts || []);
 		} catch {
@@ -248,6 +263,89 @@ export function CandidateAssessmentsPage() {
 						<div className="space-y-4 mt-4">
 							<Skeleton variant="card" count={3} />
 						</div>
+					) : configuring ? (
+						<div className="mt-4">
+							<AssessmentConfigureFlow
+								subjectName={configuring.subject.name}
+								topic={configuring.topic}
+								onClose={() => setConfiguring(null)}
+							/>
+						</div>
+					) : catalog !== null ? (
+						catalog.length === 0 ? (
+							<EmptyState
+								icon={Clock}
+								title="No assessments are available yet"
+								description="No assessment topics have servable questions yet. Please check back later."
+								className="mt-4"
+							/>
+						) : (
+							<div className="space-y-6 mt-4">
+								{catalog.map((subject) => (
+									<div key={subject.id}>
+										<h3 className="font-medium text-sm text-muted-foreground mb-3">
+											{subject.name}
+										</h3>
+										{subject.topics.length === 0 ? (
+											<p className="text-sm text-muted-foreground">
+												No topics are available for this subject yet.
+											</p>
+										) : (
+											<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+												{subject.topics.map((topic) => (
+													<Card key={topic.id} className="relative">
+														<CardContent className="p-4">
+															<h4 className="font-medium text-sm">{topic.name}</h4>
+															{topic.description && (
+																<p className="text-xs text-muted-foreground mb-3 mt-1">
+																	{topic.description}
+																</p>
+															)}
+															{topic.progress && (
+																<p className="text-xs mb-2">
+																	Best:{' '}
+																	<span className="font-medium">
+																		{topic.progress.bestScore}/100
+																	</span>
+																	<span className="text-muted-foreground ml-1">
+																		({topic.progress.attempts} attempt
+																		{topic.progress.attempts !== 1 ? 's' : ''})
+																	</span>
+																</p>
+															)}
+															{topic.availability.available ? (
+																<>
+																	<p className="text-xs text-muted-foreground mb-2">
+																		Up to {topic.availability.maxCount} questions
+																		available
+																	</p>
+																	<Button
+																		size="sm"
+																		className="w-full gap-1 min-h-[44px]"
+																		onClick={() =>
+																			setConfiguring({ subject, topic })
+																		}
+																	>
+																		<Play className="h-3 w-3" /> Configure &amp; Start
+																	</Button>
+																</>
+															) : (
+																<p className="text-xs text-amber-700">
+																	No questions available for this topic yet
+																	{topic.availability.maxCount > 0
+																		? ` — only ${topic.availability.maxCount} approved so far, not enough for a test yet.`
+																		: '.'}
+																</p>
+															)}
+														</CardContent>
+													</Card>
+												))}
+											</div>
+										)}
+									</div>
+								))}
+							</div>
+						)
 					) : (
 						<div className="space-y-6 mt-4">
 							{Object.entries(categoryGroups).map(([cat, catSkills]) => (
