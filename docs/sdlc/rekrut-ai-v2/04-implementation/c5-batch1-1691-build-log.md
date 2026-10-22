@@ -38,3 +38,18 @@ the 76 new texts duplicates or near-duplicates an existing row (verified
 by an exact-text cross-check across all migrations: 0 collisions).
 Questions whose correctness would depend on a tool version or an
 unsettled convention were reworded until they did not.
+
+**Correction addendum (2026-10-22, post-merge Interviewer BLOCK — see the
+correction comment on #1691):** the first shipped version of migration 285
+contained 4 near-duplicates of migration 284 rows whose `text:` fields are
+double-quoted (the authoring-time extraction matched only single-quoted
+texts), 1 disputable WeakMap key (ES2023 non-registered symbol keys), and
+2 partial overlaps. A follow-up PR amended 285 in place — it had not been
+promoted beyond dev — replacing those 6 rows with genuinely new concepts
+at the same skill/level cells (async-throw promise rejection, floor
+division, @property, React.lazy, error boundaries, stream flowing mode),
+rewording the WeakMap key, changing the dict-comprehension computation,
+and adding accuracy qualifiers to two stems. Re-verified: corrected
+extraction (both quote styles, 191 bank texts outside 285) shows 0
+collisions; fresh-install rig reproduces easy 10 / medium 25 / hard 10
+per topic with the defective rows absent and all replacements present.
