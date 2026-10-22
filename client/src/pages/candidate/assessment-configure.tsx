@@ -57,9 +57,10 @@ interface PreFlight {
 }
 
 const FORMATS = [
-	{ value: 'mixed', label: 'Mixed' },
+	// Candidate labels per UX spec §0.2 — never the server's raw values.
+	{ value: 'mixed', label: 'Mixed — multiple choice and written answers' },
 	{ value: 'mcq', label: 'Multiple choice' },
-	{ value: 'short_answer', label: 'Short answer' },
+	{ value: 'short_answer', label: 'Written answers' },
 	{ value: 'coding', label: 'Coding' },
 ] as const;
 
@@ -100,11 +101,15 @@ export function AssessmentConfigureFlow({
 	const [flight, setFlight] = useState<PreFlight | null>(null);
 	const [flightLoading, setFlightLoading] = useState(true);
 	const [flightError, setFlightError] = useState<string | null>(null);
+	// #1679 item 4: bumping this re-runs the pre-flight effect for the
+	// CURRENT configuration — the Retry control for a failed check.
+	const [flightRetry, setFlightRetry] = useState(0);
 	const [starting, setStarting] = useState(false);
 	const [startError, setStartError] = useState<StartErrorState | null>(null);
 
 	// Pre-flight (§4.1): advisory read of exactly what /start will serve
 	// for this configuration. Re-runs whenever the choice changes.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: flightRetry is a deliberate re-run trigger (item 4 Retry), not a value the effect reads
 	useEffect(() => {
 		let cancelled = false;
 		setFlight(null);
@@ -128,12 +133,15 @@ export function AssessmentConfigureFlow({
 		return () => {
 			cancelled = true;
 		};
-	}, [topic.id, format, band, count]);
+	}, [topic.id, format, band, count, flightRetry]);
 
 	const servable = flight?.servable ?? 0;
 	const canServeChosen = !flightLoading && !!flight && servable >= count && servable > 0;
-	const isShort = !!flight && servable > 0 && servable < count;
-	const isEmpty = !!flight && servable === 0;
+	// #1679 NIT hardening (#1680 review): the short/empty branches are
+	// additionally inert while a re-check is in flight — the invariant
+	// holds locally even apart from `flight` being nulled at effect start.
+	const isShort = !flightLoading && !!flight && servable > 0 && servable < count;
+	const isEmpty = !flightLoading && !!flight && servable === 0;
 
 	const formatLabel = FORMATS.find((f) => f.value === format)?.label || format;
 	const bandMeta = BANDS.find((b) => b.value === band);
@@ -224,7 +232,12 @@ export function AssessmentConfigureFlow({
 							screen, before your first question — nothing is enforced that is not
 							disclosed there.
 						</li>
-						<li>Short answers are scored by AI and reviewed by a human.</li>
+						{/* #1679 item 3 / spec T19: the AI-scoring disclosure
+						    applies ONLY when the chosen format includes written
+						    answers — an MCQ-only test must not claim it. */}
+						{(format === 'mixed' || format === 'short_answer') && (
+							<li>Short answers are scored by AI and reviewed by a human.</li>
+						)}
 					</ul>
 
 					{startError && (
@@ -234,7 +247,12 @@ export function AssessmentConfigureFlow({
 								<span>{startError.message}</span>
 							</p>
 							<div className="flex flex-wrap gap-2">
-								{startError.sessionId && (
+								{/* #1679 item 9: setsUnavailable is CONSUMED here —
+								    a SETS 400 created no session, so neither the
+								    Resume nor the smaller-count affordance may
+								    render for it, even if a future error shape
+								    carried those fields. */}
+								{startError.sessionId && !startError.setsUnavailable && (
 									<Button
 										variant="outline"
 										className="min-h-[44px]"
@@ -245,7 +263,8 @@ export function AssessmentConfigureFlow({
 										Resume attempt
 									</Button>
 								)}
-								{startError.largestAvailable != null &&
+								{!startError.setsUnavailable &&
+									startError.largestAvailable != null &&
 									startError.largestAvailable > 0 &&
 									startError.largestAvailable !== count && (
 										<Button
@@ -341,9 +360,12 @@ export function AssessmentConfigureFlow({
 							</Button>
 						))}
 						{!COUNTS.includes(count as (typeof COUNTS)[number]) && (
-							<Button variant="default" className="min-h-[44px]">
+							// #1679 item 5: an accepted non-enum count is a
+							// display of the current selection, not a control —
+							// inert text, never a <Button> with no onClick.
+							<span className="inline-flex min-h-[44px] items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground">
 								{count}
-							</Button>
+							</span>
 						)}
 					</div>
 				</div>
@@ -352,7 +374,19 @@ export function AssessmentConfigureFlow({
 					{flightLoading ? (
 						<p className="text-muted-foreground">Checking availability…</p>
 					) : flightError ? (
-						<p className="text-amber-700">{flightError}</p>
+						<>
+							<p className="text-amber-700">{flightError}</p>
+							{/* #1679 item 4: a load FAILURE (distinct from a
+							    servable-0 answer, spec T15) gets a working
+							    Retry for the current configuration. */}
+							<Button
+								variant="outline"
+								className="min-h-[44px]"
+								onClick={() => setFlightRetry((n) => n + 1)}
+							>
+								Retry
+							</Button>
+						</>
 					) : isEmpty ? (
 						<p className="text-amber-700">
 							{flight?.reason ||

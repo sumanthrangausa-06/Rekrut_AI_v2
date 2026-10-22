@@ -92,6 +92,31 @@ describe('GAP-3 — exactly one instructions block', () => {
 		expect(screen.queryByText(/This test has/)).not.toBeInTheDocument();
 	});
 
+	test('snapshot session (via the sessionStorage hand-off): snapshot block renders, no /current call needed', async () => {
+		// #1679 item 9: pin the configure → take hand-off — the take page
+		// must render the snapshot block from stored.config alone.
+		sessionStorage.setItem(
+			'assessment_555',
+			JSON.stringify({
+				question: QUESTION,
+				skillName: 'Python',
+				config: { format: 'mcq', difficultyBand: 'hard', totalQuestions: 25 },
+			}),
+		);
+		apiCallMock.mockImplementation(async (url: string) => {
+			throw new Error(`unexpected ${url}`);
+		});
+		render(<AssessmentTakePage />);
+		expect(await screen.findByText(/Your configuration/)).toBeInTheDocument();
+		expect(screen.getByText(/Multiple choice/)).toBeInTheDocument();
+		expect(screen.getByText(/within the Hard band only/)).toBeInTheDocument();
+		expect(screen.queryByText(/This test has/)).not.toBeInTheDocument();
+		expect(apiCallMock).not.toHaveBeenCalledWith(
+			'/assessments/session/555/current',
+			expect.anything(),
+		);
+	});
+
 	test('legacy session (no snapshot): Phase B gate renders, snapshot block does not', async () => {
 		mockCurrent({
 			status: 'in_progress',
@@ -164,6 +189,49 @@ describe('GAP-4 — completion labels from response fields', () => {
 		});
 		render(<AssessmentTakePage />);
 		expect(await screen.findByText('Passed · Verified ✓')).toBeInTheDocument();
+	});
+
+	test('discriminator (#1679 item 9): passed:false with score 88 is still "Not passed" — pass never comes from the score', async () => {
+		mockCurrent({
+			status: 'completed',
+			skillName: 'Python',
+			score: 88,
+			passed: false,
+			partial: false,
+			answersGiven: 25,
+			totalQuestions: 25,
+			correctCount: 22,
+			antiCheatScore: null,
+			durationSeconds: 300,
+			maxDifficultyReached: 4,
+		});
+		render(<AssessmentTakePage />);
+		// A score-derived implementation (>= 60) would call this a pass.
+		expect(await screen.findByText('Not passed')).toBeInTheDocument();
+		expect(screen.queryByText('Passed')).not.toBeInTheDocument();
+		expect(screen.queryByText(/Verified/)).not.toBeInTheDocument();
+		expect(screen.queryByText('88')).not.toBeInTheDocument();
+	});
+
+	test('discriminator (#1679 item 9): passed:true with score 42 is still "Passed" — a low score never overrides the server field', async () => {
+		mockCurrent({
+			status: 'completed',
+			skillName: 'Python',
+			score: 42,
+			passed: true,
+			partial: false,
+			answersGiven: 25,
+			totalQuestions: 25,
+			correctCount: 10,
+			antiCheatScore: null,
+			durationSeconds: 300,
+			maxDifficultyReached: 2,
+		});
+		render(<AssessmentTakePage />);
+		// A score-derived implementation would call this a fail and hide
+		// the score; the server's passed field governs both.
+		expect(await screen.findByText('Passed')).toBeInTheDocument();
+		expect(screen.getByText('42')).toBeInTheDocument();
 	});
 
 	test('failed: "Not passed" and NO raw score text, even though a score value arrived', async () => {
