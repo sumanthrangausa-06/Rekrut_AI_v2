@@ -27,6 +27,7 @@ const { notifyUser } = require('../lib/notify');
 const { insertAuditLog } = require('./audit');
 const { checkFeatureAccess, incrementUsage } = require('../lib/subscription');
 const { captureApplicationIp } = require('../lib/applicationIpCapture');
+const { companySizeRanges } = require('../lib/company-size');
 const calendarService = require('../server/services/calendar-service');
 
 let matchingEngine;
@@ -2385,11 +2386,15 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 		// #1600: the Job Board client sends snake_case names (type, remote_type,
 		// experience_level, company_size, sort_by). Accept them as aliases of the
 		// legacy names so no rendered filter is silently ignored server-side.
-		const job_type = req.query.job_type ?? req.query.type;
-		const remoteType = req.query.remoteType ?? req.query.remote_type;
-		const experienceLevel = req.query.experienceLevel ?? req.query.experience_level;
-		const companySize = req.query.companySize ?? req.query.company_size;
-		const sortBy = req.query.sortBy ?? req.query.sort_by ?? 'newest';
+		// #1634: non-empty coalesce — `??` let an empty legacy param
+		// (`?job_type=&type=full-time`) defeat the alias and silently drop
+		// the filter.
+		const pickParam = (...vals) => vals.find((v) => v !== undefined && v !== null && v !== '');
+		const job_type = pickParam(req.query.job_type, req.query.type);
+		const remoteType = pickParam(req.query.remoteType, req.query.remote_type);
+		const experienceLevel = pickParam(req.query.experienceLevel, req.query.experience_level);
+		const companySize = pickParam(req.query.companySize, req.query.company_size);
+		const sortBy = pickParam(req.query.sortBy, req.query.sort_by) || 'newest';
 
 		// Support both page-based and offset-based pagination
 		const pageLimit = Math.min(parseInt(pageSize, 10) || parseInt(limit, 10) || 20, 50);
@@ -2454,9 +2459,22 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 			}
 		}
 		if (companySize) {
-			whereClause += ` AND c.company_size = $${paramIndex}`;
-			params.push(companySize);
-			paramIndex++;
+			// #1634: the JobFilterBar sends bucket labels (startup/small/
+			// medium/large) but companies.company_size stores ranges —
+			// exact equality returned zero jobs for every selection.
+			// Translate a bucket to its stored range set; any other value
+			// (e.g. a raw range) keeps exact-match behaviour.
+			const ranges = companySizeRanges(companySize);
+			if (ranges) {
+				const placeholders = ranges.map((_, i) => `$${paramIndex + i}`).join(', ');
+				whereClause += ` AND c.company_size IN (${placeholders})`;
+				params.push(...ranges);
+				paramIndex += ranges.length;
+			} else {
+				whereClause += ` AND c.company_size = $${paramIndex}`;
+				params.push(companySize);
+				paramIndex++;
+			}
 		}
 
 		// ORDER BY clause

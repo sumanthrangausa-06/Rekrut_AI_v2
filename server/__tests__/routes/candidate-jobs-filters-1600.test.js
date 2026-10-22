@@ -67,6 +67,11 @@ describe('#1600 static contract — header Filters is a real door (JT-J1/JT-J4)'
 	});
 
 	test('header Apply writes the board\u2019s existing query-param names (one behaviour)', () => {
+		// #1634: Apply's param building was extracted to the pure builder
+		// lib/job-board-url.ts so its behaviour is unit-tested (see
+		// client job-board-url-1634.test.ts); the param-name contract now
+		// lives there, and the header must use the builder.
+		const builder = read('client/src/lib/job-board-url.ts');
 		for (const p of [
 			'search',
 			'location',
@@ -76,8 +81,9 @@ describe('#1600 static contract — header Filters is a real door (JT-J1/JT-J4)'
 			'salary_min',
 			'salary_max',
 		]) {
-			expect(header).toContain(`'${p}'`);
+			expect(builder).toContain(`'${p}'`);
 		}
+		expect(header).toContain('buildHeaderApplyParams');
 		expect(header).toContain('Apply');
 		expect(header).toContain('Clear');
 		// Off the Job Board, the door leads to the Job Board (FR-J1)
@@ -105,9 +111,10 @@ describe('#1600 static contract — board syncs from URL + server honours client
 	});
 
 	test('B1: URL params are honoured only behind the header filters=hdr1 marker', () => {
-		const header = read('client/src/components/layout/header.tsx');
+		// #1634: the hdr1 marker is now set by the extracted builder.
+		const builder = read('client/src/lib/job-board-url.ts');
 		const jobs = read('client/src/pages/candidate/jobs.tsx');
-		expect(header).toContain("params.set('filters', 'hdr1')");
+		expect(builder).toContain("params.set('filters', 'hdr1')");
 		expect(jobs).toContain("searchParams.get('filters')");
 	});
 
