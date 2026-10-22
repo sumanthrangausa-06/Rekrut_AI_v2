@@ -56,6 +56,15 @@ interface SessionCurrentResponse {
 	totalQuestions?: number;
 	correctCount?: number | null;
 	autoSubmittedFullscreen?: boolean;
+	// #1654 (C2): the session configuration snapshot fields the server
+	// sends on both /current branches (null on legacy NULL-config
+	// sessions). GAP-3 keys the instructions block off their presence;
+	// GAP-4 reads verifiedEligible defensively — no merged server
+	// response sends it today, so it stays undefined and the Verified
+	// label never renders until the server actually says so.
+	format?: string | null;
+	difficultyBand?: string | null;
+	verifiedEligible?: boolean;
 }
 
 interface CompletionInfo {
@@ -64,7 +73,28 @@ interface CompletionInfo {
 	totalQuestions: number;
 	correctCount: number | null;
 	autoSubmittedFullscreen: boolean;
+	// GAP-4: true ONLY when a response field said so — never derived.
+	verifiedEligible: boolean;
 }
+
+interface SessionConfig {
+	format: string;
+	difficultyBand: string | null;
+	totalQuestions: number;
+}
+
+const FORMAT_LABELS: Record<string, string> = {
+	mcq: 'Multiple choice',
+	short_answer: 'Short answer',
+	mixed: 'Mixed',
+	coding: 'Coding',
+};
+
+const BAND_COPY: Record<string, { label: string; range: string }> = {
+	easy: { label: 'Easy', range: 'levels 1–2' },
+	medium: { label: 'Medium', range: 'levels 2–4' },
+	hard: { label: 'Hard', range: 'levels 4–5' },
+};
 
 export function AssessmentTakePage() {
 	const { id: sessionId } = useParams();
@@ -95,6 +125,8 @@ export function AssessmentTakePage() {
 
 	// Phase B state: instructions gate, exit dialog, end states.
 	const [begun, setBegun] = useState(false);
+	// GAP-3: the session's configuration snapshot, when one exists.
+	const [sessionConfig, setSessionConfig] = useState<SessionConfig | null>(null);
 	const [exitOpen, setExitOpen] = useState(false);
 	const [exitBusy, setExitBusy] = useState(false);
 	const [exitError, setExitError] = useState<string | null>(null);
@@ -134,10 +166,18 @@ export function AssessmentTakePage() {
 					totalQuestions: result.totalQuestions ?? 10,
 					correctCount: result.correctCount ?? null,
 					autoSubmittedFullscreen: result.autoSubmittedFullscreen === true,
+					verifiedEligible: result.verifiedEligible === true,
 				});
 				return 'completed';
 			}
 			if (result.status === 'in_progress' && result.question) {
+				if (result.format) {
+					setSessionConfig({
+						format: result.format,
+						difficultyBand: result.difficultyBand ?? null,
+						totalQuestions: result.question.totalQuestions,
+					});
+				}
 				setQuestion(result.question);
 				setSkillName(result.skillName || '');
 				setTimeLeft(result.question.timeLimit || 120);
@@ -165,6 +205,7 @@ export function AssessmentTakePage() {
 			const stored = sessionStorage.getItem(`assessment_${sessionId}`);
 			if (stored) {
 				const data = JSON.parse(stored);
+				if (data.config?.format) setSessionConfig(data.config as SessionConfig);
 				setQuestion(data.question);
 				setSkillName(data.skillName || '');
 				sessionStorage.removeItem(`assessment_${sessionId}`);
@@ -215,7 +256,9 @@ export function AssessmentTakePage() {
 					{ timeoutMs: 30000 },
 				);
 				setFinalScore(fullResult.score || fallbackScore || 0);
-				setPassed(fullResult.passed || (fullResult.score || 0) >= 60);
+				// GAP-4: pass/fail is the SERVER's passed field — never
+				// reconstructed from the score on any path.
+				setPassed(fullResult.passed === true);
 				setAntiCheatScore(fullResult.antiCheatScore ?? null);
 				setDurationSeconds(fullResult.durationSeconds || 0);
 				setMaxDifficulty(fullResult.maxDifficultyReached || 0);
@@ -225,10 +268,14 @@ export function AssessmentTakePage() {
 					totalQuestions: fullResult.totalQuestions ?? 10,
 					correctCount: fullResult.correctCount ?? null,
 					autoSubmittedFullscreen: fullResult.autoSubmittedFullscreen === true,
+					verifiedEligible: fullResult.verifiedEligible === true,
 				});
 			} catch {
 				setFinalScore(fallbackScore || 0);
-				setPassed((fallbackScore || 0) >= 60);
+				// The result could not be read back — do not guess a pass
+				// from the score; the block renders "Not passed" with no
+				// score text (GAP-4 fail labelling).
+				setPassed(false);
 			}
 			setCompleted(true);
 			// Redirect to results page after a short delay
@@ -251,7 +298,7 @@ export function AssessmentTakePage() {
 					{ timeoutMs: 30000 },
 				);
 				if (current.status === 'completed') {
-					await showCompleted(current.score);
+					await showCompleted(current.score ?? undefined);
 					return;
 				}
 				if (current.status === 'in_progress' && current.question) {
@@ -384,6 +431,7 @@ export function AssessmentTakePage() {
 					totalQuestions: result.totalQuestions,
 					correctCount: result.correctCount ?? null,
 					autoSubmittedFullscreen: result.fullscreenAutoSubmit === true,
+					verifiedEligible: false,
 				});
 				await showCompleted(result.score ?? undefined);
 				return true;
@@ -557,7 +605,9 @@ export function AssessmentTakePage() {
 
 	// Completed view with detailed results
 	if (completed) {
-		const isPassed = passed || finalScore >= 60;
+		// GAP-4: isPassed is the server's passed field only (set in
+		// applyCurrent/showCompleted) — never score-derived.
+		const isPassed = passed;
 		const mins = Math.floor((durationSeconds || 0) / 60);
 		const info = completionInfo;
 		const isPartial = info?.partial === true;
@@ -606,22 +656,32 @@ export function AssessmentTakePage() {
 									Partial — answered {info.answersGiven} of {info.totalQuestions}
 								</Badge>
 							</>
-						) : (
+						) : isPassed ? (
 							<>
 								<p className="text-muted-foreground mb-6">
 									{skillName && `${skillName} - `}
-									{isPassed
+									{info?.verifiedEligible
 										? 'Great job! Your skill has been verified.'
-										: 'Keep practicing and try again.'}
+										: 'You passed this assessment.'}
 								</p>
 								<div className="text-5xl font-bold mb-6">
-									<span className={isPassed ? 'text-emerald-600' : 'text-destructive'}>
-										{finalScore}
-									</span>
+									<span className="text-emerald-600">{finalScore}</span>
 									<span className="text-muted-foreground text-lg">/100</span>
 								</div>
-								<Badge variant={isPassed ? 'success' : 'destructive'} className="text-sm mb-6">
-									{isPassed ? 'PASSED' : 'NOT PASSED'} (60 required)
+								{/* GAP-4: the Verified string appears ONLY when a
+								    response field said verifiedEligible === true. */}
+								<Badge variant="success" className="text-sm mb-6">
+									{info?.verifiedEligible ? 'Passed · Verified ✓' : 'Passed'}
+								</Badge>
+							</>
+						) : (
+							<>
+								{/* GAP-4: a failed attempt shows NO raw score text. */}
+								<p className="text-muted-foreground mb-6">
+									{skillName && `${skillName} - `}Keep practicing and try again.
+								</p>
+								<Badge variant="destructive" className="text-sm mb-6">
+									Not passed
 								</Badge>
 							</>
 						)}
@@ -711,6 +771,87 @@ export function AssessmentTakePage() {
 				<Button className="mt-4 min-h-[44px]" onClick={() => navigate('/candidate/assessments')}>
 					Back to Assessments
 				</Button>
+			</div>
+		);
+	}
+
+	// GAP-3 (#1654 addendum): exactly ONE instructions block renders in
+	// every state. A session WITH a configuration snapshot renders the
+	// snapshot block below (the configuration the candidate chose, in
+	// plain language, plus the same rule disclosures); a session WITHOUT
+	// one (legacy start, NULL-config in-flight) renders the Phase B gate
+	// after it. Never both, never neither.
+	if (!begun && sessionConfig) {
+		const bandCopy = sessionConfig.difficultyBand ? BAND_COPY[sessionConfig.difficultyBand] : null;
+		return (
+			<div className="max-w-2xl mx-auto py-8 px-4 sm:px-6">
+				<Card>
+					<CardContent className="p-6 space-y-4">
+						<h2 className="font-heading text-xl font-bold">Before you start</h2>
+						<p className="text-sm">
+							Your configuration: <strong>{skillName}</strong> ·{' '}
+							<strong>{FORMAT_LABELS[sessionConfig.format] || sessionConfig.format}</strong> ·{' '}
+							<strong>{sessionConfig.totalQuestions} questions</strong>
+							{bandCopy && (
+								<>
+									{' '}
+									· <strong>{bandCopy.label}</strong> — questions adapt within the{' '}
+									{bandCopy.label} band only ({bandCopy.range}), based on your answers.
+								</>
+							)}
+						</p>
+						<ul className="list-disc pl-5 space-y-2 text-sm text-muted-foreground">
+							<li>
+								You have <strong>{question.timeLimit || 120} seconds per question</strong>.
+								When a question's time runs out, that question is submitted with the answer
+								you have chosen — or recorded as unanswered — and the test moves on.
+							</li>
+							<li>
+								<strong>An answer is saved when you press Next.</strong> An answer you have
+								chosen or typed but not submitted with Next is a draft, not a saved answer.
+							</li>
+							<li>
+								<strong>This test runs in full-screen.</strong> Leaving full-screen once shows
+								a warning and pauses your timer.{' '}
+								<strong>Leaving a second time submits your test immediately</strong>, using
+								only the answers you have already saved.
+							</li>
+							<li>
+								<strong>You can leave at any time with the Exit button.</strong> You can save
+								and resume later, submit the answers you have saved so far, or exit the exam
+								without a score. Nothing about leaving is hidden — each option explains itself
+								before you choose it.
+							</li>
+							<li>Short answers are scored by AI and reviewed by a human.</li>
+						</ul>
+						<div className="flex flex-col gap-2">
+							<Button
+								className="min-h-[44px]"
+								onClick={async () => {
+									await fs.enterFullscreen();
+									setBegun(true);
+								}}
+							>
+								Start Test
+							</Button>
+							<Button
+								variant="ghost"
+								className="min-h-[44px]"
+								onClick={() => {
+									fs.continueWithoutFullscreen();
+									setBegun(true);
+								}}
+							>
+								Continue without full-screen
+							</Button>
+							{fs.mode === 'nofs' && (
+								<p className="text-sm text-muted-foreground">
+									Your browser could not enter full-screen. The test will continue normally.
+								</p>
+							)}
+						</div>
+					</CardContent>
+				</Card>
 			</div>
 		);
 	}
