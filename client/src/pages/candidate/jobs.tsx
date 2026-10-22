@@ -289,17 +289,21 @@ export function CandidateJobsPage() {
 	const urlFilterAdoption = useRef(createUrlFilterAdoptionTracker());
 	useEffect(() => {
 		const mode = searchParams.get('filters');
-		if (mode !== 'hdr1' && mode !== 'clear') return;
+		if (mode !== 'hdr1' && mode !== 'clear') {
+			// #1634 (specialist condition): the tracker is consumed when the
+			// signal is ABSENT, not during the hdr1 pass — the guard stays
+			// live while the signal is in the URL, and once the strip has
+			// landed (this branch runs on the post-strip param change) the
+			// same values may be adopted again on a later header Apply
+			// (post-strip re-entry after in-page divergence).
+			urlFilterAdoption.current.consume();
+			return;
+		}
 		// Guarded strip: the updater returns prev untouched when the signal is
 		// already gone, so this never rewrites a URL that no longer carries
 		// the signal and never overwrites a concurrent param write (delta-2
 		// review BLOCK D2-B1). Returning the same params skips the navigation.
-		// #1634: consuming the tracker here is what makes the strip final —
-		// once the signal is gone from the URL, the same values may be
-		// adopted again on a later header Apply (post-strip re-entry after
-		// in-page divergence), instead of hitting a stale signature guard.
 		const stripSignal = () => {
-			urlFilterAdoption.current.consume();
 			setSearchParams(
 				(prev) => {
 					if (!prev.has('filters')) return prev;
