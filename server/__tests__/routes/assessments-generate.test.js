@@ -410,6 +410,30 @@ describe('POST /api/assessments/generate — optional config (#1655 C2b)', () =>
 		expect(aiConfig.format).toBe('mixed');
 	});
 
+	it('(g) combined config (count + band + format in ONE request) → all three honoured together', async () => {
+		mockGeneratedCount = 25;
+		const app = makeApp();
+		const res = await request(app)
+			.post('/api/assessments/generate')
+			.set('x-test-user-id', '2')
+			.send({ jobId: 191, questionCount: 25, difficultyBand: 'hard', format: 'free_text' });
+
+		expect(res.status).toBe(200);
+		const prompt = mockChatCalls[0].prompt;
+		expect(prompt).toContain('Generate exactly 25 assessment questions');
+		expect(prompt).toContain('difficulty_level: 4-5');
+		expect(prompt).toMatch(/every question must use question_type "free_text"/i);
+		expect(mockAssessmentInserts[0][4]).toBe('hard');
+		expect(mockAssessmentInserts[0][5]).toBe(25);
+		expect(mockQuestionInserts.length).toBe(25);
+		expect(res.body.requestedCount).toBe(25);
+		expect(res.body.storedCount).toBe(25);
+		const aiConfig = JSON.parse(mockAssessmentInserts[0][7]);
+		expect(aiConfig.format).toBe('free_text');
+		expect(aiConfig.requestedCount).toBe(25);
+		expect(aiConfig.difficultyBand).toBe('hard');
+	});
+
 	it('(f) invalid questionCount/difficultyBand/format → 400 with no job lookup, no chat call, no insert', async () => {
 		const app = makeApp();
 		const invalidBodies = [
