@@ -777,9 +777,9 @@ router.get('/compliance/decisions', requireAdmin, async (req, res) => {
         al.target_id as job_id,
         j.title as job_title,
         COALESCE(al.metadata->>'model', 'unknown') as ai_model,
-        COALESCE((al.metadata->>'confidence')::float, 0.85) as confidence,
-        COALESCE(al.metadata->>'decision', 'processed') as decision,
-        COALESCE(al.metadata->>'explanation', 'AI processed this record') as explanation,
+        (al.metadata->>'confidence')::float as confidence,
+        COALESCE(al.metadata->>'decision', 'not recorded') as decision,
+        COALESCE(al.metadata->>'explanation', 'not recorded') as explanation,
         COALESCE(al.metadata->>'human_reviewed', 'false')::boolean as human_reviewed,
         COALESCE(al.metadata->>'human_reviewer', null) as human_reviewer,
         COALESCE(al.metadata->>'human_override', 'false')::boolean as human_override,
@@ -1039,7 +1039,7 @@ router.get('/compliance/explanations', requireAdmin, async (req, res) => {
         COALESCE(al.metadata->>'explanation_type', 'unknown') as explanation_type,
         COALESCE(al.metadata->>'explanation_summary', 'Explanation viewed') as explanation_summary,
         COALESCE(al.metadata->>'model_version', 'unknown') as model_version,
-        COALESCE(al.metadata->>'confidence', '0.85')::float as confidence,
+        (al.metadata->>'confidence')::float as confidence,
         al.ip_address as viewed_from_ip
       FROM audit_logs al
       LEFT JOIN users au ON al.user_id = au.id
@@ -1127,7 +1127,7 @@ router.get('/compliance/overrides', requireAdmin, async (req, res) => {
 			overrideReason: row.override_reason || 'No reason provided',
 			jobTitle: row.job_title || 'N/A',
 			aiModel: row.ai_model || 'unknown',
-			aiConfidence: parseFloat(row.ai_confidence || 0.85),
+			aiConfidence: row.ai_confidence == null ? null : parseFloat(row.ai_confidence),
 			overrideFromIp: row.override_from_ip,
 		}));
 
@@ -1154,7 +1154,7 @@ router.get('/compliance/overrides', requireAdmin, async (req, res) => {
 				totalOverrides: parseInt(stats.total_overrides || 0, 10),
 				uniqueRecruiters: parseInt(stats.unique_recruiters || 0, 10),
 				uniqueCandidates: parseInt(stats.unique_candidates || 0, 10),
-				avgAiConfidence: parseFloat(stats.avg_ai_confidence || 0.85).toFixed(2),
+				avgAiConfidence: stats.avg_ai_confidence == null ? null : parseFloat(stats.avg_ai_confidence).toFixed(2),
 			},
 		});
 	} catch (error) {
@@ -1414,9 +1414,9 @@ router.post('/compliance/export', requireAdmin, async (req, res) => {
         al.target_id as job_id,
         j.title as job_title,
         COALESCE(al.metadata->>'model', 'unknown') as ai_model,
-        COALESCE((al.metadata->>'confidence')::float, 0.85) as confidence,
-        COALESCE(al.metadata->>'decision', 'processed') as decision,
-        COALESCE(al.metadata->>'explanation', 'AI processed this record') as explanation,
+        (al.metadata->>'confidence')::float as confidence,
+        COALESCE(al.metadata->>'decision', 'not recorded') as decision,
+        COALESCE(al.metadata->>'explanation', 'not recorded') as explanation,
         COALESCE(al.metadata->>'human_reviewed', 'false')::boolean as human_reviewed,
         COALESCE(al.metadata->>'human_reviewer', null) as human_reviewer,
         COALESCE(al.metadata->>'human_override', 'false')::boolean as human_override,
@@ -1777,7 +1777,7 @@ router.get('/compliance/performance', requireAdmin, async (_req, res) => {
       SELECT
         COALESCE(metadata->>'model', 'unknown') as model,
         COUNT(*) as decisions,
-        AVG(COALESCE((metadata->>'confidence')::float, 0.85)) as avg_confidence,
+        AVG((metadata->>'confidence')::float) as avg_confidence,
         SUM(CASE WHEN metadata->>'human_override' = 'true' THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0) as override_rate
       FROM audit_logs
       WHERE (action_type LIKE 'ai_%'
@@ -1796,7 +1796,7 @@ router.get('/compliance/performance', requireAdmin, async (_req, res) => {
 		const modelPerformance = modelResult.rows.map((row) => ({
 			model: row.model,
 			decisions: parseInt(row.decisions, 10),
-			avgConfidence: parseFloat(row.avg_confidence) || 0,
+			avgConfidence: row.avg_confidence == null ? null : parseFloat(row.avg_confidence),
 			overrideRate: parseFloat(row.override_rate) || 0,
 		}));
 
