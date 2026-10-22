@@ -332,7 +332,7 @@ async function exitSkill(token, sid, body) {
 
 	// ---------- JT-B8: job runner — all four exit outcomes ----------
 	try {
-		const c = sharedJob;
+		const c = await refreshToken(sharedJob); // refresh AFTER the setup waits, right before use
 		// Save & Exit + resume, with a draft:
 		const aid = await jobAttempt(c.id);
 		const st = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/start`, {}, c.token);
@@ -365,7 +365,7 @@ async function exitSkill(token, sid, body) {
 
 	// ---------- JT-B9: job runner — events RECORDED (not just acknowledged); pause credit on the whole-exam timer ----------
 	try {
-		const c = sharedJob;
+		const c = await refreshToken(sharedJob);
 		const aid = await jobAttempt(c.id);
 		await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/start`, {}, c.token);
 		const ev1 = await http('POST', `/api/assessments/job-assessment/${jobCtx.assessmentId}/event`, { attemptId: aid, eventType: 'fullscreen_exit_first', eventData: {} }, c.token);
