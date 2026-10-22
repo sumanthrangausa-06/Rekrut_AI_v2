@@ -2122,8 +2122,9 @@ async function applySoftExclusion(client, { skillName, difficulty, session, scop
 // #1654 (C2): a session WITH a snapshot (topic_id + format recorded) serves
 // from the scoped pool — topic + format predicate (§4.6: mixed is the
 // mcq/short_answer union, never a literal equality) + approved-only (§7
-// rule 6) — in the Q2 order: bank-first → AI generation → in-scope approved
-// re-serve → null. A NULL-config session (in-flight legacy, §8) — or a
+// rule 6) — in the Q2 order: bank-first → AI generation → #1710 band-widen
+// (unserved in-band rows, exclusion carried) → in-scope approved re-serve →
+// null. A NULL-config session (in-flight legacy, §8) — or a
 // legacy-mapped session whose skill has no catalogue topic — keeps today's
 // exact skill_category path and order untouched. The format predicate is
 // interpolated from the validated snapshot enum (a closed set), never
@@ -2168,6 +2169,36 @@ async function generateQuestion(skillName, category, difficulty, client, exclude
 		const generated = await generateViaAI(skillName, category, difficulty, client, session);
 		if (generated) {
 			return generated;
+		}
+		// #1710 (Lead ruling, issue #1710 comment 6353236169): WIDEN before
+		// any repeat. The start gate promised this configuration at BAND
+		// granularity (medium = levels 2–4), but the bank draw above serves
+		// at the single current difficulty; when that cell exhausts and AI
+		// is down, unserved approved rows at OTHER levels of the same band
+		// are served before an already-asked question is repeated. The
+		// level list comes from the BANDS constant — never from request
+		// input — and the exclusion is effectiveExcludeIds (the hard
+		// in-session ids folded with the §5.3 soft cross-attempt ids), so
+		// a widened serve is never an asked id and never a previous-attempt
+		// row the soft exclusion still holds back. Serving wider does NOT
+		// move current_difficulty: the §5.2 adaptation value stays exactly
+		// where /answer put it.
+		const bandLevels = BANDS[session.difficulty_band];
+		if (Array.isArray(bandLevels) && bandLevels.length > 0) {
+			const widenResult = await client.query(
+				`
+    SELECT * FROM assessment_questions
+    WHERE topic_id = $1 AND ${formatPredicate} AND review_status = 'approved'
+      AND difficulty_level = ANY($2::int[])
+      AND NOT (id = ANY($3::int[]))
+    ORDER BY RANDOM()
+    LIMIT 1
+  `,
+				[session.topic_id, bandLevels, effectiveExcludeIds],
+			);
+			if (widenResult.rows.length > 0) {
+				return widenResult.rows[0];
+			}
 		}
 		const retryResult = await client.query(
 			`
