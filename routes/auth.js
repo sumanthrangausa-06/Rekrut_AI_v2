@@ -1104,6 +1104,7 @@ router.get('/linkedin/callback', async (req, res) => {
 		// Get user info using OpenID Connect userinfo endpoint
 		const userInfoResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
 			headers: { Authorization: `Bearer ${tokens.access_token}` },
+			signal: AbortSignal.timeout(5000),
 		});
 
 		const linkedinUser = await userInfoResponse.json();
