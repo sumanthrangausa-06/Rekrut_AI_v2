@@ -235,15 +235,15 @@ const QUESTIONS = [
 	},
 	{
 		skill: 'Communication', difficulty: 4, timeLimit: 120,
-		text: 'You must decline a colleague’s request because your team has no capacity. Which response is most professional?',
+		text: 'A senior stakeholder insists their new urgent request must be delivered this week, but your team can only do that by delaying a committed launch deliverable. What is the most effective way to handle it?',
 		options: [
-			'Decline clearly, briefly explain the constraint, and offer an alternative such as a later date or a different route',
-			'Say yes and hope the work somehow fits in',
-			'Decline with no explanation and ignore follow-up messages',
-			'Agree to a small part in person, then quietly drop it later',
+			'Lay out the trade-off explicitly — what slips if the new request takes priority — present costed options (swap the priorities, split the request, move the date), and ask the stakeholder to choose which outcome they will own',
+			'Agree immediately and let the team quietly absorb the extra work on top of the launch',
+			'Refuse flatly, citing the existing plan, and end the discussion there',
+			'Accept the request and delay the launch deliverable, informing the affected parties only once it is already late',
 		],
-		correct: 'Decline clearly, briefly explain the constraint, and offer an alternative such as a later date or a different route',
-		explanation: 'A clear no with a reason and an alternative respects the requester’s planning and keeps the relationship intact. A false yes, a silent brush-off, and a quiet drop all create a bigger failure later, when the work does not appear.',
+		correct: 'Lay out the trade-off explicitly — what slips if the new request takes priority — present costed options (swap the priorities, split the request, move the date), and ask the stakeholder to choose which outcome they will own',
+		explanation: 'When two commitments compete and the requester outranks the plan, the communicator’s job is to make the trade-off and its costs fully visible and return the priority decision to the person with the authority to make it. Quiet absorption burns the team out and still misses something; a flat refusal ignores the stakeholder’s authority; a silent delay destroys trust when it surfaces.',
 	},
 	{
 		skill: 'Communication', difficulty: 4, timeLimit: 120,

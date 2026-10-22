@@ -52,3 +52,10 @@ discarded as confabulated (it cited questions that do not exist in the
 file); the blocking review quoted verbatim texts with line numbers and
 every defect was grep-verified by Lead before fixing. Re-review pending
 at the time of this note; the PR records the outcome.
+Re-review then BLOCKED once more on a single within-file pair: the new
+L2 constructive-refusal row duplicated the file's own L4 decline row
+(same construct: no capacity → explain + offer alternative). The L4 row
+was replaced with a senior-stakeholder trade-off negotiation scenario
+(make the cost visible, costed options, stakeholder owns the priority
+call), which is a distinct, harder construct. Second re-review pending
+at this note; the PR records the outcome.
