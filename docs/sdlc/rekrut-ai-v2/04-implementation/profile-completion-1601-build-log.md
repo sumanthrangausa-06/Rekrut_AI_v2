@@ -55,7 +55,9 @@ it is not a live surface (cleanup candidate, tracked separately).
 ## Verification
 
 - Journey tests JT-P1–P3: `client/src/__tests__/pages/JobDetailProfileCompletion.test.tsx`
-  (red 3/4 on the old code → green 4/4).
+  (core JT cases red 3/4 on the old code → green; final suite 8/8 including
+  the 80/79 gate-boundary cases and the Dashboard stat-card cases added on
+  specialist review).
 - Quinn E2E (HL-003): real HTTP against a fresh-install dev build on a real
   database — Profile-equivalent (lib) value, Dashboard stats value, and the
   job-detail source value read back and compared; evidence on issue #1601.

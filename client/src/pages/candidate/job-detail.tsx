@@ -320,11 +320,15 @@ export function CandidateJobDetailPage() {
 				'/candidate/dashboard/stats',
 			);
 			setProfileCompleteness(
-				typeof data.stats?.profile_completeness === 'number'
+				typeof data.stats?.profile_completeness === 'number' &&
+					Number.isFinite(data.stats.profile_completeness)
 					? data.stats.profile_completeness
 					: null,
 			);
 		} catch (err) {
+			// A failed (re)load means the value is unknown again — never let a
+			// stale percentage keep governing the banner/gate (FR-P3).
+			setProfileCompleteness(null);
 			console.error('[job-detail] Operation failed:', err);
 		}
 	}, []);

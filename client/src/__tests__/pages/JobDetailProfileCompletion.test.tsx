@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CandidateDashboard } from '@/pages/candidate/dashboard';
 import { CandidateJobDetailPage } from '@/pages/candidate/job-detail';
 
 // #1601 — JT-P1..P3 (PRD prd-job-board-and-profile.md §5.2/§6 FR-P1–P4):
@@ -119,6 +120,22 @@ describe('#1601 job-detail profile completion (JT-P1–P3)', () => {
 		expect(screen.queryByRole('button', { name: /one-click apply/i })).not.toBeInTheDocument();
 	});
 
+	it('JT-P2b boundary: exactly 80% — gate opens, banner hides (>= 80, not > 80)', async () => {
+		mockApis({ completeness: 80 });
+		renderPage();
+		await openApplyForm();
+		expect(await screen.findByRole('button', { name: /one-click apply/i })).toBeInTheDocument();
+		expect(screen.queryByText(/% complete/i)).not.toBeInTheDocument();
+	});
+
+	it('JT-P2c boundary: 79% — banner shows 79%, gate stays closed', async () => {
+		mockApis({ completeness: 79 });
+		renderPage();
+		expect(await screen.findByText(/your profile is 79% complete/i)).toBeInTheDocument();
+		await openApplyForm();
+		expect(screen.queryByRole('button', { name: /one-click apply/i })).not.toBeInTheDocument();
+	});
+
 	it('JT-P3a: genuinely empty profile — true 0% is shown (known zero ≠ unknown)', async () => {
 		mockApis({ completeness: 0 });
 		renderPage();
@@ -134,5 +151,63 @@ describe('#1601 job-detail profile completion (JT-P1–P3)', () => {
 		expect(screen.queryByText(/% complete/i)).not.toBeInTheDocument();
 		await openApplyForm();
 		expect(screen.queryByRole('button', { name: /one-click apply/i })).not.toBeInTheDocument();
+	});
+});
+
+// Dashboard stat-card (the other surface fixed in this PR): its description
+// previously used `stats?.profile_completeness || 0` — a fabricated 0% while
+// stats were loading/unknown.
+describe('#1601 dashboard stat-card completion (FR-P3)', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => ({ ok: false, json: async () => null })),
+		);
+	});
+
+	function mockDashboard(statsBehaviour: { completeness: number } | 'throws') {
+		mockApiCall.mockImplementation(async (url: string) => {
+			if (url.includes('/candidate/dashboard/stats')) {
+				if (statsBehaviour === 'throws') throw new Error('stats unavailable');
+				return {
+					success: true,
+					stats: {
+						profile_completeness: statsBehaviour.completeness,
+						missing_sections: [],
+						applications: 0,
+						saved_jobs: 0,
+						skills: { total: 0, verified: 0 },
+						interviews: { total: 0, avg_score: 0 },
+						assessments: { total: 0, passed: 0 },
+						omniscore: { total_score: null, score_tier: null },
+					},
+				};
+			}
+			if (url.includes('/jobs')) return { jobs: [] };
+			if (url.includes('/interviews')) return { interviews: [] };
+			return {};
+		});
+	}
+
+	function renderDashboard() {
+		return render(
+			<MemoryRouter>
+				<CandidateDashboard />
+			</MemoryRouter>,
+		);
+	}
+
+	it('known value — stat card shows the real percentage', async () => {
+		mockDashboard({ completeness: 42 });
+		renderDashboard();
+		expect(await screen.findByText('42% complete')).toBeInTheDocument();
+	});
+
+	it('unknown value (stats fails) — stat card shows NO percentage', async () => {
+		mockDashboard('throws');
+		renderDashboard();
+		expect(await screen.findByText(/welcome back/i)).toBeInTheDocument();
+		expect(screen.queryByText(/% complete/i)).not.toBeInTheDocument();
 	});
 });
