@@ -225,7 +225,7 @@ describe('#1689 — take-page AI disclosure gated on format + format labels matc
 	});
 });
 
-describe('GAP-4 — completion labels from response fields', () => {
+describe('GAP-4 — completion labels from response fields (+ #1679 item 9 server-field discriminators)', () => {
 	test('partial: "X of Y answered", no pass/fail language, no Verified badge', async () => {
 		mockCurrent({
 			status: 'completed',
