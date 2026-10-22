@@ -317,12 +317,34 @@ export function CandidateAssessmentsPage() {
 																				</span>
 																			</>
 																		)}
+																		{/* #1656 (C3, §3.7): the last attempt's
+																		    score, same honesty rule — null
+																		    renders nothing. */}
+																		{topic.progress.lastScore != null && (
+																			<>
+																				{' '}
+																				Last:{' '}
+																				<span className="font-medium">
+																					{topic.progress.lastScore}/100
+																				</span>
+																			</>
+																		)}
 																		<span className="text-muted-foreground ml-1">
 																			({topic.progress.attempts} attempt
 																			{topic.progress.attempts !== 1 ? 's' : ''})
 																		</span>
 																	</p>
 																)}
+															{/* #1656: the server's canRetake is the /start
+															    gate's own answer — when false, the lockout
+															    is stated plainly instead of Start failing
+															    later with no warning. */}
+															{topic.progress && topic.progress.canRetake === false && (
+																<p className="text-xs text-muted-foreground mb-2">
+																	Retake available 30 days after your last completed
+																	attempt.
+																</p>
+															)}
 															{topic.availability.available ? (
 																<>
 																	<p className="text-xs text-muted-foreground mb-2">

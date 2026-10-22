@@ -130,11 +130,39 @@ async function loadCatalogTables(userId) {
      ORDER BY cs.is_verified ASC, cs.created_at DESC`,
 		[userId],
 	);
+	// #1656 (C3, §3.7): the per-(user, topic) progress read model — over
+	// skill_assessments joined to the session that produced them, keyed
+	// by assessment_sessions.topic_id. Completed attempts only, exactly
+	// like the skill-keyed read above: an abandoned session writes no
+	// skill_assessments row and can never appear here. The latest score
+	// comes from a LATERAL read ordered by completed_at DESC — a MAX()
+	// would silently duplicate best into last (§2.4 pitfall, C1).
+	const topicProgressResult = await pool.query(
+		`WITH agg AS (
+       SELECT sess.topic_id AS topic_id, COUNT(*)::int AS attempts, MAX(sa.score) AS best_score
+       FROM skill_assessments sa
+       JOIN assessment_sessions sess ON sess.id = sa.session_id
+       WHERE sa.user_id = $1 AND sa.completed_at IS NOT NULL AND sess.topic_id IS NOT NULL
+       GROUP BY sess.topic_id
+     )
+     SELECT agg.topic_id, agg.attempts, agg.best_score, lat.last_score, lat.last_completed_at
+     FROM agg
+     JOIN LATERAL (
+       SELECT sa2.score AS last_score, sa2.completed_at AS last_completed_at
+       FROM skill_assessments sa2
+       JOIN assessment_sessions sess2 ON sess2.id = sa2.session_id
+       WHERE sa2.user_id = $1 AND sa2.completed_at IS NOT NULL AND sess2.topic_id = agg.topic_id
+       ORDER BY sa2.completed_at DESC
+       LIMIT 1
+     ) lat ON true`,
+		[userId],
+	);
 	return {
 		subjects: subjectsResult.rows,
 		topics: topicsResult.rows,
 		counts: countsResult.rows,
 		progress: progressResult.rows,
+		topicProgress: topicProgressResult.rows,
 	};
 }
 
@@ -188,6 +216,78 @@ async function loadTopicCounts(runner, topicId) {
 async function topicServable(runner, topicId, format, band) {
 	const availability = computeTopicAvailability(await loadTopicCounts(runner, topicId));
 	return availability.formats[format][band];
+}
+
+// ── #1656 (C3) — assessment sets (§3.3, R1/R2) ─────────────────────────────
+// A set serves iff it is active, belongs to the session's topic, matches
+// the band exactly, and matches the format per §4.6: exact match, OR a
+// mixed session drawing an mcq/short_answer set (the session then serves
+// that single format and the set is what the candidate actually got).
+// Every other pairing is incompatible — the honest 400, never a fallback.
+function setMatchesSession(set, topicId, format, difficultyBand) {
+	if (!set || set.is_active === false) return false;
+	if (set.topic_id !== topicId) return false;
+	if (set.difficulty_band !== difficultyBand) return false;
+	if (set.format === format) return true;
+	return format === 'mixed' && (set.format === 'mcq' || set.format === 'short_answer');
+}
+
+async function loadSetById(runner, setId) {
+	const result = await runner.query('SELECT * FROM assessment_sets WHERE id = $1', [setId]);
+	return result.rows[0] || null;
+}
+
+// Servable supply FOR A SET is its own approved membership (§7 rule 6
+// applies to set questions exactly as to pool rows) — never the topic pool.
+async function setApprovedCount(runner, setId) {
+	const result = await runner.query(
+		`SELECT COUNT(*)::int AS n
+     FROM assessment_set_questions sq
+     JOIN assessment_questions q ON q.id = sq.question_id
+     WHERE sq.set_id = $1 AND q.review_status = 'approved'`,
+		[setId],
+	);
+	return parseInt(result.rows[0]?.n, 10) || 0;
+}
+
+// The set's servable question ids in position order (approved only — a
+// set question that loses approval mid-session simply stops being
+// servable, which is the R2 starvation path, never a pool draw).
+async function loadSetQuestionIds(runner, setId) {
+	const result = await runner.query(
+		`SELECT sq.question_id
+     FROM assessment_set_questions sq
+     JOIN assessment_questions q ON q.id = sq.question_id
+     WHERE sq.set_id = $1 AND q.review_status = 'approved'
+     ORDER BY sq.position ASC`,
+		[setId],
+	);
+	return result.rows.map((r) => r.question_id);
+}
+
+// R2 auto-pick: among the active sets for the topic, the one this user
+// has gone longest without completing (never completed first, then the
+// oldest last completion, then the lowest id). Format/band compatibility
+// (§4.6) and non-empty approved membership are applied here — an empty
+// or incompatible set is never picked.
+async function pickAutoSet(runner, topicId, userId, format, difficultyBand) {
+	const result = await runner.query(
+		`SELECT st.id, st.topic_id, st.name, st.format, st.difficulty_band, st.is_active,
+            (SELECT MAX(sess.completed_at) FROM assessment_sessions sess
+              WHERE sess.set_id = st.id AND sess.user_id = $2 AND sess.status = 'completed') AS last_completed_at,
+            (SELECT COUNT(*)::int FROM assessment_set_questions sq
+              JOIN assessment_questions q ON q.id = sq.question_id
+              WHERE sq.set_id = st.id AND q.review_status = 'approved') AS question_count
+     FROM assessment_sets st
+     WHERE st.topic_id = $1 AND st.is_active = true
+     ORDER BY last_completed_at ASC NULLS FIRST, st.id ASC`,
+		[topicId, userId],
+	);
+	return (
+		result.rows.find(
+			(s) => parseInt(s.question_count, 10) > 0 && setMatchesSession(s, topicId, format, difficultyBand),
+		) || null
+	);
 }
 
 async function findTopicById(runner, topicId) {
@@ -536,7 +636,7 @@ router.get('/available', authMiddleware, async (req, res) => {
 // start draws from.
 router.get('/catalog', authMiddleware, async (req, res) => {
 	try {
-		const { subjects, topics, counts, progress } = await loadCatalogTables(req.user.id);
+		const { subjects, topics, counts, progress, topicProgress } = await loadCatalogTables(req.user.id);
 
 		const countsByTopic = new Map();
 		for (const row of counts) {
@@ -546,6 +646,10 @@ router.get('/catalog', authMiddleware, async (req, res) => {
 		const progressBySkillName = new Map();
 		for (const row of progress) {
 			progressBySkillName.set(String(row.skill_name).toLowerCase(), row);
+		}
+		const topicProgressById = new Map();
+		for (const row of topicProgress || []) {
+			if (Number.isInteger(row.topic_id)) topicProgressById.set(row.topic_id, row);
 		}
 		const topicsBySubject = new Map();
 		for (const topic of topics) {
@@ -562,11 +666,26 @@ router.get('/catalog', authMiddleware, async (req, res) => {
 				icon: subject.icon,
 				description: subject.description,
 				topics: (topicsBySubject.get(subject.id) || []).map((topic) => {
-					// Progress is read at the default topic through its
-					// legacy_skill_name (§3.6/§3.7: history aggregates at
-					// subject level); topics without one carry null in C1.
+					// Progress (§3.7, #1656 R4): the per-(user, topic) read
+					// model wins whenever this topic has completed attempts
+					// of its own. Otherwise a default topic keeps the C1
+					// skill-keyed surfacing through its legacy_skill_name
+					// (topic-less legacy history aggregates at subject
+					// level) — unchanged values, plus canRetake computed
+					// from the last COMPLETED attempt, the /start gate's
+					// own input (§4.4). No completed attempts anywhere →
+					// null, never a fabricated number.
 					let topicProgress = null;
-					if (topic.legacy_skill_name) {
+					const topicRow = topicProgressById.get(topic.id);
+					if (topicRow) {
+						topicProgress = {
+							attempts: parseInt(topicRow.attempts, 10),
+							bestScore: topicRow.best_score,
+							lastScore: topicRow.last_score,
+							lastAttempted: topicRow.last_completed_at,
+							canRetake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, topicRow.last_completed_at),
+						};
+					} else if (topic.legacy_skill_name) {
 						const row = progressBySkillName.get(topic.legacy_skill_name.toLowerCase());
 						if (row && parseInt(row.assessment_count, 10) > 0) {
 							topicProgress = {
@@ -574,6 +693,7 @@ router.get('/catalog', authMiddleware, async (req, res) => {
 								bestScore: row.best_score,
 								lastScore: row.last_score,
 								lastAttempted: row.last_completed_at,
+								canRetake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, row.last_completed_at),
 							};
 						}
 					}
@@ -764,15 +884,6 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 		let servable = null;
 
 		if (isConfigured) {
-			// STOP 1 Q3: sets are schema-only until C3 — an explicit 400,
-			// never a snapshot of something we do not serve.
-			if (body.setId !== undefined && body.setId !== null) {
-				await client.query('ROLLBACK');
-				return res.status(400).json({
-					error: 'Assessment sets are not available yet',
-					code: 'SETS_NOT_AVAILABLE',
-				});
-			}
 			const topicId = parseInt(body.topicId, 10);
 			const { format, difficultyBand } = body;
 			if (!Number.isInteger(topicId)) {
@@ -827,16 +938,46 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 					format: 'coding',
 				});
 			}
+			// #1656 (C3, R1/R2): set resolution. An explicit setId must
+			// exist and be compatible (§4.6 via setMatchesSession) —
+			// otherwise the honest 400 SETS_NOT_AVAILABLE, rolled back
+			// BEFORE any session exists (the C2 contract, kept). No
+			// setId + compatible active sets for this topic → auto-pick
+			// the set gone longest without completion; no sets at all →
+			// pool mode, exactly as C2.
+			let resolvedSetId = null;
+			if (body.setId !== undefined && body.setId !== null) {
+				const setId = parseInt(body.setId, 10);
+				const set = Number.isInteger(setId) ? await loadSetById(client, setId) : null;
+				if (!setMatchesSession(set, topic.id, format, difficultyBand)) {
+					await client.query('ROLLBACK');
+					return res.status(400).json({
+						error: 'Assessment set is not available for this topic and configuration',
+						code: 'SETS_NOT_AVAILABLE',
+					});
+				}
+				resolvedSetId = set.id;
+			} else {
+				const auto = await pickAutoSet(client, topic.id, userId, format, difficultyBand);
+				if (auto) resolvedSetId = auto.id;
+			}
 			snapshot = {
 				subjectId: topic.subject_id,
 				topicId: topic.id,
+				setId: resolvedSetId,
 				format,
 				difficultyBand,
 				totalQuestions: body.totalQuestions,
 			};
 			// Availability is re-checked INSIDE the transaction (§4.1:
-			// pre-flight is advisory; start is authoritative).
-			servable = await topicServable(client, topic.id, format, difficultyBand);
+			// pre-flight is advisory; start is authoritative). For a set
+			// session the promise is the SET's approved membership, not
+			// the topic pool (R2) — the labelled-offer rule below then
+			// keys off the set's own servable count.
+			servable =
+				resolvedSetId != null
+					? await setApprovedCount(client, resolvedSetId)
+					: await topicServable(client, topic.id, format, difficultyBand);
 			// STOP 1 Q1: the enum governs the choice UI; a non-enum count
 			// is accepted ONLY when it is exactly this configuration's
 			// current servable — the labelled largestAvailable offer the
@@ -868,6 +1009,7 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 			snapshot = {
 				subjectId: defaultTopic?.subject_id ?? null,
 				topicId: defaultTopic?.id ?? null,
+				setId: null, // legacy body: pool mode, exactly as before C3
 				format: 'mixed',
 				difficultyBand: 'medium',
 				totalQuestions: 10,
@@ -918,9 +1060,9 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
       (user_id, skill_id, job_id, status, current_difficulty, current_question_index, score,
        max_difficulty_reached, tab_switches, copy_paste_attempts, time_anomalies,
        questions_asked, answers_given, started_at,
-       subject_id, topic_id, format, difficulty_band, total_questions)
+       subject_id, topic_id, format, difficulty_band, total_questions, set_id)
       VALUES ($1, $2, $3, 'in_progress', $4, 0, 0, $4, 0, 0, 0, '[]'::jsonb, '[]'::jsonb, NOW(),
-              $5, $6, $7, $8, $9)
+              $5, $6, $7, $8, $9, $10)
       RETURNING *
     `,
 			[
@@ -933,6 +1075,7 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 				snapshot.format,
 				snapshot.difficultyBand,
 				snapshot.totalQuestions,
+				snapshot.setId ?? null,
 			],
 		);
 
@@ -1592,6 +1735,44 @@ async function serveNextQuestion(sessionId) {
 			return { ok: false, reason: 'awaiting_completion' };
 		}
 
+		// #1656 (C3, §3.3/R2): set mode — serve the set's own questions in
+		// position order. The set is the whole supply: when its servable
+		// questions are exhausted before the promised count (a member
+		// lost approval mid-session), serving stops with the same
+		// awaiting_completion outcome pool mode uses at its total, and
+		// the callers complete the attempt honestly as a partial. There
+		// is NEVER a silent pool fallback mid-set.
+		if (session.set_id != null) {
+			const setIds = await loadSetQuestionIds(client, session.set_id);
+			const nextIdx = answersGiven.length;
+			if (nextIdx >= setIds.length) {
+				await client.query('ROLLBACK');
+				return { ok: false, reason: 'awaiting_completion' };
+			}
+			const setQuestion = await client.query('SELECT * FROM assessment_questions WHERE id = $1', [
+				setIds[nextIdx],
+			]);
+			if (setQuestion.rows.length === 0) {
+				await client.query('ROLLBACK');
+				return { ok: false, reason: 'question_missing' };
+			}
+			const question = setQuestion.rows[0];
+			questionsAsked.push({
+				questionId: question.id,
+				difficulty: question.difficulty_level,
+				timestamp: new Date(),
+			});
+			await client.query(
+				'UPDATE assessment_sessions SET questions_asked = $1, current_question_index = $2 WHERE id = $3',
+				[JSON.stringify(questionsAsked), answersGiven.length + 1, sessionId],
+			);
+			await client.query('COMMIT');
+			return {
+				ok: true,
+				question: questionPayload(question, answersGiven.length + 1, sessionTotal(session)),
+			};
+		}
+
 		const skillResult = await client.query('SELECT * FROM candidate_skills WHERE id = $1', [
 			session.skill_id,
 		]);
@@ -1601,6 +1782,10 @@ async function serveNextQuestion(sessionId) {
 		}
 		const skill = skillResult.rows[0];
 
+		// #1656 (C3, R3/§5.3): the most recent COMPLETED attempt's asked
+		// ids ride along as a SOFT exclusion — generateQuestion applies
+		// them only while the pool can still meet the remaining count.
+		const softExcludeIds = await loadPreviousCompletedQuestionIds(client, session);
 		const question = await generateQuestion(
 			skill.skill_name,
 			skill.category,
@@ -1608,6 +1793,7 @@ async function serveNextQuestion(sessionId) {
 			client,
 			questionsAsked.map((q) => q.questionId),
 			session,
+			softExcludeIds,
 		);
 		if (!question) {
 			await client.query('ROLLBACK');
@@ -1796,6 +1982,18 @@ async function abandonSessionTx(sessionId, userId, reason) {
 	}
 }
 
+// #1656 (R2): the count at which a session completes. Pool sessions
+// complete at their promised total; SET sessions complete at the
+// promised total OR when the set's servable questions run out —
+// whichever comes first — so a starved set completes honestly as a
+// partial instead of hanging on an unreachable total.
+async function sessionCompletionThreshold(runner, session) {
+	const total = sessionTotal(session);
+	if (session.set_id == null) return total;
+	const setCount = await setApprovedCount(runner, session.set_id);
+	return Math.min(total, setCount);
+}
+
 // After an answer has been committed, decide the response from the recorded
 // state alone: completed → the completion; final answer recorded but not yet
 // completed → run/retry completion; otherwise → the advance acknowledgement
@@ -1822,7 +2020,7 @@ async function respondAfterRecord(res, sessionId, userId, extras = {}) {
 			.json({ error: 'This attempt is already finished', code: 'ALREADY_FINISHED' });
 	}
 	const answersGiven = parseJsonArray(session.answers_given);
-	if (answersGiven.length >= sessionTotal(session)) {
+	if (answersGiven.length >= (await sessionCompletionThreshold(pool, session))) {
 		const completion = await completeAssessmentTx(sessionId, userId);
 		if (completion) {
 			return res.json({
@@ -1848,6 +2046,63 @@ async function respondAfterRecord(res, sessionId, userId, extras = {}) {
 	});
 }
 
+// #1656 (C3, R3/§5.3): the user's most recent COMPLETED attempt's asked
+// question ids, in the order they were asked (oldest first — the order
+// starvation relaxation gives them back in). Keyed by topic when the
+// session has one; legacy topic-less sessions fall back to the most
+// recent completed attempt for the skill. Only status='completed'
+// sessions are read: an abandoned attempt contributes NOTHING — no lock
+// (the /start gate already reads completed rows only) and no exclusion.
+async function loadPreviousCompletedQuestionIds(client, session) {
+	const byTopic = session.topic_id != null;
+	const result = await client.query(
+		byTopic
+			? `SELECT questions_asked FROM assessment_sessions
+       WHERE user_id = $1 AND topic_id = $2 AND status = 'completed' AND id <> $3
+       ORDER BY completed_at DESC LIMIT 1`
+			: `SELECT questions_asked FROM assessment_sessions
+       WHERE user_id = $1 AND skill_id = $2 AND status = 'completed' AND id <> $3
+       ORDER BY completed_at DESC LIMIT 1`,
+		[session.user_id, byTopic ? session.topic_id : session.skill_id, session.id],
+	);
+	if (result.rows.length === 0) return [];
+	return parseJsonArray(result.rows[0].questions_asked)
+		.map((q) => q.questionId)
+		.filter(Number.isInteger);
+}
+
+// §5.3 soft exclusion, applied exactly: the previous attempt's ids are
+// excluded ONLY while the remaining pool at the needed (format,
+// difficulty) — after the hard in-session exclusion — still meets the
+// session's remaining count. When it would starve the session, the
+// exclusion relaxes OLDEST-first (the earliest-asked ids come back
+// first) until the pool meets the count or nothing is left to relax.
+async function applySoftExclusion(client, { skillName, difficulty, session, scoped, formatPredicate }, excludeIds, softExcludeIds) {
+	const poolResult = scoped
+		? await client.query(
+				`SELECT id FROM assessment_questions
+     WHERE topic_id = $1 AND ${formatPredicate} AND review_status = 'approved'
+       AND difficulty_level = $2
+       AND NOT (id = ANY($3::int[]))`,
+				[session.topic_id, difficulty, excludeIds],
+			)
+		: await client.query(
+				`SELECT id FROM assessment_questions
+     WHERE LOWER(skill_category) = LOWER($1) AND difficulty_level = $2
+       AND NOT (id = ANY($3::int[]))`,
+				[skillName, difficulty, excludeIds],
+			);
+	const poolIds = new Set(poolResult.rows.map((r) => r.id));
+	const softInPool = softExcludeIds.filter((id) => poolIds.has(id));
+	const remaining = Math.max(1, sessionTotal(session) - parseJsonArray(session.answers_given).length);
+	let available = poolIds.size - softInPool.length;
+	while (available < remaining && softInPool.length > 0) {
+		softInPool.shift(); // oldest first
+		available += 1;
+	}
+	return [...excludeIds, ...softInPool];
+}
+
 // Helper: Generate or fetch question.
 // Phase A (#1606): excludeIds lists questions already asked in the session —
 // while unserved bank rows exist at this difficulty, a session never re-serves
@@ -1861,12 +2116,27 @@ async function respondAfterRecord(res, sessionId, userId, extras = {}) {
 // exact skill_category path and order untouched. The format predicate is
 // interpolated from the validated snapshot enum (a closed set), never
 // from request input.
-async function generateQuestion(skillName, category, difficulty, client, excludeIds = [], session = null) {
+async function generateQuestion(skillName, category, difficulty, client, excludeIds = [], session = null, softExcludeIds = []) {
 	const scoped = !!(session && session.topic_id != null && session.format);
 	let formatPredicate = null;
 	if (scoped) {
 		formatPredicate =
 			session.format === 'mixed' ? `format IN ('mcq','short_answer')` : `format = '${session.format}'`;
+	}
+	// #1656 (R3/§5.3): fold the soft cross-attempt exclusion into the
+	// hard in-session exclusion for the bank draws below. The AI leg and
+	// the final re-serve fallback are deliberately NOT soft-excluded —
+	// they are the starvation relief valves, in the existing order.
+	let effectiveExcludeIds = excludeIds;
+	if (softExcludeIds.length > 0 && session) {
+		effectiveExcludeIds = await applySoftExclusion(
+			client,
+			{ skillName, difficulty, session, scoped, formatPredicate },
+			excludeIds,
+			softExcludeIds,
+		);
+	}
+	if (scoped) {
 		const existingResult = await client.query(
 			`
     SELECT * FROM assessment_questions
@@ -1876,7 +2146,7 @@ async function generateQuestion(skillName, category, difficulty, client, exclude
     ORDER BY RANDOM()
     LIMIT 1
   `,
-			[session.topic_id, difficulty, excludeIds],
+			[session.topic_id, difficulty, effectiveExcludeIds],
 		);
 		if (existingResult.rows.length > 0) {
 			return existingResult.rows[0];
@@ -1912,11 +2182,21 @@ async function generateQuestion(skillName, category, difficulty, client, exclude
     ORDER BY RANDOM()
     LIMIT 1
   `,
-		[skillName, difficulty, excludeIds],
+		[skillName, difficulty, effectiveExcludeIds],
 	);
 
 	if (existingResult.rows.length > 0) {
 		return existingResult.rows[0];
+	}
+
+	// #1656: when a soft exclusion was folded in, fresh AI supply is
+	// tried BEFORE any already-asked question is re-served (the scoped
+	// path's Q2 order) — re-serving a previous attempt's question is the
+	// last resort, not the second. Without a soft exclusion the historic
+	// order below is byte-for-byte today's.
+	if (softExcludeIds.length > 0) {
+		const generated = await generateViaAI(skillName, category, difficulty, client, null);
+		if (generated) return generated;
 	}
 
 	if (excludeIds.length > 0) {
@@ -2450,8 +2730,10 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 			// Phase A recovery: every answer is recorded but completion never
 			// landed (e.g. the completion step failed after the final answer
 			// committed). Finish it now — the terminal transition is atomic,
-			// so this can never double-complete.
-			if (answersGiven.length >= sessionTotal(session)) {
+			// so this can never double-complete. #1656: the threshold is the
+			// set-aware completion threshold, so a starved set session also
+			// finishes here (as a partial) instead of 503-ing forever.
+			if (answersGiven.length >= (await sessionCompletionThreshold(pool, session))) {
 				const completion = await completeAssessmentTx(sessionId, userId);
 				if (completion) {
 					const doneResult = await pool.query(
