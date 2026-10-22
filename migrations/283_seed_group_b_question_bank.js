@@ -232,7 +232,7 @@ const QUESTIONS = [
 			'Two primary databases that both accept writes in different Availability Zones',
 		],
 		correct: 'A synchronous standby replica in a different Availability Zone, with automatic failover if the primary fails',
-		explanation: 'Multi-AZ keeps a synchronously replicated standby in another AZ purely for availability; RDS fails over to it automatically. The standby does not serve reads (that is what read replicas are for) and is not a second writable primary.',
+		explanation: 'Multi-AZ keeps a synchronously replicated standby in another AZ purely for availability; RDS fails over to it automatically. In a Multi-AZ DB instance deployment the standby does not serve reads (that is what read replicas are for) and is not a second writable primary.',
 	},
 	{
 		skill: 'AWS', difficulty: 4, timeLimit: 120,
