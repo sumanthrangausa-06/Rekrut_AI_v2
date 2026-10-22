@@ -127,13 +127,17 @@ async function exitSkill(token, sid, body) {
 	await db.connect();
 
 	// ---------- RIG SETUP: deterministic bank supply (rig data, not product seed) ----------
+	// #1654 (C2): legacy starts snapshot the default topic and serve from
+	// the scoped pool (topic + format + approved-only) — rig rows carry
+	// topic_id (via the topic's legacy_skill_name), format and
+	// review_status='approved', or the bank-hit legs stop hitting the bank.
 	await db.query(`DELETE FROM assessment_questions WHERE skill_category IN ('JavaScript','Python') AND question_text LIKE 'RigQ %'`);
 	for (const skill of ['JavaScript', 'Python']) {
 		for (const d of [1, 2, 3, 4, 5]) {
 			for (let i = 1; i <= 4; i++) {
 				await db.query(
-					`INSERT INTO assessment_questions (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds)
-					 VALUES ($1,$2,'multiple_choice',$3,$4,'RigCorrect','Rig explanation',90)`,
+					`INSERT INTO assessment_questions (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds, topic_id, format, review_status)
+					 VALUES ($1,$2,'multiple_choice',$3,$4,'RigCorrect','Rig explanation',90,(SELECT id FROM assessment_topics WHERE legacy_skill_name = $1),'mcq','approved')`,
 					[skill, d, `RigQ ${skill} d${d} #${i}: pick the correct option`, JSON.stringify(['RigCorrect', 'Wrong A', 'Wrong B', 'Wrong C'])],
 				);
 			}
