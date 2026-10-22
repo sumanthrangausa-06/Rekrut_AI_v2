@@ -11,7 +11,7 @@
 
 ## 1. Executive summary
 
-Candidates cannot reliably take skill assessments today: submissions hang or fail with answers at risk (#1602), some assessments never open (#1606), there is no way to leave a test mid-attempt (#1604), and there are no full-screen integrity rules (#1605). On top of the broken basics, the module is one hardcoded shape — 15 skills, exactly 10 questions each, two question types — where the product needs multiple subjects and topics, MCQ + coding formats, configurable question counts, and difficulty levels (#1603).
+Candidates cannot reliably take skill assessments today: submissions hang or fail with answers at risk (#1602), some assessments never open (#1606), there is no way to leave a test mid-attempt (#1604), and there are no full-screen integrity rules (#1605). On top of the broken basics, the module is one hardcoded shape — 16 skills, exactly 10 questions each, two question types — where the product needs multiple subjects and topics, MCQ + coding formats, configurable question counts, and difficulty levels (#1603).
 
 This PRD specifies, in build order: **(A)** make starting, answering, and submitting bulletproof and honest; **(B)** one unified exit design + full-screen policy that reconciles #1604 and #1605; **(C)** the multi-topic redesign of the catalogue. A and B ship on the current runner; C follows Rex's architecture (Phase 3) before any build.
 
@@ -158,7 +158,7 @@ Rules that bind all four:
 
 **#1604 + #1605 — unified exit & full-screen**
 - JT-B1: Mid-test, the candidate opens Exit → Continue Test → returns to the same question with their draft intact.
-- JT-B2: Mid-test, Save & Exit → the Assessments list shows the attempt In progress with Resume; Resume returns to the first unanswered question with prior answers locked and counted.
+- JT-B2: Mid-test, Save & Exit → the Assessments list shows the attempt In progress with Resume; Resume returns to the first unanswered question with prior answers locked and counted. Cross-reference (JT-B2 vs FR-A7): Resume acts on the same session and is not a "new session start", so the auto-abandon rule for starting a new attempt does not apply to it — the definitive ruling on this interaction is deferred to Rex's Phase 3 design.
 - JT-B3: Mid-test, Submit & Exit → results show the score computed from the answers given so far; the attempt cannot be resumed.
 - JT-B4: Mid-test, Exit Exam → the candidate confirms an explicit "will NOT be marked" warning → the attempt shows "Exited — not scored" with no number anywhere (list, results, profile), and a fresh attempt can be started.
 - JT-B5: Starting a test shows the instructions (timer, full-screen, exit consequences) before the first question; the test enters full-screen on Start.
