@@ -80,9 +80,13 @@ did not surface; #1634 was reopened and fixed in a follow-up PR:
    pass) to the effect's signal-absent branch, per the specialist's
    condition — the adoption guard now lives exactly while the signal is
    in the URL.
-3. **Alias precedence pinned** (CS-4a/CS-4b, real HTTP): job_type is
-   snake-first, the other four aliases camel-first — pre-existing,
-   unchanged, now regression-pinned.
+3. **Alias precedence pinned** (CS-4a–CS-4d, real HTTP): job_type is
+   snake-first; remoteType, experienceLevel and companySize are
+   camel-first — pre-existing, unchanged, now regression-pinned.
+   sortBy is also camel-first in the same handler head but is NOT
+   pinned: the seeded jobs' identical salaries/timestamps cannot
+   discriminate sort order, so a pin would be theatre (reviewer
+   finding on the follow-up PR).
 4. **Wiring pins added**: static assertions that jobs.tsx/header.tsx
    import and use the extracted helpers (helper tests alone could pass
    with zero production effect).
