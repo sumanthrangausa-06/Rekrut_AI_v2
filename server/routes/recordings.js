@@ -697,7 +697,7 @@ router.post(
 					whisperResult.text,
 					0,
 					(recording.duration_seconds || 0) * 1000,
-					whisperResult.confidence || 0.85,
+					whisperResult.confidence ?? null,
 				],
 			);
 
@@ -712,7 +712,7 @@ router.post(
 				transcript: {
 					text: whisperResult.text,
 					duration_ms: (recording.duration_seconds || 0) * 1000,
-					confidence: whisperResult.confidence || 0.85,
+					confidence: whisperResult.confidence ?? null,
 				},
 			});
 		} catch (err) {

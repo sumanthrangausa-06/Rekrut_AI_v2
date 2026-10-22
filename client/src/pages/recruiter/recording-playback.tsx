@@ -62,7 +62,7 @@ interface TranscriptSegment {
 	text: string;
 	start_time_ms: number;
 	end_time_ms: number;
-	confidence: number;
+	confidence: number | null;
 	created_at: string;
 	highlights?: Array<{
 		id: number;
