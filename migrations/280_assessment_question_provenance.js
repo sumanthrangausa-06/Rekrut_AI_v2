@@ -28,12 +28,31 @@
 // — nothing already in the bank is silently promoted to supply. This pass
 // approves exactly one auditable batch: the rows seeded by migration 006,
 // which design §1.3 identifies as "the only curated seed source", matched on
-// (skill_category, difficulty_level, question_type, question_text). They
-// flip to source='curated', review_status='approved' (rule 6(d): curated
-// rows are reviewed in their own PR — migration 006's seed was). The guard
-// review_status='pending' makes a re-run flip 0 rows. Every other bank row
-// stays pending for a later recorded review batch. The flipped count is
-// logged here and reported on the issue.
+// the FULL content tuple (identity + options + correct_answer +
+// explanation — see the AMENDMENT below). They flip to source='curated',
+// review_status='approved' (rule 6(d): curated rows are reviewed in their
+// own PR — migration 006's seed was). The guard review_status='pending'
+// makes a re-run flip 0 rows. Every other bank row stays pending for a
+// later recorded review batch. The flipped count is logged here and
+// reported on the issue.
+//
+// AMENDMENT (issue #1664, review H-1): the curation key was originally the
+// identity tuple alone — (skill_category, difficulty_level, question_type,
+// question_text). Any row sharing a seed row's identity was silently
+// approved as scored truth, including a duplicate carrying a WRONG
+// correct_answer (hazard proof on #1664: a typeof-null duplicate with
+// correct_answer 'null' and an edited-answer React copy both flipped to
+// approved). The key is now the full content tuple: identity PLUS options,
+// correct_answer and explanation, compared NULL-safely (IS NOT DISTINCT
+// FROM) so the two short_answer seeds — NULL options, NULL correct_answer —
+// still match exactly. Seed content is copied character-for-character from
+// migration 006 (lines 79–113 of 006_dynamic_assessments.js). A
+// post-curation assertion verifies the curated+approved set EQUALS the set
+// of full-content seed matches (no strays, none unflipped) and throws
+// otherwise, so migrate.js rolls the whole migration back rather than
+// record a poisoned approval. Companion migration 282 demotes any
+// already-approved row on databases where the loose key ran before this
+// amendment.
 //
 // Post-state assertion (268/270 precedent): verifies the new columns exist
 // with the expected type families, so a divergent pre-existing shape fails
@@ -49,6 +68,82 @@
 // gates any contract step on separate Sumanth approval).
 // =============================================================================
 
+// ── Migration 006 seed content (#1664): copied character-for-character ────
+// from migrations/006_dynamic_assessments.js (the seed INSERT). The two
+// short_answer rows have NULL options and NULL correct_answer by design.
+// Migrations are standalone files: migration 282 carries its own copy of
+// this list (keep the two in sync) rather than importing shared state.
+const SEED_006_CONTENT = [
+	{
+		skill: 'JavaScript', difficulty: 2, type: 'multiple_choice',
+		text: 'What is the output of: console.log(typeof null)?',
+		options: ['object', 'null', 'undefined', 'number'],
+		correct: 'object',
+		explanation: 'typeof null returns "object" - this is a known JavaScript quirk/bug that has been preserved for backwards compatibility.',
+	},
+	{
+		skill: 'JavaScript', difficulty: 3, type: 'multiple_choice',
+		text: 'What will this code output: console.log(1 + "2" + 3)?',
+		options: ['123', '6', '33', 'Error'],
+		correct: '123',
+		explanation: 'JavaScript type coercion: 1 + "2" becomes "12" (string), then "12" + 3 becomes "123".',
+	},
+	{
+		skill: 'React', difficulty: 2, type: 'multiple_choice',
+		text: 'Which hook is used to perform side effects in React?',
+		options: ['useEffect', 'useState', 'useMemo', 'useCallback'],
+		correct: 'useEffect',
+		explanation: 'useEffect is the React hook for handling side effects like data fetching, subscriptions, or DOM manipulation.',
+	},
+	{
+		skill: 'Python', difficulty: 2, type: 'multiple_choice',
+		text: 'What is the correct way to create a list in Python?',
+		options: ['[1, 2, 3]', '{1, 2, 3}', '(1, 2, 3)', 'list(1, 2, 3)'],
+		correct: '[1, 2, 3]',
+		explanation: 'Square brackets [] define a list in Python. Curly braces {} create a set, parentheses () create a tuple.',
+	},
+	{
+		skill: 'Communication', difficulty: 1, type: 'short_answer',
+		text: 'Describe a time when you had to explain a complex technical concept to a non-technical stakeholder. How did you approach it?',
+		options: null,
+		correct: null,
+		explanation: 'Look for clarity, patience, use of analogies, checking for understanding, and successful outcome.',
+	},
+	{
+		skill: 'Problem Solving', difficulty: 2, type: 'short_answer',
+		text: 'You encounter a critical bug in production that affects 20% of users. Walk me through your debugging process.',
+		options: null,
+		correct: null,
+		explanation: 'Good answers include: gather data, reproduce, isolate, hypothesize, test, fix, verify, document.',
+	},
+];
+const SEED_006_PARAMS = SEED_006_CONTENT.flatMap((s) => [
+	s.skill,
+	s.difficulty,
+	s.type,
+	s.text,
+	s.options === null ? null : JSON.stringify(s.options),
+	s.correct,
+	s.explanation,
+]);
+const SEED_006_VALUES_SQL = SEED_006_CONTENT.map((_, i) => {
+	const b = i * 7;
+	return `($${b + 1}::text, $${b + 2}::int, $${b + 3}::text, $${b + 4}::text, $${b + 5}::jsonb, $${b + 6}::text, $${b + 7}::text)`;
+}).join(', ');
+// Full-content match (#1664): identity tuple PLUS options / correct_answer /
+// explanation, all NULL-safe. `alias` is the assessment_questions alias.
+function seedFullMatchSql(alias) {
+	return `EXISTS (
+        SELECT 1 FROM (VALUES ${SEED_006_VALUES_SQL}) AS v(skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation)
+        WHERE v.skill_category = ${alias}.skill_category
+          AND v.difficulty_level = ${alias}.difficulty_level
+          AND v.question_type = ${alias}.question_type
+          AND v.question_text = ${alias}.question_text
+          AND v.options IS NOT DISTINCT FROM ${alias}.options
+          AND v.correct_answer IS NOT DISTINCT FROM ${alias}.correct_answer
+          AND v.explanation IS NOT DISTINCT FROM ${alias}.explanation
+      )`;
+}
 module.exports = {
 	name: '280_assessment_question_provenance',
 	up: async (client) => {
@@ -162,22 +257,59 @@ module.exports = {
 		);
 
 		// ── Curation pass (§7 rule 6): approve migration 006's seed batch ─
-		const curation = await client.query(`
-      UPDATE assessment_questions
+		// #1664: the match is the FULL content tuple (identity + options +
+		// correct_answer + explanation, NULL-safe), never identity alone —
+		// a same-identity duplicate with a wrong correct_answer must stay
+		// pending, not become approved scored truth.
+		const curation = await client.query(
+			`
+      UPDATE assessment_questions q
       SET source = 'curated', review_status = 'approved'
-      WHERE review_status = 'pending'
-        AND (skill_category, difficulty_level, question_type, question_text) IN (
-          VALUES
-            ('JavaScript', 2, 'multiple_choice', 'What is the output of: console.log(typeof null)?'),
-            ('JavaScript', 3, 'multiple_choice', 'What will this code output: console.log(1 + "2" + 3)?'),
-            ('React', 2, 'multiple_choice', 'Which hook is used to perform side effects in React?'),
-            ('Python', 2, 'multiple_choice', 'What is the correct way to create a list in Python?'),
-            ('Communication', 1, 'short_answer', 'Describe a time when you had to explain a complex technical concept to a non-technical stakeholder. How did you approach it?'),
-            ('Problem Solving', 2, 'short_answer', 'You encounter a critical bug in production that affects 20% of users. Walk me through your debugging process.')
-        )
-    `);
+      WHERE q.review_status = 'pending'
+        AND ${seedFullMatchSql('q')}
+    `,
+			SEED_006_PARAMS,
+		);
 		console.log(
 			`Migration 280: curation pass approved ${curation.rowCount} existing bank rows (migration 006 curated seed batch)`,
+		);
+
+		// ── Curation-integrity assertion (#1664) ──────────────────────────
+		// After the flip, the curated+approved set must EQUAL the set of
+		// full-content seed matches present in the table: no approved row
+		// whose content diverged from the seed (stray), and no genuine seed
+		// row left unapproved (unflipped). Any mismatch throws, so
+		// migrate.js rolls the whole migration back instead of recording
+		// success over a poisoned approval.
+		const strayRes = await client.query(
+			`
+      SELECT COUNT(*)::int AS n FROM assessment_questions q
+      WHERE q.source = 'curated' AND q.review_status = 'approved'
+        AND NOT ${seedFullMatchSql('q')}
+    `,
+			SEED_006_PARAMS,
+		);
+		const unflippedRes = await client.query(
+			`
+      SELECT COUNT(*)::int AS n FROM assessment_questions q
+      WHERE ${seedFullMatchSql('q')}
+        AND NOT (q.source = 'curated' AND q.review_status = 'approved')
+    `,
+			SEED_006_PARAMS,
+		);
+		const approvedRes = await client.query(`
+      SELECT COUNT(*)::int AS n FROM assessment_questions
+      WHERE source = 'curated' AND review_status = 'approved'
+    `);
+		if (strayRes.rows[0].n !== 0 || unflippedRes.rows[0].n !== 0) {
+			throw new Error(
+				`280_assessment_question_provenance curation-integrity assertion failed (#1664): ` +
+					`${strayRes.rows[0].n} curated+approved row(s) do not full-match the migration 006 seed content; ` +
+					`${unflippedRes.rows[0].n} full-content seed match(es) are not curated+approved`,
+			);
+		}
+		console.log(
+			`Migration 280: curation-integrity assertion passed — curated+approved set (${approvedRes.rows[0].n} rows) equals the full-content seed matches`,
 		);
 
 		// ── Post-state assertion (268/270 precedent) ──────────────────────
