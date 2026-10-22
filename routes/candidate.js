@@ -5805,7 +5805,7 @@ async function fetchLinkedInProfile(accessToken) {
 	const headers = { Authorization: `Bearer ${accessToken}` };
 
 	// 1. OpenID Connect userinfo — always available with `openid profile email` scope
-	const userinfoRes = await fetch('https://api.linkedin.com/v2/userinfo', { headers });
+	const userinfoRes = await fetch('https://api.linkedin.com/v2/userinfo', { headers, signal: AbortSignal.timeout(5000) });
 	if (!userinfoRes.ok) {
 		const errBody = await userinfoRes.text().catch(() => '');
 		throw new Error(`LinkedIn userinfo failed: ${userinfoRes.status} ${errBody}`);
