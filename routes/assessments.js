@@ -25,6 +25,119 @@ function canRetakeSkill(lockoutDays, lastCompletedAt) {
 	return new Date() >= lockoutEnd;
 }
 
+// ── #1653 (#1603 Phase C, story C1) — catalogue availability ──────────────
+// TWIN of scripts/audit-assessment-coverage.js: BANDS (audit script ~line 37)
+// and the servable fold in its main() are ported here as BANDS +
+// computeTopicAvailability. If one changes, the other must — the audit job
+// and this API must never disagree about what is servable.
+// Servable counts ONLY review_status='approved' rows (design §7 rule 6);
+// the grouped query in loadCatalogTables below is the only counter and it
+// filters on approved — this helper folds already-approved counts.
+// Bands overlap deliberately (§7): easy {1,2} / medium {2,3,4} / hard {4,5}
+// share boundary levels, so a shared-level row counts in EACH band it
+// belongs to — but exactly once within a single configuration.
+// `mixed` is a computed union (§4.6): servable(mixed, band) =
+// servable(mcq, band) + servable(short_answer, band); the member formats
+// are disjoint so the sum is exact. Coding is NEVER a member of mixed.
+const BANDS = {
+	easy: [1, 2],
+	medium: [2, 3, 4],
+	hard: [4, 5],
+};
+// §7 rule 2 activation floor: the smallest offered count. A topic reads
+// available only when its best (format, band) configuration reaches it.
+const CATALOG_AVAILABLE_FLOOR = 10;
+
+// countRows: approved-only grouped counts for ONE topic —
+// [{ format, difficulty_level, n }] as selected by loadCatalogTables
+// (topic_id, format, difficulty_level, COUNT(*) — nothing else, R4).
+function computeTopicAvailability(countRows) {
+	const zeroBands = () => ({ easy: 0, medium: 0, hard: 0 });
+	const formats = { mcq: zeroBands(), short_answer: zeroBands(), coding: zeroBands(), mixed: zeroBands() };
+	const levels = { mcq: {}, short_answer: {}, coding: {} };
+	for (const row of countRows || []) {
+		if (!levels[row.format]) continue;
+		const level = parseInt(row.difficulty_level, 10);
+		levels[row.format][level] = (levels[row.format][level] || 0) + (parseInt(row.n, 10) || 0);
+	}
+	let maxCount = 0;
+	for (const format of ['mcq', 'short_answer', 'coding']) {
+		for (const band of Object.keys(BANDS)) {
+			const n = BANDS[band].reduce((sum, lvl) => sum + (levels[format][lvl] || 0), 0);
+			formats[format][band] = n;
+			if (n > maxCount) maxCount = n;
+		}
+	}
+	for (const band of Object.keys(BANDS)) {
+		const n = formats.mcq[band] + formats.short_answer[band];
+		formats.mixed[band] = n;
+		if (n > maxCount) maxCount = n;
+	}
+	return { formats, maxCount, available: maxCount >= CATALOG_AVAILABLE_FLOOR };
+}
+
+// ── #1653 (C1) — catalogue table reads shared by /available and /catalog ──
+// Explicit column allowlists only (R4): the counts query selects ONLY
+// topic_id, format, difficulty_level, COUNT(*) — never question content.
+// The progress read is scoped to the requesting user on every table it
+// touches (WHERE user_id = $1) and is completed-attempts only, so an
+// abandoned session or an unsubmitted (completed_at NULL) verification
+// row can never move can_retake or progress (§2.3 pinning). The latest
+// score comes from a DISTINCT ON read ordered by completed_at DESC —
+// a MAX() would silently duplicate best_score into last_score (§2.4).
+// Internal alias is last_completed_at; /available maps it to the frozen
+// external field name last_attempted (§4.4).
+async function loadCatalogTables(userId) {
+	const subjectsResult = await pool.query(
+		`SELECT id, slug, name, category, icon, description, sort_order
+     FROM assessment_subjects
+     WHERE is_active = true
+     ORDER BY sort_order ASC, id ASC`,
+	);
+	const topicsResult = await pool.query(
+		`SELECT id, subject_id, slug, name, description, legacy_skill_name, sort_order
+     FROM assessment_topics
+     WHERE is_active = true
+     ORDER BY sort_order ASC, id ASC`,
+	);
+	const countsResult = await pool.query(
+		`SELECT topic_id, format, difficulty_level, COUNT(*)::int AS n
+     FROM assessment_questions
+     WHERE topic_id IS NOT NULL AND review_status = 'approved'
+     GROUP BY topic_id, format, difficulty_level`,
+	);
+	const progressResult = await pool.query(
+		`WITH latest AS (
+       SELECT DISTINCT ON (sa.skill_id)
+              sa.skill_id, sa.score AS last_score, sa.completed_at AS last_completed_at
+       FROM skill_assessments sa
+       WHERE sa.user_id = $1 AND sa.completed_at IS NOT NULL
+       ORDER BY sa.skill_id, sa.completed_at DESC
+     ),
+     agg AS (
+       SELECT sa.skill_id, COUNT(*)::int AS assessment_count, MAX(sa.score) AS best_score
+       FROM skill_assessments sa
+       WHERE sa.user_id = $1 AND sa.completed_at IS NOT NULL
+       GROUP BY sa.skill_id
+     )
+     SELECT cs.id AS skill_id, cs.skill_name, cs.category, cs.is_verified, cs.verified_score,
+            COALESCE(agg.assessment_count, 0) AS assessment_count,
+            agg.best_score, latest.last_score, latest.last_completed_at
+     FROM candidate_skills cs
+     LEFT JOIN agg ON agg.skill_id = cs.id
+     LEFT JOIN latest ON latest.skill_id = cs.id
+     WHERE cs.user_id = $1
+     ORDER BY cs.is_verified ASC, cs.created_at DESC`,
+		[userId],
+	);
+	return {
+		subjects: subjectsResult.rows,
+		topics: topicsResult.rows,
+		counts: countsResult.rows,
+		progress: progressResult.rows,
+	};
+}
+
 // Skill catalog - available to all candidates without pre-existing skills
 const SKILL_CATALOG = [
 	{
@@ -142,13 +255,16 @@ const SKILL_CATALOG = [
 ];
 
 // Get skill catalog with user's assessment history
-router.get('/available', authMiddleware, async (req, res) => {
-	try {
-		const userId = req.user.id;
-
-		// Get user's existing skills and assessment data
-		const userSkillsResult = await pool.query(
-			`
+// Get skill catalog with user's assessment history — DUAL-READ constant
+// path (#1653, design §6 step 3). This is the pre-C1 GET /available body,
+// extracted unchanged: it serves ONLY when the catalogue tables return
+// zero subject rows (fresh install before seed). SKILL_CATALOG stays the
+// fallback here and the /recruiter/catalog source until the §6 step 5
+// contract (Sumanth-gated, not this story).
+async function buildAvailableFromConstant(userId) {
+	// Get user's existing skills and assessment data
+	const userSkillsResult = await pool.query(
+		`
       SELECT cs.id, cs.skill_name, cs.category, cs.level, cs.is_verified, cs.verified_score,
              COUNT(sa.id) as assessment_count,
              MAX(sa.score) as best_score,
@@ -159,61 +275,211 @@ router.get('/available', authMiddleware, async (req, res) => {
       GROUP BY cs.id
       ORDER BY cs.is_verified ASC, cs.created_at DESC
     `,
-			[userId],
+		[userId],
+	);
+
+	const userSkillMap = {};
+	for (const skill of userSkillsResult.rows) {
+		userSkillMap[skill.skill_name.toLowerCase()] = skill;
+	}
+
+	// Build catalog with user's data overlaid
+	const catalog = SKILL_CATALOG.map((catalogSkill) => {
+		const userSkill = userSkillMap[catalogSkill.name.toLowerCase()];
+		return {
+			catalog_name: catalogSkill.name,
+			category: catalogSkill.category,
+			icon: catalogSkill.icon,
+			description: catalogSkill.description,
+			difficulty: catalogSkill.difficulty,
+			// User-specific data
+			skill_id: userSkill ? userSkill.id : null,
+			is_verified: userSkill ? userSkill.is_verified : false,
+			verified_score: userSkill ? userSkill.verified_score : null,
+			assessment_count: userSkill ? parseInt(userSkill.assessment_count, 10) : 0,
+			best_score: userSkill ? userSkill.best_score : null,
+			last_attempted: userSkill ? userSkill.last_attempted : null,
+			can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, userSkill?.last_attempted),
+		};
+	});
+
+	// Also include any user skills NOT in the catalog
+	for (const skill of userSkillsResult.rows) {
+		const inCatalog = SKILL_CATALOG.some(
+			(c) => c.name.toLowerCase() === skill.skill_name.toLowerCase(),
 		);
-
-		const userSkillMap = {};
-		for (const skill of userSkillsResult.rows) {
-			userSkillMap[skill.skill_name.toLowerCase()] = skill;
+		if (!inCatalog) {
+			catalog.push({
+				catalog_name: skill.skill_name,
+				category: skill.category,
+				icon: skill.skill_name.substring(0, 2).toUpperCase(),
+				description: `Custom skill: ${skill.skill_name}`,
+				difficulty: 'Adaptive',
+				skill_id: skill.id,
+				is_verified: skill.is_verified,
+				verified_score: skill.verified_score,
+				assessment_count: parseInt(skill.assessment_count, 10),
+				best_score: skill.best_score,
+				last_attempted: skill.last_attempted,
+				can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, skill.last_attempted),
+			});
 		}
+	}
 
-		// Build catalog with user's data overlaid
-		const catalog = SKILL_CATALOG.map((catalogSkill) => {
-			const userSkill = userSkillMap[catalogSkill.name.toLowerCase()];
-			return {
-				catalog_name: catalogSkill.name,
-				category: catalogSkill.category,
-				icon: catalogSkill.icon,
-				description: catalogSkill.description,
-				difficulty: catalogSkill.difficulty,
-				// User-specific data
-				skill_id: userSkill ? userSkill.id : null,
-				is_verified: userSkill ? userSkill.is_verified : false,
-				verified_score: userSkill ? userSkill.verified_score : null,
-				assessment_count: userSkill ? parseInt(userSkill.assessment_count, 10) : 0,
-				best_score: userSkill ? userSkill.best_score : null,
-				last_attempted: userSkill ? userSkill.last_attempted : null,
-				can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, userSkill?.last_attempted),
-			};
+	return catalog;
+}
+
+// Table path for GET /available (#1653, §4.4): the EXACT frozen response
+// shape, assembled from the C0 tables. Catalogue order is
+// subjects.sort_order; a subject's user skill is matched case-insensitively
+// (LOWER = LOWER semantics) through its default topic's legacy_skill_name
+// (so HTML/CSS finds the legacy "CSS & HTML" skill), falling back to the
+// subject's own name. can_retake reads the last COMPLETED attempt
+// (last_completed_at) — the same input the POST /start gate reads (§2.3).
+function buildAvailableFromTables({ subjects, topics, progress }) {
+	const progressBySkillName = new Map();
+	for (const row of progress) {
+		progressBySkillName.set(String(row.skill_name).toLowerCase(), row);
+	}
+	const defaultTopicBySubject = new Map();
+	for (const topic of topics) {
+		if (topic.legacy_skill_name && !defaultTopicBySubject.has(topic.subject_id)) {
+			defaultTopicBySubject.set(topic.subject_id, topic);
+		}
+	}
+
+	const matchedSkillNames = new Set();
+	const catalog = subjects.map((subject) => {
+		const defaultTopic = defaultTopicBySubject.get(subject.id);
+		const userSkill =
+			(defaultTopic?.legacy_skill_name &&
+				progressBySkillName.get(defaultTopic.legacy_skill_name.toLowerCase())) ||
+			progressBySkillName.get(subject.name.toLowerCase()) ||
+			null;
+		if (userSkill) matchedSkillNames.add(String(userSkill.skill_name).toLowerCase());
+		return {
+			catalog_name: subject.name,
+			category: subject.category,
+			icon: subject.icon,
+			description: subject.description,
+			difficulty: 'Adaptive',
+			// User-specific data
+			skill_id: userSkill ? userSkill.skill_id : null,
+			is_verified: userSkill ? userSkill.is_verified : false,
+			verified_score: userSkill ? userSkill.verified_score : null,
+			assessment_count: userSkill ? parseInt(userSkill.assessment_count, 10) || 0 : 0,
+			best_score: userSkill ? userSkill.best_score : null,
+			last_attempted: userSkill ? userSkill.last_completed_at : null,
+			can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, userSkill?.last_completed_at),
+		};
+	});
+
+	// Also include any user skills NOT in the catalogue (same append
+	// semantics as the constant path).
+	for (const row of progress) {
+		if (matchedSkillNames.has(String(row.skill_name).toLowerCase())) continue;
+		catalog.push({
+			catalog_name: row.skill_name,
+			category: row.category,
+			icon: String(row.skill_name).substring(0, 2).toUpperCase(),
+			description: `Custom skill: ${row.skill_name}`,
+			difficulty: 'Adaptive',
+			skill_id: row.skill_id,
+			is_verified: row.is_verified,
+			verified_score: row.verified_score,
+			assessment_count: parseInt(row.assessment_count, 10) || 0,
+			best_score: row.best_score,
+			last_attempted: row.last_completed_at,
+			can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, row.last_completed_at),
 		});
+	}
 
-		// Also include any user skills NOT in the catalog
-		for (const skill of userSkillsResult.rows) {
-			const inCatalog = SKILL_CATALOG.some(
-				(c) => c.name.toLowerCase() === skill.skill_name.toLowerCase(),
-			);
-			if (!inCatalog) {
-				catalog.push({
-					catalog_name: skill.skill_name,
-					category: skill.category,
-					icon: skill.skill_name.substring(0, 2).toUpperCase(),
-					description: `Custom skill: ${skill.skill_name}`,
-					difficulty: 'Adaptive',
-					skill_id: skill.id,
-					is_verified: skill.is_verified,
-					verified_score: skill.verified_score,
-					assessment_count: parseInt(skill.assessment_count, 10),
-					best_score: skill.best_score,
-					last_attempted: skill.last_attempted,
-					can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, skill.last_attempted),
-				});
-			}
+	return catalog;
+}
+
+router.get('/available', authMiddleware, async (req, res) => {
+	try {
+		const tables = await loadCatalogTables(req.user.id);
+		// Dual-read (R5, §6 step 3): the constant serves ONLY when the
+		// subjects query returned zero rows. A thrown DB error lands in
+		// the catch below as the generic 500 — never a confident
+		// catalogue over a broken database.
+		if (tables.subjects.length === 0) {
+			return res.json({ skills: await buildAvailableFromConstant(req.user.id) });
 		}
-
-		res.json({ skills: catalog });
+		res.json({ skills: buildAvailableFromTables(tables) });
 	} catch (error) {
 		console.error('Error fetching available assessments:', error);
 		res.status(500).json({ error: 'Failed to fetch assessments' });
+	}
+});
+
+// Catalogue as data (#1653, §4.1): subjects → topics with real approved-
+// only availability (§7) and per-user progress. Responses are built from
+// explicit field allowlists — DB rows are never spread (R4) — and carry
+// counts only, never question content. Active topics with zero
+// availability are included with available:false; inactive topics are
+// excluded; topic-less active subjects return topics: [] (R2). Interim
+// state (R3/R6): availability describes the bank per §7, but /start
+// serving stays legacy until C2 — this endpoint does not change what a
+// start draws from.
+router.get('/catalog', authMiddleware, async (req, res) => {
+	try {
+		const { subjects, topics, counts, progress } = await loadCatalogTables(req.user.id);
+
+		const countsByTopic = new Map();
+		for (const row of counts) {
+			if (!countsByTopic.has(row.topic_id)) countsByTopic.set(row.topic_id, []);
+			countsByTopic.get(row.topic_id).push(row);
+		}
+		const progressBySkillName = new Map();
+		for (const row of progress) {
+			progressBySkillName.set(String(row.skill_name).toLowerCase(), row);
+		}
+		const topicsBySubject = new Map();
+		for (const topic of topics) {
+			if (!topicsBySubject.has(topic.subject_id)) topicsBySubject.set(topic.subject_id, []);
+			topicsBySubject.get(topic.subject_id).push(topic);
+		}
+
+		res.json({
+			subjects: subjects.map((subject) => ({
+				id: subject.id,
+				slug: subject.slug,
+				name: subject.name,
+				category: subject.category,
+				icon: subject.icon,
+				description: subject.description,
+				topics: (topicsBySubject.get(subject.id) || []).map((topic) => {
+					// Progress is read at the default topic through its
+					// legacy_skill_name (§3.6/§3.7: history aggregates at
+					// subject level); topics without one carry null in C1.
+					let topicProgress = null;
+					if (topic.legacy_skill_name) {
+						const row = progressBySkillName.get(topic.legacy_skill_name.toLowerCase());
+						if (row && parseInt(row.assessment_count, 10) > 0) {
+							topicProgress = {
+								attempts: parseInt(row.assessment_count, 10),
+								bestScore: row.best_score,
+								lastScore: row.last_score,
+								lastAttempted: row.last_completed_at,
+							};
+						}
+					}
+					return {
+						id: topic.id,
+						slug: topic.slug,
+						name: topic.name,
+						description: topic.description,
+						availability: computeTopicAvailability(countsByTopic.get(topic.id) || []),
+						progress: topicProgress,
+					};
+				}),
+			})),
+		});
+	} catch (error) {
+		console.error('Error fetching assessment catalog:', error);
+		res.status(500).json({ error: 'Failed to fetch catalog' });
 	}
 });
 
