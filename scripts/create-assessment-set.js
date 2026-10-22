@@ -49,13 +49,24 @@ async function createAssessmentSet(client, { topicId, name, format, difficultyBa
 		await conn.query('BEGIN');
 		const topic = await conn.query('SELECT id FROM assessment_topics WHERE id = $1', [topicId]);
 		if (topic.rows.length === 0) throw new Error(`topic ${topicId} does not exist`);
-		const found = await conn.query('SELECT id, review_status FROM assessment_questions WHERE id = ANY($1::int[])', [
-			questionIds,
-		]);
+		const found = await conn.query(
+			'SELECT id, review_status, topic_id FROM assessment_questions WHERE id = ANY($1::int[])',
+			[questionIds],
+		);
 		if (found.rows.length !== questionIds.length) {
 			const known = new Set(found.rows.map((r) => r.id));
 			const missing = questionIds.filter((id) => !known.has(id));
 			throw new Error(`unknown question ids: ${missing.join(', ')}`);
+		}
+		const offTopic = found.rows.filter((r) => r.topic_id !== topicId);
+		if (offTopic.length > 0) {
+			const details = offTopic
+				.map(
+					(r) =>
+						`question ${r.id} has topic_id ${r.topic_id === null ? 'NULL (unmapped)' : r.topic_id}, not set topic ${topicId}`,
+				)
+				.join('; ');
+			throw new Error(`question topic mismatch: ${details}`);
 		}
 		const setResult = await conn.query(
 			`INSERT INTO assessment_sets (topic_id, name, format, difficulty_band, is_active)
