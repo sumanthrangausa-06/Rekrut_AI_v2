@@ -1565,7 +1565,10 @@ router.get('/verify-payment', authMiddleware, async (req, res) => {
 		// Verify with Polsia
 		const response = await fetch(
 			`${process.env.POLSIA_API_URL || 'https://polsia.com/api/proxy/ai'}/api/company-payments/verify?session_id=${sessionId}`,
-			{ headers: { Authorization: `Bearer ${process.env.POLSIA_API_KEY}` } },
+			{
+				headers: { Authorization: `Bearer ${process.env.POLSIA_API_KEY}` },
+				signal: AbortSignal.timeout(5000),
+			},
 		);
 		const { verified, payment } = await response.json();
 
