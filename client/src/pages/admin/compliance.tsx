@@ -152,7 +152,7 @@ export type HumanOverride = {
 	overrideReason: string;
 	jobTitle: string;
 	aiModel: string;
-	aiConfidence: number;
+	aiConfidence: number | null;
 	overrideFromIp: string;
 };
 
@@ -1488,7 +1488,7 @@ export function AdminCompliancePage() {
 								/>
 								<ChartCard
 									title="Avg AI Confidence"
-									value={`${((overrides.reduce((sum, o) => sum + o.aiConfidence, 0) / Math.max(overrides.length, 1)) * 100).toFixed(1)}%`}
+									value={overrides.some((o) => o.aiConfidence != null) ? `${((overrides.reduce((sum, o) => sum + (o.aiConfidence ?? 0), 0) / Math.max(overrides.filter((o) => o.aiConfidence != null).length, 1)) * 100).toFixed(1)}%` : 'N/A'}
 									icon={<Activity className="h-4 w-4" />}
 								/>
 								<ChartCard
@@ -1545,7 +1545,7 @@ export function AdminCompliancePage() {
 															{o.overrideDecision}
 														</Badge>
 													</TableCell>
-													<TableCell>{Math.round(o.aiConfidence * 100)}%</TableCell>
+													<TableCell>{o.aiConfidence == null ? 'N/A' : `${Math.round(o.aiConfidence * 100)}%`}</TableCell>
 													<TableCell>
 														<p className="text-sm">{o.overriddenBy.name}</p>
 														<p className="text-xs text-muted-foreground">ID: {o.overriddenBy.id}</p>

@@ -130,7 +130,7 @@ export type HumanOverride = {
 	overrideReason: string;
 	jobTitle: string;
 	aiModel: string;
-	aiConfidence: number;
+	aiConfidence: number | null;
 	overrideFromIp: string;
 };
 
@@ -947,7 +947,7 @@ export function EUAIActDashboard() {
 															{o.overrideDecision}
 														</Badge>
 													</TableCell>
-													<TableCell>{Math.round(o.aiConfidence * 100)}%</TableCell>
+													<TableCell>{o.aiConfidence == null ? 'N/A' : `${Math.round(o.aiConfidence * 100)}%`}</TableCell>
 													<TableCell>
 														<p className="text-sm">{o.overriddenBy.name}</p>
 														<p className="text-xs text-muted-foreground">ID: {o.overriddenBy.id}</p>
