@@ -4,11 +4,16 @@
  *   L700  INSERT INTO interview_transcripts ... confidence param
  *   L715  transcribe response body transcript.confidence
  *
- * Same fabrication class as #1584/#1613. Honest behaviour (#1613-proven
- * `?? null`): an unrecorded confidence is written/returned as null; a
- * measured 0 survives as 0; a recorded value passes through unchanged.
- * interview_transcripts.confidence is nullable (migrations 128/129:
- * DECIMAL(4,3) CHECK 0..1, no NOT NULL).
+ * Same fabrication class as #1584/#1613. Honest behaviour: an unrecorded
+ * confidence is written/returned as null, and a recorded value in (0, 1]
+ * passes through unchanged. Reviewer BLOCK on PR #1623 narrowed the
+ * #1613 `?? null` shape for THIS field: several provider writers stamp
+ * `confidence: 0` as their "not reported" default (Cartesia, NIM,
+ * Deepgram path), so 0 — like >1, negative, or NaN — is provider
+ * garbage, not a measurement, and must also become null (storing it
+ * would mint a fake measured 0.000 and violate the column CHECK for
+ * out-of-range values). interview_transcripts.confidence is nullable
+ * (migrations 128/129: DECIMAL(4,3) CHECK 0..1, no NOT NULL).
  *
  * Mocked suite mirroring recordings-transcribe-claim.test.js: the mocked
  * layer is the DB/Whisper boundary; the fabrication lives in the values
@@ -130,14 +135,28 @@ describe('POST /recordings/:id/transcribe — whisper confidence honesty (#1619)
 		expect(res.body.transcript.confidence).toBeNull();
 	});
 
-	test('measured confidence 0 → preserved as 0 at both sites, not destroyed to 0.85', async () => {
+	test('provider confidence 0 → null at both sites (0 is the providers\' "not reported" default, not a measurement — reviewer BLOCK, PR #1623)', async () => {
 		mockWhisper.mockResolvedValue({ text: 'hello world', confidence: 0 });
 
 		const res = await request(app).post('/recordings/5/transcribe').set(as(9));
 
 		expect(res.status).toBe(200);
-		expect(insertParams[5]).toBe(0);
-		expect(res.body.transcript.confidence).toBe(0);
+		expect(insertParams[5]).toBeNull();
+		expect(res.body.transcript.confidence).toBeNull();
+	});
+
+	test.each([
+		['above range', 1.7],
+		['negative', -0.2],
+		['NaN', NaN],
+	])('provider confidence %s (%s) → null at both sites, never stored', async (_label, bad) => {
+		mockWhisper.mockResolvedValue({ text: 'hello world', confidence: bad });
+
+		const res = await request(app).post('/recordings/5/transcribe').set(as(9));
+
+		expect(res.status).toBe(200);
+		expect(insertParams[5]).toBeNull();
+		expect(res.body.transcript.confidence).toBeNull();
 	});
 
 	test('recorded confidence 0.42 → passes through unchanged at both sites', async () => {
