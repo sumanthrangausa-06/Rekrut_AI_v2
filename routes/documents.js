@@ -706,7 +706,7 @@ router.get('/stats/summary', authMiddleware, async (req, res) => {
         COUNT(DISTINCT CASE WHEN vd.status = 'pending_review' THEN vd.id END) as pending_review_documents,
         COUNT(DISTINCT vc.id) as verified_credentials,
         COALESCE(SUM(dsi.score_impact), 0) as total_score_impact,
-        COALESCE(AVG(dv.authenticity_score), 0) as avg_authenticity_score
+        AVG(dv.authenticity_score) as avg_authenticity_score
       FROM verification_documents vd
       LEFT JOIN document_verifications dv ON vd.id = dv.document_id
       LEFT JOIN verified_credentials vc ON vc.user_id = vd.user_id
