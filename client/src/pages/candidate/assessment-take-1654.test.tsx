@@ -444,6 +444,14 @@ describe('#1707 — legacy block + in-test banner AI-scoring claims (STOP 1 ruli
 		expect(docCount(BANNER_SENTENCE)).toBe(1);
 	});
 
+	test('(b) banner, short_answer snapshot: original sentence renders after starting', async () => {
+		mockSnapshotLocal('short_answer');
+		render(<AssessmentTakePage />);
+		await startTest();
+		expect(docCount(BANNER_SENTENCE)).toBe(1);
+		expect(docCount(CONDITIONAL)).toBe(0);
+	});
+
 	test('(b) banner, legacy session (null config): conditional wording renders after starting', async () => {
 		mockLegacy();
 		render(<AssessmentTakePage />);
