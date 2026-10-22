@@ -28,3 +28,10 @@ surfaces, overrides whose AI decision recorded no confidence now show
 drives all three endpoints; `client/src/__tests__/components/override-confidence-honest-null-1613.test.ts`
 pins the client render contract (5/5). Neighbouring suites pass (42/42).
 Quinn HL-003 fresh-install rig evidence is recorded on issue #1613.
+
+**Review round 1 (independent reviewer, BLOCK → fixed):** the EU dashboard's
+server-supplied summary card (`OverrideSummary.avgAiConfidence`, fed by
+`routes/admin.js` which returns null when no override recorded a confidence)
+was still unguarded — it would have rendered a fabricated "0.0%" precisely
+because the server now writes null. Fixed: type `number | null`, card renders
+`N/A` when null; guard test extended to pin it (6/6).

@@ -207,7 +207,7 @@ export type OverrideSummary = {
 	totalOverrides: number;
 	uniqueRecruiters: number;
 	uniqueCandidates: number;
-	avgAiConfidence: number;
+	avgAiConfidence: number | null;
 };
 
 const decisionTypeConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> =
@@ -891,7 +891,7 @@ export function EUAIActDashboard() {
 									/>
 									<ChartCard
 										title="Avg AI Confidence"
-										value={`${(overrideSummary.avgAiConfidence * 100).toFixed(1)}%`}
+										value={overrideSummary.avgAiConfidence == null ? 'N/A' : `${(Number(overrideSummary.avgAiConfidence) * 100).toFixed(1)}%`}
 										icon={<Activity className="h-4 w-4" />}
 									/>
 									<ChartCard

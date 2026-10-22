@@ -38,6 +38,17 @@ describe('#1613 overrides aiConfidence honest-null rendering', () => {
 		});
 	}
 
+	it('EUAIActDashboard.tsx: server-supplied avgAiConfidence summary is null-guarded', () => {
+		// The EU dashboard's Avg AI Confidence card consumes
+		// summary.avgAiConfidence from the API, which is null when no
+		// override recorded a confidence (routes/admin.js). Reviewer
+		// BLOCK on PR #1618: it rendered `${null * 100}%` = fabricated 0.0%.
+		const src = pages['EUAIActDashboard.tsx'];
+		expect(src).toContain('avgAiConfidence: number | null;');
+		expect(src).toContain("overrideSummary.avgAiConfidence == null ? 'N/A'");
+		expect(src).not.toContain('value={`${(overrideSummary.avgAiConfidence * 100).toFixed(1)}%`}');
+	});
+
 	it('compliance.tsx: Avg AI Confidence averages recorded values only', () => {
 		const src = pages['compliance.tsx'];
 		expect(src).toContain('overrides.filter((o) => o.aiConfidence != null).length');
