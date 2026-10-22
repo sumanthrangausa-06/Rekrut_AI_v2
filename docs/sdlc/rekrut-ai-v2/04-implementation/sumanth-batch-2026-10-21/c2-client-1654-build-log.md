@@ -5,6 +5,22 @@ merged — neither PR closes #1654 alone, STOP 1 Q6). Base: dev `892b5a81f`.
 Local-only build (HL-007): no GitHub writes from the worker; the parent
 lands the PR.
 
+> **Consolidation note (#1679 item 8, 2026-10-22):** this file is now the
+> SINGLE C2 client build log. The second log that shipped alongside it —
+> `docs/sdlc/rekrut-ai-v2/04-implementation/assessments-c2-client-1654-build-log.md`
+> (the parent-landed round-1 summary) — has been DELETED because the two
+> contradicted each other on the SETS-400 behaviour: its D2 rationale
+> claimed "the session IS committed server-side before the 400". That is
+> false. **Server truth (verified first-hand in `routes/assessments.js`,
+> POST /start configured branch, dev 122587d20): a `setId` in the start
+> body returns `400 SETS_NOT_AVAILABLE` immediately after
+> `await client.query('ROLLBACK')` and BEFORE the session INSERT — no
+> session is created, committed, or stranded, so there is nothing to
+> resume.** This log's GAP-2 addendum (below) already stated that
+> correctly and is the surviving account; the round-1 D1/D2/D3 deviation
+> framing in the deleted log is superseded by the GAP addendum and the
+> fix-round record in this file.
+
 ## What was built (client only)
 
 1. **`client/src/pages/candidate/assessment-configure.tsx` (new)** —

@@ -301,18 +301,28 @@ export function CandidateAssessmentsPage() {
 																	{topic.description}
 																</p>
 															)}
-															{topic.progress && (
-																<p className="text-xs mb-2">
-																	Best:{' '}
-																	<span className="font-medium">
-																		{topic.progress.bestScore}/100
-																	</span>
-																	<span className="text-muted-foreground ml-1">
-																		({topic.progress.attempts} attempt
-																		{topic.progress.attempts !== 1 ? 's' : ''})
-																	</span>
-																</p>
-															)}
+															{/* #1679 item 6 / spec T9: a null bestScore
+															    renders NOTHING for the score — never a
+															    fabricated "Best: /100". The real attempt
+															    count still shows on its own. */}
+															{topic.progress &&
+																(topic.progress.bestScore != null ||
+																	topic.progress.attempts > 0) && (
+																	<p className="text-xs mb-2">
+																		{topic.progress.bestScore != null && (
+																			<>
+																				Best:{' '}
+																				<span className="font-medium">
+																					{topic.progress.bestScore}/100
+																				</span>
+																			</>
+																		)}
+																		<span className="text-muted-foreground ml-1">
+																			({topic.progress.attempts} attempt
+																			{topic.progress.attempts !== 1 ? 's' : ''})
+																		</span>
+																	</p>
+																)}
 															{topic.availability.available ? (
 																<>
 																	<p className="text-xs text-muted-foreground mb-2">
@@ -364,7 +374,17 @@ export function CandidateAssessmentsPage() {
 															</div>
 															<div>
 																<h4 className="font-medium text-sm">{skill.catalog_name}</h4>
-																<p className="text-xs text-muted-foreground">{skill.difficulty}</p>
+																{/* #1679 item 7: skill.difficulty is NOT
+																    rendered — every /available builder in
+																    routes/assessments.js hardcodes it to
+																    "Adaptive", but a NEW legacy start now
+																    snapshots mixed / medium / 10 (start
+																    difficulty 3, clamped to levels 2–4), so
+																    "Adaptive" is a false label for the test
+																    this card starts. State the real default. */}
+																<p className="text-xs text-muted-foreground">
+																	Mixed · Medium (levels 2–4)
+																</p>
 															</div>
 														</div>
 														{skill.is_verified && (
