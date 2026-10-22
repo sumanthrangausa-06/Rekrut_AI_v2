@@ -2379,22 +2379,17 @@ router.delete('/projects/:id', authMiddleware, async (req, res) => {
 router.get('/jobs', authMiddleware, async (req, res) => {
 	try {
 		const userId = req.user.id;
-		const {
-			search,
-			location,
-			job_type,
-			salary_min,
-			salary_max,
-			remoteType,
-			experienceLevel,
-			skills,
-			companySize,
-			sortBy = 'newest',
-			limit = 20,
-			offset = 0,
-			page,
-			pageSize,
-		} = req.query;
+		const { search, location, salary_min, salary_max, skills, limit = 20, offset = 0, page, pageSize } =
+			req.query;
+
+		// #1600: the Job Board client sends snake_case names (type, remote_type,
+		// experience_level, company_size, sort_by). Accept them as aliases of the
+		// legacy names so no rendered filter is silently ignored server-side.
+		const job_type = req.query.job_type ?? req.query.type;
+		const remoteType = req.query.remoteType ?? req.query.remote_type;
+		const experienceLevel = req.query.experienceLevel ?? req.query.experience_level;
+		const companySize = req.query.companySize ?? req.query.company_size;
+		const sortBy = req.query.sortBy ?? req.query.sort_by ?? 'newest';
 
 		// Support both page-based and offset-based pagination
 		const pageLimit = Math.min(parseInt(pageSize, 10) || parseInt(limit, 10) || 20, 50);
