@@ -52,9 +52,17 @@ run-time algorithm selection). L1 rows are basic concepts; L2/L3 rows
 are applied understanding.
 
 **Content hygiene:** no prior `'OOP'` rows exist to duplicate (grep
-evidence above), and the 29 texts are newly written and concept-keyed —
-distinct from the syntax- or language-keyed OOP-adjacent rows carried
-under the Java/JavaScript skills in batches 1–4. Within-file checks
+evidence above). CORRECTED after the independent Interviewer review:
+the first version's claim that the bank was distinct from
+"syntax-keyed" rows under other skills did not hold — concept-keyed
+OOP rows exist under language skills, and the review's concept screen
+(same concept + same correct fact, reworded; all 472 existing texts,
+both quote styles, plus 006's SQL rows) caught one near-duplicate
+(dynamic dispatch vs 286's Java Dog/Animal row), which was replaced
+with a dependency (uses-a) row verified against the full extracted
+set. The review also produced three explanation/distractor
+refinements (abstract-class, protected, Adapter rows), applied in the
+same revision. Within-file checks
 (the author's node self-check): 29 rows; per-level counts 2/8/9/8/2;
 every row exactly 4 distinct options with `correct` among them; no
 duplicate question texts; time limits per pattern. Self-review catches

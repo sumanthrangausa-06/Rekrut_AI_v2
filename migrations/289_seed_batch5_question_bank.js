@@ -44,15 +44,22 @@
 //   - No bare definition recall at L4/L5: those rows are applied design
 //     scenarios (SOLID in use, composition vs inheritance, pattern
 //     recognition). L1 rows are basic concepts; L2/L3 rows are applied
-//     understanding.
+//     understanding, with one deliberate exception: the L3 LSP row
+//     states the principle itself, pairing with the applied LSP
+//     scenario at L4 (Square/Rectangle).
 //   - Every correct_answer was self-reviewed for factual correctness
 //     (Nova author + Interviewer-persona self-review, per design §9 C5):
 //     each row has exactly one defensible answer, and any row where a
 //     knowledgeable candidate could defend a distractor was rewritten.
 //   - No question duplicates a row already in the bank: no prior 'OOP'
-//     rows exist to duplicate, and texts are distinct from the OOP-
-//     concept rows carried under language skills (Java/JavaScript) —
-//     those are syntax- or language-keyed; these are concept-keyed.
+//     rows exist to duplicate. CORRECTED on the batch PR's independent
+//     Interviewer review: concept-keyed OOP rows DO exist under the
+//     language skills (e.g. 286's Java dynamic-dispatch row), so the
+//     duplicate check is a concept screen — same concept + same correct
+//     fact, reworded — over every existing text (both quote styles,
+//     plus 006's SQL VALUES rows), not a claim that other skills' rows
+//     are merely syntax-keyed. That screen caught and replaced one
+//     near-duplicate (dynamic dispatch) in this batch's first version.
 //
 // Phase C provenance (design §7 rule 6(d)): every row ships source='seed',
 // review_status='approved', format='mcq', topic_id resolved at insert time
@@ -249,19 +256,19 @@ const QUESTIONS = [
 			'A single concrete class with a type field and conditional branches for each document type',
 		],
 		correct: 'An abstract class: it can carry the shared state and implemented helper, while subclasses supply the operation that varies',
-		explanation: 'Sharing state and implemented behaviour through a common parent is exactly what an abstract class provides, with the varying operation left to subclasses. An interface defines a contract; it is not the vehicle for shared stored state, and duplication or type-switch branches recreate the maintenance problem.',
+		explanation: 'Sharing state and implemented behaviour through a common parent is exactly what an abstract class provides, with the varying operation left to subclasses. An interface defines a contract: some languages let interfaces offer default method implementations, but an interface cannot hold per-object stored state — and sharing that state is the requirement here. Duplication or type-switch branches recreate the maintenance problem.',
 	},
 	{
 		skill: 'OOP', difficulty: 3, timeLimit: 90,
-		text: 'A variable declared as type Shape holds a Triangle object. When area() is called through that variable, the Triangle version of area() runs, not the Shape version. Why?',
+		text: 'A ReportGenerator creates a PdfWriter inside one of its methods, uses it to produce a single report, and does not keep it afterwards — it stores no PdfWriter as one of its fields. How is this relationship best classified?',
 		options: [
-			'The method is selected at run time based on the actual object’s class — dynamic dispatch — not from the variable’s declared type',
-			'The method is selected when the code is compiled, from the variable’s declared type',
-			'Triangle objects automatically replace every Shape method everywhere',
-			'The declared type of a variable is ignored for all purposes once an object is assigned',
+			'A dependency: ReportGenerator uses a PdfWriter temporarily, but does not own or retain one as part of its state',
+			'A composition: the PdfWriter is a permanent part of the ReportGenerator and its lifetime is bound to it',
+			'An inheritance: ReportGenerator is a kind of PdfWriter',
+			'An aggregation: ReportGenerator holds a long-lived collection of PdfWriter objects supplied from outside',
 		],
-		correct: 'The method is selected at run time based on the actual object’s class — dynamic dispatch — not from the variable’s declared type',
-		explanation: 'Overridden methods dispatch on the runtime type of the object, which is what makes polymorphism work through base-type references. The declared type still matters elsewhere — for example, it limits which operations the caller may request.',
+		correct: 'A dependency: ReportGenerator uses a PdfWriter temporarily, but does not own or retain one as part of its state',
+		explanation: 'A dependency (uses-a) is a temporary use — created inside a method, passed as a parameter, or used once — without retained state. Composition and aggregation both require the other object to be held as part of the holder’s state (composition with its lifetime bound to the whole, aggregation without); inheritance is an is-a relationship, which this is not.',
 	},
 	{
 		skill: 'OOP', difficulty: 3, timeLimit: 90,
@@ -297,7 +304,7 @@ const QUESTIONS = [
 			'No access control is possible for helpers; they must always be public',
 		],
 		correct: 'Protected: visible to the class itself and its subclasses, but not to unrelated outside code',
-		explanation: 'Protected sits between private and public for precisely this case: the class family can use the member, the outside world cannot. Private would lock out the subclasses that need it; public would open it to everyone.',
+		explanation: 'Protected sits between private and public for precisely this case: the class family can use the member, unrelated outside code cannot. (In Java-family semantics protected also grants access within the same package; the family-plus-package reading does not change which level is designed for this case.) Private would lock out the subclasses that need it; public would open it to everyone.',
 	},
 	// ------------------------------------------------------------- OOP (L4 x8)
 	{
@@ -407,7 +414,7 @@ const QUESTIONS = [
 			'Have every caller in the new system learn and use the component’s types directly',
 		],
 		correct: 'Introduce an adapter object that presents the interface the new system expects and translates each call into the component’s interface',
-		explanation: 'Adapter exists for exactly this constraint: two incompatible interfaces, neither editable, bridged by a translator object. Subclassing does not change the inherited interface’s types, editing a copy forks the component, and spreading the foreign types everywhere couples the whole system to them.',
+		explanation: 'Adapter exists for exactly this constraint: two incompatible interfaces, neither editable, bridged by a translator object. Subclassing (the class-adapter reading) still does not change the inherited interface’s types — an override keeps the signature it overrides — and the component may not be modified; editing a copy forks the component, and spreading the foreign types everywhere couples the whole system to them.',
 	},
 	{
 		skill: 'OOP', difficulty: 5, timeLimit: 120,
