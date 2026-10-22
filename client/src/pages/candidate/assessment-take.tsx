@@ -895,7 +895,7 @@ export function AssessmentTakePage() {
 								a score. Nothing about leaving is hidden — each option explains itself before
 								you choose it.
 							</li>
-							<li>Short answers are scored by AI and reviewed by a human.</li>
+							<li>If your test includes written answers, they are scored by AI and reviewed by a human.</li>
 						</ul>
 						<div className="flex flex-col gap-2">
 							<Button
@@ -1004,11 +1004,20 @@ export function AssessmentTakePage() {
 				onContinueWithoutFullscreen={() => fs.continueWithoutFullscreen()}
 			/>
 
-			{/* AI disclosure (#343 task 5) */}
-			<div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700">
-				<AlertTriangle className="h-4 w-4 shrink-0" />
-				<span>This assessment is scored by AI and reviewed by a human.</span>
-			</div>
+			{/* AI disclosure (#343 task 5) — #1707: claim AI scoring only when the
+			    format includes written answers; legacy (null config) sessions get
+			    the conditional wording; MCQ/coding sessions render nothing. */}
+			{sessionConfig === null ? (
+				<div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700">
+					<AlertTriangle className="h-4 w-4 shrink-0" />
+					<span>If your test includes written answers, they are scored by AI and reviewed by a human.</span>
+				</div>
+			) : sessionConfig.format === 'mixed' || sessionConfig.format === 'short_answer' ? (
+				<div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700">
+					<AlertTriangle className="h-4 w-4 shrink-0" />
+					<span>This assessment is scored by AI and reviewed by a human.</span>
+				</div>
+			) : null}
 
 			{/* Progress bar */}
 			<div className="h-2 rounded-full bg-muted overflow-hidden">
