@@ -271,7 +271,7 @@ router.get('/assigned', authMiddleware, async (req, res) => {
 router.get('/attempt/:attemptId/score', authMiddleware, async (req, res) => {
 	try {
 		const result = await pool.query(
-			`SELECT jaa.composite_score, jaa.status, jaa.scored_at,
+			`SELECT jaa.composite_score, jaa.status, jaa.scored_at, jaa.completion_flags,
               ja.passing_score
        FROM job_assessment_attempts jaa
        JOIN job_assessments ja ON ja.id = jaa.assessment_id
@@ -282,13 +282,31 @@ router.get('/attempt/:attemptId/score', authMiddleware, async (req, res) => {
 			return res.status(404).json({ error: 'Attempt not found' });
 		}
 		const row = result.rows[0];
+		const sFlags = parseJsonObject(row.completion_flags);
+		const sPartial = sFlags.partial === true;
 		const passed =
 			row.composite_score != null && row.composite_score >= (row.passing_score ?? 70);
+		// Fix round F4: a completed partial attempt with zero answers is
+		// terminal and will never be scored (scoreAttempt records the
+		// unscored state and returns) — say so explicitly so the
+		// candidate's pollScore stops instead of burning every retry.
+		const unscored =
+			row.status === 'completed' &&
+			!row.scored_at &&
+			sPartial &&
+			(sFlags.answers_given ?? null) === 0;
 		res.json({
 			composite_score: row.composite_score,
 			status: row.status,
 			scored: !!row.scored_at,
-			result: row.composite_score != null ? (passed ? 'pass' : 'fail') : null,
+			unscored,
+			// Phase B: a partial submission is neither a pass nor a fail —
+			// result stays null and the partial label carries the counts.
+			result: sPartial ? null : row.composite_score != null ? (passed ? 'pass' : 'fail') : null,
+			partial: sPartial,
+			answersGiven: sFlags.answers_given ?? null,
+			totalQuestions: sFlags.total_questions ?? null,
+			autoSubmittedFullscreen: sFlags.fullscreen_auto_submit === true,
 		});
 	} catch (error) {
 		console.error('Error fetching attempt score:', error);
@@ -658,7 +676,8 @@ router.post('/answer', authMiddleware, async (req, res) => {
       UPDATE assessment_sessions
       SET answers_given = $1, score = $2, current_question_index = $3,
           current_difficulty = $4, max_difficulty_reached = $5,
-          time_anomalies = $6
+          time_anomalies = $6,
+          current_draft = CASE WHEN current_draft->>'questionId' = $8 THEN NULL ELSE current_draft END
       WHERE id = $7
     `,
 						[
@@ -674,6 +693,9 @@ router.post('/answer', authMiddleware, async (req, res) => {
 							maxDifficultyReached,
 							timeAnomalies,
 							sessionId,
+							// Phase B (§8.2): recording the drafted question's
+							// answer clears the stored draft in the same write.
+							String(qid),
 						],
 					);
 					await client.query('COMMIT');
@@ -759,6 +781,167 @@ router.post('/event', authMiddleware, async (req, res) => {
 	} catch (error) {
 		console.error('Error logging event:', error);
 		res.status(500).json({ error: 'Failed to log event' });
+	}
+});
+
+// Phase B (#1604/#1605, design §3.3): the unified exit endpoint — the one
+// server transition behind the Exit dialog's Save & Exit / Submit & Exit /
+// Exit Exam outcomes (Continue Test is client-only: no server state). All
+// terminal transitions are the atomic claims of §4.3; a second terminal
+// action on a finished attempt is 409 ALREADY_FINISHED, so any exit
+// request can be retried blindly and safely (§6.1).
+router.post('/session/:sessionId/exit', authMiddleware, async (req, res) => {
+	try {
+		const userId = req.user.id;
+		const sessionId = req.params.sessionId;
+		const { action, draft, reason } = req.body || {};
+		if (!['save', 'submit', 'abandon'].includes(action)) {
+			return res.status(400).json({ error: 'Invalid exit action', code: 'INVALID_ACTION' });
+		}
+		const exitReason = reason === 'fullscreen_second_exit' ? 'fullscreen_second_exit' : 'candidate';
+
+		const sessionResult = await pool.query(
+			'SELECT * FROM assessment_sessions WHERE id = $1 AND user_id = $2',
+			[sessionId, userId],
+		);
+		if (sessionResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		const session = sessionResult.rows[0];
+		if (session.status !== 'in_progress') {
+			return res.status(409).json({
+				error: 'This attempt is already finished',
+				code: 'ALREADY_FINISHED',
+				status: session.status,
+			});
+		}
+		const answersGiven = parseJsonArray(session.answers_given).length;
+
+		if (action === 'save') {
+			// The draft is stored-but-not-answered (§8.2): it must belong to
+			// the session's currently-outstanding question — anything else
+			// is not this attempt's current work.
+			let storedDraft = null;
+			if (draft != null) {
+				const qid = Number(draft.questionId);
+				if (!Number.isInteger(qid) || typeof draft.answer !== 'string') {
+					return res.status(400).json({ error: 'Invalid draft', code: 'INVALID_DRAFT' });
+				}
+				if (qid !== outstandingQuestionId(session)) {
+					return res.status(400).json({
+						error: 'That question is not the current question in this attempt',
+						code: 'QUESTION_NOT_CURRENT',
+					});
+				}
+				storedDraft = { questionId: qid, answer: draft.answer, savedAt: new Date().toISOString() };
+			}
+			// Fix round F5: the draft write is a CLAIM, not a blind write —
+			// ownership + status are in the UPDATE itself, its rowcount is
+			// checked, and the exit_save event is written in the SAME
+			// transaction only when the claim won. A save that loses a race
+			// to a terminal claim gets 409, never a false 200/event.
+			const saveClient = await pool.connect();
+			try {
+				await saveClient.query('BEGIN');
+				const claim = await saveClient.query(
+					'UPDATE assessment_sessions SET current_draft = $1 WHERE id = $2 AND user_id = $3 AND status = $4',
+					[storedDraft ? JSON.stringify(storedDraft) : null, sessionId, userId, 'in_progress'],
+				);
+				if (claim.rowCount === 0) {
+					await saveClient.query('ROLLBACK');
+					const now = await pool.query('SELECT status FROM assessment_sessions WHERE id = $1', [
+						sessionId,
+					]);
+					return res.status(409).json({
+						error: 'This attempt is already finished',
+						code: 'ALREADY_FINISHED',
+						status: now.rows[0]?.status,
+					});
+				}
+				await saveClient.query(
+					`INSERT INTO assessment_events (session_id, event_type, event_data) VALUES ($1, 'exit_save', $2)`,
+					[sessionId, JSON.stringify({ answersGiven })],
+				);
+				await saveClient.query('COMMIT');
+			} catch (saveErr) {
+				await saveClient.query('ROLLBACK').catch(() => {});
+				throw saveErr;
+			} finally {
+				saveClient.release();
+			}
+			return res.json({ status: 'in_progress', answersGiven, totalQuestions: TOTAL_QUESTIONS });
+		}
+
+		if (action === 'submit') {
+			// Saved answers only — a supplied draft is NOT submitted (the
+			// dialog says so; §6.1). The claim is the existing Phase A
+			// atomic completion, with the Phase B reason attached.
+			const completion = await completeAssessmentTx(sessionId, userId, { reason: exitReason });
+			if (!completion) {
+				// The claim lost to a non-completion terminal transition
+				// (e.g. a racing abandon) — report the real end state.
+				const now = await pool.query('SELECT status FROM assessment_sessions WHERE id = $1', [sessionId]);
+				return res.status(409).json({
+					error: 'This attempt is already finished',
+					code: 'ALREADY_FINISHED',
+					status: now.rows[0]?.status,
+				});
+			}
+			if (completion.alreadyCompleted) {
+				// Fix round F6: a racing Submit & Exit already completed
+				// this attempt — the loser gets the documented 409
+				// ALREADY_FINISHED (design §4.3), not the winner's 200.
+				// Exactly-once still holds: completeAssessmentTx skipped
+				// every side effect for the alreadyCompleted claim.
+				return res.status(409).json({
+					error: 'This attempt is already finished',
+					code: 'ALREADY_FINISHED',
+					status: 'completed',
+				});
+			}
+			await pool.query(
+				`INSERT INTO assessment_events (session_id, event_type, event_data) VALUES ($1, 'exit_submit', $2)`,
+				[
+					sessionId,
+					JSON.stringify({
+						answersGiven: completion.answersGiven ?? answersGiven,
+						reason: exitReason,
+						partial: completion.partial === true,
+					}),
+				],
+			).catch(() => {});
+			return res.json({
+				status: 'completed',
+				answersGiven: completion.answersGiven ?? answersGiven,
+				totalQuestions: TOTAL_QUESTIONS,
+				partial: completion.partial === true,
+				score: completion.score ?? null,
+				passed: completion.passed === true,
+				correctCount: completion.correctCount ?? null,
+				fullscreenAutoSubmit: completion.fullscreenAutoSubmit === true,
+				...(draft != null ? { draftExcluded: true } : {}),
+			});
+		}
+
+		// action === 'abandon' — Exit Exam.
+		const abandon = await abandonSessionTx(sessionId, userId, exitReason);
+		if (!abandon) return res.status(500).json({ error: 'Failed to exit assessment' });
+		if (abandon.notFound) return res.status(404).json({ error: 'Session not found' });
+		if (abandon.already) {
+			return res.status(409).json({
+				error: 'This attempt is already finished',
+				code: 'ALREADY_FINISHED',
+				status: abandon.status,
+			});
+		}
+		return res.json({
+			status: 'abandoned',
+			answersGiven: abandon.answersGiven,
+			totalQuestions: TOTAL_QUESTIONS,
+		});
+	} catch (error) {
+		console.error('Error processing assessment exit:', error);
+		res.status(500).json({ error: 'Failed to exit assessment' });
 	}
 });
 
@@ -898,13 +1081,13 @@ async function serveNextQuestion(sessionId) {
 // so the terminal transition is atomic and independent of answer recording.
 // Returns the completion result, or null when completion itself failed (the
 // recorded answers are safe either way; the caller surfaces a retry state).
-async function completeAssessmentTx(sessionId, userId) {
+async function completeAssessmentTx(sessionId, userId, opts = {}) {
 	let client;
 	let result;
 	try {
 		client = await pool.connect();
 		await client.query('BEGIN');
-		result = await completeAssessment(client, sessionId, userId);
+		result = await completeAssessment(client, sessionId, userId, opts);
 		await client.query('COMMIT');
 	} catch (error) {
 		if (client) await client.query('ROLLBACK').catch(() => {});
@@ -912,6 +1095,23 @@ async function completeAssessmentTx(sessionId, userId) {
 		return null;
 	} finally {
 		if (client) client.release();
+	}
+	// Phase B (database-reviewer condition): a full-screen auto-submit that
+	// RETRIES after the original completion already landed must still mark
+	// the attempt as auto-submitted — idempotent jsonb_set, post-commit,
+	// never a second completion.
+	if (result && result.alreadyCompleted && opts.reason === 'fullscreen_second_exit') {
+		try {
+			await pool.query(
+				`UPDATE skill_assessments
+				 SET behavioral_flags = jsonb_set(COALESCE(behavioral_flags, '{}'::jsonb), '{fullscreen_auto_submit}', 'true'::jsonb)
+				 WHERE session_id = $1`,
+				[sessionId],
+			);
+			result.fullscreenAutoSubmit = true;
+		} catch (err) {
+			console.error('[PhaseB] Failed to backfill fullscreen_auto_submit flag:', err.message);
+		}
 	}
 	// completeAssessment returns null when the claim found no in_progress
 	// session AND no existing completion (e.g. the session was abandoned
@@ -924,30 +1124,35 @@ async function completeAssessmentTx(sessionId, userId) {
 	// change the outcome the candidate sees. Skipped entirely for an
 	// alreadyCompleted claim (the original completion ran them).
 	if (result && !result.alreadyCompleted && result.assessmentId) {
-		try {
-			// Bounded: a hung feed must not hang the candidate's completed
-			// response or the audit write below. On timeout the underlying
-			// feed may still land late (harmless — it is the same single
-			// write, never re-run); the failure is logged either way.
-			await Promise.race([
-				omniscoreService.addTechnicalComponent(
-					userId,
-					result.assessmentId,
-					result.score || 0,
-					100,
-				),
-				new Promise((_, reject) =>
-					setTimeout(() => reject(new Error('OmniScore feed timed out after 20s')), 20000),
-				),
-			]);
-			console.log(
-				`[OmniScore] Assessment ${result.assessmentId} fed into OmniScore for user ${userId} (score: ${result.score})`,
-			);
-		} catch (err) {
-			console.error(
-				'[OmniScore] Failed to update from assessment (completion already committed):',
-				err.message,
-			);
+		// FOUNDER RULING (Phase B): a partial terminal submission does NOT
+		// feed OmniScore. The graded audit below still records it — labelled
+		// partial — because the grading did happen.
+		if (!result.partial) {
+			try {
+				// Bounded: a hung feed must not hang the candidate's completed
+				// response or the audit write below. On timeout the underlying
+				// feed may still land late (harmless — it is the same single
+				// write, never re-run); the failure is logged either way.
+				await Promise.race([
+					omniscoreService.addTechnicalComponent(
+						userId,
+						result.assessmentId,
+						result.score || 0,
+						100,
+					),
+					new Promise((_, reject) =>
+						setTimeout(() => reject(new Error('OmniScore feed timed out after 20s')), 20000),
+					),
+				]);
+				console.log(
+					`[OmniScore] Assessment ${result.assessmentId} fed into OmniScore for user ${userId} (score: ${result.score})`,
+				);
+			} catch (err) {
+				console.error(
+					'[OmniScore] Failed to update from assessment (completion already committed):',
+					err.message,
+				);
+			}
 		}
 
 		// Audit log: AI assessment graded. Written after the (bounded)
@@ -961,10 +1166,18 @@ async function completeAssessmentTx(sessionId, userId) {
 			metadata: {
 				session_id: sessionId,
 				skill_id: result.skillId,
-				score: result.score || 0,
+				score: result.score ?? null,
 				passed: result.passed,
 				anti_cheat_score: result.antiCheatScore,
 				model_version: 'adaptive-assessment-v1',
+				...(result.partial
+					? {
+							partial: true,
+							answers_given: result.answersGiven,
+							total_questions: result.totalQuestions,
+							fullscreen_auto_submit: result.fullscreenAutoSubmit === true,
+						}
+					: {}),
 				// #1584: NO confidence key — no confidence was measured for
 				// this grading, and a hard-coded 0.85/0.6 in the compliance
 				// audit trail is a fabrication (same class as #1572/#1505).
@@ -974,6 +1187,53 @@ async function completeAssessmentTx(sessionId, userId) {
 		});
 	}
 	return result;
+}
+
+// Phase B (#1604/#1605, design §4.1): Exit Exam — the mirror image of the
+// completion claim. ONE atomic status-guarded UPDATE moves the session to
+// 'abandoned'; it writes NOTHING else: no skill_assessments row, no
+// evaluation, no OmniScore call, no graded audit. The exit_exam event row
+// is written server-side in the same transaction so the abandon record
+// never depends on a client post. The claim sets abandoned_at and leaves
+// completed_at NULL (database-reviewer STOP 1 condition — see migration
+// 276). Returns { abandoned: true, answersGiven } on a won claim,
+// { already: true, status } when the attempt was already terminal, or
+// null on a database failure.
+async function abandonSessionTx(sessionId, userId, reason) {
+	let client;
+	try {
+		client = await pool.connect();
+		await client.query('BEGIN');
+		const claim = await client.query(
+			`UPDATE assessment_sessions
+			 SET status = 'abandoned', abandoned_at = NOW(), current_draft = NULL
+			 WHERE id = $1 AND user_id = $2 AND status = 'in_progress'
+			 RETURNING answers_given`,
+			[sessionId, userId],
+		);
+		if (claim.rows.length === 0) {
+			const existing = await client.query(
+				'SELECT status FROM assessment_sessions WHERE id = $1 AND user_id = $2',
+				[sessionId, userId],
+			);
+			await client.query('ROLLBACK');
+			if (existing.rows.length === 0) return { notFound: true };
+			return { already: true, status: existing.rows[0].status };
+		}
+		const answersGiven = parseJsonArray(claim.rows[0].answers_given).length;
+		await client.query(
+			`INSERT INTO assessment_events (session_id, event_type, event_data) VALUES ($1, 'exit_exam', $2)`,
+			[sessionId, JSON.stringify({ answersGiven, reason: reason || 'candidate' })],
+		);
+		await client.query('COMMIT');
+		return { abandoned: true, answersGiven };
+	} catch (error) {
+		if (client) await client.query('ROLLBACK').catch(() => {});
+		console.error('Error abandoning assessment session:', error);
+		return null;
+	} finally {
+		if (client) client.release();
+	}
 }
 
 // After an answer has been committed, decide the response from the recorded
@@ -1212,11 +1472,81 @@ Score guide: 90-100=excellent, 70-89=good, 50-69=partial, below 50=incorrect`;
 // UPDATE — its rowcount decides the winner of any race (double Finish,
 // timer + manual press, retry after timeout). The loser finds no row to
 // claim and gets the existing completion back instead of double-scoring.
+// Phase B (#1604/#1605): shared stored-but-not-answered draft reader.
+// A draft is the candidate's own unsubmitted work on the current question —
+// never an answer, never evaluated, never recruiter-visible (design §8.2).
+function parseDraft(value) {
+	if (!value) return null;
+	if (typeof value === 'object' && !Array.isArray(value)) return value;
+	if (typeof value === 'string') {
+		try {
+			const parsed = JSON.parse(value);
+			return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+		} catch {
+			return null;
+		}
+	}
+	return null;
+}
+
+function parseJsonObject(value, fallback = {}) {
+	if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+	if (typeof value === 'string') {
+		try {
+			const parsed = JSON.parse(value);
+			return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
+		} catch {
+			return fallback;
+		}
+	}
+	return fallback;
+}
+
+// Phase B (design §5.3, database-reviewer STOP 1 condition): whole-exam
+// pause credit for the job runner, from RECORDED timer_pause_start /
+// timer_pause_end events (server receipt timestamps). Intervals that
+// overlap are merged first, the 300s cap applies to each MERGED interval
+// (never per-posted-event, so nested/overlapping pairs cannot double-count),
+// and a pause_start with no following pause_end credits nothing — an open
+// pause is visible in the event log for human review, never auto-credited.
+// events: [{ type, timestamp }] in any order.
+function pauseCreditSeconds(events, nowMs) {
+	const pairs = [];
+	let openStart = null;
+	const sorted = (Array.isArray(events) ? events : [])
+		.filter((e) => e && (e.type === 'timer_pause_start' || e.type === 'timer_pause_end'))
+		.map((e) => ({ type: e.type, t: new Date(e.timestamp).getTime() }))
+		.filter((e) => Number.isFinite(e.t))
+		.sort((a, b) => a.t - b.t);
+	for (const e of sorted) {
+		if (e.type === 'timer_pause_start') {
+			if (openStart === null) openStart = e.t;
+		} else if (openStart !== null) {
+			pairs.push([openStart, e.t]);
+			openStart = null;
+		}
+	}
+	if (openStart !== null && Number.isFinite(nowMs)) {
+		// Still paused at read time is not a completed interval: no credit.
+	}
+	pairs.sort((a, b) => a[0] - b[0]);
+	const merged = [];
+	for (const [s, e] of pairs) {
+		const last = merged[merged.length - 1];
+		if (last && s <= last[1]) last[1] = Math.max(last[1], e);
+		else merged.push([s, e]);
+	}
+	return merged.reduce((sum, [s, e]) => sum + Math.min(300, Math.max(0, (e - s) / 1000)), 0);
+}
+
 // Runs inside the caller's transaction (completeAssessmentTx).
-async function completeAssessment(client, sessionId, userId) {
+// Phase B opts: { reason?: 'candidate' | 'fullscreen_second_exit' } — a
+// completion reached with fewer than TOTAL_QUESTIONS recorded answers is a
+// PARTIAL terminal submission (Submit & Exit / full-screen auto-submit).
+async function completeAssessment(client, sessionId, userId, opts = {}) {
 	const claim = await client.query(
 		`UPDATE assessment_sessions
-		 SET status = 'completed', completed_at = NOW()
+		 SET status = 'completed', completed_at = NOW(), current_draft = NULL
 		 WHERE id = $1 AND status = 'in_progress'
 		 RETURNING *`,
 		[sessionId],
@@ -1224,7 +1554,7 @@ async function completeAssessment(client, sessionId, userId) {
 
 	if (claim.rows.length === 0) {
 		const existing = await client.query(
-			`SELECT id, score, passed FROM skill_assessments
+			`SELECT id, score, passed, behavioral_flags FROM skill_assessments
 			 WHERE session_id = $1 ORDER BY completed_at DESC LIMIT 1`,
 			[sessionId],
 		);
@@ -1237,11 +1567,17 @@ async function completeAssessment(client, sessionId, userId) {
 		if (existing.rows.length === 0) {
 			return null;
 		}
+		const exFlags = parseJsonObject(existing.rows[0].behavioral_flags);
 		return {
 			alreadyCompleted: true,
 			assessmentId: existing.rows[0].id,
 			score: existing.rows[0].score,
 			passed: existing.rows[0].passed,
+			partial: exFlags.partial === true,
+			answersGiven: exFlags.answers_given ?? null,
+			totalQuestions: exFlags.total_questions ?? TOTAL_QUESTIONS,
+			correctCount: exFlags.correct_count ?? null,
+			fullscreenAutoSubmit: exFlags.fullscreen_auto_submit === true,
 		};
 	}
 
@@ -1260,7 +1596,49 @@ async function completeAssessment(client, sessionId, userId) {
 	antiCheatScore -= (session.time_anomalies || 0) * 5;
 	antiCheatScore = Math.max(0, antiCheatScore);
 
-	const passed = (session.score || 0) >= 60 && antiCheatScore >= 50;
+	// Phase B partial terminal submission (FOUNDER RULING, Sumanth
+	// 2026-10-21): scored over ANSWERED questions only, labelled plainly as
+	// partial (answered X of Y) wherever shown, NOT eligible for
+	// pass/Verified, and does NOT feed OmniScore (the feed lives in
+	// completeAssessmentTx and keys off result.partial). The score math runs
+	// HERE, inside the claim transaction, from the claim-returned session
+	// row; the answered questions are read FOR UPDATE under the same lock
+	// discipline as the claim (database-reviewer STOP 1 condition — no
+	// pool-side recompute after commit).
+	const answersGivenArr = parseJsonArray(session.answers_given);
+	const answersGivenCount = answersGivenArr.length;
+	const isPartial = answersGivenCount < TOTAL_QUESTIONS;
+	const fullscreenAutoSubmit = opts.reason === 'fullscreen_second_exit';
+	let score = session.score || 0;
+	let maxScore = 100;
+	let correctCount = null;
+	if (isPartial) {
+		correctCount = answersGivenArr.filter((a) => a.isCorrect === true).length;
+		if (answersGivenCount === 0) {
+			// Nothing was answered: there is nothing to score — no number at
+			// all (never a fabricated 0), per the Candidate Experience ruling.
+			score = null;
+			maxScore = null;
+		} else {
+			const qIds = [...new Set(answersGivenArr.map((a) => Number(a.questionId)).filter(Number.isInteger))];
+			const qRows = await client.query(
+				'SELECT id, difficulty_level, question_type FROM assessment_questions WHERE id = ANY($1) FOR UPDATE',
+				[qIds],
+			);
+			const qMap = new Map(qRows.rows.map((q) => [q.id, q]));
+			let maxAnswered = 0;
+			for (const a of answersGivenArr) {
+				const q = qMap.get(Number(a.questionId));
+				if (!q) continue;
+				maxAnswered += (q.difficulty_level || 2) * (q.question_type === 'short_answer' ? 15 : 10);
+			}
+			const earned = answersGivenArr.reduce((sum, a) => sum + (Number(a.scorePoints) || 0), 0);
+			score = maxAnswered > 0 ? Math.round((earned / maxAnswered) * 100) : null;
+			maxScore = maxAnswered > 0 ? 100 : null;
+		}
+	}
+
+	const passed = !isPartial && (session.score || 0) >= 60 && antiCheatScore >= 50;
 
 	// Create skill assessment record
 	const assessmentResult = await client.query(
@@ -1268,7 +1646,7 @@ async function completeAssessment(client, sessionId, userId) {
     INSERT INTO skill_assessments
     (user_id, skill_id, session_id, assessment_type, title, score, max_score, passed,
      anti_cheat_score, behavioral_flags, duration_seconds, started_at, completed_at)
-    VALUES ($1, $2, $3, 'dynamic', $4, $5, 100, $6, $7, $8,
+    VALUES ($1, $2, $3, 'dynamic', $4, $5, $10, $6, $7, $8,
             EXTRACT(EPOCH FROM (NOW() - $9::timestamp)), $9, NOW())
     RETURNING id
   `,
@@ -1277,7 +1655,7 @@ async function completeAssessment(client, sessionId, userId) {
 			session.skill_id,
 			sessionId,
 			`${skillName} Assessment`,
-			session.score || 0,
+			score,
 			passed,
 			antiCheatScore,
 			JSON.stringify({
@@ -1285,12 +1663,24 @@ async function completeAssessment(client, sessionId, userId) {
 				copy_paste: session.copy_paste_attempts || 0,
 				time_anomalies: session.time_anomalies || 0,
 				max_difficulty: session.max_difficulty_reached || 2,
+				...(isPartial
+					? {
+							partial: true,
+							answers_given: answersGivenCount,
+							total_questions: TOTAL_QUESTIONS,
+							correct_count: correctCount,
+							fullscreen_auto_submit: fullscreenAutoSubmit,
+						}
+					: {}),
+				...(!isPartial && fullscreenAutoSubmit ? { fullscreen_auto_submit: true } : {}),
 			}),
 			session.started_at,
+			maxScore,
 		],
 	);
 
-	// If passed, mark skill as verified
+	// If passed, mark skill as verified (a partial can never pass — the
+	// founder ruling — so this write is unreachable for partial claims).
 	if (passed) {
 		await client.query(
 			'UPDATE candidate_skills SET is_verified = true, verified_at = NOW(), verified_score = $1 WHERE id = $2',
@@ -1311,10 +1701,15 @@ async function completeAssessment(client, sessionId, userId) {
 	return {
 		alreadyCompleted: false,
 		assessmentId: assessmentResult.rows[0].id,
-		score: session.score || 0,
+		score,
 		passed,
 		skillId: session.skill_id,
 		antiCheatScore,
+		partial: isPartial,
+		answersGiven: answersGivenCount,
+		totalQuestions: TOTAL_QUESTIONS,
+		correctCount,
+		fullscreenAutoSubmit,
 	};
 }
 
@@ -1347,7 +1742,7 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 			// Get the skill_assessment record for full results
 			const assessmentResult = await pool.query(
 				`
-        SELECT sa.score, sa.passed, sa.anti_cheat_score, sa.duration_seconds
+        SELECT sa.score, sa.passed, sa.anti_cheat_score, sa.duration_seconds, sa.behavioral_flags
         FROM skill_assessments sa
         WHERE sa.session_id = $1 AND sa.user_id = $2
         ORDER BY sa.completed_at DESC LIMIT 1
@@ -1356,14 +1751,24 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 			);
 
 			const assessment = assessmentResult.rows[0] || {};
+			// Phase B: partial completions are labelled from the stored
+			// flags — the score is the answered-only score (or null when
+			// nothing was answered: no number is fabricated for it).
+			const cFlags = parseJsonObject(assessment.behavioral_flags);
+			const cPartial = cFlags.partial === true;
 			return res.json({
 				status: 'completed',
 				skillName,
-				score: assessment.score || session.score || 0,
+				score: cPartial ? (assessment.score ?? null) : assessment.score || session.score || 0,
 				passed: assessment.passed || false,
 				antiCheatScore: assessment.anti_cheat_score ?? null,
 				durationSeconds: assessment.duration_seconds || 0,
 				maxDifficultyReached: session.max_difficulty_reached || 0,
+				partial: cPartial,
+				answersGiven: cFlags.answers_given ?? parseJsonArray(session.answers_given).length,
+				totalQuestions: cFlags.total_questions ?? TOTAL_QUESTIONS,
+				correctCount: cFlags.correct_count ?? null,
+				autoSubmittedFullscreen: cFlags.fullscreen_auto_submit === true,
 			});
 		}
 
@@ -1378,21 +1783,28 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 				const completion = await completeAssessmentTx(sessionId, userId);
 				if (completion) {
 					const doneResult = await pool.query(
-						`SELECT sa.score, sa.passed, sa.anti_cheat_score, sa.duration_seconds
+						`SELECT sa.score, sa.passed, sa.anti_cheat_score, sa.duration_seconds, sa.behavioral_flags
 						 FROM skill_assessments sa
 						 WHERE sa.session_id = $1 AND sa.user_id = $2
 						 ORDER BY sa.completed_at DESC LIMIT 1`,
 						[sessionId, userId],
 					);
 					const assessment = doneResult.rows[0] || {};
+					const dFlags = parseJsonObject(assessment.behavioral_flags);
+					const dPartial = dFlags.partial === true;
 					return res.json({
 						status: 'completed',
 						skillName,
-						score: assessment.score || session.score || 0,
+						score: dPartial ? (assessment.score ?? null) : assessment.score || session.score || 0,
 						passed: assessment.passed || false,
 						antiCheatScore: assessment.anti_cheat_score ?? null,
 						durationSeconds: assessment.duration_seconds || 0,
 						maxDifficultyReached: session.max_difficulty_reached || 0,
+						partial: dPartial,
+						answersGiven: dFlags.answers_given ?? answersGiven.length,
+						totalQuestions: dFlags.total_questions ?? TOTAL_QUESTIONS,
+						correctCount: dFlags.correct_count ?? null,
+						autoSubmittedFullscreen: dFlags.fullscreen_auto_submit === true,
 					});
 				}
 				return res.status(503).json({
@@ -1418,10 +1830,19 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 						'Your progress is saved, but the next question is not available right now. Please retry.',
 				});
 			}
+			// Phase B (§7.3): resume restores the stored draft and the
+			// full-screen exits already used, so a refresh can neither lose
+			// the draft nor reset the two-exit allowance.
+			const fsCount = await pool.query(
+				`SELECT COUNT(*)::int AS n FROM assessment_events WHERE session_id = $1 AND event_type = 'fullscreen_exit_first'`,
+				[sessionId],
+			);
 			return res.json({
 				status: 'in_progress',
 				skillName,
 				question: served.question,
+				currentDraft: parseDraft(session.current_draft),
+				fullscreenExitsUsed: fsCount.rows[0]?.n || 0,
 			});
 		}
 
@@ -2417,12 +2838,17 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 			);
 
 			const nextQ = questions.rows[nextIndex];
+			const resumeEvents = parseJsonArray(attempt.integrity_events);
 			return res.json({
 				attemptId: attempt.id,
 				resumed: true,
 				progress: { current: nextIndex + 1, total: questions.rows.length },
 				timeLimitMinutes: assessment.rows[0].time_limit_minutes || 45,
 				startedAt: attempt.started_at,
+				// Phase B (§7.3): resume restores the stored draft and the
+				// full-screen exits already used for this attempt.
+				currentDraft: parseDraft(attempt.current_draft),
+				fullscreenExitsUsed: resumeEvents.filter((e) => e && e.type === 'fullscreen_exit_first').length,
 				question: nextQ
 					? {
 							id: nextQ.id,
@@ -2527,11 +2953,15 @@ router.post('/job-assessment/:id/answer', authMiddleware, async (req, res) => {
 			});
 		}
 
-		// Overall time limit: started_at + time_limit_minutes (#343 task 3).
+		// Overall time limit: started_at + time_limit_minutes (#343 task 3),
+		// minus Phase B pause credit (§5.3): time the candidate spent in the
+		// Exit dialog / full-screen warning does not consume the exam clock.
 		const timeLimitMinutes = attempt.time_limit_minutes || 45;
+		const pauseCredit = pauseCreditSeconds(parseJsonArray(attempt.integrity_events), Date.now());
 		if (
 			attempt.started_at &&
-			Date.now() - new Date(attempt.started_at).getTime() > timeLimitMinutes * 60 * 1000
+			Date.now() - new Date(attempt.started_at).getTime() - pauseCredit * 1000 >
+				timeLimitMinutes * 60 * 1000
 		) {
 			await client.query('ROLLBACK');
 			return res.status(410).json({
@@ -2595,7 +3025,8 @@ router.post('/job-assessment/:id/answer', authMiddleware, async (req, res) => {
 			`
       UPDATE job_assessment_attempts
       SET answers = $1, current_question_index = $2, current_difficulty = $3,
-          time_anomalies = $4, time_spent_seconds = $5
+          time_anomalies = $4, time_spent_seconds = $5,
+          current_draft = CASE WHEN current_draft->>'questionId' = $7 THEN NULL ELSE current_draft END
       WHERE id = $6
     `,
 			[
@@ -2605,6 +3036,8 @@ router.post('/job-assessment/:id/answer', authMiddleware, async (req, res) => {
 				newTimeAnomalies,
 				newTimeSpent,
 				attemptId,
+				// Phase B (§8.2): answering the drafted question clears its draft.
+				String(questionId),
 			],
 		);
 
@@ -2618,14 +3051,37 @@ router.post('/job-assessment/:id/answer', authMiddleware, async (req, res) => {
 		const nextIndex = answers.length;
 
 		if (nextIndex >= totalQuestions) {
-			// Assessment complete — trigger auto-scoring
-			await client.query(
-				"UPDATE job_assessment_attempts SET status = 'completed', completed_at = NOW() WHERE id = $1",
-				[attemptId],
+			// Assessment complete — Phase B (§4.3): the SAME atomic
+			// status-guarded claim as every other terminal path. The plain
+			// UPDATE this replaces let two concurrent last-answers both
+			// complete (and double-fire scoring). A lost claim means the
+			// attempt already terminated via an exit action: the recorded
+			// answers stand, scoring fires only for the claim winner.
+			const claimRes = await client.query(
+				`UPDATE job_assessment_attempts
+				 SET status = 'completed', completed_at = NOW(), current_draft = NULL,
+				     completion_flags = COALESCE(completion_flags, '{}'::jsonb) || $2::jsonb
+				 WHERE id = $1 AND status = 'in_progress'
+				 RETURNING id`,
+				[
+					attemptId,
+					JSON.stringify({
+						partial: false,
+						answers_given: answers.length,
+						total_questions: totalQuestions,
+					}),
+				],
 			);
 			await client.query('COMMIT');
 
-			// Trigger async scoring (don't wait)
+			if (claimRes.rows.length === 0) {
+				return res.status(409).json({
+					error: 'This attempt is already finished',
+					code: 'ALREADY_FINISHED',
+				});
+			}
+
+			// Trigger async scoring (don't wait) — exactly once, post-commit.
 			scoreAttempt(attemptId, assessmentId).catch((err) =>
 				console.error('[scoring] Async scoring failed:', err.message),
 			);
@@ -2682,8 +3138,43 @@ async function scoreAttempt(attemptId, assessmentId) {
 		// scoring run leaves scored_at NULL, so retries still work.
 		if (att.scored_at) return;
 
+		// Phase B: an abandoned attempt is NEVER scored (Exit Exam writes no
+		// score — composite stays NULL, no evaluation, no OmniScore). The
+		// partial flag is read from the row the submit claim committed, so
+		// the decision cannot diverge from the claim (database-reviewer).
+		if (att.status === 'abandoned') return;
+		const attemptFlags = parseJsonObject(att.completion_flags);
+		const isPartialAttempt = attemptFlags.partial === true;
+
 		const answers = typeof att.answers === 'string' ? JSON.parse(att.answers) : att.answers || [];
-		if (answers.length === 0) return;
+		if (answers.length === 0) {
+			// Fix round F4: a completed PARTIAL attempt with zero answers
+			// has nothing to score — but it must not vanish. Record the
+			// terminal unscored state in `scores` (composite stays NULL,
+			// scored_at stays NULL: no score was ever produced, and no
+			// surface may render one). The candidate score view derives
+			// `unscored` from this state and stops polling; the recruiter
+			// lists show the attempt as submitted-with-no-answers.
+			if (att.status === 'completed' && isPartialAttempt) {
+				await pool.query(
+					`UPDATE job_assessment_attempts SET scores = $1 WHERE id = $2 AND scored_at IS NULL`,
+					[
+						JSON.stringify({
+							earnedPoints: 0,
+							totalPoints: 0,
+							compositeScore: null,
+							partial: true,
+							answers_given: 0,
+							total_questions: attemptFlags.total_questions ?? null,
+							unscored: true,
+							unscored_reason: 'no_answers',
+						}),
+						attemptId,
+					],
+				);
+			}
+			return;
+		}
 
 		// Get all questions
 		const questions = await pool.query(
@@ -2854,7 +3345,9 @@ Return ONLY valid JSON:
 		antiCheatScore -= (att.time_anomalies || 0) * 5;
 		antiCheatScore = Math.max(0, antiCheatScore);
 
-		// Save scores
+		// Save scores. The composite is computed over ANSWERED questions
+		// only (totalPoints accumulates answered questions' points), and a
+		// partial attempt carries its label in the scores payload too.
 		await pool.query(
 			`
       UPDATE job_assessment_attempts
@@ -2864,7 +3357,18 @@ Return ONLY valid JSON:
     `,
 			[
 				JSON.stringify(answers),
-				JSON.stringify({ earnedPoints, totalPoints, compositeScore }),
+				JSON.stringify({
+					earnedPoints,
+					totalPoints,
+					compositeScore,
+					...(isPartialAttempt
+						? {
+								partial: true,
+								answers_given: attemptFlags.answers_given ?? answers.length,
+								total_questions: attemptFlags.total_questions ?? questions.rows.length,
+							}
+						: {}),
+				}),
 				compositeScore,
 				JSON.stringify(categoryScores),
 				JSON.stringify(aiSummary),
@@ -2874,24 +3378,30 @@ Return ONLY valid JSON:
 		);
 
 		console.log(
-			`[scoring] Attempt ${attemptId} scored: ${compositeScore}% (${earnedPoints}/${totalPoints} pts)`,
+			`[scoring] Attempt ${attemptId} scored: ${compositeScore}% (${earnedPoints}/${totalPoints} pts)${isPartialAttempt ? ' [partial]' : ''}`,
 		);
 
-		// Round-trip the result to the linked application: score write,
-		// conservative stage advance on pass, recruiter notification (#343 task 4).
-		// Non-blocking — failures are logged inside, never thrown.
-		await roundTripAssessmentResult(att, assessmentId, compositeScore);
+		// FOUNDER RULING (Phase B): a partial terminal submission is NOT
+		// eligible for pass and does NOT feed OmniScore — so no application
+		// round-trip (which writes pass/fail and can advance the stage) and
+		// no OmniScore recalculation for partial attempts.
+		if (!isPartialAttempt) {
+			// Round-trip the result to the linked application: score write,
+			// conservative stage advance on pass, recruiter notification (#343 task 4).
+			// Non-blocking — failures are logged inside, never thrown.
+			await roundTripAssessmentResult(att, assessmentId, compositeScore);
 
-		// Feed the job assessment into OmniScore verified_skills (2x weight).
-		// Non-blocking — same pattern as skill assessments (line ~904).
-		if (att.candidate_id) {
-			try {
-				await omniscoreService.calculateScore(att.candidate_id);
-				console.log(
-					`[OmniScore] Job assessment ${attemptId} fed into OmniScore for user ${att.candidate_id} (score: ${compositeScore})`,
-				);
-			} catch (err) {
-				console.error('[OmniScore] Failed to update from job assessment:', err.message);
+			// Feed the job assessment into OmniScore verified_skills (2x weight).
+			// Non-blocking — same pattern as skill assessments (line ~904).
+			if (att.candidate_id) {
+				try {
+					await omniscoreService.calculateScore(att.candidate_id);
+					console.log(
+						`[OmniScore] Job assessment ${attemptId} fed into OmniScore for user ${att.candidate_id} (score: ${compositeScore})`,
+					);
+				} catch (err) {
+					console.error('[OmniScore] Failed to update from job assessment:', err.message);
+				}
 			}
 		}
 	} catch (error) {
@@ -3030,7 +3540,12 @@ router.post('/job-assessment/:id/score', authMiddleware, async (req, res) => {
 			attemptId,
 		]);
 
-		res.json({ attempt: result.rows[0] || null });
+		// Fix round F1 (same leak, second surface): this response returns
+		// the raw attempt row to recruiters too — the candidate's draft is
+		// owner-only and is stripped before it leaves.
+		const attemptOut = result.rows[0] || null;
+		if (attemptOut) delete attemptOut.current_draft;
+		res.json({ attempt: attemptOut });
 	} catch (error) {
 		console.error('Error scoring assessment:', error);
 		res.status(500).json({ error: 'Failed to score assessment' });
@@ -3043,8 +3558,15 @@ router.get('/job-assessment/:id/results', authMiddleware, async (req, res) => {
 		const assessmentId = req.params.id;
 		const { attemptId, candidateId } = req.query;
 
+		// Fix round F1: explicit column list — NEVER ja.*. Migration 276
+		// added job_assessment_attempts.current_draft (the candidate's
+		// stored-but-not-answered draft, design §8.2: owner-only, never
+		// recruiter-visible); a wildcard select leaks it to every caller
+		// of this endpoint, recruiters included. current_draft is the one
+		// column deliberately absent below; every other attempt field is
+		// scoring/results data this endpoint exists to serve.
 		let query =
-			'SELECT ja.*, u.name as candidate_name, u.email as candidate_email FROM job_assessment_attempts ja LEFT JOIN users u ON ja.candidate_id = u.id WHERE ja.assessment_id = $1';
+			'SELECT ja.id, ja.assessment_id, ja.candidate_id, ja.application_id, ja.status, ja.current_question_index, ja.current_difficulty, ja.answers, ja.scores, ja.composite_score, ja.category_scores, ja.ai_summary, ja.time_spent_seconds, ja.tab_switches, ja.copy_paste_attempts, ja.time_anomalies, ja.anti_cheat_score, ja.started_at, ja.completed_at, ja.scored_at, ja.created_at, ja.due_date, ja.abandoned_at, ja.completion_flags, ja.integrity_events, u.name as candidate_name, u.email as candidate_email FROM job_assessment_attempts ja LEFT JOIN users u ON ja.candidate_id = u.id WHERE ja.assessment_id = $1';
 		const params = [assessmentId];
 
 		if (attemptId) {
@@ -3163,11 +3685,14 @@ router.post('/job-assessment/:id/converse', authMiddleware, rateLimits.ai, async
 			});
 		}
 
-		// Overall time limit: started_at + time_limit_minutes (#343 I1).
+		// Overall time limit: started_at + time_limit_minutes (#343 I1),
+		// minus the same Phase B pause credit as /answer (§5.3).
 		const timeLimitMinutes = attempt.time_limit_minutes || 45;
+		const conversePauseCredit = pauseCreditSeconds(parseJsonArray(attempt.integrity_events), Date.now());
 		if (
 			attempt.started_at &&
-			Date.now() - new Date(attempt.started_at).getTime() > timeLimitMinutes * 60 * 1000
+			Date.now() - new Date(attempt.started_at).getTime() - conversePauseCredit * 1000 >
+				timeLimitMinutes * 60 * 1000
 		) {
 			return res.status(410).json({
 				error: 'The time limit for this assessment has elapsed',
@@ -3268,12 +3793,59 @@ Return ONLY valid JSON:
 });
 
 // Anti-cheat event logging for job assessments
+// Phase B (design §7): the event vocabulary shared by both runners.
+// On the JOB runner every type below is actually RECORDED (persisted into
+// integrity_events with a server receipt timestamp) — {logged:true} is
+// returned ONLY for a recorded type; an unrecognised type is a 400, so a
+// client bug can never masquerade as a logged event again (this endpoint
+// previously dropped every type except tab_switch/copy_paste while still
+// returning {logged:true}).
+const JOB_EVENT_TYPES = new Set([
+	'tab_switch',
+	'copy_paste',
+	'fullscreen_entered',
+	'fullscreen_unavailable',
+	'fullscreen_opt_out',
+	'fullscreen_exit_first',
+	'fullscreen_exit_repeat',
+	'fullscreen_exit_second',
+	'exit_dialog_opened',
+	'exit_dialog_timeout_resume',
+	'exit_save',
+	'exit_submit',
+	'exit_exam',
+	'timer_pause_start',
+	'timer_pause_end',
+]);
+
 router.post('/job-assessment/:id/event', authMiddleware, async (req, res) => {
 	try {
-		const { attemptId, eventType } = req.body;
+		const { attemptId, eventType, eventData } = req.body;
 		if (!attemptId || !eventType)
 			return res.status(400).json({ error: 'attemptId and eventType required' });
+		if (!JOB_EVENT_TYPES.has(eventType)) {
+			return res.status(400).json({ error: 'Unknown event type', code: 'UNKNOWN_EVENT_TYPE' });
+		}
 
+		// Single ownership+status-guarded append (database-reviewer
+		// condition): rowcount 0 means the attempt is not the caller's
+		// in-progress attempt — 404, and nothing was recorded.
+		const event = {
+			type: eventType,
+			timestamp: new Date().toISOString(),
+			data: eventData && typeof eventData === 'object' ? eventData : {},
+		};
+		const appended = await pool.query(
+			`UPDATE job_assessment_attempts
+			 SET integrity_events = COALESCE(integrity_events, '[]'::jsonb) || $1::jsonb
+			 WHERE id = $2 AND candidate_id = $3 AND status = 'in_progress'`,
+			[JSON.stringify([event]), attemptId, req.user.id],
+		);
+		if (appended.rowCount === 0) {
+			return res.status(404).json({ error: 'Active attempt not found' });
+		}
+
+		// The two legacy counters keep working alongside the event store.
 		if (eventType === 'tab_switch') {
 			await pool.query(
 				'UPDATE job_assessment_attempts SET tab_switches = COALESCE(tab_switches, 0) + 1 WHERE id = $1 AND candidate_id = $2',
@@ -3290,6 +3862,206 @@ router.post('/job-assessment/:id/event', authMiddleware, async (req, res) => {
 	} catch (error) {
 		console.error('Error logging assessment event:', error);
 		res.status(500).json({ error: 'Failed to log event' });
+	}
+});
+
+// Phase B (#1604/#1605, design §3.3/§4.2): the job runner's exit endpoint —
+// the same four-outcome contract as the skill runner's. Submit mirrors
+// completeAssessmentTx exactly (claim + flags in ONE transaction, COMMIT,
+// then scoreAttempt exactly once); abandon is the mirror claim to
+// 'abandoned' (a status value this table has always allowed and no code
+// path wrote before Phase B) and never invokes scoring.
+router.post('/job-assessment/:id/exit', authMiddleware, async (req, res) => {
+	try {
+		const assessmentId = req.params.id;
+		const candidateId = req.user.id;
+		const { attemptId, action, draft, reason } = req.body || {};
+		if (!attemptId) return res.status(400).json({ error: 'attemptId required' });
+		if (!['save', 'submit', 'abandon'].includes(action)) {
+			return res.status(400).json({ error: 'Invalid exit action', code: 'INVALID_ACTION' });
+		}
+		const exitReason = reason === 'fullscreen_second_exit' ? 'fullscreen_second_exit' : 'candidate';
+
+		// Fix round F5: ownership, the due-date check, and the
+		// partial/answers snapshot are ALL taken inside the claim
+		// transaction, from the FOR UPDATE-locked attempt row — never
+		// from a non-transactional pre-read — and every claim UPDATE
+		// carries the ownership guard and has its rowcount checked. A
+		// concurrent /answer can no longer make the committed flags
+		// disagree with the answers actually scored, and a claim that
+		// loses its race answers 409 instead of a false 200.
+		const client = await pool.connect();
+		let submitOutcome = null;
+		try {
+			await client.query('BEGIN');
+			const locked = await client.query(
+				'SELECT * FROM job_assessment_attempts WHERE id = $1 AND candidate_id = $2 AND assessment_id = $3 FOR UPDATE',
+				[attemptId, candidateId, assessmentId],
+			);
+			if (locked.rows.length === 0) {
+				await client.query('ROLLBACK');
+				return res.status(404).json({ error: 'Attempt not found' });
+			}
+			const attempt = locked.rows[0];
+			if (attempt.status !== 'in_progress') {
+				await client.query('ROLLBACK');
+				return res.status(409).json({
+					error: 'This attempt is already finished',
+					code: 'ALREADY_FINISHED',
+					status: attempt.status,
+				});
+			}
+			const answers = parseJsonArray(attempt.answers);
+			const totalResult = await client.query(
+				'SELECT COUNT(*)::int AS n FROM job_assessment_questions WHERE assessment_id = $1',
+				[assessmentId],
+			);
+			const totalQuestions = totalResult.rows[0].n;
+
+			// Due-date interaction (§4.2): Save & Exit is refused past the
+			// due date (nothing resumable remains); the two terminal
+			// outcomes stay allowed so the attempt is never stranded.
+			if (action === 'save' && attempt.due_date && new Date(attempt.due_date) < new Date()) {
+				await client.query('ROLLBACK');
+				return res.status(410).json({
+					error: 'This assessment assignment has expired',
+					code: 'ASSESSMENT_EXPIRED',
+				});
+			}
+
+			if (action === 'save') {
+				let storedDraft = null;
+				if (draft != null) {
+					const qid = Number(draft.questionId);
+					if (!Number.isInteger(qid) || typeof draft.answer !== 'string') {
+						await client.query('ROLLBACK');
+						return res.status(400).json({ error: 'Invalid draft', code: 'INVALID_DRAFT' });
+					}
+					const qCheck = await client.query(
+						'SELECT id FROM job_assessment_questions WHERE id = $1 AND assessment_id = $2',
+						[qid, assessmentId],
+					);
+					if (qCheck.rows.length === 0) {
+						await client.query('ROLLBACK');
+						return res.status(400).json({
+							error: 'That question is not part of this assessment',
+							code: 'QUESTION_NOT_CURRENT',
+						});
+					}
+					storedDraft = { questionId: qid, answer: draft.answer, savedAt: new Date().toISOString() };
+				}
+				const claim = await client.query(
+					`UPDATE job_assessment_attempts
+					 SET current_draft = $1,
+					     integrity_events = COALESCE(integrity_events, '[]'::jsonb) || $2::jsonb
+					 WHERE id = $3 AND candidate_id = $4 AND status = 'in_progress'
+					 RETURNING id`,
+					[
+						storedDraft ? JSON.stringify(storedDraft) : null,
+						JSON.stringify([
+							{ type: 'exit_save', timestamp: new Date().toISOString(), data: { answersGiven: answers.length } },
+						]),
+						attemptId,
+						candidateId,
+					],
+				);
+				if (claim.rows.length === 0) {
+					await client.query('ROLLBACK');
+					return res.status(409).json({
+						error: 'This attempt is already finished',
+						code: 'ALREADY_FINISHED',
+					});
+				}
+				await client.query('COMMIT');
+				return res.json({ status: 'in_progress', answersGiven: answers.length, totalQuestions });
+			}
+
+			if (action === 'abandon') {
+				const abandonEvent = {
+					type: 'exit_exam',
+					timestamp: new Date().toISOString(),
+					data: { answersGiven: answers.length, reason: exitReason },
+				};
+				const claim = await client.query(
+					`UPDATE job_assessment_attempts
+					 SET status = 'abandoned', abandoned_at = NOW(), current_draft = NULL,
+					     integrity_events = COALESCE(integrity_events, '[]'::jsonb) || $2::jsonb
+					 WHERE id = $1 AND candidate_id = $3 AND status = 'in_progress'
+					 RETURNING id`,
+					[attemptId, JSON.stringify([abandonEvent]), candidateId],
+				);
+				if (claim.rows.length === 0) {
+					await client.query('ROLLBACK');
+					return res.status(409).json({
+						error: 'This attempt is already finished',
+						code: 'ALREADY_FINISHED',
+					});
+				}
+				await client.query('COMMIT');
+				// composite_score stays NULL, scored_at stays NULL,
+				// scoreAttempt is never called: no score, anywhere.
+				return res.json({ status: 'abandoned', answersGiven: answers.length, totalQuestions });
+			}
+
+			// action === 'submit' — claim + flags in the same transaction,
+			// computed from the locked row; scoring fires post-commit.
+			const isPartial = answers.length < totalQuestions;
+			const flags = {
+				partial: isPartial,
+				answers_given: answers.length,
+				total_questions: totalQuestions,
+				fullscreen_auto_submit: exitReason === 'fullscreen_second_exit',
+			};
+			const claim = await client.query(
+				`UPDATE job_assessment_attempts
+				 SET status = 'completed', completed_at = NOW(), current_draft = NULL,
+				     completion_flags = COALESCE(completion_flags, '{}'::jsonb) || $2::jsonb,
+				     integrity_events = COALESCE(integrity_events, '[]'::jsonb) || $3::jsonb
+				 WHERE id = $1 AND candidate_id = $4 AND status = 'in_progress'
+				 RETURNING id`,
+				[
+					attemptId,
+					JSON.stringify(flags),
+					JSON.stringify([
+						{
+							type: 'exit_submit',
+							timestamp: new Date().toISOString(),
+							data: { answersGiven: answers.length, reason: exitReason, partial: isPartial },
+						},
+					]),
+					candidateId,
+				],
+			);
+			if (claim.rows.length === 0) {
+				await client.query('ROLLBACK');
+				return res.status(409).json({
+					error: 'This attempt is already finished',
+					code: 'ALREADY_FINISHED',
+				});
+			}
+			await client.query('COMMIT');
+			submitOutcome = { answersGiven: answers.length, totalQuestions, isPartial };
+		} catch (error) {
+			await client.query('ROLLBACK').catch(() => {});
+			throw error;
+		} finally {
+			client.release();
+		}
+		// Exactly once, post-commit — the same contract as the last-answer path.
+		scoreAttempt(attemptId, assessmentId).catch((err) =>
+			console.error('[scoring] Async scoring failed:', err.message),
+		);
+		return res.json({
+			status: 'completed',
+			answersGiven: submitOutcome.answersGiven,
+			totalQuestions: submitOutcome.totalQuestions,
+			partial: submitOutcome.isPartial,
+			fullscreenAutoSubmit: exitReason === 'fullscreen_second_exit',
+			...(draft != null ? { draftExcluded: true } : {}),
+		});
+	} catch (error) {
+		console.error('Error processing job assessment exit:', error);
+		res.status(500).json({ error: 'Failed to exit assessment' });
 	}
 });
 
