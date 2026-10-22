@@ -93,5 +93,17 @@ status completed + topic_id set, all served questions OOP bank rows —
 (adaptive serving repeated one question at pool exhaustion — a
 pre-existing serving behaviour on all topics, not a bank defect).
 
-**Review history:** pending — the batch PR records the Interviewer
-review outcome when it runs.
+**Review history:** independent Interviewer review of the first
+version BLOCKED on one row — the L3 dynamic-dispatch question was a
+near-duplicate of 286's Java Dog/Animal row (same concept + same
+correct fact, reworded) — and falsified the header's duplication
+defence. Fix round ebdb4594b replaced the row with a dependency
+(uses-a) classification question (verified unbanked under the full
+concept screen; the shallow/deep-copy alternative was rejected
+because 285's Python row already banks that fact), corrected the
+header and this log, and applied the review's three explanation
+refinements. Scoped re-review of the fix round: **APPROVE** — the
+replacement survives a full re-run of the duplicate method (472
+existing texts, both quote styles, 006 SQL VALUES rows; no exact
+duplicate; no prior uses-a classification row in the bank), counts
+and invariants mechanically unchanged.
