@@ -89,7 +89,7 @@ describeIntegration(
 			['Upper Mid Job', '501-1000'],
 			['Big Co Job', '1001-5000'],
 			['Mega Co Job', '5001+'],
-			['Huge Legacy Job', '1000+'],
+			['Huge Co Job', '1000+'],
 		];
 
 		beforeAll(async () => {
@@ -150,9 +150,9 @@ describeIntegration(
 			expect(titles.sort()).toEqual(['Mid Co Job', 'Upper Mid Job']);
 		});
 
-		test('CS-1d: company_size=large returns the 1001-5000, 5001+ and legacy 1000+ jobs', async () => {
+		test('CS-1d: company_size=large returns the 1001-5000, 5001+ and candidate-form 1000+ jobs', async () => {
 			const { titles } = await getTitles('limit=200&company_size=large');
-			expect(titles.sort()).toEqual(['Big Co Job', 'Huge Legacy Job', 'Mega Co Job']);
+			expect(titles.sort()).toEqual(['Big Co Job', 'Huge Co Job', 'Mega Co Job']);
 		});
 
 		test('CS-1e: legacy camelCase alias companySize honours buckets too', async () => {
@@ -192,8 +192,33 @@ describeIntegration(
 			// All seeded jobs are remote: camel-first remoteType=remote
 			// honoured → all seeded jobs. If remote_type=onsite won, the
 			// remote filter would exclude them (0 jobs).
-			const { body } = await getTitles('limit=200&remote_type=onsite&remoteType=remote');
+			const { body, titles } = await getTitles('limit=200&remote_type=onsite&remoteType=remote');
 			expect(body.pagination.total).toBe(8);
+			expect(titles.sort()).toEqual([
+				'Big Co Job',
+				'Fifty Person Job',
+				'Huge Co Job',
+				'Mega Co Job',
+				'Mid Co Job',
+				'Small Co Job',
+				'Tiny Startup Job',
+				'Upper Mid Job',
+			]);
+		});
+
+		test('CS-4c: experienceLevel (camel) wins over experience_level when both are set', async () => {
+			// All seeded jobs are mid: camel-first experienceLevel=mid
+			// honoured → all seeded jobs. If experience_level=senior won,
+			// the exact-match filter would return 0.
+			const { body } = await getTitles('limit=200&experience_level=senior&experienceLevel=mid');
+			expect(body.pagination.total).toBe(8);
+		});
+
+		test('CS-4d: companySize (camel) wins over company_size when both are set', async () => {
+			// Camel-first companySize=small honoured → only the 51-200
+			// job. If company_size=large won, 3 jobs would return.
+			const { titles } = await getTitles('limit=200&company_size=large&companySize=small');
+			expect(titles).toEqual(['Small Co Job']);
 		});
 	},
 );
