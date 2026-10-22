@@ -22,7 +22,10 @@
  * module is stubbed (jsdom has no fullscreen); regression pins only —
  * NOT the HL-003 E2E-on-dev gate.
  */
-import { render, screen } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const apiCallMock = vi.fn();
@@ -341,5 +344,119 @@ describe('GAP-4 — completion labels from response fields', () => {
 		expect(await screen.findByText('Not passed')).toBeInTheDocument();
 		expect(screen.queryByText('42')).not.toBeInTheDocument();
 		expect(screen.queryByText(/\/100/)).not.toBeInTheDocument();
+	});
+});
+
+describe('#1707 — legacy block + in-test banner AI-scoring claims (STOP 1 ruling 3)', () => {
+	const CONDITIONAL =
+		'If your test includes written answers, they are scored by AI and reviewed by a human.';
+	const UNCOND_SHORT = 'Short answers are scored by AI and reviewed by a human.';
+	const BANNER_SENTENCE = 'This assessment is scored by AI and reviewed by a human.';
+	const countIn = (haystack: string, needle: string) => haystack.split(needle).length - 1;
+	const docCount = (needle: string) => countIn(document.body.textContent ?? '', needle);
+
+	function mockSnapshotLocal(format: string) {
+		mockCurrent({
+			status: 'in_progress',
+			skillName: 'Python',
+			question: QUESTION,
+			format,
+			difficultyBand: 'medium',
+			currentDraft: null,
+			fullscreenExitsUsed: 0,
+		});
+	}
+
+	function mockLegacy() {
+		mockCurrent({
+			status: 'in_progress',
+			skillName: 'Python',
+			question: QUESTION,
+			format: null,
+			difficultyBand: null,
+			currentDraft: null,
+			fullscreenExitsUsed: 0,
+		});
+	}
+
+	async function startTest() {
+		fireEvent.click(await screen.findByText('Start Test'));
+		// The in-test view is identified by the question text.
+		expect(await screen.findByText(QUESTION.text)).toBeInTheDocument();
+	}
+
+	test('(a) legacy instructions: conditional wording renders, unconditional sentence does not', async () => {
+		mockLegacy();
+		render(<AssessmentTakePage />);
+		expect(await screen.findByText(/This test has/)).toBeInTheDocument();
+		expect(screen.getByText(CONDITIONAL)).toBeInTheDocument();
+		// Whole-document: the unconditional sentence appears nowhere on this screen.
+		expect(docCount(UNCOND_SHORT)).toBe(0);
+	});
+
+	test('(b) source pin: unconditional sentences appear nowhere except inside a format gate', () => {
+		const src = readFileSync(
+			join(dirname(fileURLToPath(import.meta.url)), 'assessment-take.tsx'),
+			'utf8',
+		);
+		// The short-answer sentence survives ONLY as the snapshot-gated copy.
+		expect(countIn(src, UNCOND_SHORT)).toBe(1);
+		const gateIdx = src.indexOf(
+			"(sessionConfig.format === 'mixed' || sessionConfig.format === 'short_answer') && (",
+		);
+		expect(gateIdx).toBeGreaterThan(-1);
+		expect(src.indexOf(UNCOND_SHORT)).toBeGreaterThan(gateIdx);
+		expect(src.indexOf(UNCOND_SHORT) - gateIdx).toBeLessThan(300);
+		// Conditional wording covers both the legacy block and the legacy banner.
+		expect(countIn(src, CONDITIONAL)).toBeGreaterThanOrEqual(2);
+		// Banner block: gated ternary — null config → conditional wording,
+		// mixed/short_answer → original sentence, mcq/coding → null (nothing).
+		const banner = src.slice(src.indexOf('{/* AI disclosure'), src.indexOf('{/* Progress bar */'));
+		expect(banner).toContain('sessionConfig === null');
+		expect(banner).toContain(CONDITIONAL);
+		expect(banner).toContain(BANNER_SENTENCE);
+		expect(banner).toContain("sessionConfig.format === 'mixed'");
+		expect(banner).toContain("sessionConfig.format === 'short_answer'");
+		expect(banner).toMatch(/:\s*null\}/);
+		expect(countIn(src, BANNER_SENTENCE)).toBe(1);
+	});
+
+	test('(b) banner, MCQ snapshot: renders nothing after starting', async () => {
+		mockSnapshotLocal('mcq');
+		render(<AssessmentTakePage />);
+		await startTest();
+		expect(docCount(BANNER_SENTENCE)).toBe(0);
+		expect(docCount(CONDITIONAL)).toBe(0);
+	});
+
+	test('(b) banner, coding snapshot: renders nothing after starting', async () => {
+		mockSnapshotLocal('coding');
+		render(<AssessmentTakePage />);
+		await startTest();
+		expect(docCount(BANNER_SENTENCE)).toBe(0);
+		expect(docCount(CONDITIONAL)).toBe(0);
+	});
+
+	test('(b) banner, mixed snapshot: original sentence renders after starting', async () => {
+		mockSnapshotLocal('mixed');
+		render(<AssessmentTakePage />);
+		await startTest();
+		expect(docCount(BANNER_SENTENCE)).toBe(1);
+	});
+
+	test('(b) banner, short_answer snapshot: original sentence renders after starting', async () => {
+		mockSnapshotLocal('short_answer');
+		render(<AssessmentTakePage />);
+		await startTest();
+		expect(docCount(BANNER_SENTENCE)).toBe(1);
+		expect(docCount(CONDITIONAL)).toBe(0);
+	});
+
+	test('(b) banner, legacy session (null config): conditional wording renders after starting', async () => {
+		mockLegacy();
+		render(<AssessmentTakePage />);
+		await startTest();
+		expect(docCount(CONDITIONAL)).toBe(1);
+		expect(docCount(BANNER_SENTENCE)).toBe(0);
 	});
 });
