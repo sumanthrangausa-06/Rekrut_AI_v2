@@ -37,3 +37,18 @@ extracted from all migrations matching BOTH single-quoted and
 double-quoted `text:` fields (the Batch 1 lesson — single-quote-only
 extraction shipped near-duplicates there); 0 exact-text collisions for
 the 77 new rows, checked before the Interviewer review.
+
+**Review history:** the grounded Interviewer review **BLOCKED** with 3
+verified defects: (1) the Communication L2 clarifying question keyed the
+same paraphrase-to-confirm behaviour as migration 284's L1
+active-listening row (both in the easy band) — replaced with a
+constructive-refusal (saying no with alternatives) question; (2) the
+added meeting-close L2 row duplicated the file's own L3
+record-the-decision row (decision + owner + deadline) — replaced with a
+concise-request question; (3) the ML L4 "What is transfer learning?" row
+was bare definition recall at L4 — replaced with an applied
+small-dataset fine-tuning scenario. An earlier review of this batch was
+discarded as confabulated (it cited questions that do not exist in the
+file); the blocking review quoted verbatim texts with line numbers and
+every defect was grep-verified by Lead before fixing. Re-review pending
+at the time of this note; the PR records the outcome.

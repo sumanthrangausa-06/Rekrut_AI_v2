@@ -65,15 +65,15 @@ const QUESTIONS = [
 	},
 	{
 		skill: 'Communication', difficulty: 2, timeLimit: 90,
-		text: 'In a meeting, a speaker makes a point you do not understand. What is the best response?',
+		text: 'A colleague asks you to take on an extra task, but your current workload genuinely leaves you no capacity for it. What is the most professional response?',
 		options: [
-			'Ask a specific question or paraphrase what you heard and ask them to confirm or clarify it',
-			'Nod along and hope the point is not important',
-			'Wait until after the meeting and guess what was meant',
-			'Change the subject to something you do understand',
+			'Explain your current commitments honestly, and offer an alternative — a later start, a smaller part you can do, or help finding another owner',
+			'Accept the task and quietly let some of your existing work slip',
+			'Refuse without giving any reason',
+			'Accept, then complain to other colleagues about being overloaded',
 		],
-		correct: 'Ask a specific question or paraphrase what you heard and ask them to confirm or clarify it',
-		explanation: 'Clarifying in the moment fixes the misunderstanding while the speaker is there to resolve it. Pretending to understand, guessing later, or changing the subject let the confusion affect later decisions.',
+		correct: 'Explain your current commitments honestly, and offer an alternative — a later start, a smaller part you can do, or help finding another owner',
+		explanation: 'A clear, reasoned no that still helps solve the requester’s problem protects both the existing commitments and the working relationship. Silent overcommitment fails everyone later; a bare refusal or public complaint solves nothing.',
 	},
 	{
 		skill: 'Communication', difficulty: 2, timeLimit: 90,
@@ -125,15 +125,15 @@ const QUESTIONS = [
 	},
 	{
 		skill: 'Communication', difficulty: 2, timeLimit: 90,
-		text: 'A project meeting is about to end and several tasks were discussed. What is the most effective way to close it?',
+		text: 'You need one specific piece of information from a busy colleague before you can finish your own work. What is the most effective way to ask for it?',
 		options: [
-			'Summarise the decisions made, confirm who owns each action and its deadline, and check everyone agrees',
-			'End the meeting as soon as the time is up, since everyone heard the discussion',
-			'Ask the most senior person present to assign all the actions afterwards by email',
-			'Schedule another meeting to decide who should do the tasks',
+			'Send one concise message stating exactly what you need, why you need it, and by when — in a form they can answer quickly, asynchronously',
+			'Send the same request separately by email, chat and in person so it cannot be missed',
+			'Ask a vague question and hope they work out what you need',
+			'Escalate to their manager first so the request carries more weight',
 		],
-		correct: 'Summarise the decisions made, confirm who owns each action and its deadline, and check everyone agrees',
-		explanation: 'A shared recap converts discussion into accountable commitments: decisions, owners and deadlines confirmed aloud surface misunderstandings while they can still be corrected cheaply.',
+		correct: 'Send one concise message stating exactly what you need, why you need it, and by when — in a form they can answer quickly, asynchronously',
+		explanation: 'A precise, self-contained request minimises the other person’s effort to help: they know the what, the why and the deadline, and can answer when their own work allows. Multi-channel duplication and vagueness both raise their cost, and escalation spends goodwill the request does not need.',
 	},
 	// ---------------------------------------------------- Communication (L3 x7)
 	{
@@ -492,15 +492,15 @@ const QUESTIONS = [
 	},
 	{
 		skill: 'Machine Learning', difficulty: 4, timeLimit: 120,
-		text: 'What is transfer learning?',
+		text: 'A team has only 400 labelled X-ray images to train a pneumonia classifier — far too few to train a deep network from scratch. Which approach makes the best use of transfer learning?',
 		options: [
-			'Starting from a model already trained on a large related task and fine-tuning it on a smaller target dataset, instead of training from scratch',
-			'Moving a trained model from one server to another',
-			'Training two models at the same time on the same data',
-			'Transferring the test set into the training set to enlarge it',
+			'Start from a network pre-trained on a large general image dataset, keep its early feature layers, and fine-tune the later layers on the 400 images',
+			'Train a very deep network from scratch on the 400 images for many more epochs to compensate for the small dataset',
+			'Add the held-out test images to the training set to enlarge it, then evaluate on the same images',
+			'Copy the pre-trained model’s final predictions onto the X-rays without any further training',
 		],
-		correct: 'Starting from a model already trained on a large related task and fine-tuning it on a smaller target dataset, instead of training from scratch',
-		explanation: 'The pretrained model brings reusable representations (edges and shapes in images, grammar in text), so the target task needs far less data to reach good performance. Moving servers is deployment, and folding the test set into training would corrupt evaluation.',
+		correct: 'Start from a network pre-trained on a large general image dataset, keep its early feature layers, and fine-tune the later layers on the 400 images',
+		explanation: 'Early layers learn general features (edges, textures) that transfer across image tasks, so fine-tuning mainly the task-specific later layers reaches good performance with little data. More epochs on 400 images from scratch overfits; training on the test images corrupts evaluation; the source model’s outputs are for a different task.',
 	},
 	{
 		skill: 'Machine Learning', difficulty: 4, timeLimit: 120,
