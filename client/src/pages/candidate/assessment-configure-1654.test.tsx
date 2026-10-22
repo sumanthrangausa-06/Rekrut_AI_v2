@@ -131,6 +131,15 @@ describe('JT-C1 — configure → pre-flight → instructions → start', () => 
 		);
 		const stored = JSON.parse(sessionStorage.getItem('assessment_4242') || '{}');
 		expect(stored.skillName).toBe('Python');
+		// #1679 item 9: the configuration hand-off is pinned — the take
+		// page's snapshot block keys off stored.config, so its exact
+		// shape is part of the contract, not an implementation detail.
+		expect(stored.config).toEqual({
+			format: 'mixed',
+			difficultyBand: 'medium',
+			totalQuestions: 25,
+			topicName: 'Python Core',
+		});
 	});
 });
 
@@ -253,6 +262,12 @@ describe('Addendum — GAP-6 / GAP-2', () => {
 		expect(screen.getByText(/no attempt was created/i)).toBeInTheDocument();
 		// No session exists for this failure — no Resume affordance may appear.
 		expect(screen.queryByRole('button', { name: 'Resume attempt' })).not.toBeInTheDocument();
+		// #1679 item 9: and no smaller-count offer either — the "Use N
+		// instead" offer belongs only to supply-shortfall failures that
+		// carry a largestAvailable; a SETS 400 created nothing to offer.
+		expect(
+			screen.queryByRole('button', { name: /use \d+ questions instead/i }),
+		).not.toBeInTheDocument();
 	});
 });
 
@@ -295,6 +310,93 @@ describe('JT-C4 — catalogue surface on the assessments page', () => {
 		mockPageApis({ subjects: [] });
 		render(<CandidateAssessmentsPage />);
 		expect(await screen.findByText(/no assessments are available yet/i)).toBeInTheDocument();
+	});
+
+	test('#1679 item 6: topic progress with bestScore null renders no fabricated Best score', async () => {
+		mockPageApis({
+			subjects: [
+				{
+					id: 1,
+					slug: 'python',
+					name: 'Python',
+					category: 'technical',
+					icon: 'Py',
+					description: 'Python',
+					topics: [
+						{
+							...TOPIC,
+							progress: { attempts: 2, bestScore: null, lastScore: null, lastAttempted: null },
+						},
+					],
+				},
+			],
+		});
+		render(<CandidateAssessmentsPage />);
+		// The real attempt count still shows; the missing score does not
+		// become a "Best: /100" (or any /100) figure.
+		expect(await screen.findByText(/2 attempts/)).toBeInTheDocument();
+		expect(screen.queryByText(/Best:/)).not.toBeInTheDocument();
+		expect(screen.queryByText(/\/100/)).not.toBeInTheDocument();
+	});
+
+	test('#1679 item 6: topic progress with a real bestScore renders it', async () => {
+		mockPageApis({
+			subjects: [
+				{
+					id: 1,
+					slug: 'python',
+					name: 'Python',
+					category: 'technical',
+					icon: 'Py',
+					description: 'Python',
+					topics: [
+						{
+							...TOPIC,
+							progress: { attempts: 3, bestScore: 73, lastScore: 73, lastAttempted: null },
+						},
+					],
+				},
+			],
+		});
+		render(<CandidateAssessmentsPage />);
+		expect(await screen.findByText(/73\/100/)).toBeInTheDocument();
+	});
+
+	test('#1679 item 7: legacy fallback card never labels a start "Adaptive"', async () => {
+		apiCallMock.mockImplementation(async (url: string) => {
+			if (url === '/assessments/catalog') throw new Error('no catalogue');
+			if (url === '/assessments/results') return { results: [] };
+			if (url === '/assessments/assigned') return { attempts: [] };
+			if (url === '/assessments/available') {
+				return {
+					skills: [
+						{
+							catalog_name: 'Python',
+							category: 'technical',
+							icon: 'PY',
+							description: 'Core Python',
+							// Server truth (routes/assessments.js): EVERY
+							// /available builder hardcodes this string…
+							difficulty: 'Adaptive',
+							skill_id: 5,
+							is_verified: false,
+							verified_score: null,
+							assessment_count: 0,
+							best_score: null,
+							last_attempted: null,
+						},
+					],
+				};
+			}
+			throw new Error(`unexpected ${url}`);
+		});
+		render(<CandidateAssessmentsPage />);
+		expect(await screen.findByText('Python')).toBeInTheDocument();
+		// …but a NEW legacy start snapshots mixed / medium (levels 2–4),
+		// so "Adaptive" (unbounded) is a false label for what the
+		// candidate will actually get. The card states that instead.
+		expect(screen.queryByText('Adaptive')).not.toBeInTheDocument();
+		expect(screen.getByText(/Mixed · Medium \(levels 2–4\)/)).toBeInTheDocument();
 	});
 });
 
@@ -356,5 +458,139 @@ describe('#1679 — P1: invented time figures + stale pre-flight race', () => {
 		});
 		expect(await screen.findByText(/exactly 25 questions/i)).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: /continue to instructions/i })).toBeInTheDocument();
+	});
+});
+
+describe('#1679 — items 3–5 + NIT hardening', () => {
+	test('item 3: format labels follow spec §0.2 (Mixed spelled out, Written answers)', async () => {
+		apiCallMock.mockImplementation(async (url: string) => {
+			if (url.includes('/availability')) return availabilityResponse();
+			throw new Error(`unexpected ${url}`);
+		});
+		renderFlow();
+		expect(
+			screen.getByRole('button', { name: 'Mixed — multiple choice and written answers' }),
+		).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Written answers' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Multiple choice' })).toBeInTheDocument();
+		// Flush the mount pre-flight so its state update lands inside the test.
+		expect(await screen.findByText(/exactly 10 questions/i)).toBeInTheDocument();
+	});
+
+	test('item 3: AI-scoring disclosure is ABSENT for an MCQ-only configuration', async () => {
+		apiCallMock.mockImplementation(async (url: string) => {
+			if (url.includes('/availability')) return availabilityResponse();
+			throw new Error(`unexpected ${url}`);
+		});
+		renderFlow();
+		fireEvent.click(screen.getByRole('button', { name: 'Multiple choice' }));
+		fireEvent.click(await screen.findByRole('button', { name: /continue to instructions/i }));
+		expect(await screen.findByText(/before you start/i)).toBeInTheDocument();
+		expect(screen.queryByText(/scored by AI and reviewed by a human/i)).not.toBeInTheDocument();
+	});
+
+	test('item 3: AI-scoring disclosure SHOWS for Mixed and for Written answers', async () => {
+		apiCallMock.mockImplementation(async (url: string) => {
+			if (url.includes('/availability')) return availabilityResponse();
+			throw new Error(`unexpected ${url}`);
+		});
+		// Mixed (the default format) includes written answers.
+		const first = renderFlow();
+		fireEvent.click(await screen.findByRole('button', { name: /continue to instructions/i }));
+		expect(await screen.findByText(/scored by AI and reviewed by a human/i)).toBeInTheDocument();
+		first.unmount();
+		// Written answers, explicitly chosen.
+		renderFlow();
+		fireEvent.click(screen.getByRole('button', { name: 'Written answers' }));
+		fireEvent.click(await screen.findByRole('button', { name: /continue to instructions/i }));
+		expect(await screen.findByText(/scored by AI and reviewed by a human/i)).toBeInTheDocument();
+	});
+
+	test('item 4: a failed pre-flight offers Retry, which re-checks the CURRENT configuration', async () => {
+		let calls = 0;
+		apiCallMock.mockImplementation(async (url: string) => {
+			if (url.includes('/availability')) {
+				calls += 1;
+				if (calls === 1) throw new Error('network down');
+				return availabilityResponse();
+			}
+			throw new Error(`unexpected ${url}`);
+		});
+		renderFlow();
+		expect(await screen.findByText(/could not check question availability/i)).toBeInTheDocument();
+		fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+		// The retry re-ran the check for the same (current) configuration
+		// — the candidate did not have to change their selection.
+		expect(await screen.findByText(/exactly 10 questions/i)).toBeInTheDocument();
+		expect(calls).toBe(2);
+		expect(apiCallMock).toHaveBeenCalledWith(
+			'/assessments/catalog/11/availability?format=mixed&band=medium&count=10',
+		);
+	});
+
+	test('item 5: an accepted non-enum count renders as inert text, never a dead button', async () => {
+		apiCallMock.mockImplementation(async (url: string) => {
+			if (url.includes('count=50')) {
+				return availabilityResponse({
+					promised: 50,
+					servable: 7,
+					largestAvailable: 7,
+					reason: 'Only 7 approved questions are available for this configuration right now.',
+				});
+			}
+			if (url.includes('/availability')) return availabilityResponse();
+			throw new Error(`unexpected ${url}`);
+		});
+		renderFlow();
+		fireEvent.click(await screen.findByRole('button', { name: '50' }));
+		fireEvent.click(await screen.findByRole('button', { name: 'Use 7 questions instead' }));
+		await waitFor(() =>
+			expect(apiCallMock).toHaveBeenCalledWith(
+				'/assessments/catalog/11/availability?format=mixed&band=medium&count=7',
+			),
+		);
+		// The accepted 7 is shown, but NOT as a button with no action.
+		expect(screen.queryByRole('button', { name: '7' })).not.toBeInTheDocument();
+		expect(screen.getByText('7')).toBeInTheDocument();
+	});
+
+	test('NIT (#1680): while a re-check is pending, the previous short-supply offer is not actionable', async () => {
+		let resolveSecond: (value: unknown) => void = () => {};
+		const secondCall = new Promise((resolve) => {
+			resolveSecond = resolve;
+		});
+		apiCallMock.mockImplementation((url: string) => {
+			if (url.includes('count=25')) return secondCall;
+			if (url.includes('/availability')) {
+				return Promise.resolve(
+					availabilityResponse({
+						promised: 10,
+						servable: 7,
+						largestAvailable: 7,
+						reason: 'Only 7 approved questions are available for this configuration right now.',
+					}),
+				);
+			}
+			throw new Error(`unexpected ${url}`);
+		});
+		renderFlow();
+		expect(
+			await screen.findByRole('button', { name: 'Use 7 questions instead' }),
+		).toBeInTheDocument();
+		fireEvent.click(screen.getByRole('button', { name: '25' }));
+		await waitFor(() =>
+			expect(apiCallMock).toHaveBeenCalledWith(
+				'/assessments/catalog/11/availability?format=mixed&band=medium&count=25',
+			),
+		);
+		// The stale offer (for the OLD configuration) must not stay
+		// clickable while the new configuration is still being checked.
+		expect(
+			screen.queryByRole('button', { name: /use \d+ questions instead/i }),
+		).not.toBeInTheDocument();
+		await act(async () => {
+			resolveSecond(availabilityResponse({ promised: 25, servable: 41 }));
+		});
+		expect(await screen.findByText(/exactly 25 questions/i)).toBeInTheDocument();
 	});
 });
