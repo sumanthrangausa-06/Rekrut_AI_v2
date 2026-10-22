@@ -25,8 +25,9 @@
  *  8. AI provenance: generated rows are INSERTed with topic_id, derived
  *     format, source 'ai_live', review_status 'pending', and a second
  *     session cannot draw the pending row from the bank.
- *  9. Re-serve order (Q2): bank-first → AI generation → in-scope approved
- *     re-serve (fully predicated, no exclusion) → unavailable.
+ *  9. Re-serve order (Q2, amended by #1710): bank-first → AI generation →
+ *     band-widen (unserved in-band rows, exclusion carried) → in-scope
+ *     approved re-serve (fully predicated, no exclusion) → unavailable.
  * 10. Band clamp in /answer keyed on the locked session's band; NULL band
  *     keeps [1,5]; an unevaluated answer (isCorrect null, #1572) never
  *     moves difficulty.
@@ -227,7 +228,10 @@ function bankServe(sql, params) {
 		rows = rows.filter((r) => String(r.skill_category).toLowerCase() === name);
 	}
 	const diffParam = sql.includes('topic_id') || sql.includes('lower(skill_category)') ? params[sql.includes('topic_id') ? 1 : 1] : null;
-	if (diffParam != null && sql.includes('difficulty_level =')) rows = rows.filter((r) => r.difficulty_level === diffParam);
+	// #1710: the band-widen draw carries difficulty_level = ANY($n::int[]) —
+	// emulate it as membership, exactly as real SQL would.
+	if (Array.isArray(diffParam) && sql.includes('difficulty_level = any(')) rows = rows.filter((r) => diffParam.includes(r.difficulty_level));
+	else if (diffParam != null && sql.includes('difficulty_level =')) rows = rows.filter((r) => r.difficulty_level === diffParam);
 	if (sql.includes('id = any(')) {
 		const excluded = params[params.length - 1] || [];
 		rows = rows.filter((r) => !excluded.includes(r.id));
@@ -791,12 +795,22 @@ describe('serving scope (#1654 §4.6/§7)', () => {
 		expect(second.body.question.text).toContain('Generated Q');
 	});
 
-	it('re-serve order (Q2): exhausted pool → AI first; AI down → in-scope approved re-serve', async () => {
+	it('serving order (#1710): bank → AI → band-widen → re-serve; AI down widens to an unserved in-band row before any repeat', async () => {
+		// #1710 Lead ruling (issue #1710, comment 6353236169): the Q2 order
+		// gains a WIDEN step between AI generation and the in-scope re-serve.
+		// Design note: this case previously pinned "AI down → the single L3
+		// row is re-served" while unserved L2 rows sat in the same promised
+		// band — that repeat-before-widen order is exactly the #1710 defect
+		// (a medium session promised L2+L3+L4 supply re-served a seen
+		// question while unseen in-band questions remained). The AI-down leg
+		// now serves the unserved in-band L2 row BEFORE any repeat; re-serve
+		// remains only as the last resort when the whole band is exhausted
+		// (pinned by the band-exhaustion case below).
 		// short_answer L3 ×1 + L2 ×9 → medium servable 10. Start (L3) serves
 		// the L3 row; an unevaluated answer keeps difficulty at 3, where the
 		// pool is now exhausted for this session.
 		const [onlyL3] = addBank({ format: 'short_answer', difficulty_level: 3, count: 1 });
-		addBank({ format: 'short_answer', difficulty_level: 2, count: 9 });
+		const l2Ids = addBank({ format: 'short_answer', difficulty_level: 2, count: 9 });
 		S.evalMode = 'fail'; // unevaluated → no difficulty move (#1572)
 		const started = await start({ topicId: 20, format: 'short_answer', difficultyBand: 'medium', totalQuestions: 10 });
 		expect(started.status).toBe(200);
@@ -805,22 +819,100 @@ describe('serving scope (#1654 §4.6/§7)', () => {
 		const a1 = await answer(sid, onlyL3, 'a written answer');
 		expect(a1.status).toBe(200);
 
-		// AI down: re-serve the in-scope approved row rather than fail.
+		// AI down: widen serves an UNSERVED in-band (L2) row — never a
+		// repeat of the already-asked L3 row.
 		S.aiMode = 'down';
 		const cur1 = await current(sid);
 		expect(cur1.status).toBe(200);
-		expect(cur1.body.question.id).toBe(onlyL3);
+		expect(l2Ids).toContain(cur1.body.question.id);
+		expect(cur1.body.question.id).not.toBe(onlyL3);
 
-		// Answer the re-served question (a NEW answer, not a retry), then
+		// Answer the widened question (a NEW answer, not a retry), then
 		// with AI up the next serve must be a GENERATED question — AI is
-		// tried before re-serve for snapshot sessions (Q2).
-		const a2 = await answer(sid, onlyL3, 'another written answer');
+		// still tried before widen and re-serve for snapshot sessions.
+		const a2 = await answer(sid, cur1.body.question.id, 'another written answer');
 		expect(a2.status).toBe(200);
 		expect(a2.body.answerRecorded).toBe(true);
 		S.aiMode = 'up';
 		const cur2 = await current(sid);
 		expect(cur2.status).toBe(200);
 		expect(cur2.body.question.text).toContain('Generated Q');
+	});
+
+	it('#1710 mirror: current difficulty exhausted by the climb → widen serves an unserved in-band row, never an asked id', async () => {
+		// The #1710 rig shape in miniature: mcq L2 ×2 + L3 ×1 + L4 ×2 on a
+		// medium session (labelled-offer count 5). Perfect answers climb
+		// 3 → 4 and pin at the band ceiling; both L4 rows are served, then
+		// the current difficulty is exhausted while unserved L2 rows remain
+		// in the promised band. AI is down (the rig condition): the next
+		// serve must widen to an unserved L2 row — pre-fix it re-served an
+		// already-asked L4 row (the #1695 rig served 9 distinct of 10).
+		const [l3] = addBank({ format: 'mcq', difficulty_level: 3, count: 1 });
+		const l4Ids = addBank({ format: 'mcq', difficulty_level: 4, count: 2 });
+		const l2Ids = addBank({ format: 'mcq', difficulty_level: 2, count: 2 });
+		S.aiMode = 'down';
+		const started = await start({ topicId: 20, format: 'mcq', difficultyBand: 'medium', totalQuestions: 5 });
+		expect(started.status).toBe(200);
+		expect(started.body.question.id).toBe(l3);
+		const sid = started.body.sessionId;
+
+		const servedIds = [started.body.question.id];
+		let q = started.body.question;
+		for (let n = 2; n <= 5; n++) {
+			const a = await answer(sid, q.id, 'RigCorrect');
+			expect(a.status).toBe(200);
+			const cur = await current(sid);
+			expect(cur.status).toBe(200);
+			q = cur.body.question;
+			servedIds.push(q.id);
+		}
+		// Serves 2–3 are the two L4 rows (the climb pinned at the ceiling)…
+		expect(servedIds.slice(1, 3).slice().sort()).toEqual(l4Ids.slice().sort());
+		// …serves 4–5 widened to the unserved L2 rows…
+		expect(servedIds.slice(3).slice().sort()).toEqual(l2Ids.slice().sort());
+		// …and all five serves are distinct — no repeat anywhere.
+		expect(new Set(servedIds).size).toBe(5);
+		const fin = await answer(sid, q.id, 'RigCorrect');
+		expect(fin.status).toBe(200);
+		expect(sessionById(sid).status).toBe('completed');
+	});
+
+	it('re-serve is the last resort (#1710): whole band exhausted + AI down → re-serve at the current difficulty', async () => {
+		// short_answer L3 ×1 + L2 ×2 → medium servable 3, so a 10-question
+		// start is the honest 503 (session committed + resumable). Driving
+		// the resumable session: bank → widen serves every band row exactly
+		// once; only when NO unserved in-band row remains does the last-
+		// resort re-serve fire, and it re-serves at the CURRENT difficulty.
+		const [onlyL3] = addBank({ format: 'short_answer', difficulty_level: 3, count: 1 });
+		const l2Ids = addBank({ format: 'short_answer', difficulty_level: 2, count: 2 });
+		const bandIds = [onlyL3, ...l2Ids];
+		S.evalMode = 'fail'; // unevaluated → difficulty frozen at the band start (3)
+		S.aiMode = 'down';
+		const started = await start({ topicId: 20, format: 'short_answer', difficultyBand: 'medium', totalQuestions: 10 });
+		expect(started.status).toBe(503);
+		expect(started.body.code).toBe('QUESTION_UNAVAILABLE');
+		const sid = started.body.sessionId;
+		expect(sid).toBeTruthy();
+
+		const served = [];
+		let repeated = null;
+		for (let i = 0; i < 6 && repeated == null; i++) {
+			const cur = await current(sid);
+			expect(cur.status).toBe(200);
+			const qid = cur.body.question.id;
+			if (served.includes(qid)) {
+				repeated = qid;
+				break;
+			}
+			served.push(qid);
+			const a = await answer(sid, qid, 'a written answer');
+			expect(a.status).toBe(200);
+		}
+		// Every band row was served exactly once BEFORE any repeat…
+		expect(served.slice().sort()).toEqual(bandIds.slice().sort());
+		// …and the repeat is the current-difficulty (L3) row: the re-serve
+		// never widened — it is the scoped last resort, unchanged.
+		expect(repeated).toBe(onlyL3);
 	});
 });
 
