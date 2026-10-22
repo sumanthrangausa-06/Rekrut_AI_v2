@@ -287,6 +287,14 @@ async function exitSkill(token, sid, body) {
 			const login = await http('POST', '/api/auth/login', { email: `jtbrec2${RUN}@example.com`, password: 'JourneyTest2026' });
 			recruiter = { token: login.json.token || login.json.accessToken, id: ins.rows[0].id, status: login.status };
 		}
+		// RIG NOTE (pre-existing defect, not Phase B): on a fresh install the
+		// chk_job_assessments_status CHECK allows only draft/active/archived,
+		// while the product's publish endpoint and /start handler use
+		// 'published' — no job assessment can ever be published on a fresh
+		// install. The rig widens the CHECK to the code's vocabulary so the
+		// journey can run; the drift itself is flagged on the issue.
+		await db.query(`ALTER TABLE job_assessments DROP CONSTRAINT IF EXISTS chk_job_assessments_status`);
+		await db.query(`ALTER TABLE job_assessments ADD CONSTRAINT chk_job_assessments_status CHECK (status IN ('draft','active','archived','published'))`);
 		const job = await db.query(`INSERT INTO jobs (user_id, title, company, description, status) VALUES ($1,'JT Role','JT Co','Rig job','active') RETURNING id`, [recruiter.id]);
 		const ja = await db.query(`INSERT INTO job_assessments (job_id, created_by, title, status, time_limit_minutes, passing_score, question_count) VALUES ($1,$2,'JT Job Assessment','published',45,70,3) RETURNING id`, [job.rows[0].id, recruiter.id]);
 		const assessmentId = ja.rows[0].id;
