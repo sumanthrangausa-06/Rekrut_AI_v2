@@ -84,9 +84,11 @@ interface SessionConfig {
 }
 
 const FORMAT_LABELS: Record<string, string> = {
+	// Candidate labels per UX spec §0.2 — identical strings to
+	// assessment-configure.tsx FORMATS (#1679 / #1689).
 	mcq: 'Multiple choice',
-	short_answer: 'Short answer',
-	mixed: 'Mixed',
+	short_answer: 'Written answers',
+	mixed: 'Mixed — multiple choice and written answers',
 	coding: 'Coding',
 };
 
@@ -822,7 +824,12 @@ export function AssessmentTakePage() {
 								without a score. Nothing about leaving is hidden — each option explains itself
 								before you choose it.
 							</li>
-							<li>Short answers are scored by AI and reviewed by a human.</li>
+							{/* #1689: the AI-scoring disclosure applies ONLY when the
+							    chosen format includes written answers — an MCQ-only test
+							    must not claim it (same gate as configure, #1679 item 3). */}
+							{(sessionConfig.format === 'mixed' || sessionConfig.format === 'short_answer') && (
+								<li>Short answers are scored by AI and reviewed by a human.</li>
+							)}
 						</ul>
 						<div className="flex flex-col gap-2">
 							<Button
