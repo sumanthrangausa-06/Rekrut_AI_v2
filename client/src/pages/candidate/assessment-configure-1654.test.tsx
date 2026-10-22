@@ -359,7 +359,12 @@ describe('JT-C4 — catalogue surface on the assessments page', () => {
 			],
 		});
 		render(<CandidateAssessmentsPage />);
-		expect(await screen.findByText(/73\/100/)).toBeInTheDocument();
+		// #1656 R4: the card now renders BOTH Best and Last (§3.7 progress);
+		// this fixture has bestScore === lastScore === 73, so /73\/100/
+		// matches twice — assert each labelled score distinctly.
+		expect(await screen.findByText(/Best:/)).toBeInTheDocument();
+		expect(screen.getAllByText(/73\/100/)).toHaveLength(2);
+		expect(screen.getByText(/Last:/)).toBeInTheDocument();
 	});
 
 	test('#1679 item 7: legacy fallback card never labels a start "Adaptive"', async () => {
