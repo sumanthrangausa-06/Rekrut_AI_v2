@@ -128,7 +128,7 @@ function draftFromSearch(search: string): JobFilterDraft {
 	const params = new URLSearchParams(search);
 	// Only the header's own marked filter URLs prefill the draft — a bare
 	// `type`/`location` param from any other link is not filter intent (#1600 B1).
-	if (params.get('filters') !== '1') return EMPTY_FILTER_DRAFT;
+	if (params.get('filters') !== 'hdr1') return EMPTY_FILTER_DRAFT;
 	return {
 		search: params.get('search') ?? '',
 		location: params.get('location') ?? '',
@@ -153,11 +153,10 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 
 	const jobsPathForFilters = '/candidate/jobs';
 	const onJobBoard = location.pathname === jobsPathForFilters;
-	const urlParams = new URLSearchParams(location.search);
-	const activeFilterCount =
-		onJobBoard && urlParams.get('filters') === '1'
-			? FILTER_PARAM_KEYS.filter((k) => urlParams.get(k)).length
-			: 0;
+	// No active-count badge in the header: after the board consumes a filter
+	// signal it strips the marker from the URL, so a URL-derived count here
+	// could lie. The board's own JobFilterBar shows the authoritative
+	// active-filter count from the shared state (delta review D-B1).
 
 	// Opening the sheet starts from the filters currently applied on the board.
 	useEffect(() => {
@@ -168,7 +167,7 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 		const params = new URLSearchParams();
 		const hasAnyFilter = FILTER_PARAM_KEYS.some((k) => filterDraft[k]);
 		// Marker: marks this URL as header-applied filter intent (#1600 B1).
-		if (hasAnyFilter) params.set('filters', '1');
+		if (hasAnyFilter) params.set('filters', 'hdr1');
 		if (filterDraft.search) params.set('search', filterDraft.search);
 		if (filterDraft.location) params.set('location', filterDraft.location);
 		if (filterDraft.type) params.set('type', filterDraft.type);
@@ -295,15 +294,10 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 						type="button"
 						onClick={() => setFilterSheetOpen(true)}
 						className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-						aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : 'Filters'}
+						aria-label="Filters"
 					>
 						<Filter className="h-4 w-4 text-muted-foreground" />
 						<span className="text-muted-foreground">Filters</span>
-						{activeFilterCount > 0 && (
-							<Badge className="bg-indigo-600 px-1.5 py-0 text-[10px] text-white">
-								{activeFilterCount}
-							</Badge>
-						)}
 					</button>
 				)}
 

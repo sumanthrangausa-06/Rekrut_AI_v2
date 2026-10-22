@@ -104,10 +104,10 @@ describe('#1600 static contract — board syncs from URL + server honours client
 		}
 	});
 
-	test('B1: URL params are honoured only behind the header filters=1 marker', () => {
+	test('B1: URL params are honoured only behind the header filters=hdr1 marker', () => {
 		const header = read('client/src/components/layout/header.tsx');
 		const jobs = read('client/src/pages/candidate/jobs.tsx');
-		expect(header).toContain("params.set('filters', '1')");
+		expect(header).toContain("params.set('filters', 'hdr1')");
 		expect(jobs).toContain("searchParams.get('filters')");
 	});
 
@@ -119,8 +119,14 @@ describe('#1600 static contract — board syncs from URL + server honours client
 		// Board resets ONLY for the clear signal; absence leaves state alone
 		// (search is shared with skill chips / AI search — inferring a reset
 		// from marker absence wiped their intent)
-		expect(jobs).toContain("mode !== '1' && mode !== 'clear'");
+		expect(jobs).toContain("mode !== 'hdr1' && mode !== 'clear'");
 		expect(jobs).toContain("mode === 'clear'");
+		// D-B1: consumed signals are stripped from the URL so they cannot
+		// re-fire on a later param change or reload
+		expect(jobs).toContain("next.delete('filters')");
+		// D2-B1: the strip never rewrites a URL that no longer carries the
+		// signal (updater no-ops), so concurrent param writes survive
+		expect(jobs).toContain("if (!prev.has('filters')) return prev;");
 	});
 
 	test('B2: client salary refinement mirrors server semantics (Number coercion, NULL = no match)', () => {
