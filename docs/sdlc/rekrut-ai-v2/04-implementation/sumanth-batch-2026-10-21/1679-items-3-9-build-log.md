@@ -3,13 +3,21 @@
 Base: dev `122587d20`. Branch `nova/1679-items-3-9`. STOP 1: #1679 comment
 6347378630 (all premises parent-verified first-hand on the dev tip).
 
-**Provenance (HL-007):** the worker's edits in this worktree were real and
-are what ships; its report was not trusted — it claimed a commit that does
-not exist and an evidence directory that was never created. The parent
-(Lead/Suga) re-verified every item against the diff, re-ran all suites,
-ran the RED discrimination itself, and lands this PR. The worker summary
-also claimed the NIT hardening was "skipped" — the diff shows it WAS done;
-the summary was stale relative to the worker's own edits.
+**Provenance (HL-007) — CORRECTED 2026-10-22 (see #1679 comment
+6348974826):** an earlier version of this paragraph attributed claims to
+the builder's report (a non-existent commit, a never-created evidence
+directory, a summary claiming the NIT was skipped) that the builder never
+made — those specifics came from interim batch-preview summaries the
+parent received mid-run (the garbled-summary failure mode), and the
+paragraph was wrong to state them as the builder's conduct. The accurate
+record: the builder's edits in its worktree are what shipped; the builder
+committed nothing and made no GitHub writes (per its instructions); the
+parent committed the worktree (7262e0bd7) while the builder was still
+working, after re-verifying every item against the diff and re-running
+all suites plus the RED discrimination first-hand. The builder's own
+evidence (wt-1679b/evidence-1679/: tests-first RED 7F/22P, GREEN 29/29)
+exists and matches the parent's independent runs. The NIT hardening IS
+in the diff, as the builder built it.
 
 ## Per-item disposition
 
