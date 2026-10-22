@@ -802,6 +802,7 @@ router.get('/google/callback', async (req, res) => {
 		const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			signal: AbortSignal.timeout(5000),
 			body: new URLSearchParams({
 				client_id: process.env.GOOGLE_CLIENT_ID,
 				client_secret: process.env.GOOGLE_CLIENT_SECRET,
@@ -827,6 +828,7 @@ router.get('/google/callback', async (req, res) => {
 		// Get user info
 		const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
 			headers: { Authorization: `Bearer ${tokens.access_token}` },
+			signal: AbortSignal.timeout(5000),
 		});
 
 		const googleUser = await userInfoResponse.json();
@@ -1079,6 +1081,7 @@ router.get('/linkedin/callback', async (req, res) => {
 		const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			signal: AbortSignal.timeout(5000),
 			body: new URLSearchParams({
 				grant_type: 'authorization_code',
 				code,
@@ -1104,6 +1107,7 @@ router.get('/linkedin/callback', async (req, res) => {
 		// Get user info using OpenID Connect userinfo endpoint
 		const userInfoResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
 			headers: { Authorization: `Bearer ${tokens.access_token}` },
+			signal: AbortSignal.timeout(5000),
 		});
 
 		const linkedinUser = await userInfoResponse.json();
@@ -1496,6 +1500,7 @@ router.post('/oauth/refresh', authMiddleware, async (req, res) => {
 			const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				signal: AbortSignal.timeout(5000),
 				body: new URLSearchParams({
 					client_id: process.env.GOOGLE_CLIENT_ID,
 					client_secret: process.env.GOOGLE_CLIENT_SECRET,
