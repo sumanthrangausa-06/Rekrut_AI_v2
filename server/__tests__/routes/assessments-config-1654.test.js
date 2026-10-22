@@ -352,7 +352,10 @@ function installDbMock() {
 			return { rows: [row], rowCount: 1 };
 		}
 		if (sql.includes("select id from assessment_sessions where user_id")) {
-			const rows = S.sessions.filter((s) => s.user_id === Number(params[0]) && s.skill_id === Number(params[1]) && s.status === 'in_progress');
+			let rows = S.sessions.filter((s) => s.user_id === Number(params[0]) && s.skill_id === Number(params[1]) && s.status === 'in_progress');
+			// #1687: the topic predicate applies only when the route's SQL
+			// actually carries it (same emulation rule as the bank reads).
+			if (sql.includes('topic_id')) rows = rows.filter((s) => s.topic_id === Number(params[2]));
 			return { rows: rows.map((s) => ({ id: s.id })), rowCount: rows.length };
 		}
 		if (sql.includes("update assessment_sessions set status = 'abandoned' where id = $1")) {
@@ -678,6 +681,60 @@ describe('POST /start — legacy body (§8/SF-9 snapshot)', () => {
 		const res = await start({ topicId: 20, format: 'mcq', difficultyBand: 'medium', totalQuestions: 10 });
 		expect(res.status).toBe(403);
 		expect(res.body.code).toBe('RETAKE_LOCKOUT');
+	});
+});
+
+// ── #1687: topic-scoped abandon on /start ───────────────────────────────────
+// STOP 1 ruling on #1687: the active-session lookup was skill-wide with no
+// topic filter and abandoned only rows[0] — starting Topic B silently
+// abandoned an in-progress Topic A attempt on the same skill. Ruled fix:
+// a start whose snapshot resolves a topic abandons only in-progress
+// sessions of the SAME topic, and ALL of them; a start with no topic
+// (NULL snapshot topic) keeps the legacy skill-wide behaviour exactly.
+describe('POST /start — topic-scoped abandon (#1687)', () => {
+	function seedSession(id, topic_id, skill_id = 4) {
+		S.sessions.push({
+			id, user_id: 7, skill_id, status: 'in_progress', topic_id,
+			questions_asked: [], answers_given: [],
+		});
+	}
+
+	it('(a) starting Topic B leaves an in-progress Topic A session in progress', async () => {
+		addBank({ topic_id: 21, format: 'mcq', difficulty_level: 3, count: 12 });
+		seedSession(501, 20); // Topic A (python-core) in progress, same skill
+		const res = await start({ topicId: 21, format: 'mcq', difficultyBand: 'medium', totalQuestions: 10 });
+		expect(res.status).toBe(200);
+		expect(sessionById(501).status).toBe('in_progress');
+		const created = sessionById(res.body.sessionId);
+		expect(created.topic_id).toBe(21);
+		expect(created.status).toBe('in_progress');
+	});
+
+	it('(b) restarting Topic A abandons ALL its in-progress sessions and no other topic', async () => {
+		addBank({ topic_id: 20, format: 'mcq', difficulty_level: 3, count: 12 });
+		seedSession(501, 20);
+		seedSession(502, 20); // second stale Topic A session — must also go
+		seedSession(503, 21); // other topic — must stay
+		const res = await start({ topicId: 20, format: 'mcq', difficultyBand: 'medium', totalQuestions: 10 });
+		expect(res.status).toBe(200);
+		expect(sessionById(501).status).toBe('abandoned');
+		expect(sessionById(502).status).toBe('abandoned');
+		expect(sessionById(503).status).toBe('in_progress');
+		expect(sessionById(res.body.sessionId).status).toBe('in_progress');
+	});
+
+	it('(c) legacy-body start with no catalogue topic keeps the skill-wide abandon exactly', async () => {
+		// 'Rust' has no catalogue topic → the legacy snapshot's topic is NULL.
+		S.skills.push({ id: 6, user_id: 7, skill_name: 'Rust', category: 'technical', is_verified: false, verified_score: null });
+		addBank({ topic_id: 20, format: 'mcq', difficulty_level: 3, count: 3, skill_category: 'Rust' });
+		seedSession(501, 20, 6);
+		seedSession(502, 21, 6);
+		const res = await start({ skillName: 'Rust', category: 'technical' });
+		expect(res.status).toBe(200);
+		expect(sessionById(res.body.sessionId).topic_id).toBeNull();
+		// Today's behaviour, unchanged: skill-wide, first match only.
+		expect(sessionById(501).status).toBe('abandoned');
+		expect(sessionById(502).status).toBe('in_progress');
 	});
 });
 
