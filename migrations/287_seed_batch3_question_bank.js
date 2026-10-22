@@ -845,7 +845,7 @@ const QUESTIONS = [
 			'There is no difference in the resulting history; only the command names differ',
 		],
 		correct: 'Rebasing replays the branch commits on top of the target, creating new commits and a linear history; merging joins the two histories (creating a merge commit when the branches have diverged) and keeps the original commits unchanged',
-		explanation: 'Because rebase rewrites the replayed commits (new parents, new hashes), it produces a straight-line history; merge preserves both histories exactly and records their junction as a merge commit.',
+		explanation: 'Because rebase rewrites the replayed commits (new parents, new hashes), it produces a straight-line history; merge keeps the original commits unchanged and, when the branches have diverged, records their junction as a merge commit (a fast-forward merge simply moves the pointer and creates none).',
 	},
 	{
 		skill: 'Git', difficulty: 4, timeLimit: 120,
