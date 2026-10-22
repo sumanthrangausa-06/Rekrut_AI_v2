@@ -36,7 +36,15 @@ export interface CatalogTopic {
 	name: string;
 	description: string | null;
 	availability: CatalogTopicAvailability;
-	progress: { attempts: number; bestScore: number | null; lastScore: number | null; lastAttempted: string | null } | null;
+	// #1656 (C3, §3.7): per-(user, topic) progress. Every field is
+	// nullable-honest: a null score renders NOTHING, never a number.
+	progress: {
+		attempts: number;
+		bestScore: number | null;
+		lastScore: number | null;
+		lastAttempted: string | null;
+		canRetake: boolean;
+	} | null;
 }
 
 export interface CatalogSubject {

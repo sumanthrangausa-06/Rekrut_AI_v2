@@ -528,11 +528,15 @@ describe('#1653 C1 — GET /catalog', () => {
 		const python = res.body.subjects.find((s) => s.slug === 'python').topics[0];
 		// best 88 (an earlier attempt) vs latest 70 — a MAX() read would
 		// silently duplicate 88 into lastScore (§2.4 pitfall).
+		// #1656 (C3, §3.7): progress gained canRetake, computed from the
+		// last COMPLETED attempt — user 7's latest is 2 days ago, inside
+		// the 30-day lockout, so false.
 		expect(python.progress).toEqual({
 			attempts: 3,
 			bestScore: 88,
 			lastScore: 70,
 			lastAttempted: FX.progressByUser[7][0].last_completed_at,
+			canRetake: false,
 		});
 		const js = res.body.subjects.find((s) => s.slug === 'javascript').topics[0];
 		expect(js.progress).toBeNull();
@@ -543,11 +547,14 @@ describe('#1653 C1 — GET /catalog', () => {
 			.get('/api/assessments/catalog')
 			.set('x-test-user-id', '9');
 		const pythonB = resB.body.subjects.find((s) => s.slug === 'python').topics[0];
+		// #1656: user 9's last completion is 40 days ago — outside the
+		// lockout, so canRetake is true.
 		expect(pythonB.progress).toEqual({
 			attempts: 5,
 			bestScore: 95,
 			lastScore: 91,
 			lastAttempted: FX.progressByUser[9][0].last_completed_at,
+			canRetake: true,
 		});
 		const raw = JSON.stringify(resB.body);
 		expect(raw).not.toContain('"attempts":3');
