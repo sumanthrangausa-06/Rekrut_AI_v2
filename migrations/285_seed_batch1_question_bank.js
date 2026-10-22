@@ -25,6 +25,16 @@
 //   - No question duplicates or near-duplicates a row already in the bank
 //     for the same skill (migrations 006/280/281/282/284 texts were
 //     extracted and avoided at STOP 1 for this batch).
+//   - CORRECTION (post-merge Interviewer BLOCK on #1691, verified
+//     first-hand): the first shipped version of this migration contained
+//     4 near-duplicates of migration 284 rows whose text: fields are
+//     double-quoted (the authoring extraction only matched single-quoted
+//     texts), 1 disputable WeakMap key (ES2023 symbol keys), and 2 partial
+//     overlaps. Those 6 rows were replaced with genuinely new concepts at
+//     the same skill/level cells, the WeakMap key was reworded, and two
+//     stems gained accuracy qualifiers — all before any promotion of this
+//     migration beyond dev (see #1691 correction comment). Counts and
+//     floors are unchanged.
 //   - Every correct_answer was self-reviewed for factual correctness
 //     (Nova author + Interviewer-persona review on the batch PR, per
 //     design §9 C5); questions whose correctness would depend on a tool
@@ -138,9 +148,9 @@ const QUESTIONS = [
 	{
 		skill: 'JavaScript', difficulty: 4, timeLimit: 120,
 		text: 'Which statement about WeakMap is correct?',
-		options: ['Its keys must be objects, are held weakly, and do not prevent garbage collection of the keys', 'Its keys can be any primitive value', 'It is iterable with for...of like a Map', 'Entries keep their key objects alive as long as the WeakMap exists'],
-		correct: 'Its keys must be objects, are held weakly, and do not prevent garbage collection of the keys',
-		explanation: 'WeakMap keys must be objects and are weakly referenced: once no other reference to a key exists, the entry can be collected. WeakMap is not iterable.',
+		options: ['Its keys must be objects or non-registered symbols, are held weakly, and do not prevent garbage collection of the keys', 'Its keys can be any primitive value, including strings and numbers', 'It is iterable with for...of like a Map', 'Entries keep their key objects alive as long as the WeakMap exists'],
+		correct: 'Its keys must be objects or non-registered symbols, are held weakly, and do not prevent garbage collection of the keys',
+		explanation: 'WeakMap keys are held weakly: once no other reference to a key exists, the entry can be collected. Keys are objects or symbols not in the global symbol registry (ES2023); primitives such as strings and numbers are not allowed, and a WeakMap is not iterable.',
 	},
 	{
 		skill: 'JavaScript', difficulty: 4, timeLimit: 120,
@@ -165,10 +175,10 @@ const QUESTIONS = [
 	},
 	{
 		skill: 'JavaScript', difficulty: 4, timeLimit: 120,
-		text: 'What is the output order of: console.log("a"); setTimeout(() => console.log("b"), 0); Promise.resolve().then(() => console.log("c")); console.log("d");',
-		options: ['a, d, c, b', 'a, d, b, c', 'a, c, d, b', 'a, b, c, d'],
-		correct: 'a, d, c, b',
-		explanation: 'Synchronous code runs first (a, d). The promise callback is a microtask and runs before the setTimeout macrotask (c before b).',
+		text: 'An `async function fetchUser()` throws an error before returning. What does the expression `fetchUser()` evaluate to at the call site?',
+		options: ['A promise that rejects with the thrown error', 'The error object itself, returned synchronously', 'undefined, and the error is silently discarded', 'A promise that fulfils with the error as its value'],
+		correct: 'A promise that rejects with the thrown error',
+		explanation: 'An async function always returns a promise; a throw inside it rejects that promise rather than propagating synchronously, so callers handle it with await/catch or .catch().',
 	},
 	{
 		skill: 'JavaScript', difficulty: 4, timeLimit: 120,
@@ -187,10 +197,10 @@ const QUESTIONS = [
 	},
 	{
 		skill: 'Python', difficulty: 2, timeLimit: 90,
-		text: 'What does scores.get("amy", 0) do when "amy" is not a key in the dictionary scores?',
-		options: ['Returns 0 without raising an error', 'Raises KeyError', 'Returns None', 'Adds "amy" to the dictionary'],
-		correct: 'Returns 0 without raising an error',
-		explanation: 'dict.get(key, default) returns the default when the key is absent, instead of raising KeyError like scores["amy"] would.',
+		text: 'What is the value of the expression 7 // 2 in Python?',
+		options: ['3', '3.5', '4', '1'],
+		correct: '3',
+		explanation: '// is floor division: it divides and rounds down to the nearest whole number, so 7 // 2 = 3 (while 7 / 2 = 3.5 and 7 % 2 = 1).',
 	},
 	{
 		skill: 'Python', difficulty: 2, timeLimit: 90,
@@ -237,10 +247,10 @@ const QUESTIONS = [
 	},
 	{
 		skill: 'Python', difficulty: 3, timeLimit: 90,
-		text: 'What does {x: x * x for x in range(3)} evaluate to?',
-		options: ['{0: 0, 1: 1, 2: 4}', '{0: 0, 1: 1, 2: 2}', '[0, 1, 4]', '{1: 1, 2: 4, 3: 9}'],
-		correct: '{0: 0, 1: 1, 2: 4}',
-		explanation: 'This dictionary comprehension maps each x in 0..2 to its square: 0→0, 1→1, 2→4.',
+		text: 'What does {x: x * 2 for x in range(4)} evaluate to?',
+		options: ['{0: 0, 1: 2, 2: 4, 3: 6}', '{0: 0, 1: 2, 2: 4}', '[0, 2, 4, 6]', '{1: 2, 2: 4, 3: 6, 4: 8}'],
+		correct: '{0: 0, 1: 2, 2: 4, 3: 6}',
+		explanation: 'This dictionary comprehension maps each x in 0..3 to its double: 0→0, 1→2, 2→4, 3→6.',
 	},
 	{
 		skill: 'Python', difficulty: 3, timeLimit: 90,
@@ -287,10 +297,10 @@ const QUESTIONS = [
 	},
 	{
 		skill: 'Python', difficulty: 4, timeLimit: 120,
-		text: 'Why do multiple threads in CPython typically fail to speed up a purely CPU-bound computation?',
-		options: ['The Global Interpreter Lock lets only one thread execute Python bytecode at a time in a process', 'Threads in Python can only perform I/O', 'CPython creates threads but never schedules them', 'Each thread gets its own copy of the data, doubling the work'],
-		correct: 'The Global Interpreter Lock lets only one thread execute Python bytecode at a time in a process',
-		explanation: 'The GIL serialises bytecode execution, so CPU-bound threads take turns; threads still help I/O-bound work, and CPU parallelism needs multiple processes or GIL-releasing extensions.',
+		text: 'What does applying the @property decorator to a method in a class let you do?',
+		options: ['Access the method\'s result as if it were a plain attribute, without calling parentheses', 'Make the attribute read-only across all subclasses automatically', 'Run the method in a background thread on each access', 'Prevent the attribute from being pickled'],
+		correct: 'Access the method\'s result as if it were a plain attribute, without calling parentheses',
+		explanation: '@property turns a method into a managed attribute: obj.x invokes the method and yields its return value, which also allows validation or computation behind attribute syntax. Read-only behaviour only follows if no setter is defined.',
 	},
 	{
 		skill: 'Python', difficulty: 4, timeLimit: 120,
@@ -366,7 +376,7 @@ const QUESTIONS = [
 	},
 	{
 		skill: 'React', difficulty: 3, timeLimit: 90,
-		text: 'An effect is declared as useEffect(setup, []). When does setup run?',
+		text: 'An effect is declared as useEffect(setup, []). In production (without StrictMode double-invocation), when does setup run?',
 		options: ['Once, after the component first renders (mounts)', 'After every render', 'Before the component\'s first render', 'Only when the component unmounts'],
 		correct: 'Once, after the component first renders (mounts)',
 		explanation: 'An empty dependency array tells React the effect depends on nothing that changes, so it runs after the initial render and its cleanup runs at unmount.',
@@ -394,10 +404,10 @@ const QUESTIONS = [
 	},
 	{
 		skill: 'React', difficulty: 3, timeLimit: 90,
-		text: 'What happens when a component\'s `key` changes between renders at the same position in the tree?',
-		options: ['React treats it as a different component instance: the old one unmounts and a new one mounts with fresh state', 'Only the key prop updates; state is fully preserved', 'React throws an error because keys are immutable', 'The component re-renders but keeps its DOM node and state'],
-		correct: 'React treats it as a different component instance: the old one unmounts and a new one mounts with fresh state',
-		explanation: 'Key is part of an element\'s identity: changing it is the standard way to deliberately reset a component\'s state by remounting it.',
+		text: 'What does React.lazy enable in an application?',
+		options: ['Loading a component\'s code on demand (code splitting) so it is only downloaded when first rendered', 'Rendering a component on the server instead of the client', 'Delaying a component\'s state updates until the browser is idle', 'Automatically memoizing a component\'s props'],
+		correct: 'Loading a component\'s code on demand (code splitting) so it is only downloaded when first rendered',
+		explanation: 'React.lazy wraps a dynamic import: the component\'s bundle chunk is fetched when it first renders (typically inside a Suspense boundary), instead of being part of the initial bundle.',
 	},
 	{
 		skill: 'React', difficulty: 3, timeLimit: 90,
@@ -430,10 +440,10 @@ const QUESTIONS = [
 	},
 	{
 		skill: 'React', difficulty: 4, timeLimit: 120,
-		text: 'What distinguishes an uncontrolled input from a controlled input in React?',
-		options: ['An uncontrolled input keeps its value in the DOM (read via a ref); a controlled input\'s value is driven by React state on every keystroke', 'Uncontrolled inputs cannot be validated', 'Controlled inputs do not trigger re-renders', 'Uncontrolled inputs are only allowed inside class components'],
-		correct: 'An uncontrolled input keeps its value in the DOM (read via a ref); a controlled input\'s value is driven by React state on every keystroke',
-		explanation: 'Controlled inputs take value + onChange from state, making React the source of truth; uncontrolled inputs let the DOM hold the value, typically read through a ref at submit time.',
+		text: 'Which components can serve as error boundaries in React (catching render errors from their subtree)?',
+		options: ['Class components that define getDerivedStateFromError and/or componentDidCatch', 'Any function component using the useError hook', 'Only the root App component', 'Function components wrapped in React.memo'],
+		correct: 'Class components that define getDerivedStateFromError and/or componentDidCatch',
+		explanation: 'Error boundaries are class components with the error-boundary lifecycle methods; React provides no hook equivalent, so function components cannot be error boundaries directly.',
 	},
 	{
 		skill: 'React', difficulty: 4, timeLimit: 120,
@@ -509,10 +519,10 @@ const QUESTIONS = [
 	},
 	{
 		skill: 'Node.js', difficulty: 3, timeLimit: 90,
-		text: 'What does `const text = await fs.promises.readFile(path, "utf8")` give you?',
-		options: ['The file\'s contents as a string, read asynchronously without blocking the event loop', 'A Buffer of the file contents', 'A readable stream for the file', 'The file contents read synchronously before the next line runs'],
-		correct: 'The file\'s contents as a string, read asynchronously without blocking the event loop',
-		explanation: 'The promises API performs the read asynchronously; with the "utf8" encoding argument the resolved value is a string rather than a Buffer.',
+		text: 'What happens when you attach a \'data\' listener to a newly created readable stream that has not been read from yet?',
+		options: ['The stream switches into flowing mode and begins emitting data as it becomes available', 'The listener is ignored until pipe() is called', 'The stream is destroyed after the first chunk', 'Data events are queued but never delivered without an explicit read()'],
+		correct: 'The stream switches into flowing mode and begins emitting data as it becomes available',
+		explanation: 'Readable streams start paused; adding a \'data\' listener (or calling resume()) puts them in flowing mode, where chunks are pushed to listeners as fast as they arrive.',
 	},
 	{
 		skill: 'Node.js', difficulty: 3, timeLimit: 90,
@@ -530,10 +540,10 @@ const QUESTIONS = [
 	},
 	{
 		skill: 'Node.js', difficulty: 3, timeLimit: 90,
-		text: 'What is the purpose of the "main" field in a package.json?',
+		text: 'In a package that does not define an "exports" field, what is the purpose of the "main" field in its package.json?',
 		options: ['It names the entry-point file loaded when the package is required or run as a package', 'It names the primary database table', 'It lists the package\'s main author', 'It sets the default HTTP port'],
 		correct: 'It names the entry-point file loaded when the package is required or run as a package',
-		explanation: 'When another module requires the package by name, Node loads the file named by "main" (defaulting to index.js).',
+		explanation: 'When another module requires the package by name, Node loads the file named by "main" (defaulting to index.js). Where "exports" is defined, it takes precedence and "main" serves as a fallback.',
 	},
 	{
 		skill: 'Node.js', difficulty: 3, timeLimit: 90,
