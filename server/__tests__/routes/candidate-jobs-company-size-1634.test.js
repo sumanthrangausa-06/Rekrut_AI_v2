@@ -146,7 +146,7 @@ describeIntegration(
 			expect(titles).toEqual(['Small Co Job']);
 		});
 
-		test('CS-2: a raw stored range still exact-matches', async () => {
+		test('CS-2: a raw stored range value (not a bucket label) still exact-matches via the fallback', async () => {
 			const { titles } = await getTitles('limit=200&company_size=51-200');
 			expect(titles).toEqual(['Small Co Job']);
 		});
