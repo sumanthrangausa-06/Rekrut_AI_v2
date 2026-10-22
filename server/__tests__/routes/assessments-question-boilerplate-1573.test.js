@@ -19,6 +19,20 @@
  * Drives the REAL POST /start route; only db / auth / AI / audit boundaries
  * are mocked (per existing assessments test patterns).
  * Regression pin only — NOT the HL-003 E2E-on-dev gate (Quinn's AFTER capture).
+ *
+ * #1654 (C2) addendum — harness repair + provenance extension:
+ *  - This suite predated Phase A and had gone red on pristine dev: /start
+ *    now commits the session and serves via serveNextQuestion, whose
+ *    SELECT … FOR UPDATE this mock never answered (every start 503'd),
+ *    and a supply failure is the Phase A 503 QUESTION_UNAVAILABLE shape,
+ *    not the old 500. The mock now returns the created session for the
+ *    FOR UPDATE read and the failure expectations assert the shipped
+ *    Phase A contract. The #1573 pins themselves (no boilerplate insert,
+ *    no off-skill serve, genuine AI persisted) are unchanged.
+ *  - New scenario 'scoped-ai': the §3.6 default topic resolves, so the
+ *    legacy start snapshots it and serves via the C2 scoped path; the AI
+ *    INSERT must then carry the provenance columns (topic_id, derived
+ *    format, source 'ai_live', review_status 'pending').
  */
 const express = require('express');
 const request = require('supertest');
@@ -96,7 +110,9 @@ const OFF_SKILL_Q = {
 
 let scenario = 'empty-bank-ai-down'; // see db mock branches
 let questionInserts = [];
+let questionInsertSqls = [];
 let anyBankFallbackQueries = 0;
+let createdSession = null;
 
 const db = require('../../../lib/db');
 db.query.mockImplementation(async (sql, params = []) => {
@@ -113,16 +129,52 @@ db.query.mockImplementation(async (sql, params = []) => {
 	if (normalized.includes('from skill_assessments')) {
 		return { rows: [], rowCount: 0 };
 	}
+	// #1654: §3.6 default-topic resolution. Only the 'scoped-ai' scenario
+	// resolves a topic; the legacy scenarios keep the unmapped path their
+	// premises were written against.
+	if (normalized.includes('from assessment_topics')) {
+		if (scenario === 'scoped-ai') {
+			return {
+				rows: [{ id: 10, subject_id: 1, legacy_skill_name: 'JavaScript', is_active: true }],
+				rowCount: 1,
+			};
+		}
+		return { rows: [], rowCount: 0 };
+	}
+	// serveNextQuestion — the session row lock (Phase A). Returns the
+	// session the start flow created; without this branch every serve
+	// reads not_found and /start 503s before generateQuestion runs.
+	if (
+		normalized.includes('from assessment_sessions') &&
+		normalized.includes('for update') &&
+		createdSession
+	) {
+		return { rows: [createdSession], rowCount: 1 };
+	}
 	// Start flow — active session check.
 	if (normalized.includes('from assessment_sessions')) {
 		return { rows: [], rowCount: 0 };
 	}
 	// Start flow — create session.
 	if (normalized.includes('insert into assessment_sessions')) {
-		return {
-			rows: [{ id: 900, user_id: 7, skill_id: 3, status: 'in_progress' }],
-			rowCount: 1,
+		createdSession = {
+			id: 900,
+			user_id: 7,
+			skill_id: 3,
+			status: 'in_progress',
+			current_difficulty: 2,
+			current_question_index: 0,
+			score: 0,
+			questions_asked: [],
+			answers_given: [],
+			// #1654: the C2 INSERT writes the §3.6 snapshot; the scoped
+			// scenario's row carries what that INSERT would have written
+			// (legacy-mapped defaults for the resolved JavaScript topic).
+			...(scenario === 'scoped-ai'
+				? { subject_id: 1, topic_id: 10, format: 'mixed', difficulty_band: 'medium', total_questions: 10 }
+				: { subject_id: null, topic_id: null, format: null, difficulty_band: null, total_questions: null }),
 		};
+		return { rows: [createdSession], rowCount: 1 };
 	}
 	// generateQuestion — genuine AI (or boilerplate) INSERT. Capture it.
 	// Two shapes exist on current dev: the AI insert binds 8 params
@@ -131,6 +183,7 @@ db.query.mockImplementation(async (sql, params = []) => {
 	// correct, explanation) with type/time as SQL literals.
 	if (normalized.includes('insert into assessment_questions')) {
 		questionInserts.push(params);
+		questionInsertSqls.push(normalized);
 		const row =
 			params.length === 6
 				? {
@@ -156,6 +209,11 @@ db.query.mockImplementation(async (sql, params = []) => {
 						time_limit_seconds: params[7],
 					};
 		return { rows: [row], rowCount: 1 };
+	}
+	// generateQuestion — C2 scoped bank lookup (topic-predicated). The
+	// 'scoped-ai' scenario has no bank supply, so generation must run.
+	if (normalized.includes('from assessment_questions') && normalized.includes('topic_id')) {
+		return { rows: [], rowCount: 0 };
 	}
 	// generateQuestion — in-skill / in-difficulty bank lookup (the honest path).
 	if (
@@ -201,7 +259,9 @@ function startAssessment() {
 
 beforeEach(() => {
 	questionInserts = [];
+	questionInsertSqls = [];
 	anyBankFallbackQueries = 0;
+	createdSession = null;
 	chat.mockReset();
 	jest.spyOn(console, 'error').mockImplementation(() => {});
 	jest.spyOn(console, 'log').mockImplementation(() => {});
@@ -216,8 +276,9 @@ describe('POST /start — question generation failure (#1573)', () => {
 		const res = await startAssessment();
 
 		// The user sees an explicit failure — not a made-up question.
-		expect(res.status).toBe(500);
-		expect(res.body.error).toMatch(/failed to generate/i);
+		// (Phase A contract: the committed session + 503 QUESTION_UNAVAILABLE.)
+		expect(res.status).toBe(503);
+		expect(res.body.code).toBe('QUESTION_UNAVAILABLE');
 		expect(res.body.question).toBeUndefined();
 		// Nothing was persisted to the shared question bank.
 		expect(questionInserts).toHaveLength(0);
@@ -229,7 +290,8 @@ describe('POST /start — question generation failure (#1573)', () => {
 
 		const res = await startAssessment();
 
-		expect(res.status).toBe(500);
+		expect(res.status).toBe(503);
+		expect(res.body.code).toBe('QUESTION_UNAVAILABLE');
 		expect(res.body.question).toBeUndefined();
 		expect(questionInserts).toHaveLength(0);
 	});
@@ -240,8 +302,8 @@ describe('POST /start — question generation failure (#1573)', () => {
 
 		const res = await startAssessment();
 
-		expect(res.status).toBe(500);
-		expect(res.body.error).toMatch(/failed to generate/i);
+		expect(res.status).toBe(503);
+		expect(res.body.code).toBe('QUESTION_UNAVAILABLE');
 		expect(res.body.question).toBeUndefined();
 		// The any-bank fallback must not even be consulted as a source of
 		// substitute questions.
@@ -284,5 +346,33 @@ describe('POST /start — genuine questions still work (#1573 controls)', () => 
 		expect(questionInserts).toHaveLength(1);
 		expect(questionInserts[0][3]).toBe('How does event delegation work in the DOM?');
 		expect(questionInserts[0][3]).not.toMatch(/best describes a key concept/);
+	});
+});
+
+describe('POST /start — C2 scoped generation provenance (#1654)', () => {
+	it('topic-resolved start: the AI insert carries topic_id, derived format, source ai_live, review_status pending', async () => {
+		scenario = 'scoped-ai';
+		chat.mockResolvedValue(
+			JSON.stringify({
+				question_text: 'How does event delegation work in the DOM?',
+				question_type: 'multiple_choice',
+				options: ['A', 'B', 'C', 'D'],
+				correct_answer: 'A',
+				explanation: 'Events bubble up to a common ancestor.',
+				time_limit_seconds: 90,
+			}),
+		);
+
+		const res = await startAssessment();
+
+		expect(res.status).toBe(200);
+		expect(res.body.question.text).toBe('How does event delegation work in the DOM?');
+		expect(questionInserts).toHaveLength(1);
+		// Provenance params ride after the historical eight.
+		expect(questionInserts[0]).toHaveLength(10);
+		expect(questionInserts[0][8]).toBe(10); // topic_id (JavaScript default topic)
+		expect(questionInserts[0][9]).toBe('mcq'); // format derived from multiple_choice (§3.4)
+		expect(questionInsertSqls[0]).toContain("'ai_live'");
+		expect(questionInsertSqls[0]).toContain("'pending'");
 	});
 });

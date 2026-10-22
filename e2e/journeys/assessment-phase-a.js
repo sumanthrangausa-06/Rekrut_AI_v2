@@ -95,15 +95,20 @@ async function answerAndAdvance(token, sid, qid, answer) {
 	await db.connect();
 
 	// ---------- RIG SETUP: deterministic bank supply (rig data, not product seed) ----------
-	// JavaScript: full coverage d1..d5. Python: d3 only beyond the seeded d2 (so a
-	// correct-correct path reaches an UNCOVERED d4 cell where generation must fail).
+	// JavaScript: full coverage d1..d5. Python: d3+d4 (so a correct-correct
+	// path reaches an UNCOVERED d5 cell where generation must fail).
+	// #1654 (C2): legacy starts now snapshot the default topic and serve
+	// from the scoped pool (topic + format + approved-only), starting at
+	// difficulty 3 (§8/SF-9) — rig rows therefore carry topic_id (via the
+	// topic's legacy_skill_name), format and review_status='approved', or
+	// the bank-hit legs silently stop hitting the bank.
 	await db.query(`DELETE FROM assessment_questions WHERE skill_category IN ('JavaScript','Python') AND question_text LIKE 'RigQ %'`);
-	for (const [skill, diffs] of [['JavaScript', [1, 2, 3, 4, 5]], ['Python', [3]]]) {
+	for (const [skill, diffs] of [['JavaScript', [1, 2, 3, 4, 5]], ['Python', [3, 4]]]) {
 		for (const d of diffs) {
 			for (let i = 1; i <= 4; i++) {
 				await db.query(
-					`INSERT INTO assessment_questions (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds)
-					 VALUES ($1,$2,'multiple_choice',$3,$4,'RigCorrect','Rig explanation',90)`,
+					`INSERT INTO assessment_questions (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds, topic_id, format, review_status)
+					 VALUES ($1,$2,'multiple_choice',$3,$4,'RigCorrect','Rig explanation',90,(SELECT id FROM assessment_topics WHERE legacy_skill_name = $1),'mcq','approved')`,
 					[skill, d, `RigQ ${skill} d${d} #${i}: pick the correct option`, JSON.stringify(['RigCorrect', 'Wrong A', 'Wrong B', 'Wrong C'])],
 				);
 			}
@@ -144,8 +149,9 @@ async function answerAndAdvance(token, sid, qid, answer) {
 		// The outcome must be a navigation/retry outcome, never a bare failure that discards the answer.
 		const cur = await http('GET', `/api/assessments/session/${sid}/current`, null, c.token);
 		const honestNav = adv2post.status !== 500 && (adv2post.json.answerRecorded === true || adv2post.status === 200 || adv2post.status === 503);
-		// Recovery: once a d4 question exists, resume serves question 3 and the answer count is still exactly 2.
-		await db.query(`INSERT INTO assessment_questions (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds) VALUES ('Python',4,'multiple_choice','RigQ Python d4 recovery: pick the correct option','["RigCorrect","Wrong A","Wrong B","Wrong C"]','RigCorrect','Rig explanation',90)`);
+		// Recovery: once a d5 question exists, resume serves question 3 and the answer count is still exactly 2.
+		// (#1654: the uncovered cell moved d4 → d5 with the §8/SF-9 start-at-3 legacy default.)
+		await db.query(`INSERT INTO assessment_questions (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds, topic_id, format, review_status) VALUES ('Python',5,'multiple_choice','RigQ Python d5 recovery: pick the correct option','["RigCorrect","Wrong A","Wrong B","Wrong C"]','RigCorrect','Rig explanation',90,(SELECT id FROM assessment_topics WHERE legacy_skill_name = 'Python'),'mcq','approved')`);
 		const cur2 = await http('GET', `/api/assessments/session/${sid}/current`, null, c.token);
 		const rowFinal = await sessionRow(sid);
 		const recovered = !!cur2.json.question && rowFinal.na === 2;
@@ -261,7 +267,9 @@ async function answerAndAdvance(token, sid, qid, answer) {
 		if (sid) {
 			const row = await sessionRow(sid).catch(() => null);
 			sessionExists = !!row && row.status === 'in_progress';
-			await db.query(`INSERT INTO assessment_questions (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds) VALUES ('SQL',2,'multiple_choice','RigQ SQL d2 recovery: pick the correct option','["RigCorrect","Wrong A","Wrong B","Wrong C"]','RigCorrect','Rig explanation',90)`);
+			// #1654: the session starts at difficulty 3 now (§8/SF-9), so the
+			// recovery row is a d3 row, topic-mapped + approved like all rig supply.
+			await db.query(`INSERT INTO assessment_questions (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds, topic_id, format, review_status) VALUES ('SQL',3,'multiple_choice','RigQ SQL d3 recovery: pick the correct option','["RigCorrect","Wrong A","Wrong B","Wrong C"]','RigCorrect','Rig explanation',90,(SELECT id FROM assessment_topics WHERE legacy_skill_name = 'SQL'),'mcq','approved')`);
 			const cur = await http('GET', `/api/assessments/session/${sid}/current`, null, c.token);
 			resumed = !!cur.json.question;
 		}
