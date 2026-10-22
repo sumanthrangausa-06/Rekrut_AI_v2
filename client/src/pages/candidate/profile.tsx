@@ -621,7 +621,7 @@ function useResponsiveDefaultOpen(): [boolean, (v: boolean) => void] {
 }
 
 export function CandidateProfilePage() {
-	const { user } = useAuth();
+	const { user, refreshUser } = useAuth();
 	const _navigate = useNavigate();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const [tab, setTab] = useState('overview');
@@ -804,7 +804,13 @@ export function CandidateProfilePage() {
 					<div className="flex items-start gap-4 sm:gap-6 flex-1 min-w-0">
 						<AvatarUpload
 							profile={profile}
-							onUploaded={(url) => setProfile((p) => ({ ...p, avatar_url: url }))}
+							onUploaded={(url) => {
+								setProfile((p) => ({ ...p, avatar_url: url }));
+								// #1608: the header/dropdown read user.avatar_url from the
+								// auth context — refresh it so the new picture shows
+								// in-session, not only after reload/re-login.
+								void refreshUser();
+							}}
 							showMessage={showMessage}
 						/>
 						<div className="min-w-0 flex-1">
