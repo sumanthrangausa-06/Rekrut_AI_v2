@@ -443,6 +443,12 @@ router.post('/answer', authMiddleware, async (req, res) => {
 	try {
 		const userId = req.user.id;
 		const { sessionId, questionId, answer, timeTaken } = req.body;
+		// Coerce once: JSONB-stored ids are numbers, and a string "5" must
+		// not bypass the duplicate/outstanding comparisons below.
+		const qid = Number(questionId);
+		if (!Number.isInteger(qid)) {
+			return res.status(400).json({ error: 'Invalid question id', code: 'INVALID_QUESTION' });
+		}
 
 		// Load session + question without holding a transaction: evaluation
 		// below may take seconds (AI cascade) and must not hold DB locks.
@@ -465,7 +471,7 @@ router.post('/answer', authMiddleware, async (req, res) => {
 
 		// Get question details
 		const questionResult = await pool.query('SELECT * FROM assessment_questions WHERE id = $1', [
-			questionId,
+			qid,
 		]);
 
 		if (questionResult.rows.length === 0) {
@@ -483,10 +489,22 @@ router.post('/answer', authMiddleware, async (req, res) => {
 		// NEW answer, not a retry. (Without this distinction the retry
 		// guard and the re-serve together trap the candidate on one
 		// question forever.)
-		if (isAlreadyRecorded(session, questionId)) {
-			return respondAfterRecord(res, sessionId, userId, {
+		if (isAlreadyRecorded(session, qid)) {
+			return await respondAfterRecord(res, sessionId, userId, {
 				feedback: 'Answer already recorded',
 				explanation: question.explanation,
+			});
+		}
+
+		// Integrity: only the session's outstanding question can be
+		// answered. Anything else — a question never served in this
+		// attempt, or an old one that is not outstanding — is rejected, so
+		// this endpoint can neither skip the adaptive sequence nor act as
+		// a per-id answer oracle for the bank (review finding, PR #1620).
+		if (qid !== outstandingQuestionId(session)) {
+			return res.status(400).json({
+				error: 'That question is not the current question in this attempt',
+				code: 'QUESTION_NOT_CURRENT',
 			});
 		}
 
@@ -522,7 +540,7 @@ router.post('/answer', authMiddleware, async (req, res) => {
 					actionType: 'ai_explanation_generated',
 					userId: userId,
 					targetType: 'assessment_question',
-					targetId: questionId,
+					targetId: qid,
 					metadata: {
 						session_id: sessionId,
 						question_type: 'short_answer',
@@ -552,7 +570,7 @@ router.post('/answer', authMiddleware, async (req, res) => {
 					actionType: 'assessment_evaluation_failed',
 					userId: userId,
 					targetType: 'assessment_question',
-					targetId: questionId,
+					targetId: qid,
 					metadata: {
 						session_id: sessionId,
 						question_type: 'short_answer',
@@ -585,6 +603,7 @@ router.post('/answer', authMiddleware, async (req, res) => {
 		const client = await pool.connect();
 		let alreadyFinished = false;
 		let alreadyRecorded = false;
+		let questionRejected = false;
 		try {
 			await client.query('BEGIN');
 			const lockedResult = await client.query(
@@ -595,14 +614,20 @@ router.post('/answer', authMiddleware, async (req, res) => {
 			if (!locked || locked.status !== 'in_progress') {
 				await client.query('ROLLBACK');
 				alreadyFinished = true;
+			} else if (!isAlreadyRecorded(locked, qid) && qid !== outstandingQuestionId(locked)) {
+				// Re-validated under the lock: the outstanding question moved
+				// (a racing submission recorded first) or this question was
+				// never this attempt's to answer.
+				await client.query('ROLLBACK');
+				questionRejected = true;
 			} else {
 				const answersGiven = parseJsonArray(locked.answers_given);
-				if (isAlreadyRecorded(locked, questionId)) {
+				if (isAlreadyRecorded(locked, qid)) {
 					await client.query('COMMIT');
 					alreadyRecorded = true;
 				} else {
 					answersGiven.push({
-						questionId,
+						questionId: qid,
 						answer,
 						isCorrect,
 						scorePoints,
@@ -666,13 +691,19 @@ router.post('/answer', authMiddleware, async (req, res) => {
 				.status(400)
 				.json({ error: 'This attempt is already finished', code: 'ALREADY_FINISHED' });
 		}
+		if (questionRejected) {
+			return res.status(400).json({
+				error: 'That question is not the current question in this attempt',
+				code: 'QUESTION_NOT_CURRENT',
+			});
+		}
 		if (alreadyRecorded) {
-			return respondAfterRecord(res, sessionId, userId, {
+			return await respondAfterRecord(res, sessionId, userId, {
 				feedback: 'Answer already recorded',
 				explanation: question.explanation,
 			});
 		}
-		return respondAfterRecord(res, sessionId, userId, {
+		return await respondAfterRecord(res, sessionId, userId, {
 			feedback: answerFeedback,
 			explanation: question.explanation,
 			aiFeedback,
@@ -733,18 +764,26 @@ router.post('/event', authMiddleware, async (req, res) => {
 
 const TOTAL_QUESTIONS = 10;
 
+// The session's currently-outstanding question id (asked but not yet
+// answered), or null when no question is outstanding.
+function outstandingQuestionId(session) {
+	const questionsAsked = parseJsonArray(session.questions_asked);
+	const answersGiven = parseJsonArray(session.answers_given);
+	return questionsAsked.length > answersGiven.length
+		? questionsAsked[questionsAsked.length - 1].questionId
+		: null;
+}
+
 // True when questionId was already recorded AND is not the session's
 // currently-outstanding question (asked but not yet answered). A re-served
 // outstanding question is answerable again; any other already-answered
 // question is a duplicate submission.
 function isAlreadyRecorded(session, questionId) {
-	const questionsAsked = parseJsonArray(session.questions_asked);
 	const answersGiven = parseJsonArray(session.answers_given);
-	const outstandingId =
-		questionsAsked.length > answersGiven.length
-			? questionsAsked[questionsAsked.length - 1].questionId
-			: null;
-	return outstandingId !== questionId && answersGiven.some((a) => a.questionId === questionId);
+	return (
+		outstandingQuestionId(session) !== questionId &&
+		answersGiven.some((a) => a.questionId === questionId)
+	);
 }
 
 function parseJsonArray(value) {
@@ -780,8 +819,9 @@ function questionPayload(question, questionNumber) {
 // Returns { ok: true, question } or { ok: false, reason } — a generation
 // failure is a retryable navigation outcome here, never an answer loss.
 async function serveNextQuestion(sessionId) {
-	const client = await pool.connect();
+	let client;
 	try {
+		client = await pool.connect();
 		await client.query('BEGIN');
 		const sessionResult = await client.query(
 			'SELECT * FROM assessment_sessions WHERE id = $1 FOR UPDATE',
@@ -846,11 +886,11 @@ async function serveNextQuestion(sessionId) {
 		await client.query('COMMIT');
 		return { ok: true, question: questionPayload(question, answersGiven.length + 1) };
 	} catch (error) {
-		await client.query('ROLLBACK').catch(() => {});
+		if (client) await client.query('ROLLBACK').catch(() => {});
 		console.error('Error serving next question:', error);
 		return { ok: false, reason: 'error' };
 	} finally {
-		client.release();
+		if (client) client.release();
 	}
 }
 
@@ -859,19 +899,25 @@ async function serveNextQuestion(sessionId) {
 // Returns the completion result, or null when completion itself failed (the
 // recorded answers are safe either way; the caller surfaces a retry state).
 async function completeAssessmentTx(sessionId, userId) {
-	const client = await pool.connect();
+	let client;
 	let result;
 	try {
+		client = await pool.connect();
 		await client.query('BEGIN');
 		result = await completeAssessment(client, sessionId, userId);
 		await client.query('COMMIT');
 	} catch (error) {
-		await client.query('ROLLBACK').catch(() => {});
+		if (client) await client.query('ROLLBACK').catch(() => {});
 		console.error('Error completing assessment:', error);
 		return null;
 	} finally {
-		client.release();
+		if (client) client.release();
 	}
+	// completeAssessment returns null when the claim found no in_progress
+	// session AND no existing completion (e.g. the session was abandoned
+	// by a newer start in the meantime): nothing was completed, and no
+	// side effect may fire for a completion that never happened.
+	if (!result) return null;
 
 	// #1612 Option B (see completeAssessment): post-commit side effects.
 	// The completion itself is already durable; neither failure below may
@@ -879,12 +925,21 @@ async function completeAssessmentTx(sessionId, userId) {
 	// alreadyCompleted claim (the original completion ran them).
 	if (result && !result.alreadyCompleted && result.assessmentId) {
 		try {
-			await omniscoreService.addTechnicalComponent(
-				userId,
-				result.assessmentId,
-				result.score || 0,
-				100,
-			);
+			// Bounded: a hung feed must not hang the candidate's completed
+			// response or the audit write below. On timeout the underlying
+			// feed may still land late (harmless — it is the same single
+			// write, never re-run); the failure is logged either way.
+			await Promise.race([
+				omniscoreService.addTechnicalComponent(
+					userId,
+					result.assessmentId,
+					result.score || 0,
+					100,
+				),
+				new Promise((_, reject) =>
+					setTimeout(() => reject(new Error('OmniScore feed timed out after 20s')), 20000),
+				),
+			]);
 			console.log(
 				`[OmniScore] Assessment ${result.assessmentId} fed into OmniScore for user ${userId} (score: ${result.score})`,
 			);
@@ -895,9 +950,9 @@ async function completeAssessmentTx(sessionId, userId) {
 			);
 		}
 
-		// Audit log: AI assessment graded. Written after the OmniScore
-		// attempt so a slow/hung pool path can never eat it; AuditLogger
-		// never throws (it logs its own failures).
+		// Audit log: AI assessment graded. Written after the (bounded)
+		// OmniScore attempt; AuditLogger never throws (it logs its own
+		// failures).
 		await AuditLogger.log({
 			actionType: 'assessment_graded',
 			userId: userId,
@@ -937,6 +992,14 @@ async function respondAfterRecord(res, sessionId, userId, extras = {}) {
 	}
 	if (session.status === 'completed') {
 		return res.json({ completed: true, answerRecorded: true, score: session.score || 0, ...extras });
+	}
+	if (session.status !== 'in_progress') {
+		// Abandoned/expired/cancelled between the answer commit and here:
+		// the attempt ended WITHOUT completing — say so, never report a
+		// completion that did not happen.
+		return res
+			.status(400)
+			.json({ error: 'This attempt is already finished', code: 'ALREADY_FINISHED' });
 	}
 	const answersGiven = parseJsonArray(session.answers_given);
 	if (answersGiven.length >= TOTAL_QUESTIONS) {
@@ -1165,11 +1228,20 @@ async function completeAssessment(client, sessionId, userId) {
 			 WHERE session_id = $1 ORDER BY completed_at DESC LIMIT 1`,
 			[sessionId],
 		);
+		// alreadyCompleted is only true when a completion actually exists.
+		// A claim can also lose to a NON-completion terminal transition
+		// (a newer /start abandoned this session): then there is no
+		// skill_assessments row, and reporting a completion would
+		// fabricate one — return null so callers surface an honest
+		// non-completed state instead (review finding, PR #1620).
+		if (existing.rows.length === 0) {
+			return null;
+		}
 		return {
 			alreadyCompleted: true,
-			assessmentId: existing.rows[0]?.id || null,
-			score: existing.rows[0]?.score ?? null,
-			passed: existing.rows[0]?.passed ?? false,
+			assessmentId: existing.rows[0].id,
+			score: existing.rows[0].score,
+			passed: existing.rows[0].passed,
 		};
 	}
 

@@ -125,7 +125,7 @@ async function answerAndAdvance(token, sid, qid, answer) {
 		const adv = await answerAndAdvance(c.token, sid, start.json.question.id, a1);
 		const row = await sessionRow(sid);
 		const qnumFromAnswer = adv.post.json.nextQuestion?.questionNumber;
-		const qnumFromCurrent = adv.current?.json.questionNumber ?? adv.next?.questionNumber;
+		const qnumFromCurrent = adv.next?.questionNumber;
 		const ok = adv.post.status === 200 && !!adv.next && row.na === 1 && (qnumFromCurrent === 2) && (qnumFromAnswer === undefined || qnumFromAnswer === 2);
 		rec('JT-A1_next_advances_and_resume_at_question_2', ok ? 'PASS' : 'FAIL', { startStatus: start.status, answerStatus: adv.post.status, answersInDb: row.na, qnumFromAnswer, qnumFromCurrent, error: adv.post.json.error || adv.current?.json.error });
 	} catch (e) { rec('JT-A1_next_advances_and_resume_at_question_2', 'FAIL', { error: e.message }); }
@@ -217,7 +217,7 @@ async function answerAndAdvance(token, sid, qid, answer) {
 		const audit = await db.query(`SELECT COUNT(*)::int AS n FROM audit_logs WHERE action_type='assessment_graded' AND metadata->>'session_id'=$1`, [String(sid)]);
 		const comp = await db.query(`SELECT COUNT(*)::int AS n FROM score_components WHERE user_id=$1 AND component_type='technical'`, [c.id]);
 		const skill = await db.query('SELECT is_verified FROM candidate_skills WHERE user_id=$1 AND LOWER(skill_name)=LOWER($2)', [c.id, 'JavaScript']);
-		const ok = !hang && lastPost?.json.completed === true && row.status === 'completed' && sa.rows[0].n === 1 && sa.rows[0].passed === true && audit.rows[0].n >= 1 && comp.rows[0].n >= 1 && skill.rows[0]?.is_verified === true;
+		const ok = !hang && lastPost?.json.completed === true && row.status === 'completed' && sa.rows[0].n === 1 && sa.rows[0].passed === true && audit.rows[0].n === 1 && comp.rows[0].n === 1 && skill.rows[0]?.is_verified === true;
 		rec('JT-A2_passing_leg_completes_1612', ok ? 'PASS' : 'FAIL', { hang, answersSent: answers, finalStatus: lastPost?.status, completed: lastPost?.json.completed, sessionStatus: row.status, skillAssessments: sa.rows[0].n, passed: sa.rows[0].passed, gradedAuditRows: audit.rows[0].n, omniComponents: comp.rows[0].n, isVerified: skill.rows[0]?.is_verified, blockedBackends: blocked });
 	} catch (e) { rec('JT-A2_passing_leg_completes_1612', 'FAIL', { error: e.message }); }
 
@@ -265,10 +265,27 @@ async function answerAndAdvance(token, sid, qid, answer) {
 			const cur = await http('GET', `/api/assessments/session/${sid}/current`, null, c.token);
 			resumed = !!cur.json.question;
 		}
-		const honest = start.status === 503 && !!start.json.error && !/Request failed/i.test(start.json.error);
+		const honest = start.status === 503 && start.json.code === 'QUESTION_UNAVAILABLE' && !!start.json.error && !/Request failed/i.test(start.json.error);
 		const ok = honest && sessionExists && resumed;
 		rec('JT-A5_start_fails_honestly_and_session_resumable', ok ? 'PASS' : 'FAIL', { startStatus: start.status, startError: start.json.error, startCode: start.json.code, sessionId: sid || null, sessionExists, resumed });
 	} catch (e) { rec('JT-A5_start_fails_honestly_and_session_resumable', 'FAIL', { error: e.message }); }
+
+	// ---------- JT-A6 (review round): only the outstanding question can be answered ----------
+	try {
+		const c = shared;
+		const start = await http('POST', '/api/assessments/start', { skillName: 'JavaScript', category: 'technical' }, c.token);
+		const sid = start.json.sessionId;
+		const other = await db.query('SELECT id FROM assessment_questions WHERE id <> $1 ORDER BY id LIMIT 1', [start.json.question.id]);
+		const forged = await http('POST', '/api/assessments/answer', { sessionId: sid, questionId: other.rows[0].id, answer: 'RigCorrect', timeTaken: 30 }, c.token);
+		const rowAfterForged = await sessionRow(sid);
+		// Answer the real question, then re-submit it with the id as a STRING:
+		// the duplicate guard must still recognise it (no double record).
+		const real = await http('POST', '/api/assessments/answer', { sessionId: sid, questionId: start.json.question.id, answer: await correctAnswer(start.json.question.id), timeTaken: 30 }, c.token);
+		const dupString = await http('POST', '/api/assessments/answer', { sessionId: sid, questionId: String(start.json.question.id), answer: await correctAnswer(start.json.question.id), timeTaken: 30 }, c.token);
+		const rowFinal = await sessionRow(sid);
+		const ok = start.status === 200 && forged.status === 400 && forged.json.code === 'QUESTION_NOT_CURRENT' && rowAfterForged.na === 0 && real.status === 200 && rowFinal.na === 1;
+		rec('JT-A6_only_the_outstanding_question_can_be_answered', ok ? 'PASS' : 'FAIL', { forgedStatus: forged.status, forgedCode: forged.json.code, answersAfterForged: rowAfterForged.na, realStatus: real.status, dupStringStatus: dupString.status, dupStringFeedback: dupString.json.feedback, answersFinal: rowFinal.na });
+	} catch (e) { rec('JT-A6_only_the_outstanding_question_can_be_answered', 'FAIL', { error: e.message }); }
 
 	const fails = steps.filter((s) => s.verdict === 'FAIL').length;
 	fs.writeFileSync(OUT, JSON.stringify({ run: RUN, base: BASE, steps, summary: { total: steps.length, pass: steps.length - fails, fail: fails } }, null, 2));

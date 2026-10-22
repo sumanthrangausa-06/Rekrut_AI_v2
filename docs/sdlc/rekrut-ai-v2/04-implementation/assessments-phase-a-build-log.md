@@ -69,8 +69,10 @@ in `POST /assessments/answer` and `POST /assessments/start`:
    without savepoint plumbing around every internal write), and touching
    the search-index trigger (option C — wrong layer; the trigger was not
    the lock holder).
-5. **Counts are real.** `current_question_index` now means "answers
-   recorded so far"; question N served is always answers+1, and an attempt
+5. **Counts are real.** The answer-record step sets
+   `current_question_index` to the number of answers recorded; the serve
+   step sets it to the question being shown (answers+1) — the value the
+   candidate sees, "Question N", is always answers+1, and an attempt
    completes after exactly 10 recorded answers. Previously the counter was
    seeded to 1 at start and incremented per answer, so attempts completed
    after **9** answers while questions were numbered 1, 3, 4, … (verified
@@ -90,10 +92,34 @@ in `POST /assessments/answer` and `POST /assessments/start`:
    server's `sessionId` and `answerRecorded` fields on thrown errors so
    callers can offer the right recovery.
 
+7. **Schema drift found by the gate (migration 274, expand-only).**
+   `chk_assessment_sessions_status` (migration 047) never included
+   `'abandoned'`, although the start handler writes it when a candidate
+   restarts a skill with an attempt in progress — so that start failed
+   with a check-constraint 500 (another "assessment does not open" path).
+   047's sibling constraints in the same file do include `'abandoned'`.
+   Migration 274 re-adds the constraint as the old list plus
+   `'abandoned'`; no value removed, no row rewritten. Flagged on #1606.
+8. **Independent-review fixes (PR #1620).** The separate reviewer blocked
+   the first cut on three findings, all fixed in this PR: (i) `/answer`
+   now accepts only the session's outstanding question (coerced to a
+   number, checked before evaluation and again under the record lock) —
+   previously any bank question could be answered, an answer-oracle and
+   fake-completion hole; (ii) `respondAfterRecord` is awaited at every
+   `/answer` site and the new helpers take their pool connections inside
+   their try blocks, so a post-commit pool failure becomes the designed
+   503 instead of an unhandled rejection with no response; (iii) a
+   completion claim that loses to a non-completion terminal transition
+   (session abandoned by a newer start) returns no completion at all —
+   `alreadyCompleted` requires an actual `skill_assessments` row — and
+   the post-commit OmniScore feed is time-bounded (20s) so it cannot
+   hang the completed response.
+
 ## Acceptance evidence
 
 User-journey suite `e2e/journeys/assessment-phase-a.js` (Quinn +
-Candidate Experience framing; PRD §10 JT-A1–A4 + the A5 start leg),
+Candidate Experience framing; PRD §10 JT-A1–A4 + the A5 start leg + the
+JT-A6 integrity leg added by the review round),
 run on the fresh-install rig (DB built only by `node migrate.js`, server
 booted with the AI provider forced to fail by configuration — no mocked
 fetch — and the question bank rig-seeded for determinism):
@@ -107,15 +133,6 @@ fetch — and the question bank rig-seeded for determinism):
 - Post-fix: see the PR / issue checkpoints for the green run and the
   per-leg DB read-backs.
 
-7. **Schema drift found by the gate (migration 274, expand-only).**
-   `chk_assessment_sessions_status` (migration 047) never included
-   `'abandoned'`, although the start handler writes it when a candidate
-   restarts a skill with an attempt in progress — so that start failed
-   with a check-constraint 500 (another "assessment does not open" path).
-   047's sibling constraints in the same file do include `'abandoned'`.
-   Migration 274 re-adds the constraint as the old list plus
-   `'abandoned'`; no value removed, no row rewritten. Flagged on #1606.
-
 ## Out of scope / follow-ups
 
 - Per-skill bank coverage remediation (real questions per skill ×
@@ -128,4 +145,9 @@ fetch — and the question bank rig-seeded for determinism):
   terminal transition; the Partial Terminal-Submission Scoring gate
   (PRD §7) still requires Sumanth's ruling before any partial submission
   is scored.
-- No schema migration in this change.
+- Reviewer-noted follow-up (not a regression): `serveNextQuestion` holds
+  the session row lock across the AI cascade on an empty bank cell (dev
+  held the equivalent lock inside the answer transaction). Generating
+  outside the lock, then appending under a short re-checked lock, is the
+  tracked improvement.
+- No schema migration in this change beyond migration 274 (§7 above).
