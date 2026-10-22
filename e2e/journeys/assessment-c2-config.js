@@ -22,6 +22,10 @@
  *    the configuration's current servable.
  *  - Coding with the flag OFF and a setId both fail honestly
  *    (503 QUESTION_UNAVAILABLE / 400 SETS_NOT_AVAILABLE).
+ *  - JT-1710 (#1710): a candidate who answers everything correctly gets
+ *    10 DISTINCT questions — when the climb exhausts the current
+ *    difficulty, serving widens to an unserved row elsewhere in the
+ *    promised band instead of repeating an already-asked question.
  *
  * Usage:
  *   JT_BASE=http://127.0.0.1:3212 JT_DB=postgresql://postgres@127.0.0.1:55461/phasec \
@@ -171,6 +175,75 @@ async function registerCandidate(tag) {
 		rec('JT-C4c coding-flag-off 503 + setId 400 SETS_NOT_AVAILABLE', ok ? 'PASS' : 'FAIL', { flight: flight.json, codingStatus: codingStart.status, setStatus: setStart.status, setCode: setStart.json.code });
 	} catch (e) {
 		rec('JT-C4c coding-flag-off 503 + setId 400 SETS_NOT_AVAILABLE', 'FAIL', { error: e.message });
+	}
+
+	// ---------- JT-1710: climb exhausts the current difficulty → widen serves an unserved in-band row, never a repeat ----------
+	// #1710 (Scout STOP 1 §5; Quinn + Candidate Experience). User story:
+	// "As a candidate who answers everything correctly, I expect 10
+	// questions I haven't seen in this attempt — not the same question
+	// twice — because the configuration I chose was promised 10+ questions
+	// from the bank." This is the #1695 rig shape reproduced on the fresh
+	// install's OWN seed bank: the OOP topic carries L2 ×8, L3 ×9, L4 ×8
+	// approved MCQ rows (medium band servable 25 ≥ 10) — no rig seeding
+	// needed, nothing written to the bank. Rig condition: the server runs
+	// with AI forced down (no provider keys in its env), so serving is
+	// bank → widen → re-serve only. Perfect answers (each read from the
+	// DB, timeTaken 30 — no time anomaly) climb 3 → 4 and pin at the band
+	// ceiling: Q1 is an L3 row, Q2–Q9 are the eight L4 rows, and Q10 must
+	// WIDEN to an unserved row at another band level (L2 or L3). Pre-fix
+	// (#1710): Q10 re-served an already-asked L4 row — questions_asked
+	// held 10 entries but only 9 distinct ids (the #1695 rig served id
+	// 521 twice). If the seed bank's per-level shape differs from the
+	// pinned counts, the leg records BLOCKED, never a fake pass.
+	try {
+		const oopTopic = await db.query(`SELECT id FROM assessment_topics WHERE legacy_skill_name = 'OOP'`);
+		const oopId = oopTopic.rows[0]?.id;
+		if (!oopId) throw new Error('OOP default topic missing on this DB');
+		const shape = await db.query(
+			`SELECT difficulty_level, COUNT(*)::int AS n FROM assessment_questions WHERE topic_id = $1 AND format = 'mcq' AND review_status = 'approved' AND difficulty_level IN (2,3,4) GROUP BY difficulty_level ORDER BY difficulty_level`,
+			[oopId],
+		);
+		const counts = Object.fromEntries(shape.rows.map((r) => [r.difficulty_level, r.n]));
+		if (!(counts[2] >= 1 && counts[3] >= 1 && counts[4] === 8)) {
+			rec('JT-1710 climb exhausts L4 → widen serves an unserved in-band row (10 distinct of 10)', 'BLOCKED', { reason: `OOP seed shape is L2=${counts[2] || 0} L3=${counts[3] || 0} L4=${counts[4] || 0} — the climb-exhaustion shape (L4 exactly 8) is not present on this DB` });
+		} else {
+			const c = await registerCandidate('c5');
+			const start = await http('POST', '/api/assessments/start', { topicId: oopId, format: 'mcq', difficultyBand: 'medium', totalQuestions: 10 }, c.token);
+			if (start.status !== 200 || !start.json.sessionId || !start.json.question) {
+				throw new Error(`JT-1710 start failed: ${start.status} ${JSON.stringify(start.json).slice(0, 200)}`);
+			}
+			const sid = start.json.sessionId;
+			let q = start.json.question;
+			for (let n = 1; n <= 10; n++) {
+				const ca = await db.query('SELECT correct_answer FROM assessment_questions WHERE id = $1', [q.id]);
+				if (!ca.rows[0]?.correct_answer) throw new Error(`no correct_answer readable for question ${q.id}`);
+				const ans = await http('POST', '/api/assessments/answer', { sessionId: sid, questionId: q.id, answer: ca.rows[0].correct_answer, timeTaken: 30 }, c.token);
+				if (ans.status !== 200) throw new Error(`answer ${n} failed: ${ans.status} ${JSON.stringify(ans.json).slice(0, 200)}`);
+				if (n === 10) {
+					if (!ans.json.completed) throw new Error(`session did not complete on answer 10: ${JSON.stringify(ans.json).slice(0, 200)}`);
+					break;
+				}
+				if (ans.json.nextQuestion) {
+					q = ans.json.nextQuestion;
+				} else {
+					const cur = await http('GET', `/api/assessments/session/${sid}/current`, null, c.token);
+					if (cur.status !== 200 || !cur.json.question) throw new Error(`current after answer ${n} failed: ${cur.status} ${JSON.stringify(cur.json).slice(0, 200)}`);
+					q = cur.json.question;
+				}
+			}
+			const s = await db.query('SELECT questions_asked, current_difficulty, status FROM assessment_sessions WHERE id = $1', [sid]);
+			const askedEntries = s.rows[0]?.questions_asked || [];
+			const asked = askedEntries.map((e) => e.questionId);
+			const servedLevels = askedEntries.map((e) => e.difficulty);
+			const distinct = new Set(asked).size;
+			const ok = asked.length === 10 && distinct === 10
+				&& servedLevels[0] === 3 && servedLevels.slice(1, 9).every((l) => l === 4) && [2, 3].includes(servedLevels[9])
+				&& s.rows[0].current_difficulty >= 2 && s.rows[0].current_difficulty <= 4
+				&& s.rows[0].status === 'completed';
+			rec('JT-1710 climb exhausts L4 → widen serves an unserved in-band row (10 distinct of 10)', ok ? 'PASS' : 'FAIL', { asked, distinct, servedLevels, widenedId: asked[9], seedShape: counts, session: s.rows[0] });
+		}
+	} catch (e) {
+		rec('JT-1710 climb exhausts L4 → widen serves an unserved in-band row (10 distinct of 10)', 'FAIL', { error: e.message });
 	}
 
 	await db.end();
