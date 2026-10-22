@@ -41,10 +41,23 @@ describe('#1634 unit — company_size bucket → stored range translation (CS-1)
 		expect(companySizeRanges('medium')).toEqual(['201-500', '501-1000']);
 	});
 	test('large covers the 1000+ stored ranges', () => {
-		expect(companySizeRanges('large')).toEqual(['1001-5000', '5001+']);
+		expect(companySizeRanges('large')).toEqual(['1001-5000', '5001+', '1000+']);
 	});
 	test('every stored range belongs to exactly one bucket (no gaps, no overlaps)', () => {
-		const stored = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5001+'];
+		// Stored values from BOTH writers: recruiter company form (7 ranges)
+		// and candidate company-profile form (same ranges but a single
+		// '1000+' instead of the 1001-5000/5001+ split) — the follow-up
+		// BLOCK on #1634 was a '1000+' company matching no bucket.
+		const stored = [
+			'1-10',
+			'11-50',
+			'51-200',
+			'201-500',
+			'501-1000',
+			'1001-5000',
+			'5001+',
+			'1000+',
+		];
 		const covered = ['startup', 'small', 'medium', 'large'].flatMap((b) => companySizeRanges(b));
 		expect(covered.sort()).toEqual([...stored].sort());
 	});
@@ -76,6 +89,7 @@ describeIntegration(
 			['Upper Mid Job', '501-1000'],
 			['Big Co Job', '1001-5000'],
 			['Mega Co Job', '5001+'],
+			['Huge Co Job', '1000+'],
 		];
 
 		beforeAll(async () => {
@@ -136,9 +150,9 @@ describeIntegration(
 			expect(titles.sort()).toEqual(['Mid Co Job', 'Upper Mid Job']);
 		});
 
-		test('CS-1d: company_size=large returns the 1001-5000 and 5001+ jobs', async () => {
+		test('CS-1d: company_size=large returns the 1001-5000, 5001+ and candidate-form 1000+ jobs', async () => {
 			const { titles } = await getTitles('limit=200&company_size=large');
-			expect(titles.sort()).toEqual(['Big Co Job', 'Mega Co Job']);
+			expect(titles.sort()).toEqual(['Big Co Job', 'Huge Co Job', 'Mega Co Job']);
 		});
 
 		test('CS-1e: legacy camelCase alias companySize honours buckets too', async () => {
@@ -160,5 +174,79 @@ describeIntegration(
 			expect(titles).toEqual([]);
 			expect(body.pagination.total).toBe(0);
 		});
+
+		// CS-4: per-alias precedence pins (specialist follow-up on #1634).
+		// The handler's existing precedence is INCONSISTENT — job_type is
+		// snake-first, the other four aliases are camel-first. That is
+		// pre-existing and NOT changed by #1634; these tests pin it so a
+		// future refactor cannot silently flip it.
+		test('CS-4a: job_type (snake) wins over type when both are set', async () => {
+			// All seeded jobs are full-time: snake-first job_type=part-time
+			// honoured → 0 jobs. If type=full-time won, all would return.
+			const { body, titles } = await getTitles('limit=200&job_type=part-time&type=full-time');
+			expect(titles).toEqual([]);
+			expect(body.pagination.total).toBe(0);
+		});
+
+		test('CS-4b: remoteType (camel) wins over remote_type when both are set', async () => {
+			// All seeded jobs are remote: camel-first remoteType=remote
+			// honoured → all seeded jobs. If remote_type=onsite won, the
+			// remote filter would exclude them (0 jobs).
+			const { body, titles } = await getTitles('limit=200&remote_type=onsite&remoteType=remote');
+			expect(body.pagination.total).toBe(8);
+			expect(titles.sort()).toEqual([
+				'Big Co Job',
+				'Fifty Person Job',
+				'Huge Co Job',
+				'Mega Co Job',
+				'Mid Co Job',
+				'Small Co Job',
+				'Tiny Startup Job',
+				'Upper Mid Job',
+			]);
+		});
+
+		test('CS-4c: experienceLevel (camel) wins over experience_level when both are set', async () => {
+			// All seeded jobs are mid: camel-first experienceLevel=mid
+			// honoured → all seeded jobs. If experience_level=senior won,
+			// the exact-match filter would return 0.
+			const { body } = await getTitles('limit=200&experience_level=senior&experienceLevel=mid');
+			expect(body.pagination.total).toBe(8);
+		});
+
+		test('CS-4d: companySize (camel) wins over company_size when both are set', async () => {
+			// Camel-first companySize=small honoured → only the 51-200
+			// job. If company_size=large won, 3 jobs would return.
+			const { titles } = await getTitles('limit=200&company_size=large&companySize=small');
+			expect(titles).toEqual(['Small Co Job']);
+		});
 	},
 );
+
+describe('#1634 wiring — production code actually uses the extracted helpers', () => {
+	// Specialist condition on #1634: helper-level tests passing with zero
+	// production effect would repeat the vocabulary-pin failure one level
+	// up. These pins assert the wiring, complementing (not replacing)
+	// the behaviour tests above.
+	const fs = require('node:fs');
+	const path = require('node:path');
+	const read = (rel) => fs.readFileSync(path.join(__dirname, '..', '..', '..', rel), 'utf8');
+
+	test('jobs.tsx imports the tracker + signature and consumes on signal absence', () => {
+		const jobs = read('client/src/pages/candidate/jobs.tsx');
+		expect(jobs).toContain('createUrlFilterAdoptionTracker');
+		expect(jobs).toContain('urlFilterSignature');
+		// consume() fires in the no-signal branch (effect early return),
+		// so the guard lives while the signal is in the URL and resets
+		// only once it is gone — not synchronously after record().
+		expect(jobs).toMatch(
+			/mode !== 'hdr1' && mode !== 'clear'\) \{[\s\S]{0,800}?urlFilterAdoption\.current\.consume\(\);/,
+		);
+	});
+
+	test('header.tsx builds Apply params via the shared builder', () => {
+		const header = read('client/src/components/layout/header.tsx');
+		expect(header).toContain("from '@/lib/job-board-url'");
+		expect(header).toContain('buildHeaderApplyParams(');
+	});
+});

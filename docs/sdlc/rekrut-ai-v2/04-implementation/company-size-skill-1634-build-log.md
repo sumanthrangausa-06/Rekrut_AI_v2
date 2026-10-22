@@ -61,6 +61,41 @@
   static pins that referenced header internals now follow the code into the
   extracted builder (param names + hdr1 marker); no assertion weakened.
 
+## Correction (follow-up lane, after PR #1639 merged)
+
+The specialist's full report contained a BLOCK that the summary acted on
+did not surface; #1634 was reopened and fixed in a follow-up PR:
+
+1. **Stored `1000+` matched no bucket.** The candidate company-profile
+   form (`client/src/pages/candidate/company-profile.tsx`) offers a
+   single `1000+` option instead of the recruiter form's
+   `1001-5000`/`5001+` split, so real companies store
+   `company_size = '1000+'`. The original bucket map missed it — those
+   companies were invisible to the Large filter. `large` is now
+   `1001-5000, 5001+, 1000+`; the coverage unit test enumerates stored
+   values from BOTH writer forms, and the integration seed includes a
+   `1000+` company (CS-1d). Root cause of the miss: the STOP 1 premise
+   check enumerated stored values from only one of the two writer forms.
+2. **Tracker consume wiring** moved from inside the strip (same hdr1
+   pass) to the effect's signal-absent branch, per the specialist's
+   condition — the adoption guard now lives exactly while the signal is
+   in the URL.
+3. **Alias precedence pinned** (CS-4a–CS-4d, real HTTP): job_type is
+   snake-first; remoteType, experienceLevel and companySize are
+   camel-first — pre-existing, unchanged, now regression-pinned.
+   sortBy is also camel-first in the same handler head but is NOT
+   pinned: the seeded jobs' identical salaries/timestamps cannot
+   discriminate sort order, so a pin would be theatre (reviewer
+   finding on the follow-up PR).
+4. **Wiring pins added**: static assertions that jobs.tsx/header.tsx
+   import and use the extracted helpers (helper tests alone could pass
+   with zero production effect).
+
+Still deferred (specialist advice): canonical-writer validation of
+`company_size` (routes/company.js + candidate company-profile form
+offering the same 7 ranges as the recruiter form) — the root-cause fix
+for spelling drift, a separate change.
+
 ## Deferred (recorded on #1634 STOP 1)
 
 - `executive` experience option — honest-empty option question, not a
