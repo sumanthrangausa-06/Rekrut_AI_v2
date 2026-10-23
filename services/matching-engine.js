@@ -441,7 +441,12 @@ async function findMatchingCandidates(jobId, options = {}) {
 		}
 
 		const job = jobResult.rows[0];
-		const trustscore = job.trustscore || 500;
+		// #1724: NULL TrustScore (no trust_scores row, or an honestly NULL
+		// total) is insufficient data — never the fabricated 500. Exclude
+		// the term and renormalize the remaining weights below. A measured
+		// score, including a measured 0, flows exactly as before.
+		const hasTrustscore = job.trustscore !== null && job.trustscore !== undefined;
+		const trustscore = hasTrustscore ? job.trustscore : null;
 
 		// Find similar candidates using vector similarity + fetch their skills
 		const matchResult = await client.query(
@@ -501,16 +506,21 @@ async function findMatchingCandidates(jobId, options = {}) {
 			// OmniScore: 25% (platform credibility)
 			// TrustScore: 10% (company quality)
 			const omniNormalized = hasOmniscore ? Math.min(omniscore / 1000, 1) : 0;
-			const trustNormalized = Math.min(trustscore / 1000, 1);
+			const trustNormalized = hasTrustscore ? Math.min(trustscore / 1000, 1) : 0;
 			const skillNormalized = skillMatchPct / 100;
 
-			const weightedScore = hasOmniscore
-				? (similarityScore * 0.45 +
-						skillNormalized * 0.2 +
-						omniNormalized * 0.25 +
-						trustNormalized * 0.1) *
-					100
-				: ((similarityScore * 0.45 + skillNormalized * 0.2 + trustNormalized * 0.1) / 0.75) * 100;
+			// #1717 + #1724: renormalize over measured components only —
+			// the divisor is the sum of the weights actually measured
+			// (both measured 1.00; trust-only missing 0.90; omni-only
+			// missing 0.75; both missing 0.65).
+			const measuredWeight = 0.45 + 0.2 + (hasOmniscore ? 0.25 : 0) + (hasTrustscore ? 0.1 : 0);
+			const weightedScore =
+				((similarityScore * 0.45 +
+					skillNormalized * 0.2 +
+					omniNormalized * 0.25 +
+					trustNormalized * 0.1) /
+					measuredWeight) *
+				100;
 
 			// Determine match level
 			let matchLevel = 'poor';
@@ -527,6 +537,8 @@ async function findMatchingCandidates(jobId, options = {}) {
 				years_experience: candidate.years_experience,
 				omniscore: omniscore,
 				omniscore_status: hasOmniscore ? 'measured' : 'insufficient_data',
+				trustscore: trustscore,
+				trustscore_status: hasTrustscore ? 'measured' : 'insufficient_data',
 				score_tier: candidate.score_tier,
 				skills_summary: candidate.skills_summary,
 				experience_summary: candidate.experience_summary,
@@ -542,7 +554,9 @@ async function findMatchingCandidates(jobId, options = {}) {
 					omniscore_boost: hasOmniscore
 						? `OmniScore ${omniscore} (${candidate.score_tier || 'new'} tier)`
 						: 'OmniScore: insufficient data — not counted in this match',
-					company_trustscore: `Company TrustScore ${trustscore}`,
+					company_trustscore: hasTrustscore
+						? `Company TrustScore ${trustscore}`
+						: 'TrustScore: insufficient data — not counted in this match',
 				},
 			};
 		});
@@ -663,7 +677,12 @@ async function findMatchingJobs(userId, options = {}) {
 
 		// Calculate weighted scores with skills breakdown
 		const matches = matchResult.rows.map((job) => {
-			const trustscore = job.trustscore || 500;
+			// #1724: NULL TrustScore is insufficient data — never the
+			// fabricated 500 (which also promoted a measured 0 to 500).
+			// Exclude the term and renormalize below. A measured score,
+			// including a measured 0, flows exactly as before.
+			const hasTrustscore = job.trustscore !== null && job.trustscore !== undefined;
+			const trustscore = hasTrustscore ? job.trustscore : null;
 			const similarityScore = job.similarity_score;
 
 			// Skills comparison
@@ -679,17 +698,22 @@ async function findMatchingJobs(userId, options = {}) {
 					: 50;
 
 			// Weighted score: similarity 45%, skills 20%, trust 25%, omni 10%
-			const trustNormalized = Math.min(trustscore / 1000, 1);
+			const trustNormalized = hasTrustscore ? Math.min(trustscore / 1000, 1) : 0;
 			const omniNormalized = hasOmniscore ? Math.min(omniscore / 1000, 1) : 0;
 			const skillNormalized = skillMatchPct / 100;
 
-			const weightedScore = hasOmniscore
-				? (similarityScore * 0.45 +
-						skillNormalized * 0.2 +
-						trustNormalized * 0.25 +
-						omniNormalized * 0.1) *
-					100
-				: ((similarityScore * 0.45 + skillNormalized * 0.2 + trustNormalized * 0.25) / 0.9) * 100;
+			// #1717 + #1724: renormalize over measured components only —
+			// the divisor is the sum of the weights actually measured
+			// (both measured 1.00; trust-only missing 0.75; omni-only
+			// missing 0.90; both missing 0.65).
+			const measuredWeight = 0.45 + 0.2 + (hasTrustscore ? 0.25 : 0) + (hasOmniscore ? 0.1 : 0);
+			const weightedScore =
+				((similarityScore * 0.45 +
+					skillNormalized * 0.2 +
+					trustNormalized * 0.25 +
+					omniNormalized * 0.1) /
+					measuredWeight) *
+				100;
 
 			// Determine match level
 			let matchLevel = 'poor';
@@ -714,6 +738,7 @@ async function findMatchingJobs(userId, options = {}) {
 				description: job.description?.substring(0, 200),
 				created_at: job.created_at,
 				trustscore: trustscore,
+				trustscore_status: hasTrustscore ? 'measured' : 'insufficient_data',
 				trust_tier: job.trust_tier,
 				omniscore: omniscore,
 				omniscore_status: hasOmniscore ? 'measured' : 'insufficient_data',
@@ -727,7 +752,9 @@ async function findMatchingJobs(userId, options = {}) {
 				explanation: {
 					why_matched: `${Math.round(similarityScore * 100)}% profile match`,
 					skills_match: `${skillMatchPct}% skills match (${matchingSkills.length} matched, ${missingSkills.length} gaps)`,
-					company_quality: `Company TrustScore ${trustscore} (${job.trust_tier || 'new'} tier)`,
+					company_quality: hasTrustscore
+						? `Company TrustScore ${trustscore} (${job.trust_tier || 'new'} tier)`
+						: 'Company TrustScore: insufficient data — not counted in this match',
 					your_strength: !hasOmniscore
 						? "No OmniScore yet — this ranking didn't use one; complete assessments and practice to add it"
 						: omniscore >= 700
@@ -795,6 +822,10 @@ async function explainMatch(candidateId, jobId) {
 				match_level: match.match_level,
 				weighted_score: match.weighted_score,
 				similarity_score: match.similarity_score,
+				omniscore: match.omniscore,
+				omniscore_status: match.omniscore_status,
+				trustscore: match.trustscore,
+				trustscore_status: match.trustscore_status,
 				explanation: match.explanation,
 			};
 		}
