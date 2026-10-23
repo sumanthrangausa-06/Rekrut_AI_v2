@@ -59,9 +59,9 @@ interface SessionCurrentResponse {
 	// #1654 (C2): the session configuration snapshot fields the server
 	// sends on both /current branches (null on legacy NULL-config
 	// sessions). GAP-3 keys the instructions block off their presence;
-	// GAP-4 reads verifiedEligible defensively — no merged server
-	// response sends it today, so it stays undefined and the Verified
-	// label never renders until the server actually says so.
+	// GAP-4 reads verifiedEligible defensively: the field IS sent
+	// by the completion payloads (#1678), and it is read as
+	// === true, so an absent or false field never renders Verified.
 	format?: string | null;
 	difficultyBand?: string | null;
 	verifiedEligible?: boolean;
