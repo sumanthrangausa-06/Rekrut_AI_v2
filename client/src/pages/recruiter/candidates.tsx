@@ -66,7 +66,7 @@ export type Candidate = {
 	skills: string[];
 	matchScore?: number;
 	omniScore?: number;
-	omniscore?: number;
+	omniscore?: number | null;
 	trustscore?: number;
 	isTopCandidate?: boolean;
 	applicationStatus?: 'applied' | 'screening' | 'interview' | 'offer' | 'hired' | 'rejected';
