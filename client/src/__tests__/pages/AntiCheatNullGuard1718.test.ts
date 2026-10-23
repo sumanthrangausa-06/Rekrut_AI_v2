@@ -66,9 +66,14 @@ describe('#1718 recruiter/assessments.tsx anti-cheat honest-null', () => {
 
 	it('results-list integrity value renders nothing when NULL, real value when computed', () => {
 		expect(recruiter).toContain('{a.anti_cheat_score}%');
-		// Guarded by the warning-side variable pattern used across the page:
-		// the render span is wrapped in the same != null guard family.
-		expect(recruiter).toContain('a.anti_cheat_score != null');
+		// The render span carries its OWN != null wrapper, independent of the
+		// warning guard: `a.anti_cheat_score != null` must occur at least twice
+		// (warning comparison + this render wrapper). Review F1: a bare
+		// toContain was satisfied by the warning guard alone, so removing only
+		// this wrapper would not have failed the suite.
+		const occurrences = recruiter.match(/a\.anti_cheat_score != null/g) ?? [];
+		expect(occurrences.length).toBeGreaterThanOrEqual(2);
+		expect(recruiter).toContain('a.anti_cheat_score != null && (');
 	});
 
 	it('the already-guarded detail view precedent is untouched', () => {
