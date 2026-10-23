@@ -14,6 +14,22 @@
  * vacuously. An INNER (non-LEFT) topics join drops legacy rows in the
  * emulation exactly as it would in Postgres.
  * Regression pins only — NOT the HL-003 E2E-on-dev gate.
+ *
+ * #1723 M1 tightening: the user filter and the DESC sort are ALSO
+ * SQL-keyed now — the dispatcher applies the sa.user_id filter ONLY
+ * when the SQL text carries `sa.user_id = $1`, and sorts by
+ * completed_at DESC ONLY when the SQL text carries
+ * `order by sa.completed_at desc`. This mirrors the stricter
+ * neighbouring suites' pattern of keying behaviour on the SQL text —
+ * e.g. assessments-retake-lockout.test.js only materialises its
+ * last-completed row when the SQL includes
+ * 'order by completed_at desc', and assessments-deadlines.test.js /
+ * assessments-start-enforce.test.js gate their assigned-attempt rows
+ * on 'order by created_at'. Before this tightening the mock filtered
+ * and sorted unconditionally, so a route that dropped its WHERE
+ * user filter or its ORDER BY still passed T3 vacuously. Mutation
+ * proof (drop WHERE / drop ORDER BY → T3 red, each) is recorded in
+ * the #1723 build log.
  */
 const express = require('express');
 const request = require('supertest');
@@ -131,9 +147,19 @@ function installDbMock() {
 			const uid = Number(params[0]);
 			const hasTopicsJoin = sql.includes('join assessment_topics');
 			const hasTopicsLeftJoin = sql.includes('left join assessment_topics');
-			let rows = S.skillAssessments
-				.filter((a) => a.user_id === uid && a.completed_at)
-				.sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
+			// #1723 M1: the user filter and the DESC sort are applied
+			// ONLY when the route's SQL actually carries them — a route
+			// that drops `sa.user_id = $1` leaks other users' rows into
+			// the emulation exactly as it would in Postgres, and a route
+			// that drops `ORDER BY sa.completed_at DESC` returns rows in
+			// seed (insertion) order. T3 discriminates both.
+			const hasUserFilter = sql.includes('sa.user_id = $1');
+			const hasDescOrder = sql.includes('order by sa.completed_at desc');
+			let pool = S.skillAssessments.filter((a) => a.completed_at);
+			if (hasUserFilter) pool = pool.filter((a) => a.user_id === uid);
+			if (hasDescOrder)
+				pool = [...pool].sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
+			let rows = pool
 				.map((a) => {
 					const skill = S.skills.find((s) => s.id === a.skill_id);
 					const sess = a.session_id != null ? S.sessions.find((s) => s.id === a.session_id) : undefined;
