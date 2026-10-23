@@ -4,6 +4,13 @@
 
 const pool = require('../lib/db');
 
+// #1776: named scoring-semantics version bump (panel ruling on #1761,
+// Option D). Reliability raw is measured-only from this version on —
+// no neutral base, no default attendance/follow-through rates. Rows and
+// snapshots written under earlier semantics keep their stored values;
+// they are not reinterpreted, only new computations use this version.
+const SCORING_SEMANTICS_VERSION = 'v3-reliability-measured-only';
+
 // ─── Score ranges and tiers ─────────────────────────────────
 const SCORE_RANGES = {
 	MIN: 300,
@@ -150,7 +157,7 @@ async function fetchCandidateData(userId) {
 
 		// Scheduled interviews
 		const interviewsRes = await client.query(
-			`SELECT outcome, feedback, scheduled_at, created_at
+			`SELECT status, outcome, feedback, scheduled_at, created_at
 			 FROM scheduled_interviews WHERE candidate_id = $1`,
 			[userId],
 		);
@@ -494,47 +501,99 @@ function calcEducationCredentials(data) {
 }
 
 function calcReliabilitySignals(data) {
-	let score = 50; // start neutral
 	const details = [];
 
-	// Attendance rate: completed interviews / scheduled interviews
+	// #1776 (panel ruling on #1761, Option D): measured-only raw. There is
+	// no neutral base and no default rate — a sub-signal contributes only
+	// when it was actually measured, and raw renormalises over the
+	// measured weights (the #1731 measured-only pattern): attendance
+	// (weight 60) only when >=1 interview is scheduled, follow-through
+	// (weight 40) only when >=1 application exists. Both measured:
+	// raw = 60a + 40f - penalty. One measured: that rate alone, scaled
+	// to 0-100. None measured: raw 0 with hasData=false (#1538 persists
+	// null), and no attendance/follow-through detail string is produced.
+	// Vocabulary grounded in the real scheduled_interviews schema/writers
+	// (Quinn gate failure on PR #1778, 2026-10-23): status and outcome are
+	// different vocabularies. chk_scheduled_interviews_status allows
+	// scheduled/confirmed/completed/cancelled/no_show (+rescheduled in
+	// migrations/p2_schema_hardening.sql:2809, in_progress in
+	// migrations/047_p2_schema_hardening.js — both agree on the values
+	// used here; read back identically from a fresh migrate.js DB), while
+	// chk_scheduled_interviews_outcome (p2_schema_hardening.sql:2820)
+	// allows only passed/failed/pending_review/no_decision/NULL. Writers
+	// agree: routes/recruiter.js PUT /interviews/:id passes status and
+	// outcome through separately (Quinn's attended write was status
+	// 'completed' + outcome 'passed'; her no-show write was status
+	// 'no_show' + outcome NULL), routes/interviews.js and
+	// routes/candidate.js write cancellations as status 'cancelled'
+	// (candidate decline even puts a free-text reason in outcome). So:
+	// attended := status 'completed' OR outcome 'passed' (outcome
+	// 'completed' cannot exist per the CHECK — the pre-fix rule relied on
+	// it); no-shows := status IN ('no_show','cancelled') ONLY — the
+	// outcome variants are dropped because no writer writes them and the
+	// CHECK forbids them (PG 23514), which is why the penalty never fired
+	// on real data (Quinn's candidate scored 70 instead of 60).
 	const scheduled = data.interviews.length;
 	const completed = data.interviews.filter(
-		(i) => i.outcome === 'completed' || i.outcome === 'passed',
+		(i) => i.status === 'completed' || i.outcome === 'passed',
 	).length;
 	const noShows = data.interviews.filter(
-		(i) => i.outcome === 'no_show' || i.outcome === 'cancelled',
+		(i) => i.status === 'no_show' || i.status === 'cancelled',
 	).length;
-	const attendanceRate = scheduled > 0 ? completed / scheduled : 0.5;
-	const attendancePts = attendanceRate * 30;
-	score += attendancePts;
-	details.push(
-		`Interview attendance ${(attendanceRate * 100).toFixed(0)}% (+${attendancePts.toFixed(1)})`,
-	);
+	const attendanceMeasured = scheduled > 0;
+	const attendanceRate = attendanceMeasured ? completed / scheduled : null;
 
-	// Application follow-through (not withdrawn)
 	const totalApps = data.applications.length;
 	const withdrawnApps = data.applications.filter((a) => a.status === 'withdrawn').length;
-	const followRate = totalApps > 0 ? (totalApps - withdrawnApps) / totalApps : 1;
-	const followPts = followRate * 20;
-	score += followPts;
-	details.push(
-		`Application follow-through ${(followRate * 100).toFixed(0)}% (+${followPts.toFixed(1)})`,
-	);
+	const followMeasured = totalApps > 0;
+	const followRate = followMeasured ? (totalApps - withdrawnApps) / totalApps : null;
 
-	// Penalty for no-shows
-	const noShowPenalty = Math.min(20, noShows * 10);
-	score -= noShowPenalty;
+	let weighted = 0;
+	let weightSum = 0;
+	if (attendanceMeasured) {
+		weighted += attendanceRate * 60;
+		weightSum += 60;
+	}
+	if (followMeasured) {
+		weighted += followRate * 40;
+		weightSum += 40;
+	}
+	// Detail points are each sub-signal's renormalised contribution.
+	if (attendanceMeasured) {
+		const pts = (attendanceRate * 60 * 100) / weightSum;
+		details.push(
+			`Interview attendance ${(attendanceRate * 100).toFixed(0)}% (+${pts.toFixed(1)})`,
+		);
+	}
+	if (followMeasured) {
+		const pts = (followRate * 40 * 100) / weightSum;
+		details.push(
+			`Application follow-through ${(followRate * 100).toFixed(0)}% (+${pts.toFixed(1)})`,
+		);
+	}
+
+	// Penalty for no-shows — only when interviews are measured.
+	const noShowPenalty = attendanceMeasured ? Math.min(20, noShows * 10) : 0;
 	if (noShowPenalty > 0) details.push(`${noShows} no-shows/cancellations (-${noShowPenalty})`);
 
-	// Neutral defaults (50 base, 50% attendance, 100% follow-through) apply with
-	// zero input records, so flag that explicitly instead of showing a real score.
-	const hasData = data.interviews.length > 0 || data.applications.length > 0;
+	const hasData = weightSum > 0;
+	const coverage = { attendance: attendanceMeasured, followThrough: followMeasured };
+	// Partial coverage must be stated wherever this factor is graded or
+	// labelled (AC-2 main text) — a single-component score is never an
+	// unqualified grade.
+	let coverageNote = null;
+	if (hasData && !attendanceMeasured)
+		coverageNote = 'based on application follow-through only; attendance: insufficient data';
+	else if (hasData && !followMeasured)
+		coverageNote =
+			'based on interview attendance only; application follow-through: insufficient data';
 
 	return {
-		raw: clamp(score, 0, 100),
+		raw: hasData ? clamp((weighted / weightSum) * 100 - noShowPenalty, 0, 100) : 0,
 		details,
 		hasData,
+		coverage,
+		coverageNote,
 	};
 }
 
@@ -854,8 +913,9 @@ async function calculateScore(userId) {
 	// factors only, and is null when no source factor has data. A no-data
 	// factor's raw is a neutral default or 0, not a measurement: averaging
 	// it in fabricated a behavior_score of 43 for the #1588 candidate
-	// (reliability 85 measured via 1 application, soft_skills unmeasured)
-	// and halved a measured resume raw of 10 into 5.
+	// (reliability 85 via 1 application under the pre-#1776 neutral-base
+	// semantics, soft_skills unmeasured) and halved a measured resume
+	// raw of 10 into 5.
 	const compatScore = (...sources) => {
 		const measured = sources.filter((f) => f.hasData);
 		return measured.length === 0
@@ -948,6 +1008,7 @@ async function calculateScore(userId) {
 		tier_label: noData ? null : SCORE_RANGES.TIERS[tier]?.label || 'New',
 		peer_percentile: peerPercentile,
 		fraud_signals: fraudSignals,
+		scoring_semantics_version: SCORING_SEMANTICS_VERSION,
 		factors: Object.fromEntries(
 			Object.entries(factors).map(([k, v]) => [
 				k,
@@ -956,6 +1017,10 @@ async function calculateScore(userId) {
 					weight: FACTOR_WEIGHTS[k],
 					details: v.details,
 					hasData: v.hasData,
+					// #1776: per-sub-signal coverage (reliability only today;
+					// null elsewhere) so grading surfaces can state it.
+					coverage: v.coverage ?? null,
+					coverageNote: v.coverageNote ?? null,
 				},
 			]),
 		),
@@ -1090,6 +1155,9 @@ async function getScoreBreakdown(userId) {
 			label: meta.label,
 			description: meta.description,
 			details: factorData?.details || [],
+			// #1776: partial-coverage note (reliability) rides the breakdown
+			// so the grading surface states it; null when fully measured.
+			coverage_note: factorData?.coverageNote ?? null,
 		};
 	}
 
@@ -1123,6 +1191,27 @@ async function getScoreExplainer(userId) {
 		const f = factors[key];
 		const raw = f?.raw || 0;
 
+		// #1776 explainer gate (panel companion on #1761): a factor with no
+		// measured data gets no grade and no verdict — "Insufficient data".
+		// Before this gate the explainer graded reliability's neutral-
+		// default 85 "Excellent / exceptional" for zero-input candidates.
+		if (!f?.hasData) {
+			explainers.push({
+				name: meta.label,
+				impact: 0,
+				raw_score: raw,
+				weight: FACTOR_WEIGHTS[key],
+				grade: 'Insufficient data',
+				description: meta.description,
+				plain_text: 'Insufficient data',
+				details: f?.details || [],
+				action: null,
+				has_data: false,
+				coverage_note: null,
+			});
+			continue;
+		}
+
 		let grade = 'Needs Work';
 		if (raw >= 80) grade = 'Excellent';
 		else if (raw >= 60) grade = 'Good';
@@ -1137,6 +1226,11 @@ async function getScoreExplainer(userId) {
 		else
 			plainText = `Your ${meta.label.toLowerCase()} needs attention — this is a growth opportunity.`;
 
+		// #1776 AC-2: partial coverage qualifies the verdict in the text
+		// itself, so the grade is never presented unqualified.
+		const coverageNote = f?.coverageNote ?? null;
+		if (coverageNote) plainText += ` Coverage: ${coverageNote}.`;
+
 		explainers.push({
 			name: meta.label,
 			impact: Math.round((raw / 100) * FACTOR_WEIGHTS[key] * 550),
@@ -1147,6 +1241,8 @@ async function getScoreExplainer(userId) {
 			plain_text: plainText,
 			details: f?.details || [],
 			action: raw < 60 ? getImprovementAction(key) : null,
+			has_data: true,
+			coverage_note: coverageNote,
 		});
 	}
 
@@ -1312,6 +1408,7 @@ async function updateRoleScore(userId, roleName, interviewScore) {
 }
 
 module.exports = {
+	SCORING_SEMANTICS_VERSION,
 	calcVerifiedSkills,
 	calcInterviewPerformance,
 	calcExperienceQuality,
