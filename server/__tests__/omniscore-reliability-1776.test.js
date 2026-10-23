@@ -101,6 +101,26 @@ describe('#1776 calculateScore — reliability measured-only', () => {
 		expect(factors.reliability_signals).toBe(100);
 	});
 
+	test('Quinn gate scenario: 1 app + attended + no-show (real shapes) persists reliability 60', async () => {
+		// Quinn journey gate on PR #1778 (2026-10-23) FAILED this leg at 70:
+		// the no-show row the app actually writes is status 'no_show' with
+		// outcome NULL, but the calculator counted no-shows from outcome
+		// only — a vocabulary chk_scheduled_interviews_outcome forbids, so
+		// the penalty could never fire on real data.
+		mockState.applications = [{ status: 'applied' }];
+		mockState.interviews = [
+			{ status: 'completed', outcome: 'passed', feedback: null },
+			{ status: 'no_show', outcome: null, feedback: null },
+		];
+		const score = await calculateScore(USER);
+		// a = 1/2, f = 1: 60*0.5 + 40*1 - 10 penalty = 60
+		expect(score.factors.reliability_signals.raw).toBe(60);
+		expect(score.factors.reliability_signals.coverageNote).toBeNull();
+		expect(score.behavior).toBe(60);
+		const factors = JSON.parse(mockCaptured.updateParams[6]);
+		expect(factors.reliability_signals).toBe(60);
+	});
+
 	test('scoring-semantics version bump is named and returned', async () => {
 		expect(omniscore.SCORING_SEMANTICS_VERSION).toBe('v3-reliability-measured-only');
 		const score = await calculateScore(USER);

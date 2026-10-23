@@ -157,7 +157,7 @@ async function fetchCandidateData(userId) {
 
 		// Scheduled interviews
 		const interviewsRes = await client.query(
-			`SELECT outcome, feedback, scheduled_at, created_at
+			`SELECT status, outcome, feedback, scheduled_at, created_at
 			 FROM scheduled_interviews WHERE candidate_id = $1`,
 			[userId],
 		);
@@ -512,12 +512,33 @@ function calcReliabilitySignals(data) {
 	// raw = 60a + 40f - penalty. One measured: that rate alone, scaled
 	// to 0-100. None measured: raw 0 with hasData=false (#1538 persists
 	// null), and no attendance/follow-through detail string is produced.
+	// Vocabulary grounded in the real scheduled_interviews schema/writers
+	// (Quinn gate failure on PR #1778, 2026-10-23): status and outcome are
+	// different vocabularies. chk_scheduled_interviews_status allows
+	// scheduled/confirmed/completed/cancelled/no_show (+rescheduled in
+	// migrations/p2_schema_hardening.sql:2809, in_progress in
+	// migrations/047_p2_schema_hardening.js — both agree on the values
+	// used here; read back identically from a fresh migrate.js DB), while
+	// chk_scheduled_interviews_outcome (p2_schema_hardening.sql:2820)
+	// allows only passed/failed/pending_review/no_decision/NULL. Writers
+	// agree: routes/recruiter.js PUT /interviews/:id passes status and
+	// outcome through separately (Quinn's attended write was status
+	// 'completed' + outcome 'passed'; her no-show write was status
+	// 'no_show' + outcome NULL), routes/interviews.js and
+	// routes/candidate.js write cancellations as status 'cancelled'
+	// (candidate decline even puts a free-text reason in outcome). So:
+	// attended := status 'completed' OR outcome 'passed' (outcome
+	// 'completed' cannot exist per the CHECK — the pre-fix rule relied on
+	// it); no-shows := status IN ('no_show','cancelled') ONLY — the
+	// outcome variants are dropped because no writer writes them and the
+	// CHECK forbids them (PG 23514), which is why the penalty never fired
+	// on real data (Quinn's candidate scored 70 instead of 60).
 	const scheduled = data.interviews.length;
 	const completed = data.interviews.filter(
-		(i) => i.outcome === 'completed' || i.outcome === 'passed',
+		(i) => i.status === 'completed' || i.outcome === 'passed',
 	).length;
 	const noShows = data.interviews.filter(
-		(i) => i.outcome === 'no_show' || i.outcome === 'cancelled',
+		(i) => i.status === 'no_show' || i.status === 'cancelled',
 	).length;
 	const attendanceMeasured = scheduled > 0;
 	const attendanceRate = attendanceMeasured ? completed / scheduled : null;

@@ -110,6 +110,101 @@ fail identically — 11 failed tests, same suites — on an unmodified
 `origin/dev` archive extract, and the remaining failing suites (e.g.
 threat-intel-no-surface) do not touch this diff.
 
+## Quinn journey gate — FAIL (2026-10-23), fixed forward on this branch
+
+Quinn's fresh-install journey gate on PR #1778 head `66fc60101`
+(evidence: `hidden_files/quinn-1776-2026-10-23/run.md`) passed Legs 0,
+1, 1c but **FAILED Leg 2**: a candidate with 1 application, 1 attended
+interview and 1 no-show scored reliability **70 instead of 60**,
+persisted — the no-show penalty never fired on real data.
+
+**Root cause (HL-003 class):** `calcReliabilitySignals` counted
+no-shows from `outcome ∈ {no_show, cancelled}` and
+`fetchCandidateData` selected only `outcome` from
+`scheduled_interviews`. Those outcome values are **not storable**:
+`chk_scheduled_interviews_outcome`
+(`migrations/p2_schema_hardening.sql:2820`) allows only
+passed/failed/pending_review/no_decision/NULL. Quinn proved it three
+ways — recruiter `PUT` with `outcome:'no_show'` → HTTP 500; direct
+INSERTs of outcome `no_show`/`cancelled` → PG 23514. The unit tests
+mocked rows as `{ outcome: 'no_show' }`, bypassing the CHECK — mocked
+tests proved nothing about the layer they mocked.
+
+**Vocabulary evidence (enumerated from code + migrations, and read
+back from a fresh `migrate.js` DB in this fix's rig):**
+
+- `status` CHECK — `chk_scheduled_interviews_status`: `scheduled,
+  confirmed, completed, cancelled, no_show, rescheduled`
+  (`migrations/p2_schema_hardening.sql:2809`); the JS migration that
+  `migrate.js` actually applies swaps `rescheduled` for `in_progress`
+  (`migrations/047_p2_schema_hardening.js`) — read back from the fresh
+  DB as `scheduled/confirmed/in_progress/completed/cancelled/no_show`.
+  Both agree on every value this fix counts.
+- `outcome` CHECK — `chk_scheduled_interviews_outcome`: `passed,
+  failed, pending_review, no_decision` or NULL (file above, :2820;
+  identical read-back from the fresh DB).
+- Writers: `routes/recruiter.js` `PUT /interviews/:id` passes `status`
+  and `outcome` through separately — Quinn's attended write was
+  status `completed` + outcome `passed`; her no-show write was status
+  `no_show` + outcome NULL. Cancellations are written as **status**
+  `cancelled` by `routes/interviews.js` (reschedule-cancel),
+  `routes/recruiter.js` (passthrough; its calendar branch keys on
+  `status === 'cancelled'`) and `routes/candidate.js` decline — which
+  even writes a free-text reason into `outcome`, further proof outcome
+  is not the cancellation vocabulary. No writer anywhere writes
+  outcome `no_show`/`cancelled`.
+
+**Fix (same branch, minimum diff — `services/omniscore.js` only):**
+
+- `fetchCandidateData` now also selects `status` for
+  `scheduled_interviews`.
+- `calcReliabilitySignals`: attended := `status === 'completed' OR
+  outcome === 'passed'` (outcome `completed` cannot exist per the
+  CHECK — dropped); noShows := `status IN ('no_show','cancelled')`
+  (outcome variants dropped — no real writers, CHECK-forbidden).
+  Nothing else changes: weights 60/40, renormalisation, coverage
+  notes, `hasData`, penalty cap 20 at 10/no-show, scheduled := all
+  interview rows.
+
+**Tests — red first, against head `66fc60101`, realistic shapes:**
+
+- Mocked: the `{ outcome: 'no_show' }` fixtures were updated to the
+  real shape (`{ status: 'no_show', outcome: null }`, attended as
+  `{ status: 'completed', outcome: 'passed' }`, plus a status-
+  `cancelled` case and Quinn's exact scenario in both
+  `omniscore-factors` and `omniscore-reliability-1776`). Red:
+  **4 failed / 32 passed** — Quinn scenario **expected 60, received
+  70** in both suites; no-show/cancelled penalty cases 50 vs 40.
+- Real-DB (new, the HL-003 pin):
+  `omniscore-reliability-realdb-1776.test.js`, following the
+  `omniscore-compat-null-1596` pattern — fresh throwaway PG built by
+  `node migrate.js` from empty (253 tables), rows inserted via SQL in
+  Quinn's exact scenario (1 application; interview status
+  `completed`/outcome `passed`; interview status `no_show`/outcome
+  NULL). Red on the old head: scenario failed with Quinn's exact
+  detail strings and no penalty detail; the vocabulary test (outcome
+  `no_show`/`cancelled` INSERTs rejected by the CHECK) passed. Note:
+  the migrated schema makes `scheduled_interviews.company_id`/`job_id`
+  NOT NULL, so the seed inserts the parent company/job rows the API
+  path would have created.
+
+**Green after the fix:**
+
+- The 7 mocked omniscore suites (`omniscore-factors`,
+  `omniscore-reliability-1776`, `honest-null-omniscore`,
+  `omniscore-factor-null-1538`, `omniscore-explainer-1219`,
+  `omniscore-chain`, `omniscore-job-assessments`) — **7 suites, 60
+  tests, all pass** (was 57; +3 new reliability cases).
+- Real-DB suites on the fresh rig: `omniscore-reliability-realdb-1776`
+  **2/2 pass** — reliability raw **60 returned and persisted**
+  (`factor_scores.reliability_signals = 60`, `behavior_score = 60`);
+  `omniscore-compat-null-1596` **4/4 pass** unchanged.
+- Neighbours (`document-verification-omniscore-honest-total-1715`,
+  `omniscore-anticheat-honest-null-1715`,
+  `matching-engine-omniscore-null-1717`,
+  `omniscore-mutual-matches-1271`) — 3 passed, 1 skipped (DB-gated,
+  7 tests), 10 passed — same as the first report.
+
 ## Gates remaining (Lead coordinates)
 
 - Independent ecc/code-reviewer review of this PR (specialist decision
