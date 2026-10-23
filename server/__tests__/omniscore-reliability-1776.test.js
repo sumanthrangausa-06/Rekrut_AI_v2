@@ -122,9 +122,13 @@ describe('#1776 calculateScore — reliability measured-only', () => {
 	});
 
 	test('scoring-semantics version bump is named and returned', async () => {
-		expect(omniscore.SCORING_SEMANTICS_VERSION).toBe('v3-reliability-measured-only');
+		// #1776 introduced v3-reliability-measured-only; #1777 supersedes
+		// it with v4-total-renormalised (total renormalisation + market
+		// floor removal, same file). The current version is pinned here;
+		// #1777's own suite pins the v4 semantics.
+		expect(omniscore.SCORING_SEMANTICS_VERSION).toBe('v4-total-renormalised');
 		const score = await calculateScore(USER);
-		expect(score.scoring_semantics_version).toBe('v3-reliability-measured-only');
+		expect(score.scoring_semantics_version).toBe('v4-total-renormalised');
 	});
 });
 

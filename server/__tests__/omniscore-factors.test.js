@@ -178,9 +178,11 @@ describe('omniscore factor hasData flags', () => {
 	});
 
 	test('market_demand flags no data when no matches and no skills', () => {
-		// Regression: the skill-category fallback awarded 20/100 with zero skills.
+		// #1777 measured-only: the skill-category fallback's +20 floor is
+		// removed — with zero skills it awarded a phantom 20/100 while
+		// hasData=false, and that 20 fed the OmniScore total. Now raw 0.
 		const result = calcMarketDemand(emptyData());
-		expect(result.raw).toBe(20);
+		expect(result.raw).toBe(0);
 		expect(result.hasData).toBe(false);
 	});
 
