@@ -154,6 +154,7 @@ CREATE TABLE portfolio_projects (user_id INTEGER, title TEXT, technologies TEXT,
 CREATE TABLE omni_scores (user_id INTEGER PRIMARY KEY, total_score INTEGER, score_tier TEXT,
   interview_score INTEGER, technical_score INTEGER, resume_score INTEGER, behavior_score INTEGER);
 CREATE TABLE match_results (candidate_id INTEGER, job_id INTEGER, weighted_score DECIMAL(5,2),
+  omniscore_at_match INTEGER, trustscore_at_match INTEGER,
   similarity_score DECIMAL(5,4), match_level TEXT, matching_skills TEXT, missing_skills TEXT);
 CREATE TABLE interviews (user_id INTEGER, overall_score NUMERIC);
 CREATE TABLE assessment_sessions (user_id INTEGER, score NUMERIC, status TEXT);
@@ -406,8 +407,11 @@ describeIfDb('#1731 Lane 3 — score honesty (S-8/S-9/S-10/S-11)', () => {
 
 	test('S-11b engine throws + measured cached 80: gate passes, fit_score_at_request persisted as measured 80', async () => {
 		engineState.mode = 'throw';
+		// #1728b: the row must be FULLY measured (both at-match columns
+		// non-NULL) — a weighted_score with a NULL at-match basis is a
+		// renormalised score and the fallback gate now refuses it.
 		await pool.query(
-			`INSERT INTO match_results (candidate_id, job_id, weighted_score) VALUES (11, 31, 80)`,
+			`INSERT INTO match_results (candidate_id, job_id, weighted_score, omniscore_at_match, trustscore_at_match) VALUES (11, 31, 80, 600, 700)`,
 		);
 		const res = await request(app)
 			.post('/api/recruiter-intros/request')
