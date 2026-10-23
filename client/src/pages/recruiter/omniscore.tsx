@@ -64,10 +64,12 @@ interface CandidateRow {
 	user_id: number;
 	total_score: number;
 	score_tier: string;
-	interview_score: number;
-	technical_score: number;
-	resume_score: number;
-	behavior_score: number;
+	// #1596: compat columns are null when no source factor has data
+	// (honest insufficient-data); React renders null as an empty cell.
+	interview_score: number | null;
+	technical_score: number | null;
+	resume_score: number | null;
+	behavior_score: number | null;
 	name: string;
 	email: string;
 	avatar_url: string | null;
