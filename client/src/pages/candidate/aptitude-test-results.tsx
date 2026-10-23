@@ -21,7 +21,7 @@ interface AttemptDetail {
 	score: number;
 	max_score: number;
 	percentile: number | null;
-	anti_cheat_score: number;
+	anti_cheat_score: number | null;
 	passed: boolean;
 	status: string;
 	time_spent_seconds: number;
@@ -208,6 +208,7 @@ export function CandidateAptitudeTestResultsPage() {
 						</CardContent>
 					</Card>
 				)}
+				{attempt.anti_cheat_score != null && (
 				<Card>
 					<CardContent className="p-4 text-center">
 						<Shield className="mx-auto h-5 w-5 text-muted-foreground mb-1" />
@@ -225,6 +226,7 @@ export function CandidateAptitudeTestResultsPage() {
 						<p className="text-xs text-muted-foreground">Integrity</p>
 					</CardContent>
 				</Card>
+				)}
 			</div>
 
 			{/* Anti-cheat flags */}
