@@ -9,7 +9,13 @@ const pool = require('../lib/db');
 // no neutral base, no default attendance/follow-through rates. Rows and
 // snapshots written under earlier semantics keep their stored values;
 // they are not reinterpreted, only new computations use this version.
-const SCORING_SEMANTICS_VERSION = 'v3-reliability-measured-only';
+// #1777: v4 — the weighted total is renormalised over MEASURED factors
+// only (the #1596 compatScore / #1731 pattern applied to the total), and
+// calcMarketDemand's +20 fallback floor is removed (measured-only).
+// Partially-measured candidates' totals change; fully-measured totals
+// are identical (renormalising over the full weight sum 1.0 is the
+// identity), and the no-data total stays null (#1192/#1538).
+const SCORING_SEMANTICS_VERSION = 'v4-total-renormalised';
 
 // ─── Score ranges and tiers ─────────────────────────────────
 const SCORE_RANGES = {
@@ -688,7 +694,11 @@ function calcMarketDemand(data) {
 		const matchCount = [...skillCategories].filter((c) =>
 			inDemandCategories.some((d) => c.includes(d)),
 		).length;
-		const pts = Math.min(100, matchCount * 20 + 20);
+		// #1777 measured-only: no +20 floor. The old constant awarded 20
+		// points with zero skills and zero in-demand categories alike —
+		// phantom points in the total. Skills present but none in-demand
+		// is a measured 0; no skills at all stays hasData=false, raw 0.
+		const pts = Math.min(100, matchCount * 20);
 		score += pts;
 		details.push(`${matchCount} in-demand skill categories (+${pts})`);
 	}
@@ -832,18 +842,28 @@ async function computeFactors(userId) {
 		growth_trajectory: calcGrowthTrajectory(data),
 	};
 
-	// ponytail: factors with no evidence keep their computed raw score and are
-	// flagged via hasData for the UI ("Insufficient data"). Weights are NOT
-	// re-normalized across data-bearing factors: that changes scoring semantics
-	// and needs validation against real hiring outcomes first. Upgrade path:
-	// confidence-weighted totals once outcome data exists (#113).
-	// Compute weighted total
+	// #1777 (panel ruling on #1761, companion (2)): the total is the
+	// weighted renormalisation over MEASURED factors only — the same
+	// measured-only pattern as compatScore (#1596) and the #1731 match
+	// renormalisation. A no-data factor contributes neither points nor
+	// weight: before this, its raw was summed over the full weight sum
+	// 1.0, so market_demand's fallback floor added phantom points and
+	// every other no-data factor diluted the measured factors' weights.
+	// Fully-measured candidates are unchanged (measured weight = 1.0).
+	// No measured factor: weightedSum stays 0 and the floor total below
+	// is an artifact that calculateScore nulls via hasAnyData (#1192).
 	let weightedSum = 0;
+	let measuredWeight = 0;
 	for (const [key, factor] of Object.entries(factors)) {
+		if (!factor.hasData) continue;
 		weightedSum += (factor.raw / 100) * FACTOR_WEIGHTS[key];
+		measuredWeight += FACTOR_WEIGHTS[key];
 	}
 
-	const total = Math.round(SCORE_RANGES.MIN + weightedSum * 550);
+	const total =
+		measuredWeight > 0
+			? Math.round(SCORE_RANGES.MIN + (weightedSum / measuredWeight) * 550)
+			: Math.round(SCORE_RANGES.MIN + weightedSum * 550);
 	const clampedTotal = clamp(total, SCORE_RANGES.MIN, SCORE_RANGES.MAX);
 
 	// Fraud detection
@@ -858,6 +878,22 @@ async function computeFactors(userId) {
 		// score — the floor formula's output is an artifact, not a verdict.
 		hasAnyData: Object.values(factors).some((f) => f.hasData),
 	};
+}
+
+// #1777: a measured factor's effective weight in the renormalised
+// total — its nominal FACTOR_WEIGHTS share divided by the combined
+// weight of measured factors only; 0 for a no-data factor. Shared by
+// getScoreBreakdown and getScoreExplainer so their per-factor
+// contributions sum to the headline total they sit next to. Operates
+// on the calculateScore() factors shape ({ raw, weight, hasData }).
+function renormalisedWeight(factors, key) {
+	const f = factors[key];
+	if (!f?.hasData) return 0;
+	const measuredWeight = Object.values(factors).reduce(
+		(sum, v) => sum + (v.hasData ? v.weight : 0),
+		0,
+	);
+	return measuredWeight > 0 ? f.weight / measuredWeight : 0;
 }
 
 // ─── Public API ─────────────────────────────────────────────
@@ -1151,7 +1187,13 @@ async function getScoreBreakdown(userId) {
 			max: 100,
 			has_data: factorData?.hasData ?? true,
 			weight: FACTOR_WEIGHTS[key],
-			weighted_contribution: Math.round(((factorData?.raw || 0) / 100) * FACTOR_WEIGHTS[key] * 550),
+			// #1777: contribution under the renormalised total — measured
+			// factors carry their effective weight, no-data factors 0, so
+			// the contributions sum to (total − 300).
+			effective_weight: renormalisedWeight(scoreData.factors, key),
+			weighted_contribution: Math.round(
+				((factorData?.raw || 0) / 100) * renormalisedWeight(scoreData.factors, key) * 550,
+			),
 			label: meta.label,
 			description: meta.description,
 			details: factorData?.details || [],
@@ -1233,7 +1275,10 @@ async function getScoreExplainer(userId) {
 
 		explainers.push({
 			name: meta.label,
-			impact: Math.round((raw / 100) * FACTOR_WEIGHTS[key] * 550),
+			// #1777: impact is the factor's contribution to the
+			// renormalised total (effective weight), matching the
+			// breakdown's weighted_contribution.
+			impact: Math.round((raw / 100) * renormalisedWeight(factors, key) * 550),
 			raw_score: raw,
 			weight: FACTOR_WEIGHTS[key],
 			grade,

@@ -158,10 +158,13 @@ describe('#1192 OmniScore — with-inputs regression (unchanged computation)', (
 		];
 		const score = await calculateScore(EMPTY_USER);
 		// verified_skills raw 8, reliability raw 0 (#1776 measured-only:
-		// hasData=false and no neutral 85 — it contributes nothing),
-		// market_demand raw 40, growth raw 10 →
-		// round(300 + (0.25*8 + 0.10*0 + 0.05*40 + 0.05*10)/100*550) = 325
-		expect(score.total_score).toBe(325);
+		// hasData=false — it contributes nothing), market_demand raw 20
+		// (#1777: 1 in-demand category × 20, the +20 floor removed),
+		// growth raw 10. #1777: the total renormalises over the measured
+		// factors only (weights 0.25 + 0.05 + 0.05 = 0.35):
+		// round(300 + ((0.25*8 + 0.05*20 + 0.05*10)/100 / 0.35) * 550)
+		// = round(300 + 0.10 * 550) = 355 (was 325 pre-#1777, 372 pre-#1776)
+		expect(score.total_score).toBe(355);
 		expect(score.tier).toBe('needs_work');
 		expect(score.tier_label).toBe('Needs Work');
 		expect(typeof score.peer_percentile).toBe('number');
@@ -188,7 +191,7 @@ describe('#1251 calculateScore peer-percentile — NULL percentile stays null (h
 		mockState.percentile = null;
 		await getOrCreateScore(EMPTY_USER);
 		const score = await calculateScore(EMPTY_USER);
-		expect(score.total_score).toBe(325); // #1776: reliability measured-only (was 372 with the neutral 85)
+		expect(score.total_score).toBe(355); // #1777 renormalised total (325 under #1776 semantics, 372 pre-#1776)
 		expect(score.peer_percentile).toBeNull();
 		// Persisted row and snapshot must carry the honest null too.
 		expect(mockState.omniRow.peer_percentile).toBeNull();
@@ -228,14 +231,15 @@ describe('#1192 legacy persisted omni rows — heal script (engine-arbitrated re
 		expect((await storedRead()).total_score).toBeNull();
 	});
 
-	test('live heal: a genuine row keeps its exact engine number (325, not erased)', async () => {
+	test('live heal: a genuine row keeps its exact engine number (355, not erased)', async () => {
 		mockState.skills = [SKILL];
-		// #1776: the engine number for this skill-only candidate is 325
-		// under measured-only reliability semantics (was 372 pre-#1776).
-		mockState.omniRow = { user_id: EMPTY_USER, total_score: 325, score_tier: 'needs_work' };
+		// #1777: the engine number for this skill-only candidate is 355
+		// under total renormalisation (325 under #1776 semantics,
+		// 372 pre-#1776 with the neutral reliability 85).
+		mockState.omniRow = { user_id: EMPTY_USER, total_score: 355, score_tier: 'needs_work' };
 		const report = await loadHeal()({ live: true });
 		expect(report.omni.would_keep_number).toBe(1);
-		expect((await storedRead()).total_score).toBe(325);
+		expect((await storedRead()).total_score).toBe(355);
 	});
 
 	test('tombstoned user (deleted_at set) is skipped and never recomputed', async () => {
