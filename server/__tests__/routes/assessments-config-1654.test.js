@@ -319,9 +319,20 @@ function installDbMock() {
 
 		// ── retake gate / completion reads on skill_assessments ──
 		if (sql.includes('select completed_at from skill_assessments')) {
-			const rows = S.skillAssessments
+			let rows = S.skillAssessments
 				.filter((a) => a.user_id === Number(params[0]) && a.skill_id === Number(params[1]) && a.completed_at)
 				.sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
+			// #1686: the per-topic gate joins assessment_sessions and
+			// predicates on its topic_id — apply that filter ONLY when
+			// the route's SQL actually carries it (the suites' standing
+			// emulation rule), so an unscoped gate query cannot fake-pass.
+			if (sql.includes('join assessment_sessions') && sql.includes('topic_id')) {
+				const topicId = Number(params[2]);
+				rows = rows.filter((a) => {
+					const sess = S.sessions.find((s) => s.id === Number(a.session_id));
+					return !!sess && sess.topic_id === topicId;
+				});
+			}
 			return { rows: rows.slice(0, 1).map((a) => ({ completed_at: a.completed_at })), rowCount: Math.min(1, rows.length) };
 		}
 		if (sql.includes('from skill_assessments') && sql.includes('behavioral_flags') && sql.includes('where session_id')) {
@@ -678,6 +689,14 @@ describe('POST /start — legacy body (§8/SF-9 snapshot)', () => {
 
 	it('retake gate still applies to configured starts (pin)', async () => {
 		addBank({ format: 'mcq', difficulty_level: 3, count: 12 });
+		// #1686: the completion is linked to a completed Topic-20 session
+		// (session_id → assessment_sessions.topic_id, the only topic
+		// linkage skill_assessments has), so this pin is a genuine
+		// SAME-topic completion under the per-topic gate.
+		S.sessions.push({
+			id: 1, user_id: 7, skill_id: 4, status: 'completed', topic_id: 20,
+			questions_asked: [], answers_given: [],
+		});
 		S.skillAssessments.push({
 			id: 1, user_id: 7, skill_id: 4, session_id: 1, score: 80, passed: true,
 			behavioral_flags: {}, completed_at: new Date(Date.now() - 5 * 24 * 3600 * 1000),
@@ -739,6 +758,87 @@ describe('POST /start — topic-scoped abandon (#1687)', () => {
 		// Today's behaviour, unchanged: skill-wide, first match only.
 		expect(sessionById(501).status).toBe('abandoned');
 		expect(sessionById(502).status).toBe('in_progress');
+	});
+});
+
+// ── #1686: per-topic retake lockout on /start ───────────────────────────────
+// Founder ruling on #1686 (2026-10-22), Option (a): the lockout is
+// PER-TOPIC. The catalogue already computed canRetake per topic (C3
+// read model: Topic B's last completion 35d ago → retakable, even with
+// Topic A on the same skill completed 10d ago), but the /start gate
+// read the latest completion for the whole SKILL — so the promised
+// retake 403'd. Ruled fix: a snapshot (topic-based) start reads the
+// latest completion FOR THAT TOPIC ONLY (via sa.session_id →
+// assessment_sessions.topic_id, the only topic linkage that exists);
+// a topic-less start keeps the existing skill-wide gate exactly.
+// STOP 1 edge decision: topic-less legacy completions do NOT block a
+// topic-based start — a NULL-topic row carries no topic attribution,
+// and the ruling's skill-wide carve-out is for topic-less STARTS.
+// (The catalogue's default-topic fallback surfacing of legacy history
+// is a display aggregate and is consciously NOT mirrored into the
+// gate — see the #1686 STOP 1 note.)
+describe('POST /start — per-topic retake lockout (#1686)', () => {
+	const daysAgo = (n) => new Date(Date.now() - n * 24 * 3600 * 1000);
+	function seedCompletion(id, sessionId, topic_id, when) {
+		S.sessions.push({
+			id: sessionId, user_id: 7, skill_id: 4, status: 'completed', topic_id,
+			questions_asked: [], answers_given: [], completed_at: when,
+		});
+		S.skillAssessments.push({
+			id, user_id: 7, skill_id: 4, session_id: sessionId, score: 80, passed: true,
+			behavioral_flags: {}, completed_at: when,
+		});
+	}
+	function seedTopicPair() {
+		const aWhen = daysAgo(10); // Topic A (20) — inside the 30d lockout
+		const bWhen = daysAgo(35); // Topic B (21) — outside it
+		seedCompletion(1, 601, 20, aWhen);
+		seedCompletion(2, 602, 21, bWhen);
+		return { aWhen, bWhen };
+	}
+
+	it('(a) starting Topic B succeeds when only Topic A is inside the lockout (the #1686 bug)', async () => {
+		addBank({ topic_id: 21, format: 'mcq', difficulty_level: 3, count: 12 });
+		seedTopicPair();
+		const res = await start({ topicId: 21, format: 'mcq', difficultyBand: 'medium', totalQuestions: 10 });
+		expect(res.status).toBe(200);
+		expect(sessionById(res.body.sessionId).topic_id).toBe(21);
+		expect(sessionById(res.body.sessionId).status).toBe('in_progress');
+	});
+
+	it('(b) starting Topic A still 403s, with lastCompletedAt read from Topic A only', async () => {
+		addBank({ topic_id: 20, format: 'mcq', difficulty_level: 3, count: 12 });
+		const { aWhen } = seedTopicPair();
+		const res = await start({ topicId: 20, format: 'mcq', difficultyBand: 'medium', totalQuestions: 10 });
+		expect(res.status).toBe(403);
+		expect(res.body.code).toBe('RETAKE_LOCKOUT');
+		expect(res.body.lockoutDays).toBe(30);
+		expect(new Date(res.body.lastCompletedAt).getTime()).toBe(aWhen.getTime());
+	});
+
+	it('(c) topic-less legacy completions do not block a topic start; a topic-less start keeps the skill-wide gate', async () => {
+		// Only history: a topic-less legacy completion 10 days ago.
+		seedCompletion(1, 610, null, daysAgo(10));
+		addBank({ topic_id: 21, format: 'mcq', difficulty_level: 3, count: 12 });
+		const res = await start({ topicId: 21, format: 'mcq', difficultyBand: 'medium', totalQuestions: 10 });
+		expect(res.status).toBe(200);
+		expect(sessionById(res.body.sessionId).topic_id).toBe(21);
+
+		// A start with NO snapshot topic ('Rust' has no catalogue topic)
+		// keeps the legacy skill-wide gate exactly: its own skill's
+		// 10-day-old completion still blocks it.
+		S.skills.push({ id: 6, user_id: 7, skill_name: 'Rust', category: 'technical', is_verified: false, verified_score: null });
+		S.sessions.push({
+			id: 611, user_id: 7, skill_id: 6, status: 'completed', topic_id: null,
+			questions_asked: [], answers_given: [], completed_at: daysAgo(10),
+		});
+		S.skillAssessments.push({
+			id: 2, user_id: 7, skill_id: 6, session_id: 611, score: 70, passed: true,
+			behavioral_flags: {}, completed_at: daysAgo(10),
+		});
+		const legacy = await start({ skillName: 'Rust', category: 'technical' });
+		expect(legacy.status).toBe(403);
+		expect(legacy.body.code).toBe('RETAKE_LOCKOUT');
 	});
 });
 

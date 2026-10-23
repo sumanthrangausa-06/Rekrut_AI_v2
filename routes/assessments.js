@@ -1019,12 +1019,32 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 		// Retake lockout: a completed assessment inside the lockout window
 		// blocks a new start (mirrors aptitude's RETAKE_LOCKOUT). Checked
 		// before abandoning any in-progress session, same order as aptitude.
-		const lastCompleted = await client.query(
-			`SELECT completed_at FROM skill_assessments
+		// #1686 (Founder ruling, Option (a)): the lockout is PER-TOPIC —
+		// the catalogue's canRetake already reads per topic (the C3 read
+		// model), so a snapshot (topic-based) start reads the latest
+		// completion FOR THAT TOPIC ONLY, via sa.session_id →
+		// assessment_sessions.topic_id (skill_assessments has no
+		// topic_id column). Topic-less legacy completions carry no topic
+		// attribution and do not block a topic start. A start with no
+		// topic (NULL snapshot topic) keeps the existing skill-wide gate
+		// exactly. hasTopic is declared here and reused by the #1687
+		// abandon block below (same snapshot key, same split).
+		const hasTopic = snapshot.topicId != null;
+		const lastCompleted = hasTopic
+			? await client.query(
+					`SELECT completed_at FROM skill_assessments
+       JOIN assessment_sessions ON assessment_sessions.id = skill_assessments.session_id
+       WHERE skill_assessments.user_id = $1 AND skill_assessments.skill_id = $2
+         AND skill_assessments.completed_at IS NOT NULL AND assessment_sessions.topic_id = $3
+       ORDER BY skill_assessments.completed_at DESC LIMIT 1`,
+					[userId, skill.id, snapshot.topicId],
+				)
+			: await client.query(
+					`SELECT completed_at FROM skill_assessments
        WHERE user_id = $1 AND skill_id = $2 AND completed_at IS NOT NULL
        ORDER BY completed_at DESC LIMIT 1`,
-			[userId, skill.id],
-		);
+					[userId, skill.id],
+				);
 		if (
 			lastCompleted.rows.length > 0 &&
 			!canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, lastCompleted.rows[0].completed_at)
@@ -1044,7 +1064,7 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 		// starting Topic B must never silently abandon a Topic A attempt on
 		// the same skill. A start with no topic (NULL snapshot topic) keeps
 		// the legacy skill-wide behaviour exactly (first match only).
-		const hasTopic = snapshot.topicId != null;
+		// (hasTopic is declared at the #1686 retake gate above.)
 		const activeSession = hasTopic
 			? await client.query(
 					"SELECT id FROM assessment_sessions WHERE user_id = $1 AND skill_id = $2 AND status = 'in_progress' AND topic_id = $3",
