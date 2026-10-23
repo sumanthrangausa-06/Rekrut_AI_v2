@@ -22,6 +22,7 @@ only):** per job row —
   `mr.id`).
 - `excellent_matches` and everything else unchanged. The candidate
   branch of /stats is untouched (separate gate item). No schema change.
+- Count-vs-average denominators (#1768): bucket counts classify rows by the at-match column pair alone (a NULL `weighted_score` row still counts in its bucket), while each bucket's AVG ignores NULL `weighted_score` — a bucket whose only row has NULL `weighted_score` reports count > 0 with a NULL average.
 
 **Legacy caveat:** rows calculated before the #1717/#1724 honesty
 fixes can carry at-match values from the fabricated-score era and are

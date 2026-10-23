@@ -20,6 +20,13 @@
  *  - excellent_matches and everything else unchanged; the candidate
  *    branch of /stats is untouched.
  *
+ * #1768 pinning: bucket counts classify rows by the at-match column
+ * pair alone, so a row with NULL weighted_score still counts in its
+ * bucket; each bucket's AVG ignores NULL weighted_score (Postgres
+ * AVG semantics), so the average is over non-NULL rows only and a
+ * bucket whose only row has NULL weighted_score reports count > 0
+ * with a NULL average.
+ *
  * Legacy caveat: rows calculated before the #1717/#1724 honesty fixes
  * can carry at-match values from the fabricated-score era and are
  * indistinguishable; the split is truthful for rows calculated
@@ -118,12 +125,22 @@ describeIfDb('#1728a-R — /stats recruiter branch splits fully-measured vs reno
        (31, 'Mixed Job', 21, 5, 'active'),
        (32, 'Renormalised Only Job', 21, 5, 'active'),
        (33, 'Fully Measured Only Job', 21, 5, 'active'),
-       (34, 'No Matches Job', 21, 5, 'active')`,
+       (34, 'No Matches Job', 21, 5, 'active'),
+       (35, 'Fully Measured NULL Score Job', 21, 5, 'active'),
+       (36, 'Renormalised NULL Score Job', 21, 5, 'active'),
+       (37, 'Only NULL Fully Measured Job', 21, 5, 'active'),
+       (38, 'Only NULL Renormalised Job', 21, 5, 'active')`,
 		);
 		// Job 31: fully-measured 80 + 90, renormalised 60.
 		// Job 32: renormalised only 50 (omni NULL) + 70 (trust NULL).
 		// Job 33: fully-measured only 88 + 92.
 		// Job 34: no rows (LEFT JOIN).
+		// Job 35 (#1768): fully-measured 80 + NULL weighted_score
+		// (both at-match columns non-NULL).
+		// Job 36 (#1768): renormalised 60 (omni NULL) + NULL
+		// weighted_score (trust NULL).
+		// Job 37 (#1768): only row is NULL weighted_score, fully-measured.
+		// Job 38 (#1768): only row is NULL weighted_score, renormalised.
 		await pool.query(
 			`INSERT INTO match_results (candidate_id, job_id, weighted_score, omniscore_at_match, trustscore_at_match, match_level) VALUES
        (11, 31, 80, 600, 700, 'good'),
@@ -132,7 +149,13 @@ describeIfDb('#1728a-R — /stats recruiter branch splits fully-measured vs reno
        (11, 32, 50, NULL, 700, 'good'),
        (12, 32, 70, 600, NULL, 'good'),
        (11, 33, 88, 600, 700, 'excellent'),
-       (12, 33, 92, 610, 710, 'excellent')`,
+       (12, 33, 92, 610, 710, 'excellent'),
+       (11, 35, 80, 600, 700, 'good'),
+       (12, 35, NULL, 650, 720, 'good'),
+       (11, 36, 60, NULL, 700, 'good'),
+       (12, 36, NULL, 600, NULL, 'good'),
+       (11, 37, NULL, 600, 700, 'good'),
+       (11, 38, NULL, NULL, 700, 'good')`,
 		);
 	});
 
@@ -194,5 +217,47 @@ describeIfDb('#1728a-R — /stats recruiter branch splits fully-measured vs reno
 		expect(row.candidate_matches).toBe('0');
 		expect(row.fully_measured_matches).toBe('0');
 		expect(row.insufficient_data_matches).toBe('0');
+	});
+
+	test('(5) #1768 NULL weighted_score row in each bucket: count includes it, average excludes it', async () => {
+		const byJob = await getStats();
+		const fully = byJob[35];
+		expect(fully).toBeDefined();
+		// The NULL row classifies as fully-measured (both at-match
+		// columns non-NULL), so the count is 2, but the average is
+		// over the non-NULL row only (80, not 40).
+		expect(fully.candidate_matches).toBe('2');
+		expect(fully.fully_measured_matches).toBe('2');
+		expect(Number(fully.avg_match_score)).toBe(80);
+		expect(fully.insufficient_data_matches).toBe('0');
+		expect(fully.avg_insufficient_data_score).toBeNull();
+		const insufficient = byJob[36];
+		expect(insufficient).toBeDefined();
+		// The NULL row classifies as insufficient-data (either
+		// at-match column NULL), so the count is 2, but the average
+		// is over the non-NULL row only (60, not 30).
+		expect(insufficient.candidate_matches).toBe('2');
+		expect(insufficient.insufficient_data_matches).toBe('2');
+		expect(Number(insufficient.avg_insufficient_data_score)).toBe(60);
+		expect(insufficient.fully_measured_matches).toBe('0');
+		expect(insufficient.avg_match_score).toBeNull();
+	});
+
+	test('(6) #1768 bucket whose only row has NULL weighted_score: count > 0 with NULL average', async () => {
+		const byJob = await getStats();
+		const fully = byJob[37];
+		expect(fully).toBeDefined();
+		expect(fully.candidate_matches).toBe('1');
+		expect(fully.fully_measured_matches).toBe('1');
+		expect(fully.avg_match_score).toBeNull();
+		expect(fully.insufficient_data_matches).toBe('0');
+		expect(fully.avg_insufficient_data_score).toBeNull();
+		const insufficient = byJob[38];
+		expect(insufficient).toBeDefined();
+		expect(insufficient.candidate_matches).toBe('1');
+		expect(insufficient.insufficient_data_matches).toBe('1');
+		expect(insufficient.avg_insufficient_data_score).toBeNull();
+		expect(insufficient.fully_measured_matches).toBe('0');
+		expect(insufficient.avg_match_score).toBeNull();
 	});
 });
