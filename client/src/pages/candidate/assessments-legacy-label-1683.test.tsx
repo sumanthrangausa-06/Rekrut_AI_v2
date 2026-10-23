@@ -17,8 +17,9 @@
  * /start handler; the band consts are module-private), so — exactly
  * as the #1699/#1707 take-page pins do — this suite pins the SOURCE
  * literals, scoped to the block that owns them, and derives the
- * expected client label FROM the parsed server band so a drift on
- * EITHER side fails here:
+ * expected client label FROM the parsed server values (the snapshot's
+ * format and difficultyBand words, capitalised, plus the BAND_RANGE
+ * level numbers for that band) so a drift on EITHER side fails here:
  *   - server default medium→hard        → snapshot pin fails;
  *   - server band medium [2,4]→[2,5]    → derived label ≠ client label;
  *   - client label edited               → label pins fail.
@@ -52,6 +53,22 @@ function legacySnapshotBlock(src: string): string {
 	return src.slice(snapStart, snapEnd);
 }
 
+// The band definitions block: BAND_START immediately followed by
+// BAND_RANGE (routes/assessments.js). Scoped like the snapshot block
+// above, so a stale copy of either literal elsewhere in the file
+// (e.g. in a comment) can neither satisfy nor break these pins.
+function bandDefinitionsBlock(src: string): string {
+	const start = src.indexOf('const BAND_START');
+	expect(start).toBeGreaterThan(-1);
+	const rangeStart = src.indexOf('const BAND_RANGE', start);
+	expect(rangeStart).toBeGreaterThan(start);
+	const end = src.indexOf('};', rangeStart);
+	expect(end).toBeGreaterThan(rangeStart);
+	return src.slice(start, end + 2);
+}
+
+const capitalise = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
+
 // Parse one band's [lo, hi] range out of the BAND_RANGE literal.
 function bandRange(src: string, band: string): [number, number] {
 	const m = src.match(new RegExp(`const BAND_RANGE = \\{[^}]*${band}: \\[(\\d+), (\\d+)\\]`));
@@ -68,8 +85,9 @@ describe('#1683 — legacy label contract pin (server defaults ↔ client label)
 	});
 
 	test('server: band definitions — BAND_START medium is 3, BAND_RANGE medium spans levels 2–4', () => {
-		expect(serverSrc).toContain('const BAND_START = { easy: 1, medium: 3, hard: 4 };');
-		expect(serverSrc).toContain(
+		const bands = bandDefinitionsBlock(serverSrc);
+		expect(bands).toContain('const BAND_START = { easy: 1, medium: 3, hard: 4 };');
+		expect(bands).toContain(
 			'const BAND_RANGE = { easy: [1, 2], medium: [2, 4], hard: [4, 5] };',
 		);
 		expect(bandRange(serverSrc, 'medium')).toEqual([2, 4]);
@@ -80,15 +98,16 @@ describe('#1683 — legacy label contract pin (server defaults ↔ client label)
 	});
 
 	test('contract: the client label is the label the SERVER band implies', () => {
-		const [lo, hi] = bandRange(serverSrc, 'medium');
 		const block = legacySnapshotBlock(serverSrc);
-		// The label names the snapshot's own band — derive the band from
-		// the snapshot literal, not from a second hard-coded copy.
+		// The label's words name the snapshot's own format and band —
+		// derive both from the snapshot literal, not from a second
+		// hard-coded copy, and capitalise the parsed values.
 		const band = block.match(/difficultyBand: '(\w+)'/)?.[1];
 		expect(band).toBe('medium');
+		const format = block.match(/format: '(\w+)'/)?.[1];
+		expect(format).toBe('mixed');
 		const [blo, bhi] = bandRange(serverSrc, band!);
-		expect([blo, bhi]).toEqual([lo, hi]);
-		const expectedLabel = `Mixed · Medium (levels ${blo}–${bhi})`;
+		const expectedLabel = `${capitalise(format!)} · ${capitalise(band!)} (levels ${blo}–${bhi})`;
 		expect(countIn(clientSrc, expectedLabel)).toBe(1);
 	});
 });
