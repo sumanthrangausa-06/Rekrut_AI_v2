@@ -849,15 +849,23 @@ async function calculateScore(userId) {
 	const { total, factors, fraudSignals, tier, hasAnyData } = await computeFactors(userId);
 	const noData = !hasAnyData;
 
-	// Backwards-compat mapping to old columns
-	const interview_score = Math.round(factors.interview_performance.raw);
-	const technical_score = Math.round(factors.verified_skills.raw);
-	const resume_score = Math.round(
-		(factors.experience_quality.raw + factors.education_credentials.raw) / 2,
-	);
-	const behavior_score = Math.round(
-		(factors.reliability_signals.raw + factors.soft_skills.raw) / 2,
-	);
+	// Backwards-compat mapping to old columns. #1596: the compat columns
+	// follow the #1538 rule — a column averages its MEASURED source
+	// factors only, and is null when no source factor has data. A no-data
+	// factor's raw is a neutral default or 0, not a measurement: averaging
+	// it in fabricated a behavior_score of 43 for the #1588 candidate
+	// (reliability 85 measured via 1 application, soft_skills unmeasured)
+	// and halved a measured resume raw of 10 into 5.
+	const compatScore = (...sources) => {
+		const measured = sources.filter((f) => f.hasData);
+		return measured.length === 0
+			? null
+			: Math.round(measured.reduce((sum, f) => sum + f.raw, 0) / measured.length);
+	};
+	const interview_score = compatScore(factors.interview_performance);
+	const technical_score = compatScore(factors.verified_skills);
+	const resume_score = compatScore(factors.experience_quality, factors.education_credentials);
+	const behavior_score = compatScore(factors.reliability_signals, factors.soft_skills);
 
 	// Compute peer percentile (a no-data candidate has no percentile — the
 	// 50th-percentile default is the same fabrication as the floor total).
