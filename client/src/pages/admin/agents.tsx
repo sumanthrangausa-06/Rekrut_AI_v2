@@ -64,7 +64,7 @@ export type AgentStats = {
 	completedLast24h: number;
 	avgSuccessRate: number;
 	totalRunsToday: number;
-	avgDuration: number;
+	avgDuration: number | null; // null = no completed runs measured yet (#1625)
 	queueDepth: number;
 };
 
