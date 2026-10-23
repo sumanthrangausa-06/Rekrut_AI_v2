@@ -3151,12 +3151,34 @@ router.post(
 	requirePermission('jobs:update'),
 	async (req, res) => {
 		try {
-			const { questions } = req.body;
-			if (!questions || !Array.isArray(questions))
-				return res.status(400).json({ error: 'questions array required' });
+			// #1740: accept BOTH shapes — { questions: [...] } and the live
+			// client's single-question body { question_text, question_type,
+			// category, options } (job-form.tsx saveQuestionsToBank).
+			const items = Array.isArray(req.body?.questions)
+				? req.body.questions
+				: req.body && (req.body.question_text || req.body.question)
+					? [req.body]
+					: null;
+			if (!items || items.length === 0)
+				return res.status(400).json({ error: 'question_text or questions array required' });
+
+			// Normalise + validate every item before inserting any, so a
+			// text-less item rejects the whole request with no partial save.
+			const normalized = [];
+			for (const q of items) {
+				const text = q?.question || q?.question_text;
+				if (!text || !String(text).trim())
+					return res.status(400).json({ error: 'question text required' });
+				normalized.push({
+					text,
+					category: q.category || 'general',
+					type: q.question_type || q.type || 'text',
+					options: q.options || [],
+				});
+			}
 
 			const saved = [];
-			for (const q of questions) {
+			for (const q of normalized) {
 				const result = await pool.query(
 					`
         INSERT INTO question_bank (recruiter_id, question_text, category, question_type, options)
@@ -3167,10 +3189,10 @@ router.post(
       `,
 					[
 						req.user.id,
-						q.question || q.question_text,
-						q.category || 'general',
-						q.type || 'text',
-						JSON.stringify(q.options || []),
+						q.text,
+						q.category,
+						q.type,
+						JSON.stringify(q.options),
 					],
 				);
 				saved.push(result.rows[0]);
