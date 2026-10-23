@@ -329,11 +329,28 @@ function installDbMock() {
 			// predicates on its topic_id — apply that filter ONLY when
 			// the route's SQL actually carries it (the suites' standing
 			// emulation rule), so an unscoped gate query cannot fake-pass.
+			// #1716: the default-topic widening is emulated the same way —
+			// topic-less rows (session_id IS NULL, or a session whose
+			// topic_id IS NULL) count ONLY when the route's SQL carries
+			// the LEFT JOIN, the started topic's legacy_skill_name guard
+			// and both explicit IS NULL predicates, AND the started topic
+			// actually carries a legacy_skill_name (a subject's default
+			// topic, migration 279). Otherwise the #1686 filter stands.
 			if (sql.includes('join assessment_sessions') && sql.includes('topic_id')) {
 				const topicId = Number(params[2]);
+				const startedTopic = S.topics.find((t) => t.id === topicId);
+				const widensToTopicless =
+					sql.includes('left join assessment_sessions') &&
+					sql.includes('legacy_skill_name is not null') &&
+					sql.includes('topic_id is null') &&
+					sql.includes('session_id is null') &&
+					!!startedTopic?.legacy_skill_name;
 				rows = rows.filter((a) => {
 					const sess = S.sessions.find((s) => s.id === Number(a.session_id));
-					return !!sess && sess.topic_id === topicId;
+					if (sess && sess.topic_id === topicId) return true;
+					if (!widensToTopicless) return false;
+					if (a.session_id == null) return true;
+					return !!sess && sess.topic_id == null;
 				});
 			}
 			return { rows: rows.slice(0, 1).map((a) => ({ completed_at: a.completed_at })), rowCount: Math.min(1, rows.length) };
@@ -780,6 +797,10 @@ describe('POST /start — topic-scoped abandon (#1687)', () => {
 // (The catalogue's default-topic fallback surfacing of legacy history
 // is a display aggregate and is consciously NOT mirrored into the
 // gate — see the #1686 STOP 1 note.)
+// AMENDED by #1716 (Lead ruling, Option (b)): that edge decision is
+// superseded FOR THE DEFAULT TOPIC ONLY — see the #1716 block below.
+// It stands exactly as written for every non-default topic (pinned by
+// #1716 case (3), which is this block's case (c) shape).
 describe('POST /start — per-topic retake lockout (#1686)', () => {
 	const daysAgo = (n) => new Date(Date.now() - n * 24 * 3600 * 1000);
 	function seedCompletion(id, sessionId, topic_id, when) {
@@ -842,6 +863,88 @@ describe('POST /start — per-topic retake lockout (#1686)', () => {
 		const legacy = await start({ skillName: 'Rust', category: 'technical' });
 		expect(legacy.status).toBe(403);
 		expect(legacy.body.code).toBe('RETAKE_LOCKOUT');
+	});
+});
+
+// ── #1716: default-topic gate counts topic-less completions ────────────────
+// Lead ruling on #1716 (2026-10-22), Option (b) — gate-side only: the
+// #1686 edge decision above left ONE corner where the catalogue and
+// the gate disagree. The catalogue's C3 R4 fallback surfaces topic-less
+// legacy history on the subject's DEFAULT topic (the topic carrying
+// legacy_skill_name, migration 279) and computes canRetake:false from
+// it, while the per-topic gate read only that topic's own completions
+// and allowed the start — the UI note said locked, the gate allowed.
+// Ruled fix: when the started topic IS the default topic, the gate's
+// latest-completion read ALSO counts completions with no topic
+// attribution, in BOTH physical forms — skill_assessments.session_id
+// IS NULL (e.g. the candidate.js verification writer) and a session
+// whose topic_id IS NULL (pre-280 / in-flight legacy sessions). The
+// catalogue read model is NOT touched; non-default topics keep the
+// #1686 query exactly; the topic-less (hasTopic=false) branch is NOT
+// touched.
+describe('POST /start — default-topic retake lockout counts topic-less completions (#1716)', () => {
+	const daysAgo = (n) => new Date(Date.now() - n * 24 * 3600 * 1000);
+	// Form (i): a completion with NO session at all (session_id NULL).
+	function seedSessionlessCompletion(id, when) {
+		S.skillAssessments.push({
+			id, user_id: 7, skill_id: 4, session_id: null, score: 80, passed: true,
+			behavioral_flags: {}, completed_at: when,
+		});
+	}
+	// Form (ii): a completion whose session carries topic_id NULL.
+	function seedNullTopicCompletion(id, sessionId, when) {
+		S.sessions.push({
+			id: sessionId, user_id: 7, skill_id: 4, status: 'completed', topic_id: null,
+			questions_asked: [], answers_given: [], completed_at: when,
+		});
+		S.skillAssessments.push({
+			id, user_id: 7, skill_id: 4, session_id: sessionId, score: 80, passed: true,
+			behavioral_flags: {}, completed_at: when,
+		});
+	}
+
+	it('(1) default topic + topic-less completion (session_id NULL), 2 days old → 403 with the topic-keyed lockout shape', async () => {
+		addBank({ topic_id: 20, format: 'mcq', difficulty_level: 3, count: 12 });
+		const when = daysAgo(2);
+		seedSessionlessCompletion(1, when);
+		const res = await start({ topicId: 20, format: 'mcq', difficultyBand: 'medium', totalQuestions: 10 });
+		expect(res.status).toBe(403);
+		expect(res.body.code).toBe('RETAKE_LOCKOUT');
+		expect(res.body.lockoutDays).toBe(30);
+		expect(new Date(res.body.lastCompletedAt).getTime()).toBe(when.getTime());
+		expect(S.sessionInserts).toHaveLength(0);
+	});
+
+	it('(2) default topic + topic-less completion via a session with topic_id NULL, 2 days old → 403', async () => {
+		addBank({ topic_id: 20, format: 'mcq', difficulty_level: 3, count: 12 });
+		const when = daysAgo(2);
+		seedNullTopicCompletion(1, 610, when);
+		const res = await start({ topicId: 20, format: 'mcq', difficultyBand: 'medium', totalQuestions: 10 });
+		expect(res.status).toBe(403);
+		expect(res.body.code).toBe('RETAKE_LOCKOUT');
+		expect(res.body.lockoutDays).toBe(30);
+		expect(new Date(res.body.lastCompletedAt).getTime()).toBe(when.getTime());
+		expect(S.sessionInserts).toHaveLength(0);
+	});
+
+	it('(3) NON-default topic + the same topic-less history → start allowed (#1686 behaviour pinned)', async () => {
+		addBank({ topic_id: 21, format: 'mcq', difficulty_level: 3, count: 12 });
+		seedSessionlessCompletion(1, daysAgo(2));
+		seedNullTopicCompletion(2, 610, daysAgo(2));
+		const res = await start({ topicId: 21, format: 'mcq', difficultyBand: 'medium', totalQuestions: 10 });
+		expect(res.status).toBe(200);
+		expect(sessionById(res.body.sessionId).topic_id).toBe(21);
+		expect(sessionById(res.body.sessionId).status).toBe('in_progress');
+	});
+
+	it('(4) default topic + topic-less completions 31 days old → start allowed (outside the window)', async () => {
+		addBank({ topic_id: 20, format: 'mcq', difficulty_level: 3, count: 12 });
+		seedSessionlessCompletion(1, daysAgo(31));
+		seedNullTopicCompletion(2, 610, daysAgo(31));
+		const res = await start({ topicId: 20, format: 'mcq', difficultyBand: 'medium', totalQuestions: 10 });
+		expect(res.status).toBe(200);
+		expect(sessionById(res.body.sessionId).topic_id).toBe(20);
+		expect(sessionById(res.body.sessionId).status).toBe('in_progress');
 	});
 });
 

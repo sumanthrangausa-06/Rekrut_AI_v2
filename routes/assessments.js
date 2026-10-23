@@ -1033,21 +1033,60 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 		// exactly. hasTopic is declared here and reused by the #1687
 		// abandon block below (same snapshot key, same split).
 		const hasTopic = snapshot.topicId != null;
-		const lastCompleted = hasTopic
-			? await client.query(
-					`SELECT skill_assessments.completed_at FROM skill_assessments
+		// #1716 (Lead ruling, Option (b) — gate-side only): the #1686 edge
+		// decision above is amended for the subject's DEFAULT topic only.
+		// The catalogue's C3 R4 fallback surfaces topic-less legacy
+		// history on the default topic — the topic carrying
+		// legacy_skill_name (migration 279 sets it ONLY on a subject's
+		// default topic, the catalogue's own determination) — and
+		// computes canRetake from it, so for that topic the gate must
+		// read the same history or the UI note ("Retake available 30
+		// days after your last completed attempt") states a lockout the
+		// gate does not enforce. Defaultness is re-derived here from the
+		// started topic's own legacy_skill_name (the configured branch's
+		// topic local is out of scope at the gate; a legacy-body start
+		// snapshots this same default topic). For a default topic the
+		// read widens, via LEFT JOIN, to completions with no topic
+		// attribution in BOTH physical forms — a skill_assessments row
+		// with session_id IS NULL, and a session whose topic_id IS NULL —
+		// and the joined topics row re-checks legacy_skill_name
+		// IS NOT NULL inside the predicate, so the widening can never
+		// leak onto a non-default topic. Non-default topics keep the
+		// #1686 query byte-for-byte; the topic-less (hasTopic=false)
+		// branch is unchanged; the catalogue read model is not touched.
+		const startedTopic = hasTopic ? await findTopicById(client, snapshot.topicId) : null;
+		const isDefaultTopic = !!startedTopic?.legacy_skill_name;
+		let lastCompleted;
+		if (!hasTopic) {
+			lastCompleted = await client.query(
+				`SELECT completed_at FROM skill_assessments
+       WHERE user_id = $1 AND skill_id = $2 AND completed_at IS NOT NULL
+       ORDER BY completed_at DESC LIMIT 1`,
+				[userId, skill.id],
+			);
+		} else if (isDefaultTopic) {
+			lastCompleted = await client.query(
+				`SELECT skill_assessments.completed_at FROM skill_assessments
+       LEFT JOIN assessment_sessions ON assessment_sessions.id = skill_assessments.session_id
+       LEFT JOIN assessment_topics ON assessment_topics.id = $3
+       WHERE skill_assessments.user_id = $1 AND skill_assessments.skill_id = $2
+         AND skill_assessments.completed_at IS NOT NULL
+         AND (assessment_sessions.topic_id = $3
+              OR (assessment_topics.legacy_skill_name IS NOT NULL
+                  AND (assessment_sessions.topic_id IS NULL OR skill_assessments.session_id IS NULL)))
+       ORDER BY skill_assessments.completed_at DESC LIMIT 1`,
+				[userId, skill.id, snapshot.topicId],
+			);
+		} else {
+			lastCompleted = await client.query(
+				`SELECT skill_assessments.completed_at FROM skill_assessments
        JOIN assessment_sessions ON assessment_sessions.id = skill_assessments.session_id
        WHERE skill_assessments.user_id = $1 AND skill_assessments.skill_id = $2
          AND skill_assessments.completed_at IS NOT NULL AND assessment_sessions.topic_id = $3
        ORDER BY skill_assessments.completed_at DESC LIMIT 1`,
-					[userId, skill.id, snapshot.topicId],
-				)
-			: await client.query(
-					`SELECT completed_at FROM skill_assessments
-       WHERE user_id = $1 AND skill_id = $2 AND completed_at IS NOT NULL
-       ORDER BY completed_at DESC LIMIT 1`,
-					[userId, skill.id],
-				);
+				[userId, skill.id, snapshot.topicId],
+			);
+		}
 		if (
 			lastCompleted.rows.length > 0 &&
 			!canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, lastCompleted.rows[0].completed_at)
