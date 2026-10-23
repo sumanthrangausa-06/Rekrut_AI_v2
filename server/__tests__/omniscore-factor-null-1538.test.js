@@ -113,8 +113,10 @@ describe('#1538 persisted factor_scores — mixed candidate (experience present,
 		expect(factors.experience_quality).toBe(10);
 		expect(factors.education_credentials).toBeNull();
 		expect(factors.verified_skills).toBeNull();
-		// reliability_signals computes a neutral raw of 85 with zero inputs —
-		// hasData=false, so it must persist null, not the default-driven 85.
+		// reliability_signals has zero measured sub-signals here —
+		// hasData=false (#1776: raw is now a measured-only 0, previously a
+		// neutral-default 85), so it must persist null either way. This
+		// #1538 null expectation is unchanged by #1776.
 		expect(factors.reliability_signals).toBeNull();
 		// A candidate with data keeps a numeric total.
 		expect(typeof mockCaptured.updateParams[0]).toBe('number');

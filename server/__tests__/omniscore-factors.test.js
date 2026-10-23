@@ -43,12 +43,138 @@ describe('omniscore factor hasData flags', () => {
 		expect(result.hasData).toBe(false);
 	});
 
-	test('reliability_signals keeps neutral default score but flags no data', () => {
-		// Regression: a brand-new user scored 85/100 here from pure defaults
-		// (50 base + 15 attendance default + 20 follow-through default).
+	test('reliability_signals is measured-only: zero input scores 0 and flags no data (#1776)', () => {
+		// #1776 (panel ruling on #1761, Option D): the neutral base and the
+		// default attendance/follow-through rates are removed. A brand-new
+		// user previously scored 85/100 here from pure defaults (50 base +
+		// 15 attendance default + 20 follow-through default); now zero
+		// measured sub-signals means raw 0 with hasData=false, so #1538
+		// persists null and no attendance detail string is produced.
 		const result = calcReliabilitySignals(emptyData());
-		expect(result.raw).toBe(85);
+		expect(result.raw).toBe(0);
 		expect(result.hasData).toBe(false);
+		expect(result.details.join(' ')).not.toMatch(/attendance/i);
+		expect(result.coverageNote).toBeNull();
+	});
+
+	describe('#1776 reliability_signals — measured-only renormalisation', () => {
+		test('apps-only candidate: follow-through only, renormalised to 100, with coverage note', () => {
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				applications: [{ status: 'applied' }],
+			});
+			expect(result.hasData).toBe(true);
+			expect(result.raw).toBe(100); // followRate 1.0 renormalised over its 40-pt weight
+			expect(result.coverage).toEqual({ attendance: false, followThrough: true });
+			expect(result.coverageNote).toBe(
+				'based on application follow-through only; attendance: insufficient data',
+			);
+			// No interview exists, so no attendance-% detail may be produced.
+			expect(result.details.join(' ')).not.toMatch(/attendance/i);
+			expect(result.details.join(' ')).toMatch(/follow-through 100%/);
+		});
+
+		test('apps-only with withdrawals: raw reflects the measured follow rate alone', () => {
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				applications: [{ status: 'applied' }, { status: 'withdrawn' }],
+			});
+			expect(result.raw).toBe(50); // followRate 0.5 renormalised
+			expect(result.coverageNote).toMatch(/follow-through only/);
+		});
+
+		test('interviews-only candidate: attendance only, renormalised, with coverage note', () => {
+			// Real scheduled_interviews shape (Quinn #1776 gate evidence):
+			// attended is written as status 'completed' + outcome 'passed'
+			// (routes/recruiter.js PUT /interviews/:id); outcome 'completed'
+			// cannot exist — chk_scheduled_interviews_outcome allows only
+			// passed/failed/pending_review/no_decision/NULL.
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				interviews: [
+					{ status: 'completed', outcome: 'passed' },
+					{ status: 'completed', outcome: 'passed' },
+				],
+			});
+			expect(result.hasData).toBe(true);
+			expect(result.raw).toBe(100); // attendance 1.0 renormalised over its 60-pt weight
+			expect(result.coverage).toEqual({ attendance: true, followThrough: false });
+			expect(result.coverageNote).toBe(
+				'based on interview attendance only; application follow-through: insufficient data',
+			);
+		});
+
+		test('no-show penalty applies only when interviews are measured', () => {
+			// Real shape: a no-show is status 'no_show' with outcome NULL
+			// (the app's own representation, Quinn #1776 gate evidence) —
+			// outcome 'no_show' violates chk_scheduled_interviews_outcome
+			// (PG 23514), so the pre-fix { outcome: 'no_show' } mock could
+			// never occur on real data and the penalty never fired.
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				interviews: [
+					{ status: 'completed', outcome: 'passed' },
+					{ status: 'no_show', outcome: null },
+				],
+			});
+			// attendance 0.5 renormalised = 50, minus 10 no-show penalty
+			expect(result.raw).toBe(40);
+		});
+
+		test('cancelled interview (status) also incurs the no-show penalty', () => {
+			// status 'cancelled' is written by routes/recruiter.js (status
+			// passthrough + calendar branch), routes/interviews.js
+			// reschedule-cancel and routes/candidate.js decline — always as
+			// STATUS; outcome 'cancelled' is not storable (CHECK above).
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				interviews: [
+					{ status: 'completed', outcome: 'passed' },
+					{ status: 'cancelled', outcome: null },
+				],
+			});
+			expect(result.raw).toBe(40);
+		});
+
+		test('Quinn gate scenario (#1776): 1 app + attended + no-show in real shapes => 60', () => {
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				interviews: [
+					{ status: 'completed', outcome: 'passed' },
+					{ status: 'no_show', outcome: null },
+				],
+				applications: [{ status: 'applied' }],
+			});
+			// a = 1/2, f = 1: 60*0.5 + 40*1 - 10 penalty = 60 (pre-fix: 70)
+			expect(result.raw).toBe(60);
+			expect(result.coverage).toEqual({ attendance: true, followThrough: true });
+			expect(result.coverageNote).toBeNull();
+			expect(result.details.join(' ')).toMatch(/1 no-shows\/cancellations \(-10\)/);
+		});
+
+		test('fully-measured candidate: raw = 60a + 40f - penalty (panel worked example 75 -> 50)', () => {
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				interviews: [
+					{ status: 'completed', outcome: 'passed' },
+					{ status: 'scheduled', outcome: null },
+				],
+				applications: [{ status: 'applied' }, { status: 'withdrawn' }],
+			});
+			expect(result.raw).toBe(50); // 60*0.5 + 40*0.5, no no-shows
+			expect(result.coverage).toEqual({ attendance: true, followThrough: true });
+			expect(result.coverageNote).toBeNull();
+		});
+
+		test('fully-measured perfect candidate stays 100', () => {
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				interviews: [{ status: 'completed', outcome: 'passed' }],
+				applications: [{ status: 'applied' }],
+			});
+			expect(result.raw).toBe(100);
+			expect(result.coverageNote).toBeNull();
+		});
 	});
 
 	test('market_demand flags no data when no matches and no skills', () => {

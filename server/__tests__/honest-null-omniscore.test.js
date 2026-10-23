@@ -157,10 +157,11 @@ describe('#1192 OmniScore — with-inputs regression (unchanged computation)', (
 			},
 		];
 		const score = await calculateScore(EMPTY_USER);
-		// verified_skills raw 8, reliability raw 85 (neutral, hasData=false),
+		// verified_skills raw 8, reliability raw 0 (#1776 measured-only:
+		// hasData=false and no neutral 85 — it contributes nothing),
 		// market_demand raw 40, growth raw 10 →
-		// round(300 + (0.25*8 + 0.10*85 + 0.05*40 + 0.05*10)/100*550) = 372
-		expect(score.total_score).toBe(372);
+		// round(300 + (0.25*8 + 0.10*0 + 0.05*40 + 0.05*10)/100*550) = 325
+		expect(score.total_score).toBe(325);
 		expect(score.tier).toBe('needs_work');
 		expect(score.tier_label).toBe('Needs Work');
 		expect(typeof score.peer_percentile).toBe('number');
@@ -187,7 +188,7 @@ describe('#1251 calculateScore peer-percentile — NULL percentile stays null (h
 		mockState.percentile = null;
 		await getOrCreateScore(EMPTY_USER);
 		const score = await calculateScore(EMPTY_USER);
-		expect(score.total_score).toBe(372);
+		expect(score.total_score).toBe(325); // #1776: reliability measured-only (was 372 with the neutral 85)
 		expect(score.peer_percentile).toBeNull();
 		// Persisted row and snapshot must carry the honest null too.
 		expect(mockState.omniRow.peer_percentile).toBeNull();
@@ -227,12 +228,14 @@ describe('#1192 legacy persisted omni rows — heal script (engine-arbitrated re
 		expect((await storedRead()).total_score).toBeNull();
 	});
 
-	test('live heal: a genuine row keeps its exact engine number (372, not erased)', async () => {
+	test('live heal: a genuine row keeps its exact engine number (325, not erased)', async () => {
 		mockState.skills = [SKILL];
-		mockState.omniRow = { user_id: EMPTY_USER, total_score: 372, score_tier: 'needs_work' };
+		// #1776: the engine number for this skill-only candidate is 325
+		// under measured-only reliability semantics (was 372 pre-#1776).
+		mockState.omniRow = { user_id: EMPTY_USER, total_score: 325, score_tier: 'needs_work' };
 		const report = await loadHeal()({ live: true });
 		expect(report.omni.would_keep_number).toBe(1);
-		expect((await storedRead()).total_score).toBe(372);
+		expect((await storedRead()).total_score).toBe(325);
 	});
 
 	test('tombstoned user (deleted_at set) is skipped and never recomputed', async () => {
