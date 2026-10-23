@@ -407,7 +407,10 @@ function installDbMock() {
 		}
 
 		// ── retake gate / completion reads on skill_assessments ──
-		if (sql.includes('select completed_at from skill_assessments')) {
+		if (
+			sql.includes('select completed_at from skill_assessments') ||
+			sql.includes('select skill_assessments.completed_at from skill_assessments')
+		) {
 			let rows = S.skillAssessments
 				.filter((a) => a.user_id === Number(params[0]) && a.skill_id === Number(params[1]) && a.completed_at)
 				.sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));

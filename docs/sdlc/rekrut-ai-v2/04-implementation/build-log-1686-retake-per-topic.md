@@ -127,3 +127,4 @@ without this change). Pre-existing failures, zero regressions.
   (see the edge decision for the flagged follow-up).
 - No E2E-on-dev run in this lane (worktree-only, per dispatch); the
   journey / fresh-install gate remains for the parent's landing pass.
+- Fix round (Lead catch, HL-003): the topic-gate SELECT's unqualified completed_at was ambiguous against assessment_sessions.completed_at (006) and would 500 on real Postgres — qualified it to skill_assessments.completed_at (all other columns in the query were already qualified / verified against both schemas incl. 280 topic_id); C2/C3 dispatchers now also match the qualified prefix.

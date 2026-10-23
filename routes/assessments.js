@@ -1032,7 +1032,7 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 		const hasTopic = snapshot.topicId != null;
 		const lastCompleted = hasTopic
 			? await client.query(
-					`SELECT completed_at FROM skill_assessments
+					`SELECT skill_assessments.completed_at FROM skill_assessments
        JOIN assessment_sessions ON assessment_sessions.id = skill_assessments.session_id
        WHERE skill_assessments.user_id = $1 AND skill_assessments.skill_id = $2
          AND skill_assessments.completed_at IS NOT NULL AND assessment_sessions.topic_id = $3
