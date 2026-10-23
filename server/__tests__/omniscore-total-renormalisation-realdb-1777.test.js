@@ -84,7 +84,7 @@ describeIfDb('#1777 total renormalisation — real DB (Quinn gate scenario)', ()
 
 	test('one measured factor: persisted total is that factor alone (850), all other factors null', async () => {
 		const score = await calculateScore(U_SOLO);
-		expect(score.scoring_semantics_version).toBe('v4-total-renormalised');
+		expect(score.scoring_semantics_version).toBe('v5-interview-performance-vocab');
 		expect(score.factors.reliability_signals.hasData).toBe(true);
 		expect(score.factors.reliability_signals.raw).toBe(100);
 		for (const [key, f] of Object.entries(score.factors)) {
