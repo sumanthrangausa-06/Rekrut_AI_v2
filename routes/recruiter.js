@@ -2366,6 +2366,16 @@ router.put(
 		try {
 			const { status, outcome, feedback, meeting_link } = req.body;
 
+			// #1783: outcome is a closed vocabulary
+			// (chk_scheduled_interviews_outcome) — an out-of-vocabulary
+			// value must be an honest 400, not a PG 23514 500.
+			const ALLOWED_OUTCOMES = ['passed', 'failed', 'pending_review', 'no_decision'];
+			if (outcome != null && !ALLOWED_OUTCOMES.includes(outcome)) {
+				return res.status(400).json({
+					error: `Invalid interview outcome: ${outcome}. Allowed: ${ALLOWED_OUTCOMES.join(', ')}`,
+				});
+			}
+
 			const result = await pool.query(
 				`UPDATE scheduled_interviews SET
         status = COALESCE($1, status),
