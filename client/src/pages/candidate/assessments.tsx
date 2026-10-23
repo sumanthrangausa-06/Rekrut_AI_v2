@@ -33,7 +33,7 @@ interface AssessmentResult {
 	score: number | null;
 	max_score: number | null;
 	passed: boolean;
-	anti_cheat_score: number;
+	anti_cheat_score: number | null;
 	duration_seconds: number;
 	completed_at: string;
 	title: string;
@@ -509,7 +509,7 @@ export function CandidateAssessmentsPage() {
 											</div>
 											<div className="text-right">
 												{!rPartial && <div className="text-2xl font-bold">{r.score}%</div>}
-												{r.anti_cheat_score < 80 && (
+												{r.anti_cheat_score != null && r.anti_cheat_score < 80 && (
 													<span className="text-xs text-amber-600">
 														Integrity: {r.anti_cheat_score}%
 													</span>

@@ -1022,11 +1022,16 @@ async function applyDocumentScoresToOmniScore(userId) {
 
 		const totalImpact = impacts.rows.reduce((sum, imp) => sum + imp.score_impact, 0);
 
-		// Update OmniScore
+		// Update OmniScore — #1715 O2: a fresh row gets total_score NULL,
+		// never 300 + impact. 300 is the floor of a *computed* 8-factor
+		// OmniScore (services/omniscore.js #1192 contract: honest null until
+		// the engine computes a total); this writer only applies a measured
+		// document delta, carried here as resume_score. On conflict the
+		// delta still applies to a real stored total (NULL + $2 stays NULL).
 		const omniscoreResult = await client.query(
 			`
       INSERT INTO omni_scores (user_id, total_score, resume_score)
-      VALUES ($1, 300 + $2, $2)
+      VALUES ($1, NULL, $2)
       ON CONFLICT (user_id) DO UPDATE
       SET resume_score = omni_scores.resume_score + $2,
           total_score = omni_scores.total_score + $2,
