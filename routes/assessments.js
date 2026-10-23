@@ -481,7 +481,7 @@ async function buildAvailableFromConstant(userId) {
              MAX(sa.score) as best_score,
              MAX(sa.completed_at) as last_attempted
       FROM candidate_skills cs
-      LEFT JOIN skill_assessments sa ON cs.id = sa.skill_id AND sa.completed_at IS NOT NULL
+      LEFT JOIN skill_assessments sa ON cs.id = sa.skill_id AND sa.user_id = $1 AND sa.completed_at IS NOT NULL
       WHERE cs.user_id = $1
       GROUP BY cs.id
       ORDER BY cs.is_verified ASC, cs.created_at DESC

@@ -559,7 +559,16 @@ describe('#1653 C1 — GET /catalog', () => {
 		const raw = JSON.stringify(resB.body);
 		expect(raw).not.toContain('"attempts":3');
 		const progressSql = FX.queries.find((q) => q.includes('distinct on'));
-		expect(progressSql).toContain('user_id');
+		expect(progressSql).toBeDefined();
+		// #1670: pin ALL THREE user_id predicates in the progress query —
+		// latest CTE (sa.user_id = $1), agg CTE (sa.user_id = $1) and the
+		// outer candidate_skills read (cs.user_id = $1). The mock dispatcher
+		// keys rows by the bound parameter regardless of SQL text, so only
+		// these SQL assertions can catch a WHERE-clause regression in any
+		// one CTE (deleting a single predicate must turn this test red).
+		expect(progressSql.match(/sa\.user_id = \$1/g)).toHaveLength(2);
+		expect(progressSql).toContain('cs.user_id = $1');
+		expect(progressSql.match(/user_id = \$1/g)).toHaveLength(3);
 	});
 
 	it('payload denylist: no question-content keys in /catalog (R4)', async () => {
