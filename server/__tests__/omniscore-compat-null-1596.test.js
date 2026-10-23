@@ -30,6 +30,13 @@
  * unmeasured raw in would preserve the filed fabrication (and halve a
  * real resume 10 into 5).
  *
+ * #1776 UPDATE (panel ruling on #1761, Option D): calcReliabilitySignals
+ * is measured-only now (no neutral base, no default rates). The one-app
+ * expectations below therefore use the follow-through-only renormalised
+ * raw 100 instead of the old neutral-default 85; the #1596 rule itself
+ * (compat columns average MEASURED sources only, null when none) is
+ * unchanged, and the no-data / mixed-resume cases pass as before.
+ *
  * Real-DB suite: runs the real calculateScore() against a fresh
  * migrate.js-built Postgres; persisted omni_scores rows are read back.
  *
@@ -74,7 +81,10 @@ async function cleanAndSeed() {
 		]);
 	}
 	// U_ONEAPP: exactly one application, nothing else — the #1588 repro.
-	// reliability_signals hasData=true (applications > 0), raw = 50 + 15 + 20 = 85;
+	// #1776 (panel ruling on #1761, Option D): reliability_signals is
+	// measured-only now — hasData=true (applications > 0) with the
+	// follow-through-only renormalised raw 100 (was 85 = 50 neutral base +
+	// 15 default-attendance + 20 follow-through under the old semantics);
 	// soft_skills hasData=false, raw 0.
 	await q(
 		`INSERT INTO job_applications (candidate_id, status, is_auto_applied, applied_via)
@@ -154,19 +164,25 @@ describeIfDb('#1596 OmniScore compat columns — honest nulls (real DB)', () => 
 		expect(row.behavior_score).toBeNull();
 	});
 
-	test('one-application candidate (#1588 repro): behavior is the measured 85, never the fabricated 43', async () => {
+	test('one-application candidate (#1588 repro): behavior is the measured reliability alone, never the fabricated 43', async () => {
 		const score = await calculateScore(U_ONEAPP);
-		// reliability_signals is the only measured behavior source (raw 85);
-		// soft_skills has no data, so it must not halve the value to 43.
+		// reliability_signals is the only measured behavior source — under
+		// #1776 measured-only semantics its raw is the follow-through-only
+		// renormalised 100 (the old neutral-default raw was 85); soft_skills
+		// has no data, so it must not halve the value to 43 (or 50).
 		expect(score.factors.reliability_signals.hasData).toBe(true);
+		expect(score.factors.reliability_signals.raw).toBe(100);
+		expect(score.factors.reliability_signals.coverageNote).toBe(
+			'based on application follow-through only; attendance: insufficient data',
+		);
 		expect(score.factors.soft_skills.hasData).toBe(false);
-		expect(score.behavior).toBe(85);
+		expect(score.behavior).toBe(100);
 		// The other compat columns have no measured source at all.
 		expect(score.interview).toBeNull();
 		expect(score.technical).toBeNull();
 		expect(score.resume).toBeNull();
 		const row = await persistedRow(U_ONEAPP);
-		expect(row.behavior_score).toBe(85);
+		expect(row.behavior_score).toBe(100);
 		expect(row.interview_score).toBeNull();
 		expect(row.technical_score).toBeNull();
 		expect(row.resume_score).toBeNull();
@@ -183,22 +199,24 @@ describeIfDb('#1596 OmniScore compat columns — honest nulls (real DB)', () => 
 		expect(row.resume_score).toBe(10);
 	});
 
-	test('fully-measured control candidate: compat columns unchanged from the measured averages', async () => {
+	test('fully-measured control candidate: compat columns are the measured averages (reliability per #1776)', async () => {
 		const score = await calculateScore(U_FULL);
 		expect(score.factors.verified_skills.raw).toBe(8);
 		expect(score.factors.interview_performance.raw).toBe(40);
 		expect(score.factors.experience_quality.raw).toBe(10);
 		expect(score.factors.education_credentials.raw).toBe(25);
-		expect(score.factors.reliability_signals.raw).toBe(85);
+		// #1776: U_FULL's reliability is follow-through-only (1 application,
+		// 0 interviews) => renormalised 100 (old neutral-default raw was 85).
+		expect(score.factors.reliability_signals.raw).toBe(100);
 		expect(score.factors.soft_skills.raw).toBe(48);
 		expect(score.technical).toBe(8);
 		expect(score.interview).toBe(40);
 		expect(score.resume).toBe(18); // round((10 + 25) / 2)
-		expect(score.behavior).toBe(67); // round((85 + 48) / 2)
+		expect(score.behavior).toBe(74); // round((100 + 48) / 2)
 		const row = await persistedRow(U_FULL);
 		expect(row.technical_score).toBe(8);
 		expect(row.interview_score).toBe(40);
 		expect(row.resume_score).toBe(18);
-		expect(row.behavior_score).toBe(67);
+		expect(row.behavior_score).toBe(74);
 	});
 });

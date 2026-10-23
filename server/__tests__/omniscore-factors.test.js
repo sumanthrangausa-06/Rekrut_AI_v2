@@ -43,12 +43,88 @@ describe('omniscore factor hasData flags', () => {
 		expect(result.hasData).toBe(false);
 	});
 
-	test('reliability_signals keeps neutral default score but flags no data', () => {
-		// Regression: a brand-new user scored 85/100 here from pure defaults
-		// (50 base + 15 attendance default + 20 follow-through default).
+	test('reliability_signals is measured-only: zero input scores 0 and flags no data (#1776)', () => {
+		// #1776 (panel ruling on #1761, Option D): the neutral base and the
+		// default attendance/follow-through rates are removed. A brand-new
+		// user previously scored 85/100 here from pure defaults (50 base +
+		// 15 attendance default + 20 follow-through default); now zero
+		// measured sub-signals means raw 0 with hasData=false, so #1538
+		// persists null and no attendance detail string is produced.
 		const result = calcReliabilitySignals(emptyData());
-		expect(result.raw).toBe(85);
+		expect(result.raw).toBe(0);
 		expect(result.hasData).toBe(false);
+		expect(result.details.join(' ')).not.toMatch(/attendance/i);
+		expect(result.coverageNote).toBeNull();
+	});
+
+	describe('#1776 reliability_signals — measured-only renormalisation', () => {
+		test('apps-only candidate: follow-through only, renormalised to 100, with coverage note', () => {
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				applications: [{ status: 'applied' }],
+			});
+			expect(result.hasData).toBe(true);
+			expect(result.raw).toBe(100); // followRate 1.0 renormalised over its 40-pt weight
+			expect(result.coverage).toEqual({ attendance: false, followThrough: true });
+			expect(result.coverageNote).toBe(
+				'based on application follow-through only; attendance: insufficient data',
+			);
+			// No interview exists, so no attendance-% detail may be produced.
+			expect(result.details.join(' ')).not.toMatch(/attendance/i);
+			expect(result.details.join(' ')).toMatch(/follow-through 100%/);
+		});
+
+		test('apps-only with withdrawals: raw reflects the measured follow rate alone', () => {
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				applications: [{ status: 'applied' }, { status: 'withdrawn' }],
+			});
+			expect(result.raw).toBe(50); // followRate 0.5 renormalised
+			expect(result.coverageNote).toMatch(/follow-through only/);
+		});
+
+		test('interviews-only candidate: attendance only, renormalised, with coverage note', () => {
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				interviews: [{ outcome: 'completed' }, { outcome: 'completed' }],
+			});
+			expect(result.hasData).toBe(true);
+			expect(result.raw).toBe(100); // attendance 1.0 renormalised over its 60-pt weight
+			expect(result.coverage).toEqual({ attendance: true, followThrough: false });
+			expect(result.coverageNote).toBe(
+				'based on interview attendance only; application follow-through: insufficient data',
+			);
+		});
+
+		test('no-show penalty applies only when interviews are measured', () => {
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				interviews: [{ outcome: 'completed' }, { outcome: 'no_show' }],
+			});
+			// attendance 0.5 renormalised = 50, minus 10 no-show penalty
+			expect(result.raw).toBe(40);
+		});
+
+		test('fully-measured candidate: raw = 60a + 40f - penalty (panel worked example 75 -> 50)', () => {
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				interviews: [{ outcome: 'completed' }, { outcome: 'scheduled' }],
+				applications: [{ status: 'applied' }, { status: 'withdrawn' }],
+			});
+			expect(result.raw).toBe(50); // 60*0.5 + 40*0.5, no no-shows
+			expect(result.coverage).toEqual({ attendance: true, followThrough: true });
+			expect(result.coverageNote).toBeNull();
+		});
+
+		test('fully-measured perfect candidate stays 100', () => {
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				interviews: [{ outcome: 'passed' }],
+				applications: [{ status: 'applied' }],
+			});
+			expect(result.raw).toBe(100);
+			expect(result.coverageNote).toBeNull();
+		});
 	});
 
 	test('market_demand flags no data when no matches and no skills', () => {
