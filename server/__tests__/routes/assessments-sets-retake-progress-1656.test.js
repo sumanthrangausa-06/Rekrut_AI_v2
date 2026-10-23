@@ -418,11 +418,27 @@ function installDbMock() {
 			// predicates on its topic_id — apply that filter ONLY when
 			// the route's SQL actually carries it (the suites' standing
 			// emulation rule), mirroring the C2 suite's gate branch.
+			// #1716: the default-topic widening is emulated the same way,
+			// mirroring the C2 suite's gate branch — topic-less rows count
+			// ONLY when the route's SQL carries the LEFT JOIN, the started
+			// topic's legacy_skill_name guard and both explicit IS NULL
+			// predicates, AND the started topic actually carries a
+			// legacy_skill_name (a subject's default topic, migration 279).
 			if (sql.includes('join assessment_sessions') && sql.includes('topic_id')) {
 				const topicId = Number(params[2]);
+				const startedTopic = S.topics.find((t) => t.id === topicId);
+				const widensToTopicless =
+					sql.includes('left join assessment_sessions') &&
+					sql.includes('legacy_skill_name is not null') &&
+					sql.includes('topic_id is null') &&
+					sql.includes('session_id is null') &&
+					!!startedTopic?.legacy_skill_name;
 				rows = rows.filter((a) => {
 					const sess = S.sessions.find((s) => s.id === Number(a.session_id));
-					return !!sess && sess.topic_id === topicId;
+					if (sess && sess.topic_id === topicId) return true;
+					if (!widensToTopicless) return false;
+					if (a.session_id == null) return true;
+					return !!sess && sess.topic_id == null;
 				});
 			}
 			return { rows: rows.slice(0, 1).map((a) => ({ completed_at: a.completed_at })), rowCount: Math.min(1, rows.length) };
