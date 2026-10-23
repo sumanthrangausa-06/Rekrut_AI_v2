@@ -1064,6 +1064,33 @@ async function applyDocumentScoresToOmniScore(userId) {
 
 		const totalImpact = impacts.rows.reduce((sum, imp) => sum + imp.score_impact, 0);
 
+		// #1759: an existing row with resume_score NULL has no measured
+		// resume score to add a delta to — in SQL, NULL + $2 stays NULL, so
+		// the upsert below would swallow the delta while this function
+		// reported score_change = totalImpact, marked the impacts applied
+		// (delta lost for good) and wrote a score_history row for a change
+		// that never happened. COALESCE(resume_score, 0) + $2 is NOT the
+		// fix: it would fabricate a measured-looking resume score out of a
+		// document delta alone — the same invention #1715 refused for
+		// total_score (NULL, never 300 + impact). Instead apply nothing,
+		// leave the impacts unapplied so a later run can apply them once
+		// resume_score is measured, and report the delta as unapplied.
+		// FOR UPDATE keeps the check and the upsert below atomic.
+		const existing = await client.query(
+			'SELECT resume_score, total_score FROM omni_scores WHERE user_id = $1 FOR UPDATE',
+			[userId],
+		);
+		if (existing.rows.length > 0 && existing.rows[0].resume_score === null) {
+			await client.query('COMMIT');
+			return {
+				success: true,
+				score_change: 0,
+				applied: false,
+				unapplied_impact: totalImpact,
+				new_score: existing.rows[0].total_score,
+			};
+		}
+
 		// Update OmniScore — #1715 O2: a fresh row gets total_score NULL,
 		// never 300 + impact. 300 is the floor of a *computed* 8-factor
 		// OmniScore (services/omniscore.js #1192 contract: honest null until
