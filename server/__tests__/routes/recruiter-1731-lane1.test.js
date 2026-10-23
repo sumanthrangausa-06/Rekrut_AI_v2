@@ -90,6 +90,7 @@ CREATE TABLE candidate_skills (user_id INTEGER, skill_name TEXT, level TEXT, cat
 describeIfDb('#1731 Lane 1 — top-candidate / matchScore honesty (real DB)', () => {
 	let pool;
 	let app;
+	let analyticsCache;
 
 	// omni: 'no-row' | 'row-null' | measured integer total_score
 	async function seedCandidate(id, omni, matchScore) {
@@ -130,6 +131,9 @@ describeIfDb('#1731 Lane 1 — top-candidate / matchScore honesty (real DB)', ()
 		process.env.DATABASE_URL = DB_URL;
 		jest.resetModules();
 		pool = require('../../../lib/db');
+		// Required after jest.resetModules() so this is the same singleton
+		// instance the freshly loaded recruiter router uses.
+		analyticsCache = require('../../../lib/analytics-cache').analyticsCache;
 		const recruiterRouter = require('../../../routes/recruiter');
 		app = express();
 		app.use(express.json());
@@ -143,6 +147,7 @@ describeIfDb('#1731 Lane 1 — top-candidate / matchScore honesty (real DB)', ()
 
 	beforeEach(async () => {
 		jest.clearAllMocks();
+		analyticsCache.clear();
 		await pool.query(`DELETE FROM candidate_skills`);
 		await pool.query(`DELETE FROM job_applications`);
 		await pool.query(`DELETE FROM omni_scores`);
