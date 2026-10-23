@@ -44,3 +44,29 @@ reported commit/push did not exist on the remote, so Lead completed the lane
   **1** with `FAIL: (b) curated+approved total == 6 (genuine seed rows) — got 6`
   and the `main().catch` failure line. File restored byte-identical afterwards
   (diff back to the intended 25-insertions/1-deletion change).
+
+## Addendum — review BLOCK fix-forward (2026-10-23, same programme run)
+
+The independent database+code review of PR #1773 returned **BLOCK** (Finding 1),
+but a truncated summary reached Lead as APPROVE and PR #1773 was merged
+(dev `52b7b5b26`) and #1667 closed on that basis. Issue #1667 was reopened with
+a correction comment (6373644668) and this addendum's change is the forward fix.
+
+- **Finding 1 (blocking):** assertions (a)/(d) used `NOT (curated AND approved)`,
+  but serving requires only `review_status='approved'`
+  (`routes/assessments.js` serves approved rows regardless of source), so a
+  hazard left `legacy/approved` would have passed all checks while staying
+  servable. **Fix:** (a) and (d) now assert the exact demoted state via
+  `isLegacyPending` (`source='legacy' AND review_status='pending'`) — the
+  harness's documented GREEN expectation and migration 282's demote target.
+- **Finding 2 (low):** the errata note cited header lines 15–16; the phrase is
+  at lines 14–15. Corrected.
+
+Evidence (Lead, first-hand, fresh throwaway DBs via migrate.js, PG 55433):
+- GREEN: exit 0, 7/7 PASS under the exact-state assertions.
+- RED — the Finding-1 scenario itself: migration 282's demote temporarily
+  mutated to `SET source='legacy', review_status='approved'` → harness exit 1,
+  with the failure raised by the new (d) checks
+  (`FAIL: (d) Phase-3 poison row demoted … — source=legacy review_status=approved`,
+  ×2). Under the old predicate this state passed silently. Migration restored
+  via git checkout afterwards.
