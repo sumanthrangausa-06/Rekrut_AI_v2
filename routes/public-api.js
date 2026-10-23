@@ -193,7 +193,13 @@ router.get('/candidates', apiAuthMiddleware, async (req, res) => {
         u.id, u.name, u.email, u.avatar_url,
         cp.headline, cp.location, cp.years_experience,
         ja.status as application_status, ja.applied_at,
-        COALESCE(os.total_score, ja.match_score, 0) as omniscore
+        -- #1731 S-4: omniscore is the measured OmniScore or NULL — never a
+        -- substituted match score, never a fabricated 0. The match score is
+        -- exposed under its own name. *_status mirrors the #1717/#1725 shape.
+        os.total_score as omniscore,
+        CASE WHEN os.total_score IS NULL THEN 'insufficient_data' ELSE 'measured' END as omniscore_status,
+        ja.match_score as match_score,
+        CASE WHEN ja.match_score IS NULL THEN 'insufficient_data' ELSE 'measured' END as match_score_status
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
