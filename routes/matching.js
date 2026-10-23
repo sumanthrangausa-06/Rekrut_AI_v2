@@ -332,13 +332,25 @@ router.get('/stats', authMiddleware, async (req, res) => {
 			});
 		} else {
 			// Recruiter stats
+			// #1728a: avg_match_score is the fully-measured average ONLY.
+			// A weighted_score whose basis was renormalised over measured
+			// components only (either at-match column NULL, #1717/#1724
+			// semantics) is reported separately — never blended into the
+			// headline average. Empty bucket → NULL average, never 0.
+			// Legacy caveat: rows calculated before the #1717/#1724
+			// honesty fixes can carry at-match values from the
+			// fabricated-score era and are indistinguishable; the split
+			// is truthful for rows calculated at/after those fixes.
 			const result = await pool.query(
 				`
         SELECT
           j.id as job_id,
           j.title,
           COUNT(mr.id) as candidate_matches,
-          AVG(mr.weighted_score) as avg_match_score,
+          AVG(mr.weighted_score) FILTER (WHERE mr.omniscore_at_match IS NOT NULL AND mr.trustscore_at_match IS NOT NULL) as avg_match_score,
+          COUNT(mr.id) FILTER (WHERE mr.omniscore_at_match IS NOT NULL AND mr.trustscore_at_match IS NOT NULL) as fully_measured_matches,
+          COUNT(mr.id) FILTER (WHERE mr.omniscore_at_match IS NULL OR mr.trustscore_at_match IS NULL) as insufficient_data_matches,
+          AVG(mr.weighted_score) FILTER (WHERE mr.omniscore_at_match IS NULL OR mr.trustscore_at_match IS NULL) as avg_insufficient_data_score,
           COUNT(CASE WHEN mr.match_level = 'excellent' THEN 1 END) as excellent_matches
         FROM jobs j
         LEFT JOIN match_results mr ON j.id = mr.job_id
