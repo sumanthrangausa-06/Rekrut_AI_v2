@@ -830,9 +830,12 @@ async function explainMatch(candidateId, jobId) {
 			};
 		}
 
+		// #1748: no match was found, so nothing was measured — the honest
+		// weighted_score is null, never an invented 0 (which #1731 Lane 3's
+		// audit writer would otherwise record as a measured confidence 0).
 		return {
 			match_level: 'none',
-			weighted_score: 0,
+			weighted_score: null,
 			explanation: {
 				reason: 'Profile does not meet minimum requirements for this position',
 			},
