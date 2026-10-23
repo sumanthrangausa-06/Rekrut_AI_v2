@@ -43,6 +43,21 @@ function handleValidationErrors(req, res, next) {
 	next();
 }
 
+// #1728b: judge a cached match_results row for the fallback Top-5 gate.
+// A weighted_score renormalised over measured components only (either
+// at-match column NULL — #1717/#1724 semantics) is not fully-measured
+// evidence: the gate must refuse it ('insufficient'), never act on it.
+// A NULL weighted_score is no evidence at all ('none' — S-11, #1731).
+// Only a fully-measured row is judged by the >= 70 heuristic.
+function judgeCachedMatch(row) {
+	if (!row || row.weighted_score == null) return { state: 'none' };
+	if (row.omniscore_at_match == null || row.trustscore_at_match == null) {
+		return { state: 'insufficient' };
+	}
+	const fitScore = Math.round(row.weighted_score);
+	return { state: fitScore >= 70 ? 'top' : 'below', fitScore };
+}
+
 // In-app notification helper (non-blocking)
 async function sendInAppNotification(userId, type, title, message, metadata = {}) {
 	try {
@@ -133,6 +148,7 @@ router.post(
 			let rank = null;
 			let fitScore = null;
 			let isTopFive = false;
+			let insufficientData = false;
 
 			if (matchingEngine?.findMatchingCandidates) {
 				try {
@@ -152,29 +168,45 @@ router.post(
 					console.warn('[recruiter-intros] Matching engine error:', matchErr.message);
 					// Fallback: check cached match_results
 					const cachedMatch = await pool.query(
-						`SELECT weighted_score FROM match_results WHERE candidate_id = $1 AND job_id = $2`,
+						`SELECT weighted_score, omniscore_at_match, trustscore_at_match FROM match_results WHERE candidate_id = $1 AND job_id = $2`,
 						[candidateId, job_id],
 					);
-					if (cachedMatch.rows.length > 0 && cachedMatch.rows[0].weighted_score != null) {
-						// #1731 Lane 3 (S-11): a NULL cached score is no evidence —
-						// it establishes nothing; only a measured score is judged.
-						fitScore = Math.round(cachedMatch.rows[0].weighted_score);
+					// #1731 Lane 3 (S-11): a NULL cached score is no evidence —
+					// it establishes nothing; only a measured score is judged.
+					// #1728b: a renormalised score is refused, not judged.
+					const judged = judgeCachedMatch(cachedMatch.rows[0]);
+					if (judged.fitScore != null) fitScore = judged.fitScore;
+					if (judged.state === 'insufficient') {
+						insufficientData = true;
+					} else if (judged.state === 'top') {
 						// Without exact ranking, we allow if score >= 70 (heuristic for top-tier)
-						isTopFive = fitScore >= 70;
+						isTopFive = true;
 						rank = null;
 					}
 				}
 			} else {
 				// Fallback when matching engine unavailable
 				const cachedMatch = await pool.query(
-					`SELECT weighted_score FROM match_results WHERE candidate_id = $1 AND job_id = $2`,
+					`SELECT weighted_score, omniscore_at_match, trustscore_at_match FROM match_results WHERE candidate_id = $1 AND job_id = $2`,
 					[candidateId, job_id],
 				);
-				if (cachedMatch.rows.length > 0 && cachedMatch.rows[0].weighted_score != null) {
-					// #1731 Lane 3 (S-11): NULL cached score = no evidence (see above).
-					fitScore = Math.round(cachedMatch.rows[0].weighted_score);
-					isTopFive = fitScore >= 70;
+				// #1731 Lane 3 (S-11): NULL cached score = no evidence (see above).
+				// #1728b: a renormalised score is refused, not judged.
+				const judged = judgeCachedMatch(cachedMatch.rows[0]);
+				if (judged.fitScore != null) fitScore = judged.fitScore;
+				if (judged.state === 'insufficient') {
+					insufficientData = true;
+				} else if (judged.state === 'top') {
+					isTopFive = true;
 				}
+			}
+
+			if (insufficientData) {
+				return res.status(403).json({
+					error:
+						'Insufficient data: this match lacks fully-measured evidence for an introduction',
+					code: 'INSUFFICIENT_DATA',
+				});
 			}
 
 			if (!isTopFive) {
