@@ -1684,6 +1684,7 @@ router.post('/session/:sessionId/exit', authMiddleware, async (req, res) => {
 				partial: completion.partial === true,
 				score: completion.score ?? null,
 				passed: completion.passed === true,
+				verifiedEligible: completion.passed === true && completion.partial !== true,
 				correctCount: completion.correctCount ?? null,
 				fullscreenAutoSubmit: completion.fullscreenAutoSubmit === true,
 				...(draft != null ? { draftExcluded: true } : {}),
@@ -2819,6 +2820,9 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 				durationSeconds: assessment.duration_seconds || 0,
 				maxDifficultyReached: session.max_difficulty_reached || 0,
 				partial: cPartial,
+				// #1678 (GAP-4): THIS attempt's stored passed decision, never
+				// candidate_skills.is_verified (cumulative across attempts).
+				verifiedEligible: assessment.passed === true && !cPartial,
 				answersGiven: cFlags.answers_given ?? parseJsonArray(session.answers_given).length,
 				totalQuestions: cFlags.total_questions ?? sessionTotal(session),
 				// #1654: the §5.2/§8 configuration label from the snapshot.
@@ -2860,6 +2864,7 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 						durationSeconds: assessment.duration_seconds || 0,
 						maxDifficultyReached: session.max_difficulty_reached || 0,
 						partial: dPartial,
+						verifiedEligible: assessment.passed === true && !dPartial,
 						answersGiven: dFlags.answers_given ?? answersGiven.length,
 						totalQuestions: dFlags.total_questions ?? sessionTotal(session),
 						format: session.format ?? null,
