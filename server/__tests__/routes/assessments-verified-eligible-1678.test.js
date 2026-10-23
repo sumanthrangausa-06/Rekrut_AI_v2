@@ -223,6 +223,21 @@ describeIfDb('#1678 — verifiedEligible on the completion payloads (real DB)', 
 		expect(res.body.verifiedEligible).toBe(false);
 	});
 
+	test('A5 passed=true but partial (flags partial:true) → verifiedEligible === false', async () => {
+		await seedSkill(false);
+		await seedCompleted({
+			sessionId: 509,
+			passed: true,
+			score: 100, // answered-only score — a partial attempt is never Verified
+			flags: { partial: true, answers_given: 1, total_questions: 2 },
+		});
+		const res = await getCurrent(509);
+		expect(res.status).toBe(200);
+		expect(res.body.passed).toBe(true);
+		expect(res.body.partial).toBe(true);
+		expect(res.body.verifiedEligible).toBe(false);
+	});
+
 	// ── B. Phase A recovery-completion branch ─────────────────────────
 	test('B1 in_progress with all answers correct → /current completes it, verifiedEligible === true, completion is real', async () => {
 		await seedSkill(false);
