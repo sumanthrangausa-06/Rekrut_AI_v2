@@ -810,6 +810,18 @@ async function explainMatch(candidateId, jobId) {
 			return matchResult.rows[0];
 		}
 
+		// #1755: existence pre-check BEFORE the embedding-refresh guards.
+		// The candidate-side guard below swallows every refresh error
+		// (#1752), including updateCandidateEmbedding's 'User not found' —
+		// so without this check a nonexistent candidate id resolved to the
+		// honest no-match fallback instead of an existence error. Throwing
+		// here matches the shape job-not-found already takes (thrown from
+		// findMatchingCandidates, not masked).
+		const candidateExists = await client.query('SELECT 1 FROM users WHERE id = $1', [candidateId]);
+		if (candidateExists.rows.length === 0) {
+			throw new Error('User not found');
+		}
+
 		// Calculate match on-demand if not cached. Embedding refresh is
 		// non-blocking if it fails (#1752) — same guard findMatchingCandidates
 		// / findMatchingJobs use: when no embedding leg is live the refresh
