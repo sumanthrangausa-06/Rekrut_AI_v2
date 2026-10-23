@@ -51,7 +51,7 @@ interface PipelineStage {
 		name: string;
 		avatar?: string;
 		jobTitle: string;
-		matchScore?: number;
+		matchScore?: number | null;
 		daysInStage: number;
 	}>;
 }
@@ -816,7 +816,7 @@ export function RecruiterDashboard() {
 						name: app.candidate_name || 'Anonymous',
 						avatar: undefined,
 						jobTitle: app.job_title,
-						matchScore: app.match_score || 0,
+						matchScore: app.match_score ?? null,
 						daysInStage: Math.floor((Date.now() - new Date(app.applied_at).getTime()) / 86400000),
 					})) || [];
 			return {
