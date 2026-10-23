@@ -25,10 +25,18 @@
  *  S-7 routes/recruiter.js POST /pipeline/auto-check/:jobId:
  *      `app.match_score || 0` above the #1717 skip guard silently judges a
  *      NULL match as 0. Honest (panel §2.7): when an applicable rule has
- *      auto_advance and match_score is NULL, push the same skipped-action
- *      shape with reason 'Match score: insufficient data — automation not
- *      applied' and continue. Measured 0 is judged as before; auto-reject-
- *      only rules are untouched (they never consumed matchScore).
+ *      auto_advance and match_score is NULL, the ADVANCE judgement is
+ *      skipped with accounting — the same skipped-action shape with reason
+ *      'Match score: insufficient data — automation not applied'. The
+ *      match score feeds ONLY the advance conjunction; the auto-reject
+ *      leg judges the (measured) OmniScore alone, so a COMBINED
+ *      advance+reject rule must still reject on a measured OmniScore
+ *      (fix round F-1, review adjudication §3): when the reject leg
+ *      fires, the application is rejected with NO skipped action — a
+ *      makeable judgement is never reported as un-makeable. Only when
+ *      no reject fires is the advance skip accounted. Measured 0 is
+ *      judged as before; auto-reject-only rules are untouched (they
+ *      never consumed matchScore).
  *
  * Real-DB integration suite (Lane 1 / #1717 pattern): routes run against a
  * throwaway Postgres behind RECRUITER1731_LANE2_INTEGRATION_DB_URL; payloads
@@ -380,10 +388,15 @@ describeIfDb('#1731 Lane 2 — S-4/S-5/S-6/S-7 score honesty (real DB)', () => {
 		expect(notifyUser).toHaveBeenCalledTimes(1);
 	});
 
-	test('S-7: NULL match + advance+reject rule → skipped per panel §2.7 continue semantics (rule not judged on insufficient data)', async () => {
-		// Panel §2.7 treatment is skip + continue for any applicable
-		// auto_advance rule — the same semantics as the #1717 OmniScore
-		// skip. Only auto-reject-ONLY rules are untouched (previous test).
+	test('S-7 (F-1): NULL match + advance+reject rule + measured OmniScore below reject threshold → rejected, NO skipped action', async () => {
+		// Discriminating test for the F-1 fix round (review §2/§3). The
+		// match score feeds only the advance conjunction; the reject leg's
+		// sole input (OmniScore 100) IS measured, so the reject judgement
+		// can and must be made: status rejected (read back from the DB),
+		// exactly one rejected action, NO skipped action for this
+		// application, exactly one notification. On the pre-fix branch
+		// (e3d74e8b0) the match skip's `continue` suppressed the reject leg
+		// entirely — status stayed 'applied' with a skipped action.
 		await seedJob(44);
 		await seedRule(44, {
 			auto_advance: true,
@@ -394,12 +407,38 @@ describeIfDb('#1731 Lane 2 — S-4/S-5/S-6/S-7 score honesty (real DB)', () => {
 		});
 		await seedCandidate(735, 100, null, 44);
 		const body = await postAutoCheck(44);
-		expect(await statusOf(735)).toBe('applied');
-		expect(body.actions.filter((a) => a.type === 'skipped')).toHaveLength(1);
-		expect(body.actions.filter((a) => a.type === 'skipped')[0].reason).toBe(
-			'Match score: insufficient data — automation not applied',
-		);
+		expect(await statusOf(735)).toBe('rejected');
+		expect(body.actions.filter((a) => a.type === 'rejected')).toHaveLength(1);
+		expect(body.actions.filter((a) => a.type === 'rejected')[0].application_id).toBe(735);
+		expect(body.actions.filter((a) => a.type === 'skipped')).toHaveLength(0);
+		expect(body.skipped_insufficient_data).toBe(0);
+		expect(body.actions.filter((a) => a.type === 'advanced')).toHaveLength(0);
+		expect(notifyUser).toHaveBeenCalledTimes(1);
+	});
+
+	test('S-7 (F-1): NULL match + advance+reject rule + OmniScore NOT below reject threshold → advance skip accounted, not rejected', async () => {
+		// Companion guard: when the reject leg judges and does NOT fire
+		// (OmniScore 700 >= 400), the deferred advance skip is accounted
+		// exactly as the advance-only case — the application is neither
+		// advanced (match unmeasured) nor rejected, and nobody is notified.
+		await seedJob(46);
+		await seedRule(46, {
+			auto_advance: true,
+			omniscore_threshold: 600,
+			match_score_threshold: 70,
+			auto_reject: true,
+			auto_reject_threshold: 400,
+		});
+		await seedCandidate(737, 700, null, 46);
+		const body = await postAutoCheck(46);
+		expect(await statusOf(737)).toBe('applied');
+		const skipped = body.actions.filter((a) => a.type === 'skipped');
+		expect(skipped).toHaveLength(1);
+		expect(skipped[0].application_id).toBe(737);
+		expect(skipped[0].reason).toBe('Match score: insufficient data — automation not applied');
+		expect(body.skipped_insufficient_data).toBe(1);
 		expect(body.actions.filter((a) => a.type === 'rejected')).toHaveLength(0);
+		expect(body.actions.filter((a) => a.type === 'advanced')).toHaveLength(0);
 		expect(notifyUser).not.toHaveBeenCalled();
 	});
 

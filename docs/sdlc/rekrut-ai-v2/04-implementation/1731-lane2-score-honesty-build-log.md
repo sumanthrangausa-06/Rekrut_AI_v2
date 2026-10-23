@@ -35,11 +35,22 @@ Lane 1 / PR #1743 (honest `?? null` + `*_status` pairs).
 - **S-7 `routes/recruiter.js` (POST /pipeline/auto-check/:jobId):** the
   `app.match_score || 0` coercion above the #1717 guard is removed. After
   the existing OmniScore skip, an applicable `auto_advance` rule with a
-  NULL/undefined `match_score` pushes the same skipped-action shape with
-  reason `Match score: insufficient data — automation not applied` and
-  continues (panel §2.7, incl. its continue semantics for combined
-  advance+reject rules). Auto-reject-only rules are untouched; a measured
+  NULL/undefined `match_score` cannot judge its advance conjunction, so
+  the advance judgement is skipped with accounting — the same
+  skipped-action shape with reason `Match score: insufficient data —
+  automation not applied`. Auto-reject-only rules are untouched; a measured
   0 is judged exactly as before (explicit null test, never truthiness).
+  **Fix round F-1 (independent review BLOCK, adjudication §3):** the
+  original build's skip used `continue`, which also suppressed the
+  auto-reject leg of a COMBINED advance+reject rule even though reject's
+  sole input (OmniScore) was measured. Corrected: the match score feeds
+  only the advance conjunction, so the advance skip is deferred until
+  after the reject check and is accounted only when no reject fires; when
+  the reject leg fires on a measured OmniScore the application is rejected
+  with no skipped action and exactly one notification, exactly as
+  pristine judged it. Advance/reject keep their pristine independent-if
+  order, so on measured scores where both legs could fire, both actions
+  are recorded and the final status is `rejected` — precedence unchanged.
 
 ## Evidence (real DB, red-first)
 
@@ -48,13 +59,25 @@ env-gated behind `RECRUITER1731_LANE2_INTEGRATION_DB_URL`, real HTTP via
 supertest against a throwaway Postgres; the public-api route runs its real
 api-key middleware against a real `api_keys` row.
 
-- RED on pristine dev (f6aca9ee8): **6 failed / 8 passed** — all S-4 tests
-  (substitution + fabricated 0), both S-5 tests (invented-50 ranking
-  order), and the S-7 threshold-0 test (a NULL-match candidate was in fact
-  auto-advanced on a fabricated 0 pass). S-6 tests pass on pristine, as
-  panel §2.6 predicts — they lock the now-explicit rule as regression
-  guards.
+- RED on pristine dev (f6aca9ee8): **7 failed / 7 passed** (count
+  corrected per the independent review's first-hand re-run, F-2 — the
+  original log understated it as 6/8; the seventh failure is the combined
+  advance+reject test, which fails on pristine because pristine rejects
+  the candidate the panel-letter reading expected to stay `applied`) —
+  all S-4 tests (substitution + fabricated 0), both S-5 tests
+  (invented-50 ranking order), and the S-7 threshold-0 test (a NULL-match
+  candidate was in fact auto-advanced on a fabricated 0 pass). S-6 tests
+  pass on pristine, as panel §2.6 predicts — they lock the now-explicit
+  rule as regression guards.
 - GREEN on this branch: **14 passed / 14**.
+- Fix round F-1: suite extended to 15 tests (the combined-rule test
+  flipped to the discriminating assertion — rejected, no skipped action,
+  one notification, DB read-back `rejected` — plus a companion guard for
+  the no-reject-fires → skip-accounted case). RED on the pre-fix commit
+  (e3d74e8b0): **1 failed / 14 passed**, the failure being exactly the
+  discriminating test (`applied` where `rejected` was required). GREEN
+  after the fix on a fresh DB: **15 passed / 15**. Neighbours re-run:
+  Lane 1 **9/9**, #1717 auto-check **4/4**, #1725 **6/6**.
 - Neighbours: Lane 1 suite + #1717 auto-check suite + #1725
   candidates-full suite + migration 291/292 suites — **35 passed / 35**;
   four further recruiter suites (applicant-screening-link, aptitude-stats

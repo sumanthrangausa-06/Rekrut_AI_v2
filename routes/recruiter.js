@@ -4188,35 +4188,45 @@ router.post(
 						continue;
 					}
 
-					// #1731 S-7: NULL match score is insufficient data for the
-					// auto-advance judgement — it is not a measured 0. When an
-					// applicable rule has auto_advance, skip with accounting
-					// (same shape as the #1717 OmniScore skip above) and
-					// continue. Auto-reject-only rules never reach this guard
-					// (auto_advance is false) and are judged exactly as
-					// before — they never consumed matchScore. A measured
-					// match score, including a measured 0, is judged exactly
-					// as before (explicit null test, never truthiness).
-					if (
-						rule.auto_advance &&
-						(app.match_score === null || app.match_score === undefined)
-					) {
-						actions.push({
-							type: 'skipped',
-							application_id: app.id,
-							candidate_id: app.candidate_id,
-							from: rule.from_stage,
-							reason: 'Match score: insufficient data — automation not applied',
-						});
-						continue;
-					}
-
 					const matchScore = app.match_score;
 					const omniscore = app.omniscore;
 
-					// Auto-advance check
+					// #1731 S-7 (fix round F-1): NULL match score is
+					// insufficient data for the auto-advance judgement ONLY
+					// — it is not a measured 0, and it must not suppress
+					// the auto-reject leg: the reject leg's sole input
+					// (OmniScore) is measured, because the #1717 OmniScore
+					// skip above has already passed, so the reject
+					// judgement CAN be made — and a makeable judgement is
+					// never reported as un-makeable (review §3). The
+					// advance skip is therefore DEFERRED: it is accounted
+					// after the reject check, and only if no reject fired.
+					// If reject fires, the application is rejected with no
+					// skipped action and exactly one notification, exactly
+					// as pristine judged it. Auto-reject-only rules never
+					// set this flag (auto_advance is false) and are judged
+					// exactly as before — they never consumed matchScore.
+					// A measured match score, including a measured 0, is
+					// judged exactly as before (explicit null test, never
+					// truthiness).
+					const advanceMatchUnmeasured =
+						rule.auto_advance &&
+						(app.match_score === null || app.match_score === undefined);
+
+					// Auto-advance check — judged only when its match input
+					// is measured (explicit gate: bare `null >= 0` is true
+					// in JS and would resurrect the threshold-0 trap).
+					// Precedence note: the advance and reject checks keep
+					// their pristine independent-if order (#1717 structure
+					// — reject is an independent `if` after the advance
+					// check, not an else). On measured scores where both
+					// legs could fire, both actions are recorded and the
+					// final status is 'rejected', exactly as before this
+					// fix. For a NULL match the advance leg cannot fire at
+					// all, so the reject leg is the only judgable leg.
 					if (
 						rule.auto_advance &&
+						!advanceMatchUnmeasured &&
 						omniscore >= rule.omniscore_threshold &&
 						matchScore >= rule.match_score_threshold
 					) {
@@ -4234,7 +4244,9 @@ router.post(
 						});
 					}
 
-					// Auto-reject check
+					// Auto-reject check — judges OmniScore alone; it never
+					// consumed matchScore, so a NULL match cannot gate it.
+					let autoRejected = false;
 					if (rule.auto_reject && omniscore < rule.auto_reject_threshold) {
 						await pool.query(
 							`UPDATE job_applications SET status = 'rejected', updated_at = NOW() WHERE id = $1`,
@@ -4253,6 +4265,22 @@ router.post(
 							candidate_id: app.candidate_id,
 							from: rule.from_stage,
 							reason: `OmniScore ${omniscore} < ${rule.auto_reject_threshold}`,
+						});
+						autoRejected = true;
+					}
+
+					// Deferred S-7 skip: the advance judgement could not
+					// be made (match unmeasured) and no reject fired, so
+					// account the skip now — same shape as the #1717
+					// OmniScore skip, counted by the existing
+					// skipped_insufficient_data response field.
+					if (advanceMatchUnmeasured && !autoRejected) {
+						actions.push({
+							type: 'skipped',
+							application_id: app.id,
+							candidate_id: app.candidate_id,
+							from: rule.from_stage,
+							reason: 'Match score: insufficient data — automation not applied',
 						});
 					}
 				}
