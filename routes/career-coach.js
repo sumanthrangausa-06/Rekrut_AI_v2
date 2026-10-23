@@ -46,7 +46,21 @@ function handleValidationErrors(req, res, next) {
 }
 
 function asyncHandler(fn) {
-	return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+	return (req, res, next) =>
+		Promise.resolve(fn(req, res, next)).catch((err) => {
+			// #1747: AI provider failures (tagged statusCode 503 /
+			// AI_PROVIDER_UNAVAILABLE by lib/career-coach-ai.js, the
+			// lib/recruiter-screener.js precedent) surface honestly as
+			// 503 — never a generic 500, never an unhandled rejection.
+			if (err && (err.statusCode === 503 || err.code === 'AI_PROVIDER_UNAVAILABLE')) {
+				return res.status(503).json({
+					error: 'AI service temporarily unavailable. Please try again in a moment.',
+					code: 'AI_PROVIDER_UNAVAILABLE',
+					retryable: true,
+				});
+			}
+			next(err);
+		});
 }
 
 // ── Feature: career coach uses 'ai_coaching' tier limits ─────
