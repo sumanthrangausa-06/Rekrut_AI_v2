@@ -155,8 +155,10 @@ router.post(
 						`SELECT weighted_score FROM match_results WHERE candidate_id = $1 AND job_id = $2`,
 						[candidateId, job_id],
 					);
-					if (cachedMatch.rows.length > 0) {
-						fitScore = Math.round(cachedMatch.rows[0].weighted_score || 0);
+					if (cachedMatch.rows.length > 0 && cachedMatch.rows[0].weighted_score != null) {
+						// #1731 Lane 3 (S-11): a NULL cached score is no evidence —
+						// it establishes nothing; only a measured score is judged.
+						fitScore = Math.round(cachedMatch.rows[0].weighted_score);
 						// Without exact ranking, we allow if score >= 70 (heuristic for top-tier)
 						isTopFive = fitScore >= 70;
 						rank = null;
@@ -168,8 +170,9 @@ router.post(
 					`SELECT weighted_score FROM match_results WHERE candidate_id = $1 AND job_id = $2`,
 					[candidateId, job_id],
 				);
-				if (cachedMatch.rows.length > 0) {
-					fitScore = Math.round(cachedMatch.rows[0].weighted_score || 0);
+				if (cachedMatch.rows.length > 0 && cachedMatch.rows[0].weighted_score != null) {
+					// #1731 Lane 3 (S-11): NULL cached score = no evidence (see above).
+					fitScore = Math.round(cachedMatch.rows[0].weighted_score);
 					isTopFive = fitScore >= 70;
 				}
 			}

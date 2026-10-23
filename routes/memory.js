@@ -427,26 +427,30 @@ router.get('/match-breakdown/:candidateId/:jobId', authMiddleware, async (req, r
 			: null;
 
 		const match = matchResult.rows[0] || {};
+		// #1731 Lane 3 (S-9): guard-NULL, following this response's own
+		// `available:` pattern — no match row means NO measured score
+		// (null), never a fabricated 0 overall or invented 50 for skills.
+		// A present row is judged on its own fields, measured 0 included.
+		const hasMatch = matchResult.rows.length > 0;
+		const matchingSkills = parseSkillList(match.matching_skills);
+		const missingSkills = parseSkillList(match.missing_skills);
 
 		const breakdown = {
-			overall_score: match.weighted_score || 0,
+			overall_score: match.weighted_score ?? null,
 			match_level: match.match_level || 'none',
 			dimensions: {
 				skills: {
-					score: match.weighted_score
+					score: hasMatch
 						? Math.round(
-								(JSON.parse(match.matching_skills || '[]').length /
-									Math.max(
-										1,
-										JSON.parse(match.matching_skills || '[]').length +
-											JSON.parse(match.missing_skills || '[]').length,
-									)) *
+								(matchingSkills.length /
+									Math.max(1, matchingSkills.length + missingSkills.length)) *
 									100,
 							)
-						: 50,
+						: null,
+					available: hasMatch,
 					label: 'Skills Match',
-					matching: JSON.parse(match.matching_skills || '[]'),
-					missing: JSON.parse(match.missing_skills || '[]'),
+					matching: matchingSkills,
+					missing: missingSkills,
 					weight: 0.3,
 				},
 				experience: {
@@ -499,10 +503,10 @@ router.get('/match-breakdown/:candidateId/:jobId', authMiddleware, async (req, r
 			omniscore: {
 				total: omni.total_score ?? null,
 				tier: omni.score_tier ?? null,
-				interview: omni.interview_score || 0,
-				technical: omni.technical_score || 0,
-				resume: omni.resume_score || 0,
-				behavior: omni.behavior_score || 0,
+				interview: omni.interview_score ?? null,
+				technical: omni.technical_score ?? null,
+				resume: omni.resume_score ?? null,
+				behavior: omni.behavior_score ?? null,
 			},
 			profile_completeness: autofillService_calculateCompleteness(
 				profile,
@@ -632,10 +636,28 @@ function autofillService_calculateCompleteness(profile, skills, experience, educ
 	return Math.round((filled / total) * 100);
 }
 
+// match_results.matching_skills / missing_skills are JSONB (migration
+// 008): node-pg returns real arrays, while older/hand-built rows may
+// carry JSON strings. Accept both — JSON.parse(array) throws, which
+// 500ed this handler for every candidate WITH a match row (gate
+// finding, #1731 Lane 3 Quinn run, 2026-10-23; pre-existing on dev).
+function parseSkillList(v) {
+	if (Array.isArray(v)) return v;
+	if (typeof v === 'string') {
+		try {
+			const parsed = JSON.parse(v);
+			return Array.isArray(parsed) ? parsed : [];
+		} catch {
+			return [];
+		}
+	}
+	return [];
+}
+
 function generateImprovementTips(match, interviewScore, assessmentScore, profile) {
 	const tips = [];
-	const _matchingSkills = JSON.parse(match.matching_skills || '[]');
-	const missingSkills = JSON.parse(match.missing_skills || '[]');
+	const _matchingSkills = parseSkillList(match.matching_skills);
+	const missingSkills = parseSkillList(match.missing_skills);
 
 	if (missingSkills.length > 0) {
 		tips.push({
