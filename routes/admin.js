@@ -2778,14 +2778,20 @@ router.get('/agents/stats', requireAdmin, async (_req, res) => {
 
 		const avgDurationResult = await safeQuery(
 			`
-			SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (ended_at - started_at)))::int, 0) as avg_duration
+			SELECT AVG(EXTRACT(EPOCH FROM (ended_at - started_at)))::int as avg_duration
 			FROM agent_data
 			WHERE ended_at IS NOT NULL AND started_at >= $1
 			`,
 			[oneDayAgo],
-			{ rows: [{ avg_duration: 0 }] },
+			{ rows: [{ avg_duration: null }] },
 		);
-		const avgDuration = parseInt(avgDurationResult.rows[0]?.avg_duration, 10) || 0;
+		// #1625 — AVG is NULL when no run has completed: that is "not
+		// measured", reported as null, never a fabricated 0. A measured
+		// average (including a genuine 0) passes through unchanged.
+		const avgDurationRaw = avgDurationResult.rows[0]?.avg_duration;
+		const avgDurationParsed =
+			avgDurationRaw == null ? null : parseInt(avgDurationRaw, 10);
+		const avgDuration = Number.isNaN(avgDurationParsed) ? null : avgDurationParsed;
 
 		const queueDepthResult = await safeQuery(
 			"SELECT COUNT(*) as count FROM agent_data WHERE status = 'queued'",
