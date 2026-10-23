@@ -12,6 +12,54 @@ const {
 
 const router = express.Router();
 
+// #1468: candidate-safe projection of an explainMatch() result (privacy
+// seat, STOP 1 on #1468; #1458/#1463 precedent). explainMatch() returns
+// the raw match_results row (SELECT *) — or, on its on-demand branch, an
+// object nesting the same explanation — whose match_explanation /
+// explanation carries recruiter-side artifacts (company TrustScore and
+// OmniScore boost text) alongside trustscore_at_match /
+// omniscore_at_match. A candidate-self caller receives ONLY the fields
+// enumerated here, constructed key by key — never a spread with
+// deletions, so a future match_results column cannot leak by default.
+function toCandidateSafeMatchResult(result) {
+	if (!result || typeof result !== 'object') return result;
+	// Privacy review note (#1468): the projection controls keys, not
+	// values — the two allowlisted JSONB skill lists are passed only as
+	// string arrays, so a future writer storing objects/free text in
+	// those columns cannot pass it through to candidates verbatim.
+	const skillList = (v) =>
+		v === undefined ? undefined : Array.isArray(v) ? v.filter((s) => typeof s === 'string') : [];
+	return {
+		weighted_score: result.weighted_score,
+		similarity_score: result.similarity_score,
+		match_level: result.match_level,
+		matching_skills: skillList(result.matching_skills),
+		missing_skills: skillList(result.missing_skills),
+	};
+}
+
+// #1731 Lane 3 (S-8): audit-log confidence is the measured weighted_score
+// the matching producers actually carry — never final_score/score (fields
+// that do not exist on these objects) and never a fabricated 0 / 0.5.
+// No measured score => confidence: null (nothing was measured).
+// Producers carry the value in two shapes: constructed objects hold a JS
+// number, while explainMatch's cached path returns the raw match_results
+// row whose DECIMAL(5,2) weighted_score node-pg returns as a string —
+// coerce numeric strings before judging, or every cached explanation
+// would falsely record "nothing measured" (review F-1).
+function measuredConfidenceValue(v) {
+	if (v === null || v === undefined) return null;
+	const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+	return Number.isFinite(n) ? n : null;
+}
+
+function maxMeasuredConfidence(matches) {
+	const scores = (matches || [])
+		.map((m) => measuredConfidenceValue(m?.weighted_score))
+		.filter((v) => v !== null);
+	return scores.length > 0 ? Math.max(...scores) : null;
+}
+
 // Secure error response helper
 function sendError(res, err, consolePrefix) {
 	const ref = crypto.randomUUID();
@@ -50,8 +98,7 @@ router.get('/recommendations', authMiddleware, async (req, res) => {
 				match_count: matches.length,
 				min_score: parseFloat(min_score) / 100,
 				model_version: 'matching-engine-v1',
-				confidence:
-					matches.length > 0 ? Math.max(...matches.map((m) => m.final_score || m.score || 0)) : 0,
+				confidence: maxMeasuredConfidence(matches),
 			},
 			req,
 		});
@@ -100,8 +147,7 @@ router.get(
 					match_count: matches.length,
 					min_score: parseFloat(min_score) / 100,
 					model_version: 'matching-engine-v1',
-					confidence:
-						matches.length > 0 ? Math.max(...matches.map((m) => m.final_score || m.score || 0)) : 0,
+					confidence: maxMeasuredConfidence(matches),
 				},
 				req,
 			});
@@ -156,7 +202,7 @@ router.get('/explain/:candidateId/:jobId', authMiddleware, async (req, res) => {
 				job_id: jobId,
 				model_version: 'matching-engine-v1',
 				explanation_type: 'match_explanation',
-				confidence: explanation?.score || explanation?.final_score || 0.5,
+				confidence: measuredConfidenceValue(explanation?.weighted_score),
 			},
 			req,
 		});
