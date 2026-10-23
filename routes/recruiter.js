@@ -1707,13 +1707,23 @@ router.get(
 			}
 
 			if (minScore) {
-				conditions.push(`COALESCE(os.total_score, ja.match_score, 0) >= $${paramIdx}`);
+				// #1725: honest OmniScore only — a NULL score can never satisfy a
+				// minimum, so no-data candidates are excluded (never judged on
+				// their match score or a fabricated 0).
+				conditions.push(`os.total_score >= $${paramIdx}`);
 				params.push(parseInt(minScore, 10));
 				paramIdx++;
 			}
 
 			if (maxScore) {
-				conditions.push(`COALESCE(os.total_score, ja.match_score, 0) <= $${paramIdx}`);
+				// #1725: with a minimum also set, NULL is already excluded above.
+				// Max-only: no-data candidates are INCLUDED — no measured score
+				// exists that could exceed the maximum.
+				conditions.push(
+					minScore
+						? `os.total_score <= $${paramIdx}`
+						: `(os.total_score IS NULL OR os.total_score <= $${paramIdx})`,
+				);
 				params.push(parseInt(maxScore, 10));
 				paramIdx++;
 			}
@@ -1750,7 +1760,7 @@ router.get(
         cp.salary_min,
         cp.salary_max,
         cp.remote_preference,
-        COALESCE(os.total_score, latest_ja.match_score, 0) as omniscore,
+        os.total_score as omniscore,
         os.score_tier,
         latest_ja.status as application_status,
         latest_ja.applied_at,
@@ -1791,7 +1801,8 @@ router.get(
 				phone: row.phone,
 				skills: row.skills || [],
 				matchScore: row.match_score || 0,
-				omniscore: row.omniscore || 0,
+				omniscore: row.omniscore ?? null,
+				omniscore_status: row.omniscore == null ? 'insufficient_data' : 'measured',
 				scoreTier: row.score_tier,
 				applicationStatus: row.application_status,
 				lastActivity: row.applied_at ? new Date(row.applied_at).toISOString() : null,
