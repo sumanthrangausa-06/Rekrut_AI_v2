@@ -18,6 +18,9 @@ const DOMPurify = require('isomorphic-dompurify');
 const router = express.Router();
 const { analyticsCache } = require('../lib/analytics-cache');
 
+// #1731: excellent-tier floor (services/omniscore.js SCORE_RANGES.TIERS.excellent.min), founder-ruled 2026-10-22 for #1731.
+const TOP_OMNISCORE_THRESHOLD = 740;
+
 // ── Analytics helpers (Issue #143) ──────────────────────────────
 
 function _parseDateRange(query, defaultDays = 30) {
@@ -1796,13 +1799,14 @@ router.get(
 				experienceYears: row.years_experience || 0,
 				phone: row.phone,
 				skills: row.skills || [],
-				matchScore: row.match_score || 0,
+				matchScore: row.match_score ?? null,
+				matchScore_status: row.match_score == null ? 'insufficient_data' : 'measured',
 				omniscore: row.omniscore ?? null,
 				omniscore_status: row.omniscore == null ? 'insufficient_data' : 'measured',
 				scoreTier: row.score_tier,
 				applicationStatus: row.application_status,
 				lastActivity: row.applied_at ? new Date(row.applied_at).toISOString() : null,
-				isTopCandidate: row.omniscore >= 85,
+				isTopCandidate: row.omniscore != null && row.omniscore >= TOP_OMNISCORE_THRESHOLD,
 				salaryMin: row.salary_min,
 				salaryMax: row.salary_max,
 				remotePreference: row.remote_preference,
@@ -1885,9 +1889,9 @@ router.get(
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id
-      WHERE ja.company_id = $1 AND COALESCE(os.total_score, ja.match_score, 0) >= 85
+      WHERE ja.company_id = $1 AND os.total_score >= $2
     `,
-					[companyId],
+					[companyId, TOP_OMNISCORE_THRESHOLD],
 				);
 				topCandidatesCount = parseInt(topCandidates.rows[0].count, 10) || 0;
 			} catch (_topErr) {
