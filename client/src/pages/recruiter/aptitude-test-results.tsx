@@ -28,7 +28,7 @@ interface AttemptResult {
 	score: number;
 	max_score: number;
 	percentile: number | null;
-	anti_cheat_score: number;
+	anti_cheat_score: number | null;
 	passed: boolean;
 	status: string;
 	time_spent_seconds: number;
@@ -130,7 +130,7 @@ export function RecruiterAptitudeTestResultsPage() {
 					`${pct}%`,
 					a.percentile !== null ? `${a.percentile}%` : 'N/A',
 					a.passed ? 'Yes' : 'No',
-					`${a.anti_cheat_score}%`,
+					a.anti_cheat_score != null ? `${a.anti_cheat_score}%` : 'N/A',
 					String(Math.round((a.time_spent_seconds || 0) / 60)),
 					new Date(a.completed_at).toLocaleString(),
 				];
@@ -342,7 +342,7 @@ export function RecruiterAptitudeTestResultsPage() {
 														<XCircle className="h-3 w-3" /> Failed
 													</Badge>
 												)}
-												{a.anti_cheat_score < 70 && (
+												{a.anti_cheat_score != null && a.anti_cheat_score < 70 && (
 													<Badge
 														variant="outline"
 														className="gap-1 text-amber-600 border-amber-300"
@@ -364,10 +364,12 @@ export function RecruiterAptitudeTestResultsPage() {
 													<Clock className="h-3 w-3" />
 													{Math.round((a.time_spent_seconds || 0) / 60)} min
 												</span>
+												{a.anti_cheat_score != null && (
 												<span className="flex items-center gap-1">
 													<Shield className="h-3 w-3" />
 													{a.anti_cheat_score}%
 												</span>
+												)}
 												<span>{new Date(a.completed_at).toLocaleDateString()}</span>
 											</div>
 										</div>
