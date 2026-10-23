@@ -775,10 +775,13 @@ router.get('/results', authMiddleware, async (req, res) => {
 			`
       SELECT sa.*, cs.skill_name, cs.category,
              ass.tab_switches, ass.copy_paste_attempts, ass.time_anomalies,
-             ass.max_difficulty_reached, ass.answers_given
+             ass.max_difficulty_reached, ass.answers_given,
+             ass.topic_id AS topic_id, ass.format AS format,
+             ass.difficulty_band AS difficulty_band, t.name AS topic_name
       FROM skill_assessments sa
       LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
       LEFT JOIN assessment_sessions ass ON sa.session_id = ass.id
+      LEFT JOIN assessment_topics t ON t.id = ass.topic_id
       WHERE sa.user_id = $1 AND sa.completed_at IS NOT NULL
       ORDER BY sa.completed_at DESC
     `,

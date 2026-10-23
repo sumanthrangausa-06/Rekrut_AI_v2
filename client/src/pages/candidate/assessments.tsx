@@ -42,6 +42,12 @@ interface AssessmentResult {
 	max_difficulty_reached: number;
 	tab_switches: number;
 	copy_paste_attempts: number;
+	// #1688: session snapshot fields from GET /results (snake_case, the
+	// payload's own convention) — null on legacy topic-less attempts.
+	topic_id: number | null;
+	topic_name: string | null;
+	format: string | null;
+	difficulty_band: string | null;
 	behavioral_flags?:
 		| { partial?: boolean; answers_given?: number; total_questions?: number; correct_count?: number | null }
 		| string
@@ -155,6 +161,62 @@ export function CandidateAssessmentsPage() {
 		soft_skill: 'Soft Skills',
 		other: 'Other',
 	};
+
+	// #1688: format/band display strings reuse the shipped configure/take
+	// vocabulary verbatim (UX spec §0.2) — never a third vocabulary.
+	const resultFormatLabels: Record<string, string> = {
+		mixed: 'Mixed — multiple choice and written answers',
+		mcq: 'Multiple choice',
+		short_answer: 'Written answers',
+		coding: 'Coding',
+	};
+	const resultBandLabels: Record<string, string> = {
+		easy: 'Easy',
+		medium: 'Medium',
+		hard: 'Hard',
+	};
+	const resultConfigLabel = (r: AssessmentResult): string | null => {
+		const parts: string[] = [];
+		if (r.format && resultFormatLabels[r.format]) parts.push(resultFormatLabels[r.format]);
+		if (r.difficulty_band && resultBandLabels[r.difficulty_band])
+			parts.push(resultBandLabels[r.difficulty_band]);
+		return parts.length ? parts.join(' · ') : null;
+	};
+
+	// #1688 (design §4.5): group the already-DESC-ordered results by
+	// topic. Group order = first appearance in the payload (most
+	// recently attempted topic first); cards keep server order within a
+	// group. Topic-less attempts collect in ONE trailing legacy group —
+	// no inferred topic, no fabricated label.
+	const resultGroups: { key: string; heading: string; items: AssessmentResult[] }[] = [];
+	const groupsByTopicId = new Map<number, (typeof resultGroups)[number]>();
+	const legacyResults: AssessmentResult[] = [];
+	for (const r of results) {
+		if (r.topic_id != null) {
+			let group = groupsByTopicId.get(r.topic_id);
+			if (!group) {
+				group = {
+					key: `topic-${r.topic_id}`,
+					heading: r.topic_name
+						? `${r.skill_name || r.title} · ${r.topic_name}`
+						: `${r.skill_name || r.title}`,
+					items: [],
+				};
+				groupsByTopicId.set(r.topic_id, group);
+				resultGroups.push(group);
+			}
+			group.items.push(r);
+		} else {
+			legacyResults.push(r);
+		}
+	}
+	if (legacyResults.length) {
+		resultGroups.push({
+			key: 'legacy-no-topic',
+			heading: 'Earlier assessments — topic not recorded',
+			items: legacyResults,
+		});
+	}
 
 	return (
 		<div className="space-y-6 px-4 sm:px-6">
@@ -463,13 +525,17 @@ export function CandidateAssessmentsPage() {
 							className="mt-4"
 						/>
 					) : (
-						<div className="space-y-3 mt-4">
-							{results.map((r) => {
+						<div className="space-y-4 mt-4">
+							{resultGroups.map((group) => (
+								<div key={group.key} className="space-y-3">
+									<h3 className="font-medium text-sm text-muted-foreground">{group.heading}</h3>
+									{group.items.map((r) => {
 								const rf =
 									typeof r.behavioral_flags === 'string'
 										? JSON.parse(r.behavioral_flags)
 										: r.behavioral_flags || {};
 								const rPartial = rf.partial === true;
+								const configLabel = resultConfigLabel(r);
 								return (
 								<Card key={r.id}>
 									<CardContent className="p-4">
@@ -499,6 +565,7 @@ export function CandidateAssessmentsPage() {
 																: `${rf.correct_count ?? 0} of ${rf.answers_given} answered correct`
 															: `Score: ${r.score}/${r.max_score || 100}`}
 													</span>
+													{configLabel && <span>{configLabel}</span>}
 													<span className="flex items-center gap-1">
 														<Clock className="h-3 w-3" />
 														{Math.round((r.duration_seconds || 0) / 60)} min
@@ -519,7 +586,9 @@ export function CandidateAssessmentsPage() {
 									</CardContent>
 								</Card>
 								);
-							})}
+									})}
+								</div>
+							))}
 						</div>
 					)}
 				</TabsContent>
