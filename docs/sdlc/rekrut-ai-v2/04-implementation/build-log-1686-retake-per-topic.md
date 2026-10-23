@@ -41,9 +41,11 @@ snapshot, which is computed before the gate):
 - `hasTopic` → the gate query joins `assessment_sessions` and adds
   `AND assessment_sessions.topic_id = $3`
   (params `[userId, skill.id, snapshot.topicId]`), reading the latest
-  completion for that topic only. The
-  `SELECT completed_at FROM skill_assessments` prefix is kept so the
-  existing suites' SQL dispatchers keep matching this read.
+  completion for that topic only. The gate's SELECT is
+  `SELECT skill_assessments.completed_at FROM skill_assessments`
+  (qualified in the fix round below — the unqualified form was
+  ambiguous against `assessment_sessions.completed_at`); the suites'
+  SQL dispatchers match both prefixes.
 - `!hasTopic` → the original skill-wide query, byte-for-byte.
 
 The 30-day constant, `canRetakeSkill`, the 403 body (`RETAKE_LOCKOUT`,
