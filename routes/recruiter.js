@@ -2959,7 +2959,10 @@ router.get(
       LEFT JOIN match_results mr ON mr.candidate_id = ja.candidate_id AND mr.job_id = ja.job_id
       WHERE ja.job_id = $1
         AND ja.status NOT IN ('withdrawn', 'rejected')
-        AND COALESCE(ja.match_score, 0) >= $2
+        -- #1731 S-6: a NULL match is not a measured 0. It is included exactly
+        -- when no minimum was requested ($2 <= 0) and never passes a
+        -- requested minimum.
+        AND (ja.match_score >= $2 OR ($2 <= 0 AND ja.match_score IS NULL))
       ORDER BY ja.match_score DESC NULLS LAST, os.total_score DESC NULLS LAST
     `,
 				[jobId, min_score],
@@ -3891,15 +3894,25 @@ router.get(
              os.interview_score, os.technical_score, os.resume_score, os.behavior_score,
              cp.headline, cp.years_experience,
              mr.matching_skills, mr.missing_skills,
-             -- Composite rank: 50% OmniScore + 50% match_score
-             (COALESCE(os.total_score, 0) * 0.5 + COALESCE(ja.match_score, 50) * 0.5 * 8.5) as composite_score
+             -- Composite rank: 50% OmniScore + 50% match_score (match scaled x8.5
+             -- to the OmniScore range), renormalised over measured components
+             -- only (#1731 S-5, #1724 precedent): both measured -> unchanged;
+             -- one measured -> that component alone on the composite scale;
+             -- neither -> NULL, sorted last, never an invented 50 or 0.
+             (CASE
+                WHEN os.total_score IS NOT NULL AND ja.match_score IS NOT NULL
+                  THEN os.total_score * 0.5 + ja.match_score * 8.5 * 0.5
+                WHEN os.total_score IS NOT NULL THEN os.total_score::numeric
+                WHEN ja.match_score IS NOT NULL THEN ja.match_score * 8.5
+                ELSE NULL
+              END) as composite_score
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
       LEFT JOIN match_results mr ON mr.candidate_id = ja.candidate_id AND mr.job_id = ja.job_id
       WHERE ja.job_id = $1 AND ja.status NOT IN ('withdrawn', 'rejected')
-      ORDER BY composite_score DESC
+      ORDER BY composite_score DESC NULLS LAST
     `,
 				[jobId],
 			);
@@ -3910,7 +3923,9 @@ router.get(
 				ranked_candidates: ranked.rows.map((r, i) => ({
 					...r,
 					rank: i + 1,
-					composite_score: Math.round(r.composite_score * 100) / 100,
+					composite_score:
+						r.composite_score == null ? null : Math.round(r.composite_score * 100) / 100,
+					composite_status: r.composite_score == null ? 'insufficient_data' : 'measured',
 					matching_skills: r.matching_skills
 						? typeof r.matching_skills === 'string'
 							? JSON.parse(r.matching_skills)
@@ -3923,6 +3938,7 @@ router.get(
 						: [],
 				})),
 				total: ranked.rows.length,
+				unranked_insufficient_data: ranked.rows.filter((r) => r.composite_score == null).length,
 			});
 		} catch (err) {
 			console.error('AI rank all error:', err);
@@ -4155,8 +4171,6 @@ router.post(
 				for (const rule of rules.rows) {
 					if (app.status !== rule.from_stage) continue;
 
-					const matchScore = app.match_score || 0;
-
 					// #1717: NULL OmniScore (no row, or #1192 honest-NULL total)
 					// is insufficient data — automation must not judge this
 					// application at all: no auto-advance, no auto-reject, no
@@ -4174,6 +4188,30 @@ router.post(
 						continue;
 					}
 
+					// #1731 S-7: NULL match score is insufficient data for the
+					// auto-advance judgement — it is not a measured 0. When an
+					// applicable rule has auto_advance, skip with accounting
+					// (same shape as the #1717 OmniScore skip above) and
+					// continue. Auto-reject-only rules never reach this guard
+					// (auto_advance is false) and are judged exactly as
+					// before — they never consumed matchScore. A measured
+					// match score, including a measured 0, is judged exactly
+					// as before (explicit null test, never truthiness).
+					if (
+						rule.auto_advance &&
+						(app.match_score === null || app.match_score === undefined)
+					) {
+						actions.push({
+							type: 'skipped',
+							application_id: app.id,
+							candidate_id: app.candidate_id,
+							from: rule.from_stage,
+							reason: 'Match score: insufficient data — automation not applied',
+						});
+						continue;
+					}
+
+					const matchScore = app.match_score;
 					const omniscore = app.omniscore;
 
 					// Auto-advance check
