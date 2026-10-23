@@ -810,9 +810,24 @@ async function explainMatch(candidateId, jobId) {
 			return matchResult.rows[0];
 		}
 
-		// Calculate match on-demand if not cached
-		await updateCandidateEmbedding(candidateId);
-		await updateJobEmbedding(jobId);
+		// Calculate match on-demand if not cached. Embedding refresh is
+		// non-blocking if it fails (#1752) — same guard findMatchingCandidates
+		// / findMatchingJobs use: when no embedding leg is live the refresh
+		// throws, and explainMatch must continue with whatever embeddings
+		// exist so the pair reaches findMatchingCandidates (and, if there
+		// is no match, the honest weighted_score: null fallback) instead
+		// of 500ing for every uncached pair.
+		try {
+			await updateCandidateEmbedding(candidateId);
+		} catch (embedErr) {
+			console.warn(`Failed to update candidate embedding for ${candidateId}:`, embedErr.message);
+		}
+
+		try {
+			await updateJobEmbedding(jobId);
+		} catch (embedErr) {
+			console.warn(`Failed to update job embedding for ${jobId}:`, embedErr.message);
+		}
 
 		const matches = await findMatchingCandidates(jobId, { limit: 100 });
 		const match = matches.find((m) => m.candidate_id === candidateId);
