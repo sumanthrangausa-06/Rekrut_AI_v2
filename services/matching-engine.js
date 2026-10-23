@@ -475,7 +475,12 @@ async function findMatchingCandidates(jobId, options = {}) {
 
 		// Calculate weighted scores with OmniScore and TrustScore
 		const matches = matchResult.rows.map((candidate) => {
-			const omniscore = candidate.omniscore || 300;
+			// #1717: NULL OmniScore (no row, or #1192 honest-NULL total) is
+			// insufficient data — never the fabricated 300. Exclude the term
+			// and renormalize the remaining weights (÷0.75) below. A measured
+			// score, including a measured 0, flows exactly as before.
+			const hasOmniscore = candidate.omniscore !== null && candidate.omniscore !== undefined;
+			const omniscore = hasOmniscore ? candidate.omniscore : null;
 			const similarityScore = candidate.similarity_score;
 
 			// Skills comparison (SmartRecruiters-style breakdown)
@@ -495,16 +500,17 @@ async function findMatchingCandidates(jobId, options = {}) {
 			// Skills match: 20% (new — direct skills comparison)
 			// OmniScore: 25% (platform credibility)
 			// TrustScore: 10% (company quality)
-			const omniNormalized = Math.min(omniscore / 1000, 1);
+			const omniNormalized = hasOmniscore ? Math.min(omniscore / 1000, 1) : 0;
 			const trustNormalized = Math.min(trustscore / 1000, 1);
 			const skillNormalized = skillMatchPct / 100;
 
-			const weightedScore =
-				(similarityScore * 0.45 +
-					skillNormalized * 0.2 +
-					omniNormalized * 0.25 +
-					trustNormalized * 0.1) *
-				100;
+			const weightedScore = hasOmniscore
+				? (similarityScore * 0.45 +
+						skillNormalized * 0.2 +
+						omniNormalized * 0.25 +
+						trustNormalized * 0.1) *
+					100
+				: ((similarityScore * 0.45 + skillNormalized * 0.2 + trustNormalized * 0.1) / 0.75) * 100;
 
 			// Determine match level
 			let matchLevel = 'poor';
@@ -520,6 +526,7 @@ async function findMatchingCandidates(jobId, options = {}) {
 				location: candidate.location,
 				years_experience: candidate.years_experience,
 				omniscore: omniscore,
+				omniscore_status: hasOmniscore ? 'measured' : 'insufficient_data',
 				score_tier: candidate.score_tier,
 				skills_summary: candidate.skills_summary,
 				experience_summary: candidate.experience_summary,
@@ -532,7 +539,9 @@ async function findMatchingCandidates(jobId, options = {}) {
 				explanation: {
 					semantic_match: `${Math.round(similarityScore * 100)}% profile alignment`,
 					skills_match: `${skillMatchPct}% skills match (${matchingSkills.length} matched, ${missingSkills.length} gaps)`,
-					omniscore_boost: `OmniScore ${omniscore} (${candidate.score_tier || 'new'} tier)`,
+					omniscore_boost: hasOmniscore
+						? `OmniScore ${omniscore} (${candidate.score_tier || 'new'} tier)`
+						: 'OmniScore: insufficient data — not counted in this match',
 					company_trustscore: `Company TrustScore ${trustscore}`,
 				},
 			};
@@ -608,7 +617,12 @@ async function findMatchingJobs(userId, options = {}) {
 			[userId],
 		);
 
-		const omniscore = userResult.rows[0]?.omniscore || 300;
+		// #1717: NULL OmniScore is insufficient data — never the fabricated
+		// 300. Exclude the term and renormalize the remaining weights
+		// (÷0.90) below. A measured score, including 0, flows as before.
+		const hasOmniscore =
+			userResult.rows[0]?.omniscore !== null && userResult.rows[0]?.omniscore !== undefined;
+		const omniscore = hasOmniscore ? userResult.rows[0].omniscore : null;
 
 		// Get candidate skills for comparison
 		const candidateSkills = await client.query(
@@ -666,15 +680,16 @@ async function findMatchingJobs(userId, options = {}) {
 
 			// Weighted score: similarity 45%, skills 20%, trust 25%, omni 10%
 			const trustNormalized = Math.min(trustscore / 1000, 1);
-			const omniNormalized = Math.min(omniscore / 1000, 1);
+			const omniNormalized = hasOmniscore ? Math.min(omniscore / 1000, 1) : 0;
 			const skillNormalized = skillMatchPct / 100;
 
-			const weightedScore =
-				(similarityScore * 0.45 +
-					skillNormalized * 0.2 +
-					trustNormalized * 0.25 +
-					omniNormalized * 0.1) *
-				100;
+			const weightedScore = hasOmniscore
+				? (similarityScore * 0.45 +
+						skillNormalized * 0.2 +
+						trustNormalized * 0.25 +
+						omniNormalized * 0.1) *
+					100
+				: ((similarityScore * 0.45 + skillNormalized * 0.2 + trustNormalized * 0.25) / 0.9) * 100;
 
 			// Determine match level
 			let matchLevel = 'poor';
@@ -700,6 +715,8 @@ async function findMatchingJobs(userId, options = {}) {
 				created_at: job.created_at,
 				trustscore: trustscore,
 				trust_tier: job.trust_tier,
+				omniscore: omniscore,
+				omniscore_status: hasOmniscore ? 'measured' : 'insufficient_data',
 				similarity_score: Math.round(similarityScore * 100) / 100,
 				weighted_score: Math.round(weightedScore * 100) / 100,
 				match_level: matchLevel,
@@ -711,8 +728,9 @@ async function findMatchingJobs(userId, options = {}) {
 					why_matched: `${Math.round(similarityScore * 100)}% profile match`,
 					skills_match: `${skillMatchPct}% skills match (${matchingSkills.length} matched, ${missingSkills.length} gaps)`,
 					company_quality: `Company TrustScore ${trustscore} (${job.trust_tier || 'new'} tier)`,
-					your_strength:
-						omniscore >= 700
+					your_strength: !hasOmniscore
+						? "No OmniScore yet — this ranking didn't use one; complete assessments and practice to add it"
+						: omniscore >= 700
 							? 'Your strong OmniScore makes you highly competitive'
 							: omniscore >= 500
 								? 'Your OmniScore is solid for this position'

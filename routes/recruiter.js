@@ -4136,8 +4136,26 @@ router.post(
 				for (const rule of rules.rows) {
 					if (app.status !== rule.from_stage) continue;
 
-					const omniscore = app.omniscore || 300;
 					const matchScore = app.match_score || 0;
+
+					// #1717: NULL OmniScore (no row, or #1192 honest-NULL total)
+					// is insufficient data — automation must not judge this
+					// application at all: no auto-advance, no auto-reject, no
+					// status write, no notification. The skip is accounted for
+					// in the response actions. A measured value, including a
+					// measured 0, is judged exactly as before.
+					if (app.omniscore === null || app.omniscore === undefined) {
+						actions.push({
+							type: 'skipped',
+							application_id: app.id,
+							candidate_id: app.candidate_id,
+							from: rule.from_stage,
+							reason: 'OmniScore: insufficient data — automation not applied',
+						});
+						continue;
+					}
+
+					const omniscore = app.omniscore;
 
 					// Auto-advance check
 					if (
@@ -4188,6 +4206,7 @@ router.post(
 				actions,
 				total_checked: apps.rows.length,
 				rules_applied: rules.rows.length,
+				skipped_insufficient_data: actions.filter((a) => a.type === 'skipped').length,
 			});
 		} catch (err) {
 			console.error('Pipeline auto-check error:', err);
