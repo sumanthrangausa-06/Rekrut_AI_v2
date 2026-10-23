@@ -407,10 +407,24 @@ function installDbMock() {
 		}
 
 		// ── retake gate / completion reads on skill_assessments ──
-		if (sql.includes('select completed_at from skill_assessments')) {
-			const rows = S.skillAssessments
+		if (
+			sql.includes('select completed_at from skill_assessments') ||
+			sql.includes('select skill_assessments.completed_at from skill_assessments')
+		) {
+			let rows = S.skillAssessments
 				.filter((a) => a.user_id === Number(params[0]) && a.skill_id === Number(params[1]) && a.completed_at)
 				.sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
+			// #1686: the per-topic gate joins assessment_sessions and
+			// predicates on its topic_id — apply that filter ONLY when
+			// the route's SQL actually carries it (the suites' standing
+			// emulation rule), mirroring the C2 suite's gate branch.
+			if (sql.includes('join assessment_sessions') && sql.includes('topic_id')) {
+				const topicId = Number(params[2]);
+				rows = rows.filter((a) => {
+					const sess = S.sessions.find((s) => s.id === Number(a.session_id));
+					return !!sess && sess.topic_id === topicId;
+				});
+			}
 			return { rows: rows.slice(0, 1).map((a) => ({ completed_at: a.completed_at })), rowCount: Math.min(1, rows.length) };
 		}
 		if (sql.includes('from skill_assessments') && sql.includes('behavioral_flags') && sql.includes('where session_id')) {
