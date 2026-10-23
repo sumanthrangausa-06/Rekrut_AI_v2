@@ -1,6 +1,6 @@
 # Errata — migration 282 header (issue #1667, item 2)
 
-The header comment of `migrations/282_curation_content_integrity.js` (lines 15–16)
+The header comment of `migrations/282_curation_content_integrity.js` (lines 14–15)
 says databases "where the loose 280 already ran (dev, staging) keep the poisoned
 approvals".
 
