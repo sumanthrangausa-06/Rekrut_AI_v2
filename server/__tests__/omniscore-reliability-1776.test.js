@@ -125,12 +125,14 @@ describe('#1776 calculateScore — reliability measured-only', () => {
 		// #1776 introduced v3-reliability-measured-only; #1777 superseded
 		// it with v4-total-renormalised (total renormalisation + market
 		// floor removal, same file); #1782 supersedes it with
-		// v5-interview-performance-vocab (same file, interview factor).
+		// v5-interview-performance-vocab (same file, interview factor);
+		// #1801 supersedes it with v6-rescheduled-no-credit (same file,
+		// rescheduled family earns no interview credit).
 		// The current version is pinned here; each story's own suite pins
 		// its semantics.
-		expect(omniscore.SCORING_SEMANTICS_VERSION).toBe('v5-interview-performance-vocab');
+		expect(omniscore.SCORING_SEMANTICS_VERSION).toBe('v6-rescheduled-no-credit');
 		const score = await calculateScore(USER);
-		expect(score.scoring_semantics_version).toBe('v5-interview-performance-vocab');
+		expect(score.scoring_semantics_version).toBe('v6-rescheduled-no-credit');
 	});
 });
 
