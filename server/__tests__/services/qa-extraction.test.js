@@ -184,6 +184,12 @@ describe('analyzeObserverSession', () => {
 		expect(companyId).toBe(2);
 		expect(ctx.jobTitle).toBe('Data Analyst');
 		expect(Array.isArray(ctx.conversation)).toBe(true);
+		// #1504: session IS an interview_sessions row — its id goes in
+		// interviewSessionId, NOT interviewId (that column means
+		// scheduled_interviews.id at the /evaluate caller; storing the
+		// unified id there was a live ID-collision bug).
+		expect(ctx.interviewSessionId).toBe(session.id);
+		expect(ctx.interviewId).toBeUndefined();
 	});
 });
 

@@ -1625,15 +1625,21 @@ router.get('/compliance/transparency-report', requireAdmin, async (_req, res) =>
 			description: row.description,
 		}));
 
-		// OmniScore performance metrics
+		// OmniScore performance metrics (#1526 R9: live source is omni_scores;
+		// total_score is native 300-850, NULL = no data. COUNT(total_score)
+		// excludes NULL totals; AVG over no scores is NULL, kept honest-null
+		// below — an average of nothing is "insufficient data", never 0.)
 		const omniResult = await pool.query(`
-			SELECT AVG(overall_score) as avg_score,
-				   COUNT(*) as total_scores
-			FROM omniscore_results
-			WHERE overall_score IS NOT NULL
+			SELECT AVG(total_score) as avg_score,
+				   COUNT(total_score) as total_scores
+			FROM omni_scores
 		`);
 
-		const avgOmniScore = parseFloat(omniResult.rows[0]?.avg_score) || 0;
+		const rawAvgOmniScore = omniResult.rows[0]?.avg_score;
+		const avgOmniScore =
+			rawAvgOmniScore === null || rawAvgOmniScore === undefined
+				? null
+				: parseFloat(rawAvgOmniScore);
 		const totalScores = parseInt(omniResult.rows[0]?.total_scores, 10) || 0;
 
 		res.json({
@@ -1651,7 +1657,7 @@ router.get('/compliance/transparency-report', requireAdmin, async (_req, res) =>
 			aiComponents,
 			performanceMetrics: {
 				totalDecisions,
-				avgOmniScore: Math.round(avgOmniScore * 100) / 100,
+				avgOmniScore: avgOmniScore === null ? null : Math.round(avgOmniScore * 100) / 100,
 				totalScores,
 				overrideRate: Math.round(overrideRate * 10000) / 10000,
 				periodDays: 'all_time',
@@ -1800,16 +1806,22 @@ router.get('/compliance/performance', requireAdmin, async (_req, res) => {
 			overrideRate: parseFloat(row.override_rate) || 0,
 		}));
 
-		// Score distribution from omniscore_results (0-100 buckets of 10)
+		// Score distribution from omni_scores (#1526 R10: buckets are a
+		// normalised 0-100 index, converted once at the SQL boundary —
+		// norm = (total_score - 300) / 5.5, bucket = FLOOR(norm / 10) * 10.
+		// Window timestamp: omni_scores.last_updated replaces the dead
+		// table's created_at — last_updated is stamped on every score
+		// calculation, while omni_scores.created_at is row creation, when
+		// the score is still NULL.)
 		const scoreDistResult = await pool.query(
 			`
       SELECT
-        FLOOR(overall_score / 10) * 10 as bucket,
+        FLOOR(((total_score - 300) / 5.5) / 10) * 10 as bucket,
         COUNT(*) as count
-      FROM omniscore_results
-      WHERE overall_score IS NOT NULL
-        AND created_at >= $1
-      GROUP BY FLOOR(overall_score / 10) * 10
+      FROM omni_scores
+      WHERE total_score IS NOT NULL
+        AND last_updated >= $1
+      GROUP BY FLOOR(((total_score - 300) / 5.5) / 10) * 10
       ORDER BY bucket
     `,
 			[startDate],

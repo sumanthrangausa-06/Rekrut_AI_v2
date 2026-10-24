@@ -329,6 +329,150 @@ describe('GET /explain/decision/:applicationId — object-level authz', () => {
 		expect(res.body.explanation.candidate.name).toBe('Candidate A');
 	});
 
+	// #927: the candidate-self shaping is an ALLOWLIST projection, not a
+	// denylist. A service result carrying extra fields at ANY level (the
+	// service is fed by SELECT ja.*, so future columns/fields arrive
+	// unannounced) must not leak any of them to a candidate-self caller,
+	// and the candidate-self key sets are pinned exactly.
+	const POLLUTED_EXPLANATION = {
+		application_id: 100,
+		candidate: {
+			name: 'Candidate A',
+			email: 'ca@test.com',
+			internal_candidate_flag: 'INJECTED_CANDIDATE_FIELD',
+		},
+		job: { title: 'Engineer', internal_hiring_priority: 'INJECTED_JOB_FIELD' },
+		decision: {
+			status: 'rejected',
+			decided_at: '2026-10-01T00:00:00.000Z',
+			recruiter_notes: 'SECRET_RECRUITER_NOTES',
+			internal_decision_note: 'INJECTED_DECISION_FIELD',
+		},
+		omniscore_at_apply: 55,
+		current_omniscore: 61,
+		internal_top_level: 'INJECTED_TOP_LEVEL',
+		factors: [
+			{
+				factor: 'Low OmniScore',
+				value: 55,
+				impact: 'negative',
+				explanation: 'OmniScore of 55 was below the competitive threshold of 60',
+				internal_factor_source: 'INJECTED_FACTOR_FIELD',
+			},
+		],
+	};
+
+	test('candidate-self → allowlist projection: injected fields at every level never reach the candidate (#927)', async () => {
+		const shared = JSON.parse(JSON.stringify(POLLUTED_EXPLANATION));
+		mockExplainDecision.mockResolvedValue(shared);
+
+		const res = await request(app).get('/api/compliance/explain/decision/100').set(as(21));
+		expect(res.status).toBe(200);
+		const body = JSON.stringify(res.body);
+		expect(body).not.toContain('INJECTED_');
+		expect(body).not.toContain('recruiter_notes');
+
+		// Exact candidate-self key sets at every level.
+		expect(Object.keys(res.body.explanation).sort()).toEqual(
+			[
+				'application_id',
+				'candidate',
+				'current_omniscore',
+				'decision',
+				'factors',
+				'job',
+				'omniscore_at_apply',
+			].sort(),
+		);
+		expect(Object.keys(res.body.explanation.candidate).sort()).toEqual(['email', 'name']);
+		expect(Object.keys(res.body.explanation.job)).toEqual(['title']);
+		expect(Object.keys(res.body.explanation.decision).sort()).toEqual(['decided_at', 'status']);
+		expect(Object.keys(res.body.explanation.factors[0]).sort()).toEqual(
+			['explanation', 'factor', 'impact', 'value'].sort(),
+		);
+
+		// The candidate-safe values survive the projection intact.
+		expect(res.body.explanation.application_id).toBe(100);
+		expect(res.body.explanation.candidate).toEqual({ name: 'Candidate A', email: 'ca@test.com' });
+		expect(res.body.explanation.job).toEqual({ title: 'Engineer' });
+		expect(res.body.explanation.decision).toEqual({
+			status: 'rejected',
+			decided_at: '2026-10-01T00:00:00.000Z',
+		});
+		expect(res.body.explanation.omniscore_at_apply).toBe(55);
+		expect(res.body.explanation.current_omniscore).toBe(61);
+		expect(res.body.explanation.factors).toEqual([
+			{
+				factor: 'Low OmniScore',
+				value: 55,
+				impact: 'negative',
+				explanation: 'OmniScore of 55 was below the competitive threshold of 60',
+			},
+		]);
+
+		// The projection does not mutate the service result object.
+		expect(shared.internal_top_level).toBe('INJECTED_TOP_LEVEL');
+		expect(shared.decision.recruiter_notes).toBe('SECRET_RECRUITER_NOTES');
+		expect(shared.factors[0].internal_factor_source).toBe('INJECTED_FACTOR_FIELD');
+	});
+
+	// #1457: candidate-self shaping is UNCONDITIONAL — a missing/falsy
+	// `decision` must not skip the allowlist (the service sets it today,
+	// but the projection must not depend on that).
+	test('candidate-self → shaping still applies when decision is missing: injected fields never reach the candidate (#1457)', async () => {
+		const noDecision = JSON.parse(JSON.stringify(POLLUTED_EXPLANATION));
+		delete noDecision.decision;
+		mockExplainDecision.mockResolvedValue(noDecision);
+
+		const res = await request(app).get('/api/compliance/explain/decision/100').set(as(21));
+		expect(res.status).toBe(200);
+		const body = JSON.stringify(res.body);
+		expect(body).not.toContain('INJECTED_');
+		expect(body).not.toContain('recruiter_notes');
+		expect(Object.keys(res.body.explanation).sort()).toEqual(
+			[
+				'application_id',
+				'candidate',
+				'current_omniscore',
+				'decision',
+				'factors',
+				'job',
+				'omniscore_at_apply',
+			].sort(),
+		);
+		// Missing decision projects to the allowlisted decision shape (empty
+		// after JSON serialisation), never to the raw service object.
+		expect(res.body.explanation.decision).toEqual({});
+		expect(res.body.explanation.factors).toEqual([
+			{
+				factor: 'Low OmniScore',
+				value: 55,
+				impact: 'negative',
+				explanation: 'OmniScore of 55 was below the competitive threshold of 60',
+			},
+		]);
+	});
+
+	// #1457: a non-array `factors` value must not pass through verbatim —
+	// it bypasses the per-factor allowlist mapping. Coerce to [].
+	test('candidate-self → non-array factors is coerced to [] in the projection (#1457)', async () => {
+		const badFactors = JSON.parse(JSON.stringify(POLLUTED_EXPLANATION));
+		badFactors.factors = 'SECRET_NON_ARRAY_FACTORS';
+		mockExplainDecision.mockResolvedValue(badFactors);
+
+		const res = await request(app).get('/api/compliance/explain/decision/100').set(as(21));
+		expect(res.status).toBe(200);
+		expect(JSON.stringify(res.body)).not.toContain('SECRET_NON_ARRAY_FACTORS');
+		expect(res.body.explanation.factors).toEqual([]);
+	});
+
+	test('recruiter-of-record → allowlist does NOT apply: the full service result rides unchanged (#927)', async () => {
+		mockExplainDecision.mockResolvedValue(JSON.parse(JSON.stringify(POLLUTED_EXPLANATION)));
+		const res = await request(app).get('/api/compliance/explain/decision/100').set(as(10));
+		expect(res.status).toBe(200);
+		expect(res.body.explanation).toEqual(POLLUTED_EXPLANATION);
+	});
+
 	test('self-applicant whose account role is recruiter (converted account) → 200 WITHOUT recruiter_notes (shaping keys on identity, not role)', async () => {
 		const res = await request(app).get('/api/compliance/explain/decision/103').set(as(23));
 		expect(res.status).toBe(200);

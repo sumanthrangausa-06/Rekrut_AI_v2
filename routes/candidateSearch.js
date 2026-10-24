@@ -20,6 +20,18 @@ const { analyticsCache } = require('../lib/analytics-cache');
 const { DistributedRateLimiter } = require('../lib/distributed-rate-limiter');
 const { AuditLogger } = require('../services/auditLogService');
 const matchingEngine = require('../services/matching-engine');
+const omniscoreService = require('../services/omniscore');
+
+// #1787: candidate_search_index.score_tier is a copy of the STORED
+// omni_scores tier (metal vocabulary). Filters arrive in the API label
+// vocabulary and results are rendered as labels — translate at this
+// read boundary; storage stays metal.
+const storedTierForFilter = (tier) =>
+	omniscoreService.SCORE_RANGES.TIERS[tier] ? omniscoreService.dbTierFromLabel(tier) : tier;
+const withLabelTier = (row) => {
+	if (row && 'score_tier' in row) row.score_tier = omniscoreService.labelFromDbTier(row.score_tier);
+	return row;
+};
 
 // ─── Auth & Authorization ────────────────────────────────────────
 
@@ -152,10 +164,10 @@ function buildSearchWhere(params) {
 		idx++;
 	}
 
-	// Score tier filter
+	// Score tier filter (#1787: label → stored metal before comparing)
 	if (params.score_tier) {
 		conditions.push(`csi.score_tier = $${idx}`);
-		queryParams.push(params.score_tier);
+		queryParams.push(storedTierForFilter(params.score_tier));
 		idx++;
 	}
 
@@ -230,7 +242,7 @@ router.get('/search', authMiddleware, requireRecruiter, async (req, res) => {
 		const queryTime = Date.now() - startTime;
 
 		res.json({
-			candidates: dataResult.rows,
+			candidates: dataResult.rows.map(withLabelTier),
 			pagination: { limit, offset, total, hasMore: offset + dataResult.rows.length < total },
 			meta: { queryTimeMs: queryTime },
 		});
@@ -343,7 +355,7 @@ router.get('/search/semantic', authMiddleware, requireRecruiter, async (req, res
 		const queryTime = Date.now() - startTime;
 
 		res.json({
-			candidates: dataResult.rows,
+			candidates: dataResult.rows.map(withLabelTier),
 			pagination: { limit, offset, total, hasMore: offset + dataResult.rows.length < total },
 			meta: { queryTimeMs: queryTime, query: queryText },
 		});
@@ -628,6 +640,7 @@ router.get('/:id/preview', authMiddleware, requireRecruiter, async (req, res) =>
 		const previewResponse = {
 			candidate: {
 				...profile,
+				score_tier: omniscoreService.labelFromDbTier(profile.score_tier),
 				skills: skillsWithEndorsements,
 				experience: experienceResult.rows,
 				education: educationResult.rows,

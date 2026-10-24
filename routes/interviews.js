@@ -44,6 +44,43 @@ const upload = multer({
 	limits: { fileSize: 50 * 1024 * 1024 },
 });
 
+// #1504: resolve a legacy screening_sessions row to its unified
+// interview_sessions id. Migration 129's backfill copied screening rows
+// into interview_sessions WITHOUT preserving the legacy id, but it copied
+// invite_token, which is UNIQUE on both tables — so the token (scoped by
+// candidate) is a deterministic unique-key hop, not a guess. Fail-safe
+// NULL: no match means no unified session exists (e.g. a legacy row
+// created after the backfill); never fuzzy-match on candidate/job/status.
+async function resolveInterviewSessionId(inviteToken, candidateId) {
+	if (!inviteToken) return null;
+	try {
+		const r = await pool.query(
+			'SELECT id FROM interview_sessions WHERE invite_token = $1 AND candidate_id = $2',
+			[inviteToken, candidateId],
+		);
+		return r.rows[0]?.id ?? null;
+	} catch (err) {
+		console.error('[interviews] interview_session_id resolution failed:', err.message);
+		return null;
+	}
+}
+
+// #1372: one score coercion for the whole mock-end flow — a numeric
+// string ("7", a real LLM output shape) is a real score; anything else
+// (missing, null, "N/A", NaN) is null (unscored). Used at every persist /
+// practice-history / background-blend site so a genuinely scored session
+// can never be silently erased by a Number.isFinite(string) mismatch,
+// and an unscored one can never acquire a default.
+function finiteScore(value) {
+	const numeric =
+		typeof value === 'number'
+			? value
+			: typeof value === 'string' && value.trim() !== ''
+				? Number(value)
+				: NaN;
+	return Number.isFinite(numeric) ? numeric : null;
+}
+
 // Helper: Race a promise against a timeout to prevent hanging when AI providers are slow.
 // The AI provider chain can take 9×15s = 135s worst case; Render kills requests at ~30s.
 // This ensures we hit the scripted fallback BEFORE the request is killed.
@@ -3390,9 +3427,12 @@ router.post('/screening/session/:token/complete', async (req, res) => {
 		]);
 		const jobData = jobResult.rows[0] || {};
 
+		const interviewSessionId = await resolveInterviewSessionId(s.invite_token, s.candidate_id);
+
 		interviewAI
 			.runMultiEvaluation(s.candidate_id, s.job_id, s.company_id, {
 				screeningSessionId: s.id,
+				interviewSessionId,
 				conversation: s.conversation || [],
 				responses: s.responses || [],
 				jobTitle: jobData.title,
@@ -3568,6 +3608,9 @@ router.post('/evaluate', authMiddleware, async (req, res) => {
 		const { interview_id, screening_session_id } = req.body;
 
 		let candidateId, jobId, companyId, conversation, responses, jobTitle, jobDescription;
+		// #1504: unified interview_sessions id, resolved only in the
+		// screening branch (scheduled interviews have no unified row).
+		let interviewSessionId = null;
 
 		if (interview_id) {
 			// Evaluate a scheduled interview
@@ -3628,6 +3671,7 @@ router.post('/evaluate', authMiddleware, async (req, res) => {
 			responses = s.responses || [];
 			jobTitle = s.job_title;
 			jobDescription = s.job_description;
+			interviewSessionId = await resolveInterviewSessionId(s.invite_token, s.candidate_id);
 		} else {
 			return res.status(400).json({ error: 'interview_id or screening_session_id required' });
 		}
@@ -3635,6 +3679,7 @@ router.post('/evaluate', authMiddleware, async (req, res) => {
 		const result = await interviewAI.runMultiEvaluation(candidateId, jobId, companyId, {
 			interviewId: interview_id || null,
 			screeningSessionId: screening_session_id || null,
+			interviewSessionId,
 			conversation,
 			responses,
 			jobTitle,

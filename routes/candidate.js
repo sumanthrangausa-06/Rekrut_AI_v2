@@ -3770,7 +3770,14 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 			stats: {
 				omniscore:
 					v.omni_score != null
-						? { total_score: v.omni_score, score_tier: v.score_tier }
+						? {
+								total_score: v.omni_score,
+								// #1787: the view carries the STORED metal tier;
+								// the dashboard renders this field as the tier
+								// label, so translate metal → label at the read
+								// boundary (592 stored 'bronze' must read 'fair').
+								score_tier: omniscoreService.labelFromDbTier(v.score_tier),
+							}
 						: { total_score: null, score_tier: null },
 				profile_completeness: completeness,
 				missing_sections: missingSections,
@@ -3883,9 +3890,17 @@ router.put('/interviews/:id/decline', authMiddleware, async (req, res) => {
 	try {
 		const { reason } = req.body;
 
+		// #1783: outcome is a closed evaluation vocabulary
+		// (chk_scheduled_interviews_outcome: passed/failed/pending_review/
+		// no_decision/NULL) — the free-text decline reason can never live
+		// there (PG 23514 on a migrated DB). A declined interview has no
+		// outcome (NULL); the reason goes to notes, the same lawful column
+		// the reschedule route below appends candidate reasons to.
 		const result = await pool.query(
 			`UPDATE scheduled_interviews
-       SET status = 'cancelled', outcome = $3, updated_at = NOW()
+       SET status = 'cancelled', outcome = NULL,
+           notes = COALESCE(notes, '') || E'\n[Declined] ' || $3,
+           updated_at = NOW()
        WHERE id = $1 AND candidate_id = $2 AND status IN ('scheduled', 'confirmed')
        RETURNING *`,
 			[req.params.id, req.user.id, reason || 'Candidate declined'],

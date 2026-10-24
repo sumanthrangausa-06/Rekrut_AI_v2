@@ -94,3 +94,15 @@ modules:
       - "Save & Exit list affordance gap: the saved in-progress session gets no Resume door on the Assessments list (server state + draft verified correct via API) — #1824"
       - "subjects count on staging is 18 vs 19 on fresh install (staging's pre-existing DSA subject has no topics and renders an honest empty state; all 17 launch topics at full parity)"
       - "#1727 anti-cheat NULL-guard client sweep (assessments-adjacent) did not ride this train — rides the next train as a one-pick rider"
+
+  omniscore:
+    current_version: "0.1"        # in-flight Train 6 (2026-10-24): staging runs
+                                  # pre-honesty score code until this train lands
+    dev_version:     "1.0"
+    staging_version: "0.1"
+    prod_version:    "0.1"
+    status: in-flight
+    last_train_date: "2026-10-24"
+    train_pr: "pending"
+    train_commit: "pending"
+    tag: null

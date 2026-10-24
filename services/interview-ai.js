@@ -509,8 +509,15 @@ Return ONLY valid JSON with this structure:
  */
 async function runMultiEvaluation(candidateId, jobId, companyId, context) {
 	const aiProvider = require('../lib/ai-provider');
-	const { interviewId, screeningSessionId, conversation, responses, jobTitle, jobDescription } =
-		context;
+	const {
+		interviewId,
+		screeningSessionId,
+		interviewSessionId,
+		conversation,
+		responses,
+		jobTitle,
+		jobDescription,
+	} = context;
 
 	// Build the interview transcript for evaluators
 	let transcript = '';
@@ -610,8 +617,8 @@ Return JSON only:
 	for (const type of evaluatorTypes) {
 		await pool.query(
 			`INSERT INTO interview_evaluations
-       (interview_id, screening_session_id, candidate_id, job_id, company_id, evaluator_type, score, max_score, breakdown, reasoning)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 100, $8, $9)`,
+       (interview_id, screening_session_id, candidate_id, job_id, company_id, evaluator_type, score, max_score, breakdown, reasoning, interview_session_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 100, $8, $9, $10)`,
 			[
 				interviewId || null,
 				screeningSessionId || null,
@@ -622,6 +629,11 @@ Return JSON only:
 				evaluations[type].score,
 				JSON.stringify(evaluations[type].breakdown || {}),
 				evaluations[type].reasoning || '',
+				// #1504: unified session link (migration 129) the display
+				// subqueries in routes/interviews.js read on. NULL when the
+				// caller has no interview_sessions row (e.g. scheduled
+				// interviews, deliberately never backfilled).
+				interviewSessionId || null,
 			],
 		);
 	}
@@ -675,7 +687,7 @@ Return JSON only:
 	try {
 		await omniscoreService.addInterviewComponent(
 			candidateId,
-			interviewId || `screening-${screeningSessionId}`,
+			interviewId || interviewSessionId || `screening-${screeningSessionId}`,
 			compositeScore / 10,
 		);
 		console.log(
