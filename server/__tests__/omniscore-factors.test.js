@@ -177,6 +177,77 @@ describe('omniscore factor hasData flags', () => {
 		});
 	});
 
+	describe('#1779 reliability_signals — fully-measured penalty + cap pins', () => {
+		// Filed from the PR #1778 review (Finding 5): the fully-measured
+		// formula 60a + 40f − penalty and the Math.min(20, noShows × 10)
+		// cap were probed correct by the reviewer but unpinned — a
+		// refactor dropping the penalty or its cap passed every suite.
+		// Shapes are lawful post-#1781: a no-show is status 'no_show' +
+		// outcome null (never also attended); the extra denominator row
+		// in (a) is status 'scheduled' + outcome null (neither attended
+		// nor a no-show).
+		test('(a) fully-measured with a no-show: 60a + 40f − 10 = 60', () => {
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				interviews: [
+					{ status: 'completed', outcome: 'passed' },
+					{ status: 'completed', outcome: 'passed' },
+					{ status: 'no_show', outcome: null },
+					{ status: 'scheduled', outcome: null },
+				],
+				applications: [{ status: 'applied' }],
+			});
+			// a = 2/4 = 0.5, f = 1.0: 60*0.5 + 40*1 − 10 penalty = 60.
+			// Removing the penalty gives 70 — this pin must fail then.
+			expect(result.raw).toBe(60);
+			expect(result.hasData).toBe(true);
+			expect(result.coverage).toEqual({ attendance: true, followThrough: true });
+			expect(result.coverageNote).toBeNull();
+			expect(result.details.join(' ')).toMatch(/1 no-shows\/cancellations \(-10\)/);
+		});
+
+		test('(b) penalty cap: 3 no-shows deduct 20, not 30 — raw 35', () => {
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				interviews: [
+					{ status: 'completed', outcome: 'passed' },
+					{ status: 'no_show', outcome: null },
+					{ status: 'no_show', outcome: null },
+					{ status: 'no_show', outcome: null },
+				],
+				applications: [{ status: 'applied' }],
+			});
+			// a = 1/4 = 0.25, f = 1.0: 60*0.25 + 40*1 = 55, minus the
+			// CAPPED penalty 20 = 35. Uncapped (3 × 10 = 30) gives 25;
+			// no penalty gives 55 — this pin must fail in both mutations.
+			// (55/100)*100 is 55.00000000000001 in IEEE 754, so raw is
+			// pinned to 10 decimal places; the penalty detail string is
+			// built from the integer penalty and is matched exactly.
+			expect(result.raw).toBeCloseTo(35, 10);
+			expect(result.coverage).toEqual({ attendance: true, followThrough: true });
+			expect(result.coverageNote).toBeNull();
+			expect(result.details.join(' ')).toMatch(/3 no-shows\/cancellations \(-20\)/);
+		});
+
+		test('(b) penalty cap holds beyond 3: 4 no-shows still deduct 20 — raw 32', () => {
+			const result = calcReliabilitySignals({
+				...emptyData(),
+				interviews: [
+					{ status: 'completed', outcome: 'passed' },
+					{ status: 'no_show', outcome: null },
+					{ status: 'no_show', outcome: null },
+					{ status: 'no_show', outcome: null },
+					{ status: 'no_show', outcome: null },
+				],
+				applications: [{ status: 'applied' }],
+			});
+			// a = 1/5 = 0.2, f = 1.0: 60*0.2 + 40*1 = 52, minus the
+			// capped penalty 20 = 32. Uncapped (4 × 10 = 40) gives 12.
+			expect(result.raw).toBe(32);
+			expect(result.details.join(' ')).toMatch(/4 no-shows\/cancellations \(-20\)/);
+		});
+	});
+
 	test('market_demand flags no data when no matches and no skills', () => {
 		// #1777 measured-only: the skill-category fallback's +20 floor is
 		// removed — with zero skills it awarded a phantom 20/100 while
