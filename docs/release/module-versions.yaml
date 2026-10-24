@@ -55,7 +55,7 @@ modules:
     status: in-flight             # Train 3 (cv-review v2.1: #1471/#1472/#1477 picks),
                                   # standing promotion authorization 2026-10-22
     last_train_date: "2026-10-24"
-    train_pr: "train/cv-review-v2.1 (PR opened 2026-10-24)"
+    train_pr: "PR #1817"
     train_commit: "e41c65b93ea3cf7d9181d582e72a1e9899aa3763"
     tag: null
 
