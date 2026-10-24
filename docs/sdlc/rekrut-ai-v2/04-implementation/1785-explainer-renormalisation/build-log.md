@@ -111,9 +111,16 @@ Worked examples (post-fix):
   `score-explainer-renormalisation-realdb-1785` **3/3** — persisted
   sole/mixed/full rows read back through the REAL `explainOmniScore`
   with Σ contributions = total − 300 in each case.
-- Neighbour sweep (every suite importing `services/scoreExplainer.js`
-  or `services/omniscore.js` that is runnable in this environment):
-  results recorded in the PR body.
+- Neighbour sweep (18 suites importing `services/scoreExplainer.js`
+  or `services/omniscore.js`): **242 passed, 4 skipped (DB-gated),
+  2 failed** — both failures in
+  `score-explainer-match-results-1458`, the `euComplianceService`
+  weights_hash pins (`v2-match-results` expected, service now writes
+  `v3-omni-scores-split` since #1525). Pre-existing on `origin/dev`:
+  both files are byte-identical between `origin/dev` and this branch
+  (0-line diff), so the failure cannot be caused by this change. (An
+  earlier sweep attempt under parallel load showed extra flake
+  failures; the clean re-run above is the authoritative count.)
 
 ## Gates remaining (Lead coordinates)
 
