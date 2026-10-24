@@ -63,15 +63,17 @@ modules:
       - "Pro-analyze staging leg unproven — no API-completable Pro account (Stripe hosted checkout); dev proof stands (#1471, score 72)"
 
   jobs-careers:
-    current_version: "0.1"        # live on staging but journey UNPROVEN —
-                                  # v0.x per the starting-version rule
+    current_version: "1.0"        # v1.0 proven on staging 2026-10-24 (Train 4 retest):
+                                  # filters live, completion truthful, #1607/#1608
+                                  # browser-proven in the live app.
     dev_version:     "1.0"
-    staging_version: "0.1"
-    prod_version:    "0.1"
-    status: in-flight             # Train 4 (job-board-profile v1.0): #1600/#1601
-                                  # fixes + #1607/#1608 profile riders; v1.0 is
-                                  # earned only by the Train 4 staging retest
+    staging_version: "1.0"
+    prod_version:    "0.1"        # main promotion not yet run for this module
+    status: current
     last_train_date: "2026-10-24"
     train_pr: "PR #1820"
-    train_commit: null
-    tag: null
+    train_commit: "b7479dac41bdf83d5984eccfa33613997223ff75"
+    tag: "staging/jobs-careers@v1.0"
+    riders:
+      - "mobile-viewport rendering of the sidebar not directly proven (browser tool could not resize); sidebar entry + identity block verified in the live app and by the shipped SidebarMyProfile1636 suite on the deployed code"
+      - "Job Board page itself shows no completion % (percentages there are match scores); the canonical completion shows truthfully on profile/dashboard/job-detail (8% fresh, 58% filled via API, 17% after photo in browser)"
