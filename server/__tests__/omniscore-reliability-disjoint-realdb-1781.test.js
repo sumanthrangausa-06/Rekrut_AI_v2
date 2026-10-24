@@ -24,9 +24,12 @@
  * Fix (Lead checkpoint on #1781, comment 6378154700 — status wins):
  * the attended/passed set and the no-show set are disjoint — a
  * no_show/cancelled row never counts as attended, whatever its
- * outcome says. A contradictory row therefore measures exactly like
- * a clean no-show: with 1 application (f = 1) and 1 interview,
- * raw = 0*60 + 40*1 − 10 = 30 (Scout's clean no-show baseline).
+ * outcome says. A contradictory no-show row therefore measures
+ * exactly like a clean no-show: with 1 application (f = 1) and 1
+ * interview, raw = 0*60 + 40*1 − 10 = 30 (Scout's clean no-show
+ * baseline). The contradictory CANCELLED row keeps the no-credit
+ * treatment but, since #1780 interim (b) (PR #1813), carries no
+ * penalty — cancellations are actor-blind — so it measures raw 40.
  *
  * This suite follows the omniscore-reliability-realdb-1776.test.js
  * pattern: fresh throwaway Postgres built by `node migrate.js` from
