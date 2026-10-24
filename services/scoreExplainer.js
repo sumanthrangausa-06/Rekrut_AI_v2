@@ -13,11 +13,15 @@ function numOrNull(value) {
 }
 
 // A factor's contribution to the total, in total-scale points — the
-// engine's own arithmetic (services/omniscore.js): total = 300 +
-// Σ (raw/100 × weight) × 550.
-function factorContribution(raw, weight) {
+// engine's own arithmetic (services/omniscore.js, #1777 v4): total =
+// 300 + Σ (raw/100 × EFFECTIVE weight) × 550, where a measured factor's
+// effective weight is its nominal FACTOR_WEIGHTS share renormalised
+// over the measured factors only (see effectiveWeight below). Passing
+// a nominal weight here was #1785: contributions for a
+// partially-measured candidate summed to less than the headline total.
+function factorContribution(raw, effectiveWeight) {
 	if (raw === null) return null;
-	return Math.round((raw / 100) * weight * 550);
+	return Math.round((raw / 100) * effectiveWeight * 550);
 }
 
 /**
@@ -104,17 +108,36 @@ async function explainOmniScore(userId) {
 			}
 		}
 
+		// #1785: the measured set on this surface is the persisted
+		// factor_scores entries that are non-NULL (#1538 number-or-null);
+		// a measured factor's effective weight is its nominal share
+		// renormalised over that set — the same v4 semantics
+		// services/omniscore.js applies to the total (its
+		// renormalisedWeight helper, over the live factors shape). An
+		// unmeasured factor's effective weight is 0 and its contribution
+		// stays NULL — never a nominal-weight fake.
+		const measuredWeight = Object.entries(FACTOR_WEIGHTS).reduce(
+			(sum, [key, weight]) => sum + (numOrNull(factorScores[key]) !== null ? weight : 0),
+			0,
+		);
+		const effectiveWeight = (key) => {
+			if (numOrNull(factorScores[key]) === null || measuredWeight === 0) return 0;
+			return FACTOR_WEIGHTS[key] / measuredWeight;
+		};
+
 		// The real 8-factor breakdown (replaces the fabricated 40/30/30
 		// formula, dropped per Rex §5.2 — it described a model that
 		// never ran).
 		const factorBreakdown = Object.entries(FACTOR_WEIGHTS).map(([key, weight]) => {
 			const raw = numOrNull(factorScores[key]);
+			const effWeight = effectiveWeight(key);
 			return {
 				factor: key,
 				label: (FACTOR_META[key] && FACTOR_META[key].label) || key,
 				score: raw,
 				weight,
-				contribution: factorContribution(raw, weight),
+				effective_weight: effWeight,
+				contribution: factorContribution(raw, effWeight),
 			};
 		});
 		const factorByKey = Object.fromEntries(factorBreakdown.map((f) => [f.factor, f]));
@@ -126,6 +149,16 @@ async function explainOmniScore(userId) {
 		// Signals and Soft Skills factor raws (omniscore.js
 		// calculateScore), so its true combined weight is their sum.
 		const behavioralWeight = FACTOR_WEIGHTS.reliability_signals + FACTOR_WEIGHTS.soft_skills;
+		// #1785: the 3-group contributions use the same renormalised
+		// effective weights as factor_breakdown (behavioral: the two
+		// source factors' effective weights summed — their compat
+		// average × that sum equals the two factors' contributions).
+		// A group with no measured backing factor (effective weight 0)
+		// gets contribution NULL, never a nominal-weight figure.
+		const behavioralEffectiveWeight =
+			effectiveWeight('reliability_signals') + effectiveWeight('soft_skills');
+		const groupContribution = (scoreValue, effWeight) =>
+			effWeight > 0 ? factorContribution(scoreValue, effWeight) : null;
 
 		const componentList = (list) =>
 			list.map((c) => ({
@@ -149,7 +182,7 @@ async function explainOmniScore(userId) {
 					label: 'Technical (Verified Skills factor)',
 					score: technicalScore,
 					weight: FACTOR_WEIGHTS.verified_skills,
-					contribution: factorContribution(technicalScore, FACTOR_WEIGHTS.verified_skills),
+					contribution: groupContribution(technicalScore, effectiveWeight('verified_skills')),
 					components: componentList(componentsByType.technical),
 				},
 				behavioral: {
@@ -158,14 +191,14 @@ async function explainOmniScore(userId) {
 					label: 'Behavioral (composite of Reliability Signals and Soft Skills factors)',
 					score: behavioralScore,
 					weight: behavioralWeight,
-					contribution: factorContribution(behavioralScore, behavioralWeight),
+					contribution: groupContribution(behavioralScore, behavioralEffectiveWeight),
 					components: componentList(componentsByType.behavioral),
 				},
 				experience: {
 					label: 'Experience (Experience Quality factor)',
 					score: experienceScore,
 					weight: FACTOR_WEIGHTS.experience_quality,
-					contribution: factorContribution(experienceScore, FACTOR_WEIGHTS.experience_quality),
+					contribution: groupContribution(experienceScore, effectiveWeight('experience_quality')),
 					components: componentList(componentsByType.experience),
 				},
 			},
@@ -191,9 +224,11 @@ async function explainOmniScore(userId) {
 
 /**
  * Generate plain-English explanation of how the score is calculated —
- * the engine's real formula: 300 + Σ (factor ÷ 100 × weight) × 550
- * across the 8 factors. (The previous 40/30/30 text described a model
- * that never ran and is dropped, not converted — Rex §5.2.)
+ * the engine's real formula (#1777 v4): 300 + Σ (factor ÷ 100 ×
+ * effective weight) × 550 across the 8 factors, where each measured
+ * factor's effective weight is its nominal weight renormalised over
+ * the measured factors only. (The previous 40/30/30 text described a
+ * model that never ran and is dropped, not converted — Rex §5.2.)
  */
 function generateCalculationExplanation(totalScore, factorBreakdown) {
 	// Honesty gate (PR #1531 BLOCK 6307320338): a null contribution means
@@ -205,7 +240,7 @@ function generateCalculationExplanation(totalScore, factorBreakdown) {
 	const hasMissingFactor = factorBreakdown.some((f) => f.contribution === null);
 	return {
 		formula:
-			'OmniScore = 300 + \u03a3 (factor score \u00f7 100 \u00d7 factor weight) \u00d7 550 across 8 factors (scale 300\u2013850)',
+			'OmniScore = 300 + \u03a3 (factor score \u00f7 100 \u00d7 effective factor weight) \u00d7 550 across 8 factors \u2014 weights renormalised over measured factors only (scale 300\u2013850)',
 		scale: '300-850',
 		calculation: hasMissingFactor
 			? `${totalScore} is the stored OmniScore. A full factor decomposition is unavailable because some factor data is missing \u2014 factors with no data have no contribution (see the breakdown below).`
@@ -215,7 +250,7 @@ function generateCalculationExplanation(totalScore, factorBreakdown) {
 		breakdown: factorBreakdown.map((f) =>
 			f.score === null
 				? `${f.label}: no data \u2014 no contribution`
-				: `${f.label} contribution: ${f.contribution} of 550 points (score ${f.score} \u00d7 ${Math.round(f.weight * 100)}% weight)`,
+				: `${f.label} contribution: ${f.contribution} of 550 points (score ${f.score} \u00d7 ${Math.round(f.effective_weight * 100)}% effective weight)`,
 		),
 	};
 }

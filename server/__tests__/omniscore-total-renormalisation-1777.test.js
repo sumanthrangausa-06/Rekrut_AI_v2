@@ -157,6 +157,39 @@ describe('#1777 calcMarketDemand — measured-only, no silent +20 floor', () => 
 		expect(result.hasData).toBe(true);
 		expect(result.raw).toBe(100);
 	});
+
+	// #1785 rider F4(a): pin the Math.min(100, ...) cap in the fallback
+	// branch — previously the largest tested matchCount was 2 (raw 40).
+	test('five in-demand categories: raw 100 (5 x 20, at the cap)', () => {
+		const result = calcMarketDemand({
+			...emptyData(),
+			skills: [
+				{ category: 'software engineering' },
+				{ category: 'data science' },
+				{ category: 'cloud' },
+				{ category: 'ai' },
+				{ category: 'security' },
+			],
+		});
+		expect(result.hasData).toBe(true);
+		expect(result.raw).toBe(100);
+	});
+
+	test('six in-demand categories: raw stays 100 (6 x 20 = 120 capped by Math.min)', () => {
+		const result = calcMarketDemand({
+			...emptyData(),
+			skills: [
+				{ category: 'software engineering' },
+				{ category: 'data science' },
+				{ category: 'cloud' },
+				{ category: 'ai' },
+				{ category: 'security' },
+				{ category: 'devops' },
+			],
+		});
+		expect(result.hasData).toBe(true);
+		expect(result.raw).toBe(100);
+	});
 });
 
 describe('#1777 calculateScore — total renormalised over measured factors only', () => {
@@ -266,6 +299,27 @@ describe('#1777 breakdown/explainer — contributions use the renormalised weigh
 		}
 		const sum = Object.values(breakdown).reduce((s, f) => s + f.weighted_contribution, 0);
 		expect(sum).toBe(current.total_score - 300);
+	});
+
+	// #1785 rider F4(b): the mixed-measured TOTAL (644) was pinned in
+	// #1777 but its breakdown sum was not — pin it here.
+	test('breakdown: mixed measured factors — contributions sum to the 644 total', async () => {
+		mockState.applications = [{ status: 'applied' }];
+		mockState.education = [{ degree: 'Bachelor', field_of_study: 'Computer Science', gpa: null }];
+		const { current, breakdown } = await getScoreBreakdown(USER);
+		expect(current.total_score).toBe(644);
+		// Measured weight .10 + .10 = .20 -> effective weight .5 each.
+		expect(breakdown.reliability_signals.effective_weight).toBe(0.5);
+		expect(breakdown.reliability_signals.weighted_contribution).toBe(275); // 1.00 x .5 x 550
+		expect(breakdown.education_credentials.effective_weight).toBe(0.5);
+		expect(breakdown.education_credentials.weighted_contribution).toBe(69); // round(.25 x .5 x 550)
+		for (const [key, f] of Object.entries(breakdown)) {
+			if (key === 'reliability_signals' || key === 'education_credentials') continue;
+			expect(f.has_data).toBe(false);
+			expect(f.weighted_contribution).toBe(0);
+		}
+		const sum = Object.values(breakdown).reduce((s, f) => s + f.weighted_contribution, 0);
+		expect(sum).toBe(current.total_score - 300); // 275 + 69 = 344
 	});
 
 	test('explainer: sole measured factor impact is the full contribution, others Insufficient data', async () => {
