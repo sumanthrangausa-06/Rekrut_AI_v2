@@ -175,7 +175,9 @@ export function CandidateJobDetailPage() {
 		};
 	}, [job?.company_id]);
 	const [saved, setSaved] = useState(false);
-	const [profileCompleteness, setProfileCompleteness] = useState(0);
+	// #1601: null = unknown (not yet loaded / load failed) — never render a
+	// percentage for an unknown value; only a real canonical value displays.
+	const [profileCompleteness, setProfileCompleteness] = useState<number | null>(null);
 	const [tailoredDocs, setTailoredDocs] = useState<TailoredDocument | null>(null);
 	const [generatingDocs, setGeneratingDocs] = useState(false);
 	const [showDocs, setShowDocs] = useState(false);
@@ -307,11 +309,26 @@ export function CandidateJobDetailPage() {
 		}
 	}, [id]);
 
+	// #1601 (FR-P1): profile completion has ONE source of truth — the
+	// canonical 12-field calculation in @/lib/profile-completion and its
+	// server mirror, GET /candidate/dashboard/stats (the same value the
+	// Dashboard shows). GET /candidate/profile returns the raw profile row
+	// and has no completeness field; reading one off it always yielded 0.
 	const loadProfileCompleteness = useCallback(async () => {
 		try {
-			const data = await apiCall<{ profile: { completeness: number } }>('/candidate/profile');
-			setProfileCompleteness(data.profile?.completeness || 0);
+			const data = await apiCall<{ stats: { profile_completeness: number } }>(
+				'/candidate/dashboard/stats',
+			);
+			setProfileCompleteness(
+				typeof data.stats?.profile_completeness === 'number' &&
+					Number.isFinite(data.stats.profile_completeness)
+					? data.stats.profile_completeness
+					: null,
+			);
 		} catch (err) {
+			// A failed (re)load means the value is unknown again — never let a
+			// stale percentage keep governing the banner/gate (FR-P3).
+			setProfileCompleteness(null);
 			console.error('[job-detail] Operation failed:', err);
 		}
 	}, []);
@@ -723,7 +740,7 @@ export function CandidateJobDetailPage() {
 	}
 
 	const score = matchBreakdown?.overall_score ? Math.round(matchBreakdown.overall_score) : null;
-	const canOneClick = profileCompleteness >= 80;
+	const canOneClick = profileCompleteness != null && profileCompleteness >= 80;
 	const _skillsRequired = job?.skills_required || [];
 	const matchingSkills = matchBreakdown?.dimensions?.skills?.matching || [];
 	const missingSkills = matchBreakdown?.dimensions?.skills?.missing || [];
@@ -1098,7 +1115,7 @@ export function CandidateJobDetailPage() {
 			)}
 
 			{/* Profile completeness banner for new users */}
-			{user && !applied && profileCompleteness < 80 && (
+			{user && !applied && profileCompleteness != null && profileCompleteness < 80 && (
 				<Card className="border-amber-200 bg-amber-50/50">
 					<CardContent className="p-4">
 						<div className="flex items-start gap-3">
