@@ -108,6 +108,7 @@ export function CandidateDocumentsPage() {
 	const [documents, setDocuments] = useState<Document[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [uploading, setUploading] = useState(false);
+	const [toastMessage, setToastMessage] = useState<string | null>(null);
 	const [selectedTab, setSelectedTab] = useState('all');
 	const [_previewDoc, setPreviewDoc] = useState<Document | null>(null);
 
@@ -141,10 +142,13 @@ export function CandidateDocumentsPage() {
 			const data = await apiCall<{ document: Document }>('/candidate/documents/upload', {
 				method: 'POST',
 				body: formData,
+				isFormData: true,
 			});
 			setDocuments((prev) => [data.document, ...prev]);
 		} catch (err) {
 			console.error('Upload failed:', err);
+			setToastMessage('Failed to upload document. Please try again.');
+			setTimeout(() => setToastMessage(null), 4000);
 		} finally {
 			setUploading(false);
 		}
@@ -419,6 +423,13 @@ export function CandidateDocumentsPage() {
 					)}
 				</TabsContent>
 			</Tabs>
+
+			{/* Toast */}
+			{toastMessage && (
+				<div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-foreground text-background px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium animate-in fade-in slide-in-from-bottom-2">
+					{toastMessage}
+				</div>
+			)}
 		</div>
 	);
 }
