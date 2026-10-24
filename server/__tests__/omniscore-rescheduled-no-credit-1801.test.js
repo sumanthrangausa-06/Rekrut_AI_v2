@@ -146,7 +146,7 @@ describe('#1801 calcReliabilitySignals — rescheduled family is pending, unmeas
 			],
 		});
 		expect(r.raw).toBe(100);
-		expect(r.details.join(' ')).not.toMatch(/no-shows\/cancellations/);
+		expect(r.details.join(' ')).not.toMatch(/no-shows/);
 	});
 
 	test('rescheduled + no_show: no attendance credit for the rescheduled row (raw 0)', () => {

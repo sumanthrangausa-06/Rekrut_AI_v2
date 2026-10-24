@@ -236,7 +236,7 @@ describeIfDb('#1801 rescheduled-family earns no credit — real DB', () => {
 		expect(rel.hasData).toBe(false);
 		expect(rel.raw).toBe(0);
 		expect(rel.details.join(' ')).not.toMatch(/attendance/i);
-		expect(rel.details.join(' ')).not.toMatch(/no-shows\/cancellations/);
+		expect(rel.details.join(' ')).not.toMatch(/no-shows/);
 		expect(score.behavior).toBeNull();
 		const persisted = await persistedFactors(U_RESCHED_FB);
 		expect(persisted.factors.reliability_signals).toBeNull();
@@ -256,7 +256,7 @@ describeIfDb('#1801 rescheduled-family earns no credit — real DB', () => {
 			'based on application follow-through only; attendance: insufficient data',
 		);
 		expect(rel.details.join(' ')).not.toMatch(/Interview attendance/);
-		expect(rel.details.join(' ')).not.toMatch(/no-shows\/cancellations/);
+		expect(rel.details.join(' ')).not.toMatch(/no-shows/);
 		// And the same row earns no performance/soft-skills credit either.
 		expect(score.factors.interview_performance.raw).toBe(0);
 		expect(score.factors.interview_performance.hasData).toBe(false);
@@ -298,7 +298,7 @@ describeIfDb('#1801 rescheduled-family earns no credit — real DB', () => {
 			/Interview attendance 100%/,
 		);
 		expect(score.factors.reliability_signals.details.join(' ')).not.toMatch(
-			/no-shows\/cancellations/,
+			/no-shows/,
 		);
 		expect(score.factors.reliability_signals.raw).toBe(100);
 	});
@@ -333,7 +333,7 @@ describeIfDb('#1801 rescheduled-family earns no credit — real DB', () => {
 			/Interview attendance/,
 		);
 		expect(after.factors.reliability_signals.details.join(' ')).not.toMatch(
-			/no-shows\/cancellations/,
+			/no-shows/,
 		);
 		expect(after.factors.reliability_signals.raw).toBe(0);
 		const persisted = await persistedFactors(U_TWOSTEP);
