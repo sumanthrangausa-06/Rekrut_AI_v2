@@ -41,7 +41,7 @@ const {
 	getRecruiterObserverNotice,
 } = require('../lib/observerReportStates');
 const { conductTurn } = require('../services/conversation-engine');
-const { generateScreeningReport } = require('../services/interview-ai');
+const { generateScreeningReport, runMultiEvaluation } = require('../services/interview-ai');
 // Task 5 (#323): Track B observer — Q&A extraction + analysis over the muted
 // observer agent's transcript (config.observer_transcript).
 const { extractQAPairs, analyzeObserverSession } = require('../services/qa-extraction');
@@ -881,6 +881,9 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 		// human interviews, so the standard path would score nothing.
 		const observerTranscript = config.observer_transcript;
 		let report;
+		// #1541: branch (c) — the non-observer, non-human path — is the only
+		// branch that fires multi-evaluation after completion (design #1510).
+		let isBranchC = false;
 		if (Array.isArray(observerTranscript) && observerTranscript.length > 0) {
 			const qaPairs = await extractQAPairs(observerTranscript);
 			report = await analyzeObserverSession({
@@ -901,6 +904,7 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 				observer_enabled: false,
 			};
 		} else {
+			isBranchC = true;
 			const questions =
 				config.question_source === 'personalized'
 					? (config.base_questions || []).map((q) => ({
@@ -918,11 +922,28 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 			// M1 (#323): jsonb merge instead of read-modify-write — the agent's
 			// shutdown callback persists observer_transcript the same way, so
 			// concurrent writes can't clobber each other.
+			// #1541: transition guard in the statement itself — only the
+			// request that actually transitions the row to 'completed' runs
+			// the post-completion side effects (incl. multi-evaluation).
 			`UPDATE interview_sessions
 			    SET status = 'completed', completed_at = NOW(), conversation = $1, config = config || $2::jsonb
-			  WHERE id = $3 RETURNING *`,
+			  WHERE id = $3 AND status <> 'completed' RETURNING *`,
 			[JSON.stringify(session.conversation || []), JSON.stringify({ report }), session.id],
 		);
+		if (updated.rowCount === 0) {
+			// #1541: a concurrent request won the completion transition.
+			// Respond as the sequential duplicate would; fire nothing.
+			console.error(
+				`[interview-sessions] completion transition lost to a concurrent request session_id=${session.id} — responding already_completed`,
+			);
+			const fresh = await loadSession(session.id);
+			return res.json({
+				success: true,
+				session: fresh || session,
+				report: fresh?.config?.report || report,
+				already_completed: true,
+			});
+		}
 
 		// Task 4 (#322): persist transcript segments against the session's
 		// recording, aggregate per-turn frame indicators into frame_analysis,
@@ -1056,6 +1077,46 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 					appErr.message,
 				);
 			}
+		}
+
+		// #1541 (design #1510): branch-(c) completions of allow-listed types
+		// fire the multi-evaluator in the background so interview_evaluations
+		// rows exist for OmniScore (#793) and the #1504 display subqueries.
+		// Allow-list fails closed: practice never feeds OmniScore (Sumanth's
+		// practice-separation ruling) and human sessions have no AI-scorable
+		// data on this branch. Fire is transition-gated above, so it runs at
+		// most once per session. Failure never fails completion (#1505):
+		// failed lenses persist nothing — unavailability is a state, not a
+		// score.
+		const MULTI_EVAL_TYPES = ['screening', 'ai_interview'];
+		if (isBranchC && MULTI_EVAL_TYPES.includes(session.type)) {
+			Promise.resolve()
+				.then(async () => {
+					const job = await getJobForSession(session);
+					const result = await runMultiEvaluation(
+						session.candidate_id,
+						session.job_id,
+						session.company_id,
+						{
+							interviewSessionId: session.id,
+							conversation: session.conversation || [],
+							responses: session.responses || [],
+							jobTitle: job.title,
+							jobDescription: job.description,
+						},
+					);
+					if (result === null) {
+						console.log(
+							`[interview-sessions] multi-evaluation skipped: insufficient transcript for session ${session.id}`,
+						);
+					}
+				})
+				.catch((evalErr) => {
+					console.error(
+						'[interview-sessions] background multi-evaluation failed:',
+						evalErr.message,
+					);
+				});
 		}
 
 		res.json({ success: true, session: updated.rows[0], report });
