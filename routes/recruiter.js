@@ -2365,11 +2365,35 @@ router.put(
 			// #1783: outcome is a closed vocabulary
 			// (chk_scheduled_interviews_outcome) — an out-of-vocabulary
 			// value must be an honest 400, not a PG 23514 500.
-			const ALLOWED_OUTCOMES = ['passed', 'failed', 'pending_review', 'no_decision'];
-			if (outcome != null && !ALLOWED_OUTCOMES.includes(outcome)) {
-				return res.status(400).json({
-					error: `Invalid interview outcome: ${outcome}. Allowed: ${ALLOWED_OUTCOMES.join(', ')}`,
-				});
+			// #1789 (design §5/§6.1, option (b)): the recruiter client
+			// speaks the hire-family vocabulary; translate it server-side
+			// to the canonical CHECK vocabulary so only canonical values
+			// are ever stored. 'completed' is the client's no-selection
+			// default — it records no hire decision, so it maps to
+			// no_decision, never to a fabricated passed (D4). Leans are
+			// decisions: lean_hire -> passed, lean_no_hire -> failed (D5).
+			const CANONICAL_OUTCOMES = ['passed', 'failed', 'pending_review', 'no_decision'];
+			const OUTCOME_TRANSLATIONS = {
+				strong_hire: 'passed',
+				hire: 'passed',
+				lean_hire: 'passed',
+				lean_no_hire: 'failed',
+				no_hire: 'failed',
+				completed: 'no_decision',
+			};
+			// D7: outcome null/omitted keeps the stored value (the
+			// COALESCE below); there is no clear-to-NULL via this PUT.
+			let storedOutcome = outcome;
+			if (outcome != null) {
+				if (CANONICAL_OUTCOMES.includes(outcome)) {
+					storedOutcome = outcome;
+				} else if (Object.prototype.hasOwnProperty.call(OUTCOME_TRANSLATIONS, outcome)) {
+					storedOutcome = OUTCOME_TRANSLATIONS[outcome];
+				} else {
+					return res.status(400).json({
+						error: `Invalid interview outcome: ${outcome}. Allowed: ${[...CANONICAL_OUTCOMES, ...Object.keys(OUTCOME_TRANSLATIONS)].join(', ')}`,
+					});
+				}
 			}
 
 			const result = await pool.query(
@@ -2383,7 +2407,7 @@ router.put(
        RETURNING *`,
 				[
 					status,
-					outcome,
+					storedOutcome,
 					feedback ? JSON.stringify(feedback) : null,
 					meeting_link,
 					req.params.id,
