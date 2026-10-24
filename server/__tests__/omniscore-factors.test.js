@@ -402,6 +402,31 @@ describe('omniscore factor hasData flags', () => {
 		});
 	});
 
+	test('#1803 deliberate outcome-arm pin: scheduled + passed + feedback is soft-skills-credited (raw 40)', () => {
+		// DELIBERATE, not accidental: isCreditedInterview (services/omniscore.js,
+		// #1801) credits a row whose status is outside the no-credit set when
+		// EITHER status is 'completed' OR outcome is 'passed' — the outcome
+		// arm. A 'scheduled' row carrying outcome 'passed' is therefore
+		// credited by design (the #1801 panel position), and its feedback is
+		// real soft-skills evidence. This pin exists so that credited status
+		// is a conscious choice: if the outcome arm is ever removed, this
+		// test must fail and the change must be argued on #1803, not slip in
+		// as fixture drift. (The original Legacy A fixture this issue cited
+		// no longer existed on dev — see the STOP 1 premise check on #1803.)
+		const result = calcSoftSkills({
+			...emptyData(),
+			interviews: [
+				{
+					status: 'scheduled',
+					outcome: 'passed',
+					feedback: JSON.stringify({ communication: 5 }),
+				},
+			],
+		});
+		expect(result.raw).toBe(40); // avgFb 5/5 -> min(40, 5*8)
+		expect(result.hasData).toBe(true);
+	});
+
 	test('factors flag hasData=true when they consume real input', () => {
 		const d = emptyData();
 		expect(calcVerifiedSkills({ ...d, skills: [{ is_verified: true }] }).hasData).toBe(true);
