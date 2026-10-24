@@ -83,9 +83,14 @@ measured factors — a candidate measured on reliability alone scored
 - **`computeFactors`:** weighted sum and weight sum accumulate over
   measured (`hasData`) factors only; total =
   `300 + (weightedSum / measuredWeight) × 550`, clamped 300–850. No
-  measured factor → the floor artifact is computed exactly as before
-  and `calculateScore` still nulls it via `hasAnyData` (#1192/#1538
-  behaviour unchanged). This reuses the measured-only pattern already
+  measured factor → the floor artifact is 300 post-fix and
+  `calculateScore` still nulls it via `hasAnyData` (#1192/#1538
+  behaviour unchanged). Accuracy correction (#1785 rider F2): the
+  artifact is NOT "exactly as before" — pre-fix it was 306, because
+  the pre-fix sum included market_demand's phantom 20
+  (300 + (20/100 × 0.05) × 550 = 305.5 → 306). The nulling behaviour
+  is unchanged either way; only the discarded artifact's value
+  differs, so this has zero external effect. This reuses the measured-only pattern already
   in the file — `compatScore` (#1596) and the #1731/#1776
   renormalisation — no second mechanism. The stale ponytail comment
   claiming weights are deliberately NOT renormalised is replaced
