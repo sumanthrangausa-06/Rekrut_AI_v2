@@ -503,7 +503,14 @@ router.get('/leaderboard', authMiddleware, async (req, res) => {
 
 		if (tier) {
 			query += ` AND os.score_tier = $${params.length + 1}`;
-			params.push(tier);
+			// #1787: the filter speaks the API label vocabulary; storage
+			// is metal. Translate label → metal before comparing (a metal
+			// value passed directly still works, passed through as-is).
+			params.push(
+				omniscoreService.SCORE_RANGES.TIERS[tier]
+					? omniscoreService.dbTierFromLabel(tier)
+					: tier,
+			);
 		}
 
 		query += ` ORDER BY os.total_score DESC LIMIT $${params.length + 1}`;
@@ -511,7 +518,9 @@ router.get('/leaderboard', authMiddleware, async (req, res) => {
 
 		const result = await pool.query(query, params);
 
-		// Get score tier distribution
+		// Get score tier distribution. #1787: stored tiers are metal
+		// names — order by the metal band and return label keys, the
+		// vocabulary every consumer of this payload is keyed by.
 		const distribution = await pool.query(`SELECT score_tier, COUNT(*) as count
       FROM omni_scores os
       JOIN users u ON os.user_id = u.id
@@ -519,18 +528,24 @@ router.get('/leaderboard', authMiddleware, async (req, res) => {
       GROUP BY score_tier
       ORDER BY
         CASE score_tier
-          WHEN 'exceptional' THEN 1
-          WHEN 'excellent' THEN 2
-          WHEN 'good' THEN 3
-          WHEN 'fair' THEN 4
-          WHEN 'needs_work' THEN 5
+          WHEN 'platinum' THEN 1
+          WHEN 'gold' THEN 2
+          WHEN 'silver' THEN 3
+          WHEN 'bronze' THEN 4
+          WHEN 'new' THEN 5
           ELSE 6
         END`);
 
 		res.json({
 			success: true,
-			candidates: result.rows,
-			distribution: distribution.rows,
+			candidates: result.rows.map((row) => ({
+				...row,
+				score_tier: omniscoreService.labelFromDbTier(row.score_tier),
+			})),
+			distribution: distribution.rows.map((row) => ({
+				...row,
+				score_tier: omniscoreService.labelFromDbTier(row.score_tier),
+			})),
 			score_ranges: omniscoreService.SCORE_RANGES,
 		});
 	} catch (err) {
