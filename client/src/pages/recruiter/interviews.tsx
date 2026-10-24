@@ -66,6 +66,20 @@ interface Interview {
 	job_title: string;
 }
 
+// #1789 (design §6.4): stored outcomes are canonical (passed/failed/
+// pending_review/no_decision); the feedback select speaks the hire
+// vocabulary. Reverse-map to the representative value on dialog re-open
+// — 'hire', not 'strong_hire': the stored data no longer knows the
+// original gradation, and pre-selecting Strong Hire would claim a
+// stronger decision than the record supports.
+const OUTCOME_SELECT_VALUE: Record<string, string> = { passed: 'hire', failed: 'no_hire' };
+const OUTCOME_BADGE_LABEL: Record<string, string> = {
+	passed: 'Hire',
+	failed: 'No Hire',
+	no_decision: 'No decision',
+	pending_review: 'Pending review',
+};
+
 interface Application {
 	id: number;
 	candidate_id: number;
@@ -1179,7 +1193,7 @@ export function RecruiterInterviewsPage() {
 									onCancel={() => cancelInterview(interview.id)}
 									onFeedback={() => {
 										setShowFeedback(interview);
-										setFbOutcome(interview.outcome || '');
+										setFbOutcome(OUTCOME_SELECT_VALUE[interview.outcome || ''] || '');
 										setFbRating(interview.feedback?.rating?.toString() || '3');
 										setFbStrengths(interview.feedback?.strengths || '');
 										setFbWeaknesses(interview.feedback?.weaknesses || '');
@@ -2131,9 +2145,9 @@ function InterviewCard({
 											))}
 										</span>
 									)}
-									{interview.outcome && (
+									{interview.outcome && OUTCOME_BADGE_LABEL[interview.outcome] && (
 										<Badge variant="secondary" className="text-xs">
-											{interview.outcome.replace('_', ' ')}
+											{OUTCOME_BADGE_LABEL[interview.outcome]}
 										</Badge>
 									)}
 								</div>
