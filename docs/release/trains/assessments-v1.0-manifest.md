@@ -67,7 +67,7 @@
 | 54 | #1811 | test(assessments): #1807 restore retake-lockout suite (Phase A serve drift) | `39bad10c4` |
 | 55 | #1812 | test(assessments): #1807 follow-up — tighten retake-suite skill-by-id mock branch (review SHOULD-FIX on #1811) | `6daab32a7` |
 
-**Assembly result: 55 picks applied, 0 conflicts, 0 skipped from the executed list.** File-set diff vs staging = 120 files = exactly the union of the 55 pick file-sets, with ONE explained net-zero exception: `docs/sdlc/rekrut-ai-v2/04-implementation/assessments-c2-client-1654-build-log.md` (touched by #1677/#1682) exists on neither the train tree nor the dev tip, so it contributes no net diff. **Patch-ids: 5/5 sample MATCH** (train commit vs original merge, diff-vs-first-parent): #1339, #1620, #1662, #1700, #1741.
+**Assembly result: 55 picks applied, 0 conflicts, 0 skipped from the executed list.** File-set diff vs staging = 120 files = exactly the union of the 55 pick file-sets, with ONE explained net-zero exception: `docs/sdlc/rekrut-ai-v2/04-implementation/assessments-c2-client-1654-build-log.md` (touched by #1677/#1682) exists on neither the train tree nor the dev tip, so it contributes no net diff. **Patch-ids: 55/55 MATCH** (Lead first-hand: every train commit's patch-id vs its dev merge diff-vs-first-parent — full check, not a sample). Relay's independent 5/5 sample (#1339, #1620, #1662, #1700, #1741) agrees.
 
 ## Deviations from Relay's original brief (all deliberate in the executed list, recorded for the reviewer)
 
