@@ -69,7 +69,11 @@ const SESSION = {
 	status: 'in_progress',
 	skill_id: 3,
 	score: 40,
-	questions_asked: [],
+	// #1807: the answered question (id 5) must be the session's OUTSTANDING
+	// question or the #1620 integrity guard correctly rejects the answer
+	// with 400 QUESTION_NOT_CURRENT. Modelled in the exact shape
+	// serveNextQuestion pushes: { questionId, difficulty, timestamp }.
+	questions_asked: [{ questionId: 5, difficulty: 2, timestamp: new Date() }],
 	answers_given: [],
 	current_question_index: 0,
 	current_difficulty: 2,
@@ -101,6 +105,10 @@ const NEXT_Q = {
 };
 
 let sessionUpdates = [];
+// #1807: the recorded answers are carried forward so the post-record
+// read-back (respondAfterRecord) sees the state the UPDATE wrote — the
+// pattern the #1627 graded-confidence restore established.
+let storedAnswers = [];
 
 const db = require('../../../lib/db');
 db.query.mockImplementation(async (sql, params = []) => {
@@ -109,10 +117,24 @@ db.query.mockImplementation(async (sql, params = []) => {
 	if (['begin', 'commit', 'rollback'].includes(normalized)) {
 		return { rows: [], rowCount: 0 };
 	}
-	// Answer flow — session load.
+	// Answer flow — session load (initial load + locked FOR UPDATE re-read;
+	// both are keyed by id + user_id).
 	if (normalized.includes('from assessment_sessions') && normalized.includes('user_id = $2')) {
-		// Fresh arrays per load — the route pushes into them.
-		return { rows: [{ ...SESSION, answers_given: [], questions_asked: [] }], rowCount: 1 };
+		return {
+			rows: [{ ...SESSION, answers_given: [...storedAnswers] }],
+			rowCount: 1,
+		};
+	}
+	// Post-record read-back — respondAfterRecord loads by id only.
+	if (
+		normalized.includes('from assessment_sessions') &&
+		normalized.includes('where id = $1') &&
+		!normalized.includes('user_id')
+	) {
+		return {
+			rows: [{ ...SESSION, answers_given: [...storedAnswers] }],
+			rowCount: 1,
+		};
 	}
 	// Answer flow — the answered question.
 	if (
@@ -125,6 +147,7 @@ db.query.mockImplementation(async (sql, params = []) => {
 	// Session write — capture [answersGiven, newScore, idx, difficulty, maxDiff, anomalies, sessionId].
 	if (normalized.includes('update assessment_sessions set answers_given')) {
 		sessionUpdates.push(params);
+		storedAnswers = JSON.parse(params[0]);
 		return { rows: [], rowCount: 1 };
 	}
 	// Next-question skill lookup.
@@ -168,6 +191,7 @@ function lastAnswerEntry() {
 
 beforeEach(() => {
 	sessionUpdates = [];
+	storedAnswers = [];
 	chat.mockReset();
 	AuditLogger.log.mockClear();
 	jest.spyOn(console, 'error').mockImplementation(() => {});
