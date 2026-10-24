@@ -168,7 +168,9 @@ async function analyzeObserverSession({ session, qaPairs, rubricWeights, job = {
 	Promise.resolve()
 		.then(() =>
 			runMultiEvaluation(session.candidate_id, session.job_id, session.company_id, {
-				interviewId: session.id,
+				// #1504: session is an interview_sessions row — its id is the
+				// unified session id, not an interview_id (scheduled_interviews).
+				interviewSessionId: session.id,
 				conversation,
 				responses,
 				jobTitle: job.title,
