@@ -77,3 +77,17 @@ modules:
     riders:
       - "mobile-viewport rendering of the sidebar not directly proven (browser tool could not resize); sidebar entry + identity block verified in the live app and by the shipped SidebarMyProfile1636 suite on the deployed code"
       - "Job Board page itself shows no completion % (percentages there are match scores); the canonical completion shows truthfully on profile/dashboard/job-detail (8% fresh, 58% filled via API, 17% after photo in browser)"
+
+  assessments:
+    current_version: "0.1"         # existing on staging, journey UNPROVEN
+    dev_version:     "1.0"
+    staging_version: "0.1"          # v1.0 lands only when the Train 5 staging retest passes
+    prod_version:    "0.1"          # main promotion not yet run for this module
+    status: in-flight
+    last_train_date: "2026-10-24"
+    train_pr: "PR #1822"
+    train_commit: "8b5dcb7cc5a3928796d2a42c3e1e51a512a260cb"
+    tag: null                       # staging/assessments@v1.0 earned only by the #1606 staging proof
+    riders:
+      - "staging proof owed: #1606 fresh candidate opens + starts an assessment for a previously-empty topic, plus bank parity read-back (fresh-install baseline 19 subjects / 17 topics / 495 questions)"
+      - "Scout condition: post-deploy probe of question_bank parity + assessment_results/276/278 state is mandatory (migrate.js floats async promises; deploy log is not evidence)"

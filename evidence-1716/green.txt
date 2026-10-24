@@ -1,0 +1,1134 @@
+PASS server/__tests__/routes/assessments-config-1654.test.js
+PASS server/__tests__/routes/assessments-catalog-1653.test.js
+  ● Console
+
+    console.log
+      [token-budget] Initialized. Daily budget: 100,000 tokens
+
+      at new log (lib/token-budget.js:54:11)
+
+    console.log
+      [self-hosted-audio] STT (whisper.cpp tiny.en): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:76:10)
+
+    console.log
+      [self-hosted-audio] TTS (Piper lessac-medium): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:79:10)
+
+    console.log
+      [ai-provider] Initialized. NIM: false | Groq: false | Cerebras: false | Kimi: false
+
+      at new log (lib/ai-provider.js:293:11)
+
+    console.log
+      [ai-provider] Providers:
+
+      at new log (lib/ai-provider.js:303:11)
+
+    console.log
+      [ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety
+
+      at new log (lib/ai-provider.js:304:11)
+
+    console.warn
+      [polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled
+
+      39 | 		_openai = new OpenAI({ ...agentOpts }); // Uses OPENAI_BASE_URL and OPENAI_API_KEY from env
+      40 | 	} else {
+    > 41 | 		console.warn('[polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled');
+         | 		        ^
+      42 | 	}
+      43 | } catch (err) {
+      44 | 	console.warn('[polsia-ai] Failed to initialize OpenAI client:', err.message);
+
+      at Object.warn (lib/polsia-ai.js:41:11)
+      at Object.require (routes/assessments.js:6:33)
+      at Object.require (server/__tests__/routes/assessments-catalog-1653.test.js:391:27)
+
+    console.warn
+      [token-budget] DB load failed: Cannot read properties of undefined (reading 'queries')
+
+      397 | 		} catch (err) {
+      398 | 			if (!err.message.includes('does not exist')) {
+    > 399 | 				console.warn('[token-budget] DB load failed:', err.message);
+          | 				        ^
+      400 | 			}
+      401 | 		}
+      402 | 	}
+
+      at TokenBudgetService.warn [as _loadFromDb] (lib/token-budget.js:399:13)
+
+    console.warn
+      [activity-logger] Failed to load events from DB: Cannot read properties of undefined (reading 'queries')
+
+      48 | 	} catch (err) {
+      49 | 		if (!err.message.includes('does not exist')) {
+    > 50 | 			console.warn('[activity-logger] Failed to load events from DB:', err.message);
+         | 			        ^
+      51 | 		}
+      52 | 	}
+      53 | })();
+
+      at warn (lib/activity-logger.js:50:12)
+
+    console.warn
+      [ai-call-logger] Failed to rebuild metrics from DB: Cannot read properties of undefined (reading 'queries')
+
+      166 | 		// Table may not exist on first deploy
+      167 | 		if (!err.message.includes('does not exist')) {
+    > 168 | 			console.warn('[ai-call-logger] Failed to rebuild metrics from DB:', err.message);
+          | 			        ^
+      169 | 		}
+      170 | 	}
+      171 | })();
+
+      at warn (lib/ai-call-logger.js:168:12)
+
+    console.warn
+      [ai-provider] Failed to load verification from DB: Cannot read properties of undefined (reading 'queries')
+
+      3241 | 		} catch (err) {
+      3242 | 			if (!err.message.includes('does not exist')) {
+    > 3243 | 				console.warn('[ai-provider] Failed to load verification from DB:', err.message);
+           | 				        ^
+      3244 | 			}
+      3245 | 			return null;
+      3246 | 		}
+
+      at AIProviderService.warn [as _loadVerificationFromDb] (lib/ai-provider.js:3243:13)
+      at AIProviderService._loadPersistedState (lib/ai-provider.js:313:25)
+
+    console.error
+      Error fetching available assessments: Error: simulated database failure
+          at Object.<anonymous> (/home/hatch/workspace/skill-repos/wt-1716/server/__tests__/routes/assessments-catalog-1653.test.js:346:31)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:305:39
+          at Object.<anonymous> (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:312:13)
+          at Object.mockConstructor [as query] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:62:19)
+          at query (/home/hatch/workspace/skill-repos/wt-1716/routes/assessments.js:91:36)
+          at loadCatalogTables (/home/hatch/workspace/skill-repos/wt-1716/routes/assessments.js:613:24)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/route.js:149:13)
+          at next (/home/hatch/workspace/skill-repos/wt-1716/server/__tests__/routes/assessments-catalog-1653.test.js:48:12)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:305:39
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:312:13
+          at mockConstructor (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:67:19)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/route.js:149:13)
+          at Route.dispatch (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/route.js:119:3)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:284:15
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at router.handle (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:175:3)
+          at router (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:47:12)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at jsonParser (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/body-parser/lib/types/json.js:117:7)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at expressInit (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/middleware/init.js:40:5)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at query (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/middleware/query.js:45:5)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at router.handle (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:175:3)
+          at app.handle (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/application.js:181:10)
+          at Server.app (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/express.js:39:9)
+          at Server.emit (node:events:514:28)
+          at parserOnIncoming (node:_http_server:1293:12)
+          at HTTPParser.parserOnHeadersComplete (node:_http_common:125:17)
+
+      621 | 		res.json({ skills: buildAvailableFromTables(tables) });
+      622 | 	} catch (error) {
+    > 623 | 		console.error('Error fetching available assessments:', error);
+          | 		        ^
+      624 | 		res.status(500).json({ error: 'Failed to fetch assessments' });
+      625 | 	}
+      626 | });
+
+      at error (routes/assessments.js:623:11)
+
+    console.error
+      Error fetching assessment catalog: Error: simulated database failure
+          at Object.<anonymous> (/home/hatch/workspace/skill-repos/wt-1716/server/__tests__/routes/assessments-catalog-1653.test.js:346:31)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:305:39
+          at Object.<anonymous> (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:312:13)
+          at Object.mockConstructor [as query] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:62:19)
+          at query (/home/hatch/workspace/skill-repos/wt-1716/routes/assessments.js:91:36)
+          at loadCatalogTables (/home/hatch/workspace/skill-repos/wt-1716/routes/assessments.js:639:71)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/route.js:149:13)
+          at next (/home/hatch/workspace/skill-repos/wt-1716/server/__tests__/routes/assessments-catalog-1653.test.js:48:12)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:305:39
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:312:13
+          at mockConstructor (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:67:19)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/route.js:149:13)
+          at Route.dispatch (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/route.js:119:3)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:284:15
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at router.handle (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:175:3)
+          at router (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:47:12)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at jsonParser (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/body-parser/lib/types/json.js:117:7)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at expressInit (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/middleware/init.js:40:5)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at query (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/middleware/query.js:45:5)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at router.handle (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:175:3)
+          at app.handle (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/application.js:181:10)
+          at Server.app (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/express.js:39:9)
+          at Server.emit (node:events:514:28)
+          at parserOnIncoming (node:_http_server:1293:12)
+          at HTTPParser.parserOnHeadersComplete (node:_http_common:125:17)
+
+      710 | 		});
+      711 | 	} catch (error) {
+    > 712 | 		console.error('Error fetching assessment catalog:', error);
+          | 		        ^
+      713 | 		res.status(500).json({ error: 'Failed to fetch catalog' });
+      714 | 	}
+      715 | });
+
+      at error (routes/assessments.js:712:11)
+
+PASS server/__tests__/routes/assessments-sets-retake-progress-1656.test.js
+
+Test Suites: 3 passed, 3 total
+Tests:       69 passed, 69 total
+Snapshots:   0 total
+Time:        3.712 s, estimated 5 s
+Ran all test suites matching server/__tests__/routes/assessments-config-1654.test.js|server/__tests__/routes/assessments-catalog-1653.test.js|server/__tests__/routes/assessments-sets-retake-progress-1656.test.js.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?
+
+===== FULL assessments-* NEIGHBOUR RUN =====
+FAIL server/__tests__/routes/assessments-retake-lockout.test.js
+  ● Console
+
+    console.log
+      [token-budget] Initialized. Daily budget: 100,000 tokens
+
+      at new log (lib/token-budget.js:54:11)
+
+    console.log
+      [self-hosted-audio] STT (whisper.cpp tiny.en): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:76:10)
+
+    console.log
+      [self-hosted-audio] TTS (Piper lessac-medium): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:79:10)
+
+    console.log
+      [ai-provider] Initialized. NIM: false | Groq: false | Cerebras: false | Kimi: false
+
+      at new log (lib/ai-provider.js:293:11)
+
+    console.log
+      [ai-provider] Providers:
+
+      at new log (lib/ai-provider.js:303:11)
+
+    console.log
+      [ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety
+
+      at new log (lib/ai-provider.js:304:11)
+
+    console.warn
+      [polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled
+
+      39 | 		_openai = new OpenAI({ ...agentOpts }); // Uses OPENAI_BASE_URL and OPENAI_API_KEY from env
+      40 | 	} else {
+    > 41 | 		console.warn('[polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled');
+         | 		        ^
+      42 | 	}
+      43 | } catch (err) {
+      44 | 	console.warn('[polsia-ai] Failed to initialize OpenAI client:', err.message);
+
+      at Object.warn (lib/polsia-ai.js:41:11)
+      at Object.require (routes/assessments.js:6:33)
+      at Object.require (server/__tests__/routes/assessments-retake-lockout.test.js:154:27)
+
+  ● Task 6 — skill self-assessment retake lockout › (ii) allows a new start when the completed attempt is older than the lockout
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 503
+
+      181 | 			.send({ skillName: 'JavaScript', category: 'technical' });
+      182 |
+    > 183 | 		expect(res.status).toBe(200);
+          | 		                   ^
+      184 | 		expect(res.body.sessionId).toBe(900);
+      185 | 	});
+      186 |
+
+      at Object.toBe (server/__tests__/routes/assessments-retake-lockout.test.js:183:22)
+
+  ● Task 6 — skill self-assessment retake lockout › (iii) keeps abandon-and-restart for an in-progress session (no completed attempt)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 503
+
+      192 | 			.send({ skillName: 'JavaScript', category: 'technical' });
+      193 |
+    > 194 | 		expect(res.status).toBe(200);
+          | 		                   ^
+      195 | 		expect(res.body.sessionId).toBe(900);
+      196 | 	});
+      197 |
+
+      at Object.toBe (server/__tests__/routes/assessments-retake-lockout.test.js:194:22)
+
+  ● Task 6 — skill self-assessment retake lockout › (iv) allows a first-ever attempt
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 503
+
+      203 | 			.send({ skillName: 'JavaScript', category: 'technical' });
+      204 |
+    > 205 | 		expect(res.status).toBe(200);
+          | 		                   ^
+      206 | 		expect(res.body.sessionId).toBe(900);
+      207 | 	});
+      208 |
+
+      at Object.toBe (server/__tests__/routes/assessments-retake-lockout.test.js:205:22)
+
+FAIL server/__tests__/routes/assessments-short-answer-honesty-1572.test.js
+  ● POST /answer — short-answer evaluation failure (#1572) › chat throws: answer recorded UNEVALUATED — null score, 0 points, total + difficulty unchanged, no fabricated audit entry
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      181 |
+      182 | 		const res = await submitAnswer();
+    > 183 | 		expect(res.status).toBe(200);
+          | 		                   ^
+      184 | 		expect(res.body.completed).toBe(false);
+      185 | 		// Candidate is told the truth — pending review, not "Incorrect".
+      186 | 		expect(res.body.feedback).toBe('Pending manual review');
+
+      at Object.toBe (server/__tests__/routes/assessments-short-answer-honesty-1572.test.js:183:22)
+
+  ● POST /answer — short-answer evaluation failure (#1572) › unparseable AI reply: same unevaluated outcome (no score minted from garbage)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      214 |
+      215 | 		const res = await submitAnswer();
+    > 216 | 		expect(res.status).toBe(200);
+          | 		                   ^
+      217 | 		expect(res.body.feedback).toBe('Pending manual review');
+      218 |
+      219 | 		const entry = lastAnswerEntry();
+
+      at Object.toBe (server/__tests__/routes/assessments-short-answer-honesty-1572.test.js:216:22)
+
+  ● POST /answer — short-answer evaluation failure (#1572) › AI reply with no numeric score: treated as unevaluated, not NaN points
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      232 |
+      233 | 		const res = await submitAnswer();
+    > 234 | 		expect(res.status).toBe(200);
+          | 		                   ^
+      235 | 		const entry = lastAnswerEntry();
+      236 | 		expect(entry.score).toBeNull();
+      237 | 		expect(entry.scorePoints).toBe(0);
+
+      at Object.toBe (server/__tests__/routes/assessments-short-answer-honesty-1572.test.js:234:22)
+
+  ● POST /answer — short-answer evaluation failure (#1572) › out-of-range score 150: rejected as unevaluated — never credited, never audit-logged with confidence 1.5
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      243 |
+      244 | 		const res = await submitAnswer();
+    > 245 | 		expect(res.status).toBe(200);
+          | 		                   ^
+      246 | 		const entry = lastAnswerEntry();
+      247 | 		expect(entry.score).toBeNull();
+      248 | 		expect(entry.evaluationStatus).toBe('pending_manual_review');
+
+      at Object.toBe (server/__tests__/routes/assessments-short-answer-honesty-1572.test.js:245:22)
+
+  ● POST /answer — short-answer evaluation failure (#1572) › negative score -20: rejected as unevaluated — session total must not decrease
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      259 |
+      260 | 		const res = await submitAnswer();
+    > 261 | 		expect(res.status).toBe(200);
+          | 		                   ^
+      262 | 		const entry = lastAnswerEntry();
+      263 | 		expect(entry.score).toBeNull();
+      264 | 		expect(entry.scorePoints).toBe(0);
+
+      at Object.toBe (server/__tests__/routes/assessments-short-answer-honesty-1572.test.js:261:22)
+
+  ● POST /answer — short-answer evaluation failure (#1572) › string score "80": rejected as unevaluated — only a real numeric score counts
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      270 |
+      271 | 		const res = await submitAnswer();
+    > 272 | 		expect(res.status).toBe(200);
+          | 		                   ^
+      273 | 		const entry = lastAnswerEntry();
+      274 | 		expect(entry.score).toBeNull();
+      275 | 		expect(entry.scorePoints).toBe(0);
+
+      at Object.toBe (server/__tests__/routes/assessments-short-answer-honesty-1572.test.js:272:22)
+
+  ● POST /answer — genuine evaluations still score normally (#1572 controls) › real score 80: credited, marked correct, difficulty rises, audit entry carries the real score
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      283 |
+      284 | 		const res = await submitAnswer();
+    > 285 | 		expect(res.status).toBe(200);
+          | 		                   ^
+      286 | 		expect(res.body.feedback).toBe('Correct!');
+      287 |
+      288 | 		const entry = lastAnswerEntry();
+
+      at Object.toBe (server/__tests__/routes/assessments-short-answer-honesty-1572.test.js:285:22)
+
+  ● POST /answer — genuine evaluations still score normally (#1572 controls) › genuine evaluated 0 stays 0 — a real zero is not rewritten as unevaluated
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      307 |
+      308 | 		const res = await submitAnswer();
+    > 309 | 		expect(res.status).toBe(200);
+          | 		                   ^
+      310 | 		expect(res.body.feedback).toBe('Incorrect');
+      311 |
+      312 | 		const entry = lastAnswerEntry();
+
+      at Object.toBe (server/__tests__/routes/assessments-short-answer-honesty-1572.test.js:309:22)
+
+FAIL server/__tests__/routes/assessments-score-roundtrip.test.js
+  ● Console
+
+    console.log
+      [scoring] Attempt 301 scored: 80% (16/20 pts)
+
+      at log (routes/assessments.js:4504:11)
+
+    console.log
+      [OmniScore] Job assessment 301 fed into OmniScore for user 7 (score: 80)
+
+      at log (routes/assessments.js:4523:14)
+
+    console.log
+      [scoring] Attempt 301 scored: 80% (16/20 pts)
+
+      at log (routes/assessments.js:4504:11)
+
+    console.log
+      [OmniScore] Job assessment 301 fed into OmniScore for user 7 (score: 80)
+
+      at log (routes/assessments.js:4523:14)
+
+    console.log
+      [scoring] Attempt 301 scored: 40% (8/20 pts)
+
+      at log (routes/assessments.js:4504:11)
+
+    console.log
+      [OmniScore] Job assessment 301 fed into OmniScore for user 7 (score: 40)
+
+      at log (routes/assessments.js:4523:14)
+
+    console.log
+      [scoring] Attempt 301 scored: 80% (16/20 pts)
+
+      at log (routes/assessments.js:4504:11)
+
+    console.log
+      [OmniScore] Job assessment 301 fed into OmniScore for user 7 (score: 80)
+
+      at log (routes/assessments.js:4523:14)
+
+    console.log
+      [scoring] Attempt 301 scored: 80% (16/20 pts)
+
+      at log (routes/assessments.js:4504:11)
+
+    console.log
+      [OmniScore] Job assessment 301 fed into OmniScore for user 7 (score: 80)
+
+      at log (routes/assessments.js:4523:14)
+
+  ● Task 4c — async completion notifies the recruiter › final answer → async scoring → assessment_completed notification + score write
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 409
+
+      314 | 			.send({ attemptId: 301, questionId: 1, answer: 'a', timeTaken: 30 });
+      315 |
+    > 316 | 		expect(res.status).toBe(200);
+          | 		                   ^
+      317 | 		expect(res.body.completed).toBe(true);
+      318 |
+      319 | 		// scoreAttempt is fire-and-forget on this path; wait for it.
+
+      at Object.toBe (server/__tests__/routes/assessments-score-roundtrip.test.js:316:22)
+
+FAIL server/__tests__/routes/assessments-graded-confidence-1584.test.js
+  ● POST /answer completion — assessment_graded audit entry (#1584 item 2) › passed assessment: audit entry records score/passed but NO confidence (none was measured)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      177 | 		storedScore = 80; // +20 for the correct MCQ = 100, passed
+      178 | 		const res = await submitTenthAnswer();
+    > 179 | 		expect(res.status).toBe(200);
+          | 		                   ^
+      180 | 		expect(res.body.completed).toBe(true);
+      181 |
+      182 | 		const graded = gradedEntries();
+
+      at Object.toBe (server/__tests__/routes/assessments-graded-confidence-1584.test.js:179:22)
+
+  ● POST /answer completion — assessment_graded audit entry (#1584 item 2) › failed assessment: audit entry likewise carries NO confidence (not the invented 0.6)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      190 | 		storedScore = 10; // +20 = 30 < 60, failed
+      191 | 		const res = await submitTenthAnswer();
+    > 192 | 		expect(res.status).toBe(200);
+          | 		                   ^
+      193 | 		expect(res.body.completed).toBe(true);
+      194 |
+      195 | 		const graded = gradedEntries();
+
+      at Object.toBe (server/__tests__/routes/assessments-graded-confidence-1584.test.js:192:22)
+
+PASS server/__tests__/routes/assessments-config-1654.test.js
+PASS server/__tests__/routes/assessments-deadlines.test.js
+  ● Console
+
+    console.log
+      [token-budget] Initialized. Daily budget: 100,000 tokens
+
+      at new log (lib/token-budget.js:54:11)
+
+    console.log
+      [self-hosted-audio] STT (whisper.cpp tiny.en): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:76:10)
+
+    console.log
+      [self-hosted-audio] TTS (Piper lessac-medium): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:79:10)
+
+    console.log
+      [ai-provider] Initialized. NIM: false | Groq: false | Cerebras: false | Kimi: false
+
+      at new log (lib/ai-provider.js:293:11)
+
+    console.log
+      [ai-provider] Providers:
+
+      at new log (lib/ai-provider.js:303:11)
+
+    console.log
+      [ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety
+
+      at new log (lib/ai-provider.js:304:11)
+
+    console.warn
+      [polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled
+
+      39 | 		_openai = new OpenAI({ ...agentOpts }); // Uses OPENAI_BASE_URL and OPENAI_API_KEY from env
+      40 | 	} else {
+    > 41 | 		console.warn('[polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled');
+         | 		        ^
+      42 | 	}
+      43 | } catch (err) {
+      44 | 	console.warn('[polsia-ai] Failed to initialize OpenAI client:', err.message);
+
+      at Object.warn (lib/polsia-ai.js:41:11)
+      at Object.require (routes/assessments.js:6:33)
+      at Object.require (server/__tests__/routes/assessments-deadlines.test.js:276:27)
+
+    console.error
+      [notify] Failed to create notification: Cannot read properties of undefined (reading 'id')
+
+      69 | 		return result.rows[0].id;
+      70 | 	} catch (err) {
+    > 71 | 		console.error('[notify] Failed to create notification:', err.message);
+         | 		        ^
+      72 | 		return null;
+      73 | 	}
+      74 | }
+
+      at error (lib/notify.js:71:11)
+
+    console.error
+      [notify] Failed to create notification: Cannot read properties of undefined (reading 'id')
+
+      69 | 		return result.rows[0].id;
+      70 | 	} catch (err) {
+    > 71 | 		console.error('[notify] Failed to create notification:', err.message);
+         | 		        ^
+      72 | 		return null;
+      73 | 	}
+      74 | }
+
+      at error (lib/notify.js:71:11)
+
+PASS server/__tests__/routes/assessments-catalog-1653.test.js
+  ● Console
+
+    console.log
+      [token-budget] Initialized. Daily budget: 100,000 tokens
+
+      at new log (lib/token-budget.js:54:11)
+
+    console.log
+      [self-hosted-audio] STT (whisper.cpp tiny.en): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:76:10)
+
+    console.log
+      [self-hosted-audio] TTS (Piper lessac-medium): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:79:10)
+
+    console.log
+      [ai-provider] Initialized. NIM: false | Groq: false | Cerebras: false | Kimi: false
+
+      at new log (lib/ai-provider.js:293:11)
+
+    console.log
+      [ai-provider] Providers:
+
+      at new log (lib/ai-provider.js:303:11)
+
+    console.log
+      [ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety
+
+      at new log (lib/ai-provider.js:304:11)
+
+    console.warn
+      [polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled
+
+      39 | 		_openai = new OpenAI({ ...agentOpts }); // Uses OPENAI_BASE_URL and OPENAI_API_KEY from env
+      40 | 	} else {
+    > 41 | 		console.warn('[polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled');
+         | 		        ^
+      42 | 	}
+      43 | } catch (err) {
+      44 | 	console.warn('[polsia-ai] Failed to initialize OpenAI client:', err.message);
+
+      at Object.warn (lib/polsia-ai.js:41:11)
+      at Object.require (routes/assessments.js:6:33)
+      at Object.require (server/__tests__/routes/assessments-catalog-1653.test.js:391:27)
+
+    console.warn
+      [token-budget] DB load failed: Cannot read properties of undefined (reading 'queries')
+
+      397 | 		} catch (err) {
+      398 | 			if (!err.message.includes('does not exist')) {
+    > 399 | 				console.warn('[token-budget] DB load failed:', err.message);
+          | 				        ^
+      400 | 			}
+      401 | 		}
+      402 | 	}
+
+      at TokenBudgetService.warn [as _loadFromDb] (lib/token-budget.js:399:13)
+
+    console.warn
+      [activity-logger] Failed to load events from DB: Cannot read properties of undefined (reading 'queries')
+
+      48 | 	} catch (err) {
+      49 | 		if (!err.message.includes('does not exist')) {
+    > 50 | 			console.warn('[activity-logger] Failed to load events from DB:', err.message);
+         | 			        ^
+      51 | 		}
+      52 | 	}
+      53 | })();
+
+      at warn (lib/activity-logger.js:50:12)
+
+    console.warn
+      [ai-call-logger] Failed to rebuild metrics from DB: Cannot read properties of undefined (reading 'queries')
+
+      166 | 		// Table may not exist on first deploy
+      167 | 		if (!err.message.includes('does not exist')) {
+    > 168 | 			console.warn('[ai-call-logger] Failed to rebuild metrics from DB:', err.message);
+          | 			        ^
+      169 | 		}
+      170 | 	}
+      171 | })();
+
+      at warn (lib/ai-call-logger.js:168:12)
+
+    console.warn
+      [ai-provider] Failed to load verification from DB: Cannot read properties of undefined (reading 'queries')
+
+      3241 | 		} catch (err) {
+      3242 | 			if (!err.message.includes('does not exist')) {
+    > 3243 | 				console.warn('[ai-provider] Failed to load verification from DB:', err.message);
+           | 				        ^
+      3244 | 			}
+      3245 | 			return null;
+      3246 | 		}
+
+      at AIProviderService.warn [as _loadVerificationFromDb] (lib/ai-provider.js:3243:13)
+      at AIProviderService._loadPersistedState (lib/ai-provider.js:313:25)
+
+    console.error
+      Error fetching available assessments: Error: simulated database failure
+          at Object.<anonymous> (/home/hatch/workspace/skill-repos/wt-1716/server/__tests__/routes/assessments-catalog-1653.test.js:346:31)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:305:39
+          at Object.<anonymous> (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:312:13)
+          at Object.mockConstructor [as query] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:62:19)
+          at query (/home/hatch/workspace/skill-repos/wt-1716/routes/assessments.js:91:36)
+          at loadCatalogTables (/home/hatch/workspace/skill-repos/wt-1716/routes/assessments.js:613:24)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/route.js:149:13)
+          at next (/home/hatch/workspace/skill-repos/wt-1716/server/__tests__/routes/assessments-catalog-1653.test.js:48:12)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:305:39
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:312:13
+          at mockConstructor (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:67:19)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/route.js:149:13)
+          at Route.dispatch (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/route.js:119:3)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:284:15
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at router.handle (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:175:3)
+          at router (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:47:12)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at jsonParser (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/body-parser/lib/types/json.js:117:7)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at expressInit (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/middleware/init.js:40:5)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at query (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/middleware/query.js:45:5)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at router.handle (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:175:3)
+          at app.handle (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/application.js:181:10)
+          at Server.app (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/express.js:39:9)
+          at Server.emit (node:events:514:28)
+          at parserOnIncoming (node:_http_server:1293:12)
+          at HTTPParser.parserOnHeadersComplete (node:_http_common:125:17)
+
+      621 | 		res.json({ skills: buildAvailableFromTables(tables) });
+      622 | 	} catch (error) {
+    > 623 | 		console.error('Error fetching available assessments:', error);
+          | 		        ^
+      624 | 		res.status(500).json({ error: 'Failed to fetch assessments' });
+      625 | 	}
+      626 | });
+
+      at error (routes/assessments.js:623:11)
+
+    console.error
+      Error fetching assessment catalog: Error: simulated database failure
+          at Object.<anonymous> (/home/hatch/workspace/skill-repos/wt-1716/server/__tests__/routes/assessments-catalog-1653.test.js:346:31)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:305:39
+          at Object.<anonymous> (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:312:13)
+          at Object.mockConstructor [as query] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:62:19)
+          at query (/home/hatch/workspace/skill-repos/wt-1716/routes/assessments.js:91:36)
+          at loadCatalogTables (/home/hatch/workspace/skill-repos/wt-1716/routes/assessments.js:639:71)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/route.js:149:13)
+          at next (/home/hatch/workspace/skill-repos/wt-1716/server/__tests__/routes/assessments-catalog-1653.test.js:48:12)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:305:39
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:312:13
+          at mockConstructor (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/jest-mock/build/index.js:67:19)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/route.js:149:13)
+          at Route.dispatch (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/route.js:119:3)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:284:15
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at router.handle (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:175:3)
+          at router (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:47:12)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at jsonParser (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/body-parser/lib/types/json.js:117:7)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at expressInit (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/middleware/init.js:40:5)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at query (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/middleware/query.js:45:5)
+          at Layer.handle [as handle_request] (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/layer.js:95:5)
+          at trim_prefix (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:328:13)
+          at /home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:286:9
+          at router.process_params (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:346:12)
+          at next (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:280:10)
+          at router.handle (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/router/index.js:175:3)
+          at app.handle (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/application.js:181:10)
+          at Server.app (/home/hatch/workspace/skill-repos/rekrut-ai-v2/node_modules/express/lib/express.js:39:9)
+          at Server.emit (node:events:514:28)
+          at parserOnIncoming (node:_http_server:1293:12)
+          at HTTPParser.parserOnHeadersComplete (node:_http_common:125:17)
+
+      710 | 		});
+      711 | 	} catch (error) {
+    > 712 | 		console.error('Error fetching assessment catalog:', error);
+          | 		        ^
+      713 | 		res.status(500).json({ error: 'Failed to fetch catalog' });
+      714 | 	}
+      715 | });
+
+      at error (routes/assessments.js:712:11)
+
+PASS server/__tests__/routes/assessments-sets-retake-progress-1656.test.js
+PASS server/__tests__/routes/assessments-generate.test.js
+  ● Console
+
+    console.log
+      [token-budget] Initialized. Daily budget: 100,000 tokens
+
+      at new log (lib/token-budget.js:54:11)
+
+    console.log
+      [self-hosted-audio] STT (whisper.cpp tiny.en): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:76:10)
+
+    console.log
+      [self-hosted-audio] TTS (Piper lessac-medium): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:79:10)
+
+    console.log
+      [ai-provider] Initialized. NIM: false | Groq: false | Cerebras: false | Kimi: false
+
+      at new log (lib/ai-provider.js:293:11)
+
+    console.log
+      [ai-provider] Providers:
+
+      at new log (lib/ai-provider.js:303:11)
+
+    console.log
+      [ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety
+
+      at new log (lib/ai-provider.js:304:11)
+
+    console.warn
+      [polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled
+
+      39 | 		_openai = new OpenAI({ ...agentOpts }); // Uses OPENAI_BASE_URL and OPENAI_API_KEY from env
+      40 | 	} else {
+    > 41 | 		console.warn('[polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled');
+         | 		        ^
+      42 | 	}
+      43 | } catch (err) {
+      44 | 	console.warn('[polsia-ai] Failed to initialize OpenAI client:', err.message);
+
+      at Object.warn (lib/polsia-ai.js:41:11)
+      at requireActual (server/__tests__/routes/assessments-generate.test.js:92:22)
+      at Object.require (routes/assessments.js:6:33)
+      at Object.require (server/__tests__/routes/assessments-generate.test.js:159:27)
+
+    console.error
+      [assessment-gen] Failed to parse AI response. Preview: this is not json at all {{{
+
+      3665 | 		const parsed = safeParseJSON(response);
+      3666 | 		if (!parsed?.questions || !Array.isArray(parsed.questions)) {
+    > 3667 | 			console.error(
+           | 			        ^
+      3668 | 				'[assessment-gen] Failed to parse AI response. Preview:',
+      3669 | 				String(response).slice(0, 500),
+      3670 | 			);
+
+      at error (routes/assessments.js:3667:12)
+
+PASS server/__tests__/routes/assessments-start-enforce.test.js
+  ● Console
+
+    console.log
+      [token-budget] Initialized. Daily budget: 100,000 tokens
+
+      at new log (lib/token-budget.js:54:11)
+
+    console.log
+      [self-hosted-audio] STT (whisper.cpp tiny.en): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:76:10)
+
+    console.log
+      [self-hosted-audio] TTS (Piper lessac-medium): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:79:10)
+
+    console.log
+      [ai-provider] Initialized. NIM: false | Groq: false | Cerebras: false | Kimi: false
+
+      at new log (lib/ai-provider.js:293:11)
+
+    console.log
+      [ai-provider] Providers:
+
+      at new log (lib/ai-provider.js:303:11)
+
+    console.log
+      [ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety
+
+      at new log (lib/ai-provider.js:304:11)
+
+    console.warn
+      [polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled
+
+      39 | 		_openai = new OpenAI({ ...agentOpts }); // Uses OPENAI_BASE_URL and OPENAI_API_KEY from env
+      40 | 	} else {
+    > 41 | 		console.warn('[polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled');
+         | 		        ^
+      42 | 	}
+      43 | } catch (err) {
+      44 | 	console.warn('[polsia-ai] Failed to initialize OpenAI client:', err.message);
+
+      at Object.warn (lib/polsia-ai.js:41:11)
+      at Object.require (routes/assessments.js:6:33)
+      at Object.require (server/__tests__/routes/assessments-start-enforce.test.js:154:27)
+
+    console.error
+      [notify] Failed to create notification: Cannot read properties of undefined (reading 'id')
+
+      69 | 		return result.rows[0].id;
+      70 | 	} catch (err) {
+    > 71 | 		console.error('[notify] Failed to create notification:', err.message);
+         | 		        ^
+      72 | 		return null;
+      73 | 	}
+      74 | }
+
+      at error (lib/notify.js:71:11)
+
+PASS server/__tests__/routes/assessments-assign.test.js
+  ● Console
+
+    console.log
+      [token-budget] Initialized. Daily budget: 100,000 tokens
+
+      at new log (lib/token-budget.js:54:11)
+
+    console.log
+      [self-hosted-audio] STT (whisper.cpp tiny.en): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:76:10)
+
+    console.log
+      [self-hosted-audio] TTS (Piper lessac-medium): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:79:10)
+
+    console.log
+      [ai-provider] Initialized. NIM: false | Groq: false | Cerebras: false | Kimi: false
+
+      at new log (lib/ai-provider.js:293:11)
+
+    console.log
+      [ai-provider] Providers:
+
+      at new log (lib/ai-provider.js:303:11)
+
+    console.log
+      [ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety
+
+      at new log (lib/ai-provider.js:304:11)
+
+    console.warn
+      [polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled
+
+      39 | 		_openai = new OpenAI({ ...agentOpts }); // Uses OPENAI_BASE_URL and OPENAI_API_KEY from env
+      40 | 	} else {
+    > 41 | 		console.warn('[polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled');
+         | 		        ^
+      42 | 	}
+      43 | } catch (err) {
+      44 | 	console.warn('[polsia-ai] Failed to initialize OpenAI client:', err.message);
+
+      at Object.warn (lib/polsia-ai.js:41:11)
+      at Object.require (routes/assessments.js:6:33)
+      at Object.require (server/__tests__/routes/assessments-assign.test.js:131:27)
+
+PASS server/__tests__/routes/assessments-results-topic-1688.test.js
+PASS server/__tests__/routes/assessments-job-questions-sanitize.test.js
+  ● Console
+
+    console.log
+      [token-budget] Initialized. Daily budget: 100,000 tokens
+
+      at new log (lib/token-budget.js:54:11)
+
+    console.log
+      [self-hosted-audio] STT (whisper.cpp tiny.en): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:76:10)
+
+    console.log
+      [self-hosted-audio] TTS (Piper lessac-medium): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:79:10)
+
+    console.log
+      [ai-provider] Initialized. NIM: false | Groq: false | Cerebras: false | Kimi: false
+
+      at new log (lib/ai-provider.js:293:11)
+
+    console.log
+      [ai-provider] Providers:
+
+      at new log (lib/ai-provider.js:303:11)
+
+    console.log
+      [ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety
+
+      at new log (lib/ai-provider.js:304:11)
+
+    console.warn
+      [polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled
+
+      39 | 		_openai = new OpenAI({ ...agentOpts }); // Uses OPENAI_BASE_URL and OPENAI_API_KEY from env
+      40 | 	} else {
+    > 41 | 		console.warn('[polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled');
+         | 		        ^
+      42 | 	}
+      43 | } catch (err) {
+      44 | 	console.warn('[polsia-ai] Failed to initialize OpenAI client:', err.message);
+
+      at Object.warn (lib/polsia-ai.js:41:11)
+      at Object.require (routes/assessments.js:6:33)
+      at Object.require (server/__tests__/routes/assessments-job-questions-sanitize.test.js:95:27)
+
+PASS server/__tests__/routes/assessments-question-boilerplate-1573.test.js
+PASS server/__tests__/routes/assessments-transparency.test.js
+  ● Console
+
+    console.log
+      [scoring] Attempt 301 scored: 80% (16/20 pts)
+
+      at log (routes/assessments.js:4504:11)
+
+    console.log
+      [OmniScore] Job assessment 301 fed into OmniScore for user 7 (score: 80)
+
+      at log (routes/assessments.js:4523:14)
+
+    console.log
+      [scoring] Attempt 301 scored: 80% (16/20 pts)
+
+      at log (routes/assessments.js:4504:11)
+
+    console.log
+      [OmniScore] Job assessment 301 fed into OmniScore for user 7 (score: 80)
+
+      at log (routes/assessments.js:4523:14)
+
+PASS server/__tests__/routes/assessments-referral.test.js
+
+Test Suites: 4 failed, 12 passed, 16 total
+Tests:       14 failed, 149 passed, 163 total
+Snapshots:   0 total
+Time:        5.695 s, estimated 11 s
+Ran all test suites matching server/__tests__/routes/assessments-.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

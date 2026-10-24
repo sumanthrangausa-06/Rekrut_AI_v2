@@ -704,10 +704,13 @@ function detectFraudSignals(_userId, data, factors) {
 		});
 	}
 
-	// 4. Anti-cheat red flags from assessments
+	// 4. Anti-cheat red flags from assessments — #1715 O3: missing
+	// anti_cheat_score stays missing (?? null): absence raises no flag,
+	// and a genuine measured 0 is data, not absence — it must flag
+	// instead of being rewritten to a perfect 100 by `||`.
 	const suspiciousAssessments = data.assessments.filter((a) => {
-		const antiCheat = a.anti_cheat_score || 100;
-		return antiCheat < 50;
+		const antiCheat = a.anti_cheat_score ?? null;
+		return antiCheat !== null && antiCheat < 50;
 	});
 	if (suspiciousAssessments.length > 0) {
 		signals.push({

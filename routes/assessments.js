@@ -25,6 +25,330 @@ function canRetakeSkill(lockoutDays, lastCompletedAt) {
 	return new Date() >= lockoutEnd;
 }
 
+// ── #1653 (#1603 Phase C, story C1) — catalogue availability ──────────────
+// TWIN of scripts/audit-assessment-coverage.js: BANDS (audit script ~line 37)
+// and the servable fold in its main() are ported here as BANDS +
+// computeTopicAvailability. If one changes, the other must — the audit job
+// and this API must never disagree about what is servable.
+// Servable counts ONLY review_status='approved' rows (design §7 rule 6);
+// the grouped query in loadCatalogTables below is the only counter and it
+// filters on approved — this helper folds already-approved counts.
+// Bands overlap deliberately (§7): easy {1,2} / medium {2,3,4} / hard {4,5}
+// share boundary levels, so a shared-level row counts in EACH band it
+// belongs to — but exactly once within a single configuration.
+// `mixed` is a computed union (§4.6): servable(mixed, band) =
+// servable(mcq, band) + servable(short_answer, band); the member formats
+// are disjoint so the sum is exact. Coding is NEVER a member of mixed.
+const BANDS = {
+	easy: [1, 2],
+	medium: [2, 3, 4],
+	hard: [4, 5],
+};
+// §7 rule 2 activation floor: the smallest offered count. A topic reads
+// available only when its best (format, band) configuration reaches it.
+const CATALOG_AVAILABLE_FLOOR = 10;
+
+// countRows: approved-only grouped counts for ONE topic —
+// [{ format, difficulty_level, n }] as selected by loadCatalogTables
+// (topic_id, format, difficulty_level, COUNT(*) — nothing else, R4).
+function computeTopicAvailability(countRows) {
+	const zeroBands = () => ({ easy: 0, medium: 0, hard: 0 });
+	const formats = { mcq: zeroBands(), short_answer: zeroBands(), coding: zeroBands(), mixed: zeroBands() };
+	const levels = { mcq: {}, short_answer: {}, coding: {} };
+	for (const row of countRows || []) {
+		if (!levels[row.format]) continue;
+		const level = parseInt(row.difficulty_level, 10);
+		levels[row.format][level] = (levels[row.format][level] || 0) + (parseInt(row.n, 10) || 0);
+	}
+	let maxCount = 0;
+	for (const format of ['mcq', 'short_answer', 'coding']) {
+		for (const band of Object.keys(BANDS)) {
+			const n = BANDS[band].reduce((sum, lvl) => sum + (levels[format][lvl] || 0), 0);
+			formats[format][band] = n;
+			if (n > maxCount) maxCount = n;
+		}
+	}
+	for (const band of Object.keys(BANDS)) {
+		const n = formats.mcq[band] + formats.short_answer[band];
+		formats.mixed[band] = n;
+		if (n > maxCount) maxCount = n;
+	}
+	return { formats, maxCount, available: maxCount >= CATALOG_AVAILABLE_FLOOR };
+}
+
+// ── #1653 (C1) — catalogue table reads shared by /available and /catalog ──
+// Explicit column allowlists only (R4): the counts query selects ONLY
+// topic_id, format, difficulty_level, COUNT(*) — never question content.
+// The progress read is scoped to the requesting user on every table it
+// touches (WHERE user_id = $1) and is completed-attempts only, so an
+// abandoned session or an unsubmitted (completed_at NULL) verification
+// row can never move can_retake or progress (§2.3 pinning). The latest
+// score comes from a DISTINCT ON read ordered by completed_at DESC —
+// a MAX() would silently duplicate best_score into last_score (§2.4).
+// Internal alias is last_completed_at; /available maps it to the frozen
+// external field name last_attempted (§4.4).
+async function loadCatalogTables(userId) {
+	const subjectsResult = await pool.query(
+		`SELECT id, slug, name, category, icon, description, sort_order
+     FROM assessment_subjects
+     WHERE is_active = true
+     ORDER BY sort_order ASC, id ASC`,
+	);
+	const topicsResult = await pool.query(
+		`SELECT id, subject_id, slug, name, description, legacy_skill_name, sort_order
+     FROM assessment_topics
+     WHERE is_active = true
+     ORDER BY sort_order ASC, id ASC`,
+	);
+	const countsResult = await pool.query(
+		`SELECT topic_id, format, difficulty_level, COUNT(*)::int AS n
+     FROM assessment_questions
+     WHERE topic_id IS NOT NULL AND review_status = 'approved'
+     GROUP BY topic_id, format, difficulty_level`,
+	);
+	const progressResult = await pool.query(
+		`WITH latest AS (
+       SELECT DISTINCT ON (sa.skill_id)
+              sa.skill_id, sa.score AS last_score, sa.completed_at AS last_completed_at
+       FROM skill_assessments sa
+       WHERE sa.user_id = $1 AND sa.completed_at IS NOT NULL
+       ORDER BY sa.skill_id, sa.completed_at DESC
+     ),
+     agg AS (
+       SELECT sa.skill_id, COUNT(*)::int AS assessment_count, MAX(sa.score) AS best_score
+       FROM skill_assessments sa
+       WHERE sa.user_id = $1 AND sa.completed_at IS NOT NULL
+       GROUP BY sa.skill_id
+     )
+     SELECT cs.id AS skill_id, cs.skill_name, cs.category, cs.is_verified, cs.verified_score,
+            COALESCE(agg.assessment_count, 0) AS assessment_count,
+            agg.best_score, latest.last_score, latest.last_completed_at
+     FROM candidate_skills cs
+     LEFT JOIN agg ON agg.skill_id = cs.id
+     LEFT JOIN latest ON latest.skill_id = cs.id
+     WHERE cs.user_id = $1
+     ORDER BY cs.is_verified ASC, cs.created_at DESC`,
+		[userId],
+	);
+	// #1656 (C3, §3.7): the per-(user, topic) progress read model — over
+	// skill_assessments joined to the session that produced them, keyed
+	// by assessment_sessions.topic_id. Completed attempts only, exactly
+	// like the skill-keyed read above: an abandoned session writes no
+	// skill_assessments row and can never appear here. The latest score
+	// comes from a LATERAL read ordered by completed_at DESC — a MAX()
+	// would silently duplicate best into last (§2.4 pitfall, C1).
+	const topicProgressResult = await pool.query(
+		`WITH agg AS (
+       SELECT sess.topic_id AS topic_id, COUNT(*)::int AS attempts, MAX(sa.score) AS best_score
+       FROM skill_assessments sa
+       JOIN assessment_sessions sess ON sess.id = sa.session_id
+       WHERE sa.user_id = $1 AND sa.completed_at IS NOT NULL AND sess.topic_id IS NOT NULL
+       GROUP BY sess.topic_id
+     )
+     SELECT agg.topic_id, agg.attempts, agg.best_score, lat.last_score, lat.last_completed_at
+     FROM agg
+     JOIN LATERAL (
+       SELECT sa2.score AS last_score, sa2.completed_at AS last_completed_at
+       FROM skill_assessments sa2
+       JOIN assessment_sessions sess2 ON sess2.id = sa2.session_id
+       WHERE sa2.user_id = $1 AND sa2.completed_at IS NOT NULL AND sess2.topic_id = agg.topic_id
+       ORDER BY sa2.completed_at DESC, sa2.id DESC
+       LIMIT 1
+     ) lat ON true`,
+		[userId],
+	);
+	return {
+		subjects: subjectsResult.rows,
+		topics: topicsResult.rows,
+		counts: countsResult.rows,
+		progress: progressResult.rows,
+		topicProgress: topicProgressResult.rows,
+	};
+}
+
+// ── #1654 (#1603 Phase C, story C2) — configured starts ───────────────────
+// The §3.6 session snapshot columns (migration 280) become load-bearing:
+// every NEW start records { subject_id, topic_id, format, difficulty_band,
+// total_questions } — chosen configurations verbatim, legacy-body starts
+// via the recorded defaults (§4.2/§8: mixed / medium / 10, start 3) — so
+// serving, the §5.2 band clamp, and completion all read ONE code path.
+// Sessions already in flight keep NULL config and finish under the rules
+// they started with (§8): total reads as 10, adaptation stays [1,5].
+const BAND_START = { easy: 1, medium: 3, hard: 4 };
+const BAND_RANGE = { easy: [1, 2], medium: [2, 4], hard: [4, 5] };
+const CONFIG_FORMATS = ['mcq', 'short_answer', 'mixed', 'coding'];
+const CONFIG_COUNTS = [10, 25, 50, 100];
+
+// Coding serving is gated OFF until the #118 disposition flips this flag
+// (design §3.5/C4). A coding start while OFF is an honest 503 (STOP 1 Q4),
+// never a silent substitution to another format.
+function assessmentsCodingEnabled() {
+	return process.env.ASSESSMENTS_CODING_ENABLED === 'true';
+}
+
+// §5.2 clamp: a band session's difficulty never leaves its band; a NULL
+// band (in-flight legacy) keeps today's unbounded [1,5].
+function clampToBand(difficulty, band) {
+	if (!band || !BAND_RANGE[band]) return Math.min(5, Math.max(1, difficulty));
+	const [lo, hi] = BAND_RANGE[band];
+	return Math.min(hi, Math.max(lo, difficulty));
+}
+
+// The promised count for a session: its snapshot, or the legacy 10.
+function sessionTotal(session) {
+	return session?.total_questions ?? LEGACY_TOTAL_QUESTIONS;
+}
+
+// Per-topic counts variant for pre-flight and the start-time re-check
+// (§4.1): the same grouped approved-only shape as loadCatalogTables'
+// counter, scoped to ONE topic — never the whole-bank load.
+async function loadTopicCounts(runner, topicId) {
+	const result = await runner.query(
+		`SELECT format, difficulty_level, COUNT(*)::int AS n
+     FROM assessment_questions
+     WHERE topic_id = $1 AND review_status = 'approved'
+     GROUP BY format, difficulty_level`,
+		[topicId],
+	);
+	return result.rows;
+}
+
+async function topicServable(runner, topicId, format, band) {
+	const availability = computeTopicAvailability(await loadTopicCounts(runner, topicId));
+	return availability.formats[format][band];
+}
+
+// ── #1656 (C3) — assessment sets (§3.3, R1/R2) ─────────────────────────────
+// A set serves iff it is active, belongs to the session's topic, matches
+// the band exactly, and matches the format per §4.6: exact match, OR a
+// mixed session drawing an mcq/short_answer set (the session then serves
+// that single format and the set is what the candidate actually got).
+// Every other pairing is incompatible — the honest 400, never a fallback.
+function setMatchesSession(set, topicId, format, difficultyBand) {
+	if (!set || set.is_active === false) return false;
+	if (set.topic_id !== topicId) return false;
+	if (set.difficulty_band !== difficultyBand) return false;
+	if (set.format === format) return true;
+	return format === 'mixed' && (set.format === 'mcq' || set.format === 'short_answer');
+}
+
+async function loadSetById(runner, setId) {
+	const result = await runner.query('SELECT * FROM assessment_sets WHERE id = $1', [setId]);
+	return result.rows[0] || null;
+}
+
+// Servable supply FOR A SET is its own approved membership (§7 rule 6
+// applies to set questions exactly as to pool rows) — never the topic pool.
+async function setApprovedCount(runner, setId) {
+	const result = await runner.query(
+		`SELECT COUNT(*)::int AS n
+     FROM assessment_set_questions sq
+     JOIN assessment_questions q ON q.id = sq.question_id
+     WHERE sq.set_id = $1 AND q.review_status = 'approved'`,
+		[setId],
+	);
+	return parseInt(result.rows[0]?.n, 10) || 0;
+}
+
+// The set's servable question ids in position order (approved only — a
+// set question that loses approval mid-session simply stops being
+// servable, which is the R2 starvation path, never a pool draw).
+async function loadSetQuestionIds(runner, setId) {
+	const result = await runner.query(
+		`SELECT sq.question_id
+     FROM assessment_set_questions sq
+     JOIN assessment_questions q ON q.id = sq.question_id
+     WHERE sq.set_id = $1 AND q.review_status = 'approved'
+     ORDER BY sq.position ASC`,
+		[setId],
+	);
+	return result.rows.map((r) => r.question_id);
+}
+
+// R2 auto-pick: among the active sets for the topic, the one this user
+// has gone longest without completing (never completed first, then the
+// oldest last completion, then the lowest id). Format/band compatibility
+// (§4.6) and non-empty approved membership are applied here — an empty
+// or incompatible set is never picked.
+async function pickAutoSet(runner, topicId, userId, format, difficultyBand) {
+	const result = await runner.query(
+		`SELECT st.id, st.topic_id, st.name, st.format, st.difficulty_band, st.is_active,
+            (SELECT MAX(sess.completed_at) FROM assessment_sessions sess
+              WHERE sess.set_id = st.id AND sess.user_id = $2 AND sess.status = 'completed') AS last_completed_at,
+            (SELECT COUNT(*)::int FROM assessment_set_questions sq
+              JOIN assessment_questions q ON q.id = sq.question_id
+              WHERE sq.set_id = st.id AND q.review_status = 'approved') AS question_count
+     FROM assessment_sets st
+     WHERE st.topic_id = $1 AND st.is_active = true
+     ORDER BY last_completed_at ASC NULLS FIRST, st.id ASC`,
+		[topicId, userId],
+	);
+	return (
+		result.rows.find(
+			(s) => parseInt(s.question_count, 10) > 0 && setMatchesSession(s, topicId, format, difficultyBand),
+		) || null
+	);
+}
+
+async function findTopicById(runner, topicId) {
+	const result = await runner.query('SELECT * FROM assessment_topics WHERE id = $1', [topicId]);
+	return result.rows[0] || null;
+}
+
+// §3.6: a subject's default topic is the one carrying its legacy skill
+// name (SF-8: exactly one per subject, partial unique index, migration 279).
+async function findDefaultTopicForSubject(runner, subjectId) {
+	const result = await runner.query(
+		`SELECT * FROM assessment_topics
+     WHERE subject_id = $1 AND legacy_skill_name IS NOT NULL
+     ORDER BY sort_order ASC, id ASC LIMIT 1`,
+		[subjectId],
+	);
+	return result.rows[0] || null;
+}
+
+async function findDefaultTopicBySkillName(runner, skillName) {
+	const result = await runner.query(
+		'SELECT * FROM assessment_topics WHERE LOWER(legacy_skill_name) = LOWER($1)',
+		[skillName],
+	);
+	return result.rows[0] || null;
+}
+
+// §3.6 subject-legacy-name → candidate_skills resolution: the exact
+// lookup-or-create the legacy /start path has always run (by id, else by
+// name, else auto-create), shared by both start bodies.
+async function resolveCandidateSkill(client, userId, { skillId, skillName, category } = {}) {
+	let skill;
+	if (skillId) {
+		const skillResult = await client.query(
+			'SELECT * FROM candidate_skills WHERE id = $1 AND user_id = $2',
+			[skillId, userId],
+		);
+		skill = skillResult.rows[0];
+	}
+	if (!skill && skillName) {
+		const existingResult = await client.query(
+			'SELECT * FROM candidate_skills WHERE user_id = $1 AND LOWER(skill_name) = LOWER($2)',
+			[userId, skillName],
+		);
+		if (existingResult.rows.length > 0) {
+			skill = existingResult.rows[0];
+		} else {
+			const insertResult = await client.query(
+				`
+          INSERT INTO candidate_skills (user_id, skill_name, category, level)
+          VALUES ($1, $2, $3, 1)
+          RETURNING *
+        `,
+				[userId, skillName, category || 'technical'],
+			);
+			skill = insertResult.rows[0];
+		}
+	}
+	return skill || null;
+}
+
 // Skill catalog - available to all candidates without pre-existing skills
 const SKILL_CATALOG = [
 	{
@@ -142,78 +466,303 @@ const SKILL_CATALOG = [
 ];
 
 // Get skill catalog with user's assessment history
-router.get('/available', authMiddleware, async (req, res) => {
-	try {
-		const userId = req.user.id;
-
-		// Get user's existing skills and assessment data
-		const userSkillsResult = await pool.query(
-			`
+// Get skill catalog with user's assessment history — DUAL-READ constant
+// path (#1653, design §6 step 3). This is the pre-C1 GET /available body,
+// extracted unchanged: it serves ONLY when the catalogue tables return
+// zero subject rows (fresh install before seed). SKILL_CATALOG stays the
+// fallback here and the /recruiter/catalog source until the §6 step 5
+// contract (Sumanth-gated, not this story).
+async function buildAvailableFromConstant(userId) {
+	// Get user's existing skills and assessment data
+	const userSkillsResult = await pool.query(
+		`
       SELECT cs.id, cs.skill_name, cs.category, cs.level, cs.is_verified, cs.verified_score,
              COUNT(sa.id) as assessment_count,
              MAX(sa.score) as best_score,
              MAX(sa.completed_at) as last_attempted
       FROM candidate_skills cs
-      LEFT JOIN skill_assessments sa ON cs.id = sa.skill_id AND sa.completed_at IS NOT NULL
+      LEFT JOIN skill_assessments sa ON cs.id = sa.skill_id AND sa.user_id = $1 AND sa.completed_at IS NOT NULL
       WHERE cs.user_id = $1
       GROUP BY cs.id
       ORDER BY cs.is_verified ASC, cs.created_at DESC
     `,
-			[userId],
+		[userId],
+	);
+
+	const userSkillMap = {};
+	for (const skill of userSkillsResult.rows) {
+		userSkillMap[skill.skill_name.toLowerCase()] = skill;
+	}
+
+	// Build catalog with user's data overlaid
+	const catalog = SKILL_CATALOG.map((catalogSkill) => {
+		const userSkill = userSkillMap[catalogSkill.name.toLowerCase()];
+		return {
+			catalog_name: catalogSkill.name,
+			category: catalogSkill.category,
+			icon: catalogSkill.icon,
+			description: catalogSkill.description,
+			difficulty: catalogSkill.difficulty,
+			// User-specific data
+			skill_id: userSkill ? userSkill.id : null,
+			is_verified: userSkill ? userSkill.is_verified : false,
+			verified_score: userSkill ? userSkill.verified_score : null,
+			assessment_count: userSkill ? parseInt(userSkill.assessment_count, 10) : 0,
+			best_score: userSkill ? userSkill.best_score : null,
+			last_attempted: userSkill ? userSkill.last_attempted : null,
+			can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, userSkill?.last_attempted),
+		};
+	});
+
+	// Also include any user skills NOT in the catalog
+	for (const skill of userSkillsResult.rows) {
+		const inCatalog = SKILL_CATALOG.some(
+			(c) => c.name.toLowerCase() === skill.skill_name.toLowerCase(),
 		);
-
-		const userSkillMap = {};
-		for (const skill of userSkillsResult.rows) {
-			userSkillMap[skill.skill_name.toLowerCase()] = skill;
+		if (!inCatalog) {
+			catalog.push({
+				catalog_name: skill.skill_name,
+				category: skill.category,
+				icon: skill.skill_name.substring(0, 2).toUpperCase(),
+				description: `Custom skill: ${skill.skill_name}`,
+				difficulty: 'Adaptive',
+				skill_id: skill.id,
+				is_verified: skill.is_verified,
+				verified_score: skill.verified_score,
+				assessment_count: parseInt(skill.assessment_count, 10),
+				best_score: skill.best_score,
+				last_attempted: skill.last_attempted,
+				can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, skill.last_attempted),
+			});
 		}
+	}
 
-		// Build catalog with user's data overlaid
-		const catalog = SKILL_CATALOG.map((catalogSkill) => {
-			const userSkill = userSkillMap[catalogSkill.name.toLowerCase()];
-			return {
-				catalog_name: catalogSkill.name,
-				category: catalogSkill.category,
-				icon: catalogSkill.icon,
-				description: catalogSkill.description,
-				difficulty: catalogSkill.difficulty,
-				// User-specific data
-				skill_id: userSkill ? userSkill.id : null,
-				is_verified: userSkill ? userSkill.is_verified : false,
-				verified_score: userSkill ? userSkill.verified_score : null,
-				assessment_count: userSkill ? parseInt(userSkill.assessment_count, 10) : 0,
-				best_score: userSkill ? userSkill.best_score : null,
-				last_attempted: userSkill ? userSkill.last_attempted : null,
-				can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, userSkill?.last_attempted),
-			};
+	return catalog;
+}
+
+// Table path for GET /available (#1653, §4.4): the EXACT frozen response
+// shape, assembled from the C0 tables. Catalogue order is
+// subjects.sort_order; a subject's user skill is matched case-insensitively
+// (LOWER = LOWER semantics) through its default topic's legacy_skill_name
+// (so HTML/CSS finds the legacy "CSS & HTML" skill), falling back to the
+// subject's own name. can_retake reads the last COMPLETED attempt
+// (last_completed_at) — the same input the POST /start gate reads (§2.3).
+function buildAvailableFromTables({ subjects, topics, progress }) {
+	const progressBySkillName = new Map();
+	for (const row of progress) {
+		progressBySkillName.set(String(row.skill_name).toLowerCase(), row);
+	}
+	const defaultTopicBySubject = new Map();
+	for (const topic of topics) {
+		if (topic.legacy_skill_name && !defaultTopicBySubject.has(topic.subject_id)) {
+			defaultTopicBySubject.set(topic.subject_id, topic);
+		}
+	}
+
+	const matchedSkillNames = new Set();
+	const catalog = subjects.map((subject) => {
+		const defaultTopic = defaultTopicBySubject.get(subject.id);
+		const userSkill =
+			(defaultTopic?.legacy_skill_name &&
+				progressBySkillName.get(defaultTopic.legacy_skill_name.toLowerCase())) ||
+			progressBySkillName.get(subject.name.toLowerCase()) ||
+			null;
+		if (userSkill) matchedSkillNames.add(String(userSkill.skill_name).toLowerCase());
+		return {
+			catalog_name: subject.name,
+			category: subject.category,
+			icon: subject.icon,
+			description: subject.description,
+			difficulty: 'Adaptive',
+			// User-specific data
+			skill_id: userSkill ? userSkill.skill_id : null,
+			is_verified: userSkill ? userSkill.is_verified : false,
+			verified_score: userSkill ? userSkill.verified_score : null,
+			assessment_count: userSkill ? parseInt(userSkill.assessment_count, 10) || 0 : 0,
+			best_score: userSkill ? userSkill.best_score : null,
+			last_attempted: userSkill ? userSkill.last_completed_at : null,
+			can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, userSkill?.last_completed_at),
+		};
+	});
+
+	// Also include any user skills NOT in the catalogue (same append
+	// semantics as the constant path).
+	for (const row of progress) {
+		if (matchedSkillNames.has(String(row.skill_name).toLowerCase())) continue;
+		catalog.push({
+			catalog_name: row.skill_name,
+			category: row.category,
+			icon: String(row.skill_name).substring(0, 2).toUpperCase(),
+			description: `Custom skill: ${row.skill_name}`,
+			difficulty: 'Adaptive',
+			skill_id: row.skill_id,
+			is_verified: row.is_verified,
+			verified_score: row.verified_score,
+			assessment_count: parseInt(row.assessment_count, 10) || 0,
+			best_score: row.best_score,
+			last_attempted: row.last_completed_at,
+			can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, row.last_completed_at),
 		});
+	}
 
-		// Also include any user skills NOT in the catalog
-		for (const skill of userSkillsResult.rows) {
-			const inCatalog = SKILL_CATALOG.some(
-				(c) => c.name.toLowerCase() === skill.skill_name.toLowerCase(),
-			);
-			if (!inCatalog) {
-				catalog.push({
-					catalog_name: skill.skill_name,
-					category: skill.category,
-					icon: skill.skill_name.substring(0, 2).toUpperCase(),
-					description: `Custom skill: ${skill.skill_name}`,
-					difficulty: 'Adaptive',
-					skill_id: skill.id,
-					is_verified: skill.is_verified,
-					verified_score: skill.verified_score,
-					assessment_count: parseInt(skill.assessment_count, 10),
-					best_score: skill.best_score,
-					last_attempted: skill.last_attempted,
-					can_retake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, skill.last_attempted),
-				});
-			}
+	return catalog;
+}
+
+router.get('/available', authMiddleware, async (req, res) => {
+	try {
+		const tables = await loadCatalogTables(req.user.id);
+		// Dual-read (R5, §6 step 3): the constant serves ONLY when the
+		// subjects query returned zero rows. A thrown DB error lands in
+		// the catch below as the generic 500 — never a confident
+		// catalogue over a broken database.
+		if (tables.subjects.length === 0) {
+			return res.json({ skills: await buildAvailableFromConstant(req.user.id) });
 		}
-
-		res.json({ skills: catalog });
+		res.json({ skills: buildAvailableFromTables(tables) });
 	} catch (error) {
 		console.error('Error fetching available assessments:', error);
 		res.status(500).json({ error: 'Failed to fetch assessments' });
+	}
+});
+
+// Catalogue as data (#1653, §4.1): subjects → topics with real approved-
+// only availability (§7) and per-user progress. Responses are built from
+// explicit field allowlists — DB rows are never spread (R4) — and carry
+// counts only, never question content. Active topics with zero
+// availability are included with available:false; inactive topics are
+// excluded; topic-less active subjects return topics: [] (R2). Interim
+// state (R3/R6): availability describes the bank per §7, but /start
+// serving stays legacy until C2 — this endpoint does not change what a
+// start draws from.
+router.get('/catalog', authMiddleware, async (req, res) => {
+	try {
+		const { subjects, topics, counts, progress, topicProgress } = await loadCatalogTables(req.user.id);
+
+		const countsByTopic = new Map();
+		for (const row of counts) {
+			if (!countsByTopic.has(row.topic_id)) countsByTopic.set(row.topic_id, []);
+			countsByTopic.get(row.topic_id).push(row);
+		}
+		const progressBySkillName = new Map();
+		for (const row of progress) {
+			progressBySkillName.set(String(row.skill_name).toLowerCase(), row);
+		}
+		const topicProgressById = new Map();
+		for (const row of topicProgress || []) {
+			if (Number.isInteger(row.topic_id)) topicProgressById.set(row.topic_id, row);
+		}
+		const topicsBySubject = new Map();
+		for (const topic of topics) {
+			if (!topicsBySubject.has(topic.subject_id)) topicsBySubject.set(topic.subject_id, []);
+			topicsBySubject.get(topic.subject_id).push(topic);
+		}
+
+		res.json({
+			subjects: subjects.map((subject) => ({
+				id: subject.id,
+				slug: subject.slug,
+				name: subject.name,
+				category: subject.category,
+				icon: subject.icon,
+				description: subject.description,
+				topics: (topicsBySubject.get(subject.id) || []).map((topic) => {
+					// Progress (§3.7, #1656 R4): the per-(user, topic) read
+					// model wins whenever this topic has completed attempts
+					// of its own. Otherwise a default topic keeps the C1
+					// skill-keyed surfacing through its legacy_skill_name
+					// (topic-less legacy history aggregates at subject
+					// level) — unchanged values, plus canRetake computed
+					// from the last COMPLETED attempt, the /start gate's
+					// own input (§4.4). No completed attempts anywhere →
+					// null, never a fabricated number.
+					let topicProgress = null;
+					const topicRow = topicProgressById.get(topic.id);
+					if (topicRow) {
+						topicProgress = {
+							attempts: parseInt(topicRow.attempts, 10),
+							bestScore: topicRow.best_score,
+							lastScore: topicRow.last_score,
+							lastAttempted: topicRow.last_completed_at,
+							canRetake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, topicRow.last_completed_at),
+						};
+					} else if (topic.legacy_skill_name) {
+						const row = progressBySkillName.get(topic.legacy_skill_name.toLowerCase());
+						if (row && parseInt(row.assessment_count, 10) > 0) {
+							topicProgress = {
+								attempts: parseInt(row.assessment_count, 10),
+								bestScore: row.best_score,
+								lastScore: row.last_score,
+								lastAttempted: row.last_completed_at,
+								canRetake: canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, row.last_completed_at),
+							};
+						}
+					}
+					return {
+						id: topic.id,
+						slug: topic.slug,
+						name: topic.name,
+						description: topic.description,
+						availability: computeTopicAvailability(countsByTopic.get(topic.id) || []),
+						progress: topicProgress,
+					};
+				}),
+			})),
+		});
+	} catch (error) {
+		console.error('Error fetching assessment catalog:', error);
+		res.status(500).json({ error: 'Failed to fetch catalog' });
+	}
+});
+
+// Pre-flight for one configuration (#1654, §4.1): what /start will
+// actually serve for this topic + format + band, from real approved-only
+// per-topic counts. largestAvailable is PER-CONFIGURATION (it equals
+// servable for the asked configuration) — never the cross-configuration
+// maxCount the catalogue reports. The instructions screen renders this
+// verbatim; /start re-checks inside its transaction (this is advisory).
+router.get('/catalog/:topicId/availability', authMiddleware, async (req, res) => {
+	try {
+		const topicId = parseInt(req.params.topicId, 10);
+		const { format, band, count } = req.query;
+		if (!Number.isInteger(topicId)) {
+			return res.status(400).json({ error: 'Invalid topic id', code: 'INVALID_TOPIC' });
+		}
+		if (!CONFIG_FORMATS.includes(format)) {
+			return res.status(400).json({ error: 'Invalid format', code: 'INVALID_FORMAT' });
+		}
+		if (!Object.hasOwn(BANDS, band)) {
+			return res.status(400).json({ error: 'Invalid difficulty band', code: 'INVALID_BAND' });
+		}
+		let promised = null;
+		if (count !== undefined) {
+			promised = parseInt(count, 10);
+			if (!Number.isInteger(promised) || promised <= 0) {
+				return res.status(400).json({ error: 'Invalid count', code: 'INVALID_COUNT' });
+			}
+		}
+		const topic = await findTopicById(pool, topicId);
+		if (!topic || topic.is_active === false) {
+			return res.status(404).json({ error: 'Topic not found', code: 'TOPIC_NOT_FOUND' });
+		}
+		if (format === 'coding' && !assessmentsCodingEnabled()) {
+			return res.json({
+				promised,
+				servable: 0,
+				largestAvailable: 0,
+				reason: 'Coding assessments are not available yet.',
+			});
+		}
+		const servable = await topicServable(pool, topicId, format, band);
+		let reason = null;
+		if (servable === 0) {
+			reason = 'No approved questions are available for this topic, format and difficulty yet.';
+		} else if (promised != null && servable < promised) {
+			reason = `Only ${servable} approved questions are available for this configuration right now.`;
+		}
+		return res.json({ promised, servable, largestAvailable: servable, reason });
+	} catch (error) {
+		console.error('Error fetching topic availability:', error);
+		res.status(500).json({ error: 'Failed to fetch availability' });
 	}
 });
 
@@ -226,10 +775,13 @@ router.get('/results', authMiddleware, async (req, res) => {
 			`
       SELECT sa.*, cs.skill_name, cs.category,
              ass.tab_switches, ass.copy_paste_attempts, ass.time_anomalies,
-             ass.max_difficulty_reached, ass.answers_given
+             ass.max_difficulty_reached, ass.answers_given,
+             ass.topic_id AS topic_id, ass.format AS format,
+             ass.difficulty_band AS difficulty_band, t.name AS topic_name
       FROM skill_assessments sa
       LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
       LEFT JOIN assessment_sessions ass ON sa.session_id = ass.id
+      LEFT JOIN assessment_topics t ON t.id = ass.topic_id
       WHERE sa.user_id = $1 AND sa.completed_at IS NOT NULL
       ORDER BY sa.completed_at DESC
     `,
@@ -271,7 +823,7 @@ router.get('/assigned', authMiddleware, async (req, res) => {
 router.get('/attempt/:attemptId/score', authMiddleware, async (req, res) => {
 	try {
 		const result = await pool.query(
-			`SELECT jaa.composite_score, jaa.status, jaa.scored_at,
+			`SELECT jaa.composite_score, jaa.status, jaa.scored_at, jaa.completion_flags,
               ja.passing_score
        FROM job_assessment_attempts jaa
        JOIN job_assessments ja ON ja.id = jaa.assessment_id
@@ -282,13 +834,31 @@ router.get('/attempt/:attemptId/score', authMiddleware, async (req, res) => {
 			return res.status(404).json({ error: 'Attempt not found' });
 		}
 		const row = result.rows[0];
+		const sFlags = parseJsonObject(row.completion_flags);
+		const sPartial = sFlags.partial === true;
 		const passed =
 			row.composite_score != null && row.composite_score >= (row.passing_score ?? 70);
+		// Fix round F4: a completed partial attempt with zero answers is
+		// terminal and will never be scored (scoreAttempt records the
+		// unscored state and returns) — say so explicitly so the
+		// candidate's pollScore stops instead of burning every retry.
+		const unscored =
+			row.status === 'completed' &&
+			!row.scored_at &&
+			sPartial &&
+			(sFlags.answers_given ?? null) === 0;
 		res.json({
 			composite_score: row.composite_score,
 			status: row.status,
 			scored: !!row.scored_at,
-			result: row.composite_score != null ? (passed ? 'pass' : 'fail') : null,
+			unscored,
+			// Phase B: a partial submission is neither a pass nor a fail —
+			// result stays null and the partial label carries the counts.
+			result: sPartial ? null : row.composite_score != null ? (passed ? 'pass' : 'fail') : null,
+			partial: sPartial,
+			answersGiven: sFlags.answers_given ?? null,
+			totalQuestions: sFlags.total_questions ?? null,
+			autoSubmittedFullscreen: sFlags.fullscreen_auto_submit === true,
 		});
 	} catch (error) {
 		console.error('Error fetching attempt score:', error);
@@ -299,60 +869,224 @@ router.get('/attempt/:attemptId/score', authMiddleware, async (req, res) => {
 // Start new assessment - accepts skillName+category OR skillId (AI RATE LIMITED)
 router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 	const client = await pool.connect();
+	let clientReleased = false;
 	try {
 		const userId = req.user.id;
-		const { skillId, skillName, category, jobId } = req.body;
+		const body = req.body || {};
+		const { skillId, skillName, category, jobId } = body;
+		// #1654 (C2): two start bodies. The configured body names a topic
+		// and a configuration; the legacy body names a skill. Both end in
+		// the SAME §3.6 snapshot — the legacy body via the recorded
+		// defaults (§4.2/§8) — so downstream has one code path.
+		const isConfigured = body.topicId !== undefined && body.topicId !== null;
 
 		await client.query('BEGIN');
 
 		let skill;
+		let snapshot;
+		let servable = null;
 
-		if (skillId) {
-			// Legacy: lookup by ID
-			const skillResult = await client.query(
-				'SELECT * FROM candidate_skills WHERE id = $1 AND user_id = $2',
-				[skillId, userId],
-			);
-			skill = skillResult.rows[0];
-		}
-
-		if (!skill && skillName) {
-			// Look up or auto-create the skill in candidate_skills
-			const existingResult = await client.query(
-				'SELECT * FROM candidate_skills WHERE user_id = $1 AND LOWER(skill_name) = LOWER($2)',
-				[userId, skillName],
-			);
-
-			if (existingResult.rows.length > 0) {
-				skill = existingResult.rows[0];
-			} else {
-				// Auto-create the skill for this user
-				const insertResult = await client.query(
-					`
-          INSERT INTO candidate_skills (user_id, skill_name, category, level)
-          VALUES ($1, $2, $3, 1)
-          RETURNING *
-        `,
-					[userId, skillName, category || 'technical'],
-				);
-				skill = insertResult.rows[0];
+		if (isConfigured) {
+			const topicId = parseInt(body.topicId, 10);
+			const { format, difficultyBand } = body;
+			if (!Number.isInteger(topicId)) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({ error: 'Invalid topic id', code: 'INVALID_TOPIC' });
 			}
-		}
-
-		if (!skill) {
-			await client.query('ROLLBACK');
-			return res.status(400).json({ error: 'Skill name or ID required' });
+			if (!CONFIG_FORMATS.includes(format)) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({ error: 'Invalid format', code: 'INVALID_FORMAT' });
+			}
+			if (!Object.hasOwn(BANDS, difficultyBand)) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({ error: 'Invalid difficulty band', code: 'INVALID_BAND' });
+			}
+			const topic = await findTopicById(client, topicId);
+			if (!topic || topic.is_active === false) {
+				await client.query('ROLLBACK');
+				return res.status(404).json({ error: 'Topic not found', code: 'TOPIC_NOT_FOUND' });
+			}
+			// §3.6: the candidate_skills row is resolved by the SUBJECT's
+			// legacy skill name (via its default topic), through the same
+			// lookup-or-create the legacy path has always run — history,
+			// Verified and OmniScore keep aggregating at skill level.
+			const defaultTopic = topic.legacy_skill_name
+				? topic
+				: await findDefaultTopicForSubject(client, topic.subject_id);
+			if (!defaultTopic?.legacy_skill_name) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({
+					error: 'This topic is not available for assessment yet',
+					code: 'TOPIC_NOT_AVAILABLE',
+				});
+			}
+			skill = await resolveCandidateSkill(client, userId, {
+				skillName: defaultTopic.legacy_skill_name,
+				category,
+			});
+			if (!skill) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({ error: 'Skill name or ID required' });
+			}
+			// STOP 1 Q4: coding while ASSESSMENTS_CODING_ENABLED is OFF is
+			// the honest 503 family with a format-specific reason — never
+			// a silent substitution to another format.
+			if (format === 'coding' && !assessmentsCodingEnabled()) {
+				await client.query('ROLLBACK');
+				return res.status(503).json({
+					error: 'Coding assessments are not available yet.',
+					code: 'QUESTION_UNAVAILABLE',
+					retryable: false,
+					reason: 'coding_disabled',
+					format: 'coding',
+				});
+			}
+			// #1656 (C3, R1/R2): set resolution. An explicit setId must
+			// exist and be compatible (§4.6 via setMatchesSession) —
+			// otherwise the honest 400 SETS_NOT_AVAILABLE, rolled back
+			// BEFORE any session exists (the C2 contract, kept). No
+			// setId + compatible active sets for this topic → auto-pick
+			// the set gone longest without completion; no sets at all →
+			// pool mode, exactly as C2.
+			let resolvedSetId = null;
+			if (body.setId !== undefined && body.setId !== null) {
+				const setId = parseInt(body.setId, 10);
+				const set = Number.isInteger(setId) ? await loadSetById(client, setId) : null;
+				if (!setMatchesSession(set, topic.id, format, difficultyBand)) {
+					await client.query('ROLLBACK');
+					return res.status(400).json({
+						error: 'Assessment set is not available for this topic and configuration',
+						code: 'SETS_NOT_AVAILABLE',
+					});
+				}
+				resolvedSetId = set.id;
+			} else {
+				const auto = await pickAutoSet(client, topic.id, userId, format, difficultyBand);
+				if (auto) resolvedSetId = auto.id;
+			}
+			snapshot = {
+				subjectId: topic.subject_id,
+				topicId: topic.id,
+				setId: resolvedSetId,
+				format,
+				difficultyBand,
+				totalQuestions: body.totalQuestions,
+			};
+			// Availability is re-checked INSIDE the transaction (§4.1:
+			// pre-flight is advisory; start is authoritative). For a set
+			// session the promise is the SET's approved membership, not
+			// the topic pool (R2) — the labelled-offer rule below then
+			// keys off the set's own servable count.
+			servable =
+				resolvedSetId != null
+					? await setApprovedCount(client, resolvedSetId)
+					: await topicServable(client, topic.id, format, difficultyBand);
+			// STOP 1 Q1: the enum governs the choice UI; a non-enum count
+			// is accepted ONLY when it is exactly this configuration's
+			// current servable — the labelled largestAvailable offer the
+			// candidate explicitly accepted.
+			const tq = snapshot.totalQuestions;
+			const isEnumCount = CONFIG_COUNTS.includes(tq);
+			const isLabelledOffer = Number.isInteger(tq) && tq > 0 && tq === servable;
+			if (!isEnumCount && !isLabelledOffer) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({
+					error: 'Invalid total questions',
+					code: 'INVALID_COUNT',
+					largestAvailable: servable,
+				});
+			}
+		} else {
+			skill = await resolveCandidateSkill(client, userId, { skillId, skillName, category });
+			if (!skill) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({ error: 'Skill name or ID required' });
+			}
+			// §4.2/§8 recorded defaults: the skill's default topic (by its
+			// legacy name), mixed / medium / 10, start difficulty 3 (band
+			// centre — SF-9's deliberate change for NEW legacy starts;
+			// in-flight NULL-config sessions are untouched). A skill with
+			// no catalogue topic snapshots the defaults with a NULL topic
+			// and serves via the legacy skill match, as today.
+			const defaultTopic = await findDefaultTopicBySkillName(client, skill.skill_name);
+			snapshot = {
+				subjectId: defaultTopic?.subject_id ?? null,
+				topicId: defaultTopic?.id ?? null,
+				setId: null, // legacy body: pool mode, exactly as before C3
+				format: 'mixed',
+				difficultyBand: 'medium',
+				totalQuestions: 10,
+			};
 		}
 
 		// Retake lockout: a completed assessment inside the lockout window
 		// blocks a new start (mirrors aptitude's RETAKE_LOCKOUT). Checked
 		// before abandoning any in-progress session, same order as aptitude.
-		const lastCompleted = await client.query(
-			`SELECT completed_at FROM skill_assessments
+		// #1686 (Founder ruling, Option (a)): the lockout is PER-TOPIC —
+		// the catalogue's canRetake already reads per topic (the C3 read
+		// model), so a snapshot (topic-based) start reads the latest
+		// completion FOR THAT TOPIC ONLY, via sa.session_id →
+		// assessment_sessions.topic_id (skill_assessments has no
+		// topic_id column). Topic-less legacy completions carry no topic
+		// attribution and do not block a topic start. A start with no
+		// topic (NULL snapshot topic) keeps the existing skill-wide gate
+		// exactly. hasTopic is declared here and reused by the #1687
+		// abandon block below (same snapshot key, same split).
+		const hasTopic = snapshot.topicId != null;
+		// #1716 (Lead ruling, Option (b) — gate-side only): the #1686 edge
+		// decision above is amended for the subject's DEFAULT topic only.
+		// The catalogue's C3 R4 fallback surfaces topic-less legacy
+		// history on the default topic — the topic carrying
+		// legacy_skill_name (migration 279 sets it ONLY on a subject's
+		// default topic, the catalogue's own determination) — and
+		// computes canRetake from it, so for that topic the gate must
+		// read the same history or the UI note ("Retake available 30
+		// days after your last completed attempt") states a lockout the
+		// gate does not enforce. Defaultness is re-derived here from the
+		// started topic's own legacy_skill_name (the configured branch's
+		// topic local is out of scope at the gate; a legacy-body start
+		// snapshots this same default topic). For a default topic the
+		// read widens, via LEFT JOIN, to completions with no topic
+		// attribution in BOTH physical forms — a skill_assessments row
+		// with session_id IS NULL, and a session whose topic_id IS NULL —
+		// and the joined topics row re-checks legacy_skill_name
+		// IS NOT NULL inside the predicate, so the widening can never
+		// leak onto a non-default topic. Non-default topics keep the
+		// #1686 query byte-for-byte; the topic-less (hasTopic=false)
+		// branch is unchanged; the catalogue read model is not touched.
+		const startedTopic = hasTopic ? await findTopicById(client, snapshot.topicId) : null;
+		const isDefaultTopic = !!startedTopic?.legacy_skill_name;
+		let lastCompleted;
+		if (!hasTopic) {
+			lastCompleted = await client.query(
+				`SELECT completed_at FROM skill_assessments
        WHERE user_id = $1 AND skill_id = $2 AND completed_at IS NOT NULL
        ORDER BY completed_at DESC LIMIT 1`,
-			[userId, skill.id],
-		);
+				[userId, skill.id],
+			);
+		} else if (isDefaultTopic) {
+			lastCompleted = await client.query(
+				`SELECT skill_assessments.completed_at FROM skill_assessments
+       LEFT JOIN assessment_sessions ON assessment_sessions.id = skill_assessments.session_id
+       LEFT JOIN assessment_topics ON assessment_topics.id = $3
+       WHERE skill_assessments.user_id = $1 AND skill_assessments.skill_id = $2
+         AND skill_assessments.completed_at IS NOT NULL
+         AND (assessment_sessions.topic_id = $3
+              OR (assessment_topics.legacy_skill_name IS NOT NULL
+                  AND (assessment_sessions.topic_id IS NULL OR skill_assessments.session_id IS NULL)))
+       ORDER BY skill_assessments.completed_at DESC LIMIT 1`,
+				[userId, skill.id, snapshot.topicId],
+			);
+		} else {
+			lastCompleted = await client.query(
+				`SELECT skill_assessments.completed_at FROM skill_assessments
+       JOIN assessment_sessions ON assessment_sessions.id = skill_assessments.session_id
+       WHERE skill_assessments.user_id = $1 AND skill_assessments.skill_id = $2
+         AND skill_assessments.completed_at IS NOT NULL AND assessment_sessions.topic_id = $3
+       ORDER BY skill_assessments.completed_at DESC LIMIT 1`,
+				[userId, skill.id, snapshot.topicId],
+			);
+		}
 		if (
 			lastCompleted.rows.length > 0 &&
 			!canRetakeSkill(SKILL_RETAKE_LOCKOUT_DAYS, lastCompleted.rows[0].completed_at)
@@ -366,121 +1100,202 @@ router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
 			});
 		}
 
-		// Check for active session
-		const activeSession = await client.query(
-			"SELECT id FROM assessment_sessions WHERE user_id = $1 AND skill_id = $2 AND status = 'in_progress'",
-			[userId, skill.id],
-		);
-		if (activeSession.rows.length > 0) {
+		// Check for active session. #1687 (STOP 1 ruling): when the new
+		// session's snapshot resolves a topic, the abandon is scoped to
+		// in-progress sessions of the SAME topic and abandons ALL of them —
+		// starting Topic B must never silently abandon a Topic A attempt on
+		// the same skill. A start with no topic (NULL snapshot topic) keeps
+		// the legacy skill-wide behaviour exactly (first match only).
+		// (hasTopic is declared at the #1686 retake gate above.)
+		const activeSession = hasTopic
+			? await client.query(
+					"SELECT id FROM assessment_sessions WHERE user_id = $1 AND skill_id = $2 AND status = 'in_progress' AND topic_id = $3",
+					[userId, skill.id, snapshot.topicId],
+				)
+			: await client.query(
+					"SELECT id FROM assessment_sessions WHERE user_id = $1 AND skill_id = $2 AND status = 'in_progress'",
+					[userId, skill.id],
+				);
+		const sessionsToAbandon = hasTopic ? activeSession.rows : activeSession.rows.slice(0, 1);
+		for (const oldSession of sessionsToAbandon) {
 			// Abandon old session
 			await client.query("UPDATE assessment_sessions SET status = 'abandoned' WHERE id = $1", [
-				activeSession.rows[0].id,
+				oldSession.id,
 			]);
 		}
 
-		// Create assessment session
+		// Create assessment session — with the §3.6 configuration snapshot
+		// and the band's start difficulty (legacy-mapped starts take the
+		// medium default: start 3, §8/SF-9).
+		const startDifficulty = BAND_START[snapshot.difficultyBand];
 		const sessionResult = await client.query(
 			`
       INSERT INTO assessment_sessions
       (user_id, skill_id, job_id, status, current_difficulty, current_question_index, score,
        max_difficulty_reached, tab_switches, copy_paste_attempts, time_anomalies,
-       questions_asked, answers_given, started_at)
-      VALUES ($1, $2, $3, 'in_progress', 2, 0, 0, 2, 0, 0, 0, '[]'::jsonb, '[]'::jsonb, NOW())
+       questions_asked, answers_given, started_at,
+       subject_id, topic_id, format, difficulty_band, total_questions, set_id)
+      VALUES ($1, $2, $3, 'in_progress', $4, 0, 0, $4, 0, 0, 0, '[]'::jsonb, '[]'::jsonb, NOW(),
+              $5, $6, $7, $8, $9, $10)
       RETURNING *
     `,
-			[userId, skill.id, jobId || null],
+			[
+				userId,
+				skill.id,
+				jobId || null,
+				startDifficulty,
+				snapshot.subjectId,
+				snapshot.topicId,
+				snapshot.format,
+				snapshot.difficultyBand,
+				snapshot.totalQuestions,
+				snapshot.setId ?? null,
+			],
 		);
 
 		const session = sessionResult.rows[0];
 
-		// Generate first question
-		const question = await generateQuestion(skill.skill_name, skill.category, 2, client);
+		// Phase A (#1606 FR-A7): the session commits BEFORE the first question
+		// is served. A question-supply failure can no longer roll the session
+		// back — the session stays in_progress and resumable, and /start
+		// reports the honest question-unavailable state with its id.
+		await client.query('COMMIT');
+		client.release();
+		clientReleased = true;
 
-		if (!question) {
-			await client.query('ROLLBACK');
-			return res.status(500).json({ error: 'Failed to generate questions. Please try again.' });
+		// #1654 (§4.1): a configured start whose promised count exceeds the
+		// supply re-checked above does not serve a first question — the
+		// committed, resumable session is reported with the existing 503
+		// shape EXTENDED by the promise and the honest largestAvailable,
+		// so the client can offer the labelled smaller count (Q1).
+		if (isConfigured && servable < snapshot.totalQuestions) {
+			return res.status(503).json({
+				error:
+					'Not enough questions are available for this configuration yet. Your attempt has been saved — you can resume it, or choose the available count instead.',
+				code: 'QUESTION_UNAVAILABLE',
+				retryable: true,
+				sessionId: session.id,
+				skillName: skill.skill_name,
+				promised: snapshot.totalQuestions,
+				largestAvailable: servable,
+			});
 		}
 
-		// Record question asked
-		const questionsAsked = [
-			{ questionId: question.id, difficulty: question.difficulty_level, timestamp: new Date() },
-		];
-		await client.query(
-			'UPDATE assessment_sessions SET questions_asked = $1, current_question_index = 1 WHERE id = $2',
-			[JSON.stringify(questionsAsked), session.id],
-		);
+		const served = await serveNextQuestion(session.id);
+		if (!served.ok) {
+			return res.status(503).json({
+				error:
+					'No questions are available for this assessment yet. Your attempt has been saved — please try again shortly.',
+				code: 'QUESTION_UNAVAILABLE',
+				retryable: true,
+				sessionId: session.id,
+				skillName: skill.skill_name,
+			});
+		}
 
-		await client.query('COMMIT');
-
-		res.json({
+		return res.json({
 			sessionId: session.id,
 			skillName: skill.skill_name,
-			question: {
-				id: question.id,
-				text: question.question_text,
-				type: question.question_type,
-				options:
-					typeof question.options === 'string' ? JSON.parse(question.options) : question.options,
-				timeLimit: question.time_limit_seconds || 120,
-				questionNumber: 1,
-				totalQuestions: 10,
-			},
+			question: served.question,
 		});
 	} catch (error) {
-		await client.query('ROLLBACK');
+		if (!clientReleased) await client.query('ROLLBACK').catch(() => {});
 		console.error('Error starting assessment:', error);
 		if (error.allProvidersFailed) {
 			return handleAIError(res, error, 'Assessment generation');
 		}
 		res.status(500).json({ error: 'Failed to start assessment' });
 	} finally {
-		client.release();
+		if (!clientReleased) client.release();
 	}
 });
 
-// Submit answer and get next question
+// Submit answer. Phase A (#1602): recording the answer, evaluating it, and
+// serving the next question are now separate steps with separate failure
+// outcomes. Previously one transaction did all three, so a next-question
+// generation failure rolled the candidate's just-recorded answer back, and
+// the passing-leg completion could deadlock against the OmniScore write
+// (#1612). The next question is served by GET /session/:sessionId/current
+// (serveNextQuestion) — this route only records and, on the final answer,
+// completes.
 router.post('/answer', authMiddleware, async (req, res) => {
-	const client = await pool.connect();
 	try {
 		const userId = req.user.id;
 		const { sessionId, questionId, answer, timeTaken } = req.body;
+		// Coerce once: JSONB-stored ids are numbers, and a string "5" must
+		// not bypass the duplicate/outstanding comparisons below.
+		const qid = Number(questionId);
+		if (!Number.isInteger(qid)) {
+			return res.status(400).json({ error: 'Invalid question id', code: 'INVALID_QUESTION' });
+		}
 
-		await client.query('BEGIN');
-
-		// Get session
-		const sessionResult = await client.query(
+		// Load session + question without holding a transaction: evaluation
+		// below may take seconds (AI cascade) and must not hold DB locks.
+		const sessionResult = await pool.query(
 			'SELECT * FROM assessment_sessions WHERE id = $1 AND user_id = $2',
 			[sessionId, userId],
 		);
 
 		if (sessionResult.rows.length === 0) {
-			await client.query('ROLLBACK');
 			return res.status(404).json({ error: 'Session not found' });
 		}
 
 		const session = sessionResult.rows[0];
 
 		if (session.status !== 'in_progress') {
-			await client.query('ROLLBACK');
-			return res.status(400).json({ error: 'Session is not active' });
+			return res
+				.status(400)
+				.json({ error: 'This attempt is already finished', code: 'ALREADY_FINISHED' });
 		}
 
 		// Get question details
-		const questionResult = await client.query('SELECT * FROM assessment_questions WHERE id = $1', [
-			questionId,
+		const questionResult = await pool.query('SELECT * FROM assessment_questions WHERE id = $1', [
+			qid,
 		]);
 
 		if (questionResult.rows.length === 0) {
-			await client.query('ROLLBACK');
 			return res.status(404).json({ error: 'Question not found' });
 		}
 
 		const question = questionResult.rows[0];
 
+		// Idempotency: a retried submission of an already-recorded answer
+		// (client timeout, double-click, timer + manual press) returns the
+		// recorded state — the answer is never recorded or scored twice.
+		// The one exception is a RE-SERVED question: when the bank cell is
+		// exhausted, serveNextQuestion may serve a question the session
+		// answered earlier; as the currently-outstanding question it is a
+		// NEW answer, not a retry. (Without this distinction the retry
+		// guard and the re-serve together trap the candidate on one
+		// question forever.)
+		if (isAlreadyRecorded(session, qid)) {
+			return await respondAfterRecord(res, sessionId, userId, {
+				feedback: 'Answer already recorded',
+				explanation: question.explanation,
+			});
+		}
+
+		// Integrity: only the session's outstanding question can be
+		// answered. Anything else — a question never served in this
+		// attempt, or an old one that is not outstanding — is rejected, so
+		// this endpoint can neither skip the adaptive sequence nor act as
+		// a per-id answer oracle for the bank (review finding, PR #1620).
+		if (qid !== outstandingQuestionId(session)) {
+			return res.status(400).json({
+				error: 'That question is not the current question in this attempt',
+				code: 'QUESTION_NOT_CURRENT',
+			});
+		}
+
 		// Evaluate answer
 		let isCorrect = false;
 		let scorePoints = 0;
 		let aiFeedback = null;
+		// #1572: short-answer evaluation outcome. evaluationScore stays null
+		// and evaluationStatus 'pending_manual_review' when no evaluation
+		// happened — the answer is recorded, never scored by default.
+		let evaluationScore = null;
+		let evaluationStatus = null;
 
 		if (question.question_type === 'multiple_choice') {
 			isCorrect = answer === question.correct_answer;
@@ -492,166 +1307,200 @@ router.post('/answer', authMiddleware, async (req, res) => {
 				answer,
 				question.explanation,
 			);
-			isCorrect = evaluation.score >= 70;
-			scorePoints = Math.round((evaluation.score / 100) * (question.difficulty_level || 2) * 15);
-			aiFeedback = evaluation.feedback;
+			if (evaluation) {
+				evaluationScore = evaluation.score;
+				evaluationStatus = 'evaluated';
+				isCorrect = evaluation.score >= 70;
+				scorePoints = Math.round((evaluation.score / 100) * (question.difficulty_level || 2) * 15);
+				aiFeedback = evaluation.feedback;
 
-			// Log AI explanation generation for compliance
-			await AuditLogger.log({
-				actionType: 'ai_explanation_generated',
-				userId: userId,
-				targetType: 'assessment_question',
-				targetId: questionId,
-				metadata: {
-					session_id: sessionId,
-					question_type: 'short_answer',
-					ai_score: evaluation.score,
-					model_version: 'adaptive-assessment-v1',
-					confidence: evaluation.score / 100,
-					explanation_type: 'answer_evaluation',
-				},
-				req: null,
-			});
+				// Log AI explanation generation for compliance
+				await AuditLogger.log({
+					actionType: 'ai_explanation_generated',
+					userId: userId,
+					targetType: 'assessment_question',
+					targetId: qid,
+					metadata: {
+						session_id: sessionId,
+						question_type: 'short_answer',
+						ai_score: evaluation.score,
+						model_version: 'adaptive-assessment-v1',
+						confidence: evaluation.score / 100,
+						explanation_type: 'answer_evaluation',
+					},
+					req: null,
+				});
+			} else {
+				// #1572: no evaluation happened — record the answer as
+				// unevaluated: no score, no points, not correct or incorrect,
+				// and NO ai_score/confidence in the audit trail. The failure
+				// itself is logged explicitly instead.
+				evaluationStatus = 'pending_manual_review';
+				isCorrect = null;
+				aiFeedback =
+					'Unable to evaluate automatically. Your answer has been recorded for manual review.';
+				// NOTE: the event name deliberately does NOT start with
+				// 'ai_'. The admin compliance readers (routes/admin.js)
+				// sweep `action_type LIKE 'ai_%'` as AI *decisions* and
+				// COALESCE a missing confidence to 0.85 — a failed
+				// evaluation is not an AI decision and must not resurface
+				// there with a fabricated confidence.
+				await AuditLogger.log({
+					actionType: 'assessment_evaluation_failed',
+					userId: userId,
+					targetType: 'assessment_question',
+					targetId: qid,
+					metadata: {
+						session_id: sessionId,
+						question_type: 'short_answer',
+						evaluation_status: 'pending_manual_review',
+						model_version: 'adaptive-assessment-v1',
+						explanation_type: 'answer_evaluation',
+					},
+					req: null,
+				});
+			}
 		}
 
 		// Check for time anomaly (too fast)
 		const expectedMinTime = question.question_type === 'multiple_choice' ? 5 : 15;
 		const isTimeAnomaly = timeTaken < expectedMinTime;
 
-		// Update session
-		const questionsAsked =
-			typeof session.questions_asked === 'string'
-				? JSON.parse(session.questions_asked)
-				: session.questions_asked || [];
-		const answersGiven =
-			typeof session.answers_given === 'string'
-				? JSON.parse(session.answers_given)
-				: session.answers_given || [];
+		// #1572: unevaluated answers are "Pending manual review", never "Incorrect".
+		const answerFeedback =
+			evaluationStatus === 'pending_manual_review'
+				? 'Pending manual review'
+				: isCorrect
+					? 'Correct!'
+					: 'Incorrect';
 
-		answersGiven.push({
-			questionId,
-			answer,
-			isCorrect,
-			scorePoints,
-			timeTaken,
-			timestamp: new Date(),
-			aiFeedback,
-		});
+		// Record the answer in its OWN transaction and COMMIT it before
+		// anything else happens. The session row lock serialises concurrent
+		// submissions for this session; the duplicate re-check under the lock
+		// makes a racing retry a no-op. From the COMMIT on, the answer cannot
+		// be lost by any later failure (FR-A1).
+		const client = await pool.connect();
+		let alreadyFinished = false;
+		let alreadyRecorded = false;
+		let questionRejected = false;
+		try {
+			await client.query('BEGIN');
+			const lockedResult = await client.query(
+				'SELECT * FROM assessment_sessions WHERE id = $1 AND user_id = $2 FOR UPDATE',
+				[sessionId, userId],
+			);
+			const locked = lockedResult.rows[0];
+			if (!locked || locked.status !== 'in_progress') {
+				await client.query('ROLLBACK');
+				alreadyFinished = true;
+			} else if (!isAlreadyRecorded(locked, qid) && qid !== outstandingQuestionId(locked)) {
+				// Re-validated under the lock: the outstanding question moved
+				// (a racing submission recorded first) or this question was
+				// never this attempt's to answer.
+				await client.query('ROLLBACK');
+				questionRejected = true;
+			} else {
+				const answersGiven = parseJsonArray(locked.answers_given);
+				if (isAlreadyRecorded(locked, qid)) {
+					await client.query('COMMIT');
+					alreadyRecorded = true;
+				} else {
+					answersGiven.push({
+						questionId: qid,
+						answer,
+						isCorrect,
+						scorePoints,
+						score: evaluationScore,
+						evaluationStatus,
+						timeTaken,
+						timestamp: new Date(),
+						aiFeedback,
+					});
 
-		const newScore = (session.score || 0) + scorePoints;
-		const currentQuestionIndex = (session.current_question_index || 0) + 1;
+					const newScore = (locked.score || 0) + scorePoints;
 
-		// Adaptive difficulty: increase if correct and no time anomaly, decrease if wrong
-		let newDifficulty = session.current_difficulty || 2;
-		if (isCorrect && !isTimeAnomaly && newDifficulty < 5) {
-			newDifficulty += 1;
-		} else if (!isCorrect && newDifficulty > 1) {
-			newDifficulty -= 1;
-		}
+					// Adaptive difficulty: increase if correct and no time anomaly, decrease if wrong.
+					// #1572: an unevaluated answer (isCorrect null) moves difficulty NEITHER
+					// way — the candidate is not penalised for an evaluation failure.
+					// #1654 (§5.2): the step is clamped to the locked session's
+					// band (easy [1,2] / medium [2,4] / hard [4,5]); a NULL band
+					// (in-flight legacy session, §8) keeps the unbounded [1,5].
+					let newDifficulty = locked.current_difficulty || 2;
+					if (isCorrect === true && !isTimeAnomaly) {
+						newDifficulty += 1;
+					} else if (isCorrect === false) {
+						newDifficulty -= 1;
+					}
+					newDifficulty = clampToBand(newDifficulty, locked.difficulty_band);
 
-		const maxDifficultyReached = Math.max(session.max_difficulty_reached || 2, newDifficulty);
-		const timeAnomalies = (session.time_anomalies || 0) + (isTimeAnomaly ? 1 : 0);
+					const maxDifficultyReached = Math.max(locked.max_difficulty_reached || 2, newDifficulty);
+					const timeAnomalies = (locked.time_anomalies || 0) + (isTimeAnomaly ? 1 : 0);
 
-		await client.query(
-			`
+					await client.query(
+						`
       UPDATE assessment_sessions
       SET answers_given = $1, score = $2, current_question_index = $3,
           current_difficulty = $4, max_difficulty_reached = $5,
-          time_anomalies = $6
+          time_anomalies = $6,
+          current_draft = CASE WHEN current_draft->>'questionId' = $8 THEN NULL ELSE current_draft END
       WHERE id = $7
     `,
-			[
-				JSON.stringify(answersGiven),
-				newScore,
-				currentQuestionIndex,
-				newDifficulty,
-				maxDifficultyReached,
-				timeAnomalies,
-				sessionId,
-			],
-		);
+						[
+							JSON.stringify(answersGiven),
+							newScore,
+							// current_question_index = answers recorded so far.
+							// (Pre-Phase-A this was seeded to 1 at start and then
+							// incremented, so an attempt "completed" after 9
+							// answers while its questions were numbered 1,3,4… —
+							// counts are real now: question N is answers+1.)
+							answersGiven.length,
+							newDifficulty,
+							maxDifficultyReached,
+							timeAnomalies,
+							sessionId,
+							// Phase B (§8.2): recording the drafted question's
+							// answer clears the stored draft in the same write.
+							String(qid),
+						],
+					);
+					await client.query('COMMIT');
+				}
+			}
+		} catch (error) {
+			await client.query('ROLLBACK').catch(() => {});
+			throw error;
+		} finally {
+			client.release();
+		}
 
-		// Check if assessment is complete (10 questions)
-		if (currentQuestionIndex >= 10) {
-			await completeAssessment(client, sessionId, userId);
-			await client.query('COMMIT');
-
-			return res.json({
-				completed: true,
-				score: newScore,
-				feedback: isCorrect ? 'Correct!' : 'Incorrect',
-				explanation: question.explanation,
-				aiFeedback,
+		if (alreadyFinished) {
+			return res
+				.status(400)
+				.json({ error: 'This attempt is already finished', code: 'ALREADY_FINISHED' });
+		}
+		if (questionRejected) {
+			return res.status(400).json({
+				error: 'That question is not the current question in this attempt',
+				code: 'QUESTION_NOT_CURRENT',
 			});
 		}
-
-		// Get skill for next question
-		const skillResult = await client.query(
-			'SELECT cs.* FROM candidate_skills cs JOIN assessment_sessions ass ON cs.id = ass.skill_id WHERE ass.id = $1',
-			[sessionId],
-		);
-
-		if (skillResult.rows.length === 0) {
-			await client.query('ROLLBACK');
-			return res.status(500).json({ error: 'Skill not found for session' });
+		if (alreadyRecorded) {
+			return await respondAfterRecord(res, sessionId, userId, {
+				feedback: 'Answer already recorded',
+				explanation: question.explanation,
+			});
 		}
-
-		const skill = skillResult.rows[0];
-
-		// Generate next question
-		const nextQuestion = await generateQuestion(
-			skill.skill_name,
-			skill.category,
-			newDifficulty,
-			client,
-		);
-
-		if (!nextQuestion) {
-			await client.query('ROLLBACK');
-			return res.status(500).json({ error: 'Failed to generate next question' });
-		}
-
-		// Record question asked
-		questionsAsked.push({
-			questionId: nextQuestion.id,
-			difficulty: nextQuestion.difficulty_level,
-			timestamp: new Date(),
-		});
-
-		await client.query('UPDATE assessment_sessions SET questions_asked = $1 WHERE id = $2', [
-			JSON.stringify(questionsAsked),
-			sessionId,
-		]);
-
-		await client.query('COMMIT');
-
-		res.json({
-			completed: false,
-			feedback: isCorrect ? 'Correct!' : 'Incorrect',
+		return await respondAfterRecord(res, sessionId, userId, {
+			feedback: answerFeedback,
 			explanation: question.explanation,
 			aiFeedback,
-			nextQuestion: {
-				id: nextQuestion.id,
-				text: nextQuestion.question_text,
-				type: nextQuestion.question_type,
-				options:
-					typeof nextQuestion.options === 'string'
-						? JSON.parse(nextQuestion.options)
-						: nextQuestion.options,
-				timeLimit: nextQuestion.time_limit_seconds || 120,
-				questionNumber: currentQuestionIndex + 1,
-				totalQuestions: 10,
-			},
 		});
 	} catch (error) {
-		await client.query('ROLLBACK');
 		console.error('Error submitting answer:', error);
 		if (error.allProvidersFailed) {
 			return handleAIError(res, error, 'Answer evaluation');
 		}
 		res.status(500).json({ error: 'Failed to submit answer' });
-	} finally {
-		client.release();
 	}
 });
 
@@ -700,25 +1549,807 @@ router.post('/event', authMiddleware, async (req, res) => {
 	}
 });
 
-// Helper: Generate or fetch question
-async function generateQuestion(skillName, category, difficulty, client) {
+// Phase B (#1604/#1605, design §3.3): the unified exit endpoint — the one
+// server transition behind the Exit dialog's Save & Exit / Submit & Exit /
+// Exit Exam outcomes (Continue Test is client-only: no server state). All
+// terminal transitions are the atomic claims of §4.3; a second terminal
+// action on a finished attempt is 409 ALREADY_FINISHED, so any exit
+// request can be retried blindly and safely (§6.1).
+router.post('/session/:sessionId/exit', authMiddleware, async (req, res) => {
+	try {
+		const userId = req.user.id;
+		const sessionId = req.params.sessionId;
+		const { action, draft, reason } = req.body || {};
+		if (!['save', 'submit', 'abandon'].includes(action)) {
+			return res.status(400).json({ error: 'Invalid exit action', code: 'INVALID_ACTION' });
+		}
+		const exitReason = reason === 'fullscreen_second_exit' ? 'fullscreen_second_exit' : 'candidate';
+
+		const sessionResult = await pool.query(
+			'SELECT * FROM assessment_sessions WHERE id = $1 AND user_id = $2',
+			[sessionId, userId],
+		);
+		if (sessionResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		const session = sessionResult.rows[0];
+		if (session.status !== 'in_progress') {
+			return res.status(409).json({
+				error: 'This attempt is already finished',
+				code: 'ALREADY_FINISHED',
+				status: session.status,
+			});
+		}
+		const answersGiven = parseJsonArray(session.answers_given).length;
+
+		if (action === 'save') {
+			// The draft is stored-but-not-answered (§8.2): it must belong to
+			// the session's currently-outstanding question — anything else
+			// is not this attempt's current work.
+			let storedDraft = null;
+			if (draft != null) {
+				const qid = Number(draft.questionId);
+				if (!Number.isInteger(qid) || typeof draft.answer !== 'string') {
+					return res.status(400).json({ error: 'Invalid draft', code: 'INVALID_DRAFT' });
+				}
+				if (qid !== outstandingQuestionId(session)) {
+					return res.status(400).json({
+						error: 'That question is not the current question in this attempt',
+						code: 'QUESTION_NOT_CURRENT',
+					});
+				}
+				storedDraft = { questionId: qid, answer: draft.answer, savedAt: new Date().toISOString() };
+			}
+			// Fix round F5: the draft write is a CLAIM, not a blind write —
+			// ownership + status are in the UPDATE itself, its rowcount is
+			// checked, and the exit_save event is written in the SAME
+			// transaction only when the claim won. A save that loses a race
+			// to a terminal claim gets 409, never a false 200/event.
+			const saveClient = await pool.connect();
+			try {
+				await saveClient.query('BEGIN');
+				const claim = await saveClient.query(
+					'UPDATE assessment_sessions SET current_draft = $1 WHERE id = $2 AND user_id = $3 AND status = $4',
+					[storedDraft ? JSON.stringify(storedDraft) : null, sessionId, userId, 'in_progress'],
+				);
+				if (claim.rowCount === 0) {
+					await saveClient.query('ROLLBACK');
+					const now = await pool.query('SELECT status FROM assessment_sessions WHERE id = $1', [
+						sessionId,
+					]);
+					return res.status(409).json({
+						error: 'This attempt is already finished',
+						code: 'ALREADY_FINISHED',
+						status: now.rows[0]?.status,
+					});
+				}
+				await saveClient.query(
+					`INSERT INTO assessment_events (session_id, event_type, event_data) VALUES ($1, 'exit_save', $2)`,
+					[sessionId, JSON.stringify({ answersGiven })],
+				);
+				await saveClient.query('COMMIT');
+			} catch (saveErr) {
+				await saveClient.query('ROLLBACK').catch(() => {});
+				throw saveErr;
+			} finally {
+				saveClient.release();
+			}
+			return res.json({ status: 'in_progress', answersGiven, totalQuestions: sessionTotal(session) });
+		}
+
+		if (action === 'submit') {
+			// Saved answers only — a supplied draft is NOT submitted (the
+			// dialog says so; §6.1). The claim is the existing Phase A
+			// atomic completion, with the Phase B reason attached.
+			const completion = await completeAssessmentTx(sessionId, userId, { reason: exitReason });
+			if (!completion) {
+				// The claim lost to a non-completion terminal transition
+				// (e.g. a racing abandon) — report the real end state.
+				const now = await pool.query('SELECT status FROM assessment_sessions WHERE id = $1', [sessionId]);
+				return res.status(409).json({
+					error: 'This attempt is already finished',
+					code: 'ALREADY_FINISHED',
+					status: now.rows[0]?.status,
+				});
+			}
+			if (completion.alreadyCompleted) {
+				// Fix round F6: a racing Submit & Exit already completed
+				// this attempt — the loser gets the documented 409
+				// ALREADY_FINISHED (design §4.3), not the winner's 200.
+				// Exactly-once still holds: completeAssessmentTx skipped
+				// every side effect for the alreadyCompleted claim.
+				return res.status(409).json({
+					error: 'This attempt is already finished',
+					code: 'ALREADY_FINISHED',
+					status: 'completed',
+				});
+			}
+			await pool.query(
+				`INSERT INTO assessment_events (session_id, event_type, event_data) VALUES ($1, 'exit_submit', $2)`,
+				[
+					sessionId,
+					JSON.stringify({
+						answersGiven: completion.answersGiven ?? answersGiven,
+						reason: exitReason,
+						partial: completion.partial === true,
+					}),
+				],
+			).catch(() => {});
+			return res.json({
+				status: 'completed',
+				answersGiven: completion.answersGiven ?? answersGiven,
+				totalQuestions: completion.totalQuestions ?? sessionTotal(session),
+				format: session.format ?? null,
+				difficultyBand: session.difficulty_band ?? null,
+				partial: completion.partial === true,
+				score: completion.score ?? null,
+				passed: completion.passed === true,
+				verifiedEligible: completion.passed === true && completion.partial !== true,
+				correctCount: completion.correctCount ?? null,
+				fullscreenAutoSubmit: completion.fullscreenAutoSubmit === true,
+				...(draft != null ? { draftExcluded: true } : {}),
+			});
+		}
+
+		// action === 'abandon' — Exit Exam.
+		const abandon = await abandonSessionTx(sessionId, userId, exitReason);
+		if (!abandon) return res.status(500).json({ error: 'Failed to exit assessment' });
+		if (abandon.notFound) return res.status(404).json({ error: 'Session not found' });
+		if (abandon.already) {
+			return res.status(409).json({
+				error: 'This attempt is already finished',
+				code: 'ALREADY_FINISHED',
+				status: abandon.status,
+			});
+		}
+		return res.json({
+			status: 'abandoned',
+			answersGiven: abandon.answersGiven,
+			totalQuestions: sessionTotal(session),
+		});
+	} catch (error) {
+		console.error('Error processing assessment exit:', error);
+		res.status(500).json({ error: 'Failed to exit assessment' });
+	}
+});
+
+// The legacy promised count: in-flight sessions with a NULL snapshot
+// read as 10 (§8). Configured sessions carry their own total_questions —
+// sessionTotal() is the only reader; never compare against this directly.
+const LEGACY_TOTAL_QUESTIONS = 10;
+
+// The session's currently-outstanding question id (asked but not yet
+// answered), or null when no question is outstanding.
+function outstandingQuestionId(session) {
+	const questionsAsked = parseJsonArray(session.questions_asked);
+	const answersGiven = parseJsonArray(session.answers_given);
+	return questionsAsked.length > answersGiven.length
+		? questionsAsked[questionsAsked.length - 1].questionId
+		: null;
+}
+
+// True when questionId was already recorded AND is not the session's
+// currently-outstanding question (asked but not yet answered). A re-served
+// outstanding question is answerable again; any other already-answered
+// question is a duplicate submission.
+function isAlreadyRecorded(session, questionId) {
+	const answersGiven = parseJsonArray(session.answers_given);
+	return (
+		outstandingQuestionId(session) !== questionId &&
+		answersGiven.some((a) => a.questionId === questionId)
+	);
+}
+
+function parseJsonArray(value) {
+	if (Array.isArray(value)) return value;
+	if (typeof value === 'string') {
+		try {
+			const parsed = JSON.parse(value);
+			return Array.isArray(parsed) ? parsed : [];
+		} catch {
+			return [];
+		}
+	}
+	return [];
+}
+
+function questionPayload(question, questionNumber, totalQuestions = LEGACY_TOTAL_QUESTIONS) {
+	return {
+		id: question.id,
+		text: question.question_text,
+		type: question.question_type,
+		options: typeof question.options === 'string' ? JSON.parse(question.options) : question.options,
+		timeLimit: question.time_limit_seconds || 120,
+		questionNumber,
+		totalQuestions,
+	};
+}
+
+// Phase A (#1602 FR-A5 / #1606 FR-A7): serve the session's next question as a
+// NAVIGATION step, fully separate from answer recording. If a question is
+// already outstanding (asked but unanswered) it is re-served — that is what
+// makes refresh, start-retry and answer-retry all converge on this one path.
+// The session row lock serialises concurrent serves for the same session.
+// Returns { ok: true, question } or { ok: false, reason } — a generation
+// failure is a retryable navigation outcome here, never an answer loss.
+async function serveNextQuestion(sessionId) {
+	let client;
+	try {
+		client = await pool.connect();
+		await client.query('BEGIN');
+		const sessionResult = await client.query(
+			'SELECT * FROM assessment_sessions WHERE id = $1 FOR UPDATE',
+			[sessionId],
+		);
+		if (sessionResult.rows.length === 0) {
+			await client.query('ROLLBACK');
+			return { ok: false, reason: 'not_found' };
+		}
+		const session = sessionResult.rows[0];
+		if (session.status !== 'in_progress') {
+			await client.query('ROLLBACK');
+			return { ok: false, reason: 'finished', status: session.status };
+		}
+		const questionsAsked = parseJsonArray(session.questions_asked);
+		const answersGiven = parseJsonArray(session.answers_given);
+
+		if (questionsAsked.length > answersGiven.length) {
+			const outstanding = await client.query('SELECT * FROM assessment_questions WHERE id = $1', [
+				questionsAsked[questionsAsked.length - 1].questionId,
+			]);
+			await client.query('COMMIT');
+			if (outstanding.rows.length === 0) return { ok: false, reason: 'question_missing' };
+			return {
+				ok: true,
+				question: questionPayload(outstanding.rows[0], answersGiven.length + 1, sessionTotal(session)),
+			};
+		}
+
+		if (answersGiven.length >= sessionTotal(session)) {
+			await client.query('ROLLBACK');
+			return { ok: false, reason: 'awaiting_completion' };
+		}
+
+		// #1656 (C3, §3.3/R2): set mode — serve the set's own questions in
+		// position order. The set is the whole supply: when its servable
+		// questions are exhausted before the promised count (a member
+		// lost approval mid-session), serving stops with the same
+		// awaiting_completion outcome pool mode uses at its total, and
+		// the callers complete the attempt honestly as a partial. There
+		// is NEVER a silent pool fallback mid-set.
+		if (session.set_id != null) {
+			const setIds = await loadSetQuestionIds(client, session.set_id);
+			const nextIdx = answersGiven.length;
+			if (nextIdx >= setIds.length) {
+				await client.query('ROLLBACK');
+				return { ok: false, reason: 'awaiting_completion' };
+			}
+			const setQuestion = await client.query('SELECT * FROM assessment_questions WHERE id = $1', [
+				setIds[nextIdx],
+			]);
+			if (setQuestion.rows.length === 0) {
+				await client.query('ROLLBACK');
+				return { ok: false, reason: 'question_missing' };
+			}
+			const question = setQuestion.rows[0];
+			questionsAsked.push({
+				questionId: question.id,
+				difficulty: question.difficulty_level,
+				timestamp: new Date(),
+			});
+			await client.query(
+				'UPDATE assessment_sessions SET questions_asked = $1, current_question_index = $2 WHERE id = $3',
+				[JSON.stringify(questionsAsked), answersGiven.length + 1, sessionId],
+			);
+			await client.query('COMMIT');
+			return {
+				ok: true,
+				question: questionPayload(question, answersGiven.length + 1, sessionTotal(session)),
+			};
+		}
+
+		const skillResult = await client.query('SELECT * FROM candidate_skills WHERE id = $1', [
+			session.skill_id,
+		]);
+		if (skillResult.rows.length === 0) {
+			await client.query('ROLLBACK');
+			return { ok: false, reason: 'skill_missing' };
+		}
+		const skill = skillResult.rows[0];
+
+		// #1656 (C3, R3/§5.3): the most recent COMPLETED attempt's asked
+		// ids ride along as a SOFT exclusion — generateQuestion applies
+		// them only while the pool can still meet the remaining count.
+		const softExcludeIds = await loadPreviousCompletedQuestionIds(client, session);
+		const question = await generateQuestion(
+			skill.skill_name,
+			skill.category,
+			session.current_difficulty || 2,
+			client,
+			questionsAsked.map((q) => q.questionId),
+			session,
+			softExcludeIds,
+		);
+		if (!question) {
+			await client.query('ROLLBACK');
+			return { ok: false, reason: 'unavailable' };
+		}
+
+		questionsAsked.push({
+			questionId: question.id,
+			difficulty: question.difficulty_level,
+			timestamp: new Date(),
+		});
+		await client.query(
+			'UPDATE assessment_sessions SET questions_asked = $1, current_question_index = $2 WHERE id = $3',
+			[JSON.stringify(questionsAsked), answersGiven.length + 1, sessionId],
+		);
+		await client.query('COMMIT');
+		return {
+			ok: true,
+			question: questionPayload(question, answersGiven.length + 1, sessionTotal(session)),
+		};
+	} catch (error) {
+		if (client) await client.query('ROLLBACK').catch(() => {});
+		console.error('Error serving next question:', error);
+		return { ok: false, reason: 'error' };
+	} finally {
+		if (client) client.release();
+	}
+}
+
+// Phase A (#1602 FR-A3 / #1612): run completeAssessment in its OWN transaction
+// so the terminal transition is atomic and independent of answer recording.
+// Returns the completion result, or null when completion itself failed (the
+// recorded answers are safe either way; the caller surfaces a retry state).
+async function completeAssessmentTx(sessionId, userId, opts = {}) {
+	let client;
+	let result;
+	try {
+		client = await pool.connect();
+		await client.query('BEGIN');
+		result = await completeAssessment(client, sessionId, userId, opts);
+		await client.query('COMMIT');
+	} catch (error) {
+		if (client) await client.query('ROLLBACK').catch(() => {});
+		console.error('Error completing assessment:', error);
+		return null;
+	} finally {
+		if (client) client.release();
+	}
+	// Phase B (database-reviewer condition): a full-screen auto-submit that
+	// RETRIES after the original completion already landed must still mark
+	// the attempt as auto-submitted — idempotent jsonb_set, post-commit,
+	// never a second completion.
+	if (result && result.alreadyCompleted && opts.reason === 'fullscreen_second_exit') {
+		try {
+			await pool.query(
+				`UPDATE skill_assessments
+				 SET behavioral_flags = jsonb_set(COALESCE(behavioral_flags, '{}'::jsonb), '{fullscreen_auto_submit}', 'true'::jsonb)
+				 WHERE session_id = $1`,
+				[sessionId],
+			);
+			result.fullscreenAutoSubmit = true;
+		} catch (err) {
+			console.error('[PhaseB] Failed to backfill fullscreen_auto_submit flag:', err.message);
+		}
+	}
+	// completeAssessment returns null when the claim found no in_progress
+	// session AND no existing completion (e.g. the session was abandoned
+	// by a newer start in the meantime): nothing was completed, and no
+	// side effect may fire for a completion that never happened.
+	if (!result) return null;
+
+	// #1612 Option B (see completeAssessment): post-commit side effects.
+	// The completion itself is already durable; neither failure below may
+	// change the outcome the candidate sees. Skipped entirely for an
+	// alreadyCompleted claim (the original completion ran them).
+	if (result && !result.alreadyCompleted && result.assessmentId) {
+		// FOUNDER RULING (Phase B): a partial terminal submission does NOT
+		// feed OmniScore. The graded audit below still records it — labelled
+		// partial — because the grading did happen.
+		if (!result.partial) {
+			try {
+				// Bounded: a hung feed must not hang the candidate's completed
+				// response or the audit write below. On timeout the underlying
+				// feed may still land late (harmless — it is the same single
+				// write, never re-run); the failure is logged either way.
+				await Promise.race([
+					omniscoreService.addTechnicalComponent(
+						userId,
+						result.assessmentId,
+						result.score || 0,
+						100,
+					),
+					new Promise((_, reject) =>
+						setTimeout(() => reject(new Error('OmniScore feed timed out after 20s')), 20000),
+					),
+				]);
+				console.log(
+					`[OmniScore] Assessment ${result.assessmentId} fed into OmniScore for user ${userId} (score: ${result.score})`,
+				);
+			} catch (err) {
+				console.error(
+					'[OmniScore] Failed to update from assessment (completion already committed):',
+					err.message,
+				);
+			}
+		}
+
+		// Audit log: AI assessment graded. Written after the (bounded)
+		// OmniScore attempt; AuditLogger never throws (it logs its own
+		// failures).
+		await AuditLogger.log({
+			actionType: 'assessment_graded',
+			userId: userId,
+			targetType: 'skill_assessment',
+			targetId: result.assessmentId,
+			metadata: {
+				session_id: sessionId,
+				skill_id: result.skillId,
+				score: result.score ?? null,
+				passed: result.passed,
+				anti_cheat_score: result.antiCheatScore,
+				model_version: 'adaptive-assessment-v1',
+				...(result.partial
+					? {
+							partial: true,
+							answers_given: result.answersGiven,
+							total_questions: result.totalQuestions,
+							fullscreen_auto_submit: result.fullscreenAutoSubmit === true,
+						}
+					: {}),
+				// #1584: NO confidence key — no confidence was measured for
+				// this grading, and a hard-coded 0.85/0.6 in the compliance
+				// audit trail is a fabrication (same class as #1572/#1505).
+				// The admin compliance readers surface the absence honestly.
+			},
+			req: null,
+		});
+	}
+	return result;
+}
+
+// Phase B (#1604/#1605, design §4.1): Exit Exam — the mirror image of the
+// completion claim. ONE atomic status-guarded UPDATE moves the session to
+// 'abandoned'; it writes NOTHING else: no skill_assessments row, no
+// evaluation, no OmniScore call, no graded audit. The exit_exam event row
+// is written server-side in the same transaction so the abandon record
+// never depends on a client post. The claim sets abandoned_at and leaves
+// completed_at NULL (database-reviewer STOP 1 condition — see migration
+// 276). Returns { abandoned: true, answersGiven } on a won claim,
+// { already: true, status } when the attempt was already terminal, or
+// null on a database failure.
+async function abandonSessionTx(sessionId, userId, reason) {
+	let client;
+	try {
+		client = await pool.connect();
+		await client.query('BEGIN');
+		const claim = await client.query(
+			`UPDATE assessment_sessions
+			 SET status = 'abandoned', abandoned_at = NOW(), current_draft = NULL
+			 WHERE id = $1 AND user_id = $2 AND status = 'in_progress'
+			 RETURNING answers_given`,
+			[sessionId, userId],
+		);
+		if (claim.rows.length === 0) {
+			const existing = await client.query(
+				'SELECT status FROM assessment_sessions WHERE id = $1 AND user_id = $2',
+				[sessionId, userId],
+			);
+			await client.query('ROLLBACK');
+			if (existing.rows.length === 0) return { notFound: true };
+			return { already: true, status: existing.rows[0].status };
+		}
+		const answersGiven = parseJsonArray(claim.rows[0].answers_given).length;
+		await client.query(
+			`INSERT INTO assessment_events (session_id, event_type, event_data) VALUES ($1, 'exit_exam', $2)`,
+			[sessionId, JSON.stringify({ answersGiven, reason: reason || 'candidate' })],
+		);
+		await client.query('COMMIT');
+		return { abandoned: true, answersGiven };
+	} catch (error) {
+		if (client) await client.query('ROLLBACK').catch(() => {});
+		console.error('Error abandoning assessment session:', error);
+		return null;
+	} finally {
+		if (client) client.release();
+	}
+}
+
+// #1656 (R2): the count at which a session completes. Pool sessions
+// complete at their promised total; SET sessions complete at the
+// promised total OR when the set's servable questions run out —
+// whichever comes first — so a starved set completes honestly as a
+// partial instead of hanging on an unreachable total.
+async function sessionCompletionThreshold(runner, session) {
+	const total = sessionTotal(session);
+	if (session.set_id == null) return total;
+	const setCount = await setApprovedCount(runner, session.set_id);
+	return Math.min(total, setCount);
+}
+
+// After an answer has been committed, decide the response from the recorded
+// state alone: completed → the completion; final answer recorded but not yet
+// completed → run/retry completion; otherwise → the advance acknowledgement
+// (the client fetches the next question via /session/:id/current). Shared by
+// the /answer main path and its duplicate-submission path so a retry after a
+// timeout can never double-record or double-complete.
+async function respondAfterRecord(res, sessionId, userId, extras = {}) {
+	const sessionResult = await pool.query('SELECT * FROM assessment_sessions WHERE id = $1', [
+		sessionId,
+	]);
+	const session = sessionResult.rows[0];
+	if (!session) {
+		return res.status(404).json({ error: 'Session not found' });
+	}
+	if (session.status === 'completed') {
+		return res.json({ completed: true, answerRecorded: true, score: session.score || 0, ...extras });
+	}
+	if (session.status !== 'in_progress') {
+		// Abandoned/expired/cancelled between the answer commit and here:
+		// the attempt ended WITHOUT completing — say so, never report a
+		// completion that did not happen.
+		return res
+			.status(400)
+			.json({ error: 'This attempt is already finished', code: 'ALREADY_FINISHED' });
+	}
+	const answersGiven = parseJsonArray(session.answers_given);
+	if (answersGiven.length >= (await sessionCompletionThreshold(pool, session))) {
+		const completion = await completeAssessmentTx(sessionId, userId);
+		if (completion) {
+			return res.json({
+				completed: true,
+				answerRecorded: true,
+				score: completion.score ?? session.score ?? 0,
+				...extras,
+			});
+		}
+		return res.status(503).json({
+			error:
+				'Your final answer has been saved, but finishing your results failed. Please retry — your answers are not lost.',
+			code: 'COMPLETION_PENDING',
+			retryable: true,
+			answerRecorded: true,
+		});
+	}
+	return res.json({
+		completed: false,
+		answerRecorded: true,
+		answersGiven: answersGiven.length,
+		...extras,
+	});
+}
+
+// #1656 (C3, R3/§5.3): the user's most recent COMPLETED attempt's asked
+// question ids, in the order they were asked (oldest first — the order
+// starvation relaxation gives them back in). Keyed by topic when the
+// session has one; legacy topic-less sessions fall back to the most
+// recent completed attempt for the skill. Only status='completed'
+// sessions are read: an abandoned attempt contributes NOTHING — no lock
+// (the /start gate already reads completed rows only) and no exclusion.
+async function loadPreviousCompletedQuestionIds(client, session) {
+	const byTopic = session.topic_id != null;
+	const result = await client.query(
+		byTopic
+			? `SELECT questions_asked FROM assessment_sessions
+       WHERE user_id = $1 AND topic_id = $2 AND status = 'completed' AND id <> $3
+       ORDER BY completed_at DESC LIMIT 1`
+			: `SELECT questions_asked FROM assessment_sessions
+       WHERE user_id = $1 AND skill_id = $2 AND status = 'completed' AND id <> $3
+       ORDER BY completed_at DESC LIMIT 1`,
+		[session.user_id, byTopic ? session.topic_id : session.skill_id, session.id],
+	);
+	if (result.rows.length === 0) return [];
+	return parseJsonArray(result.rows[0].questions_asked)
+		.map((q) => q.questionId)
+		.filter(Number.isInteger);
+}
+
+// §5.3 soft exclusion, applied exactly: the previous attempt's ids are
+// excluded ONLY while the remaining pool at the needed (format,
+// difficulty) — after the hard in-session exclusion — still meets the
+// session's remaining count. When it would starve the session, the
+// exclusion relaxes OLDEST-first (the earliest-asked ids come back
+// first) until the pool meets the count or nothing is left to relax.
+async function applySoftExclusion(client, { skillName, difficulty, session, scoped, formatPredicate }, excludeIds, softExcludeIds) {
+	const poolResult = scoped
+		? await client.query(
+				`SELECT id FROM assessment_questions
+     WHERE topic_id = $1 AND ${formatPredicate} AND review_status = 'approved'
+       AND difficulty_level = $2
+       AND NOT (id = ANY($3::int[]))`,
+				[session.topic_id, difficulty, excludeIds],
+			)
+		: await client.query(
+				`SELECT id FROM assessment_questions
+     WHERE LOWER(skill_category) = LOWER($1) AND difficulty_level = $2
+       AND NOT (id = ANY($3::int[]))`,
+				[skillName, difficulty, excludeIds],
+			);
+	const poolIds = new Set(poolResult.rows.map((r) => r.id));
+	const softInPool = softExcludeIds.filter((id) => poolIds.has(id));
+	const remaining = Math.max(1, sessionTotal(session) - parseJsonArray(session.answers_given).length);
+	let available = poolIds.size - softInPool.length;
+	while (available < remaining && softInPool.length > 0) {
+		softInPool.shift(); // oldest first
+		available += 1;
+	}
+	return [...excludeIds, ...softInPool];
+}
+
+// Helper: Generate or fetch question.
+// Phase A (#1606): excludeIds lists questions already asked in the session —
+// while unserved bank rows exist at this difficulty, a session never re-serves
+// a question it already asked (a 1-row cell previously repeated forever).
+// #1654 (C2): a session WITH a snapshot (topic_id + format recorded) serves
+// from the scoped pool — topic + format predicate (§4.6: mixed is the
+// mcq/short_answer union, never a literal equality) + approved-only (§7
+// rule 6) — in the Q2 order: bank-first → AI generation → #1710 band-widen
+// (unserved in-band rows, exclusion carried) → in-scope approved re-serve →
+// null. A NULL-config session (in-flight legacy, §8) — or a
+// legacy-mapped session whose skill has no catalogue topic — keeps today's
+// exact skill_category path and order untouched. The format predicate is
+// interpolated from the validated snapshot enum (a closed set), never
+// from request input.
+async function generateQuestion(skillName, category, difficulty, client, excludeIds = [], session = null, softExcludeIds = []) {
+	const scoped = !!(session && session.topic_id != null && session.format);
+	let formatPredicate = null;
+	if (scoped) {
+		formatPredicate =
+			session.format === 'mixed' ? `format IN ('mcq','short_answer')` : `format = '${session.format}'`;
+	}
+	// #1656 (R3/§5.3): fold the soft cross-attempt exclusion into the
+	// hard in-session exclusion for the bank draws below. The AI leg and
+	// the final re-serve fallback are deliberately NOT soft-excluded —
+	// they are the starvation relief valves, in the existing order.
+	let effectiveExcludeIds = excludeIds;
+	if (softExcludeIds.length > 0 && session) {
+		effectiveExcludeIds = await applySoftExclusion(
+			client,
+			{ skillName, difficulty, session, scoped, formatPredicate },
+			excludeIds,
+			softExcludeIds,
+		);
+	}
+	if (scoped) {
+		const existingResult = await client.query(
+			`
+    SELECT * FROM assessment_questions
+    WHERE topic_id = $1 AND ${formatPredicate} AND review_status = 'approved'
+      AND difficulty_level = $2
+      AND NOT (id = ANY($3::int[]))
+    ORDER BY RANDOM()
+    LIMIT 1
+  `,
+			[session.topic_id, difficulty, effectiveExcludeIds],
+		);
+		if (existingResult.rows.length > 0) {
+			return existingResult.rows[0];
+		}
+		// Q2: for a promised configuration, fresh AI supply is tried BEFORE
+		// any duplicate is re-served; the re-serve below is the last resort.
+		const generated = await generateViaAI(skillName, category, difficulty, client, session);
+		if (generated) {
+			return generated;
+		}
+		// #1710 (Lead ruling, issue #1710 comment 6353236169): WIDEN before
+		// any repeat. The start gate promised this configuration at BAND
+		// granularity (medium = levels 2–4), but the bank draw above serves
+		// at the single current difficulty; when that cell exhausts and AI
+		// is down, unserved approved rows at OTHER levels of the same band
+		// are served before an already-asked question is repeated. The
+		// level list comes from the BANDS constant — never from request
+		// input — and the exclusion is effectiveExcludeIds (the hard
+		// in-session ids folded with the §5.3 soft cross-attempt ids), so
+		// a widened serve is never an asked id and never a previous-attempt
+		// row the soft exclusion still holds back. Serving wider does NOT
+		// move current_difficulty: the §5.2 adaptation value stays exactly
+		// where /answer put it.
+		const bandLevels = BANDS[session.difficulty_band];
+		if (Array.isArray(bandLevels) && bandLevels.length > 0) {
+			const widenResult = await client.query(
+				`
+    SELECT * FROM assessment_questions
+    WHERE topic_id = $1 AND ${formatPredicate} AND review_status = 'approved'
+      AND difficulty_level = ANY($2::int[])
+      AND NOT (id = ANY($3::int[]))
+    ORDER BY RANDOM()
+    LIMIT 1
+  `,
+				[session.topic_id, bandLevels, effectiveExcludeIds],
+			);
+			if (widenResult.rows.length > 0) {
+				return widenResult.rows[0];
+			}
+		}
+		const retryResult = await client.query(
+			`
+    SELECT * FROM assessment_questions
+    WHERE topic_id = $1 AND ${formatPredicate} AND review_status = 'approved'
+      AND difficulty_level = $2
+    ORDER BY RANDOM()
+    LIMIT 1
+  `,
+			[session.topic_id, difficulty],
+		);
+		if (retryResult.rows.length > 0) {
+			return retryResult.rows[0];
+		}
+		return null;
+	}
+
 	// Try to find existing question from bank
 	const existingResult = await client.query(
 		`
     SELECT * FROM assessment_questions
     WHERE LOWER(skill_category) = LOWER($1) AND difficulty_level = $2
+      AND NOT (id = ANY($3::int[]))
     ORDER BY RANDOM()
     LIMIT 1
   `,
-		[skillName, difficulty],
+		[skillName, difficulty, effectiveExcludeIds],
 	);
 
 	if (existingResult.rows.length > 0) {
 		return existingResult.rows[0];
 	}
 
+	// #1656: when a soft exclusion was folded in, fresh AI supply is
+	// tried BEFORE any already-asked question is re-served (the scoped
+	// path's Q2 order) — re-serving a previous attempt's question is the
+	// last resort, not the second. Without a soft exclusion the historic
+	// order below is byte-for-byte today's.
+	if (softExcludeIds.length > 0) {
+		const generated = await generateViaAI(skillName, category, difficulty, client, null);
+		if (generated) return generated;
+	}
+
+	if (excludeIds.length > 0) {
+		// Every bank row at this difficulty was already asked in this session.
+		// Re-serving one beats failing the candidate's navigation outright;
+		// generation below remains the first choice only for an empty cell.
+		const retryResult = await client.query(
+			`
+      SELECT * FROM assessment_questions
+      WHERE LOWER(skill_category) = LOWER($1) AND difficulty_level = $2
+      ORDER BY RANDOM()
+      LIMIT 1
+    `,
+			[skillName, difficulty],
+		);
+		if (retryResult.rows.length > 0) {
+			return retryResult.rows[0];
+		}
+	}
+
+	return generateViaAI(skillName, category, difficulty, client, null);
+}
+
+// The AI generation leg, shared by both serving paths. For a snapshot
+// session the question type is driven by the session's format (mcq →
+// multiple_choice only, short_answer → short_answer only, mixed → either)
+// and the INSERT writes the §3.4 provenance (topic_id, derived format,
+// source 'ai_live', review_status 'pending') — the row is returned
+// directly to its own session but is NOT servable bank supply for anyone
+// until curation approves it. Legacy (session null) keeps the historical
+// coin flip and the historical INSERT, byte for byte.
+async function generateViaAI(skillName, category, difficulty, client, session) {
+	const scoped = !!(session && session.topic_id != null && session.format);
 	// Generate new question using AI
-	const questionType = Math.random() > 0.3 ? 'multiple_choice' : 'short_answer';
+	let questionType;
+	if (!scoped) {
+		questionType = Math.random() > 0.3 ? 'multiple_choice' : 'short_answer';
+	} else if (session.format === 'mcq') {
+		questionType = 'multiple_choice';
+	} else if (session.format === 'short_answer') {
+		questionType = 'short_answer';
+	} else if (session.format === 'mixed') {
+		questionType = Math.random() > 0.3 ? 'multiple_choice' : 'short_answer';
+	} else {
+		// coding: generation is C4's runner work — bank-only until then.
+		return null;
+	}
 	const prompt = `Generate a difficulty ${difficulty}/5 technical assessment question about "${skillName}" (category: ${category}).
 
 Question type: ${questionType}
@@ -766,64 +2397,65 @@ Requirements:
 					: JSON.stringify(questionData.options)
 				: null;
 
-		// Save to database
-		const result = await client.query(
-			`
+		// Save to database. Snapshot sessions write the §3.4 provenance so
+		// the row's origin is auditable; format is derived from the type
+		// exactly as migration 280 derived it. Legacy keeps its INSERT.
+		const derivedFormat = qType === 'multiple_choice' ? 'mcq' : qType === 'short_answer' ? 'short_answer' : 'coding';
+		const result = scoped
+			? await client.query(
+					`
+      INSERT INTO assessment_questions
+      (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds,
+       topic_id, format, source, review_status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'ai_live', 'pending')
+      RETURNING *
+    `,
+					[
+						skillName,
+						difficulty,
+						qType,
+						questionData.question_text,
+						options,
+						questionData.correct_answer || null,
+						questionData.explanation || 'See the correct answer above.',
+						questionData.time_limit_seconds || (qType === 'multiple_choice' ? 90 : 180),
+						session.topic_id,
+						derivedFormat,
+					],
+				)
+			: await client.query(
+					`
       INSERT INTO assessment_questions
       (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `,
-			[
-				skillName,
-				difficulty,
-				qType,
-				questionData.question_text,
-				options,
-				questionData.correct_answer || null,
-				questionData.explanation || 'See the correct answer above.',
-				questionData.time_limit_seconds || (qType === 'multiple_choice' ? 90 : 180),
-			],
-		);
+					[
+						skillName,
+						difficulty,
+						qType,
+						questionData.question_text,
+						options,
+						questionData.correct_answer || null,
+						questionData.explanation || 'See the correct answer above.',
+						questionData.time_limit_seconds || (qType === 'multiple_choice' ? 90 : 180),
+					],
+				);
 
 		return result.rows[0];
 	} catch (error) {
 		console.error('Error generating AI question:', error);
 
-		// Fallback: try any question from the bank
-		const fallbackResult = await client.query(`
-      SELECT * FROM assessment_questions
-      ORDER BY RANDOM()
-      LIMIT 1
-    `);
-
-		if (fallbackResult.rows.length > 0) {
-			return fallbackResult.rows[0];
-		}
-
-		// Last resort: create a hardcoded question
-		const fallbackInsert = await client.query(
-			`
-      INSERT INTO assessment_questions
-      (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds)
-      VALUES ($1, $2, 'multiple_choice', $3, $4, $5, $6, 90)
-      RETURNING *
-    `,
-			[
-				skillName,
-				difficulty,
-				`Which of the following best describes a key concept in ${skillName}?`,
-				JSON.stringify([
-					`A fundamental principle of ${skillName} that enables modularity`,
-					`A deprecated feature that is no longer recommended`,
-					`A testing framework specific to ${skillName}`,
-					`A build tool used exclusively in ${skillName} projects`,
-				]),
-				`A fundamental principle of ${skillName} that enables modularity`,
-				`Understanding core principles is essential for working effectively with ${skillName}.`,
-			],
-		);
-		return fallbackInsert.rows[0];
+		// #1573: fail honestly. Never serve a bank question outside the
+		// requested skill/difficulty as a substitute, and never INSERT
+		// templated/boilerplate content into assessment_questions as if it
+		// were a real question. Returning null surfaces the callers'
+		// explicit question-unavailable state — since Phase A (#1602/#1606)
+		// that state is a navigation outcome only: it never rolls back a
+		// recorded answer and never destroys a started session, and a
+		// retry can succeed; a fabricated question served in a scored
+		// assessment can never be un-taken.
+		return null;
 	}
 }
 
@@ -855,23 +2487,149 @@ Score guide: 90-100=excellent, 70-89=good, 50-69=partial, below 50=incorrect`;
 		if (cleanResponse.startsWith('```')) {
 			cleanResponse = cleanResponse.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
 		}
-		return JSON.parse(cleanResponse);
+		const parsed = JSON.parse(cleanResponse);
+		// #1572: a reply without a real numeric score in the promised 0–100
+		// range is not an evaluation — minting points from it (or NaN, or a
+		// confidence of 1.5 / −0.2 in the audit log) would fabricate a
+		// result. Reject, never clamp: a clamped value is also a score the
+		// AI never gave.
+		if (
+			!parsed ||
+			typeof parsed.score !== 'number' ||
+			!Number.isFinite(parsed.score) ||
+			parsed.score < 0 ||
+			parsed.score > 100
+		) {
+			return null;
+		}
+		return parsed;
 	} catch (error) {
 		console.error('Error evaluating answer:', error);
-		return {
-			score: 50,
-			feedback:
-				'Unable to evaluate automatically. Your answer has been recorded for manual review.',
-		};
+		// #1572: evaluation failed — return null so the caller records the
+		// answer as unevaluated (pending manual review). NEVER a default
+		// score: a fabricated 50 was credited into the session total and
+		// audit-logged as an AI score with confidence 0.5.
+		return null;
 	}
 }
 
-// Helper: Complete assessment
-async function completeAssessment(client, sessionId, userId) {
-	const sessionResult = await client.query('SELECT * FROM assessment_sessions WHERE id = $1', [
-		sessionId,
-	]);
-	const session = sessionResult.rows[0];
+// Helper: Complete assessment.
+// Phase A (#1602 FR-A3): the terminal transition is ONE atomic status-guarded
+// UPDATE — its rowcount decides the winner of any race (double Finish,
+// timer + manual press, retry after timeout). The loser finds no row to
+// claim and gets the existing completion back instead of double-scoring.
+// Phase B (#1604/#1605): shared stored-but-not-answered draft reader.
+// A draft is the candidate's own unsubmitted work on the current question —
+// never an answer, never evaluated, never recruiter-visible (design §8.2).
+function parseDraft(value) {
+	if (!value) return null;
+	if (typeof value === 'object' && !Array.isArray(value)) return value;
+	if (typeof value === 'string') {
+		try {
+			const parsed = JSON.parse(value);
+			return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+		} catch {
+			return null;
+		}
+	}
+	return null;
+}
+
+function parseJsonObject(value, fallback = {}) {
+	if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+	if (typeof value === 'string') {
+		try {
+			const parsed = JSON.parse(value);
+			return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
+		} catch {
+			return fallback;
+		}
+	}
+	return fallback;
+}
+
+// Phase B (design §5.3, database-reviewer STOP 1 condition): whole-exam
+// pause credit for the job runner, from RECORDED timer_pause_start /
+// timer_pause_end events (server receipt timestamps). Intervals that
+// overlap are merged first, the 300s cap applies to each MERGED interval
+// (never per-posted-event, so nested/overlapping pairs cannot double-count),
+// and a pause_start with no following pause_end credits nothing — an open
+// pause is visible in the event log for human review, never auto-credited.
+// events: [{ type, timestamp }] in any order.
+function pauseCreditSeconds(events, nowMs) {
+	const pairs = [];
+	let openStart = null;
+	const sorted = (Array.isArray(events) ? events : [])
+		.filter((e) => e && (e.type === 'timer_pause_start' || e.type === 'timer_pause_end'))
+		.map((e) => ({ type: e.type, t: new Date(e.timestamp).getTime() }))
+		.filter((e) => Number.isFinite(e.t))
+		.sort((a, b) => a.t - b.t);
+	for (const e of sorted) {
+		if (e.type === 'timer_pause_start') {
+			if (openStart === null) openStart = e.t;
+		} else if (openStart !== null) {
+			pairs.push([openStart, e.t]);
+			openStart = null;
+		}
+	}
+	if (openStart !== null && Number.isFinite(nowMs)) {
+		// Still paused at read time is not a completed interval: no credit.
+	}
+	pairs.sort((a, b) => a[0] - b[0]);
+	const merged = [];
+	for (const [s, e] of pairs) {
+		const last = merged[merged.length - 1];
+		if (last && s <= last[1]) last[1] = Math.max(last[1], e);
+		else merged.push([s, e]);
+	}
+	return merged.reduce((sum, [s, e]) => sum + Math.min(300, Math.max(0, (e - s) / 1000)), 0);
+}
+
+// Runs inside the caller's transaction (completeAssessmentTx).
+// Phase B opts: { reason?: 'candidate' | 'fullscreen_second_exit' } — a
+// completion reached with fewer than the session's promised count
+// (sessionTotal — snapshot total_questions, else the legacy 10) of recorded
+// answers is a
+// PARTIAL terminal submission (Submit & Exit / full-screen auto-submit).
+async function completeAssessment(client, sessionId, userId, opts = {}) {
+	const claim = await client.query(
+		`UPDATE assessment_sessions
+		 SET status = 'completed', completed_at = NOW(), current_draft = NULL
+		 WHERE id = $1 AND status = 'in_progress'
+		 RETURNING *`,
+		[sessionId],
+	);
+
+	if (claim.rows.length === 0) {
+		const existing = await client.query(
+			`SELECT id, score, passed, behavioral_flags FROM skill_assessments
+			 WHERE session_id = $1 ORDER BY completed_at DESC LIMIT 1`,
+			[sessionId],
+		);
+		// alreadyCompleted is only true when a completion actually exists.
+		// A claim can also lose to a NON-completion terminal transition
+		// (a newer /start abandoned this session): then there is no
+		// skill_assessments row, and reporting a completion would
+		// fabricate one — return null so callers surface an honest
+		// non-completed state instead (review finding, PR #1620).
+		if (existing.rows.length === 0) {
+			return null;
+		}
+		const exFlags = parseJsonObject(existing.rows[0].behavioral_flags);
+		return {
+			alreadyCompleted: true,
+			assessmentId: existing.rows[0].id,
+			score: existing.rows[0].score,
+			passed: existing.rows[0].passed,
+			partial: exFlags.partial === true,
+			answersGiven: exFlags.answers_given ?? null,
+			totalQuestions: exFlags.total_questions ?? LEGACY_TOTAL_QUESTIONS,
+			correctCount: exFlags.correct_count ?? null,
+			fullscreenAutoSubmit: exFlags.fullscreen_auto_submit === true,
+		};
+	}
+
+	const session = claim.rows[0];
 
 	// Get skill name for the title
 	const skillResult = await client.query('SELECT skill_name FROM candidate_skills WHERE id = $1', [
@@ -886,13 +2644,56 @@ async function completeAssessment(client, sessionId, userId) {
 	antiCheatScore -= (session.time_anomalies || 0) * 5;
 	antiCheatScore = Math.max(0, antiCheatScore);
 
-	const passed = (session.score || 0) >= 60 && antiCheatScore >= 50;
+	// Phase B partial terminal submission (FOUNDER RULING, Sumanth
+	// 2026-10-21): scored over ANSWERED questions only, labelled plainly as
+	// partial (answered X of Y) wherever shown, NOT eligible for
+	// pass/Verified, and does NOT feed OmniScore (the feed lives in
+	// completeAssessmentTx and keys off result.partial). The score math runs
+	// HERE, inside the claim transaction, from the claim-returned session
+	// row; the answered questions are read FOR UPDATE under the same lock
+	// discipline as the claim (database-reviewer STOP 1 condition — no
+	// pool-side recompute after commit).
+	// #1654 STOP 1 Q5: ONE score path for EVERY completion — partial,
+	// configured, and legacy. The non-partial branch previously wrote the
+	// RAW Σ scorePoints against max_score=100 (a proven 440-vs-100 defect
+	// on surfaces recruiters read) and decided `passed` by comparing raw
+	// points to a percentage-shaped 60. Now every completion writes
+	// score = round(Σ scorePoints / Σ maxPoints × 100) with max_score 100
+	// — the partial branch's existing §8 formula, generalised — and
+	// passed / Verified / the OmniScore feed all consume the percentage.
+	const answersGivenArr = parseJsonArray(session.answers_given);
+	const answersGivenCount = answersGivenArr.length;
+	const totalQuestions = sessionTotal(session);
+	const isPartial = answersGivenCount < totalQuestions;
+	const fullscreenAutoSubmit = opts.reason === 'fullscreen_second_exit';
+	let score = null;
+	let maxScore = null;
+	let correctCount = null;
+	if (answersGivenCount === 0) {
+		// Nothing was answered: there is nothing to score — no number at
+		// all (never a fabricated 0), per the Candidate Experience ruling.
+		score = null;
+		maxScore = null;
+	} else {
+		correctCount = answersGivenArr.filter((a) => a.isCorrect === true).length;
+		const qIds = [...new Set(answersGivenArr.map((a) => Number(a.questionId)).filter(Number.isInteger))];
+		const qRows = await client.query(
+			'SELECT id, difficulty_level, question_type FROM assessment_questions WHERE id = ANY($1) FOR UPDATE',
+			[qIds],
+		);
+		const qMap = new Map(qRows.rows.map((q) => [q.id, q]));
+		let maxAnswered = 0;
+		for (const a of answersGivenArr) {
+			const q = qMap.get(Number(a.questionId));
+			if (!q) continue;
+			maxAnswered += (q.difficulty_level || 2) * (q.question_type === 'short_answer' ? 15 : 10);
+		}
+		const earned = answersGivenArr.reduce((sum, a) => sum + (Number(a.scorePoints) || 0), 0);
+		score = maxAnswered > 0 ? Math.round((earned / maxAnswered) * 100) : null;
+		maxScore = maxAnswered > 0 ? 100 : null;
+	}
 
-	// Mark session complete
-	await client.query(
-		"UPDATE assessment_sessions SET status = 'completed', completed_at = NOW() WHERE id = $1",
-		[sessionId],
-	);
+	const passed = !isPartial && score != null && score >= 60 && antiCheatScore >= 50;
 
 	// Create skill assessment record
 	const assessmentResult = await client.query(
@@ -900,7 +2701,7 @@ async function completeAssessment(client, sessionId, userId) {
     INSERT INTO skill_assessments
     (user_id, skill_id, session_id, assessment_type, title, score, max_score, passed,
      anti_cheat_score, behavioral_flags, duration_seconds, started_at, completed_at)
-    VALUES ($1, $2, $3, 'dynamic', $4, $5, 100, $6, $7, $8,
+    VALUES ($1, $2, $3, 'dynamic', $4, $5, $10, $6, $7, $8,
             EXTRACT(EPOCH FROM (NOW() - $9::timestamp)), $9, NOW())
     RETURNING id
   `,
@@ -909,7 +2710,7 @@ async function completeAssessment(client, sessionId, userId) {
 			session.skill_id,
 			sessionId,
 			`${skillName} Assessment`,
-			session.score || 0,
+			score,
 			passed,
 			antiCheatScore,
 			JSON.stringify({
@@ -917,53 +2718,54 @@ async function completeAssessment(client, sessionId, userId) {
 				copy_paste: session.copy_paste_attempts || 0,
 				time_anomalies: session.time_anomalies || 0,
 				max_difficulty: session.max_difficulty_reached || 2,
+				...(isPartial
+					? {
+							partial: true,
+							answers_given: answersGivenCount,
+							total_questions: totalQuestions,
+							correct_count: correctCount,
+							fullscreen_auto_submit: fullscreenAutoSubmit,
+						}
+					: {}),
+				...(!isPartial && fullscreenAutoSubmit ? { fullscreen_auto_submit: true } : {}),
 			}),
 			session.started_at,
+			maxScore,
 		],
 	);
 
-	// If passed, mark skill as verified
+	// If passed, mark skill as verified (a partial can never pass — the
+	// founder ruling — so this write is unreachable for partial claims).
 	if (passed) {
 		await client.query(
 			'UPDATE candidate_skills SET is_verified = true, verified_at = NOW(), verified_score = $1 WHERE id = $2',
-			[session.score, session.skill_id],
+			[score, session.skill_id],
 		);
 	}
 
-	// Event-driven: Feed assessment score into OmniScore technical component
-	try {
-		await omniscoreService.addTechnicalComponent(
-			userId,
-			assessmentResult.rows[0].id,
-			session.score || 0,
-			100,
-		);
-		console.log(
-			`[OmniScore] Assessment ${assessmentResult.rows[0].id} fed into OmniScore for user ${userId} (score: ${session.score})`,
-		);
-	} catch (err) {
-		console.error('[OmniScore] Failed to update from assessment:', err.message);
-	}
-
-	// Audit log: AI assessment graded
-	await AuditLogger.log({
-		actionType: 'assessment_graded',
-		userId: userId,
-		targetType: 'skill_assessment',
-		targetId: assessmentResult.rows[0].id,
-		metadata: {
-			session_id: sessionId,
-			skill_id: session.skill_id,
-			score: session.score || 0,
-			passed: passed,
-			anti_cheat_score: antiCheatScore,
-			model_version: 'adaptive-assessment-v1',
-			confidence: passed ? 0.85 : 0.6,
-		},
-		req: null,
-	});
-
-	return assessmentResult.rows[0].id;
+	// #1612 (Rex + ecc database-reviewer STOP 1 ruling — Option B): the
+	// OmniScore feed and the assessment_graded audit write do NOT happen
+	// here. This transaction holds the candidate_skills row lock (the
+	// is_verified UPDATE above), and addTechnicalComponent works on POOL
+	// connections whose calculateScore path SELECTs candidate_skills
+	// FOR UPDATE (services/omniscore.js getSkillProficiency) — calling it
+	// from inside this transaction deadlocks the request against itself.
+	// completeAssessmentTx runs both AFTER COMMIT, when no lock is held;
+	// an alreadyCompleted claim returns before them, so they fire exactly
+	// once per completion.
+	return {
+		alreadyCompleted: false,
+		assessmentId: assessmentResult.rows[0].id,
+		score,
+		passed,
+		skillId: session.skill_id,
+		antiCheatScore,
+		partial: isPartial,
+		answersGiven: answersGivenCount,
+		totalQuestions,
+		correctCount,
+		fullscreenAutoSubmit,
+	};
 }
 
 // Get current session state (supports page refresh during assessment + completed results)
@@ -995,7 +2797,7 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 			// Get the skill_assessment record for full results
 			const assessmentResult = await pool.query(
 				`
-        SELECT sa.score, sa.passed, sa.anti_cheat_score, sa.duration_seconds
+        SELECT sa.score, sa.passed, sa.anti_cheat_score, sa.duration_seconds, sa.behavioral_flags
         FROM skill_assessments sa
         WHERE sa.session_id = $1 AND sa.user_id = $2
         ORDER BY sa.completed_at DESC LIMIT 1
@@ -1004,60 +2806,111 @@ router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
 			);
 
 			const assessment = assessmentResult.rows[0] || {};
+			// Phase B: partial completions are labelled from the stored
+			// flags — the score is the answered-only score (or null when
+			// nothing was answered: no number is fabricated for it).
+			const cFlags = parseJsonObject(assessment.behavioral_flags);
+			const cPartial = cFlags.partial === true;
 			return res.json({
 				status: 'completed',
 				skillName,
-				score: assessment.score || session.score || 0,
+				score: cPartial ? (assessment.score ?? null) : assessment.score || session.score || 0,
 				passed: assessment.passed || false,
 				antiCheatScore: assessment.anti_cheat_score ?? null,
 				durationSeconds: assessment.duration_seconds || 0,
 				maxDifficultyReached: session.max_difficulty_reached || 0,
+				partial: cPartial,
+				// #1678 (GAP-4): THIS attempt's stored passed decision, never
+				// candidate_skills.is_verified (cumulative across attempts).
+				verifiedEligible: assessment.passed === true && !cPartial,
+				answersGiven: cFlags.answers_given ?? parseJsonArray(session.answers_given).length,
+				totalQuestions: cFlags.total_questions ?? sessionTotal(session),
+				// #1654: the §5.2/§8 configuration label from the snapshot.
+				format: session.format ?? null,
+				difficultyBand: session.difficulty_band ?? null,
+				correctCount: cFlags.correct_count ?? null,
+				autoSubmittedFullscreen: cFlags.fullscreen_auto_submit === true,
 			});
 		}
 
 		if (session.status === 'in_progress') {
-			// Find the last question that was asked
-			const questionsAsked =
-				typeof session.questions_asked === 'string'
-					? JSON.parse(session.questions_asked)
-					: session.questions_asked || [];
-			const answersGiven =
-				typeof session.answers_given === 'string'
-					? JSON.parse(session.answers_given)
-					: session.answers_given || [];
+			const answersGiven = parseJsonArray(session.answers_given);
 
-			// If there's a question asked but not yet answered, return it
-			if (questionsAsked.length > answersGiven.length) {
-				const lastAsked = questionsAsked[questionsAsked.length - 1];
-				const questionResult = await pool.query(
-					'SELECT * FROM assessment_questions WHERE id = $1',
-					[lastAsked.questionId],
-				);
-
-				if (questionResult.rows.length > 0) {
-					const q = questionResult.rows[0];
+			// Phase A recovery: every answer is recorded but completion never
+			// landed (e.g. the completion step failed after the final answer
+			// committed). Finish it now — the terminal transition is atomic,
+			// so this can never double-complete. #1656: the threshold is the
+			// set-aware completion threshold, so a starved set session also
+			// finishes here (as a partial) instead of 503-ing forever.
+			if (answersGiven.length >= (await sessionCompletionThreshold(pool, session))) {
+				const completion = await completeAssessmentTx(sessionId, userId);
+				if (completion) {
+					const doneResult = await pool.query(
+						`SELECT sa.score, sa.passed, sa.anti_cheat_score, sa.duration_seconds, sa.behavioral_flags
+						 FROM skill_assessments sa
+						 WHERE sa.session_id = $1 AND sa.user_id = $2
+						 ORDER BY sa.completed_at DESC LIMIT 1`,
+						[sessionId, userId],
+					);
+					const assessment = doneResult.rows[0] || {};
+					const dFlags = parseJsonObject(assessment.behavioral_flags);
+					const dPartial = dFlags.partial === true;
 					return res.json({
-						status: 'in_progress',
+						status: 'completed',
 						skillName,
-						question: {
-							id: q.id,
-							text: q.question_text,
-							type: q.question_type,
-							options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
-							timeLimit: q.time_limit_seconds || 120,
-							questionNumber: session.current_question_index || questionsAsked.length,
-							totalQuestions: 10,
-						},
+						score: dPartial ? (assessment.score ?? null) : assessment.score || session.score || 0,
+						passed: assessment.passed || false,
+						antiCheatScore: assessment.anti_cheat_score ?? null,
+						durationSeconds: assessment.duration_seconds || 0,
+						maxDifficultyReached: session.max_difficulty_reached || 0,
+						partial: dPartial,
+						verifiedEligible: assessment.passed === true && !dPartial,
+						answersGiven: dFlags.answers_given ?? answersGiven.length,
+						totalQuestions: dFlags.total_questions ?? sessionTotal(session),
+						format: session.format ?? null,
+						difficultyBand: session.difficulty_band ?? null,
+						correctCount: dFlags.correct_count ?? null,
+						autoSubmittedFullscreen: dFlags.fullscreen_auto_submit === true,
 					});
 				}
+				return res.status(503).json({
+					status: 'in_progress',
+					skillName,
+					code: 'COMPLETION_PENDING',
+					retryable: true,
+					error:
+						'Your answers are saved, but finishing your results failed. Please retry.',
+				});
 			}
 
-			// All questions answered but session not completed - might need to generate next
-			// For now, return the state so client can handle
+			// Serve (or re-serve) the current question. This single path is
+			// what start-retry, answer-retry and page refresh all use.
+			const served = await serveNextQuestion(sessionId);
+			if (!served.ok) {
+				return res.status(503).json({
+					status: 'in_progress',
+					skillName,
+					code: 'QUESTION_UNAVAILABLE',
+					retryable: true,
+					error:
+						'Your progress is saved, but the next question is not available right now. Please retry.',
+				});
+			}
+			// Phase B (§7.3): resume restores the stored draft and the
+			// full-screen exits already used, so a refresh can neither lose
+			// the draft nor reset the two-exit allowance.
+			const fsCount = await pool.query(
+				`SELECT COUNT(*)::int AS n FROM assessment_events WHERE session_id = $1 AND event_type = 'fullscreen_exit_first'`,
+				[sessionId],
+			);
 			return res.json({
 				status: 'in_progress',
 				skillName,
-				currentQuestionIndex: session.current_question_index || 0,
+				question: served.question,
+				format: session.format ?? null,
+				difficultyBand: session.difficulty_band ?? null,
+				currentDraft: parseDraft(session.current_draft),
+				fullscreenExitsUsed: fsCount.rows[0]?.n || 0,
 			});
 		}
 
@@ -1663,8 +3516,35 @@ router.post('/generate', authMiddleware, rateLimits.ai, async (req, res) => {
 			return res.status(403).json({ error: 'Recruiter access required' });
 		}
 
-		const { jobId } = req.body;
+		const { jobId, questionCount, difficultyBand, format } = req.body;
 		if (!jobId) return res.status(400).json({ error: 'jobId is required' });
+
+		// #1655 (C2b) R1–R3: validate optional generation config BEFORE any
+		// job lookup, AI call, or write. Absent fields keep legacy behaviour.
+		if (
+			questionCount !== undefined &&
+			(!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 50)
+		) {
+			return res
+				.status(400)
+				.json({ error: 'questionCount must be a positive integer up to 50' });
+		}
+		if (difficultyBand !== undefined && !['easy', 'medium', 'hard'].includes(difficultyBand)) {
+			return res
+				.status(400)
+				.json({ error: 'difficultyBand must be one of: easy, medium, hard' });
+		}
+		if (
+			format !== undefined &&
+			!['multiple_choice', 'free_text', 'scenario_response', 'code_challenge', 'mixed'].includes(
+				format,
+			)
+		) {
+			return res.status(400).json({
+				error:
+					'format must be one of: multiple_choice, free_text, scenario_response, code_challenge, mixed',
+			});
+		}
 
 		// Get job details
 		const jobResult = await pool.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
@@ -1705,11 +3585,30 @@ router.post('/generate', authMiddleware, rateLimits.ai, async (req, res) => {
 			targetLevel = 'junior';
 		}
 
-		const difficultyRange = { junior: '1-2', mid: '2-3', senior: '3-5' }[targetLevel];
+		// #1655 R2/R4: an explicit difficultyBand overrides the title heuristic
+		// for both the stored difficulty_level and the prompt difficulty range.
+		const difficultyRange = difficultyBand
+			? { easy: '1-2', medium: '2-4', hard: '4-5' }[difficultyBand]
+			: { junior: '1-2', mid: '2-3', senior: '3-5' }[targetLevel];
 
 		// Map experience level to valid difficulty_level for DB constraint (easy/medium/mid/hard)
 		const difficultyLevel =
-			{ junior: 'easy', mid: 'medium', senior: 'hard' }[targetLevel] || 'medium';
+			difficultyBand || { junior: 'easy', mid: 'medium', senior: 'hard' }[targetLevel] || 'medium';
+
+		// #1655 R1/R4: effective question count and category proportions
+		// (≈40/27/20/13; at the default 15 these are exactly 6/4/3/2).
+		const effectiveCount = questionCount ?? 15;
+		const technicalCount = Math.round(effectiveCount * 0.4);
+		const scenarioCount = Math.round(effectiveCount * 0.27);
+		const behavioralCount = Math.round(effectiveCount * 0.2);
+		const codeChallengeCount = effectiveCount - technicalCount - scenarioCount - behavioralCount;
+
+		// #1655 R3: a single format steers every question's question_type
+		// (prompt steering only — no post-filter/retry). Absent/'mixed' = ''.
+		const formatSteering =
+			format && format !== 'mixed'
+				? `- question_type: every question must use question_type "${format}"\n`
+				: '';
 
 		// Generate assessment questions via AI
 		const prompt = `You are an expert hiring manager. Generate a comprehensive skill assessment for this job posting.
@@ -1721,15 +3620,15 @@ REQUIREMENTS: ${(job.requirements || '').substring(0, 1500)}
 JOB TYPE: ${job.job_type || 'full-time'}
 LEVEL: ${targetLevel}
 
-Generate exactly 15 assessment questions across these categories:
-- "technical" (6 questions): Test specific technical skills mentioned in requirements
-- "scenario" (4 questions): Real-world work scenarios relevant to the role
-- "behavioral" (3 questions): Soft skills, teamwork, communication, problem-solving
-- "code_challenge" (2 questions): Practical coding/analytical problems (if technical role) OR additional scenario questions (if non-technical)
+Generate exactly ${effectiveCount} assessment questions across these categories:
+- "technical" (${technicalCount} questions): Test specific technical skills mentioned in requirements
+- "scenario" (${scenarioCount} questions): Real-world work scenarios relevant to the role
+- "behavioral" (${behavioralCount} questions): Soft skills, teamwork, communication, problem-solving
+- "code_challenge" (${codeChallengeCount} questions): Practical coding/analytical problems (if technical role) OR additional scenario questions (if non-technical)
 
 For each question, include:
 - question_type: "multiple_choice", "free_text", "scenario_response", or "code_challenge"
-- difficulty_level: ${difficultyRange} (1=beginner, 5=expert)
+${formatSteering}- difficulty_level: ${difficultyRange} (1=beginner, 5=expert)
 - points: 5-20 based on difficulty and importance
 
 Rules:
@@ -1783,6 +3682,12 @@ Return ONLY valid JSON:
 			await client.query('BEGIN');
 
 			const categories = [...new Set(parsed.questions.map((q) => q.category))];
+			// #1655 R6: preserve the existing ai_config keys; record the
+			// optional config ONLY for fields the caller actually provided.
+			const aiConfig = { targetLevel, difficultyLevel, generated_at: new Date() };
+			if (format !== undefined) aiConfig.format = format;
+			if (questionCount !== undefined) aiConfig.requestedCount = questionCount;
+			if (difficultyBand !== undefined) aiConfig.difficultyBand = difficultyBand;
 			const assessmentResult = await client.query(
 				`
         INSERT INTO job_assessments (job_id, created_by, title, description, difficulty_level, question_count, categories, ai_config)
@@ -1797,13 +3702,14 @@ Return ONLY valid JSON:
 					difficultyLevel,
 					parsed.questions.length,
 					JSON.stringify(categories),
-					JSON.stringify({ targetLevel, difficultyLevel, generated_at: new Date() }),
+					JSON.stringify(aiConfig),
 				],
 			);
 
 			const assessment = assessmentResult.rows[0];
 
-			// Insert questions
+			// Insert questions (#1655 R5: storedCount counts rows actually inserted)
+			let storedQuestionCount = 0;
 			for (let i = 0; i < parsed.questions.length; i++) {
 				const q = parsed.questions[i];
 				await client.query(
@@ -1827,6 +3733,7 @@ Return ONLY valid JSON:
 						i,
 					],
 				);
+				storedQuestionCount++;
 			}
 
 			await client.query('COMMIT');
@@ -1837,9 +3744,16 @@ Return ONLY valid JSON:
 				[assessment.id],
 			);
 
-			res.json({
+			// #1655 R5: only when questionCount was provided does the response
+			// gain requestedCount/storedCount; otherwise the shape is unchanged.
+			const responseBody = {
 				assessment: { ...assessment, questions: questions.rows },
-			});
+			};
+			if (questionCount !== undefined) {
+				responseBody.requestedCount = questionCount;
+				responseBody.storedCount = storedQuestionCount;
+			}
+			res.json(responseBody);
 		} catch (err) {
 			await client.query('ROLLBACK');
 			throw err;
@@ -2053,12 +3967,17 @@ router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
 			);
 
 			const nextQ = questions.rows[nextIndex];
+			const resumeEvents = parseJsonArray(attempt.integrity_events);
 			return res.json({
 				attemptId: attempt.id,
 				resumed: true,
 				progress: { current: nextIndex + 1, total: questions.rows.length },
 				timeLimitMinutes: assessment.rows[0].time_limit_minutes || 45,
 				startedAt: attempt.started_at,
+				// Phase B (§7.3): resume restores the stored draft and the
+				// full-screen exits already used for this attempt.
+				currentDraft: parseDraft(attempt.current_draft),
+				fullscreenExitsUsed: resumeEvents.filter((e) => e && e.type === 'fullscreen_exit_first').length,
 				question: nextQ
 					? {
 							id: nextQ.id,
@@ -2163,11 +4082,15 @@ router.post('/job-assessment/:id/answer', authMiddleware, async (req, res) => {
 			});
 		}
 
-		// Overall time limit: started_at + time_limit_minutes (#343 task 3).
+		// Overall time limit: started_at + time_limit_minutes (#343 task 3),
+		// minus Phase B pause credit (§5.3): time the candidate spent in the
+		// Exit dialog / full-screen warning does not consume the exam clock.
 		const timeLimitMinutes = attempt.time_limit_minutes || 45;
+		const pauseCredit = pauseCreditSeconds(parseJsonArray(attempt.integrity_events), Date.now());
 		if (
 			attempt.started_at &&
-			Date.now() - new Date(attempt.started_at).getTime() > timeLimitMinutes * 60 * 1000
+			Date.now() - new Date(attempt.started_at).getTime() - pauseCredit * 1000 >
+				timeLimitMinutes * 60 * 1000
 		) {
 			await client.query('ROLLBACK');
 			return res.status(410).json({
@@ -2231,7 +4154,8 @@ router.post('/job-assessment/:id/answer', authMiddleware, async (req, res) => {
 			`
       UPDATE job_assessment_attempts
       SET answers = $1, current_question_index = $2, current_difficulty = $3,
-          time_anomalies = $4, time_spent_seconds = $5
+          time_anomalies = $4, time_spent_seconds = $5,
+          current_draft = CASE WHEN current_draft->>'questionId' = $7 THEN NULL ELSE current_draft END
       WHERE id = $6
     `,
 			[
@@ -2241,6 +4165,8 @@ router.post('/job-assessment/:id/answer', authMiddleware, async (req, res) => {
 				newTimeAnomalies,
 				newTimeSpent,
 				attemptId,
+				// Phase B (§8.2): answering the drafted question clears its draft.
+				String(questionId),
 			],
 		);
 
@@ -2254,14 +4180,37 @@ router.post('/job-assessment/:id/answer', authMiddleware, async (req, res) => {
 		const nextIndex = answers.length;
 
 		if (nextIndex >= totalQuestions) {
-			// Assessment complete — trigger auto-scoring
-			await client.query(
-				"UPDATE job_assessment_attempts SET status = 'completed', completed_at = NOW() WHERE id = $1",
-				[attemptId],
+			// Assessment complete — Phase B (§4.3): the SAME atomic
+			// status-guarded claim as every other terminal path. The plain
+			// UPDATE this replaces let two concurrent last-answers both
+			// complete (and double-fire scoring). A lost claim means the
+			// attempt already terminated via an exit action: the recorded
+			// answers stand, scoring fires only for the claim winner.
+			const claimRes = await client.query(
+				`UPDATE job_assessment_attempts
+				 SET status = 'completed', completed_at = NOW(), current_draft = NULL,
+				     completion_flags = COALESCE(completion_flags, '{}'::jsonb) || $2::jsonb
+				 WHERE id = $1 AND status = 'in_progress'
+				 RETURNING id`,
+				[
+					attemptId,
+					JSON.stringify({
+						partial: false,
+						answers_given: answers.length,
+						total_questions: totalQuestions,
+					}),
+				],
 			);
 			await client.query('COMMIT');
 
-			// Trigger async scoring (don't wait)
+			if (claimRes.rows.length === 0) {
+				return res.status(409).json({
+					error: 'This attempt is already finished',
+					code: 'ALREADY_FINISHED',
+				});
+			}
+
+			// Trigger async scoring (don't wait) — exactly once, post-commit.
 			scoreAttempt(attemptId, assessmentId).catch((err) =>
 				console.error('[scoring] Async scoring failed:', err.message),
 			);
@@ -2318,8 +4267,43 @@ async function scoreAttempt(attemptId, assessmentId) {
 		// scoring run leaves scored_at NULL, so retries still work.
 		if (att.scored_at) return;
 
+		// Phase B: an abandoned attempt is NEVER scored (Exit Exam writes no
+		// score — composite stays NULL, no evaluation, no OmniScore). The
+		// partial flag is read from the row the submit claim committed, so
+		// the decision cannot diverge from the claim (database-reviewer).
+		if (att.status === 'abandoned') return;
+		const attemptFlags = parseJsonObject(att.completion_flags);
+		const isPartialAttempt = attemptFlags.partial === true;
+
 		const answers = typeof att.answers === 'string' ? JSON.parse(att.answers) : att.answers || [];
-		if (answers.length === 0) return;
+		if (answers.length === 0) {
+			// Fix round F4: a completed PARTIAL attempt with zero answers
+			// has nothing to score — but it must not vanish. Record the
+			// terminal unscored state in `scores` (composite stays NULL,
+			// scored_at stays NULL: no score was ever produced, and no
+			// surface may render one). The candidate score view derives
+			// `unscored` from this state and stops polling; the recruiter
+			// lists show the attempt as submitted-with-no-answers.
+			if (att.status === 'completed' && isPartialAttempt) {
+				await pool.query(
+					`UPDATE job_assessment_attempts SET scores = $1 WHERE id = $2 AND scored_at IS NULL`,
+					[
+						JSON.stringify({
+							earnedPoints: 0,
+							totalPoints: 0,
+							compositeScore: null,
+							partial: true,
+							answers_given: 0,
+							total_questions: attemptFlags.total_questions ?? null,
+							unscored: true,
+							unscored_reason: 'no_answers',
+						}),
+						attemptId,
+					],
+				);
+			}
+			return;
+		}
 
 		// Get all questions
 		const questions = await pool.query(
@@ -2490,7 +4474,9 @@ Return ONLY valid JSON:
 		antiCheatScore -= (att.time_anomalies || 0) * 5;
 		antiCheatScore = Math.max(0, antiCheatScore);
 
-		// Save scores
+		// Save scores. The composite is computed over ANSWERED questions
+		// only (totalPoints accumulates answered questions' points), and a
+		// partial attempt carries its label in the scores payload too.
 		await pool.query(
 			`
       UPDATE job_assessment_attempts
@@ -2500,7 +4486,18 @@ Return ONLY valid JSON:
     `,
 			[
 				JSON.stringify(answers),
-				JSON.stringify({ earnedPoints, totalPoints, compositeScore }),
+				JSON.stringify({
+					earnedPoints,
+					totalPoints,
+					compositeScore,
+					...(isPartialAttempt
+						? {
+								partial: true,
+								answers_given: attemptFlags.answers_given ?? answers.length,
+								total_questions: attemptFlags.total_questions ?? questions.rows.length,
+							}
+						: {}),
+				}),
 				compositeScore,
 				JSON.stringify(categoryScores),
 				JSON.stringify(aiSummary),
@@ -2510,24 +4507,30 @@ Return ONLY valid JSON:
 		);
 
 		console.log(
-			`[scoring] Attempt ${attemptId} scored: ${compositeScore}% (${earnedPoints}/${totalPoints} pts)`,
+			`[scoring] Attempt ${attemptId} scored: ${compositeScore}% (${earnedPoints}/${totalPoints} pts)${isPartialAttempt ? ' [partial]' : ''}`,
 		);
 
-		// Round-trip the result to the linked application: score write,
-		// conservative stage advance on pass, recruiter notification (#343 task 4).
-		// Non-blocking — failures are logged inside, never thrown.
-		await roundTripAssessmentResult(att, assessmentId, compositeScore);
+		// FOUNDER RULING (Phase B): a partial terminal submission is NOT
+		// eligible for pass and does NOT feed OmniScore — so no application
+		// round-trip (which writes pass/fail and can advance the stage) and
+		// no OmniScore recalculation for partial attempts.
+		if (!isPartialAttempt) {
+			// Round-trip the result to the linked application: score write,
+			// conservative stage advance on pass, recruiter notification (#343 task 4).
+			// Non-blocking — failures are logged inside, never thrown.
+			await roundTripAssessmentResult(att, assessmentId, compositeScore);
 
-		// Feed the job assessment into OmniScore verified_skills (2x weight).
-		// Non-blocking — same pattern as skill assessments (line ~904).
-		if (att.candidate_id) {
-			try {
-				await omniscoreService.calculateScore(att.candidate_id);
-				console.log(
-					`[OmniScore] Job assessment ${attemptId} fed into OmniScore for user ${att.candidate_id} (score: ${compositeScore})`,
-				);
-			} catch (err) {
-				console.error('[OmniScore] Failed to update from job assessment:', err.message);
+			// Feed the job assessment into OmniScore verified_skills (2x weight).
+			// Non-blocking — same pattern as skill assessments (line ~904).
+			if (att.candidate_id) {
+				try {
+					await omniscoreService.calculateScore(att.candidate_id);
+					console.log(
+						`[OmniScore] Job assessment ${attemptId} fed into OmniScore for user ${att.candidate_id} (score: ${compositeScore})`,
+					);
+				} catch (err) {
+					console.error('[OmniScore] Failed to update from job assessment:', err.message);
+				}
 			}
 		}
 	} catch (error) {
@@ -2666,7 +4669,12 @@ router.post('/job-assessment/:id/score', authMiddleware, async (req, res) => {
 			attemptId,
 		]);
 
-		res.json({ attempt: result.rows[0] || null });
+		// Fix round F1 (same leak, second surface): this response returns
+		// the raw attempt row to recruiters too — the candidate's draft is
+		// owner-only and is stripped before it leaves.
+		const attemptOut = result.rows[0] || null;
+		if (attemptOut) delete attemptOut.current_draft;
+		res.json({ attempt: attemptOut });
 	} catch (error) {
 		console.error('Error scoring assessment:', error);
 		res.status(500).json({ error: 'Failed to score assessment' });
@@ -2679,8 +4687,15 @@ router.get('/job-assessment/:id/results', authMiddleware, async (req, res) => {
 		const assessmentId = req.params.id;
 		const { attemptId, candidateId } = req.query;
 
+		// Fix round F1: explicit column list — NEVER ja.*. Migration 276
+		// added job_assessment_attempts.current_draft (the candidate's
+		// stored-but-not-answered draft, design §8.2: owner-only, never
+		// recruiter-visible); a wildcard select leaks it to every caller
+		// of this endpoint, recruiters included. current_draft is the one
+		// column deliberately absent below; every other attempt field is
+		// scoring/results data this endpoint exists to serve.
 		let query =
-			'SELECT ja.*, u.name as candidate_name, u.email as candidate_email FROM job_assessment_attempts ja LEFT JOIN users u ON ja.candidate_id = u.id WHERE ja.assessment_id = $1';
+			'SELECT ja.id, ja.assessment_id, ja.candidate_id, ja.application_id, ja.status, ja.current_question_index, ja.current_difficulty, ja.answers, ja.scores, ja.composite_score, ja.category_scores, ja.ai_summary, ja.time_spent_seconds, ja.tab_switches, ja.copy_paste_attempts, ja.time_anomalies, ja.anti_cheat_score, ja.started_at, ja.completed_at, ja.scored_at, ja.created_at, ja.due_date, ja.abandoned_at, ja.completion_flags, ja.integrity_events, u.name as candidate_name, u.email as candidate_email FROM job_assessment_attempts ja LEFT JOIN users u ON ja.candidate_id = u.id WHERE ja.assessment_id = $1';
 		const params = [assessmentId];
 
 		if (attemptId) {
@@ -2799,11 +4814,14 @@ router.post('/job-assessment/:id/converse', authMiddleware, rateLimits.ai, async
 			});
 		}
 
-		// Overall time limit: started_at + time_limit_minutes (#343 I1).
+		// Overall time limit: started_at + time_limit_minutes (#343 I1),
+		// minus the same Phase B pause credit as /answer (§5.3).
 		const timeLimitMinutes = attempt.time_limit_minutes || 45;
+		const conversePauseCredit = pauseCreditSeconds(parseJsonArray(attempt.integrity_events), Date.now());
 		if (
 			attempt.started_at &&
-			Date.now() - new Date(attempt.started_at).getTime() > timeLimitMinutes * 60 * 1000
+			Date.now() - new Date(attempt.started_at).getTime() - conversePauseCredit * 1000 >
+				timeLimitMinutes * 60 * 1000
 		) {
 			return res.status(410).json({
 				error: 'The time limit for this assessment has elapsed',
@@ -2904,12 +4922,59 @@ Return ONLY valid JSON:
 });
 
 // Anti-cheat event logging for job assessments
+// Phase B (design §7): the event vocabulary shared by both runners.
+// On the JOB runner every type below is actually RECORDED (persisted into
+// integrity_events with a server receipt timestamp) — {logged:true} is
+// returned ONLY for a recorded type; an unrecognised type is a 400, so a
+// client bug can never masquerade as a logged event again (this endpoint
+// previously dropped every type except tab_switch/copy_paste while still
+// returning {logged:true}).
+const JOB_EVENT_TYPES = new Set([
+	'tab_switch',
+	'copy_paste',
+	'fullscreen_entered',
+	'fullscreen_unavailable',
+	'fullscreen_opt_out',
+	'fullscreen_exit_first',
+	'fullscreen_exit_repeat',
+	'fullscreen_exit_second',
+	'exit_dialog_opened',
+	'exit_dialog_timeout_resume',
+	'exit_save',
+	'exit_submit',
+	'exit_exam',
+	'timer_pause_start',
+	'timer_pause_end',
+]);
+
 router.post('/job-assessment/:id/event', authMiddleware, async (req, res) => {
 	try {
-		const { attemptId, eventType } = req.body;
+		const { attemptId, eventType, eventData } = req.body;
 		if (!attemptId || !eventType)
 			return res.status(400).json({ error: 'attemptId and eventType required' });
+		if (!JOB_EVENT_TYPES.has(eventType)) {
+			return res.status(400).json({ error: 'Unknown event type', code: 'UNKNOWN_EVENT_TYPE' });
+		}
 
+		// Single ownership+status-guarded append (database-reviewer
+		// condition): rowcount 0 means the attempt is not the caller's
+		// in-progress attempt — 404, and nothing was recorded.
+		const event = {
+			type: eventType,
+			timestamp: new Date().toISOString(),
+			data: eventData && typeof eventData === 'object' ? eventData : {},
+		};
+		const appended = await pool.query(
+			`UPDATE job_assessment_attempts
+			 SET integrity_events = COALESCE(integrity_events, '[]'::jsonb) || $1::jsonb
+			 WHERE id = $2 AND candidate_id = $3 AND status = 'in_progress'`,
+			[JSON.stringify([event]), attemptId, req.user.id],
+		);
+		if (appended.rowCount === 0) {
+			return res.status(404).json({ error: 'Active attempt not found' });
+		}
+
+		// The two legacy counters keep working alongside the event store.
 		if (eventType === 'tab_switch') {
 			await pool.query(
 				'UPDATE job_assessment_attempts SET tab_switches = COALESCE(tab_switches, 0) + 1 WHERE id = $1 AND candidate_id = $2',
@@ -2926,6 +4991,206 @@ router.post('/job-assessment/:id/event', authMiddleware, async (req, res) => {
 	} catch (error) {
 		console.error('Error logging assessment event:', error);
 		res.status(500).json({ error: 'Failed to log event' });
+	}
+});
+
+// Phase B (#1604/#1605, design §3.3/§4.2): the job runner's exit endpoint —
+// the same four-outcome contract as the skill runner's. Submit mirrors
+// completeAssessmentTx exactly (claim + flags in ONE transaction, COMMIT,
+// then scoreAttempt exactly once); abandon is the mirror claim to
+// 'abandoned' (a status value this table has always allowed and no code
+// path wrote before Phase B) and never invokes scoring.
+router.post('/job-assessment/:id/exit', authMiddleware, async (req, res) => {
+	try {
+		const assessmentId = req.params.id;
+		const candidateId = req.user.id;
+		const { attemptId, action, draft, reason } = req.body || {};
+		if (!attemptId) return res.status(400).json({ error: 'attemptId required' });
+		if (!['save', 'submit', 'abandon'].includes(action)) {
+			return res.status(400).json({ error: 'Invalid exit action', code: 'INVALID_ACTION' });
+		}
+		const exitReason = reason === 'fullscreen_second_exit' ? 'fullscreen_second_exit' : 'candidate';
+
+		// Fix round F5: ownership, the due-date check, and the
+		// partial/answers snapshot are ALL taken inside the claim
+		// transaction, from the FOR UPDATE-locked attempt row — never
+		// from a non-transactional pre-read — and every claim UPDATE
+		// carries the ownership guard and has its rowcount checked. A
+		// concurrent /answer can no longer make the committed flags
+		// disagree with the answers actually scored, and a claim that
+		// loses its race answers 409 instead of a false 200.
+		const client = await pool.connect();
+		let submitOutcome = null;
+		try {
+			await client.query('BEGIN');
+			const locked = await client.query(
+				'SELECT * FROM job_assessment_attempts WHERE id = $1 AND candidate_id = $2 AND assessment_id = $3 FOR UPDATE',
+				[attemptId, candidateId, assessmentId],
+			);
+			if (locked.rows.length === 0) {
+				await client.query('ROLLBACK');
+				return res.status(404).json({ error: 'Attempt not found' });
+			}
+			const attempt = locked.rows[0];
+			if (attempt.status !== 'in_progress') {
+				await client.query('ROLLBACK');
+				return res.status(409).json({
+					error: 'This attempt is already finished',
+					code: 'ALREADY_FINISHED',
+					status: attempt.status,
+				});
+			}
+			const answers = parseJsonArray(attempt.answers);
+			const totalResult = await client.query(
+				'SELECT COUNT(*)::int AS n FROM job_assessment_questions WHERE assessment_id = $1',
+				[assessmentId],
+			);
+			const totalQuestions = totalResult.rows[0].n;
+
+			// Due-date interaction (§4.2): Save & Exit is refused past the
+			// due date (nothing resumable remains); the two terminal
+			// outcomes stay allowed so the attempt is never stranded.
+			if (action === 'save' && attempt.due_date && new Date(attempt.due_date) < new Date()) {
+				await client.query('ROLLBACK');
+				return res.status(410).json({
+					error: 'This assessment assignment has expired',
+					code: 'ASSESSMENT_EXPIRED',
+				});
+			}
+
+			if (action === 'save') {
+				let storedDraft = null;
+				if (draft != null) {
+					const qid = Number(draft.questionId);
+					if (!Number.isInteger(qid) || typeof draft.answer !== 'string') {
+						await client.query('ROLLBACK');
+						return res.status(400).json({ error: 'Invalid draft', code: 'INVALID_DRAFT' });
+					}
+					const qCheck = await client.query(
+						'SELECT id FROM job_assessment_questions WHERE id = $1 AND assessment_id = $2',
+						[qid, assessmentId],
+					);
+					if (qCheck.rows.length === 0) {
+						await client.query('ROLLBACK');
+						return res.status(400).json({
+							error: 'That question is not part of this assessment',
+							code: 'QUESTION_NOT_CURRENT',
+						});
+					}
+					storedDraft = { questionId: qid, answer: draft.answer, savedAt: new Date().toISOString() };
+				}
+				const claim = await client.query(
+					`UPDATE job_assessment_attempts
+					 SET current_draft = $1,
+					     integrity_events = COALESCE(integrity_events, '[]'::jsonb) || $2::jsonb
+					 WHERE id = $3 AND candidate_id = $4 AND status = 'in_progress'
+					 RETURNING id`,
+					[
+						storedDraft ? JSON.stringify(storedDraft) : null,
+						JSON.stringify([
+							{ type: 'exit_save', timestamp: new Date().toISOString(), data: { answersGiven: answers.length } },
+						]),
+						attemptId,
+						candidateId,
+					],
+				);
+				if (claim.rows.length === 0) {
+					await client.query('ROLLBACK');
+					return res.status(409).json({
+						error: 'This attempt is already finished',
+						code: 'ALREADY_FINISHED',
+					});
+				}
+				await client.query('COMMIT');
+				return res.json({ status: 'in_progress', answersGiven: answers.length, totalQuestions });
+			}
+
+			if (action === 'abandon') {
+				const abandonEvent = {
+					type: 'exit_exam',
+					timestamp: new Date().toISOString(),
+					data: { answersGiven: answers.length, reason: exitReason },
+				};
+				const claim = await client.query(
+					`UPDATE job_assessment_attempts
+					 SET status = 'abandoned', abandoned_at = NOW(), current_draft = NULL,
+					     integrity_events = COALESCE(integrity_events, '[]'::jsonb) || $2::jsonb
+					 WHERE id = $1 AND candidate_id = $3 AND status = 'in_progress'
+					 RETURNING id`,
+					[attemptId, JSON.stringify([abandonEvent]), candidateId],
+				);
+				if (claim.rows.length === 0) {
+					await client.query('ROLLBACK');
+					return res.status(409).json({
+						error: 'This attempt is already finished',
+						code: 'ALREADY_FINISHED',
+					});
+				}
+				await client.query('COMMIT');
+				// composite_score stays NULL, scored_at stays NULL,
+				// scoreAttempt is never called: no score, anywhere.
+				return res.json({ status: 'abandoned', answersGiven: answers.length, totalQuestions });
+			}
+
+			// action === 'submit' — claim + flags in the same transaction,
+			// computed from the locked row; scoring fires post-commit.
+			const isPartial = answers.length < totalQuestions;
+			const flags = {
+				partial: isPartial,
+				answers_given: answers.length,
+				total_questions: totalQuestions,
+				fullscreen_auto_submit: exitReason === 'fullscreen_second_exit',
+			};
+			const claim = await client.query(
+				`UPDATE job_assessment_attempts
+				 SET status = 'completed', completed_at = NOW(), current_draft = NULL,
+				     completion_flags = COALESCE(completion_flags, '{}'::jsonb) || $2::jsonb,
+				     integrity_events = COALESCE(integrity_events, '[]'::jsonb) || $3::jsonb
+				 WHERE id = $1 AND candidate_id = $4 AND status = 'in_progress'
+				 RETURNING id`,
+				[
+					attemptId,
+					JSON.stringify(flags),
+					JSON.stringify([
+						{
+							type: 'exit_submit',
+							timestamp: new Date().toISOString(),
+							data: { answersGiven: answers.length, reason: exitReason, partial: isPartial },
+						},
+					]),
+					candidateId,
+				],
+			);
+			if (claim.rows.length === 0) {
+				await client.query('ROLLBACK');
+				return res.status(409).json({
+					error: 'This attempt is already finished',
+					code: 'ALREADY_FINISHED',
+				});
+			}
+			await client.query('COMMIT');
+			submitOutcome = { answersGiven: answers.length, totalQuestions, isPartial };
+		} catch (error) {
+			await client.query('ROLLBACK').catch(() => {});
+			throw error;
+		} finally {
+			client.release();
+		}
+		// Exactly once, post-commit — the same contract as the last-answer path.
+		scoreAttempt(attemptId, assessmentId).catch((err) =>
+			console.error('[scoring] Async scoring failed:', err.message),
+		);
+		return res.json({
+			status: 'completed',
+			answersGiven: submitOutcome.answersGiven,
+			totalQuestions: submitOutcome.totalQuestions,
+			partial: submitOutcome.isPartial,
+			fullscreenAutoSubmit: exitReason === 'fullscreen_second_exit',
+			...(draft != null ? { draftExcluded: true } : {}),
+		});
+	} catch (error) {
+		console.error('Error processing job assessment exit:', error);
+		res.status(500).json({ error: 'Failed to exit assessment' });
 	}
 });
 

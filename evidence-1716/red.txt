@@ -1,0 +1,87 @@
+FAIL server/__tests__/routes/assessments-config-1654.test.js
+  GET /catalog/:topicId/availability (#1654 §4.1)
+    ✓ reports exact per-configuration servable with band overlap (43 ms)
+    ✓ largestAvailable is per-configuration, never the cross-config max (20 ms)
+    ✓ zero supply is an honest zero with a reason; unknown/inactive topics and bad params are explicit (146 ms)
+  POST /start — configured body (#1654 §4.2, Q1/Q3/Q4)
+    ✓ snapshots the chosen configuration and starts at the band start (easy = 1) (39 ms)
+    ✓ band start: medium = 3 (15 ms)
+    ✓ hard band start is 4 on a supplied topic (13 ms)
+    ✓ validation: non-enum count, bad format, bad band → 400; setId → explicit 400 code (Q3) (36 ms)
+    ✓ format 'coding' with the flag OFF → 503 QUESTION_UNAVAILABLE family, format-specific reason (Q4) (8 ms)
+    ✓ Q1: the labelled largestAvailable count is accepted; any other non-enum count is 400 (12 ms)
+    ✓ insufficient supply at start → extended 503 {promised, largestAvailable}, session committed + resumable (6 ms)
+  POST /start — legacy body (§8/SF-9 snapshot)
+    ✓ resolves the default topic by subject legacy name and snapshots the recorded defaults, start 3 (13 ms)
+    ✓ mixed serves single-format supply (short_answer only) — never a literal mixed equality (6 ms)
+    ✓ retake gate still applies to configured starts (pin) (5 ms)
+  POST /start — topic-scoped abandon (#1687)
+    ✓ (a) starting Topic B leaves an in-progress Topic A session in progress (7 ms)
+    ✓ (b) restarting Topic A abandons ALL its in-progress sessions and no other topic (8 ms)
+    ✓ (c) legacy-body start with no catalogue topic keeps the skill-wide abandon exactly (5 ms)
+  POST /start — per-topic retake lockout (#1686)
+    ✓ (a) starting Topic B succeeds when only Topic A is inside the lockout (the #1686 bug) (10 ms)
+    ✓ (b) starting Topic A still 403s, with lastCompletedAt read from Topic A only (6 ms)
+    ✓ (c) topic-less legacy completions do not block a topic start; a topic-less start keeps the skill-wide gate (9 ms)
+  POST /start — default-topic retake lockout counts topic-less completions (#1716)
+    ✕ (1) default topic + topic-less completion (session_id NULL), 2 days old → 403 with the topic-keyed lockout shape (16 ms)
+    ✕ (2) default topic + topic-less completion via a session with topic_id NULL, 2 days old → 403 (7 ms)
+    ✓ (3) NON-default topic + the same topic-less history → start allowed (#1686 behaviour pinned) (4 ms)
+    ✓ (4) default topic + topic-less completions 31 days old → start allowed (outside the window) (4 ms)
+  serving scope (#1654 §4.6/§7)
+    ✓ pool predicate: pending / other-topic / other-format decoys are never served (6 ms)
+    ✓ AI provenance: generated row carries topic/format/source/review_status; a second session cannot draw the pending row (3 ms)
+    ✓ AI generation serves when supply exists at the band but not the start level; insert provenance is written (10 ms)
+    ✓ serving order (#1710): bank → AI → band-widen → re-serve; AI down widens to an unserved in-band row before any repeat (23 ms)
+    ✓ #1710 mirror: current difficulty exhausted by the climb → widen serves an unserved in-band row, never an asked id (42 ms)
+    ✓ re-serve is the last resort (#1710): whole band exhausted + AI down → re-serve at the current difficulty (34 ms)
+  /answer band clamp (#1654 §5.2)
+    ✓ easy band clamps at 2; hard band floors at 4 (35 ms)
+    ✓ NULL-band (in-flight legacy) sessions keep the [1,5] clamp (5 ms)
+    ✓ unevaluated answer moves difficulty neither way (#1572 pin) (11 ms)
+  count plumbing + score normalisation (#1654 Q5)
+    ✓ a 25-count session completes at 25 and writes the PERCENTAGE score (not the raw 950) (169 ms)
+    ✓ partial exit at 7 of 25 labels from the snapshot and scores the answered percentage (39 ms)
+    ✓ passed is decided on the percentage: raw 200 with 45% correct-weight FAILS (54 ms)
+    ✓ completed/current payloads carry the configuration label fields (13 ms)
+
+  ● POST /start — default-topic retake lockout counts topic-less completions (#1716) › (1) default topic + topic-less completion (session_id NULL), 2 days old → 403 with the topic-keyed lockout shape
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 200
+
+      909 | 		seedSessionlessCompletion(1, when);
+      910 | 		const res = await start({ topicId: 20, format: 'mcq', difficultyBand: 'medium', totalQuestions: 10 });
+    > 911 | 		expect(res.status).toBe(403);
+          | 		                   ^
+      912 | 		expect(res.body.code).toBe('RETAKE_LOCKOUT');
+      913 | 		expect(res.body.lockoutDays).toBe(30);
+      914 | 		expect(new Date(res.body.lastCompletedAt).getTime()).toBe(when.getTime());
+
+      at Object.toBe (server/__tests__/routes/assessments-config-1654.test.js:911:22)
+
+  ● POST /start — default-topic retake lockout counts topic-less completions (#1716) › (2) default topic + topic-less completion via a session with topic_id NULL, 2 days old → 403
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 200
+
+      921 | 		seedNullTopicCompletion(1, 610, when);
+      922 | 		const res = await start({ topicId: 20, format: 'mcq', difficultyBand: 'medium', totalQuestions: 10 });
+    > 923 | 		expect(res.status).toBe(403);
+          | 		                   ^
+      924 | 		expect(res.body.code).toBe('RETAKE_LOCKOUT');
+      925 | 		expect(res.body.lockoutDays).toBe(30);
+      926 | 		expect(new Date(res.body.lastCompletedAt).getTime()).toBe(when.getTime());
+
+      at Object.toBe (server/__tests__/routes/assessments-config-1654.test.js:923:22)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 34 passed, 36 total
+Snapshots:   0 total
+Time:        2.123 s
+Ran all test suites matching server/__tests__/routes/assessments-config-1654.test.js.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?
