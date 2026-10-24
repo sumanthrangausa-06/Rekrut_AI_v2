@@ -118,6 +118,24 @@ describe('ConsentScreensPage (S-010)', () => {
 		expect(screen.getByText(/policy has been updated/i)).toBeInTheDocument();
 	});
 
+	it('#1559: ID-blocked screen states 90-day retention + deletion on request, never 24-hour deletion', async () => {
+		renderAt('/interview/consent');
+		// Accept recording, then biometric, to reach the ID verification step
+		expect(await screen.findByRole('heading', { name: /interview recording/i })).toBeInTheDocument();
+		fireEvent.click(screen.getByRole('button', { name: /i accept/i }));
+		expect(await screen.findByRole('heading', { name: /biometric analysis/i })).toBeInTheDocument();
+		fireEvent.click(screen.getByRole('button', { name: /i accept/i }));
+		expect(await screen.findByRole('heading', { name: /id verification/i })).toBeInTheDocument();
+		// Decline ID verification -> id_blocked screen
+		fireEvent.click(screen.getByRole('button', { name: /decline/i }));
+		expect(await screen.findByRole('heading', { name: /id verification is required/i })).toBeInTheDocument();
+		// Truth: 90-day retention schedule + deletion on request. No automated
+		// 24-hour deletion exists, and the screen must not claim it.
+		expect(screen.getByText(/retained for 90 days/i)).toBeInTheDocument();
+		expect(screen.getByText(/privacy@rekrutai\.co/i)).toBeInTheDocument();
+		expect(screen.queryByText(/24 hours/i)).not.toBeInTheDocument();
+	});
+
 	it('does not show stale banner without ?reason=stale', async () => {
 		renderAt('/interview/consent');
 		await screen.findByRole('heading', { name: /interview recording/i });

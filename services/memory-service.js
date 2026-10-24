@@ -14,9 +14,24 @@ const MEMORY_TYPES = {
 };
 
 /**
+ * #1626 — only a finite measured confidence in [0, 1] is a measurement
+ * (0 included). Anything else (absent, NaN, out of range, non-number) is
+ * "not recorded" and is stored as NULL — never a fabricated default.
+ */
+function measuredConfidence(confidence) {
+	return typeof confidence === 'number' &&
+		Number.isFinite(confidence) &&
+		confidence >= 0 &&
+		confidence <= 1
+		? confidence
+		: null;
+}
+
+/**
  * Add or update a memory entry for a user
  */
 async function addMemory(userId, { type, key, value, source, confidence }) {
+	const safeConfidence = measuredConfidence(confidence);
 	try {
 		const result = await pool.query(
 			`
@@ -30,7 +45,7 @@ async function addMemory(userId, { type, key, value, source, confidence }) {
         updated_at = NOW()
       RETURNING *
     `,
-			[userId, type || 'observation', key, value, source || 'system', confidence || 0.8],
+			[userId, type || 'observation', key, value, source || 'system', safeConfidence],
 		);
 
 		return result.rows[0];
@@ -43,7 +58,7 @@ async function addMemory(userId, { type, key, value, source, confidence }) {
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *
       `,
-				[userId, type || 'observation', key, value, source || 'system', confidence || 0.8],
+				[userId, type || 'observation', key, value, source || 'system', safeConfidence],
 			);
 			return result.rows[0];
 		}
@@ -68,7 +83,7 @@ async function getMemories(userId, { type, limit = 50 } = {}) {
 			params.push(type);
 		}
 
-		query += ` ORDER BY confidence DESC, updated_at DESC LIMIT $${params.length + 1}`;
+		query += ` ORDER BY confidence DESC NULLS LAST, updated_at DESC LIMIT $${params.length + 1}`;
 		params.push(limit);
 
 		const result = await pool.query(query, params);

@@ -346,7 +346,8 @@ export function ConsentScreensPage() {
 							<h1 className="font-heading text-2xl font-bold">ID verification is required</h1>
 							<p className="text-muted-foreground">
 								We need to verify your identity before the interview can proceed. Your ID image is
-								deleted within 24 hours of verification.
+								retained for 90 days under our verification retention schedule, and you can request
+								deletion at any time by emailing privacy@rekrutai.co.
 							</p>
 							<Button onClick={() => setDeclineState(null)} className="gap-2">
 								<ArrowLeft className="h-4 w-4" /> Go back and review

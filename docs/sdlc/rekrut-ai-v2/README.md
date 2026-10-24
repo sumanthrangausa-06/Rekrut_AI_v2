@@ -61,6 +61,21 @@
 - Epics: #550–#558 (labeled `epic`, `phase-3`, `unified-interview-engine`)
 - Stories: #559–#622 (labeled `story`, `phase-3`, `unified-interview-engine`)
 
+### sumanth-batch-2026-10-21
+
+**Status:** Phase 2 (Planning) — PRDs written 2026-10-21 (Aria), at Suga's review gate; builds wait for these PRDs per the restored documentation-first rule.
+**Source:** Nine issues Sumanth filed from his own testing 2026-10-21 (Issues3.pdf + Assessment_window_issues.pdf).
+
+| Phase | Document | Status |
+|-------|----------|--------|
+| 02-planning | `02-planning/sumanth-batch-2026-10-21/prd-assessments-module.md` (#1602, #1606, #1604, #1605, #1603) | 📄 At gate |
+| 02-planning | `02-planning/sumanth-batch-2026-10-21/prd-job-board-and-profile.md` (#1600, #1601, #1607, #1608) | 📄 At gate |
+| 03-solutioning | Rex design: unified exit implementation + #1603 catalogue architecture | ⏳ Pending PRD approval |
+| 04-implementation | — | ⏳ Pending |
+
+**GitHub Tracking:**
+- Issues: #1600–#1608 (Sumanth-filed batch; #1603 is the Assessments redesign EPIC)
+
 ---
 
 ## Decisions Log
@@ -93,3 +108,6 @@
 | 2026-10-13 | Gate A ruled **B, amended**: Observer ships presence-only for a controlled cohort in January (no public consent ask, no analysis claimed); dormant audio-capture built as one complete unit after design approval; re-entry contract — counsel + design cleared by 2026-11-01 opens cohort pilot path, after 2026-12-01 nothing activates pre-launch (full ruling on #634) | Sumanth |
 | 2026-10-13 | Gate A dormant-capture design package delivered for approval (Rex v2 + Quinn validation protocol + Lex consent/retention review; privacy review BLOCK on v1 cleared with conditions on v2) — `04-implementation/unified-interview-engine/gate-a-dormant-capture-design.md` | Lead |
 | 2026-10-12 | Mock scores & OmniScore: practice OUT of OmniScore → separate labelled readiness panel; practice-fact marker adopted (opt-in default-off, counts/dates only); removal scheduled separately — supersedes "practice-only" posture (see KB §7; #113, #791–#793) | Sumanth |
+| 2026-10-21 | Documentation-first RESTORED (re-asserts 2026-10-10): PRD before build, design before implementation, docs in the same PR; binds ALL personas (HL-006) | Sumanth |
+| 2026-10-21 | User-perspective testing: acceptance criteria written as user journeys from the user's expectations; work done only when journey tests pass E2E | Sumanth |
+| 2026-10-21 | Assessments exit reconciliation: ONE exit dialog, four outcomes — Continue / Save & Exit (resumable) / Submit & Exit (scored) / Exit Exam (abandoned, never scored) — PRD `02-planning/sumanth-batch-2026-10-21/prd-assessments-module.md` §6 | Aria (PRD, at gate) |

@@ -170,11 +170,18 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 								name: user.name || 'Candidate',
 								document_type: document.document_type,
 								authenticity_score: verificationResult.authenticity_score || 'N/A',
-								status: verificationResult.fraud_risk === 'low' ? 'verified' : 'flagged',
+								// #1569: analysis-unavailable is a pending state, not a
+								// fraud flag — say so honestly instead of 'flagged'.
+								status: verificationResult.analysis_unavailable
+									? 'pending_review'
+									: verificationResult.fraud_risk === 'low'
+										? 'verified'
+										: 'flagged',
 								verified_date: new Date().toISOString(),
 								documents_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/candidate/documents`,
-								flag_reason:
-									verificationResult.fraud_risk !== 'low'
+								flag_reason: verificationResult.analysis_unavailable
+									? 'Automated authenticity analysis was unavailable — your document is pending human review'
+									: verificationResult.fraud_risk !== 'low'
 										? 'Suspicious indicators detected during automated verification — pending human review'
 										: '',
 							},
@@ -699,7 +706,7 @@ router.get('/stats/summary', authMiddleware, async (req, res) => {
         COUNT(DISTINCT CASE WHEN vd.status = 'pending_review' THEN vd.id END) as pending_review_documents,
         COUNT(DISTINCT vc.id) as verified_credentials,
         COALESCE(SUM(dsi.score_impact), 0) as total_score_impact,
-        COALESCE(AVG(dv.authenticity_score), 0) as avg_authenticity_score
+        AVG(dv.authenticity_score) as avg_authenticity_score
       FROM verification_documents vd
       LEFT JOIN document_verifications dv ON vd.id = dv.document_id
       LEFT JOIN verified_credentials vc ON vc.user_id = vd.user_id

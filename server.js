@@ -680,11 +680,12 @@ const { sendTemplatedEmail } = require('./lib/email-service');
 // Start email queue processor
 emailQueue.startProcessor(async (email) => {
 	try {
-		await sendTemplatedEmail({
-			to: email.to,
-			template: email.metadata.template || 'custom',
-			data: email.metadata,
-		});
+		// #1520: sendTemplatedEmail expects { templateName, templateData }
+		// (the shape sendEmailWithQueue uses) — map the queue payload via
+		// the shared helper instead of the old { template, data } keys,
+		// which left templateName undefined and failed logEmail on
+		// notification_logs.type NOT NULL.
+		await sendTemplatedEmail(emailQueue.toSendTemplatedEmailArgs(email));
 	} catch (err) {
 		console.error('[email-queue-processor] Failed:', err.message);
 		throw err;

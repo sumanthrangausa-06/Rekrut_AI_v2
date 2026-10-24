@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { Avatar } from '@/components/ui/avatar';
 import { Logo } from '@/components/ui/logo';
 import { useAuth } from '@/contexts/auth-context';
 import { apiCall } from '@/lib/api';
@@ -176,6 +177,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [onClose]);
 
+	// #1636: profile door for the identity block / My Profile entry below —
+	// same targets as the header dropdown (#1607), following the nav layout
+	// actually shown: recruiter layout → company profile, candidate → profile.
+	const profilePath = showRecruiterNav ? '/recruiter/company' : '/candidate/profile';
+	// Review (#1636): the identity link's accessible name carries whose
+	// profile it opens, not just the destination.
+	const identityAriaLabel = user?.name ? `Go to my profile, ${user.name}` : 'Go to my profile';
 	const isProUser = (user as any)?.subscription_tier === 'pro' || (user as any)?.plan === 'pro';
 	const showUpgradeCta = !isRecruiter && !isProUser;
 	const showJoinRequests = isRecruiter && user?.is_company_owner;
@@ -217,6 +225,51 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 						<X className="h-5 w-5" />
 					</button>
 				</div>
+
+				{/* Identity block + My Profile (#1636) — mirrors the header
+				    dropdown (#1607): the user opening the drawer first sees who
+				    they are signed in as, and an entry labelled "My Profile".
+				    Both are real links to the same profile door. */}
+				{user && (
+					<div className="space-y-1 border-b px-3 py-3">
+						<NavLink
+							to={profilePath}
+							onClick={onClose}
+							aria-label={identityAriaLabel}
+							className="flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						>
+							<Avatar
+								src={user?.avatar_url}
+								fallback={user?.name || 'U'}
+								seed={user?.email || user?.id || 'user'}
+								size="sm"
+							/>
+							<span className="min-w-0 flex-1">
+								<span className="block truncate text-sm font-medium">
+									{user?.name || 'User'}
+								</span>
+								<span className="block truncate text-xs text-muted-foreground">
+									{user?.email}
+								</span>
+							</span>
+						</NavLink>
+						<NavLink
+							to={profilePath}
+							onClick={onClose}
+							className={({ isActive }) =>
+								cn(
+									'flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+									isActive
+										? 'bg-primary/10 text-primary'
+										: 'text-muted-foreground hover:bg-muted hover:text-foreground',
+								)
+							}
+						>
+							<User className="h-4 w-4 shrink-0" />
+							My Profile
+						</NavLink>
+					</div>
+				)}
 
 				{/* Nav */}
 				<nav className="flex-1 overflow-y-auto p-3">

@@ -30,6 +30,19 @@ const crypto = require('node:crypto');
 
 const router = express.Router();
 
+// #1619 (reviewer BLOCK on PR #1623): whisperResult is built by several
+// provider writers the route does not control, and some stamp
+// `confidence: 0` as their default for "no confidence reported"
+// (Cartesia, NIM, ai-provider's Deepgram path). So 0 here is provider
+// garbage, not a measurement — only a finite value in (0, 1] is a real
+// measured confidence; missing/0/negative/>1/NaN all become null (the
+// honest not-recorded state), never a fabricated number.
+function recordedConfidence(value) {
+	return typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 1
+		? value
+		: null;
+}
+
 function handleValidationErrors(req, res, next) {
 	const errors = validationResult(req);
 	if (!errors.isEmpty()) {
@@ -452,10 +465,13 @@ router.get(
 				return res.status(403).json({ error: 'Not authorized' });
 			}
 
-			// Fetch transcript summary
+			// Fetch transcript summary — #802: purged tombstones (text =
+			// '[purged]', written by euComplianceService) are absent content,
+			// never counted as live segments.
 			const transcriptRes = await pool.query(
 				`SELECT COUNT(*) as segment_count, MAX(created_at) as last_transcript_at
-				 FROM interview_transcripts WHERE recording_id = $1`,
+				 FROM interview_transcripts WHERE recording_id = $1
+				 AND text IS DISTINCT FROM '[purged]'`,
 				[recordingId],
 			);
 			const transcriptSummary = transcriptRes.rows[0];
@@ -694,7 +710,7 @@ router.post(
 					whisperResult.text,
 					0,
 					(recording.duration_seconds || 0) * 1000,
-					whisperResult.confidence || 0.85,
+					recordedConfidence(whisperResult.confidence),
 				],
 			);
 
@@ -709,7 +725,7 @@ router.post(
 				transcript: {
 					text: whisperResult.text,
 					duration_ms: (recording.duration_seconds || 0) * 1000,
-					confidence: whisperResult.confidence || 0.85,
+					confidence: recordedConfidence(whisperResult.confidence),
 				},
 			});
 		} catch (err) {
@@ -745,10 +761,13 @@ router.get(
 				return res.status(403).json({ error: 'Not authorized' });
 			}
 
+			// #802: purged tombstones render as absence — never serialise
+			// the '[purged]' sentinel to clients.
 			const transcriptRes = await pool.query(
 				`SELECT id, speaker_identity, text, start_time_ms, end_time_ms, confidence, created_at
 				 FROM interview_transcripts
 				 WHERE recording_id = $1
+				 AND text IS DISTINCT FROM '[purged]'
 				 ORDER BY start_time_ms`,
 				[recordingId],
 			);

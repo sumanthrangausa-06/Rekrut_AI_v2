@@ -22,7 +22,7 @@ interface AssessmentResult {
 	id: number;
 	session_id: number;
 	assessment_id: number;
-	score: number;
+	score: number | null;
 	passed: boolean;
 	skill_name: string;
 	max_difficulty_reached: number;
@@ -32,6 +32,16 @@ interface AssessmentResult {
 	tab_switches: number;
 	copy_paste_attempts: number;
 	time_anomalies: number;
+	behavioral_flags?:
+		| {
+				partial?: boolean;
+				answers_given?: number;
+				total_questions?: number;
+				correct_count?: number | null;
+				fullscreen_auto_submit?: boolean;
+		  }
+		| string
+		| null;
 }
 
 export function AssessmentResultsPage() {
@@ -132,7 +142,19 @@ export function AssessmentResultsPage() {
 		? result.answers_given.filter((a) => a.isCorrect).length
 		: 0;
 
-	const totalQuestions = Array.isArray(result.answers_given) ? result.answers_given.length : 10;
+	// Phase B: a partial completion is labelled from its stored flags and
+	// is NEVER rendered as a bare score out of 100 or as pass/fail.
+	const flags =
+		typeof result.behavioral_flags === 'string'
+			? JSON.parse(result.behavioral_flags)
+			: result.behavioral_flags || {};
+	const isPartial = flags.partial === true;
+	const answeredCount = flags.answers_given ?? (Array.isArray(result.answers_given) ? result.answers_given.length : 0);
+	const totalQuestions = isPartial
+		? (flags.total_questions ?? 10)
+		: Array.isArray(result.answers_given)
+			? result.answers_given.length
+			: 10;
 	const durationMinutes = Math.floor(result.duration_seconds / 60);
 	const durationSeconds = Math.floor(result.duration_seconds % 60);
 
@@ -207,7 +229,7 @@ export function AssessmentResultsPage() {
 									stroke="url(#score-gradient)"
 									strokeWidth="12"
 									strokeDasharray={2 * Math.PI * 80}
-									strokeDashoffset={2 * Math.PI * 80 * (1 - result.score / 100)}
+									strokeDashoffset={2 * Math.PI * 80 * (1 - (result.score ?? 0) / 100)}
 									strokeLinecap="round"
 									className="transition-all duration-1000"
 								/>
@@ -219,30 +241,74 @@ export function AssessmentResultsPage() {
 								</defs>
 							</svg>
 							<div className="absolute inset-0 flex flex-col items-center justify-center">
-								<span className="text-4xl font-bold">{result.score}</span>
-								<span className="text-sm text-muted-foreground">/100</span>
+								{isPartial ? (
+									<>
+										<span className="text-2xl font-bold px-4 text-center">
+											{answeredCount === 0 ? 'No score' : `${correctCount} of ${answeredCount}`}
+										</span>
+										<span className="text-sm text-muted-foreground">
+											{answeredCount === 0 ? '' : 'answered correct'}
+										</span>
+									</>
+								) : (
+									<>
+										<span className="text-4xl font-bold">{result.score}</span>
+										<span className="text-sm text-muted-foreground">/100</span>
+									</>
+								)}
 							</div>
 						</div>
 
 						<div>
-							<h2 className="text-2xl font-bold flex items-center justify-center gap-2">
-								{result.passed ? (
-									<>
-										<CheckCircle className="h-6 w-6 text-emerald-500" />
-										Passed!
-									</>
-								) : (
-									<>
-										<XCircle className="h-6 w-6 text-red-500" />
-										Not Passed
-									</>
-								)}
-							</h2>
-							<p className="text-muted-foreground">
-								{result.passed
-									? 'Great job! Your skill has been verified.'
-									: 'Keep practicing and try again.'}
-							</p>
+							{isPartial ? (
+								<>
+									<h2 className="text-2xl font-bold">Partial result</h2>
+									{flags.fullscreen_auto_submit && (
+										<p className="text-muted-foreground">
+											Submitted automatically after leaving full-screen twice. {answeredCount}{' '}
+											of {totalQuestions} questions answered.
+										</p>
+									)}
+									{answeredCount === 0 ? (
+										<p className="text-muted-foreground">
+											You submitted with no questions answered, so there is no score.
+										</p>
+									) : (
+										<p className="text-muted-foreground">
+											You answered {answeredCount} of {totalQuestions} questions. Your result is
+											based only on those {answeredCount} answered questions: {correctCount} of{' '}
+											{answeredCount} correct. The other {totalQuestions - answeredCount}{' '}
+											questions were not counted. Because this result is partial, it is not a
+											pass, it does not earn Verified, and it does not count toward your
+											OmniScore.
+										</p>
+									)}
+									<Badge variant="secondary" className="mt-2">
+										Partial — answered {answeredCount} of {totalQuestions}
+									</Badge>
+								</>
+							) : (
+								<>
+									<h2 className="text-2xl font-bold flex items-center justify-center gap-2">
+										{result.passed ? (
+											<>
+												<CheckCircle className="h-6 w-6 text-emerald-500" />
+												Passed!
+											</>
+										) : (
+											<>
+												<XCircle className="h-6 w-6 text-red-500" />
+												Not Passed
+											</>
+										)}
+									</h2>
+									<p className="text-muted-foreground">
+										{result.passed
+											? 'Great job! Your skill has been verified.'
+											: 'Keep practicing and try again.'}
+									</p>
+								</>
+							)}
 						</div>
 
 						{result.passed && (

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AIChatFAB } from '@/components/domain/ai-chat-fab';
 import { useAuth } from '@/contexts/auth-context';
 import { Header } from './header';
@@ -73,24 +73,24 @@ export function DashboardLayout() {
 					<div className="flex flex-col sm:flex-row justify-between items-center gap-2">
 						<p className="text-sm text-muted-foreground">© 2026 Rekrut AI, Inc.</p>
 						<div className="flex gap-4">
-							<a
-								href="#"
+							<Link
+								to="/privacy"
 								className="text-sm text-muted-foreground hover:text-foreground min-h-[44px] inline-flex items-center px-2"
 							>
 								Privacy
-							</a>
-							<a
-								href="#"
+							</Link>
+							<Link
+								to="/terms"
 								className="text-sm text-muted-foreground hover:text-foreground min-h-[44px] inline-flex items-center px-2"
 							>
 								Terms
-							</a>
-							<a
-								href="#"
+							</Link>
+							<Link
+								to="/contact"
 								className="text-sm text-muted-foreground hover:text-foreground min-h-[44px] inline-flex items-center px-2"
 							>
 								Help Center
-							</a>
+							</Link>
 						</div>
 					</div>
 				</footer>

@@ -22,6 +22,11 @@
  *
  * Nothing is guarded in server/services/email-service.js (dead code,
  * zero requires — STOP 1 §1.2).
+ *
+ * #1161 Finding 4 — the email-queue re-read also selects `recipient`,
+ * and the guard (and the send) act on the FRESH recipient, not the
+ * getPending snapshot: a recipient mutated between the snapshot and
+ * the re-read is judged — and addressed — as it now stands.
  */
 jest.mock('../../../lib/db', () => ({
 	query: jest.fn(),
@@ -65,7 +70,7 @@ describe('#1125 GAP-F guard — lib/email-queue processBatch', () => {
 	function mockQueue({ pending = [], fresh = {}, usersByEmail = {} } = {}) {
 		pool.query.mockImplementation(async (sql, params = []) => {
 			if (/SELECT \* FROM email_queue/i.test(sql)) return { rows: pending, rowCount: pending.length };
-			if (/SELECT id, status FROM email_queue WHERE id = \$1/i.test(sql)) {
+			if (/SELECT id, status(, recipient)? FROM email_queue WHERE id = \$1/i.test(sql)) {
 				const row = fresh[params[0]];
 				return row ? { rows: [row], rowCount: 1 } : { rows: [], rowCount: 0 };
 			}
@@ -98,7 +103,7 @@ describe('#1125 GAP-F guard — lib/email-queue processBatch', () => {
 	test('no-longer-pending skip: a row claimed/sent by another path is not re-sent', async () => {
 		mockQueue({
 			pending: [pendingRow],
-			fresh: { 5: { id: 5, status: 'sent' } },
+			fresh: { 5: { id: 5, status: 'sent', recipient: 'candidate@example.com' } },
 			usersByEmail: { 'candidate@example.com': [{ id: 7, deleted_at: null }] },
 		});
 		await emailQueue.processBatch();
@@ -110,7 +115,7 @@ describe('#1125 GAP-F guard — lib/email-queue processBatch', () => {
 	test('tombstoned recipient: suppressed WITHOUT row mutation (no markSent/markFailed — held material stays unaltered)', async () => {
 		mockQueue({
 			pending: [pendingRow],
-			fresh: { 5: { id: 5, status: 'pending' } },
+			fresh: { 5: { id: 5, status: 'pending', recipient: 'candidate@example.com' } },
 			usersByEmail: {
 				'candidate@example.com': [{ id: 7, deleted_at: new Date('2026-10-14T00:00:00Z') }],
 			},
@@ -124,7 +129,7 @@ describe('#1125 GAP-F guard — lib/email-queue processBatch', () => {
 	test('unresolvable recipient: no live user with that address ⇒ suppressed without mutation', async () => {
 		mockQueue({
 			pending: [{ ...pendingRow, recipient: 'ghost@example.com' }],
-			fresh: { 5: { id: 5, status: 'pending' } },
+			fresh: { 5: { id: 5, status: 'pending', recipient: 'ghost@example.com' } },
 			usersByEmail: {},
 		});
 		await emailQueue.processBatch();
@@ -136,7 +141,7 @@ describe('#1125 GAP-F guard — lib/email-queue processBatch', () => {
 	test('live recipient passes: processorFn runs and the row is marked sent', async () => {
 		mockQueue({
 			pending: [pendingRow],
-			fresh: { 5: { id: 5, status: 'pending' } },
+			fresh: { 5: { id: 5, status: 'pending', recipient: 'candidate@example.com' } },
 			usersByEmail: { 'candidate@example.com': [{ id: 7, deleted_at: null }] },
 		});
 		await emailQueue.processBatch();
@@ -146,6 +151,36 @@ describe('#1125 GAP-F guard — lib/email-queue processBatch', () => {
 		const updates = callsMatching(/UPDATE email_queue/i);
 		expect(updates).toHaveLength(1);
 		expect(updates[0][0]).toMatch(/SET status = 'sent'/);
+	});
+
+	test('#1161 Finding 4: recipient mutated to a tombstoned address after getPending ⇒ guard judges the FRESH recipient and suppresses', async () => {
+		mockQueue({
+			pending: [pendingRow],
+			fresh: { 5: { id: 5, status: 'pending', recipient: 'erased@example.com' } },
+			usersByEmail: {
+				'candidate@example.com': [{ id: 7, deleted_at: null }],
+				'erased@example.com': [{ id: 8, deleted_at: new Date('2026-10-14T00:00:00Z') }],
+			},
+		});
+		await emailQueue.processBatch();
+
+		expect(processorFn).not.toHaveBeenCalled();
+		expect(callsMatching(/UPDATE email_queue/i)).toHaveLength(0);
+		// The liveness lookup must have been made against the fresh recipient.
+		const userLookups = callsMatching(/FROM users WHERE email = \$1/i);
+		expect(userLookups.map(([, params]) => params[0])).toContain('erased@example.com');
+	});
+
+	test('#1161 Finding 4: recipient mutated to a live address after getPending ⇒ guard acts on the FRESH recipient and sends to it', async () => {
+		mockQueue({
+			pending: [{ ...pendingRow, recipient: 'ghost@example.com' }],
+			fresh: { 5: { id: 5, status: 'pending', recipient: 'fresh@example.com' } },
+			usersByEmail: { 'fresh@example.com': [{ id: 9, deleted_at: null }] },
+		});
+		await emailQueue.processBatch();
+
+		expect(processorFn).toHaveBeenCalledTimes(1);
+		expect(processorFn.mock.calls[0][0]).toMatchObject({ id: 5, to: 'fresh@example.com' });
 	});
 });
 

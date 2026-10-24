@@ -64,9 +64,10 @@ export type Candidate = {
 	experienceYears?: number;
 	education?: string;
 	skills: string[];
-	matchScore?: number;
+	matchScore?: number | null;
+	matchScore_status?: 'insufficient_data' | 'measured';
 	omniScore?: number;
-	omniscore?: number;
+	omniscore?: number | null;
 	trustscore?: number;
 	isTopCandidate?: boolean;
 	applicationStatus?: 'applied' | 'screening' | 'interview' | 'offer' | 'hired' | 'rejected';
@@ -104,7 +105,7 @@ export type ProfilePreviewData = {
 	experienceYears?: number;
 	education?: string;
 	skills: PreviewSkill[];
-	matchScore?: number;
+	matchScore?: number | null;
 	omniScore?: number;
 	trustscore?: number;
 	email?: string;

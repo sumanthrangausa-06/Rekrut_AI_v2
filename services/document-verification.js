@@ -268,7 +268,15 @@ Return JSON with:
 		return {
 			tamper_detected: analysis.tamper_detected || false,
 			flagged_areas: flaggedAreas,
-			confidence: analysis.confidence || 50,
+			// #1569: never fabricate a confidence — a missing field is null
+			// (unmeasured), and a real measured 0 stays 0.
+			confidence:
+				typeof analysis.confidence === 'number' &&
+				Number.isFinite(analysis.confidence) &&
+				analysis.confidence >= 0 &&
+				analysis.confidence <= 100
+					? analysis.confidence
+					: null,
 			reasoning: analysis.reasoning || '',
 		};
 	} catch (error) {
@@ -282,7 +290,9 @@ Return JSON with:
 					details: `Visual tamper analysis failed: ${error.message}`,
 				},
 			],
-			confidence: 0,
+			// #1586: analysis never ran — confidence is unmeasured (null),
+			// never 0, which would assert "no tamper, 0 confidence".
+			confidence: null,
 			reasoning: '',
 		};
 	}
@@ -581,19 +591,31 @@ async function calculateAuthenticityScore(_extractedData, documentType, fileUrl)
 
 		const analysis = JSON.parse(response.choices[0].message.content);
 
+		// #1569: a measured score is a finite number on the 0-100 scale —
+		// preserve it exactly (a real 0 is the most suspicious result,
+		// never upgrade it). Anything else — missing, non-numeric, or
+		// off-scale — means no valid measurement happened: honest null.
+		const measured = (v) =>
+			typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100 ? v : null;
+		const authenticityScore = measured(analysis.authenticity_score);
+
 		return {
-			authenticity_score: analysis.authenticity_score || 50,
+			authenticity_score: authenticityScore,
 			fraud_flags: analysis.fraud_flags || [],
-			confidence_score: analysis.confidence || 50,
+			confidence_score: measured(analysis.confidence),
 			ai_analysis: analysis,
+			analysis_unavailable: authenticityScore === null,
 		};
 	} catch (error) {
 		console.error('Authenticity scoring error:', error);
+		// #1569: analysis failed — no score exists. Return null with an
+		// explicit unavailable state; never a fabricated mid-range 50.
 		return {
-			authenticity_score: 50,
+			authenticity_score: null,
 			fraud_flags: ['analysis_failed'],
-			confidence_score: 0,
+			confidence_score: null,
 			ai_analysis: { error: error.message },
+			analysis_unavailable: true,
 		};
 	}
 }
@@ -719,6 +741,11 @@ async function checkProfileConsistency(extractedData, userId) {
  * Calculate document score impact on OmniScore
  */
 function calculateScoreImpact(documentType, authenticityScore, fraudFlags, inconsistencies) {
+	// #1569: no real score -> no OmniScore impact until one exists.
+	if (typeof authenticityScore !== 'number' || !Number.isFinite(authenticityScore)) {
+		return 0;
+	}
+
 	const baseImpact = DOCUMENT_CONFIGS[documentType]?.score_impact || 50;
 
 	// Reduce impact based on fraud flags
@@ -814,6 +841,18 @@ async function verifyDocument(documentId, userId) {
 			...visualTamperResult.flagged_areas.map((f) => `${f.type}: ${f.details}`),
 		];
 
+		// #1569: no real authenticity score — the document can neither pass
+		// nor fail the fraud thresholds. It takes the honest pending path
+		// (pending_review + human review queue below), never 'verified'.
+		// NB: `null < 40` coerces to true in JS, so the unavailable case
+		// must be branched explicitly, never left to comparison coercion.
+		const analysisUnavailable =
+			authenticityResult.analysis_unavailable === true ||
+			authenticityResult.authenticity_score == null;
+		if (analysisUnavailable) {
+			allFraudFlags.push('analysis_unavailable');
+		}
+
 		// Determine fraud risk level — incorporate tamper detection
 		let fraudRisk = 'low';
 		const hasHighSeverityTamper =
@@ -824,13 +863,14 @@ async function verifyDocument(documentId, userId) {
 			visualTamperResult.flagged_areas.some((f) => f.severity === 'medium');
 
 		if (
-			authenticityResult.authenticity_score < 40 ||
+			(!analysisUnavailable && authenticityResult.authenticity_score < 40) ||
 			duplicateResult.is_duplicate ||
 			hasHighSeverityTamper
 		) {
 			fraudRisk = 'high';
 		} else if (
-			authenticityResult.authenticity_score < 70 ||
+			analysisUnavailable ||
+			(!analysisUnavailable && authenticityResult.authenticity_score < 70) ||
 			allFraudFlags.length > 3 ||
 			hasMediumSeverityTamper
 		) {
@@ -986,6 +1026,7 @@ async function verifyDocument(documentId, userId) {
 			score_impact: scoreImpact,
 			fraud_risk: fraudRisk,
 			authenticity_score: authenticityResult.authenticity_score,
+			analysis_unavailable: analysisUnavailable,
 			tamper_flags: metadataFlags,
 			visual_tamper: visualTamperResult,
 		};
@@ -1012,6 +1053,7 @@ async function applyDocumentScoresToOmniScore(userId) {
 			`
       SELECT * FROM document_score_impacts
       WHERE user_id = $1 AND applied_to_omniscore = false AND verification_status = 'verified'
+        AND authenticity_score IS NOT NULL
     `,
 			[userId],
 		);
@@ -1022,11 +1064,43 @@ async function applyDocumentScoresToOmniScore(userId) {
 
 		const totalImpact = impacts.rows.reduce((sum, imp) => sum + imp.score_impact, 0);
 
-		// Update OmniScore
+		// #1759: an existing row with resume_score NULL has no measured
+		// resume score to add a delta to — in SQL, NULL + $2 stays NULL, so
+		// the upsert below would swallow the delta while this function
+		// reported score_change = totalImpact, marked the impacts applied
+		// (delta lost for good) and wrote a score_history row for a change
+		// that never happened. COALESCE(resume_score, 0) + $2 is NOT the
+		// fix: it would fabricate a measured-looking resume score out of a
+		// document delta alone — the same invention #1715 refused for
+		// total_score (NULL, never 300 + impact). Instead apply nothing,
+		// leave the impacts unapplied so a later run can apply them once
+		// resume_score is measured, and report the delta as unapplied.
+		// FOR UPDATE keeps the check and the upsert below atomic.
+		const existing = await client.query(
+			'SELECT resume_score, total_score FROM omni_scores WHERE user_id = $1 FOR UPDATE',
+			[userId],
+		);
+		if (existing.rows.length > 0 && existing.rows[0].resume_score === null) {
+			await client.query('COMMIT');
+			return {
+				success: true,
+				score_change: 0,
+				applied: false,
+				unapplied_impact: totalImpact,
+				new_score: existing.rows[0].total_score,
+			};
+		}
+
+		// Update OmniScore — #1715 O2: a fresh row gets total_score NULL,
+		// never 300 + impact. 300 is the floor of a *computed* 8-factor
+		// OmniScore (services/omniscore.js #1192 contract: honest null until
+		// the engine computes a total); this writer only applies a measured
+		// document delta, carried here as resume_score. On conflict the
+		// delta still applies to a real stored total (NULL + $2 stays NULL).
 		const omniscoreResult = await client.query(
 			`
       INSERT INTO omni_scores (user_id, total_score, resume_score)
-      VALUES ($1, 300 + $2, $2)
+      VALUES ($1, NULL, $2)
       ON CONFLICT (user_id) DO UPDATE
       SET resume_score = omni_scores.resume_score + $2,
           total_score = omni_scores.total_score + $2,
@@ -1042,6 +1116,7 @@ async function applyDocumentScoresToOmniScore(userId) {
       UPDATE document_score_impacts
       SET applied_to_omniscore = true, applied_at = NOW()
       WHERE user_id = $1 AND applied_to_omniscore = false AND verification_status = 'verified'
+        AND authenticity_score IS NOT NULL
     `,
 			[userId],
 		);
@@ -1129,7 +1204,7 @@ async function resolveDocumentReview(documentId, reviewerId, decision, notes) {
 				`
 				UPDATE document_score_impacts
 				SET verification_status = 'verified'
-				WHERE document_id = $1
+				WHERE document_id = $1 AND authenticity_score IS NOT NULL
 				`,
 				[documentId],
 			);

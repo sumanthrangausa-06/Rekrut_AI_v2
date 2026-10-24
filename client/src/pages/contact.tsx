@@ -1,7 +1,6 @@
 import {
 	AlertCircle,
 	ArrowLeft,
-	CheckCircle2,
 	Clock,
 	Github,
 	Instagram,
@@ -9,20 +8,16 @@ import {
 	Mail,
 	MapPin,
 	Phone,
-	Send,
 	Twitter,
 	Youtube,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { SEO } from '@/components/SEO';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/ui/logo';
-import { Textarea } from '@/components/ui/textarea';
 import { trackEvent } from '@/lib/analytics';
 
 function Header() {
@@ -82,78 +77,15 @@ function Footer() {
 }
 
 export function ContactPage() {
-	const [submitted, setSubmitted] = useState(false);
-	const [formData, setFormData] = useState({
-		name: '',
-		email: '',
-		company: '',
-		subject: '',
-		message: '',
-	});
-	const [_errors, setErrors] = useState<Record<string, string>>({});
-	const [touched, setTouched] = useState<Record<string, boolean>>({});
-
-	function validateField(field: string, value: string): string {
-		switch (field) {
-			case 'name':
-				return value.trim().length < 2 ? 'Name must be at least 2 characters' : '';
-			case 'email':
-				return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? '' : 'Please enter a valid email';
-			case 'subject':
-				return value.trim().length < 3 ? 'Subject must be at least 3 characters' : '';
-			case 'message':
-				return value.trim().length < 10 ? 'Message must be at least 10 characters' : '';
-			default:
-				return '';
-		}
-	}
-
-	function validateAll(): boolean {
-		const newErrors: Record<string, string> = {};
-		let hasError = false;
-		['name', 'email', 'subject', 'message'].forEach((field) => {
-			const error = validateField(field, formData[field as keyof typeof formData]);
-			if (error) {
-				newErrors[field] = error;
-				hasError = true;
-			}
-		});
-		setErrors(newErrors);
-		return !hasError;
-	}
-
 	useEffect(() => {
 		trackEvent('page_view_contact');
 	}, []);
-
-	const handleSubmit = (e: React.FormEvent) => {
-		e.preventDefault();
-		setTouched({ name: true, email: true, subject: true, message: true });
-		if (!validateAll()) return;
-		trackEvent('contact_form_submit', { subject: formData.subject });
-		setSubmitted(true);
-	};
-
-	const handleChange = (field: string, value: string) => {
-		setFormData((prev) => ({ ...prev, [field]: value }));
-		if (touched[field]) {
-			setErrors((prev) => ({ ...prev, [field]: validateField(field, value) }));
-		}
-	};
-
-	const _handleBlur = (field: string) => {
-		setTouched((prev) => ({ ...prev, [field]: true }));
-		setErrors((prev) => ({
-			...prev,
-			[field]: validateField(field, formData[field as keyof typeof formData]),
-		}));
-	};
 
 	return (
 		<div className="min-h-dvh-safe bg-background">
 			<SEO
 				title="Contact Us — We Would Love to Hear From You"
-				description="Reach out to Rekrut AI for support, partnerships, press inquiries, or general questions. Email us at hello@rekrutai.co or use our contact form."
+				description="Reach out to Rekrut AI for support, partnerships, press inquiries, or general questions. Email us at hello@rekrutai.co."
 				canonical="/contact"
 			/>
 			<Header />
@@ -236,102 +168,31 @@ export function ContactPage() {
 					</div>
 				</section>
 
-				{/* Form + Social */}
+				{/* Email + Social */}
 				<section className="py-20 sm:py-24">
 					<div className="mx-auto max-w-7xl px-4">
 						<div className="grid gap-12 lg:grid-cols-5">
-							{/* Form */}
+							{/* Email us — the one contact path that actually delivers */}
 							<div className="lg:col-span-3">
 								<Card className="border-0 bg-card shadow-sm">
 									<CardContent className="p-8">
-										{submitted ? (
-											<div className="text-center py-8">
-												<div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10">
-													<CheckCircle2 className="h-8 w-8 text-green-600" />
-												</div>
-												<h3 className="mt-6 font-heading text-xl font-semibold">Message sent</h3>
-												<p className="mt-2 text-muted-foreground">
-													Thank you for reaching out. We typically respond within 24 hours.
-												</p>
-												<Button
-													variant="outline"
-													className="mt-6"
-													onClick={() => {
-														setSubmitted(false);
-														setFormData({
-															name: '',
-															email: '',
-															company: '',
-															subject: '',
-															message: '',
-														});
-													}}
-												>
-													Send another message
-												</Button>
-											</div>
-										) : (
-											<form onSubmit={handleSubmit} className="space-y-6">
-												<h3 className="font-heading text-xl font-semibold">Send us a message</h3>
-												<div className="grid gap-6 sm:grid-cols-2">
-													<div className="space-y-2">
-														<Label htmlFor="name">Name</Label>
-														<Input
-															id="name"
-															placeholder="Your name"
-															required
-															value={formData.name}
-															onChange={(e) => handleChange('name', e.target.value)}
-														/>
-													</div>
-													<div className="space-y-2">
-														<Label htmlFor="email">Email</Label>
-														<Input
-															id="email"
-															type="email"
-															placeholder="you@company.com"
-															required
-															value={formData.email}
-															onChange={(e) => handleChange('email', e.target.value)}
-														/>
-													</div>
-												</div>
-												<div className="space-y-2">
-													<Label htmlFor="company">Company (optional)</Label>
-													<Input
-														id="company"
-														placeholder="Your company name"
-														value={formData.company}
-														onChange={(e) => handleChange('company', e.target.value)}
-													/>
-												</div>
-												<div className="space-y-2">
-													<Label htmlFor="subject">Subject</Label>
-													<Input
-														id="subject"
-														placeholder="What is this about?"
-														required
-														value={formData.subject}
-														onChange={(e) => handleChange('subject', e.target.value)}
-													/>
-												</div>
-												<div className="space-y-2">
-													<Label htmlFor="message">Message</Label>
-													<Textarea
-														id="message"
-														placeholder="Tell us how we can help..."
-														rows={5}
-														required
-														value={formData.message}
-														onChange={(e) => handleChange('message', e.target.value)}
-													/>
-												</div>
-												<Button type="submit" className="w-full gap-2">
-													<Send className="h-4 w-4" />
-													Send message
-												</Button>
-											</form>
-										)}
+										<h3 className="font-heading text-xl font-semibold">Email us</h3>
+										<p className="mt-2 text-muted-foreground">
+											The fastest way to reach the Rekrut AI team is email. Write to us and we
+											will reply from a real inbox.
+										</p>
+										<a
+											href="mailto:hello@rekrutai.co"
+											className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+											onClick={() => trackEvent('contact_email_cta_click')}
+										>
+											<Mail className="h-4 w-4" />
+											hello@rekrutai.co
+										</a>
+										<p className="mt-4 text-sm text-muted-foreground">
+											Support hours: Mon – Fri, 9AM – 6PM IST. We typically respond within one
+											business day.
+										</p>
 									</CardContent>
 								</Card>
 							</div>

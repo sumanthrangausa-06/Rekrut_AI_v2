@@ -62,10 +62,21 @@ interface AttemptResult {
 		fit_notes: string;
 		suggested_interview_focus: string[];
 	} | null;
-	anti_cheat_score: number;
+	anti_cheat_score: number | null;
 	status: string;
 	completed_at: string;
 	scored_at: string;
+	completion_flags?: {
+		partial?: boolean;
+		answers_given?: number;
+		total_questions?: number;
+		fullscreen_auto_submit?: boolean;
+	} | null;
+	scores?: {
+		unscored?: boolean;
+		unscored_reason?: string;
+		compositeScore?: number | null;
+	} | string | null;
 	time_spent_seconds: number;
 	candidate_name: string;
 	candidate_email: string;
@@ -255,6 +266,30 @@ export function RecruiterJobAssessmentPage() {
 			? JSON.parse(assessment.categories)
 			: assessment.categories || [];
 	const completedResults = results.filter((r) => r.scored_at);
+	// Phase B (#1605, JT-B10): abandoned attempts are never scored — they
+	// are excluded from the scored results above and shown separately with
+	// an honest label: no zero, no fail, no score.
+	const exitedResults = results.filter((r) => r.status === 'abandoned');
+	// Fix round F4: a Submit & Exit with ZERO answers completes the attempt
+	// but there is nothing to score — scored_at stays NULL, so without this
+	// bucket the attempt vanished from every recruiter list. It is shown
+	// with the exited attempts, honestly labelled: not scored, no number.
+	// Delta re-review (F4 remainder): `completed && !scored_at` alone also
+	// matches attempts still in the scoring window and attempts whose
+	// scoring failed (scored_at stays NULL by design) — candidates who DID
+	// answer. Restrict the bucket to the terminal zero-answer state using
+	// the discriminators already in the payload: completion_flags
+	// .answers_given === 0 and/or scores.unscored === true (scoreAttempt
+	// writes the latter only for zero-answer attempts).
+	const unscoredResults = results.filter((r) => {
+		if (r.status !== 'completed' || r.scored_at) return false;
+		const cf =
+			typeof r.completion_flags === 'string'
+				? JSON.parse(r.completion_flags as unknown as string)
+				: r.completion_flags;
+		const sc = typeof r.scores === 'string' ? JSON.parse(r.scores) : r.scores;
+		return cf?.answers_given === 0 || sc?.unscored === true;
+	});
 
 	return (
 		<div className="space-y-5">
@@ -490,6 +525,31 @@ export function RecruiterJobAssessmentPage() {
 			{/* Results Tab */}
 			{tab === 'results' && (
 				<div className="space-y-3">
+					{(exitedResults.length > 0 || unscoredResults.length > 0) && (
+						<Card>
+							<CardContent className="pt-4 space-y-2">
+								<p className="font-medium text-sm">Exited attempts</p>
+								{exitedResults.map((r) => (
+									<div key={r.id} className="flex items-center justify-between text-sm">
+										<span>
+											{r.candidate_name || 'Unknown'}{' '}
+											<span className="text-muted-foreground">{r.candidate_email}</span>
+										</span>
+										<Badge variant="secondary">Candidate exited — not scored</Badge>
+									</div>
+								))}
+								{unscoredResults.map((r) => (
+									<div key={r.id} className="flex items-center justify-between text-sm">
+										<span>
+											{r.candidate_name || 'Unknown'}{' '}
+											<span className="text-muted-foreground">{r.candidate_email}</span>
+										</span>
+										<Badge variant="secondary">Submitted with no answers — not scored</Badge>
+									</div>
+								))}
+							</CardContent>
+						</Card>
+					)}
 					{completedResults.length === 0 ? (
 						<Card>
 							<CardContent className="py-12 text-center">
@@ -520,12 +580,31 @@ export function RecruiterJobAssessmentPage() {
 											</div>
 											<div className="flex items-center gap-2">
 												<div className="text-right">
-													<p
-														className={`text-2xl font-bold ${(r.composite_score || 0) >= 70 ? 'text-green-600' : (r.composite_score || 0) >= 50 ? 'text-amber-600' : 'text-red-500'}`}
-													>
-														{Math.round(r.composite_score || 0)}%
-													</p>
-													<p className="text-[10px] text-muted-foreground">Composite Score</p>
+													{(() => {
+														const cf =
+															typeof r.completion_flags === 'string'
+																? JSON.parse(r.completion_flags as unknown as string)
+																: r.completion_flags;
+														return cf?.partial ? (
+															<>
+																<Badge variant="secondary">
+																	Partial — answered {cf.answers_given} of {cf.total_questions}
+																</Badge>
+																<p className="text-[10px] text-muted-foreground mt-1">
+																	Score over answered questions: {Math.round(r.composite_score || 0)}
+																</p>
+															</>
+														) : (
+															<>
+																<p
+																	className={`text-2xl font-bold ${(r.composite_score || 0) >= 70 ? 'text-green-600' : (r.composite_score || 0) >= 50 ? 'text-amber-600' : 'text-red-500'}`}
+																>
+																	{Math.round(r.composite_score || 0)}%
+																</p>
+																<p className="text-[10px] text-muted-foreground">Composite Score</p>
+															</>
+														);
+													})()}
 												</div>
 												{summary && (
 													<Badge className={`border ${recColors[rec] || 'bg-gray-100'}`}>
@@ -598,9 +677,11 @@ export function RecruiterJobAssessmentPage() {
 												<Clock className="h-3 w-3 inline" />{' '}
 												{Math.round((r.time_spent_seconds || 0) / 60)} min
 											</span>
+											{r.anti_cheat_score != null && (
 											<span>
 												<Shield className="h-3 w-3 inline" /> Integrity: {r.anti_cheat_score}%
 											</span>
+											)}
 											<span className="ml-auto">
 												{r.scored_at ? new Date(r.scored_at).toLocaleDateString() : ''}
 											</span>

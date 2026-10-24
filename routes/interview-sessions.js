@@ -103,6 +103,8 @@ function toCandidateSafeReport(report) {
 		overall_score: report.overall_score ?? null,
 		recommendation: report.recommendation ?? null,
 		recommendation_reasoning: report.recommendation_reasoning ?? null,
+		analysis_unavailable: report.analysis_unavailable ?? null,
+		note: report.note ?? null,
 		strengths: report.strengths || [],
 		red_flags: report.red_flags || [],
 		dimension_scores: report.dimension_scores || {},

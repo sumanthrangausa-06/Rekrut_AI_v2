@@ -222,7 +222,9 @@ export function CandidateDashboard() {
 			href: '/candidate/profile',
 			icon: User,
 			color: 'text-indigo-600 bg-indigo-100',
-			desc: `${stats?.profile_completeness || 0}% complete`,
+			// #1601 (FR-P3): unknown (stats not loaded) shows no percentage —
+			// never a fabricated 0%.
+			desc: stats ? `${stats.profile_completeness}% complete` : 'Complete your profile',
 		},
 		{
 			label: 'Practice Interview',

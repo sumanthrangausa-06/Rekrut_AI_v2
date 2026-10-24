@@ -21,7 +21,7 @@ interface AttemptDetail {
 	score: number;
 	max_score: number;
 	percentile: number | null;
-	anti_cheat_score: number;
+	anti_cheat_score: number | null;
 	passed: boolean;
 	status: string;
 	time_spent_seconds: number;
@@ -41,7 +41,8 @@ interface DetailedAnswer {
 	questionText?: string;
 	answer: string;
 	correctAnswer?: string | null;
-	isCorrect: boolean;
+	// null = not yet evaluated (pending_manual_review, #1572) — never render as incorrect (#1609)
+	isCorrect: boolean | null;
 	timeTaken: number;
 	category?: string | null;
 	difficulty?: number | null;
@@ -82,7 +83,7 @@ export function CandidateAptitudeTestResultsPage() {
 				String(a.difficulty || ''),
 				a.answer,
 				a.correctAnswer || '',
-				a.isCorrect ? 'Correct' : 'Incorrect',
+				a.isCorrect === null ? 'Pending review' : a.isCorrect ? 'Correct' : 'Incorrect',
 				String(a.timeTaken || 0),
 			]),
 		];
@@ -207,6 +208,7 @@ export function CandidateAptitudeTestResultsPage() {
 						</CardContent>
 					</Card>
 				)}
+				{attempt.anti_cheat_score != null && (
 				<Card>
 					<CardContent className="p-4 text-center">
 						<Shield className="mx-auto h-5 w-5 text-muted-foreground mb-1" />
@@ -224,6 +226,7 @@ export function CandidateAptitudeTestResultsPage() {
 						<p className="text-xs text-muted-foreground">Integrity</p>
 					</CardContent>
 				</Card>
+				)}
 			</div>
 
 			{/* Anti-cheat flags */}
@@ -292,9 +295,11 @@ export function CandidateAptitudeTestResultsPage() {
 							<div
 								key={idx}
 								className={`rounded-lg border p-3 ${
-									answer.isCorrect
-										? 'border-emerald-200 bg-emerald-50/50'
-										: 'border-red-200 bg-red-50/50'
+									answer.isCorrect === null
+										? 'border-border bg-muted/50'
+										: answer.isCorrect
+											? 'border-emerald-200 bg-emerald-50/50'
+											: 'border-red-200 bg-red-50/50'
 								}`}
 							>
 								<div className="flex items-start justify-between mb-1">
@@ -310,7 +315,11 @@ export function CandidateAptitudeTestResultsPage() {
 										{answer.timeTaken > 0 && (
 											<span className="text-xs text-muted-foreground">{answer.timeTaken}s</span>
 										)}
-										{answer.isCorrect ? (
+										{answer.isCorrect === null ? (
+											<span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+												<Clock className="h-4 w-4" /> Pending review
+											</span>
+										) : answer.isCorrect ? (
 											<CheckCircle className="h-4 w-4 text-emerald-500" />
 										) : (
 											<XCircle className="h-4 w-4 text-destructive" />
@@ -323,11 +332,19 @@ export function CandidateAptitudeTestResultsPage() {
 								<div className="text-xs space-y-1">
 									<p>
 										<span className="text-muted-foreground">Your answer: </span>
-										<span className={answer.isCorrect ? 'text-emerald-700' : 'text-destructive'}>
+										<span
+											className={
+												answer.isCorrect === null
+													? 'text-muted-foreground'
+													: answer.isCorrect
+														? 'text-emerald-700'
+														: 'text-destructive'
+											}
+										>
 											{answer.answer}
 										</span>
 									</p>
-									{!answer.isCorrect && answer.correctAnswer && (
+									{answer.isCorrect === false && answer.correctAnswer && (
 										<p>
 											<span className="text-muted-foreground">Correct: </span>
 											<span className="text-emerald-700">{answer.correctAnswer}</span>

@@ -157,7 +157,9 @@ async function analyzeObserverSession({ session, qaPairs, rubricWeights, job = {
 		{ rubricWeights: weights, rubricSource: source },
 	);
 
-	report.rubric_weights_used = weights;
+	// #1512: on the honest unavailable report nothing was scored, so the
+	// weights were not used — stamping them would be a false claim.
+	report.rubric_weights_used = report.analysis_unavailable ? null : weights;
 	report.rubric_source = source;
 
 	// Multi-evaluator scoring in the background — mirrors the screening

@@ -447,58 +447,52 @@ Return ONLY valid JSON with this structure:
 		const match = text.match(/\{[\s\S]*\}/);
 		if (match) {
 			const report = JSON.parse(match[0]);
-			return report;
+			if (report && typeof report.overall_score === 'number') {
+				return report;
+			}
+			console.error(
+				'[screening] AI report had no numeric overall_score — treating as unavailable',
+			);
+		} else {
+			console.error('[screening] AI report output had no JSON object — treating as unavailable');
 		}
 	} catch (err) {
 		console.error('[screening] AI report generation failed:', err.message);
 	}
 
-	// Fallback basic report
-	const avgResponseLen =
-		responses.reduce((sum, r) => sum + (r?.response_text?.length || 0), 0) /
-		Math.max(responses.length, 1);
-	const answeredCount = responses.filter((r) => r?.response_text?.length > 20).length;
-	const completionRate = (answeredCount / Math.max(questions.length, 1)) * 100;
-	const baseScore = Math.min(
-		100,
-		Math.round(completionRate * 0.6 + Math.min(avgResponseLen / 5, 40)),
-	);
-
+	// #1512: AI analysis unavailable — return the honest unavailable state.
+	// No analysis happened, so every score is null and there is no
+	// recommendation; never fabricate numbers from answer length or
+	// completion (no-fabricated-numbers standard; #1505 precedent, and the
+	// human-no-observer report shape in routes/interview-sessions.js).
+	// Evaluative arrays stay empty: any answered/completed count derives
+	// from `responses` only, which conversation-sourced callers pass as []
+	// structurally — a "did not answer" claim here could be false.
+	const UNAVAILABLE = 'AI analysis unavailable — no score or recommendation assigned.';
 	return {
-		question_scores: questions.map((q, i) => {
-			const text = responses[i]?.response_text || '';
-			// Deterministic heuristic: length + keyword overlap with evaluation criteria.
-			// This is a degraded fallback (AI unavailable) — scores effort, not quality.
-			let s = 0;
-			if (text.length > 20) s = 40;
-			if (text.length > 100) s = 55;
-			if (text.length > 250) s = 65;
-			const criteria = (q.evaluation_criteria || []).join(' ').toLowerCase();
-			if (criteria && text.length > 50) {
-				const words = new Set(text.toLowerCase().split(/\W+/));
-				const hits = criteria.split(/\W+/).filter((w) => w.length > 4 && words.has(w)).length;
-				s = Math.min(85, s + hits * 5);
-			}
-			return {
-				question_index: i,
-				score: text ? s : 0,
-				feedback: text ? 'Response provided (AI analysis unavailable)' : 'No response',
-			};
-		}),
+		question_scores: questions.map((q, i) => ({
+			question_index: i,
+			score: null,
+			feedback: responses[i]?.response_text
+				? 'Response provided (AI analysis unavailable)'
+				: 'AI analysis unavailable',
+		})),
 		communication_clarity: {
-			score: baseScore,
-			feedback: 'AI analysis unavailable — basic scoring applied',
+			score: null,
+			feedback: 'AI analysis unavailable — no score assigned',
 		},
 		technical_depth: {
-			score: baseScore,
-			feedback: 'AI analysis unavailable — basic scoring applied',
+			score: null,
+			feedback: 'AI analysis unavailable — no score assigned',
 		},
-		confidence_enthusiasm: { score: baseScore, indicators: ['Completed screening'] },
-		red_flags: answeredCount < questions.length ? ['Did not answer all questions'] : [],
-		strengths: answeredCount > 0 ? ['Completed the screening'] : [],
-		overall_score: baseScore,
-		recommendation: baseScore >= 70 ? 'advance' : baseScore >= 50 ? 'consider' : 'decline',
-		recommendation_reasoning: `Candidate answered ${answeredCount}/${questions.length} questions. AI detailed analysis unavailable at this time.`,
+		confidence_enthusiasm: { score: null, indicators: [] },
+		red_flags: [],
+		strengths: [],
+		overall_score: null,
+		recommendation: null,
+		recommendation_reasoning: UNAVAILABLE,
+		analysis_unavailable: true,
+		note: UNAVAILABLE,
 	};
 }
 

@@ -777,9 +777,9 @@ router.get('/compliance/decisions', requireAdmin, async (req, res) => {
         al.target_id as job_id,
         j.title as job_title,
         COALESCE(al.metadata->>'model', 'unknown') as ai_model,
-        COALESCE((al.metadata->>'confidence')::float, 0.85) as confidence,
-        COALESCE(al.metadata->>'decision', 'processed') as decision,
-        COALESCE(al.metadata->>'explanation', 'AI processed this record') as explanation,
+        (al.metadata->>'confidence')::float as confidence,
+        COALESCE(al.metadata->>'decision', 'not recorded') as decision,
+        COALESCE(al.metadata->>'explanation', 'not recorded') as explanation,
         COALESCE(al.metadata->>'human_reviewed', 'false')::boolean as human_reviewed,
         COALESCE(al.metadata->>'human_reviewer', null) as human_reviewer,
         COALESCE(al.metadata->>'human_override', 'false')::boolean as human_override,
@@ -1039,7 +1039,7 @@ router.get('/compliance/explanations', requireAdmin, async (req, res) => {
         COALESCE(al.metadata->>'explanation_type', 'unknown') as explanation_type,
         COALESCE(al.metadata->>'explanation_summary', 'Explanation viewed') as explanation_summary,
         COALESCE(al.metadata->>'model_version', 'unknown') as model_version,
-        COALESCE(al.metadata->>'confidence', '0.85')::float as confidence,
+        (al.metadata->>'confidence')::float as confidence,
         al.ip_address as viewed_from_ip
       FROM audit_logs al
       LEFT JOIN users au ON al.user_id = au.id
@@ -1127,7 +1127,7 @@ router.get('/compliance/overrides', requireAdmin, async (req, res) => {
 			overrideReason: row.override_reason || 'No reason provided',
 			jobTitle: row.job_title || 'N/A',
 			aiModel: row.ai_model || 'unknown',
-			aiConfidence: parseFloat(row.ai_confidence || 0.85),
+			aiConfidence: row.ai_confidence == null ? null : parseFloat(row.ai_confidence),
 			overrideFromIp: row.override_from_ip,
 		}));
 
@@ -1154,7 +1154,7 @@ router.get('/compliance/overrides', requireAdmin, async (req, res) => {
 				totalOverrides: parseInt(stats.total_overrides || 0, 10),
 				uniqueRecruiters: parseInt(stats.unique_recruiters || 0, 10),
 				uniqueCandidates: parseInt(stats.unique_candidates || 0, 10),
-				avgAiConfidence: parseFloat(stats.avg_ai_confidence || 0.85).toFixed(2),
+				avgAiConfidence: stats.avg_ai_confidence == null ? null : parseFloat(stats.avg_ai_confidence).toFixed(2),
 			},
 		});
 	} catch (error) {
@@ -1414,9 +1414,9 @@ router.post('/compliance/export', requireAdmin, async (req, res) => {
         al.target_id as job_id,
         j.title as job_title,
         COALESCE(al.metadata->>'model', 'unknown') as ai_model,
-        COALESCE((al.metadata->>'confidence')::float, 0.85) as confidence,
-        COALESCE(al.metadata->>'decision', 'processed') as decision,
-        COALESCE(al.metadata->>'explanation', 'AI processed this record') as explanation,
+        (al.metadata->>'confidence')::float as confidence,
+        COALESCE(al.metadata->>'decision', 'not recorded') as decision,
+        COALESCE(al.metadata->>'explanation', 'not recorded') as explanation,
         COALESCE(al.metadata->>'human_reviewed', 'false')::boolean as human_reviewed,
         COALESCE(al.metadata->>'human_reviewer', null) as human_reviewer,
         COALESCE(al.metadata->>'human_override', 'false')::boolean as human_override,
@@ -1625,15 +1625,21 @@ router.get('/compliance/transparency-report', requireAdmin, async (_req, res) =>
 			description: row.description,
 		}));
 
-		// OmniScore performance metrics
+		// OmniScore performance metrics (#1526 R9: live source is omni_scores;
+		// total_score is native 300-850, NULL = no data. COUNT(total_score)
+		// excludes NULL totals; AVG over no scores is NULL, kept honest-null
+		// below — an average of nothing is "insufficient data", never 0.)
 		const omniResult = await pool.query(`
-			SELECT AVG(overall_score) as avg_score,
-				   COUNT(*) as total_scores
-			FROM omniscore_results
-			WHERE overall_score IS NOT NULL
+			SELECT AVG(total_score) as avg_score,
+				   COUNT(total_score) as total_scores
+			FROM omni_scores
 		`);
 
-		const avgOmniScore = parseFloat(omniResult.rows[0]?.avg_score) || 0;
+		const rawAvgOmniScore = omniResult.rows[0]?.avg_score;
+		const avgOmniScore =
+			rawAvgOmniScore === null || rawAvgOmniScore === undefined
+				? null
+				: parseFloat(rawAvgOmniScore);
 		const totalScores = parseInt(omniResult.rows[0]?.total_scores, 10) || 0;
 
 		res.json({
@@ -1651,7 +1657,7 @@ router.get('/compliance/transparency-report', requireAdmin, async (_req, res) =>
 			aiComponents,
 			performanceMetrics: {
 				totalDecisions,
-				avgOmniScore: Math.round(avgOmniScore * 100) / 100,
+				avgOmniScore: avgOmniScore === null ? null : Math.round(avgOmniScore * 100) / 100,
 				totalScores,
 				overrideRate: Math.round(overrideRate * 10000) / 10000,
 				periodDays: 'all_time',
@@ -1777,7 +1783,7 @@ router.get('/compliance/performance', requireAdmin, async (_req, res) => {
       SELECT
         COALESCE(metadata->>'model', 'unknown') as model,
         COUNT(*) as decisions,
-        AVG(COALESCE((metadata->>'confidence')::float, 0.85)) as avg_confidence,
+        AVG((metadata->>'confidence')::float) as avg_confidence,
         SUM(CASE WHEN metadata->>'human_override' = 'true' THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0) as override_rate
       FROM audit_logs
       WHERE (action_type LIKE 'ai_%'
@@ -1796,20 +1802,26 @@ router.get('/compliance/performance', requireAdmin, async (_req, res) => {
 		const modelPerformance = modelResult.rows.map((row) => ({
 			model: row.model,
 			decisions: parseInt(row.decisions, 10),
-			avgConfidence: parseFloat(row.avg_confidence) || 0,
+			avgConfidence: row.avg_confidence == null ? null : parseFloat(row.avg_confidence),
 			overrideRate: parseFloat(row.override_rate) || 0,
 		}));
 
-		// Score distribution from omniscore_results (0-100 buckets of 10)
+		// Score distribution from omni_scores (#1526 R10: buckets are a
+		// normalised 0-100 index, converted once at the SQL boundary —
+		// norm = (total_score - 300) / 5.5, bucket = FLOOR(norm / 10) * 10.
+		// Window timestamp: omni_scores.last_updated replaces the dead
+		// table's created_at — last_updated is stamped on every score
+		// calculation, while omni_scores.created_at is row creation, when
+		// the score is still NULL.)
 		const scoreDistResult = await pool.query(
 			`
       SELECT
-        FLOOR(overall_score / 10) * 10 as bucket,
+        FLOOR(((total_score - 300) / 5.5) / 10) * 10 as bucket,
         COUNT(*) as count
-      FROM omniscore_results
-      WHERE overall_score IS NOT NULL
-        AND created_at >= $1
-      GROUP BY FLOOR(overall_score / 10) * 10
+      FROM omni_scores
+      WHERE total_score IS NOT NULL
+        AND last_updated >= $1
+      GROUP BY FLOOR(((total_score - 300) / 5.5) / 10) * 10
       ORDER BY bucket
     `,
 			[startDate],
@@ -2766,14 +2778,20 @@ router.get('/agents/stats', requireAdmin, async (_req, res) => {
 
 		const avgDurationResult = await safeQuery(
 			`
-			SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (ended_at - started_at)))::int, 0) as avg_duration
+			SELECT AVG(EXTRACT(EPOCH FROM (ended_at - started_at)))::int as avg_duration
 			FROM agent_data
 			WHERE ended_at IS NOT NULL AND started_at >= $1
 			`,
 			[oneDayAgo],
-			{ rows: [{ avg_duration: 0 }] },
+			{ rows: [{ avg_duration: null }] },
 		);
-		const avgDuration = parseInt(avgDurationResult.rows[0]?.avg_duration, 10) || 0;
+		// #1625 — AVG is NULL when no run has completed: that is "not
+		// measured", reported as null, never a fabricated 0. A measured
+		// average (including a genuine 0) passes through unchanged.
+		const avgDurationRaw = avgDurationResult.rows[0]?.avg_duration;
+		const avgDurationParsed =
+			avgDurationRaw == null ? null : parseInt(avgDurationRaw, 10);
+		const avgDuration = Number.isNaN(avgDurationParsed) ? null : avgDurationParsed;
 
 		const queueDepthResult = await safeQuery(
 			"SELECT COUNT(*) as count FROM agent_data WHERE status = 'queued'",

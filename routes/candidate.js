@@ -27,6 +27,7 @@ const { notifyUser } = require('../lib/notify');
 const { insertAuditLog } = require('./audit');
 const { checkFeatureAccess, incrementUsage } = require('../lib/subscription');
 const { captureApplicationIp } = require('../lib/applicationIpCapture');
+const { companySizeRanges } = require('../lib/company-size');
 const calendarService = require('../server/services/calendar-service');
 
 let matchingEngine;
@@ -2379,22 +2380,21 @@ router.delete('/projects/:id', authMiddleware, async (req, res) => {
 router.get('/jobs', authMiddleware, async (req, res) => {
 	try {
 		const userId = req.user.id;
-		const {
-			search,
-			location,
-			job_type,
-			salary_min,
-			salary_max,
-			remoteType,
-			experienceLevel,
-			skills,
-			companySize,
-			sortBy = 'newest',
-			limit = 20,
-			offset = 0,
-			page,
-			pageSize,
-		} = req.query;
+		const { search, location, salary_min, salary_max, skills, limit = 20, offset = 0, page, pageSize } =
+			req.query;
+
+		// #1600: the Job Board client sends snake_case names (type, remote_type,
+		// experience_level, company_size, sort_by). Accept them as aliases of the
+		// legacy names so no rendered filter is silently ignored server-side.
+		// #1634: non-empty coalesce — `??` let an empty legacy param
+		// (`?job_type=&type=full-time`) defeat the alias and silently drop
+		// the filter.
+		const pickParam = (...vals) => vals.find((v) => v !== undefined && v !== null && v !== '');
+		const job_type = pickParam(req.query.job_type, req.query.type);
+		const remoteType = pickParam(req.query.remoteType, req.query.remote_type);
+		const experienceLevel = pickParam(req.query.experienceLevel, req.query.experience_level);
+		const companySize = pickParam(req.query.companySize, req.query.company_size);
+		const sortBy = pickParam(req.query.sortBy, req.query.sort_by) || 'newest';
 
 		// Support both page-based and offset-based pagination
 		const pageLimit = Math.min(parseInt(pageSize, 10) || parseInt(limit, 10) || 20, 50);
@@ -2459,9 +2459,22 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 			}
 		}
 		if (companySize) {
-			whereClause += ` AND c.company_size = $${paramIndex}`;
-			params.push(companySize);
-			paramIndex++;
+			// #1634: the JobFilterBar sends bucket labels (startup/small/
+			// medium/large) but companies.company_size stores ranges —
+			// exact equality returned zero jobs for every selection.
+			// Translate a bucket to its stored range set; any other value
+			// (e.g. a raw range) keeps exact-match behaviour.
+			const ranges = companySizeRanges(companySize);
+			if (ranges) {
+				const placeholders = ranges.map((_, i) => `$${paramIndex + i}`).join(', ');
+				whereClause += ` AND c.company_size IN (${placeholders})`;
+				params.push(...ranges);
+				paramIndex += ranges.length;
+			} else {
+				whereClause += ` AND c.company_size = $${paramIndex}`;
+				params.push(companySize);
+				paramIndex++;
+			}
 		}
 
 		// ORDER BY clause
@@ -3781,7 +3794,14 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 			stats: {
 				omniscore:
 					v.omni_score != null
-						? { total_score: v.omni_score, score_tier: v.score_tier }
+						? {
+								total_score: v.omni_score,
+								// #1787: the view carries the STORED metal tier;
+								// the dashboard renders this field as the tier
+								// label, so translate metal → label at the read
+								// boundary (592 stored 'bronze' must read 'fair').
+								score_tier: omniscoreService.labelFromDbTier(v.score_tier),
+							}
 						: { total_score: null, score_tier: null },
 				profile_completeness: completeness,
 				missing_sections: missingSections,
@@ -3894,9 +3914,17 @@ router.put('/interviews/:id/decline', authMiddleware, async (req, res) => {
 	try {
 		const { reason } = req.body;
 
+		// #1783: outcome is a closed evaluation vocabulary
+		// (chk_scheduled_interviews_outcome: passed/failed/pending_review/
+		// no_decision/NULL) — the free-text decline reason can never live
+		// there (PG 23514 on a migrated DB). A declined interview has no
+		// outcome (NULL); the reason goes to notes, the same lawful column
+		// the reschedule route below appends candidate reasons to.
 		const result = await pool.query(
 			`UPDATE scheduled_interviews
-       SET status = 'cancelled', outcome = $3, updated_at = NOW()
+       SET status = 'cancelled', outcome = NULL,
+           notes = COALESCE(notes, '') || E'\n[Declined] ' || $3,
+           updated_at = NOW()
        WHERE id = $1 AND candidate_id = $2 AND status IN ('scheduled', 'confirmed')
        RETURNING *`,
 			[req.params.id, req.user.id, reason || 'Candidate declined'],
@@ -5792,7 +5820,7 @@ async function fetchLinkedInProfile(accessToken) {
 	const headers = { Authorization: `Bearer ${accessToken}` };
 
 	// 1. OpenID Connect userinfo — always available with `openid profile email` scope
-	const userinfoRes = await fetch('https://api.linkedin.com/v2/userinfo', { headers });
+	const userinfoRes = await fetch('https://api.linkedin.com/v2/userinfo', { headers, signal: AbortSignal.timeout(5000) });
 	if (!userinfoRes.ok) {
 		const errBody = await userinfoRes.text().catch(() => '');
 		throw new Error(`LinkedIn userinfo failed: ${userinfoRes.status} ${errBody}`);
@@ -5959,6 +5987,24 @@ async function mergeLinkedInProfile(userId, linkedinProfile) {
 			updated_at = NOW()
 		`,
 		[userId, linkedinProfile.headline, linkedinProfile.summary, linkedinProfile.picture],
+	);
+
+	// 2b. One avatar value (#1638): the header reads users.avatar_url, so a
+	// photo sitting on candidate_profiles.photo_url must also fill
+	// users.avatar_url — otherwise an imported picture never reaches the
+	// header (same divergence class as #1608). Fill-gaps only, like the
+	// rest of this merge: an existing avatar is never overwritten, and the
+	// value copied is the profile's effective photo_url.
+	await pool.query(
+		`
+		UPDATE users u
+		SET avatar_url = cp.photo_url, updated_at = NOW()
+		FROM candidate_profiles cp
+		WHERE cp.user_id = u.id AND u.id = $1
+			AND (u.avatar_url IS NULL OR TRIM(u.avatar_url) = '')
+			AND cp.photo_url IS NOT NULL AND TRIM(cp.photo_url) <> ''
+		`,
+		[userId],
 	);
 	summary.profile_updated = true;
 

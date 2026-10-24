@@ -31,7 +31,7 @@ interface AssessmentResult {
 	score: number;
 	max_score: number;
 	passed: boolean;
-	anti_cheat_score: number;
+	anti_cheat_score: number | null;
 	duration_seconds: number;
 	completed_at: string;
 	title: string;
@@ -65,7 +65,8 @@ interface Stats {
 interface DetailedAnswer {
 	questionId: number;
 	answer: string;
-	isCorrect: boolean;
+	// null = not yet evaluated (pending_manual_review, #1572) — never render as incorrect (#1584)
+	isCorrect: boolean | null;
 	scorePoints: number;
 	timeTaken: number;
 	aiFeedback?: string;
@@ -114,7 +115,7 @@ interface JobAssessmentResult {
 		strengths: string[];
 		weaknesses: string[];
 	} | null;
-	anti_cheat_score: number;
+	anti_cheat_score: number | null;
 	status: string;
 	completed_at: string;
 	scored_at: string;
@@ -380,9 +381,11 @@ export function RecruiterAssessmentsPage() {
 														<Clock className="h-3 w-3 inline" />{' '}
 														{Math.round((r.time_spent_seconds || 0) / 60)} min
 													</span>
+													{r.anti_cheat_score != null && (
 													<span>
 														<Shield className="h-3 w-3 inline" /> Integrity: {r.anti_cheat_score}%
 													</span>
+													)}
 													<Button
 														variant="ghost"
 														size="sm"
@@ -480,7 +483,7 @@ export function RecruiterAssessmentsPage() {
 															<XCircle className="h-3 w-3" /> Failed
 														</Badge>
 													)}
-													{a.anti_cheat_score < 70 && (
+													{a.anti_cheat_score != null && a.anti_cheat_score < 70 && (
 														<Badge
 															variant="outline"
 															className="gap-1 text-amber-600 border-amber-300 shrink-0"
@@ -506,10 +509,12 @@ export function RecruiterAssessmentsPage() {
 														<Clock className="h-3 w-3" />
 														{Math.round((a.duration_seconds || 0) / 60)}m
 													</span>
+													{a.anti_cheat_score != null && (
 													<span className="flex items-center gap-1">
 														<Shield className="h-3 w-3" />
 														{a.anti_cheat_score}%
 													</span>
+													)}
 													<span>Diff: {a.max_difficulty_reached}/5</span>
 													<span>{new Date(a.completed_at).toLocaleDateString()}</span>
 												</div>
@@ -737,9 +742,11 @@ export function RecruiterAssessmentsPage() {
 										<div
 											key={idx}
 											className={`rounded-lg border p-3 ${
-												answer.isCorrect
-													? 'border-emerald-200 bg-emerald-50/50'
-													: 'border-red-200 bg-red-50/50'
+												answer.isCorrect === null
+													? 'border-border bg-muted/50'
+													: answer.isCorrect
+														? 'border-emerald-200 bg-emerald-50/50'
+														: 'border-red-200 bg-red-50/50'
 											}`}
 										>
 											<div className="flex items-start justify-between mb-1">
@@ -753,7 +760,11 @@ export function RecruiterAssessmentsPage() {
 												</span>
 												<div className="flex items-center gap-2">
 													<span className="text-xs text-muted-foreground">{answer.timeTaken}s</span>
-													{answer.isCorrect ? (
+													{answer.isCorrect === null ? (
+														<span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+															<Clock className="h-4 w-4" /> Pending review
+														</span>
+													) : answer.isCorrect ? (
 														<CheckCircle className="h-4 w-4 text-emerald-500" />
 													) : (
 														<XCircle className="h-4 w-4 text-destructive" />
@@ -765,12 +776,18 @@ export function RecruiterAssessmentsPage() {
 												<p>
 													<span className="text-muted-foreground">Answer: </span>
 													<span
-														className={answer.isCorrect ? 'text-emerald-700' : 'text-destructive'}
+														className={
+															answer.isCorrect === null
+																? 'text-muted-foreground'
+																: answer.isCorrect
+																	? 'text-emerald-700'
+																	: 'text-destructive'
+														}
 													>
 														{answer.answer}
 													</span>
 												</p>
-												{!answer.isCorrect && answer.correctAnswer && (
+												{answer.isCorrect === false && answer.correctAnswer && (
 													<p>
 														<span className="text-muted-foreground">Correct: </span>
 														<span className="text-emerald-700">{answer.correctAnswer}</span>
