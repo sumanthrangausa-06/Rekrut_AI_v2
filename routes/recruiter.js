@@ -2385,6 +2385,36 @@ router.put(
 				no_hire: 'failed',
 				completed: 'no_decision',
 			};
+			// #1788 (design §6.1, D5): status is the canonical
+			// scheduled_interviews vocabulary (chk_scheduled_interviews_status
+			// as widened by migration 293). Unlike outcome (#1789) there is
+			// no second status vocabulary spoken by any real client — the
+			// clients speak the canonical values themselves — so this is
+			// validation, NOT translation: status null/omitted keeps the
+			// stored value (the COALESCE below); anything else outside
+			// the vocabulary, including '', is an honest 400, row
+			// unchanged, instead of the same PG 23514 -> 500 class.
+			const ALLOWED_STATUSES = [
+				'scheduled',
+				'confirmed',
+				'in_progress',
+				'completed',
+				'cancelled',
+				'no_show',
+				'rescheduled',
+				'reschedule_requested',
+			];
+			let storedStatus = status;
+			if (status != null) {
+				if (ALLOWED_STATUSES.includes(status)) {
+					storedStatus = status;
+				} else {
+					return res.status(400).json({
+						error: `Invalid interview status: ${status}. Allowed: ${ALLOWED_STATUSES.join(', ')}`,
+					});
+				}
+			}
+
 			// D7: outcome null/omitted keeps the stored value (the
 			// COALESCE below); there is no clear-to-NULL via this PUT.
 			let storedOutcome = outcome;
@@ -2410,7 +2440,7 @@ router.put(
        WHERE id = $5 AND company_id = $6
        RETURNING *`,
 				[
-					status,
+					storedStatus,
 					storedOutcome,
 					feedback ? JSON.stringify(feedback) : null,
 					meeting_link,
