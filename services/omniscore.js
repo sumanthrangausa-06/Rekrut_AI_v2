@@ -12,10 +12,16 @@ const pool = require('../lib/db');
 // #1777: v4 — the weighted total is renormalised over MEASURED factors
 // only (the #1596 compatScore / #1731 pattern applied to the total), and
 // calcMarketDemand's +20 fallback floor is removed (measured-only).
+// #1782: v5 — calcInterviewPerformance counts completed interviews in
+// the real scheduled_interviews vocabulary (status 'completed' OR
+// outcome 'passed'); the pre-fix outcome='completed' branch was dead
+// (chk_scheduled_interviews_outcome forbids it), so completed-but-not-
+// passed interviews were invisible to the factor. Candidates whose
+// interviews all ended outcome='passed' are unchanged.
 // Partially-measured candidates' totals change; fully-measured totals
 // are identical (renormalising over the full weight sum 1.0 is the
 // identity), and the no-data total stays null (#1192/#1538).
-const SCORING_SEMANTICS_VERSION = 'v4-total-renormalised';
+const SCORING_SEMANTICS_VERSION = 'v5-interview-performance-vocab';
 
 // ─── Score ranges and tiers ─────────────────────────────────
 const SCORE_RANGES = {
@@ -310,9 +316,23 @@ function calcInterviewPerformance(data) {
 		details.push('No practice sessions yet');
 	}
 
-	// Completed real interviews with positive feedback (max 50)
+	// Completed real interviews (max 50)
+	// #1782: status and outcome are different vocabularies — the same
+	// grounding calcReliabilitySignals carries (#1776). 'completed' is a
+	// STATUS (chk_scheduled_interviews_status), never an outcome:
+	// chk_scheduled_interviews_outcome permits only
+	// passed/failed/pending_review/no_decision/NULL, so the pre-fix
+	// `outcome === 'completed'` branch was dead on real data and this
+	// factor counted only outcome='passed' rows — an attended interview
+	// concluded 'failed'/'pending_review'/'no_decision' was invisible
+	// to the feedback path, the count fallback, and hasData. Writers
+	// agree: routes/recruiter.js PUT /interviews/:id passes status and
+	// outcome through separately (the feedback shape is status
+	// 'completed' + outcome 'failed'/'passed'). Completed :=
+	// status 'completed' OR outcome 'passed' (the #1776 attended
+	// definition, reused — no second mechanism).
 	const completedInterviews = data.interviews.filter(
-		(i) => i.outcome === 'completed' || i.outcome === 'passed',
+		(i) => i.status === 'completed' || i.outcome === 'passed',
 	);
 	const feedbackScores = completedInterviews
 		.map((i) => {
@@ -360,6 +380,13 @@ function calcInterviewPerformance(data) {
 		details.push('No completed interviews yet');
 	}
 
+	// #1782 hasData audit: feedbackScores derives from
+	// completedInterviews, so it needs no separate term — widening the
+	// filter above is what makes feedback on a status-'completed'
+	// interview set hasData truthfully. A completed interview with no
+	// feedback/evaluations is measured data (the count fallback), not a
+	// phantom; a merely scheduled/no_show/cancelled interview still
+	// contributes nothing here.
 	const hasData =
 		practiceScores.length > 0 || evalScores.length > 0 || completedInterviews.length > 0;
 

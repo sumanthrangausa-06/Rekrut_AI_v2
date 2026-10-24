@@ -245,7 +245,9 @@ describe('omniscore factor hasData flags', () => {
 				...d,
 				evaluations: [{ score: 80, max_score: 100 }],
 				interviews: [
-					{ outcome: 'completed', feedback: JSON.stringify({ overall_score: 5 }) },
+					// #1782: real shape — 'completed' is a status, never an outcome
+					// (chk_scheduled_interviews_outcome forbids outcome='completed').
+					{ status: 'completed', outcome: 'passed', feedback: JSON.stringify({ overall_score: 5 }) },
 				],
 			});
 			// eval half only: 80 * 0.5 = 40; feedback path (5*10=50) must NOT add
@@ -278,7 +280,10 @@ describe('omniscore factor hasData flags', () => {
 			const result = calcInterviewPerformance({
 				...d,
 				interviews: [
-					{ outcome: 'completed', feedback: JSON.stringify({ overall_score: 4 }) },
+					// #1782: feedback on a status-'completed' / outcome-'failed'
+					// interview counts — pre-fix this shape was invisible to the
+					// factor (only outcome='passed' rows were counted).
+					{ status: 'completed', outcome: 'failed', feedback: JSON.stringify({ overall_score: 4 }) },
 				],
 			});
 			expect(result.raw).toBe(40); // 4/5 scale -> 4*10
@@ -289,7 +294,9 @@ describe('omniscore factor hasData flags', () => {
 			const d = emptyData();
 			const result = calcInterviewPerformance({
 				...d,
-				interviews: [{ outcome: 'completed', feedback: null }],
+				// #1782: a status-'completed' interview awaiting its outcome
+				// decision still counts in the fallback (real vocabulary).
+				interviews: [{ status: 'completed', outcome: 'pending_review', feedback: null }],
 			});
 			expect(result.raw).toBe(10);
 		});

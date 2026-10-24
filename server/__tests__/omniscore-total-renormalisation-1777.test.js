@@ -246,9 +246,9 @@ describe('#1777 calculateScore — total renormalised over measured factors only
 	});
 
 	test('scoring-semantics version bump is named and returned', async () => {
-		expect(omniscore.SCORING_SEMANTICS_VERSION).toBe('v4-total-renormalised');
+		expect(omniscore.SCORING_SEMANTICS_VERSION).toBe('v5-interview-performance-vocab');
 		const score = await calculateScore(USER);
-		expect(score.scoring_semantics_version).toBe('v4-total-renormalised');
+		expect(score.scoring_semantics_version).toBe('v5-interview-performance-vocab');
 	});
 });
 
