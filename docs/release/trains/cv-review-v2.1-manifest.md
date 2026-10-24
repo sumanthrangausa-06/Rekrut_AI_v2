@@ -29,3 +29,12 @@ File-set diff under migrations/: empty.
 - **Neighbour:** Quick Practice smoke (shared cascade) — session start + honest outcome, as Train 2.
 - Pro-path analyze on staging remains gated on a completable Pro account (Train 2 V3/V4 blocker: Stripe hosted checkout is browser-only) — if a browser checkout with a test card completes during this train, run analyze → real persisted score read back; otherwise record honestly and the tag decision follows the parse-proof + honesty results.
 - Health 200 warm at the end; state read back after each flow.
+
+## Close-out (Relay, 2026-10-24)
+- PR #1817 merged 2026-10-24T18:52:37Z, merge commit `223b159e33baa17b57ad447e0ba45b580f7ae8d6`. Independent review APPROVE (patch-id-identical picks; PR comment 6388179616).
+- Deploy: staging Render service autoDeploy=NO — triggered via API, deploy `dep-dbeg6s1srm7s73c22sjg` LIVE; /health read back commit `223b159e3`, db connected.
+- **Staging retest (Quinn; Relay first-hand re-verified): PASS with riders.** Fresh candidates 239/240: register 201; product-path upload → parse COMPLETED with parsed_data persisted (Relay read back candidate 239's profile via API: parsed experience rows present — Example Corp/Data Analyst); every attempt landed an honest terminal status (none stranded at 'processing'); free-tier analyze = exact 403 UPGRADE_REQUIRED, analyses list empty (no fabrication); Documents multipart upload 200 + read-back (not the old shadow-400); Quick Practice neighbour green incl. consent 403 and a real persisted score — Train 2's bare-500 did NOT recur; final health 200.
+- **Tag applied:** `staging/cv-review@v2.1` on `223b159e3`.
+- **Riders:** (1) parse first-try reliability ~2/10 on staging — honest fast failures, re-upload succeeds; filed as #1818 (provider-cascade class). (2) Pro-analyze leg still unproven on staging — no API-completable Pro account (Stripe hosted checkout, Train 2 V3/V4 blocker); no-resume 400 unreachable behind the Pro gate for the same reason. Dev proof of the full conjunction stands (#1471).
+- **Main promotion: HELD** — dual-environment rule: the module's Pro journey is not staging-proven, so cv-review does not advance to main this train. prod_version stays "1.0".
+- Evidence: goal hidden_files `train-3/quinn-retest/` (28 logs + run.md) and `train-3/run-state.md`.
