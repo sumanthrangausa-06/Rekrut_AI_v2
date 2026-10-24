@@ -85,7 +85,7 @@ modules:
     prod_version:    "0.1"          # main promotion not yet run for this module
     status: in-flight
     last_train_date: "2026-10-24"
-    train_pr: "Train 5 — PR pending (placeholder, updated on open)"
+    train_pr: "PR #1822"
     train_commit: "8b5dcb7cc5a3928796d2a42c3e1e51a512a260cb"
     tag: null                       # staging/assessments@v1.0 earned only by the #1606 staging proof
     riders:
