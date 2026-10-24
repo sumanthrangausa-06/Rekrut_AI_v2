@@ -279,9 +279,9 @@ describe('#1777 calculateScore — total renormalised over measured factors only
 	});
 
 	test('scoring-semantics version bump is named and returned', async () => {
-		expect(omniscore.SCORING_SEMANTICS_VERSION).toBe('v5-interview-performance-vocab');
+		expect(omniscore.SCORING_SEMANTICS_VERSION).toBe('v6-rescheduled-no-credit');
 		const score = await calculateScore(USER);
-		expect(score.scoring_semantics_version).toBe('v5-interview-performance-vocab');
+		expect(score.scoring_semantics_version).toBe('v6-rescheduled-no-credit');
 	});
 });
 
