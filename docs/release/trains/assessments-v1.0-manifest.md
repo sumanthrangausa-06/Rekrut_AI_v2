@@ -124,3 +124,14 @@ NOT carried: 290 (#1280 DROP DEFAULT — separate approved lane), 293, 267/271/2
 - Migration 290 (#1280) does NOT ride this train.
 - Main promotion only after the staging retest passes in full (dual-environment rule).
 - Rollback is by forward code fix only (migrations never un-apply on the shared staging/production database).
+
+## Close-out (Relay/Lead, 2026-10-24)
+
+- PR #1822 merged 2026-10-24T22:12:21Z, merge commit `5fe8dd0060a89534da86099d9fbd4770dc9a01ee`. Independent review APPROVE (PR comment 6390176358).
+- Deploy: staging Render autoDeploy=NO — triggered via API, deploy `dep-dbeiqvgm7kps73e1jiag` LIVE; /health read back commit `5fe8dd006`, db connected.
+- **Staging retest: PASS with one rider.** API legs (Lead, users 244/245): applied-set + parity probe — all 17 topics MCQ medium 25–26 / easy 10 / hard 10 on staging; #1606 full journey (Python opens, starts, serves, 10 answers, completes; assessment_results row read back); SQL starts; #1602 submit completes; exit-save draft persists and /current resumes it. Browser legs (live app, user 245, 22:20–22:37Z): sign-in, catalogue renders 17 topics, configure flow ("We can serve exactly 10 questions"), per-topic retake lockout banner correct after today's completed Python attempt (#1686 live), SQL question served verbatim, unified Exit dialog with all four options and honest partial-submit wording, Save & Exit returns to the list.
+- **Rider (filed as #1824):** after Save & Exit, the Assessments list shows no Resume/Continue affordance for the saved in-progress session, although the dialog promises resumption from that page and the client has a Resume attempt action that never fires for topic sessions. Server state verified correct (session in_progress, draft persisted). Sessions 15/16 later read `abandoned` only because newer same-topic starts auto-abandon per #1687 — by design.
+- **Tag applied:** `staging/assessments@v1.0` on `5fe8dd006`.
+- **#1606 CLOSED** on this pass (its criteria: previously-empty topic opens + starts on staging + bank parity). #1603 remains open only for C4 (#1657, gated on #118).
+- **Main promotion: NOT run** — prod_version stays "0.1" (standing train-system state).
+- Evidence: goal hidden_files `train-5/` (migration-check.md, picks.log, lead-retest/run.md + run.mjs–run4.mjs, run-state.md).
