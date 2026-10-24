@@ -354,8 +354,16 @@ function calcInterviewPerformance(data) {
 	// 'completed' + outcome 'failed'/'passed'). Completed :=
 	// status 'completed' OR outcome 'passed' (the #1776 attended
 	// definition, reused — no second mechanism).
+	// #1798: status wins over outcome (the #1781 disjointness rule,
+	// applied here): a contradictory row (status 'no_show'/'cancelled'
+	// with outcome 'passed') is NOT completed — the candidate never
+	// attended, so it earns no feedback credit, no count fallback,
+	// and no hasData from this factor.
 	const completedInterviews = data.interviews.filter(
-		(i) => i.status === 'completed' || i.outcome === 'passed',
+		(i) =>
+			i.status !== 'no_show' &&
+			i.status !== 'cancelled' &&
+			(i.status === 'completed' || i.outcome === 'passed'),
 	);
 	const feedbackScores = completedInterviews
 		.map((i) => {
@@ -408,8 +416,10 @@ function calcInterviewPerformance(data) {
 	// filter above is what makes feedback on a status-'completed'
 	// interview set hasData truthfully. A completed interview with no
 	// feedback/evaluations is measured data (the count fallback), not a
-	// phantom; a merely scheduled/no_show/cancelled interview still
-	// contributes nothing here.
+	// phantom; a merely scheduled interview contributes nothing here,
+	// and a no_show/cancelled interview contributes nothing EVEN when
+	// its outcome says 'passed' (#1798: status wins — the credited set
+	// above excludes those statuses outright).
 	const hasData =
 		practiceScores.length > 0 || evalScores.length > 0 || completedInterviews.length > 0;
 
@@ -693,9 +703,14 @@ function calcSoftSkills(data) {
 	}
 
 	// Interview feedback soft-skill signals
+	// #1798: status wins — feedback on a no_show/cancelled row is not
+	// evidence of soft skills (the candidate never attended), even
+	// when the row's outcome says 'passed'. Same guard as
+	// calcInterviewPerformance above.
 	let feedbackScore = 0;
 	let feedbackCount = 0;
 	for (const iv of data.interviews) {
+		if (iv.status === 'no_show' || iv.status === 'cancelled') continue;
 		try {
 			const fb = typeof iv.feedback === 'string' ? JSON.parse(iv.feedback) : iv.feedback;
 			if (fb) {
