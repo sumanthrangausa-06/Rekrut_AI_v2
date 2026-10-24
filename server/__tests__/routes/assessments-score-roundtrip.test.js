@@ -213,6 +213,13 @@ db.query.mockImplementation(async (sql, params = []) => {
 
 	// Async path — answer recorded / marked complete.
 	if (normalized.includes('update job_assessment_attempts set status =')) {
+		// #1807: the Phase B completion claim is `... WHERE status =
+		// 'in_progress' RETURNING id` and the route decides the winner by
+		// claimRes.rows.length — the claim must return the claimed row or
+		// the route correctly answers 409 ALREADY_FINISHED.
+		if (normalized.includes('returning id')) {
+			return { rows: [{ id: params[0] }], rowCount: 1 };
+		}
 		return { rows: [], rowCount: 1 };
 	}
 
