@@ -46,18 +46,21 @@ modules:
     tag: "staging/landing-honesty@v1.1"
 
   cv-review:
-    current_version: "1.0"        # staging runs v2.0 code (real analyser, PR #1467)
-                                  # but its retest never completed and the #1471
-                                  # parse fix is not in it; v2.1 train supersedes.
+    current_version: "2.1"        # v2.1 proven on staging 2026-10-24 (Train 3 retest):
+                                  # product-path parse completes + persists, free gate
+                                  # exact, Documents fixed, QP neighbour green.
     dev_version:     "2.1"
-    staging_version: "1.0"
-    prod_version:    "1.0"
-    status: in-flight             # Train 3 (cv-review v2.1: #1471/#1472/#1477 picks),
-                                  # standing promotion authorization 2026-10-22
+    staging_version: "2.1"
+    prod_version:    "1.0"        # main promotion HELD: Pro-analyze leg unproven on
+                                  # staging (Pro provisioning blocker, Train 2 V3/V4)
+    status: current
     last_train_date: "2026-10-24"
     train_pr: "PR #1817"
-    train_commit: "e41c65b93ea3cf7d9181d582e72a1e9899aa3763"
-    tag: null
+    train_commit: "223b159e33baa17b57ad447e0ba45b580f7ae8d6"
+    tag: "staging/cv-review@v2.1"
+    riders:
+      - "parse first-try reliability ~2/10 on staging (honest failures, re-upload succeeds) — #1818"
+      - "Pro-analyze staging leg unproven — no API-completable Pro account (Stripe hosted checkout); dev proof stands (#1471, score 72)"
 
   jobs-careers:
     current_version: "0.1"        # live on staging but journey UNPROVEN —
