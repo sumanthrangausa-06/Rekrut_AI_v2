@@ -136,7 +136,7 @@ describeIfDb('#1781 reliability disjoint sets — real DB (contradictory row)', 
 		expect(rel.hasData).toBe(true);
 		// Status wins: attendance is 0%, not 100% (pre-fix bug: 100%).
 		expect(rel.details.join(' ')).toMatch(/Interview attendance 0%/);
-		expect(rel.details.join(' ')).toMatch(/1 no-shows\/cancellations \(-10\)/);
+		expect(rel.details.join(' ')).toMatch(/1 no-shows \(-10\)/);
 		// 0*60 + 40*1 − 10 = 30 — exactly the clean no-show baseline.
 		// Pre-fix this was 90 (attendance credit AND penalty).
 		expect(rel.raw).toBe(30);
@@ -154,12 +154,17 @@ describeIfDb('#1781 reliability disjoint sets — real DB (contradictory row)', 
 		expect(res.rows[0].behavior_score).toBe(30);
 	});
 
-	test('contradictory cancelled/passed row: same disjoint treatment — raw 30', async () => {
+	test('contradictory cancelled/passed row: no credit, but NO penalty since #1780 — raw 40', async () => {
 		const score = await calculateScore(U_CANCELLED);
 		const rel = score.factors.reliability_signals;
+		// Disjoint treatment stands (#1781): status wins, no attendance
+		// credit. Penalty treatment changed (#1780 interim (b)): a
+		// cancelled row is actor-blind (no cancelled_by column; most
+		// cancellation writers are recruiter/reschedule), so it no
+		// longer deducts 10. raw = 0*60 + 40*1 - 0 = 40 (was 30).
 		expect(rel.details.join(' ')).toMatch(/Interview attendance 0%/);
-		expect(rel.details.join(' ')).toMatch(/1 no-shows\/cancellations \(-10\)/);
-		expect(rel.raw).toBe(30);
+		expect(rel.details.join(' ')).not.toMatch(/no-shows\(-|no-shows \(-\d+\)/);
+		expect(rel.raw).toBe(40);
 	});
 
 	test('attended + contradictory row: contradictory row adds a penalty, never attendance — raw 60', async () => {
@@ -168,7 +173,7 @@ describeIfDb('#1781 reliability disjoint sets — real DB (contradictory row)', 
 		// scheduled 2, attended 1 (the completed row only), no-shows 1:
 		// 60*0.5 + 40*1 − 10 = 60. Pre-fix: attended 2/2 → raw 90.
 		expect(rel.details.join(' ')).toMatch(/Interview attendance 50%/);
-		expect(rel.details.join(' ')).toMatch(/1 no-shows\/cancellations \(-10\)/);
+		expect(rel.details.join(' ')).toMatch(/1 no-shows \(-10\)/);
 		expect(rel.raw).toBe(60);
 	});
 });

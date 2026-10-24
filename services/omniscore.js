@@ -621,18 +621,27 @@ function calcReliabilitySignals(data) {
 	// (candidate decline even puts a free-text reason in outcome). So:
 	// attended := status 'completed' OR outcome 'passed' (outcome
 	// 'completed' cannot exist per the CHECK — the pre-fix rule relied on
-	// it); no-shows := status IN ('no_show','cancelled') ONLY — the
-	// outcome variants are dropped because no writer writes them and the
-	// CHECK forbids them (PG 23514), which is why the penalty never fired
-	// on real data (Quinn's candidate scored 70 instead of 60).
+	// it); no-shows := status 'no_show' ONLY (penalty set narrowed by
+	// #1780 interim (b) — see below) — the outcome variants are dropped
+	// because no writer writes them and the CHECK forbids them
+	// (PG 23514), which is why the penalty never fired on real data
+	// (Quinn's candidate scored 70 instead of 60).
 	// #1801: the attendance denominator counts RESOLVED interviews only —
 	// rescheduled-family rows are pending (the interview moves to a new
 	// time), so they are neither credited nor counted against the
 	// candidate; attendance is unmeasured when no resolved row exists.
 	const scheduled = data.interviews.filter((i) => !isRescheduledFamily(i)).length;
-	const noShows = data.interviews.filter(
-		(i) => i.status === 'no_show' || i.status === 'cancelled',
-	).length;
+	// #1780 interim (b): the penalty set is true no-shows ONLY. A
+	// 'cancelled' row is actor-blind — scheduled_interviews has no
+	// cancelled_by column and only one of its three writers is
+	// candidate-caused (candidate decline; the others are the recruiter
+	// PUT and the reschedule-cancel branch) — so counting cancellations
+	// here punished candidates for recruiter/reschedule cancellations.
+	// Cancelled rows still earn no credit (isCreditedInterview, #1801)
+	// and still count in the attendance denominator above; only the
+	// -10 penalty is removed. Actor-aware penalties return only if
+	// Sumanth rules in the cancelled_by schema option (#1780 (c)).
+	const noShows = data.interviews.filter((i) => i.status === 'no_show').length;
 	// #1781: the attended set and the no-show set must be disjoint —
 	// status wins over outcome. A contradictory row (status
 	// 'no_show'/'cancelled' with outcome 'passed', producible via the
@@ -640,8 +649,8 @@ function calcReliabilitySignals(data) {
 	// cancel branch) previously matched BOTH filters: attendance
 	// credit AND the no-show penalty for the same interview (raw 90
 	// for a candidate who never attended). Excluding no-show/cancelled
-	// statuses here makes such a row measure exactly as a clean
-	// no-show.
+	// statuses from the credited set makes such a row earn no credit;
+	// since #1780 the penalty half applies to the no_show twin only.
 	const completed = data.interviews.filter(isCreditedInterview).length;
 	const attendanceMeasured = scheduled > 0;
 	const attendanceRate = attendanceMeasured ? completed / scheduled : null;
@@ -677,7 +686,7 @@ function calcReliabilitySignals(data) {
 
 	// Penalty for no-shows — only when interviews are measured.
 	const noShowPenalty = attendanceMeasured ? Math.min(20, noShows * 10) : 0;
-	if (noShowPenalty > 0) details.push(`${noShows} no-shows/cancellations (-${noShowPenalty})`);
+	if (noShowPenalty > 0) details.push(`${noShows} no-shows (-${noShowPenalty})`);
 
 	const hasData = weightSum > 0;
 	const coverage = { attendance: attendanceMeasured, followThrough: followMeasured };
