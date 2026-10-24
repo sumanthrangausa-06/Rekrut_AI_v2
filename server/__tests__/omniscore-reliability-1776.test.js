@@ -122,13 +122,15 @@ describe('#1776 calculateScore — reliability measured-only', () => {
 	});
 
 	test('scoring-semantics version bump is named and returned', async () => {
-		// #1776 introduced v3-reliability-measured-only; #1777 supersedes
+		// #1776 introduced v3-reliability-measured-only; #1777 superseded
 		// it with v4-total-renormalised (total renormalisation + market
-		// floor removal, same file). The current version is pinned here;
-		// #1777's own suite pins the v4 semantics.
-		expect(omniscore.SCORING_SEMANTICS_VERSION).toBe('v4-total-renormalised');
+		// floor removal, same file); #1782 supersedes it with
+		// v5-interview-performance-vocab (same file, interview factor).
+		// The current version is pinned here; each story's own suite pins
+		// its semantics.
+		expect(omniscore.SCORING_SEMANTICS_VERSION).toBe('v5-interview-performance-vocab');
 		const score = await calculateScore(USER);
-		expect(score.scoring_semantics_version).toBe('v4-total-renormalised');
+		expect(score.scoring_semantics_version).toBe('v5-interview-performance-vocab');
 	});
 });
 
