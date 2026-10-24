@@ -6,8 +6,10 @@ Build log · Nova (implementation) · 2026-10-23 · Branch `nova/1783-decline-ou
 `PUT /api/candidate/interviews/:id/decline` (`routes/candidate.js`) wrote the
 candidate's free-text decline reason (`reason || 'Candidate declined'`) into
 `scheduled_interviews.outcome`. That column is a closed evaluation vocabulary:
-`chk_scheduled_interviews_outcome` (`migrations/p2_schema_hardening.sql:2820`,
-`migrations/047_p2_schema_hardening.js`) allows only
+`chk_scheduled_interviews_outcome` (`migrations/p2_schema_hardening.sql:2820`
+only — migration 047 adds no outcome constraint; its `scheduled_interviews`
+entry is the *status* CHECK at :632-634; correction recorded in the #1788
+design, §10) allows only
 `passed / failed / pending_review / no_decision / NULL`. On a fully migrated DB
 every decline therefore failed with PG 23514 and the candidate got HTTP 500 —
 the interview stayed `scheduled`.
