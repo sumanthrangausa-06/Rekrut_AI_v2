@@ -72,6 +72,6 @@ modules:
                                   # fixes + #1607/#1608 profile riders; v1.0 is
                                   # earned only by the Train 4 staging retest
     last_train_date: "2026-10-24"
-    train_pr: "Train 4 — see docs/release/trains/job-board-profile-v1.0-manifest.md"
+    train_pr: "PR #1820"
     train_commit: null
     tag: null
