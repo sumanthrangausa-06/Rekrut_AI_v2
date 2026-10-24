@@ -60,11 +60,62 @@ const db = require('../../../lib/db');
 db.query.mockImplementation(async (sql, params = []) => {
 	const normalized = String(sql).toLowerCase().replace(/\s+/g, ' ');
 
+	if (['begin', 'commit', 'rollback'].includes(normalized)) {
+		return { rows: [], rowCount: 0 };
+	}
+
 	// Start — skill lookup by name.
 	if (normalized.includes('from candidate_skills') && normalized.includes('lower(skill_name)')) {
 		const userId = params[0];
 		return {
 			rows: [{ id: 5, user_id: userId, skill_name: 'JavaScript', category: 'technical' }],
+			rowCount: 1,
+		};
+	}
+
+	// Serve — skill lookup by id (generateQuestion's session-skill load).
+	if (normalized.includes('from candidate_skills') && normalized.includes('where id = $1')) {
+		return {
+			rows: [{ id: 5, skill_name: 'JavaScript', category: 'technical' }],
+			rowCount: 1,
+		};
+	}
+
+	// Serve — serveNextQuestion re-loads the just-created session under
+	// FOR UPDATE (#1807: unmodelled, this read fell through to the empty
+	// default and /start reported the honest 503 QUESTION_UNAVAILABLE).
+	// The row mirrors the INSERT below in its post-Phase-A shape: legacy
+	// snapshot (topic NULL → skill_category serving), start difficulty 3
+	// (medium band centre), nothing asked or answered yet.
+	if (
+		normalized.includes('from assessment_sessions') &&
+		normalized.includes('where id = $1') &&
+		normalized.includes('for update')
+	) {
+		return {
+			rows: [
+				{
+					id: 900,
+					skill_id: 5,
+					status: 'in_progress',
+					score: 0,
+					current_difficulty: 3,
+					current_question_index: 0,
+					max_difficulty_reached: 3,
+					questions_asked: [],
+					answers_given: [],
+					subject_id: null,
+					topic_id: null,
+					format: 'mixed',
+					difficulty_band: 'medium',
+					total_questions: 10,
+					set_id: null,
+					tab_switches: 0,
+					copy_paste_attempts: 0,
+					time_anomalies: 0,
+					started_at: new Date().toISOString(),
+				},
+			],
 			rowCount: 1,
 		};
 	}
