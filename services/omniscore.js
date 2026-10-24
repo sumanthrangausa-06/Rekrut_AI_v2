@@ -567,11 +567,23 @@ function calcReliabilitySignals(data) {
 	// CHECK forbids them (PG 23514), which is why the penalty never fired
 	// on real data (Quinn's candidate scored 70 instead of 60).
 	const scheduled = data.interviews.length;
-	const completed = data.interviews.filter(
-		(i) => i.status === 'completed' || i.outcome === 'passed',
-	).length;
 	const noShows = data.interviews.filter(
 		(i) => i.status === 'no_show' || i.status === 'cancelled',
+	).length;
+	// #1781: the attended set and the no-show set must be disjoint —
+	// status wins over outcome. A contradictory row (status
+	// 'no_show'/'cancelled' with outcome 'passed', producible via the
+	// recruiter PUT COALESCE passthrough and the unguarded reschedule
+	// cancel branch) previously matched BOTH filters: attendance
+	// credit AND the no-show penalty for the same interview (raw 90
+	// for a candidate who never attended). Excluding no-show/cancelled
+	// statuses here makes such a row measure exactly as a clean
+	// no-show.
+	const completed = data.interviews.filter(
+		(i) =>
+			i.status !== 'no_show' &&
+			i.status !== 'cancelled' &&
+			(i.status === 'completed' || i.outcome === 'passed'),
 	).length;
 	const attendanceMeasured = scheduled > 0;
 	const attendanceRate = attendanceMeasured ? completed / scheduled : null;
