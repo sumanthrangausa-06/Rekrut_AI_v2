@@ -106,6 +106,29 @@ function dbTierFromLabel(tier) {
 	return map[tier] || 'new';
 }
 
+// #1787: the inverse of dbTierFromLabel, for READERS of the stored
+// column. omni_scores.score_tier is stored in the metal vocabulary
+// (platinum/gold/silver/bronze/new) while the API tier vocabulary is
+// the label keys (exceptional/excellent/good/fair/needs_work). The
+// writer is correct — bronze IS the stored encoding of Fair — so
+// readers must translate at the read boundary, never render the
+// stored metal as if it were the label. A value already in label
+// vocabulary (a legacy row) passes through; null/unknown stays null
+// (honest no-tier, never a fabricated label).
+function labelFromDbTier(dbTier) {
+	if (!dbTier) return null;
+	const map = {
+		platinum: 'exceptional',
+		gold: 'excellent',
+		silver: 'good',
+		bronze: 'fair',
+		new: 'needs_work',
+	};
+	if (map[dbTier]) return map[dbTier];
+	if (SCORE_RANGES.TIERS[dbTier]) return dbTier;
+	return null;
+}
+
 function daysBetween(a, b) {
 	return Math.floor((new Date(b) - new Date(a)) / (1000 * 60 * 60 * 24));
 }
@@ -1502,6 +1525,9 @@ module.exports = {
 	calcMarketDemand,
 	calcGrowthTrajectory,
 	SCORE_RANGES,
+	tierFromScore,
+	dbTierFromLabel,
+	labelFromDbTier,
 	FACTOR_WEIGHTS,
 	FACTOR_META,
 	getOrCreateScore,
