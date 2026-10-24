@@ -131,7 +131,7 @@ describeIfDb('#1776 reliability no-show penalty — real DB (Quinn gate scenario
 		});
 		expect(score.factors.reliability_signals.coverageNote).toBeNull();
 		expect(score.factors.reliability_signals.details.join(' ')).toMatch(
-			/1 no-shows\/cancellations \(-10\)/,
+			/1 no-shows \(-10\)/,
 		);
 		// 60*0.5 + 40*1 - 10 = 60 (the gate failed at 70 pre-fix)
 		expect(score.factors.reliability_signals.raw).toBe(60);

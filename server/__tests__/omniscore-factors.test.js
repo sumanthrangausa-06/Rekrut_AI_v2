@@ -121,11 +121,17 @@ describe('omniscore factor hasData flags', () => {
 			expect(result.raw).toBe(40);
 		});
 
-		test('cancelled interview (status) also incurs the no-show penalty', () => {
+		test('cancelled interview (status) incurs NO penalty — #1780 interim (b)', () => {
 			// status 'cancelled' is written by routes/recruiter.js (status
 			// passthrough + calendar branch), routes/interviews.js
 			// reschedule-cancel and routes/candidate.js decline — always as
 			// STATUS; outcome 'cancelled' is not storable (CHECK above).
+			// #1780: scheduled_interviews has no actor column and only the
+			// candidate-decline writer is candidate-caused, so an actor-blind
+			// cancellation penalty punished candidates for recruiter and
+			// reschedule cancellations. Panel interim (b): penalise only
+			// true no-shows. The cancelled row still earns no attendance
+			// credit (denominator 2, attended 1) — it just costs no -10.
 			const result = calcReliabilitySignals({
 				...emptyData(),
 				interviews: [
@@ -133,7 +139,9 @@ describe('omniscore factor hasData flags', () => {
 					{ status: 'cancelled', outcome: null },
 				],
 			});
-			expect(result.raw).toBe(40);
+			// attendance 0.5 renormalised = 50, no penalty (pre-#1780: 40).
+			expect(result.raw).toBe(50);
+			expect(result.details.join(' ')).not.toMatch(/no-shows \(-\d+\)/);
 		});
 
 		test('Quinn gate scenario (#1776): 1 app + attended + no-show in real shapes => 60', () => {
@@ -149,7 +157,7 @@ describe('omniscore factor hasData flags', () => {
 			expect(result.raw).toBe(60);
 			expect(result.coverage).toEqual({ attendance: true, followThrough: true });
 			expect(result.coverageNote).toBeNull();
-			expect(result.details.join(' ')).toMatch(/1 no-shows\/cancellations \(-10\)/);
+			expect(result.details.join(' ')).toMatch(/1 no-shows \(-10\)/);
 		});
 
 		test('fully-measured candidate: raw = 60a + 40f - penalty (panel worked example 75 -> 50)', () => {
@@ -203,7 +211,7 @@ describe('omniscore factor hasData flags', () => {
 			expect(result.hasData).toBe(true);
 			expect(result.coverage).toEqual({ attendance: true, followThrough: true });
 			expect(result.coverageNote).toBeNull();
-			expect(result.details.join(' ')).toMatch(/1 no-shows\/cancellations \(-10\)/);
+			expect(result.details.join(' ')).toMatch(/1 no-shows \(-10\)/);
 		});
 
 		test('(b) penalty cap: 3 no-shows deduct 20, not 30 — raw 35', () => {
@@ -226,7 +234,7 @@ describe('omniscore factor hasData flags', () => {
 			expect(result.raw).toBeCloseTo(35, 10);
 			expect(result.coverage).toEqual({ attendance: true, followThrough: true });
 			expect(result.coverageNote).toBeNull();
-			expect(result.details.join(' ')).toMatch(/3 no-shows\/cancellations \(-20\)/);
+			expect(result.details.join(' ')).toMatch(/3 no-shows \(-20\)/);
 		});
 
 		test('(b) penalty cap holds beyond 3: 4 no-shows still deduct 20 — raw 32', () => {
@@ -244,7 +252,7 @@ describe('omniscore factor hasData flags', () => {
 			// a = 1/5 = 0.2, f = 1.0: 60*0.2 + 40*1 = 52, minus the
 			// capped penalty 20 = 32. Uncapped (4 × 10 = 40) gives 12.
 			expect(result.raw).toBe(32);
-			expect(result.details.join(' ')).toMatch(/4 no-shows\/cancellations \(-20\)/);
+			expect(result.details.join(' ')).toMatch(/4 no-shows \(-20\)/);
 		});
 	});
 
