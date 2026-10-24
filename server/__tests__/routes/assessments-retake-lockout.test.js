@@ -74,7 +74,15 @@ db.query.mockImplementation(async (sql, params = []) => {
 	}
 
 	// Serve — skill lookup by id (generateQuestion's session-skill load).
-	if (normalized.includes('from candidate_skills') && normalized.includes('where id = $1')) {
+	// The user_id exclusion keeps this branch off resolveCandidateSkill's
+	// user-scoped lookup (WHERE id = $1 AND user_id = $2), so a future
+	// scoping regression there cannot be masked by this mock (independent
+	// review SHOULD-FIX on PR #1811).
+	if (
+		normalized.includes('from candidate_skills') &&
+		normalized.includes('where id = $1') &&
+		!normalized.includes('user_id')
+	) {
 		return {
 			rows: [{ id: 5, skill_name: 'JavaScript', category: 'technical' }],
 			rowCount: 1,
