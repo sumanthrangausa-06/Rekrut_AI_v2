@@ -12,6 +12,14 @@ const pool = require('../lib/db');
 // #1777: v4 — the weighted total is renormalised over MEASURED factors
 // only (the #1596 compatScore / #1731 pattern applied to the total), and
 // calcMarketDemand's +20 fallback floor is removed (measured-only).
+// #1801: v6 — the rescheduled family ('rescheduled',
+// 'reschedule_requested') earns no interview credit in any calculator:
+// the interview has not happened, so an outcome of 'passed' on such a
+// row (producible via the recruiter PUT COALESCE passthrough) is not
+// attendance. One shared credited-interview predicate (below) for
+// calcInterviewPerformance / calcReliabilitySignals / calcSoftSkills;
+// in reliability the rescheduled family is also outside the attendance
+// denominator — pending and unmeasured until the row resolves.
 // #1782: v5 — calcInterviewPerformance counts completed interviews in
 // the real scheduled_interviews vocabulary (status 'completed' OR
 // outcome 'passed'); the pre-fix outcome='completed' branch was dead
@@ -21,7 +29,7 @@ const pool = require('../lib/db');
 // Partially-measured candidates' totals change; fully-measured totals
 // are identical (renormalising over the full weight sum 1.0 is the
 // identity), and the no-data total stays null (#1192/#1538).
-const SCORING_SEMANTICS_VERSION = 'v5-interview-performance-vocab';
+const SCORING_SEMANTICS_VERSION = 'v6-rescheduled-no-credit';
 
 // ─── Score ranges and tiers ─────────────────────────────────
 const SCORE_RANGES = {
@@ -320,6 +328,29 @@ function calcVerifiedSkills(data) {
 	};
 }
 
+// #1801: the ONE credited-interview predicate for every calculator —
+// status wins over outcome (#1781/#1798), and the rescheduled family
+// has not happened yet, so it earns no credit whatever its outcome
+// says. When the interview actually happens the row's status becomes
+// 'completed' and it credits then: credit follows attendance.
+const NON_CREDITED_STATUSES = new Set([
+	'no_show',
+	'cancelled',
+	'rescheduled',
+	'reschedule_requested',
+]);
+function isCreditedInterview(i) {
+	return (
+		!NON_CREDITED_STATUSES.has(i.status) &&
+		(i.status === 'completed' || i.outcome === 'passed')
+	);
+}
+// #1801: a rescheduled-family row is pending — reliability excludes it
+// from the attendance denominator as well as the credited count.
+function isRescheduledFamily(i) {
+	return i.status === 'rescheduled' || i.status === 'reschedule_requested';
+}
+
 function calcInterviewPerformance(data) {
 	let score = 0;
 	const details = [];
@@ -359,12 +390,7 @@ function calcInterviewPerformance(data) {
 	// with outcome 'passed') is NOT completed — the candidate never
 	// attended, so it earns no feedback credit, no count fallback,
 	// and no hasData from this factor.
-	const completedInterviews = data.interviews.filter(
-		(i) =>
-			i.status !== 'no_show' &&
-			i.status !== 'cancelled' &&
-			(i.status === 'completed' || i.outcome === 'passed'),
-	);
+	const completedInterviews = data.interviews.filter(isCreditedInterview);
 	const feedbackScores = completedInterviews
 		.map((i) => {
 			try {
@@ -599,7 +625,11 @@ function calcReliabilitySignals(data) {
 	// outcome variants are dropped because no writer writes them and the
 	// CHECK forbids them (PG 23514), which is why the penalty never fired
 	// on real data (Quinn's candidate scored 70 instead of 60).
-	const scheduled = data.interviews.length;
+	// #1801: the attendance denominator counts RESOLVED interviews only —
+	// rescheduled-family rows are pending (the interview moves to a new
+	// time), so they are neither credited nor counted against the
+	// candidate; attendance is unmeasured when no resolved row exists.
+	const scheduled = data.interviews.filter((i) => !isRescheduledFamily(i)).length;
 	const noShows = data.interviews.filter(
 		(i) => i.status === 'no_show' || i.status === 'cancelled',
 	).length;
@@ -612,12 +642,7 @@ function calcReliabilitySignals(data) {
 	// for a candidate who never attended). Excluding no-show/cancelled
 	// statuses here makes such a row measure exactly as a clean
 	// no-show.
-	const completed = data.interviews.filter(
-		(i) =>
-			i.status !== 'no_show' &&
-			i.status !== 'cancelled' &&
-			(i.status === 'completed' || i.outcome === 'passed'),
-	).length;
+	const completed = data.interviews.filter(isCreditedInterview).length;
 	const attendanceMeasured = scheduled > 0;
 	const attendanceRate = attendanceMeasured ? completed / scheduled : null;
 
@@ -710,7 +735,7 @@ function calcSoftSkills(data) {
 	let feedbackScore = 0;
 	let feedbackCount = 0;
 	for (const iv of data.interviews) {
-		if (iv.status === 'no_show' || iv.status === 'cancelled') continue;
+		if (!isCreditedInterview(iv)) continue;
 		try {
 			const fb = typeof iv.feedback === 'string' ? JSON.parse(iv.feedback) : iv.feedback;
 			if (fb) {
