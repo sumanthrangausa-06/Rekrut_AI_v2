@@ -65,11 +65,13 @@ modules:
   jobs-careers:
     current_version: "0.1"        # live on staging but journey UNPROVEN —
                                   # v0.x per the starting-version rule
-    dev_version:     "0.1"
+    dev_version:     "1.0"
     staging_version: "0.1"
     prod_version:    "0.1"
-    status: current
-    last_train_date: "2026-10-18"
-    train_pr: "seed: promotion #2"
-    train_commit: "007a6552"
+    status: in-flight             # Train 4 (job-board-profile v1.0): #1600/#1601
+                                  # fixes + #1607/#1608 profile riders; v1.0 is
+                                  # earned only by the Train 4 staging retest
+    last_train_date: "2026-10-24"
+    train_pr: "Train 4 — see docs/release/trains/job-board-profile-v1.0-manifest.md"
+    train_commit: null
     tag: null
