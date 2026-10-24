@@ -68,10 +68,42 @@ const MCQ = {
 	time_limit_seconds: 120,
 };
 
+// #1627: this suite predates two route changes and its mock session
+// drifted from the real row shape — (1) PR #1620's integrity guard only
+// lets a session answer its OUTSTANDING question (the last asked, not
+// yet answered), and (2) #1654 grades a completion as earned/max points
+// over the recorded answers, re-reading the bank rows. The mock below
+// therefore models a real 10th-question state: 9 recorded answers, Q5
+// outstanding as the 10th asked, and the session write/claim cycle
+// carrying answers forward exactly like the real DB.
 // The score the session row carries when the 10th answer arrives; the
 // completion re-read sees the score written by the answers UPDATE,
 // exactly like the real DB.
 let storedScore = 40;
+// The 9 answers recorded before the 10th arrives (set per test).
+let priorAnswers = [];
+// The answers the session row carries now — the answers UPDATE moves
+// the recorded 10th answer in, and later reads see it.
+let storedAnswers = [];
+
+function sessionRow() {
+	return {
+		id: 900,
+		user_id: 7,
+		status: 'in_progress',
+		skill_id: 3,
+		score: storedScore,
+		questions_asked: [...priorAnswers.map((a) => ({ questionId: a.questionId })), { questionId: MCQ.id }],
+		answers_given: storedAnswers,
+		current_question_index: 9,
+		current_difficulty: 2,
+		max_difficulty_reached: 2,
+		tab_switches: 0,
+		copy_paste_attempts: 0,
+		time_anomalies: 0,
+		started_at: new Date(),
+	};
+}
 
 const db = require('../../../lib/db');
 db.query.mockImplementation(async (sql, params = []) => {
@@ -80,56 +112,39 @@ db.query.mockImplementation(async (sql, params = []) => {
 	if (['begin', 'commit', 'rollback'].includes(normalized.trim())) {
 		return { rows: [], rowCount: 0 };
 	}
-	// Answer flow — session load (user-scoped).
+	// Answer flow — session load (user-scoped; also the FOR UPDATE
+	// locked re-read inside the record transaction).
 	if (normalized.includes('from assessment_sessions') && normalized.includes('user_id = $2')) {
-		return {
-			rows: [
-				{
-					id: 900,
-					user_id: 7,
-					status: 'in_progress',
-					skill_id: 3,
-					score: storedScore,
-					questions_asked: [],
-					answers_given: [],
-					current_question_index: 9,
-					current_difficulty: 2,
-					max_difficulty_reached: 2,
-					tab_switches: 0,
-					copy_paste_attempts: 0,
-					time_anomalies: 0,
-					started_at: new Date(),
-				},
-			],
-			rowCount: 1,
-		};
+		return { rows: [sessionRow()], rowCount: 1 };
 	}
-	// Completion re-read — session by id only (sees the updated score).
+	// Completion re-read — session by id only (sees the updated score
+	// and the recorded answers).
 	if (normalized.includes('select * from assessment_sessions where id = $1')) {
-		return {
-			rows: [
-				{
-					id: 900,
-					user_id: 7,
-					status: 'in_progress',
-					skill_id: 3,
-					score: storedScore,
-					tab_switches: 0,
-					copy_paste_attempts: 0,
-					time_anomalies: 0,
-					max_difficulty_reached: 2,
-					started_at: new Date(),
-				},
-			],
-			rowCount: 1,
-		};
+		return { rows: [sessionRow()], rowCount: 1 };
+	}
+	// Completion claim — the graded session row, answers included.
+	if (
+		normalized.includes('update assessment_sessions') &&
+		normalized.includes("status = 'completed'")
+	) {
+		return { rows: [sessionRow()], rowCount: 1 };
 	}
 	// The answered question.
 	if (normalized.includes('from assessment_questions') && normalized.includes('where id = $1')) {
 		return { rows: [MCQ], rowCount: 1 };
 	}
+	// Grading re-read — the bank rows behind the recorded answers.
+	if (normalized.includes('from assessment_questions') && normalized.includes('any($1)')) {
+		const rows = params[0].map((id) => ({
+			id,
+			difficulty_level: 2,
+			question_type: 'multiple_choice',
+		}));
+		return { rows, rowCount: rows.length };
+	}
 	// Session write — the new total is what completion re-reads.
 	if (normalized.includes('update assessment_sessions set answers_given')) {
+		storedAnswers = JSON.parse(params[0]);
 		storedScore = params[1];
 		return { rows: [], rowCount: 1 };
 	}
@@ -167,14 +182,30 @@ function gradedEntries() {
 
 beforeEach(() => {
 	AuditLogger.log.mockClear();
+	priorAnswers = [];
+	storedAnswers = [];
 	jest.spyOn(console, 'error').mockImplementation(() => {});
 	jest.spyOn(console, 'log').mockImplementation(() => {});
 });
+
+// Nine recorded answers (questions 101–109, difficulty 2 → 20 points
+// each at stake); `correct` of them were answered correctly. The
+// session row carries them as its answers_given from the start.
+function seedPriorAnswers(correct) {
+	priorAnswers = Array.from({ length: 9 }, (_, i) => ({
+		questionId: 101 + i,
+		answer: i < correct ? 'a' : 'b',
+		isCorrect: i < correct,
+		scorePoints: i < correct ? 20 : 0,
+	}));
+	storedAnswers = priorAnswers;
+}
 afterEach(() => jest.restoreAllMocks());
 
 describe('POST /answer completion — assessment_graded audit entry (#1584 item 2)', () => {
 	it('passed assessment: audit entry records score/passed but NO confidence (none was measured)', async () => {
-		storedScore = 80; // +20 for the correct MCQ = 100, passed
+		seedPriorAnswers(9); // 9/9 correct + the correct 10th = 200/200 → score 100, passed
+		storedScore = 180;
 		const res = await submitTenthAnswer();
 		expect(res.status).toBe(200);
 		expect(res.body.completed).toBe(true);
@@ -187,7 +218,8 @@ describe('POST /answer completion — assessment_graded audit entry (#1584 item 
 	});
 
 	it('failed assessment: audit entry likewise carries NO confidence (not the invented 0.6)', async () => {
-		storedScore = 10; // +20 = 30 < 60, failed
+		seedPriorAnswers(0); // 0/9 correct + the correct 10th = 20/200 → score 10 < 60, failed
+		storedScore = 0;
 		const res = await submitTenthAnswer();
 		expect(res.status).toBe(200);
 		expect(res.body.completed).toBe(true);
