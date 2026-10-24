@@ -3770,7 +3770,14 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 			stats: {
 				omniscore:
 					v.omni_score != null
-						? { total_score: v.omni_score, score_tier: v.score_tier }
+						? {
+								total_score: v.omni_score,
+								// #1787: the view carries the STORED metal tier;
+								// the dashboard renders this field as the tier
+								// label, so translate metal → label at the read
+								// boundary (592 stored 'bronze' must read 'fair').
+								score_tier: omniscoreService.labelFromDbTier(v.score_tier),
+							}
 						: { total_score: null, score_tier: null },
 				profile_completeness: completeness,
 				missing_sections: missingSections,
