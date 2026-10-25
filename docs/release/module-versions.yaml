@@ -27,7 +27,7 @@ modules:
     current_version: "1.1"
     dev_version:     "1.1"
     staging_version: "1.1"
-    prod_version:    "1.0"
+    prod_version:    "1.1"        # M1 promoted 2026-10-25 (PR #1836, merge 9f643388e, deploy dep-dbeqkg7b9u1s73akcceg live)
     status: current
     last_train_date: "2026-10-19"
     train_pr: "PR #1465"
@@ -38,7 +38,7 @@ modules:
     current_version: "1.1"
     dev_version:     "1.1"
     staging_version: "1.1"
-    prod_version:    "1.0"
+    prod_version:    "1.1"        # M1 promoted 2026-10-25 (PR #1836, merge 9f643388e, deploy dep-dbeqkg7b9u1s73akcceg live)
     status: current
     last_train_date: "2026-10-19"
     train_pr: "PR #1465"
@@ -51,8 +51,10 @@ modules:
                                   # exact, Documents fixed, QP neighbour green.
     dev_version:     "2.1"
     staging_version: "2.1"
-    prod_version:    "1.0"        # main promotion HELD: Pro-analyze leg unproven on
-                                  # staging (Pro provisioning blocker, Train 2 V3/V4)
+    prod_version:    "2.1"        # M1 promoted 2026-10-25 under Sumanth's Option B ruling:
+                                  # Pro-analyze leg unproven-on-staging (dev proof stands,
+                                  # #1471); staging Pro proof is a fast follow-up.
+                                  # Prod rider: auth POST latency — #1837
     status: current
     last_train_date: "2026-10-24"
     train_pr: "PR #1817"
@@ -68,7 +70,7 @@ modules:
                                   # browser-proven in the live app.
     dev_version:     "1.0"
     staging_version: "1.0"
-    prod_version:    "0.1"        # main promotion not yet run for this module
+    prod_version:    "1.0"        # M1 promoted 2026-10-25 (PR #1836, merge 9f643388e, deploy dep-dbeqkg7b9u1s73akcceg live)
     status: current
     last_train_date: "2026-10-24"
     train_pr: "PR #1820"
@@ -84,7 +86,7 @@ modules:
                                   # exit dialog + save-draft verified in the live app.
     dev_version:     "1.0"
     staging_version: "1.0"
-    prod_version:    "0.1"        # main promotion not yet run for this module
+    prod_version:    "1.0"        # M1 promoted 2026-10-25 (PR #1836, merge 9f643388e, deploy dep-dbeqkg7b9u1s73akcceg live)
     status: current
     last_train_date: "2026-10-24"
     train_pr: "PR #1822 + patch PR #1833"
@@ -103,7 +105,7 @@ modules:
                                   # patch PR #1829 and re-run green the same evening.
     dev_version:     "1.0"
     staging_version: "1.0"
-    prod_version:    "0.1"        # main promotion not yet run for this module
+    prod_version:    "1.0"        # M1 promoted 2026-10-25 (PR #1836, merge 9f643388e, deploy dep-dbeqkg7b9u1s73akcceg live)
     status: current
     last_train_date: "2026-10-24"
     train_pr: "PR #1826 + patch PR #1829"
