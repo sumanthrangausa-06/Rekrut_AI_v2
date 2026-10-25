@@ -1,0 +1,7 @@
+# Main Train M1.5 — Train 13 (#1852 + #1859) → production
+
+- **Scope:** Train 13 (staging PR #1864, merged at da821324e) promoted staging → main under Sumanth's standing authorization (2026-10-22). #1852: CV Review shows which CV was analyzed (new caller-scoped `GET /candidate/cv/source-document` + analysis enrichment + Manage CV link). #1859: pricing card + sidebar reflect an active Pro subscription on clean load.
+- **Picks:** staging picks b77ef07f3 + d37a7018f + a1a694867 cherry-picked onto main 879b034ff — applied clean, zero conflicts; patch-ids identical to the dev originals (8bed95244 / ae1cfebb9 / 4e9e2ab0f).
+- **Staging proof (complete, first-hand):** deploy dep-dbf9cbo473hc73caomdg LIVE at da821324e; 3/3 /health samples agree, db connected; fresh staging candidate source-document → `{"document":null}` honest empty, unauth → 401; subscription-status → free/not-paid; plans read-back unchanged. Train-tree gates: cv-source-document-1852 PASS, pricing-active-state-1859 PASS 7/7, billing regressions #1853/#1843 PASS. Independent train review APPROVE, no BLOCKs. #1852 and #1859 CLOSED on the staging proof.
+- **Migrations:** none. **Env:** none.
+- **Prod proof (after deploy):** deploy record live at the M1.5 merge commit + 3/3 /health samples agreeing; GET /api/billing/plans read-back; unauthenticated source-document → 401 (fresh-account register from the build VM is sentinel-blocked on prod, as recorded on prior trains; the authenticated legs stand on the staging proof + fresh-install suites).
