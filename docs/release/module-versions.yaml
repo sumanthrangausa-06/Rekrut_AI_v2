@@ -27,7 +27,7 @@ modules:
     current_version: "1.1"
     dev_version:     "1.1"
     staging_version: "1.1"
-    prod_version:    "1.0"
+    prod_version:    "1.1"        # M1 promoted 2026-10-25 (PR #1836, merge 9f643388e, deploy dep-dbeqkg7b9u1s73akcceg live)
     status: current
     last_train_date: "2026-10-19"
     train_pr: "PR #1465"
@@ -38,7 +38,7 @@ modules:
     current_version: "1.1"
     dev_version:     "1.1"
     staging_version: "1.1"
-    prod_version:    "1.0"
+    prod_version:    "1.1"        # M1 promoted 2026-10-25 (PR #1836, merge 9f643388e, deploy dep-dbeqkg7b9u1s73akcceg live)
     status: current
     last_train_date: "2026-10-19"
     train_pr: "PR #1465"
@@ -51,15 +51,17 @@ modules:
                                   # exact, Documents fixed, QP neighbour green.
     dev_version:     "2.1"
     staging_version: "2.1"
-    prod_version:    "1.0"        # main promotion HELD: Pro-analyze leg unproven on
-                                  # staging (Pro provisioning blocker, Train 2 V3/V4)
+    prod_version:    "2.1"        # M1 promoted 2026-10-25 under Sumanth's Option B ruling:
+                                  # Pro-analyze leg unproven-on-staging (dev proof stands,
+                                  # #1471); staging Pro proof is a fast follow-up.
+                                  # Prod rider: auth POST latency — #1837
     status: current
     last_train_date: "2026-10-24"
-    train_pr: "PR #1817"
-    train_commit: "223b159e33baa17b57ad447e0ba45b580f7ae8d6"
+    train_pr: "PR #1817 + patch PR #1839"
+    train_commit: "549bbf7593c7e9ca95f9d45b1a4503cfa9c4eaf9"
     tag: "staging/cv-review@v2.1"
     riders:
-      - "parse first-try reliability ~2/10 on staging (honest failures, re-upload succeeds) — #1818"
+      - "Train 8 patch (PR #1839, 2026-10-25) cleared the #1818 rider: the #1476 extraction seam (bounded Uint8Array copy at all 3 sites) had never ridden a train — staging/prod called pdfParse on the raw pooled buffer. Promoted patch-id identical; corpus suite 11/11 on the train tree; staging first-try measurement 10/10 completed through the real /candidate/profile/resume door on 549bbf759 (Train 3 baseline was 2/10)"
       - "Pro-analyze staging leg unproven — no API-completable Pro account (Stripe hosted checkout); dev proof stands (#1471, score 72)"
 
   jobs-careers:
@@ -68,7 +70,7 @@ modules:
                                   # browser-proven in the live app.
     dev_version:     "1.0"
     staging_version: "1.0"
-    prod_version:    "0.1"        # main promotion not yet run for this module
+    prod_version:    "1.0"        # M1 promoted 2026-10-25 (PR #1836, merge 9f643388e, deploy dep-dbeqkg7b9u1s73akcceg live)
     status: current
     last_train_date: "2026-10-24"
     train_pr: "PR #1820"
@@ -84,7 +86,7 @@ modules:
                                   # exit dialog + save-draft verified in the live app.
     dev_version:     "1.0"
     staging_version: "1.0"
-    prod_version:    "0.1"        # main promotion not yet run for this module
+    prod_version:    "1.0"        # M1 promoted 2026-10-25 (PR #1836, merge 9f643388e, deploy dep-dbeqkg7b9u1s73akcceg live)
     status: current
     last_train_date: "2026-10-24"
     train_pr: "PR #1822 + patch PR #1833"
@@ -103,7 +105,7 @@ modules:
                                   # patch PR #1829 and re-run green the same evening.
     dev_version:     "1.0"
     staging_version: "1.0"
-    prod_version:    "0.1"        # main promotion not yet run for this module
+    prod_version:    "1.0"        # M1 promoted 2026-10-25 (PR #1836, merge 9f643388e, deploy dep-dbeqkg7b9u1s73akcceg live)
     status: current
     last_train_date: "2026-10-24"
     train_pr: "PR #1826 + patch PR #1829"
