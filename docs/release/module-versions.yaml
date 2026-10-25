@@ -96,13 +96,20 @@ modules:
       - "#1727 anti-cheat NULL-guard client sweep (assessments-adjacent) did not ride this train — rides the next train as a one-pick rider"
 
   omniscore:
-    current_version: "0.1"        # in-flight Train 6 (2026-10-24): staging runs
-                                  # pre-honesty score code until this train lands
+    current_version: "1.0"        # v1.0 proven on staging 2026-10-24 (Train 6 retest):
+                                  # honest-NULL fresh candidate, renormalised total +
+                                  # explainer agreement, recruiter surfaces honest,
+                                  # migration 290/293 read-backs, neighbours green;
+                                  # step 3c first FAILED (#1828 explain 500), fixed by
+                                  # patch PR #1829 and re-run green the same evening.
     dev_version:     "1.0"
-    staging_version: "0.1"
-    prod_version:    "0.1"
-    status: in-flight
+    staging_version: "1.0"
+    prod_version:    "0.1"        # main promotion not yet run for this module
+    status: current
     last_train_date: "2026-10-24"
-    train_pr: "pending"
-    train_commit: "pending"
-    tag: null
+    train_pr: "PR #1826 + patch PR #1829"
+    train_commit: "1efac91ce620b692ffbdc0b9361d44d8711266f0"
+    tag: "staging/omniscore@v1.0"
+    riders:
+      - "test-hygiene: score-explainer-match-results-1458 suite still pins the pre-split v2 weights_hash (dev-parity failure) — #1827"
+      - "staging transport intermittently truncated responses during the 3c re-run (partial reads; retry returns clean 200; app logs show the guarded path completing, no app error) — environment-level, watch only"
