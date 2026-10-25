@@ -680,6 +680,17 @@ export function CandidateProfilePage() {
 		loadProfile();
 	}, [loadProfile]);
 
+	// #1852: 'Manage CV' links arrive as ?section=personal#resume — after the
+	// Personal tab mounts (post-load), scroll the resume section into view;
+	// the browser's native hash jump fires before the section exists.
+	useEffect(() => {
+		if (tab === 'personal' && !loading && window.location.hash === '#resume') {
+			requestAnimationFrame(() => {
+				document.getElementById('resume')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			});
+		}
+	}, [tab, loading]);
+
 	useEffect(() => {
 		const section = searchParams.get('section');
 		if (section && ['personal', 'experience', 'education', 'skills'].includes(section)) {
@@ -1901,7 +1912,7 @@ function ResumeUpload({
 	})();
 
 	return (
-		<div className="space-y-3">
+		<div id="resume" className="space-y-3">
 			<Label className="flex items-center gap-1.5">
 				<FileText className="h-3.5 w-3.5" /> Resume
 			</Label>
