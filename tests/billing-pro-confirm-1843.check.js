@@ -71,6 +71,25 @@ async function main() {
 	global.fetch = async (url, opts) => {
 		const u = String(url);
 		if (u.startsWith('https://api.stripe.com/')) {
+			// Rex-amendment variant: an EXPANDED subscription whose real
+			// status is not gate-accepted must be stored verbatim.
+			if (u.includes('cs_test_1843_bad')) {
+				const bad = {
+					id: 'cs_test_1843_bad',
+					status: 'complete',
+					payment_status: 'paid',
+					client_reference_id: String(userIdForSession),
+					customer_email: 'founder-check@example.com',
+					metadata: { plan_id: 'growth', billing_cycle: 'monthly' },
+					subscription: { id: 'sub_bad_1', status: 'incomplete' },
+				};
+				return {
+					ok: true,
+					status: 200,
+					json: async () => bad,
+					text: async () => JSON.stringify(bad),
+				};
+			}
 			// Stripe's default (unexpanded) checkout-session representation.
 			const session = {
 				id: 'cs_test_1843',
@@ -237,6 +256,30 @@ async function main() {
 		const coBody = await coRes.json();
 		assert.strictEqual(coRes.status, 401, `signed-out checkout must be 401, got ${coRes.status}: ${JSON.stringify(coBody)}`);
 		assert.strictEqual(coBody.code, 'AUTH_REQUIRED', `expected AUTH_REQUIRED, got ${JSON.stringify(coBody)}`);
+
+		// ── Leg 8: a real non-accepted Stripe status is stored verbatim ────
+		// Rex amendment: 'active' is only the MISSING-status fallback. An
+		// expanded subscription reporting 'incomplete' must not be promoted.
+		console.log('[check] leg 8: present-but-bad status stays verbatim');
+		const ins6 = await pool.query(
+			`INSERT INTO users (name, email, password_hash, role, is_paid, subscription_status)
+			 VALUES ('Bad Status', 'badstatus-check@example.com', $1, 'candidate', false, NULL)
+			 RETURNING id`,
+			[await hashPassword('CheckPass123!')],
+		);
+		const user6 = ins6.rows[0].id;
+		userIdForSession = user6;
+		const token6 = generateToken({ id: user6, email: 'badstatus-check@example.com', role: 'candidate' });
+		const badRes = await realFetch(`${base}/api/billing/confirm-session`, {
+			method: 'POST',
+			headers: { Authorization: `Bearer ${token6}`, 'Content-Type': 'application/json' },
+			body: JSON.stringify({ session_id: 'cs_test_1843_bad' }),
+		});
+		const badBody = await badRes.json();
+		assert.strictEqual(badBody.synced, true, `bad-status session must still sync: ${JSON.stringify(badBody)}`);
+		assert.strictEqual(badBody.subscriptionStatus, 'incomplete', `response must report the real status, got '${badBody.subscriptionStatus}'`);
+		const row6 = (await pool.query('SELECT subscription_status FROM users WHERE id=$1', [user6])).rows[0];
+		assert.strictEqual(row6.subscription_status, 'incomplete', `stored status must stay 'incomplete', got '${row6.subscription_status}'`);
 
 		console.log('PASS #1843: paid confirm (both paths) reads back tier pro; CV Analyze gate passes.');
 	} finally {
