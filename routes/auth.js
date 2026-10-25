@@ -1552,8 +1552,10 @@ router.get('/verify-payment', authMiddleware, async (req, res) => {
 		const { verified, payment } = await response.json();
 
 		if (verified) {
+			// #1843: also write a tier-accepted subscription_status — setting
+			// is_paid alone left the account 'free' per getUserTier.
 			await pool.query(
-				'UPDATE users SET is_paid = true, stripe_subscription_id = $1 WHERE id = $2',
+				"UPDATE users SET is_paid = true, stripe_subscription_id = $1, subscription_status = 'active' WHERE id = $2",
 				[payment.subscription_id || sessionId, req.user.id],
 			);
 			res.json({ success: true, verified: true });
