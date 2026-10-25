@@ -810,9 +810,36 @@ async function explainMatch(candidateId, jobId) {
 			return matchResult.rows[0];
 		}
 
-		// Calculate match on-demand if not cached
-		await updateCandidateEmbedding(candidateId);
-		await updateJobEmbedding(jobId);
+		// #1755: existence pre-check BEFORE the embedding-refresh guards.
+		// The candidate-side guard below swallows every refresh error
+		// (#1752), including updateCandidateEmbedding's 'User not found' —
+		// so without this check a nonexistent candidate id resolved to the
+		// honest no-match fallback instead of an existence error. Throwing
+		// here matches the shape job-not-found already takes (thrown from
+		// findMatchingCandidates, not masked).
+		const candidateExists = await client.query('SELECT 1 FROM users WHERE id = $1', [candidateId]);
+		if (candidateExists.rows.length === 0) {
+			throw new Error('User not found');
+		}
+
+		// Calculate match on-demand if not cached. Embedding refresh is
+		// non-blocking if it fails (#1752) — same guard findMatchingCandidates
+		// / findMatchingJobs use: when no embedding leg is live the refresh
+		// throws, and explainMatch must continue with whatever embeddings
+		// exist so the pair reaches findMatchingCandidates (and, if there
+		// is no match, the honest weighted_score: null fallback) instead
+		// of 500ing for every uncached pair.
+		try {
+			await updateCandidateEmbedding(candidateId);
+		} catch (embedErr) {
+			console.warn(`Failed to update candidate embedding for ${candidateId}:`, embedErr.message);
+		}
+
+		try {
+			await updateJobEmbedding(jobId);
+		} catch (embedErr) {
+			console.warn(`Failed to update job embedding for ${jobId}:`, embedErr.message);
+		}
 
 		const matches = await findMatchingCandidates(jobId, { limit: 100 });
 		const match = matches.find((m) => m.candidate_id === candidateId);
