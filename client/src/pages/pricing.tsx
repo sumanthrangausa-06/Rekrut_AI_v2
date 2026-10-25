@@ -18,16 +18,40 @@ import { apiCall } from '@/lib/api';
 
 type BillingCycle = 'monthly' | 'yearly';
 
+type PlanAudience = 'candidate' | 'recruiter';
+
 type PricingPlan = {
 	id: string;
 	name: string;
 	description: string;
+	audience: PlanAudience;
 	monthlyAmount: number | null;
 	yearlyAmount: number | null;
 	popular: boolean;
 	highlight?: string | null;
 	features: string[];
 	custom: boolean;
+};
+
+// #1853: the candidate Free tier is not a purchasable billing plan (it
+// never goes through checkout) — it is rendered alongside Pro so a
+// candidate sees the honest Free vs Pro comparison.
+const FREE_CANDIDATE_PLAN: PricingPlan = {
+	id: 'free',
+	name: 'Free',
+	description: 'For candidates getting started with AI job search.',
+	audience: 'candidate',
+	monthlyAmount: 0,
+	yearlyAmount: 0,
+	popular: false,
+	highlight: 'Free forever',
+	features: [
+		'AI job matching (20 / day)',
+		'Mock interviews (3 / month)',
+		'Basic assessments',
+		'AI coaching (5 / day)',
+	],
+	custom: false,
 };
 
 type PlansResponse = {
@@ -63,7 +87,7 @@ function yearlySavings(monthly: number | null, yearly: number | null) {
 }
 
 export function PricingPage() {
-	const { user } = useAuth();
+	const { user, isRecruiter } = useAuth();
 	const location = useLocation();
 	const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
 	const [plans, setPlans] = useState<PricingPlan[]>([]);
@@ -183,13 +207,65 @@ export function PricingPage() {
 		}
 	};
 
+	// #1853: role-aware pricing. A signed-in candidate sees only the
+	// candidate plans, a signed-in recruiter/employer only the team plans,
+	// and a logged-out visitor sees both, clearly labelled by audience.
+	const visibleAudience: PlanAudience | 'both' = user
+		? isRecruiter
+			? 'recruiter'
+			: 'candidate'
+		: 'both';
+	const candidatePlans: PricingPlan[] = [
+		FREE_CANDIDATE_PLAN,
+		...plans.filter((plan) => (plan.audience || 'recruiter') === 'candidate'),
+	];
+	const recruiterPlans: PricingPlan[] = plans.filter(
+		(plan) => (plan.audience || 'recruiter') === 'recruiter',
+	);
+	const planGroups: { audience: PlanAudience; label: string; plans: PricingPlan[] }[] =
+		visibleAudience === 'candidate'
+			? [{ audience: 'candidate', label: 'For candidates', plans: candidatePlans }]
+			: visibleAudience === 'recruiter'
+				? [{ audience: 'recruiter', label: 'For hiring teams', plans: recruiterPlans }]
+				: [
+						{ audience: 'candidate', label: 'For candidates', plans: candidatePlans },
+						{ audience: 'recruiter', label: 'For hiring teams', plans: recruiterPlans },
+					];
+
+	const seoTitle =
+		visibleAudience === 'recruiter'
+			? 'Pricing — Plans for Teams That Hire Faster'
+			: visibleAudience === 'candidate'
+				? 'Pricing — Free Forever, Pro When You Need It'
+				: 'Pricing — For Candidates and Hiring Teams';
+	const seoDescription =
+		visibleAudience === 'recruiter'
+			? 'Rekrut AI team plans: Starter for $29/month and Growth for $79/month, with custom Enterprise pricing for larger hiring teams.'
+			: visibleAudience === 'candidate'
+				? 'Rekrut AI is free forever for candidates. Upgrade to Pro for $19/month for unlimited AI job matching, mock interviews, skill assessments, and coaching.'
+				: 'Candidates: free forever, or Pro for $19/month for unlimited AI job matching and coaching. Hiring teams: Starter for $29/month, Growth for $79/month, and custom Enterprise pricing.';
+	const badgeText =
+		visibleAudience === 'recruiter'
+			? 'Simple plans for teams that need to hire faster'
+			: visibleAudience === 'candidate'
+				? 'Free forever for candidates — Pro when you need it'
+				: 'Pricing for candidates and hiring teams';
+	const headline =
+		visibleAudience === 'recruiter'
+			? 'Choose a plan that fits your hiring volume.'
+			: visibleAudience === 'candidate'
+				? 'Free forever. Pro when you need it.'
+				: 'Choose the plan that fits — finding a job, or hiring for one.';
+	const subcopy =
+		visibleAudience === 'recruiter'
+			? 'Launch with a clean pricing page, then send buyers straight into Stripe Checkout with one click.'
+			: visibleAudience === 'candidate'
+				? 'Start free, then upgrade to Pro to unlock CV Review, LinkedIn Optimizer, Career Diagnosis, and more.'
+				: 'Candidates start free and can upgrade to Pro. Hiring teams pick the plan that fits their hiring volume.';
+
 	return (
 		<div className="min-h-dvh-safe bg-gradient-to-b from-background via-background to-muted/30">
-			<SEO
-				title="Pricing — Free Forever, Pro When You Need It"
-				description="Rekrut AI is free forever. Upgrade to Pro for $19/month for unlimited AI job matching, mock interviews, skill assessments, and coaching."
-				canonical="/pricing"
-			/>
+			<SEO title={seoTitle} description={seoDescription} canonical="/pricing" />
 			<header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
 				<div className="mx-auto flex min-h-16 max-w-6xl flex-col gap-3 px-4 py-4 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:py-0">
 					<Link to="/" className="flex items-center gap-2">
@@ -223,15 +299,12 @@ export function PricingPage() {
 				<section className="mx-auto max-w-3xl text-center">
 					<div className="mb-4 inline-flex items-center rounded-full border bg-muted px-3 py-1.5 text-xs text-muted-foreground sm:px-4 sm:text-sm">
 						<Sparkles className="mr-1.5 h-3.5 w-3.5 shrink-0 text-primary" />
-						Simple plans for teams that need to hire faster
+						{badgeText}
 					</div>
 					<h1 className="font-heading text-3xl font-bold tracking-tight sm:text-5xl">
-						Choose a plan that fits your hiring volume.
+						{headline}
 					</h1>
-					<p className="mt-5 text-lg text-muted-foreground sm:text-xl">
-						Launch with a clean pricing page, then send buyers straight into Stripe Checkout with
-						one click.
-					</p>
+					<p className="mt-5 text-lg text-muted-foreground sm:text-xl">{subcopy}</p>
 
 					<div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
 						{billingOptions.map((option) => (
@@ -285,9 +358,17 @@ export function PricingPage() {
 								Loading pricing plans...
 							</div>
 						</div>
-					) : (
-						<div className="grid gap-6 lg:grid-cols-3">
-							{plans.map((plan) => {
+					) : plans.length === 0 ? null : (
+						<div className="space-y-12">
+							{planGroups.map((group) => (
+								<div key={group.audience}>
+									{visibleAudience === 'both' ? (
+										<h2 className="mb-6 font-heading text-2xl font-bold">{group.label}</h2>
+									) : null}
+									<div
+										className={`grid gap-6 ${group.plans.length >= 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}
+									>
+										{group.plans.map((plan) => {
 								const price = billingCycle === 'yearly' ? plan.yearlyAmount : plan.monthlyAmount;
 								const intervalLabel = billingCycle === 'yearly' ? '/year' : '/month';
 								const savings = yearlySavings(plan.monthlyAmount, plan.yearlyAmount);
@@ -327,7 +408,7 @@ export function PricingPage() {
 											<div>
 												{plan.custom ? (
 													<div className="text-4xl font-bold tracking-tight">Custom</div>
-												) : price ? (
+												) : price !== null ? (
 													<div className="space-y-1">
 														<div className="text-4xl font-bold tracking-tight">
 															{formatCurrency(price)}
@@ -354,7 +435,21 @@ export function PricingPage() {
 											</ul>
 										</CardContent>
 										<CardFooter>
-											{plan.custom ? (
+											{plan.id === 'free' ? (
+												user ? (
+													<Link to={dashboardPath} className="block w-full">
+														<Button type="button" variant="outline" className="w-full">
+															Open dashboard
+														</Button>
+													</Link>
+												) : (
+													<Link to="/register" className="block w-full">
+														<Button type="button" className="w-full">
+															Start free
+														</Button>
+													</Link>
+												)
+											) : plan.custom ? (
 												<Button
 													type="button"
 													variant="outline"
@@ -398,8 +493,11 @@ export function PricingPage() {
 											)}
 										</CardFooter>
 									</Card>
-								);
-							})}
+										);
+										})}
+									</div>
+								</div>
+							))}
 						</div>
 					)}
 				</section>
