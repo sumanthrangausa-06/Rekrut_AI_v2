@@ -87,13 +87,12 @@ modules:
     prod_version:    "0.1"        # main promotion not yet run for this module
     status: current
     last_train_date: "2026-10-24"
-    train_pr: "PR #1822"
-    train_commit: "5fe8dd0060a89534da86099d9fbd4770dc9a01ee"
+    train_pr: "PR #1822 + patch PR #1833"
+    train_commit: "dcecd3f71e6c9cf50b8f4210e95c4bc48efa1112"
     tag: "staging/assessments@v1.0"
     riders:
-      - "Save & Exit list affordance gap: the saved in-progress session gets no Resume door on the Assessments list (server state + draft verified correct via API) — #1824"
       - "subjects count on staging is 18 vs 19 on fresh install (staging's pre-existing DSA subject has no topics and renders an honest empty state; all 17 launch topics at full parity)"
-      - "#1727 anti-cheat NULL-guard client sweep (assessments-adjacent) did not ride this train — rides the next train as a one-pick rider"
+      - "Train 7 patch (PR #1833, 2026-10-24) cleared both Train 5 riders: #1824 Resume door staging-proven (catalogue resumable {sessionId} appears for the saved topic only, resume read-back in_progress + draft intact, no cross-user leak — retest2 7/7 PASS on dcecd3f71); #1718 NULL-guard sweep live on staging (patch-id identical picks; AntiCheatNullGuard1718 suite 11/11 on the train tree)"
 
   omniscore:
     current_version: "1.0"        # v1.0 proven on staging 2026-10-24 (Train 6 retest):
