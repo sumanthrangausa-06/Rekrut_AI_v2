@@ -1,0 +1,525 @@
+[
+  {
+    "module": "M1-auth",
+    "name": "candidate-login-ui",
+    "url": "/login",
+    "finalUrl": "/candidate",
+    "note": "UI form login"
+  },
+  {
+    "module": "M4-candidates",
+    "name": "candidate-dashboard",
+    "url": "/candidate",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Welcome back, QA 👋 Here's your job search overview Find",
+    "shot": "M4-candidates__candidate-dashboard.png"
+  },
+  {
+    "module": "M4-candidates",
+    "name": "candidate-profile",
+    "url": "/candidate/profile",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/profile",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate QA Candidate Add a professional headline ✉ candidate@rek",
+    "shot": "M4-candidates__candidate-profile.png"
+  },
+  {
+    "module": "M3-jobs",
+    "name": "candidate-jobs-1191",
+    "url": "/candidate/jobs",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "[jobs] Failed to load jobs: Error: Failed to fetch jobs\n    at N (http://localhost:3000/assets/index-BRf9XP4t.js:3:6380)\n    at async http://localhost:3000/assets/jobs-C3p1uA19.js:1:26585",
+      "[jobs] Operation failed: Error: Failed to get saved jobs\n    at N (http://localhost:3000/assets/index-BRf9XP4t.js:3:6380)\n    at async http://localhost:3000/assets/jobs-C3p1uA19.js:1:27481"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/candidate/jobs -> 500",
+      "GET /api/candidate/saved-jobs -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/candidate/jobs",
+    "title": "Find Your Next Job — AI-Powered Job Matching — Rekrut AI",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Find Your Next Opportunity 0 active jobs AI Search Filte",
+    "shot": "M3-jobs__candidate-jobs-1191.png"
+  },
+  {
+    "module": "M3-jobs",
+    "name": "candidate-job-detail-1191",
+    "url": "/candidate/jobs/1",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "[job-detail] Operation failed: Error: Failed to get saved jobs\n    at N (http://localhost:3000/assets/index-BRf9XP4t.js:3:6380)\n    at async http://localhost:3000/assets/job-detail-CpRJfGS_.js:1:4084"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/jobs/1 -> 500",
+      "GET /api/candidate/saved-jobs -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/candidate/jobs/1",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Job not found Back to jobs © 2026 Rekrut AI, Inc. Privac",
+    "shot": "M3-jobs__candidate-job-detail-1191.png"
+  },
+  {
+    "module": "M6-applications",
+    "name": "candidate-applications",
+    "url": "/candidate/applications",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/candidate/jobs/saved -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/candidate/applications",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate My Applications Track your job pipeline from saved jobs ",
+    "shot": "M6-applications__candidate-applications.png"
+  },
+  {
+    "module": "M12-scoring",
+    "name": "candidate-omniscore-1192",
+    "url": "/candidate/omniscore",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/omniscore/explainer -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/candidate/omniscore",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate OmniScore Your candidate credit score — like FICO for hi",
+    "shot": "M12-scoring__candidate-omniscore-1192.png"
+  },
+  {
+    "module": "M12-scoring",
+    "name": "candidate-scores",
+    "url": "/candidate/scores",
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /candidate/scores -> 404"
+    ],
+    "docStatus": 404,
+    "finalUrl": "/candidate/assessments",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Skill Assessments Verify your skills with AI-powered ass",
+    "shot": "M12-scoring__candidate-scores.png"
+  },
+  {
+    "module": "M5-coach",
+    "name": "career-coach",
+    "url": "/candidate/career-coach",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/career-coach",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate AI Career Coach Personalized career guidance powered by ",
+    "shot": "M5-coach__career-coach.png"
+  },
+  {
+    "module": "M5-coach",
+    "name": "ai-coaching",
+    "url": "/candidate/ai-coaching",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/ai-coaching",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate AI Interview Coach Record video responses — get AI feedb",
+    "shot": "M5-coach__ai-coaching.png"
+  },
+  {
+    "module": "M5-coach",
+    "name": "cv-review",
+    "url": "/candidate/cv-review",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/cv-review",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate CV Review Get AI-powered feedback on your CV strengths, ",
+    "shot": "M5-coach__cv-review.png"
+  },
+  {
+    "module": "M5-coach",
+    "name": "career-diagnosis",
+    "url": "/candidate/career-diagnosis",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/career-diagnosis",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Career Diagnosis Answer 10 questions to discover your ca",
+    "shot": "M5-coach__career-diagnosis.png"
+  },
+  {
+    "module": "M5-coach",
+    "name": "linkedin-optimizer",
+    "url": "/candidate/linkedin-optimizer",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/profile-enhancement/linkedin-tips -> 404"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/candidate/linkedin-optimizer",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate API endpoint not found Retry © 2026 Rekrut AI, Inc. Priv",
+    "shot": "M5-coach__linkedin-optimizer.png"
+  },
+  {
+    "module": "M9-ai-interview",
+    "name": "candidate-interviews",
+    "url": "/candidate/interviews",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/interviews",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate My Interviews View and manage your scheduled interviews ",
+    "shot": "M9-ai-interview__candidate-interviews.png"
+  },
+  {
+    "module": "M9-ai-interview",
+    "name": "ai-screening",
+    "url": "/candidate/ai-screening",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/ai-screening",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate My AI Screenings View AI-generated assessments for your ",
+    "shot": "M9-ai-interview__ai-screening.png"
+  },
+  {
+    "module": "M9-ai-interview",
+    "name": "interview-practice",
+    "url": "/candidate/interview-practice",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/interview-practice",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Back to Dashboard Interview Practice Practice with AI-po",
+    "shot": "M9-ai-interview__interview-practice.png"
+  },
+  {
+    "module": "M13-assessments",
+    "name": "candidate-assessments",
+    "url": "/candidate/assessments",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/assessments",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Skill Assessments Verify your skills with AI-powered ass",
+    "shot": "M13-assessments__candidate-assessments.png"
+  },
+  {
+    "module": "M13-assessments",
+    "name": "aptitude-tests",
+    "url": "/aptitude-tests",
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /aptitude-tests -> 404"
+    ],
+    "docStatus": 404,
+    "finalUrl": "/aptitude-tests",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Aptitude Tests Timed cognitive assessments to showcase your abilities 0 Tests Taken 0 Passed 0% Avg Score Available Tests My Results Cognitive Aptitude Assessment 15 min · 50 questions A standardized 15-minute test measuring logical reasoning, verbal ability, and numerical problem-solving — similar to Crossover CCAT. 15 min 50 Qs Pass: 60% Start Test",
+    "shot": "M13-assessments__aptitude-tests.png"
+  },
+  {
+    "module": "M14-verification",
+    "name": "candidate-documents",
+    "url": "/candidate/documents",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/documents",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Documents Upload and verify your documents for better jo",
+    "shot": "M14-verification__candidate-documents.png"
+  },
+  {
+    "module": "M14-verification",
+    "name": "identity-verification",
+    "url": "/candidate/identity-verification",
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /candidate/identity-verification -> 404"
+    ],
+    "docStatus": 404,
+    "finalUrl": "/candidate/identity-verification",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Identity Verification Verify your government-issued iden",
+    "shot": "M14-verification__identity-verification.png"
+  },
+  {
+    "module": "M14-verification",
+    "name": "background-check",
+    "url": "/candidate/background-check",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/background-check",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Background Check Manage your employment history, educati",
+    "shot": "M14-verification__background-check.png"
+  },
+  {
+    "module": "M18-comms",
+    "name": "candidate-messages",
+    "url": "/candidate/messages",
+    "consoleErrors": [
+      "TypeError: Failed to fetch\n    at N (http://localhost:3000/assets/index-BRf9XP4t.js:3:6032)\n    at z (http://localhost:3000/assets/background-check-CT_pTMDk.js:1:2760)\n    at http://localhost:3000/ass",
+      "TypeError: Failed to fetch\n    at N (http://localhost:3000/assets/index-BRf9XP4t.js:3:6032)\n    at z (http://localhost:3000/assets/background-check-CT_pTMDk.js:1:2695)\n    at http://localhost:3000/ass",
+      "TypeError: Failed to fetch\n    at N (http://localhost:3000/assets/index-BRf9XP4t.js:3:6032)\n    at z (http://localhost:3000/assets/background-check-CT_pTMDk.js:1:2796)\n    at http://localhost:3000/ass",
+      "TypeError: Failed to fetch\n    at N (http://localhost:3000/assets/index-BRf9XP4t.js:3:6032)\n    at z (http://localhost:3000/assets/background-check-CT_pTMDk.js:1:2728)\n    at http://localhost:3000/ass",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /candidate/messages -> 404"
+    ],
+    "docStatus": 404,
+    "finalUrl": "/candidate/chat",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Messages New Q QA Recruiter QA Fixture Data Analyst · No",
+    "shot": "M18-comms__candidate-messages.png"
+  },
+  {
+    "module": "M18-comms",
+    "name": "candidate-chat",
+    "url": "/candidate/chat",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/chat",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Messages New Q QA Recruiter QA Fixture Data Analyst · No",
+    "shot": "M18-comms__candidate-chat.png"
+  },
+  {
+    "module": "M17-posthire",
+    "name": "candidate-offers",
+    "url": "/candidate/offers",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/offers",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate My Offers Review and respond to job offers No offers yet",
+    "shot": "M17-posthire__candidate-offers.png"
+  },
+  {
+    "module": "M17-posthire",
+    "name": "candidate-onboarding",
+    "url": "/candidate/onboarding",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/onboarding",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Paperwork AI Plan & Assistant No Onboarding Available On",
+    "shot": "M17-posthire__candidate-onboarding.png"
+  },
+  {
+    "module": "M22-referrals",
+    "name": "candidate-referrals",
+    "url": "/candidate/referrals",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/referrals -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/candidate/referrals",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Refer & Earn Invite friends to Rekrut AI and earn premiu",
+    "shot": "M22-referrals__candidate-referrals.png"
+  },
+  {
+    "module": "M7-matching",
+    "name": "top-matches",
+    "url": "/candidate/top-matches",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/top-matches",
+    "title": "Top Matches — Unlock AI-Ranked Jobs — Rekrut AI",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Top Matches AI-ranked jobs tailored for you ? Senior Ful",
+    "shot": "M7-matching__top-matches.png"
+  },
+  {
+    "module": "M7-matching",
+    "name": "company-matches",
+    "url": "/candidate/company-matches",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/company-matches",
+    "title": "Company Matches — Find Your Perfect Employer — Rekrut AI",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Company Matches Discover the best remote employers and h",
+    "shot": "M7-matching__company-matches.png"
+  },
+  {
+    "module": "M7-matching",
+    "name": "ai-search",
+    "url": "/candidate/ai-search",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "[ai-search] Failed to load recommendations: Error: Internal server error\n    at N (http://localhost:3000/assets/index-BRf9XP4t.js:3:6380)\n    at async http://localhost:3000/assets/ai-search-gDFz3Jor.j"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/matching/recommendations -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/candidate/ai-search",
+    "title": "AI Job Search — Find Your Perfect Match — Rekrut AI",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate AI Job Search Smart matching finds roles that actually f",
+    "shot": "M7-matching__ai-search.png"
+  },
+  {
+    "module": "M4-candidates",
+    "name": "saved-jobs",
+    "url": "/candidate/saved-jobs",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "[saved-jobs] Failed to load: Error: Failed to get saved jobs\n    at N (http://localhost:3000/assets/index-BRf9XP4t.js:3:6380)\n    at async http://localhost:3000/assets/saved-jobs-5hmZ832T.js:1:666"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/candidate/jobs/saved -> 500"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/candidate/saved-jobs",
+    "title": "Saved Jobs — Your Bookmarked Opportunities — Rekrut AI",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Saved Jobs 0 jobs bookmarked Browse More Jobs No saved j",
+    "shot": "M4-candidates__saved-jobs.png"
+  },
+  {
+    "module": "M4-candidates",
+    "name": "candidate-settings",
+    "url": "/candidate/settings",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/settings",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Settings Manage your profile, account, and preferences A",
+    "shot": "M4-candidates__candidate-settings.png"
+  },
+  {
+    "module": "M10-human-interviews",
+    "name": "interview-history",
+    "url": "/candidate/history",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 400 (Bad Request)",
+      "Failed to load history: Error: Validation failed\n    at N (http://localhost:3000/assets/index-BRf9XP4t.js:3:6380)\n    at async s (http://localhost:3000/assets/history-DPRbXVGZ.js:1:461)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/interviews/history -> 400"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/candidate/history",
+    "title": "Rekrut AI — AI-Powered Career Companion",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Back to Dashboard New Interview Interview History Review",
+    "shot": "M10-human-interviews__interview-history.png"
+  }
+]
