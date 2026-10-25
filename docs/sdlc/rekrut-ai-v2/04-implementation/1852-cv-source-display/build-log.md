@@ -83,3 +83,34 @@ client suites failing. Run locally on this branch (vitest, this tree):
 The one local failure observed during verification was an environment
 ENOSPC (`/tmp` tmpfs full), which cleared with disk space and is the
 likely source of the reviewer's result.
+
+## Follow-up commit — full review report addressed
+
+The reviewer's complete report (delivered after the first commit) added
+four items, all now fixed and re-verified:
+
+1. **JOIN scoping (defence-in-depth):** the analysis LEFT JOIN is now
+   `ON pr.id = ca.document_id AND pr.user_id = ca.user_id` — a
+   corrupt/foreign `document_id` can never disclose another user's
+   filename/date. New E2E leg 6 proves it (analysis pointing at user B's
+   document returns nulls to user A).
+2. **Evidence robustness:** the check now `mkdirSync`s the evidence dir
+   before writing (git tracks no empty dirs, so a fresh checkout could
+   have failed the write inside `finally`).
+3. **`#resume` scroll:** `profile.tsx` now scrolls the resume section
+   into view once the Personal tab has mounted post-load when the URL
+   hash is `#resume` (the browser's native hash jump fires before the
+   asynchronously-loaded section exists).
+4. **E2E gaps closed:** leg 3b proves "latest wins" (a newer upload is
+   the one named); leg 7 proves a NULL `document_id` analysis returns
+   null filename/date with no error; leg 5 now also scans the analysis
+   response body for `file_url`/parsed-content leakage.
+5. **Tie-break (reviewer NIT):** both the analyze pick and the
+   source-document pick now use `ORDER BY created_at DESC, id DESC`, so
+   on an exact timestamp tie the page names the same CV the analyzer
+   used. This only makes an existing non-deterministic pick
+   deterministic; no other analysis behaviour changes.
+
+Re-verification after these fixes: E2E check exit 0, all legs PASS
+(evidence log regenerated); CvReview vitest suites 3/3 PASS;
+ProfilePage + ProfileAvatarRefresh suites run (see PR comment).

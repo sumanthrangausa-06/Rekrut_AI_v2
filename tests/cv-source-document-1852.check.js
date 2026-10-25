@@ -147,6 +147,15 @@ async function main() {
 		const aStill = await call('GET', '/api/candidate/cv/source-document', { token: tokenA });
 		assert.strictEqual(aStill.json.document.original_filename, 'jane-doe-cv.pdf', "A's answer is unchanged by B's upload");
 
+		// ── Leg 3b: 'latest' wins — a newer row for A replaces the answer ─
+		await pool.query(
+			`INSERT INTO parsed_resumes (user_id, original_filename, file_url, parsing_status, created_at)
+			 VALUES ($1, 'jane-doe-cv-v2.pdf', 'https://storage.example/secret/v2.pdf', 'completed', '2026-10-22T08:00:00.000Z')`,
+			[idA],
+		);
+		const aLatest = await call('GET', '/api/candidate/cv/source-document', { token: tokenA });
+		assert.strictEqual(aLatest.json.document.original_filename, 'jane-doe-cv-v2.pdf', 'the newest upload must be the one named');
+
 		// ── Leg 4: unauthenticated → 401 ─────────────────────────────────
 		const anon = await call('GET', '/api/candidate/cv/source-document', {});
 		assert.strictEqual(anon.status, 401, `unauthenticated must be 401, got ${anon.status}`);
@@ -164,11 +173,41 @@ async function main() {
 		assert.ok(String(got.json.analysis.document_uploaded_at).startsWith('2026-10-20'), `analysis upload date, got ${got.json.analysis.document_uploaded_at}`);
 		const gotByB = await call('GET', `/api/candidate/cv/analysis/${anaId}`, { token: tokenB });
 		assert.strictEqual(gotByB.status, 404, "B must not read A's analysis");
+		const anaStr = JSON.stringify(got.json);
+		assert.ok(!anaStr.includes('file_url') && !anaStr.includes('storage.example') && !anaStr.includes('parsed-content'), 'analysis body must never carry file_url / parsed content');
+
+		// ── Leg 6: JOIN scoping — an analysis pointing at ANOTHER user's
+		// document must not disclose that document's filename/date ────────
+		const cross = await pool.query(
+			`INSERT INTO cv_analyses (user_id, document_id, status, overall_score, section_scores, recommendations)
+			 VALUES ($1, $2, 'completed', 50, '[]'::jsonb, '[]'::jsonb) RETURNING id`,
+			[idA, (await pool.query('SELECT id FROM parsed_resumes WHERE user_id=$1', [idB])).rows[0].id],
+		);
+		const gotCross = await call('GET', `/api/candidate/cv/analysis/${cross.rows[0].id}`, { token: tokenA });
+		assert.strictEqual(gotCross.status, 200);
+		assert.strictEqual(gotCross.json.analysis.document_filename, null, "another user's document must never be named");
+		assert.strictEqual(gotCross.json.analysis.document_uploaded_at, null);
+
+		// ── Leg 7: NULL document_id (ON DELETE SET NULL state) → nulls, no error ─
+		const orphan = await pool.query(
+			`INSERT INTO cv_analyses (user_id, document_id, status, overall_score, section_scores, recommendations)
+			 VALUES ($1, NULL, 'completed', 50, '[]'::jsonb, '[]'::jsonb) RETURNING id`,
+			[idA],
+		);
+		const gotOrphan = await call('GET', `/api/candidate/cv/analysis/${orphan.rows[0].id}`, { token: tokenA });
+		assert.strictEqual(gotOrphan.status, 200);
+		assert.strictEqual(gotOrphan.json.analysis.document_filename, null);
+		assert.strictEqual(gotOrphan.json.analysis.document_uploaded_at, null);
 
 		log('PASS: all #1852 journey legs green');
 	} finally {
 		server.close();
 		await pool.end().catch(() => {});
+		// evidence/ may not exist on a fresh checkout (git tracks no empty dirs)
+		require('node:fs').mkdirSync(
+			require('node:path').join(__dirname, '..', 'docs/sdlc/rekrut-ai-v2/04-implementation/1852-cv-source-display/evidence'),
+			{ recursive: true },
+		);
 		require('node:fs').writeFileSync(
 			require('node:path').join(__dirname, '..', 'docs/sdlc/rekrut-ai-v2/04-implementation/1852-cv-source-display/evidence/e2e-1852.log'),
 			evidence.join('\n') + '\n',
