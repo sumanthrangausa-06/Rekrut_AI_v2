@@ -45,6 +45,10 @@ export interface CatalogTopic {
 		lastAttempted: string | null;
 		canRetake: boolean;
 	} | null;
+	// #1824: the user's saved in-progress session on this topic, if any —
+	// the Assessments list renders a Resume door for it instead of
+	// Configure & Start (starting anew would abandon the saved session).
+	resumable: { sessionId: number } | null;
 }
 
 export interface CatalogSubject {
