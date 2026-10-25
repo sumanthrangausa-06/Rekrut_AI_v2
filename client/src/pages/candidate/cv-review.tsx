@@ -33,6 +33,19 @@ interface CVAnalysis {
 	overall_score: number;
 	section_scores: SectionScore[];
 	recommendations?: Array<{ section: string; impact: string; text: string }>;
+	document_filename?: string | null;
+	document_uploaded_at?: string | null;
+}
+
+interface SourceDocument {
+	original_filename: string | null;
+	created_at: string;
+	parsing_status: string | null;
+}
+
+interface SourceDocumentResponse {
+	success: boolean;
+	document: SourceDocument | null;
 }
 
 interface TriggerResponse {
@@ -80,6 +93,13 @@ function overallScoreLabel(score: number): string {
 	if (score >= 60) return 'Fair';
 	if (score >= 50) return 'Needs Improvement';
 	return 'Critical';
+}
+
+function formatUploadDate(iso: string): string {
+	const d = new Date(iso);
+	return Number.isNaN(d.getTime())
+		? iso
+		: d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 // ── Section Accordion ───────────────────────────────────────────────────────
@@ -156,6 +176,9 @@ export function CVReviewPage() {
 	const navigate = useNavigate();
 	const [state, setState] = useState<PageState>({ kind: 'idle' });
 	const [expandedSection, setExpandedSection] = useState<string | null>(null);
+	// #1852: which CV is on file, so the user can see what will be / was analyzed.
+	const [sourceDoc, setSourceDoc] = useState<SourceDocument | null>(null);
+	const [sourceDocLoaded, setSourceDocLoaded] = useState(false);
 	const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	const clearPoll = useCallback(() => {
@@ -168,6 +191,26 @@ export function CVReviewPage() {
 	useEffect(() => {
 		return () => clearPoll();
 	}, [clearPoll]);
+
+	const fetchSourceDoc = useCallback(() => {
+		let cancelled = false;
+		apiCall<SourceDocumentResponse>('/candidate/cv/source-document')
+			.then((data) => {
+				if (!cancelled) {
+					setSourceDoc(data.document);
+					setSourceDocLoaded(true);
+				}
+			})
+			.catch(() => {
+				// Leave sourceDocLoaded false: show nothing rather than a wrong
+				// "no CV on file" claim when the lookup itself failed.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => fetchSourceDoc(), [fetchSourceDoc]);
 
 	const toggleSection = useCallback((name: string) => {
 		setExpandedSection((prev) => (prev === name ? null : name));
@@ -256,7 +299,10 @@ export function CVReviewPage() {
 		clearPoll();
 		setState({ kind: 'idle' });
 		setExpandedSection(null);
-	}, [clearPoll]);
+		// #1852: refresh the on-file CV — it may have changed in Profile
+		// while this page was showing a completed analysis.
+		fetchSourceDoc();
+	}, [clearPoll, fetchSourceDoc]);
 
 	const analysis = state.kind === 'completed' ? state.analysis : null;
 	const overallScore = analysis?.overall_score ?? 0;
@@ -290,10 +336,30 @@ export function CVReviewPage() {
 								improve it.
 							</p>
 						</div>
-						<Button onClick={handleAnalyze} className="gap-2">
-							<Sparkles className="h-4 w-4" />
-							Analyze My CV
-						</Button>
+						{sourceDocLoaded &&
+							(sourceDoc ? (
+								<p className="text-sm text-muted-foreground">
+									Your CV on file: <span className="font-medium text-foreground">{sourceDoc.original_filename || 'Resume'}</span>
+									{' · uploaded '}
+									{formatUploadDate(sourceDoc.created_at)}
+								</p>
+							) : (
+								<p className="text-sm text-muted-foreground">No CV on file yet</p>
+							))}
+						<div className="flex items-center gap-2">
+							<Button onClick={handleAnalyze} className="gap-2">
+								<Sparkles className="h-4 w-4" />
+								Analyze My CV
+							</Button>
+							<Button
+								variant="outline"
+								onClick={() => navigate('/candidate/profile?section=personal#resume')}
+								className="gap-2"
+							>
+								<Upload className="h-4 w-4" />
+								Manage CV
+							</Button>
+						</div>
 					</CardContent>
 				</Card>
 			)}
@@ -413,11 +479,28 @@ export function CVReviewPage() {
 									<p className="text-sm text-muted-foreground mt-1">
 										Based on {analysis.section_scores.length} evaluated sections
 									</p>
+									{analysis.document_filename && (
+										<p className="text-sm text-muted-foreground mt-1">
+											Analyzed: <span className="font-medium text-foreground">{analysis.document_filename}</span>
+											{analysis.document_uploaded_at &&
+												` · uploaded ${formatUploadDate(analysis.document_uploaded_at)}`}
+										</p>
+									)}
 								</div>
-								<Button variant="outline" onClick={handleReset}>
-									<RefreshCw className="h-4 w-4 mr-1.5" />
-									Analyze Again
-								</Button>
+								<div className="flex flex-col gap-2">
+									<Button variant="outline" onClick={handleReset}>
+										<RefreshCw className="h-4 w-4 mr-1.5" />
+										Analyze Again
+									</Button>
+									<Button
+										variant="ghost"
+										size="sm"
+										onClick={() => navigate('/candidate/profile?section=personal#resume')}
+									>
+										<Upload className="h-4 w-4 mr-1.5" />
+										Manage CV
+									</Button>
+								</div>
 							</div>
 						</CardContent>
 					</Card>
