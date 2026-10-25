@@ -281,6 +281,25 @@ async function main() {
 		const row6 = (await pool.query('SELECT subscription_status FROM users WHERE id=$1', [user6])).rows[0];
 		assert.strictEqual(row6.subscription_status, 'incomplete', `stored status must stay 'incomplete', got '${row6.subscription_status}'`);
 
+		// ── Leg 9: /billing/subscription-status heals a stranded row too ───
+		console.log('[check] leg 9: subscription-status heal');
+		const ins7 = await pool.query(
+			`INSERT INTO users (name, email, password_hash, role, is_paid, stripe_subscription_id, subscription_status)
+			 VALUES ('Stranded Status', 'strandedstatus-check@example.com', $1, 'candidate', true, 'sub_stale_9', 'complete')
+			 RETURNING id`,
+			[await hashPassword('CheckPass123!')],
+		);
+		const user7 = ins7.rows[0].id;
+		const token7 = generateToken({ id: user7, email: 'strandedstatus-check@example.com', role: 'candidate' });
+		const ssRes = await realFetch(`${base}/api/billing/subscription-status`, {
+			headers: { Authorization: `Bearer ${token7}` },
+		});
+		const ssBody = await ssRes.json();
+		assert.strictEqual(ssBody.tier, 'pro', `subscription-status tier must heal to 'pro', got '${ssBody.tier}'`);
+		assert.strictEqual(ssBody.status, 'active', `subscription-status must report healed 'active', got '${ssBody.status}'`);
+		const row7 = (await pool.query('SELECT subscription_status FROM users WHERE id=$1', [user7])).rows[0];
+		assert.strictEqual(row7.subscription_status, 'active', 'subscription-status read must persist the heal');
+
 		console.log('PASS #1843: paid confirm (both paths) reads back tier pro; CV Analyze gate passes.');
 	} finally {
 		server.close();
