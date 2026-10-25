@@ -2430,10 +2430,44 @@ router.put(
 				}
 			}
 
+			// #1804(ii) (Rex design on #1804): judge the RESULTING
+			// (effective) status — validated incoming status if sent,
+			// else the stored status — never the stored status alone
+			// (the lawful client completion {status:'completed',
+			// outcome, feedback} moves a rescheduled-family row OUT of
+			// the family in the same call and must pass). While the
+			// effective status is in the rescheduled family, an
+			// outcome-write (outcome non-null, incl. the client's
+			// 'completed' default) or a feedback-write (truthy
+			// feedback) is a stale write: honest 400, row unchanged.
+			// Family set is closed (not widened to cancelled/no_show).
+			const RESCHEDULED_FAMILY = ['rescheduled', 'reschedule_requested'];
+			const existing = await pool.query(
+				'SELECT status FROM scheduled_interviews WHERE id = $1 AND company_id = $2',
+				[req.params.id, req.user.company_id],
+			);
+			if (existing.rows.length === 0) {
+				return res.status(404).json({ error: 'Interview not found' });
+			}
+			const effectiveStatus = status != null ? storedStatus : existing.rows[0].status;
+			const outcomeWrite = outcome != null;
+			const feedbackWrite = !!feedback;
+			if (RESCHEDULED_FAMILY.includes(effectiveStatus) && (outcomeWrite || feedbackWrite)) {
+				return res.status(400).json({
+					error: `Interview outcome and feedback cannot be recorded while the interview is rescheduled (status: ${effectiveStatus}). Set the interview to completed first, then save the outcome and feedback.`,
+				});
+			}
+			// Lead ruling on #1804 (ADOPTED, Rex dissent preserved on the
+			// issue): a status-only move INTO the family clears a stale
+			// outcome to NULL in the same UPDATE (feedback preserved),
+			// mirroring part (i) PR #1849 and the decline precedent.
+			const clearOutcome =
+				status != null && RESCHEDULED_FAMILY.includes(storedStatus) && !outcomeWrite && !feedbackWrite;
+
 			const result = await pool.query(
 				`UPDATE scheduled_interviews SET
         status = COALESCE($1, status),
-        outcome = COALESCE($2, outcome),
+        outcome = CASE WHEN $7::boolean THEN NULL ELSE COALESCE($2, outcome) END,
         feedback = COALESCE($3, feedback),
         meeting_link = COALESCE($4, meeting_link),
         updated_at = NOW()
@@ -2446,6 +2480,7 @@ router.put(
 					meeting_link,
 					req.params.id,
 					req.user.company_id,
+					clearOutcome,
 				],
 			);
 

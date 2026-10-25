@@ -515,3 +515,51 @@ must all stay green unmodified except for these additions.
   interview-sessions projection, OmniScore, or the CHECK.
 - It does not decide gradation-level outcome reporting as a product
   feature — that is option (c), reserved for a separate ruling (§4).
+
+---
+
+## 11. Addendum — #1804 part (ii): recruiter PUT cross-field guard (2026-10-25)
+
+Rex's design for this guard is recorded in full on issue #1804 (the
+lawful-flow design comment, advance run 2026-10-25 09:43 PT); this
+section is the in-repo pointer plus the one ruling the build lane
+needed.
+
+**Rule (one sentence):** judge the RESULTING (effective) status of the
+row, never the stored status alone — effective status is the validated
+incoming `status` if sent, else the stored status.
+
+**Build (in `PUT /api/recruiter/interviews/:id`, `routes/recruiter.js`):**
+
+- The existing #1788/#1789 vocabulary validation is unchanged and runs
+  first (preserving today's 400-before-404 precedence).
+- One new scoped read (`SELECT status … WHERE id AND company_id`);
+  0 rows → the same 404 as today.
+- Reject **400** — `Interview outcome and feedback cannot be recorded
+  while the interview is rescheduled (status: <effectiveStatus>). Set
+  the interview to completed first, then save the outcome and
+  feedback.` — iff the effective status ∈
+  `{rescheduled, reschedule_requested}` AND (outcome-write OR
+  feedback-write), where outcome-write = `outcome` non-null (including
+  the client's `'completed'` default → `no_decision`) and
+  feedback-write = truthy `feedback`.
+- All other combinations pass unchanged: the lawful same-call
+  completion out of the family (the real client's
+  `{status:'completed', outcome, feedback}`), Confirm
+  (`{status:'confirmed'}` only), separate-calls completion then
+  outcome/feedback, `meeting_link`-only updates, falsy feedback, and
+  empty bodies. The family set is closed — deliberately NOT widened to
+  `cancelled` / `no_show`.
+
+**Lead ruling (ADOPTED):** a status-only move INTO the family clears
+`outcome` to NULL in the same UPDATE (feedback preserved), mirroring
+part (i) PR #1849 (candidate reschedule) and the decline precedent.
+**Rex's dissent, preserved:** a literal-scope reading of #1804
+("validation" only) would reject writes and file the status-only
+retention as a follow-up — defensible, but Lead ruled ADOPT, so no
+path is knowingly left.
+
+**Evidence:** `tests/interview-recruiter-put-guard-1804.check.js`
+(real HTTP, fresh-migrated scratch Postgres, rows read back) covers
+Rex's T1–T11; T5/T12 are the re-run #1789 suite and #1801 calculator
+suites. No migration, no client change.
