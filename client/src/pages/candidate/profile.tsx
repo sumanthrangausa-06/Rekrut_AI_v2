@@ -1901,7 +1901,7 @@ function ResumeUpload({
 	})();
 
 	return (
-		<div className="space-y-3">
+		<div id="resume" className="space-y-3">
 			<Label className="flex items-center gap-1.5">
 				<FileText className="h-3.5 w-3.5" /> Resume
 			</Label>

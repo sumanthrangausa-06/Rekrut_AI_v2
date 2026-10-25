@@ -1319,15 +1319,48 @@ Score exactly these five sections, using these exact names: "Experience", "Skill
 	}
 });
 
+// #1852: source-document identity for the CV Review page — the caller's own
+// latest parsed resume, filename + upload date ONLY (never file_url or
+// parsed content), so the user can see which CV an analysis used.
+router.get('/cv/source-document', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`SELECT original_filename, created_at, parsing_status
+			 FROM parsed_resumes
+			 WHERE user_id = $1
+			 ORDER BY created_at DESC
+			 LIMIT 1`,
+			[req.user.id],
+		);
+		if (result.rows.length === 0) {
+			return res.json({ success: true, document: null });
+		}
+		const row = result.rows[0];
+		res.json({
+			success: true,
+			document: {
+				original_filename: row.original_filename,
+				created_at: row.created_at,
+				parsing_status: row.parsing_status,
+			},
+		});
+	} catch (err) {
+		console.error('Get CV source document error:', err);
+		res.status(500).json({ error: 'Failed to get CV source document' });
+	}
+});
+
 // Get analysis result by ID
 router.get('/cv/analysis/:id', authMiddleware, async (req, res) => {
 	try {
 		await failStalePendingCvAnalyses(req.user.id);
 		const result = await pool.query(
 			`
-			SELECT id, user_id, document_id, status, overall_score, section_scores, recommendations, created_at, updated_at
-			FROM cv_analyses
-			WHERE id = $1 AND user_id = $2
+			SELECT ca.id, ca.user_id, ca.document_id, ca.status, ca.overall_score, ca.section_scores, ca.recommendations, ca.created_at, ca.updated_at,
+			       pr.original_filename AS document_filename, pr.created_at AS document_uploaded_at
+			FROM cv_analyses ca
+			LEFT JOIN parsed_resumes pr ON pr.id = ca.document_id
+			WHERE ca.id = $1 AND ca.user_id = $2
 			`,
 			[req.params.id, req.user.id],
 		);
@@ -1349,6 +1382,8 @@ router.get('/cv/analysis/:id', authMiddleware, async (req, res) => {
 				recommendations: row.recommendations,
 				created_at: row.created_at,
 				updated_at: row.updated_at,
+				document_filename: row.document_filename ?? null,
+				document_uploaded_at: row.document_uploaded_at ?? null,
 			},
 		});
 	} catch (err) {
