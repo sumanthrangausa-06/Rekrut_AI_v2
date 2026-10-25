@@ -106,7 +106,12 @@ const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
 const interviewSessionRoutes = require('./routes/interview-sessions'); // Phase 1 (#322) — unified interview sessions
+const interviewSessionsV2Routes = require('./server/routes/interview-sessions-v2'); // S-001 (#640) — Unified session creation (POST /sessions)
+const sessionLifecycleRoutes = require('./server/routes/session-lifecycle'); // S-003 (#642) — Lifecycle: state, heartbeat, resume
+const humanInterviewRequestRoutes = require('./server/routes/human-interview-requests'); // S-012 (#651) — Consent-decline → human interview path
+const frameProxyRoutes = require('./server/routes/frame-proxy'); // S-059 (#630) — Encrypted frame decrypt-proxy for vision APIs
 const interviewEventsRoutes = require('./routes/interview-events'); // Issue #127 — Calendar scheduling
+const interviewsUnifiedRoutes = require('./routes/interviews-unified'); // Unified human interviews (must mount BEFORE interviewEventsRoutes — see below)
 const quickPracticeRoutes = require('./routes/quick-practice'); // ISOLATED from Mock Interview (#32717)
 const omniscoreRoutes = require('./routes/omniscore');
 const companyRoutes = require('./routes/company');
@@ -145,6 +150,7 @@ const voiceNotificationsRoutes = require('./routes/voice-notifications');
 const screeningRoutes = require('./routes/screening');
 const proctoringRoutes = require('./routes/proctoring');
 const aiScreenerRoutes = require('./routes/ai-screener');
+const aiRoutes = require('./routes/ai'); // General AI Assistant chat
 const questionnaireRoutes = require('./routes/questionnaire');
 const settingsRoutes = require('./routes/settings');
 const signatureRoutes = require('./routes/signature');
@@ -156,6 +162,7 @@ const codingSubmissionRoutes = require('./routes/coding-submissions');
 const livekitRoutes = require('./server/routes/livekit'); // Issue #124 — LiveKit video infrastructure
 const backgroundCheckRoutes = require('./routes/background-check'); // Issue #133 — Background check
 const recordingRoutes = require('./server/routes/recordings'); // Issue #126 — Interview recording, playback & AI transcript
+const consentRoutes = require('./server/routes/consent'); // S-010 (#568) — Consent lifecycle (texts, receipts, withdrawal)
 const collaborationRoutes = require('./routes/collaboration'); // Issue #128 — Real-time collaboration for hiring teams
 const apiKeyRoutes = require('./routes/api-keys'); // Issue #140 — Public API key management
 const publicApiRoutes = require('./routes/public-api'); // Issue #140 — Public API v1
@@ -464,6 +471,9 @@ app.use((_req, res, next) => {
 
 app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '50mb' }));
+// #1268: clear 400 contract error for body-parse failures on
+// POST /api/career-diagnosis only (see routes/profile-enhancement.js).
+app.use(profileEnhancementRoutes.careerDiagnosisBodyParseError);
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
@@ -594,34 +604,12 @@ try {
 	console.warn('[server] Activity logger not available:', err.message);
 }
 
-// API Routes - Email Queue (admin only)
+// Email Queue: the API routes (GET /api/admin/email-queue, POST
+// /api/admin/email-queue/retry) live in routes/admin.js since #1224 —
+// they were defined here behind JWT-only auth, which 401'd the
+// env-admin cookie session. Only the queue processor stays here.
 const emailQueue = require('./lib/email-queue');
 const { sendTemplatedEmail } = require('./lib/email-service');
-const { authMiddleware } = require('./lib/auth');
-
-app.get('/api/admin/email-queue', authMiddleware, async (req, res) => {
-	if (req.user.role !== 'admin') {
-		return res.status(403).json({ error: 'Admin access required' });
-	}
-	try {
-		const stats = await emailQueue.getStats();
-		res.json({ stats });
-	} catch (_err) {
-		res.status(500).json({ error: 'Failed to get queue stats' });
-	}
-});
-
-app.post('/api/admin/email-queue/retry', authMiddleware, async (req, res) => {
-	if (req.user.role !== 'admin') {
-		return res.status(403).json({ error: 'Admin access required' });
-	}
-	try {
-		const retried = await emailQueue.retryFailed();
-		res.json({ retried: retried.length });
-	} catch (_err) {
-		res.status(500).json({ error: 'Failed to retry failed emails' });
-	}
-});
 
 // Start email queue processor
 emailQueue.startProcessor(async (email) => {
@@ -650,9 +638,20 @@ app.use('/api', chatRoutes.router);
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/interviews', interviewSessionRoutes); // Phase 1 (#322) — unified sessions (mounted FIRST: the single-segment list GETs /interview-sessions and /interview-flows would otherwise die in interviewEventsRoutes' isInt(:id) validator with 400)
+app.use('/api/interviews', interviewSessionsV2Routes); // S-001 (#640) — POST /sessions (unified session creation)
+app.use('/api/interviews', sessionLifecycleRoutes); // S-003 (#642) — PATCH /sessions/:id/state, heartbeat, resume
+app.use('/api/interviews', humanInterviewRequestRoutes); // S-012 (#651) — POST /sessions/:id/request-human-interview, /human-requests/:id/approve|decline
+// S-059 (#630) — frame decrypt-proxy. NO auth middleware: the HMAC token in the
+// URL is the authorization (vision APIs can't present a session). Mounted at
+// /api (not /api/interviews) so proxy URLs stay short.
+app.use('/api', frameProxyRoutes);
 // Issue #244 — mount BEFORE interviewEventsRoutes: its GET /:id isInt validator
 // would otherwise 400 every /recordings request (same shadowing class as C1).
 app.use('/api/interviews/recordings', recordingRoutes); // Issue #126 — Interview recording, playback & AI transcript
+// Unified human interviews (GET /my-interviews, POST /unified, POST /unified/:id/confirm-slot)
+// — mount BEFORE interviewEventsRoutes: its GET /:id isInt validator would
+// otherwise 400 on the fixed segment "my-interviews" (same shadowing class as #244).
+app.use('/api/interviews', interviewsUnifiedRoutes);
 app.use('/api/interviews', interviewEventsRoutes); // Issue #127 — Calendar interview scheduling
 app.use('/api/interviews', quickPracticeRoutes); // ISOLATED Quick Practice — must be BEFORE interview routes (#32717)
 app.use('/api/interviews', interviewRoutes); // Mock Interview + video analysis (no practice routes)
@@ -662,6 +661,7 @@ app.use('/api/collaboration', collaborationRoutes);
 
 // API Routes - LiveKit Video Infrastructure (Issue #124)
 app.use('/api/livekit', livekitRoutes);
+app.use('/api/consent', consentRoutes); // S-010 (#568) — Consent lifecycle
 
 // API Routes - Interview Panels (Issue #125 — Multi-interviewer panel with scorecards and shared notes)
 app.use('/api/panels', panelRoutes);
@@ -753,6 +753,7 @@ app.use('/api/screening', screeningRoutes);
 
 // API Routes - AI Recruiter Screener (Issue #112)
 app.use('/api', aiScreenerRoutes);
+app.use('/api/ai', aiRoutes); // General AI Assistant chat (POST /api/ai/chat)
 
 // API Routes - Screening Questionnaire (Issue #110)
 app.use('/api/questionnaire', questionnaireRoutes);
@@ -977,22 +978,106 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 // ─── Recording Retention Cron: soft-delete expired recordings, daily ───────
 // Session-linked recordings expire 30 days after the hiring decision (#322);
 // the table default is 90 days. Follows the stall-check pattern above.
+// S-077 (#760): extended with storage-object deletion (purgeExpiredRecordings
+// now deletes R2/B2 files, not just DB rows), the recording_objects registry
+// sweep (purgeRecordingObjects), and biometric_templates expiry.
+// DRY-RUN FIRST: all purges default to dryRun=true. Live storage deletion
+// requires Sumanth's explicit approval per deletion-scope rules.
+// STAGING GUARD: staging shares the production database (standing rule).
+// The flag must NEVER be set on staging — live mode requires NODE_ENV=production.
 (function startRecordingRetention() {
 	const RETENTION_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+	// ponytail: env-gated live deletion — the cron ships dry-run; flip only
+	// with explicit approval. Never defaults to live.
+	const LIVE_PURGE =
+		process.env.RETENTION_PURGE_LIVE === 'true' && process.env.NODE_ENV === 'production';
+	if (process.env.RETENTION_PURGE_LIVE === 'true' && process.env.NODE_ENV !== 'production') {
+		console.warn(
+			'[retention] RETENTION_PURGE_LIVE=true ignored: NODE_ENV is not production. ' +
+			'Live purge is disabled to protect the shared database.',
+		);
+	}
 
 	setInterval(async () => {
 		try {
 			const EuComplianceService = require('./services/euComplianceService');
-			const { deletedCount } = await EuComplianceService.purgeExpiredRecordings();
-			if (deletedCount > 0) {
-				console.log(`[retention] Soft-deleted ${deletedCount} expired recording(s)`);
-			}
+			const opts = { dryRun: !LIVE_PURGE };
+
+			const rec = await EuComplianceService.purgeExpiredRecordings(opts);
+			const reg = await EuComplianceService.purgeRecordingObjects(opts);
+			const tpl = await EuComplianceService.purgeExpiredTemplates(opts);
+			// S-047 (E-008, #695): 30-day observer report retention (spec §5.3)
+			const obs = await EuComplianceService.purgeExpiredObserverReports(opts);
+			// Gate A (S-085, #787): 30-day observer speech-measurement purge
+			// (design §5.1) + intent reconciler backstop (primary cadence is
+			// the observer worker's 60 s sweeper).
+			const speechMeas = await EuComplianceService.purgeExpiredSpeechMeasurements(opts);
+			const { reconcileObserverAudioIntents, purgeTestObserverAudio } = require('./lib/observerCapture');
+			// The reconciler DELETES objects and rows — it must not run
+			// live inside a dry-run retention pass (privacy review A-6).
+			const recon = opts.dryRun ? { rowsRetired: 0 } : await reconcileObserverAudioIntents({});
+			// Gate A §5.5: test-scope artefacts have a 7-day max lifetime
+			// (DB review m6 — this purge previously had no caller).
+			const testPurge = await purgeTestObserverAudio({ dryRun: opts.dryRun });
+
+			// #1128 GAP-I (D-7): storage-deletion ledger terminal purge —
+			// deliberately NOT gated by LIVE_PURGE / opts.dryRun. Gate
+			// analysis: the gated calls above delete USER CONTENT on a
+			// retention schedule, which is what RETENTION_PURGE_LIVE
+			// arms. This purge deletes no user content: the storage
+			// objects were already deleted at the subject's own erasure
+			// request (Phase-2 drain); it only folds terminal
+			// (status='deleted', >7-day grace) pending_storage_deletions
+			// rows into one bounded key-free audit_logs record per user
+			// and deletes the ledger's per-object key inventory. That
+			// is erasure-machinery hygiene in the erasure-completion
+			// section (alongside reconcileObserverAudioIntents above),
+			// not the #805 retention purge — gating it behind a flag
+			// that is never set outside production would leave the
+			// shadow key inventory in place indefinitely, which is the
+			// K-2 defect this story removes. Legal-hold fail-closed
+			// inside the purge itself (D-3/D-6).
+			const { purgeDrainedStorageDeletions } = require('./lib/erasureService');
+			const ledgerPurge = await purgeDrainedStorageDeletions();
+
+			const mode = opts.dryRun ? 'DRY-RUN' : 'LIVE';
+			console.log(
+				`[retention] ${mode}: recordings=${rec.deletedCount} (storage=${rec.storageDeleted}), ` +
+				`registry=${reg.purgedCount} (storage=${reg.storageDeleted}), templates=${tpl.deletedCount}, ` +
+				`observer_reports=${obs.deletedCount}, speech_measurements=${speechMeas.deletedCount}, ` +
+				`capture_intents_reconciled=${recon.rowsRetired}, test_capture_purged=${testPurge.objectsDeleted}, ` +
+				`storage_ledger_purged=${ledgerPurge.ledgerRowsPurged} (users=${ledgerPurge.usersPurged}, held=${ledgerPurge.ledgerRowsRetainedHeld}, lookup_failed=${ledgerPurge.ledgerHoldLookupFailed}), ` +
+				// #799: held rows are visibly skipped in the run report, never silently retained.
+				`held_skips=${(rec.heldSkips || 0) + (reg.heldSkips || 0) + (tpl.heldSkips || 0) + (obs.heldSkips || 0) + (speechMeas.heldSkips || 0) + (testPurge.heldSkips || 0) + (recon.heldSkips || 0)}`,
+			);
 		} catch (err) {
 			console.error('[retention] Failed:', err.message);
 		}
 	}, RETENTION_INTERVAL);
 
 	console.log('[retention] Recording retention purger started (24h interval)');
+})();
+
+// ─── AI Observer worker (E-008, #695) — IN-PROCESS ──────────────────────────
+// Rex + Sumanth's $0 decision (2026-10-12): the observer worker runs inside
+// the web process, not as a separate Render worker. The job queue
+// (observer_jobs, SKIP LOCKED, heartbeats, stale-claim sweeper) is
+// process-agnostic by design — starting the poll loop at boot is a few lines.
+// To go back to a separate worker later: run workers/ai-observer/index.js
+// directly (its require.main block still supports standalone mode) and set
+// AI_OBSERVER_IN_PROCESS=false here.
+(function startAiObserverWorker() {
+	if (process.env.AI_OBSERVER_IN_PROCESS === 'false') {
+		console.log('[ai-observer] in-process worker disabled (AI_OBSERVER_IN_PROCESS=false)');
+		return;
+	}
+	try {
+		require('./workers/ai-observer/index').startWorker();
+	} catch (err) {
+		// Fail-open for the API: the observer is supplementary — a worker
+		// startup failure must never take down the web server.
+		console.error('[ai-observer] in-process worker failed to start:', err.message);
+	}
 })();
 
 // ─── AI Health Monitoring Endpoints ──────────────────────────────────────────
@@ -2066,9 +2151,14 @@ const KNOWN_ROUTES = [
 	'^/$',
 	'^/(login|register|forgot-password|reset-password)$',
 	'^/(test-camera|pricing|payment-success)$',
+	'^/(ref|leaderboard|compare)$',
 	'^/screening/[^/]+$',
+	'^/r/[^/]+$',
+	'^/interview/session/[^/]+$',
+	'^/interview/consent$',
 	'^/blog(/[^/]+)?$',
 	'^/(about|contact|privacy|terms)$',
+	'^/privacy/biometric-policy$',
 	'^/company/[^/]+$',
 	'^/careers/[^/]+$',
 	'^/(recruiter-register|employee-payroll)$',
@@ -2085,6 +2175,12 @@ const KNOWN_ROUTES = [
 	'^/candidate/assessment-results$',
 	'^/candidate/job-assessment/[^/]+$',
 	'^/candidate/(interviews|ai-coaching|career-coach|omniscore)$',
+	'^/candidate/interviews/[^/]+/book$',
+	'^/candidate/quick-practice/[^/]+$',
+	'^/candidate/identity-verification$',
+	'^/candidate/screening/[^/]+$',
+	// Redirect-only routes (scores → assessments, messages → chat)
+	'^/candidate/(scores|messages)$',
 	'^/candidate/(documents|interview-practice)$',
 	'^/candidate/(video-interview|interview-analysis|history)$',
 	'^/candidate/(feedback|saved-jobs|top-matches)$',
@@ -2102,6 +2198,12 @@ const KNOWN_ROUTES = [
 
 	'^/candidate/proctoring/[^/]+$',
 	'^/candidate/proctoring/[^/]+/consent$',
+
+	// Aptitude tests (standalone routes, outside /candidate prefix)
+	'^/aptitude-tests$',
+	'^/aptitude-tests/[^/]+/take$',
+	'^/aptitude-test-results/[^/]+$',
+
 	// Recruiter routes
 	'^/recruiter$',
 	'^/recruiter/jobs$',
@@ -2128,6 +2230,15 @@ const KNOWN_ROUTES = [
 	'^/recruiter/proctoring$',
 	'^/recruiter/proctoring/[^/]+$',
 	'^/recruiter/(panels|recordings|calendar|background-check)$',
+	'^/recruiter/panels/[^/]+$',
+	'^/recruiter/recordings/[^/]+/playback$',
+	'^/recruiter/aptitude-tests$',
+	'^/recruiter/aptitude-tests/create$',
+	'^/recruiter/aptitude-tests/[^/]+/(edit|results)$',
+	'^/recruiter/session-room$',
+	'^/recruiter/screening-monitor$',
+	'^/recruiter/interviews/report/[^/]+$',
+	'^/recruiter/jobs/[^/]+/panel-criteria$',
 
 	// Settings
 	'^/settings$',
@@ -2143,7 +2254,7 @@ const KNOWN_ROUTES = [
 	'^/admin$',
 	'^/admin/(dashboard|revenue|ai-health)$',
 	'^/admin/(agents|compliance|eu-ai-act)$',
-	'^/admin/(agent-dashboard|analytics|email-queue)$',
+	'^/admin/(agent-dashboard|analytics|email-queue|biometric-audit)$',
 ].map((pattern) => new RegExp(pattern));
 
 function isKnownSpaRoute(routePath) {

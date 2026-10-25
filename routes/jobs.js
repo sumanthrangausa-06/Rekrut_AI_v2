@@ -357,6 +357,14 @@ router.post(
 			}
 
 			res.json({ success: true, job: result.rows[0] });
+
+			// #528: Match new job against candidate job alerts (fire-and-forget)
+			try {
+				const { matchAndNotifyForJob } = require('../lib/job-alert-matcher');
+				matchAndNotifyForJob(result.rows[0]).catch(() => {});
+			} catch (_e) {
+				/* job alerts are best-effort; never fail job creation */
+			}
 		} catch (err) {
 			console.error('Create job error:', err);
 			res.status(500).json({ error: 'Failed to create job' });

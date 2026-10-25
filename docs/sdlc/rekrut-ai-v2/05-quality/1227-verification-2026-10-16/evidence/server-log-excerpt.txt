@@ -1,0 +1,5 @@
+Server log excerpt — Quinn #1227 AFTER run, tested commit 210504a5, private PG 55437
+[db] Pool config: {
+  "connectionString": "postgresql://postgres@***:55437/rekrut_after_1227",
+Rekrut AI running on port 3000
+--- linkedin/phantom-related lines (grep linkedin|profile-enhancement|404) ---

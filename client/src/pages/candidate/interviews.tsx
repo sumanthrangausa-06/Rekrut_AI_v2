@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EmptyState } from '@/components/domain/empty-state';
 import { Skeleton } from '@/components/domain/skeleton';
+import { JoinInterviewButton } from '@/components/interview-join-button';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,6 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { apiCall } from '@/lib/api';
 import { UNSPLASH_IMAGES } from '@/lib/avatar';
+import { expiryLabel } from '@/lib/invite-expiry';
 
 const FETCH_TIMEOUT = 10000; // 10 seconds
 
@@ -62,6 +64,33 @@ interface Interview {
 	recruiter_email: string;
 }
 
+// Unified human-interview shape from GET /api/interviews/my-interviews
+// (InterviewService over System A + System B). Only System B rows are
+// rendered from this shape — System A keeps its richer dedicated endpoint.
+interface UnifiedSlot {
+	id?: number;
+	slot_id?: number;
+	start: string;
+	end: string;
+	status: string;
+}
+
+interface UnifiedInterview {
+	id: number;
+	candidate_id: number;
+	recruiter_id: number;
+	company_id: number | null;
+	job_id: number | null;
+	scheduled_at: string | null;
+	duration_minutes: number;
+	status: string;
+	meeting_link: string | null;
+	interview_type: string;
+	notes: string | null;
+	source_system: 'system_a' | 'system_b';
+	proposed_slots: UnifiedSlot[] | null;
+}
+
 const statusConfig: Record<
 	string,
 	{
@@ -77,6 +106,9 @@ const statusConfig: Record<
 	declined: { label: 'Declined', variant: 'secondary', icon: XCircle },
 	reschedule_requested: { label: 'Reschedule Requested', variant: 'warning', icon: RefreshCw },
 	no_show: { label: 'No Show', variant: 'destructive', icon: AlertCircle },
+	// System B (slot negotiation) statuses
+	proposed: { label: 'Pick a time', variant: 'warning', icon: Calendar },
+	rescheduled: { label: 'Rescheduled', variant: 'warning', icon: RefreshCw },
 };
 
 const typeConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
@@ -147,10 +179,84 @@ const INTERVIEW_TIPS = [
 	},
 ];
 
+function sessionTypeLabel(s: any): string {
+	return s.type === 'ai_interview' ? 'AI Interview' : 'AI Screening';
+}
+
+function AISessionCard({ session: s }: { session: any }) {
+	const navigate = useNavigate();
+	const expiry = expiryLabel(s.expires_at);
+	const expiryActive = s.status === 'invited' || s.status === 'in_progress';
+	return (
+		<Card key={s.id}>
+			<CardContent className="p-4">
+				<div className="flex items-start justify-between gap-3">
+					<div className="min-w-0 flex-1">
+						<div className="flex items-center gap-2 flex-wrap">
+							<Badge variant="secondary" className="bg-purple-100 text-purple-700">
+								{sessionTypeLabel(s)}
+							</Badge>
+							<Badge
+								variant={
+									s.status === 'completed'
+										? 'default'
+										: s.status === 'invited'
+											? 'warning'
+											: 'secondary'
+								}
+							>
+								{s.status === 'invited'
+									? 'Invited'
+									: s.status === 'in_progress'
+										? 'In Progress'
+										: s.status === 'completed'
+											? 'Completed'
+											: s.status}
+							</Badge>
+						</div>
+						<h3 className="font-semibold mt-2">{s.job_title}</h3>
+						<p className="text-sm text-muted-foreground">
+							{s.company_name}
+							{s.template_title ? ` · ${s.template_title}` : ''}
+						</p>
+						{s.overall_score != null && (
+							<p className="text-sm mt-1">
+								Score: <span className="font-semibold">{s.overall_score}/100</span>
+							</p>
+						)}
+						{expiry && expiryActive && (
+							<p
+								className={`text-xs mt-1.5 ${
+									expiry.urgent ? 'text-amber-600 font-medium' : 'text-muted-foreground'
+								}`}
+							>
+								{expiry.text}
+							</p>
+						)}
+					</div>
+					{s.invite_url && (s.status === 'invited' || s.status === 'in_progress') && (
+						<Button
+							size="sm"
+							onClick={() => navigate(s.invite_url)}
+							className="shrink-0 min-h-[44px]"
+						>
+							{s.status === 'invited' ? 'Start' : 'Continue'}
+						</Button>
+					)}
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
 export function CandidateInterviewsPage() {
 	const navigate = useNavigate();
 	const [interviews, setInterviews] = useState<Interview[]>([]);
 	const [screenings, setScreenings] = useState<any[]>([]);
+	// System B human interviews (slot negotiation) from the unified endpoint.
+	// System A rows are skipped here — the dedicated endpoint above already
+	// returns them with richer display fields (job title, company, recruiter).
+	const [unifiedB, setUnifiedB] = useState<UnifiedInterview[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [tab, setTab] = useState('upcoming');
 	const [showDecline, setShowDecline] = useState<Interview | null>(null);
@@ -175,13 +281,25 @@ export function CandidateInterviewsPage() {
 		}
 		try {
 			const sres = await withTimeout(
-				apiCall<{ success: boolean; sessions: any[] }>('/api/interviews/screening/my-sessions'),
+				apiCall<{ success: boolean; sessions: any[] }>('/interviews/screening/my-sessions'),
 				FETCH_TIMEOUT,
 				'Screenings',
 			);
 			setScreenings(sres.sessions || []);
 		} catch (err) {
 			console.error('Load screenings error:', err);
+		}
+		try {
+			const ures = await withTimeout(
+				apiCall<{ success: boolean; interviews: UnifiedInterview[] }>(
+					'/interviews/my-interviews',
+				),
+				FETCH_TIMEOUT,
+				'Unified interviews',
+			);
+			setUnifiedB((ures.interviews || []).filter((u) => u.source_system === 'system_b'));
+		} catch (err) {
+			console.error('Load unified interviews error:', err);
 		} finally {
 			setLoading(false);
 		}
@@ -258,6 +376,27 @@ export function CandidateInterviewsPage() {
 			['completed', 'cancelled', 'declined', 'no_show'].includes(i.status),
 	);
 
+	// System B human interviews (slot negotiation). `proposed` needs the
+	// candidate to pick a slot; `confirmed` with a future time behaves like a
+	// scheduled System A interview.
+	const unifiedUpcoming = unifiedB.filter(
+		(u) =>
+			u.status === 'proposed' ||
+			(u.status === 'confirmed' && u.scheduled_at != null && isFuture(u.scheduled_at)) ||
+			u.status === 'rescheduled',
+	);
+	const unifiedPast = unifiedB.filter((u) => ['completed', 'cancelled'].includes(u.status));
+
+	// AI sessions (screenings + AI interviews) split by status.
+	// Backend may not return `type` yet (Task 4); default badge to AI Screening.
+	const invitedSessions = screenings.filter((s) => s.status === 'invited');
+	const activeSessions = screenings.filter((s) =>
+		['invited', 'in_progress'].includes(s.status),
+	);
+	const completedSessions = screenings.filter((s) => s.status === 'completed');
+	const upcomingCount = upcoming.length + activeSessions.length + unifiedUpcoming.length;
+	const pastCount = past.length + completedSessions.length + unifiedPast.length;
+
 	if (loading) {
 		return (
 			<div className="space-y-6 px-4 sm:px-6">
@@ -325,30 +464,41 @@ export function CandidateInterviewsPage() {
 			<Tabs value={tab} onValueChange={setTab}>
 				<TabsList className="min-h-[44px]">
 					<TabsTrigger value="upcoming" className="min-h-[44px]">
-						Upcoming ({upcoming.length})
+						Upcoming ({upcomingCount})
+					</TabsTrigger>
+					<TabsTrigger value="invitations" className="min-h-[44px]">
+						Invitations ({invitedSessions.length})
 					</TabsTrigger>
 					<TabsTrigger value="past" className="min-h-[44px]">
-						Past ({past.length})
-					</TabsTrigger>
-					<TabsTrigger value="screenings" className="min-h-[44px]">
-						AI Screenings ({screenings.length})
+						Past ({pastCount})
 					</TabsTrigger>
 					<TabsTrigger value="tips" className="min-h-[44px]">
 						Interview Tips
 					</TabsTrigger>
 				</TabsList>
 
-				{/* Upcoming */}
+				{/* Upcoming — human interviews + active AI sessions */}
 				<TabsContent value="upcoming">
-					{upcoming.length === 0 ? (
+					{upcomingCount === 0 ? (
 						<EmptyState
 							icon={Calendar}
 							title="No upcoming interviews"
-							description="When recruiters schedule interviews, they'll appear here."
+							description="When recruiters schedule interviews or send AI invites, they'll appear here."
 							image={UNSPLASH_IMAGES.emptyInterviews}
 						/>
 					) : (
 						<div className="space-y-3">
+							{activeSessions.map((s) => (
+								<AISessionCard key={`ai-${s.id}`} session={s} />
+							))}
+							{unifiedUpcoming.map((u) => (
+								<SystemBInterviewCard
+									key={`unified-${u.id}`}
+									interview={u}
+									onChanged={loadInterviews}
+									notify={setMessage}
+								/>
+							))}
 							{upcoming
 								.sort(
 									(a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime(),
@@ -378,9 +528,27 @@ export function CandidateInterviewsPage() {
 					)}
 				</TabsContent>
 
-				{/* Past */}
+				{/* Invitations — pending AI invites from companies */}
+				<TabsContent value="invitations">
+					{invitedSessions.length === 0 ? (
+						<EmptyState
+							icon={MessageSquare}
+							title="No pending invitations"
+							description="When companies invite you to AI interviews or screenings, they'll appear here."
+							image={UNSPLASH_IMAGES.emptyInterviews}
+						/>
+					) : (
+						<div className="space-y-3">
+							{invitedSessions.map((s) => (
+								<AISessionCard key={`inv-${s.id}`} session={s} />
+							))}
+						</div>
+					)}
+				</TabsContent>
+
+				{/* Past — human past interviews + completed AI sessions */}
 				<TabsContent value="past">
-					{past.length === 0 ? (
+					{pastCount === 0 ? (
 						<EmptyState
 							icon={Inbox}
 							title="No past interviews"
@@ -389,74 +557,20 @@ export function CandidateInterviewsPage() {
 						/>
 					) : (
 						<div className="space-y-3">
+							{completedSessions.map((s) => (
+								<AISessionCard key={`past-ai-${s.id}`} session={s} />
+							))}
+							{unifiedPast.map((u) => (
+								<SystemBInterviewCard
+									key={`unified-past-${u.id}`}
+									interview={u}
+									onChanged={loadInterviews}
+									notify={setMessage}
+									isPast
+								/>
+							))}
 							{past.map((interview) => (
 								<InterviewCard key={interview.id} interview={interview} isPast />
-							))}
-						</div>
-					)}
-				</TabsContent>
-
-				{/* AI Screenings */}
-				<TabsContent value="screenings">
-					{screenings.length === 0 ? (
-						<EmptyState
-							icon={MessageSquare}
-							title="No AI screenings"
-							description="When recruiters send you AI screening invites, they'll appear here."
-							image={UNSPLASH_IMAGES.emptyInterviews}
-						/>
-					) : (
-						<div className="space-y-3">
-							{screenings.map((s) => (
-								<Card key={s.id}>
-									<CardContent className="p-4">
-										<div className="flex items-start justify-between gap-3">
-											<div className="min-w-0 flex-1">
-												<div className="flex items-center gap-2 flex-wrap">
-													<Badge variant="secondary" className="bg-purple-100 text-purple-700">
-														AI Screening
-													</Badge>
-													<Badge
-														variant={
-															s.status === 'completed'
-																? 'default'
-																: s.status === 'invited'
-																	? 'warning'
-																	: 'secondary'
-														}
-													>
-														{s.status === 'invited'
-															? 'Invited'
-															: s.status === 'in_progress'
-																? 'In Progress'
-																: s.status === 'completed'
-																	? 'Completed'
-																	: s.status}
-													</Badge>
-												</div>
-												<h3 className="font-semibold mt-2">{s.job_title}</h3>
-												<p className="text-sm text-muted-foreground">
-													{s.company_name}
-													{s.template_title ? ` · ${s.template_title}` : ''}
-												</p>
-												{s.overall_score != null && (
-													<p className="text-sm mt-1">
-														Score: <span className="font-semibold">{s.overall_score}/100</span>
-													</p>
-												)}
-											</div>
-											{s.invite_url && (s.status === 'invited' || s.status === 'in_progress') && (
-												<Button
-													size="sm"
-													onClick={() => navigate(s.invite_url)}
-													className="shrink-0 min-h-[44px]"
-												>
-													{s.status === 'invited' ? 'Start' : 'Continue'}
-												</Button>
-											)}
-										</div>
-									</CardContent>
-								</Card>
 							))}
 						</div>
 					)}
@@ -617,11 +731,13 @@ function NextInterviewCard({ interview }: { interview: Interview }) {
 						)}
 					</div>
 					{interview.meeting_link && (
-						<a href={interview.meeting_link} target="_blank" rel="noopener noreferrer">
-							<Button size="lg" className="min-h-[44px]">
-								<Video className="h-4 w-4 mr-2" /> Join Call
-							</Button>
-						</a>
+						<JoinInterviewButton
+							interviewId={interview.id}
+							size="lg"
+							buttonClassName="min-h-[44px]"
+							label="Join Call"
+							iconClassName="h-4 w-4 mr-2"
+						/>
 					)}
 				</div>
 			</CardContent>
@@ -715,11 +831,7 @@ function InterviewCard({
 					{/* Actions */}
 					<div className="flex flex-wrap gap-2 sm:flex-col">
 						{interview.meeting_link && isUpcoming && (
-							<a href={interview.meeting_link} target="_blank" rel="noopener noreferrer">
-								<Button size="sm" className="w-full min-h-[44px]">
-									<Video className="h-3.5 w-3.5 mr-1" /> Join Call
-								</Button>
-							</a>
+							<JoinInterviewButton interviewId={interview.id} label="Join Call" />
 						)}
 						{canRespond && onAccept && (
 							<Button size="sm" variant="outline" onClick={onAccept} className="min-h-[44px]">
@@ -749,6 +861,142 @@ function InterviewCard({
 								onClick={onPractice}
 							>
 								<Target className="h-3.5 w-3.5 mr-1" /> Practice
+							</Button>
+						)}
+					</div>
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
+// System B human interview card (multi-slot negotiation via the unified
+// endpoint). `proposed` → candidate picks a slot; `confirmed` → shows the
+// booked time like a System A interview.
+function SystemBInterviewCard({
+	interview: u,
+	onChanged,
+	notify,
+	isPast,
+}: {
+	interview: UnifiedInterview;
+	onChanged: () => void;
+	notify: (m: { type: 'success' | 'error'; text: string }) => void;
+	isPast?: boolean;
+}) {
+	const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null);
+	const [confirming, setConfirming] = useState(false);
+	const config = statusConfig[u.status] || statusConfig.scheduled;
+	const StatusIcon = config.icon;
+	const needsSlot = u.status === 'proposed' && !isPast;
+	const offeredSlots = (u.proposed_slots || []).filter((s) => s.status === 'offered');
+	const slotIdOf = (s: UnifiedSlot): number | null => s.id ?? s.slot_id ?? null;
+
+	async function confirmSlot() {
+		if (selectedSlotId == null) return;
+		setConfirming(true);
+		try {
+			await apiCall(`/interviews/unified/${u.id}/confirm-slot`, {
+				method: 'POST',
+				body: { slot_id: selectedSlotId },
+			});
+			notify({ type: 'success', text: 'Interview time confirmed!' });
+			setSelectedSlotId(null);
+			onChanged();
+		} catch (err: any) {
+			notify({ type: 'error', text: err.message || 'Failed to confirm slot' });
+		} finally {
+			setConfirming(false);
+		}
+	}
+
+	return (
+		<Card>
+			<CardContent className="p-4">
+				<div className="flex flex-col sm:flex-row gap-4">
+					<div className="p-2.5 rounded-xl bg-blue-100 text-blue-700 h-fit">
+						<Video className="h-5 w-5" />
+					</div>
+
+					<div className="flex-1 min-w-0">
+						<div className="flex items-center gap-2 flex-wrap">
+							<h3 className="font-semibold">Human Interview</h3>
+							<Badge variant="secondary" className="bg-blue-100 text-blue-700">
+								Human
+							</Badge>
+							<Badge variant={config.variant}>
+								<StatusIcon className="h-3 w-3 mr-1" /> {config.label}
+							</Badge>
+						</div>
+
+						{u.scheduled_at && (
+							<div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
+								<span className="flex items-center gap-1">
+									<Calendar className="h-3.5 w-3.5" /> {formatDate(u.scheduled_at)}
+								</span>
+								<span className="flex items-center gap-1">
+									<Clock className="h-3.5 w-3.5" /> {formatTime(u.scheduled_at)} (
+									{u.duration_minutes}min)
+								</span>
+							</div>
+						)}
+
+						{needsSlot && (
+							<div className="mt-3 space-y-2">
+								<p className="text-sm font-medium">Choose a time that works for you:</p>
+								{offeredSlots.length === 0 ? (
+									<p className="text-sm text-muted-foreground">
+										Waiting for the recruiter to propose time slots.
+									</p>
+								) : (
+									<div className="grid gap-2 sm:grid-cols-2">
+										{offeredSlots.map((s, i) => {
+											const sid = slotIdOf(s);
+											const selected = sid != null && sid === selectedSlotId;
+											return (
+												<button
+													key={sid ?? `slot-${i}`}
+													type="button"
+													disabled={sid == null}
+													onClick={() => sid != null && setSelectedSlotId(sid)}
+													className={`rounded-lg border p-3 text-left text-sm transition-colors min-h-[44px] ${
+														selected
+															? 'border-primary bg-primary/5 ring-1 ring-primary'
+															: 'border-border hover:border-primary/50'
+													}`}
+												>
+													<div className="font-medium">{formatDate(s.start)}</div>
+													<div className="text-muted-foreground">
+														{formatTime(s.start)} – {formatTime(s.end)}
+													</div>
+												</button>
+											);
+										})}
+									</div>
+								)}
+							</div>
+						)}
+
+						{u.notes && (
+							<p className="text-sm text-muted-foreground mt-2 bg-muted p-2 rounded">
+								{u.notes}
+							</p>
+						)}
+					</div>
+
+					<div className="flex flex-wrap gap-2 sm:flex-col">
+						{u.meeting_link && u.status === 'confirmed' && (
+							<JoinInterviewButton interviewId={u.id} label="Join Call" />
+						)}
+						{needsSlot && offeredSlots.length > 0 && (
+							<Button
+								size="sm"
+								onClick={confirmSlot}
+								disabled={selectedSlotId == null || confirming}
+								className="min-h-[44px]"
+							>
+								<CheckCircle className="h-3.5 w-3.5 mr-1" />
+								{confirming ? 'Confirming...' : 'Confirm Time'}
 							</Button>
 						)}
 					</div>

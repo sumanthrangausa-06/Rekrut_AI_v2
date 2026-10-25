@@ -1,0 +1,499 @@
+{
+  "testedCommit": "b3cee5c33cd7994919166cb1d5e4d8abd52c3765",
+  "base": "http://127.0.0.1:3000",
+  "checks": [
+    {
+      "group": "original-10-issue",
+      "path": "/compare",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "original-10-issue",
+      "path": "/leaderboard",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "original-10-issue",
+      "path": "/privacy/biometric-policy",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "original-10-issue",
+      "path": "/aptitude-tests",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "original-10-issue",
+      "path": "/candidate/identity-verification",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "original-10-issue",
+      "path": "/candidate/scores",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "original-10-issue",
+      "path": "/candidate/messages",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "original-10-issue",
+      "path": "/recruiter/aptitude-tests",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "original-10-issue",
+      "path": "/recruiter/session-room",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "original-10-issue",
+      "path": "/admin/biometric-audit",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/ref",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/r/abc123",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/interview/session/abc123",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/interview/consent",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/candidate/interviews/42/book",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/candidate/quick-practice/42",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/candidate/screening/42",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/aptitude-tests/42/take",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/aptitude-test-results/42",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/recruiter/aptitude-tests/create",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/recruiter/aptitude-tests/42/edit",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/recruiter/aptitude-tests/42/results",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/recruiter/screening-monitor",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/recruiter/recordings/42/playback",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/recruiter/interviews/report/42",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/recruiter/panels/42",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "additional-17-pr1272",
+      "path": "/recruiter/jobs/42/panel-criteria",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "dual-token-param-sampling",
+      "path": "/r/xyz789",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "dual-token-param-sampling",
+      "path": "/interview/session/xyz789",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "dual-token-param-sampling",
+      "path": "/candidate/interviews/99/book",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "dual-token-param-sampling",
+      "path": "/aptitude-tests/99/take",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "dual-token-param-sampling",
+      "path": "/recruiter/panels/99",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "negative-control-unknown",
+      "path": "/this-does-not-exist",
+      "expected": 404,
+      "status": 404,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "negative-control-unknown",
+      "path": "/quinn1225-definitely-unknown-xyz",
+      "expected": 404,
+      "status": 404,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "negative-control-unknown",
+      "path": "/candidate/nonexistent",
+      "expected": 404,
+      "status": 404,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "negative-control-unknown",
+      "path": "/recruiter/nonexistent",
+      "expected": 404,
+      "status": 404,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "negative-control-unknown",
+      "path": "/admin/nonexistent",
+      "expected": 404,
+      "status": 404,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "negative-control-unknown",
+      "path": "/foo/bar/baz",
+      "expected": 404,
+      "status": 404,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "negative-control-api",
+      "path": "/api/this-does-not-exist",
+      "expected": 404,
+      "status": 404,
+      "isHtml": false,
+      "json": {
+        "error": "API endpoint not found"
+      },
+      "pass": true
+    },
+    {
+      "group": "sanity-known-preexisting",
+      "path": "/login",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    },
+    {
+      "group": "sanity-known-preexisting",
+      "path": "/",
+      "expected": 200,
+      "status": 200,
+      "isHtml": true,
+      "isIndexShell": true,
+      "bodyExcerpt": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, viewport-fit=cover\" />\n    <meta\n      name=\"descriptio",
+      "pass": true
+    }
+  ],
+  "health": {
+    "status": 200,
+    "body": {
+      "status": "ok",
+      "timestamp": "2026-10-17T06:53:25.110Z",
+      "version": "2.0.1",
+      "commit": "b3cee5c33cd7994919166cb1d5e4d8abd52c3765",
+      "branch": "",
+      "deployed_at": "2026-10-17T06:53:25.110Z",
+      "db": {
+        "connected": true,
+        "latencyMs": 5,
+        "result": {
+          "test": 1
+        }
+      },
+      "tables": [
+        {
+          "table": "users",
+          "exists": true
+        },
+        {
+          "table": "jobs",
+          "exists": true
+        },
+        {
+          "table": "events",
+          "exists": true
+        },
+        {
+          "table": "companies",
+          "exists": true
+        },
+        {
+          "table": "refresh_tokens",
+          "exists": true
+        },
+        {
+          "table": "user_sessions",
+          "exists": true
+        },
+        {
+          "table": "oauth_connections",
+          "exists": true
+        }
+      ],
+      "pool": {
+        "totalCount": 2,
+        "idleCount": 2,
+        "waitingCount": 1
+      },
+      "env": [
+        {
+          "key": "DATABASE_URL",
+          "set": true,
+          "required": true
+        },
+        {
+          "key": "JWT_SECRET",
+          "set": true,
+          "required": true
+        },
+        {
+          "key": "SESSION_SECRET",
+          "set": true,
+          "required": true
+        }
+      ],
+      "issues": {
+        "missingTables": [],
+        "missingEnv": [],
+        "connectionError": null
+      }
+    }
+  },
+  "total": 41,
+  "passed": 41,
+  "failed": [],
+  "allPass": true,
+  "verdictOriginal10": true,
+  "verdictAdditional17": true,
+  "verdictNegative": true
+}

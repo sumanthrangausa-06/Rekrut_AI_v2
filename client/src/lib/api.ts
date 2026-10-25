@@ -1,3 +1,10 @@
+import {
+	extractSessionIdFromRequest,
+	getConsentRedirect,
+	isConsentErrorCode,
+	shouldRedirectForConsentCode,
+} from './consentErrorHandler';
+
 const TOKEN_KEY = 'rekrutai_token';
 const REFRESH_KEY = 'rekrutai_refresh';
 const CSRF_TOKEN_KEY = 'rekrutai_csrf';
@@ -224,10 +231,15 @@ interface ApiCallOptions extends Omit<RequestInit, 'body'> {
 	body?: unknown;
 	isFormData?: boolean;
 	skipAuthCheck?: boolean; // For login, register, forgot-password, reset-password
+	// FR-A2 (#1602): bound the request. When set, the fetch aborts after
+	// timeoutMs and apiCall throws a TIMEOUT-coded error instead of leaving
+	// a spinner running forever. Unset = previous unbounded behaviour
+	// (long-running calls like CV analysis keep their existing contract).
+	timeoutMs?: number;
 }
 
 export async function apiCall<T = unknown>(url: string, options: ApiCallOptions = {}): Promise<T> {
-	const { body, isFormData, headers: customHeaders, skipAuthCheck, method, ...rest } = options;
+	const { body, isFormData, headers: customHeaders, skipAuthCheck, method, timeoutMs, signal: callerSignal, ...rest } = options;
 	const token = getToken();
 
 	const headers: Record<string, string> = {
@@ -252,27 +264,51 @@ export async function apiCall<T = unknown>(url: string, options: ApiCallOptions 
 		}
 	}
 
+	// FR-A2 (#1602): a real AbortController bound when the caller sets
+	// timeoutMs. The same signal covers the 401-refresh retry below, so the
+	// bound applies to the whole call, not just the first attempt.
+	const abortCtl = timeoutMs ? new AbortController() : undefined;
+	const abortTimer = timeoutMs
+		? setTimeout(() => abortCtl?.abort(), timeoutMs)
+		: undefined;
+	const fetchSignal = abortCtl?.signal ?? callerSignal;
+
 	const fetchOptions: RequestInit = {
 		...rest,
 		method: method || 'GET',
 		headers,
 		body: isFormData ? (body as BodyInit) : body ? JSON.stringify(body) : undefined,
 		credentials: 'include',
+		signal: fetchSignal,
 	};
 
-	let res = await fetch(`/api${url}`, fetchOptions);
+	let res: Response;
+	try {
+		res = await fetch(`/api${url}`, fetchOptions);
 
-	// If 401, try to refresh token (unless this is an auth endpoint)
-	if (res.status === 401 && !skipAuthCheck) {
-		const newToken = await refreshAccessToken();
-		if (newToken) {
-			headers.Authorization = `Bearer ${newToken}`;
-			res = await fetch(`/api${url}`, { ...fetchOptions, headers });
-		} else {
-			clearTokens();
-			window.location.href = '/login';
-			throw new Error('Session expired');
+		// If 401, try to refresh token (unless this is an auth endpoint)
+		if (res.status === 401 && !skipAuthCheck) {
+			const newToken = await refreshAccessToken();
+			if (newToken) {
+				headers.Authorization = `Bearer ${newToken}`;
+				res = await fetch(`/api${url}`, { ...fetchOptions, headers });
+			} else {
+				clearTokens();
+				window.location.href = '/login';
+				throw new Error('Session expired');
+			}
 		}
+	} catch (err) {
+		if (abortCtl && err instanceof Error && err.name === 'AbortError') {
+			const timeoutError = new Error(
+				'This is taking longer than expected. Your work may already be saved — please retry.',
+			) as Error & { code?: string };
+			timeoutError.code = 'TIMEOUT';
+			throw timeoutError;
+		}
+		throw err;
+	} finally {
+		if (abortTimer) clearTimeout(abortTimer);
 	}
 
 	// If 401 on auth endpoint, just throw the error without redirect
@@ -281,10 +317,87 @@ export async function apiCall<T = unknown>(url: string, options: ApiCallOptions 
 	}
 
 	if (!res.ok) {
-		const errorData = await res.json().catch(() => ({ error: 'Request failed' }));
+		// #1602: a non-JSON error body (e.g. a proxy error page while the
+		// server was busy) previously surfaced as the bare string
+		// "Request failed" with no next action. The fallback now says what
+		// happened and what to do.
+		const errorData = await res
+			.json()
+			.catch(() => ({ error: 'The server returned an unexpected response. Please try again.' }));
 		const error = new Error(errorData.error || `Request failed: ${res.status}`);
 		// Attach error code for programmatic handling (e.g., BLOCKED_EMAIL_DOMAIN)
-		(error as Error & { code?: string }).code = errorData.code;
+		const code = errorData.code as string | undefined;
+		(error as Error & { code?: string }).code = code;
+		// Attach HTTP status for programmatic handling (e.g., S-073 graceful
+		// degradation on 404 when a backend endpoint is not yet deployed).
+		(error as Error & { status?: number }).status = res.status;
+
+		// #1365: preserve the server's retry signal. Retryable failures are
+		// thrown (never resolved), so without this a caller's
+		// auto-retry-on-503 check can never see retryable/retryAfterMs —
+		// e.g. routes/quick-practice.js 503 { retryable: true,
+		// retryAfterMs: 3000 }. Attach only when the server actually sent
+		// them; never invent a default.
+		if (typeof errorData.retryable === 'boolean') {
+			(error as Error & { retryable?: boolean }).retryable = errorData.retryable;
+		}
+		if (typeof errorData.retryAfterMs === 'number') {
+			(error as Error & { retryAfterMs?: number }).retryAfterMs = errorData.retryAfterMs;
+		}
+		// #1606/#1602 (Phase A): preserve the fields a caller needs to offer
+		// the honest recovery action — the saved session id when question
+		// supply failed at start (resume instead of a dead end), and the
+		// answerRecorded flag when a submission's answer is already durable
+		// server-side (retry is navigation, not a re-submit).
+		if (typeof errorData.sessionId === 'number') {
+			(error as Error & { sessionId?: number }).sessionId = errorData.sessionId;
+		}
+		if (typeof errorData.answerRecorded === 'boolean') {
+			(error as Error & { answerRecorded?: boolean }).answerRecorded = errorData.answerRecorded;
+		}
+		// #1654 (C2): preserve the configured-start 503 extension — the
+		// promised count and the honest largestAvailable — so the client
+		// can offer the labelled smaller count instead of a dead end.
+		if (typeof errorData.promised === 'number') {
+			(error as Error & { promised?: number }).promised = errorData.promised;
+		}
+		if (typeof errorData.largestAvailable === 'number') {
+			(error as Error & { largestAvailable?: number }).largestAvailable =
+				errorData.largestAvailable;
+		}
+
+		// Consent gate (S-011): redirect to consent screens on 403 consent errors.
+		// CONSENT_WITHDRAWN is excluded — the caller shows an inline message instead.
+		if (res.status === 403 && isConsentErrorCode(code) && shouldRedirectForConsentCode(code)) {
+			const sessionId = extractSessionIdFromRequest(url, body);
+			const redirect = getConsentRedirect(code, sessionId);
+			if (redirect && typeof window !== 'undefined') {
+				window.location.href = redirect;
+				// Throw to stop the promise chain; the redirect is already in flight.
+				throw error;
+			}
+		}
+
+		// Flag withdrawn consent so callers can show an inline re-consent message
+		// instead of redirecting (the withdrawal was intentional). S-064 (#714):
+		// attach the consent type and broadcast an event so any page can render
+		// the WithdrawnConsentRecovery UI without touching every catch block.
+		if (res.status === 403 && code === 'CONSENT_WITHDRAWN') {
+			const consentType = (errorData as { type?: string }).type ?? 'biometric';
+			(error as Error & { isConsentWithdrawn?: boolean }).isConsentWithdrawn = true;
+			(error as Error & { consentType?: string }).consentType = consentType;
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(
+					new CustomEvent('consent-withdrawn', {
+						detail: {
+							consentType,
+							sessionId: extractSessionIdFromRequest(url, body),
+						},
+					}),
+				);
+			}
+		}
+
 		throw error;
 	}
 
@@ -303,6 +416,7 @@ export interface User {
 	avatar_url?: string;
 	subscriptionTier?: 'free' | 'pro';
 	is_company_owner?: boolean;
+	is_platform_admin?: boolean;
 }
 
 // ── Proctoring API helpers ──
@@ -409,8 +523,11 @@ export function isRecruiterRole(role: UserRole): boolean {
 }
 
 export function getDashboardPath(user: User): string {
-	// Platform admins bypass company join approval
-	if (user.role === 'admin') return '/recruiter';
+	// Platform admins bypass company join approval (users.role or user_roles RBAC table)
+	if (user.role === 'admin' || user.is_platform_admin) return '/recruiter';
+	// #1223: a known company owner is never awaiting join approval — they
+	// ARE the approver, even if company_id has not been hydrated yet.
+	if (user.is_company_owner) return '/recruiter';
 	if (isRecruiterRole(user.role) && !user.company_id) {
 		return '/recruiter/pending-approval';
 	}

@@ -1,0 +1,38 @@
+{
+  "dormancy_T1": {
+    "streamsOpened": 0,
+    "framesReceived": 0,
+    "bytesBuffered": 0,
+    "chunksPersisted": 0,
+    "chunksDropped": 0,
+    "registryRowsWritten": 0,
+    "asrInvocations": 0,
+    "measurementWrites": 0,
+    "outcomeRowsWritten": 0
+  },
+  "dormancy_side_effects": {
+    "db": {
+      "recording_objects": 0,
+      "observer_audio_chunks": 0,
+      "observer_speech_measurements": 0,
+      "observer_capture_outcomes": 0,
+      "registry_inserts": 0,
+      "candidate_data_keys_rows": 0,
+      "pending_storage_deletions": 0
+    },
+    "storage": {
+      "objects": 0,
+      "put_calls": 0,
+      "get_calls": 0,
+      "delete_calls": 0
+    }
+  },
+  "capture_T3": {
+    "chunksPersisted": 2,
+    "registryRowsWritten": 2,
+    "measurementWrites": 1,
+    "outcomeRowsWritten": 1,
+    "asrInvocations": 1,
+    "audioStreamsConstructed": 1
+  }
+}

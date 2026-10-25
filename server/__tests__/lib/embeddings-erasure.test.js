@@ -1,0 +1,1163 @@
+/**
+ * S-075 (#752): Hard-delete candidate_embeddings on erasure + rescope the
+ * erasure service from biometric-only to personal-data.
+ *
+ * Privacy-engineer verdict (Rex's specialist review): candidate_embeddings is
+ * NOT biometric (1536-dim text embedding of profile/resume text) — zero BIPA
+ * exposure — but it IS personal data under GDPR Art. 4(1), and its plaintext
+ * survival past account deletion is an active Art. 17 violation.
+ * Fix: hard-delete the row on erasure. Embeddings are independent of DEK
+ * existence (leaf table, user_id UNIQUE, no FKs pointing at it).
+ *
+ * RED tests:
+ *   - erasePersonalData hard-deletes the candidate_embeddings row
+ *   - embeddings DELETE runs even when no DEK exists (independent)
+ *   - returns { shredded, embeddingsDeleted } shape
+ *   - embeddings DELETE failure propagates (caller rolls back)
+ *   - old biometric-only name is gone
+ */
+jest.mock('../../../lib/db', () => ({
+	query: jest.fn(),
+}));
+jest.mock('../../../lib/biometricAudit', () => ({
+	logAccess: jest.fn(),
+}));
+
+process.env.BIOMETRIC_ENCRYPTION_KEY =
+	'0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
+const biometricAudit = require('../../../lib/biometricAudit');
+const erasureService = require('../../../lib/erasureService');
+
+describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
+	beforeEach(() => {
+		jest.resetAllMocks();
+	});
+
+	test('exports erasePersonalData; old biometric-only name is gone', () => {
+		expect(typeof erasureService.erasePersonalData).toBe('function');
+		expect(erasureService.eraseBiometricData).toBeUndefined();
+	});
+
+	test('hard-deletes the candidate_embeddings row for the user', async () => {
+		const client = { query: jest.fn() };
+		// DEK destroy succeeds, then embeddings DELETE.
+		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
+			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
+			.mockResolvedValueOnce({ rowCount: 1 }) // embeddings DELETE
+			.mockResolvedValueOnce({ rowCount: 1 }) // search-index DELETE
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1123: verified_credentials SELECT (FK-ordered, no rows)
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: parsed_resumes
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: candidate_profiles
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: identity_verifications
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: cv_analyses
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: cv_reviews
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: verification_requests
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: verification_documents
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: work_experience
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: education
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: candidate_skills
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: linkedin_profiles
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: career_diagnoses
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: avatar_url clear
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // S-078: messages
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: user_memory
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: match_results
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: practice_sessions
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_sessions
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_transcripts
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_evaluations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_composite_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_components
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1127: consent_records SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1127: consent_history SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: screening_responses SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: job_application_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: ai_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: outreach_attempts SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: auto_apply_profiles SELECT (no rows)
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
+		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
+
+		const result = await erasureService.erasePersonalData(7, {
+			client,
+			audit: { userId: 7, userRole: 'candidate', ipAddress: '10.0.0.1' },
+		});
+
+		const deleteCall = client.query.mock.calls.find(([sql]) =>
+			/DELETE FROM candidate_embeddings/i.test(sql),
+		);
+		expect(deleteCall).toBeDefined();
+		expect(deleteCall[1]).toEqual([7]);
+		const searchIndexCall = client.query.mock.calls.find(([sql]) =>
+			/DELETE FROM candidate_search_index/i.test(sql),
+		);
+		expect(searchIndexCall).toBeDefined();
+		expect(searchIndexCall[1]).toEqual([7]);
+		expect(result).toEqual({
+			shredded: true,
+			embeddingsDeleted: true,
+			searchIndexDeleted: true,
+			cvUploadsDeleted: false,
+			parsedResumesDeleted: false,
+			candidateProfileDeleted: false,
+			identityVerificationsDeleted: false,
+			cvAnalysesDeleted: false,
+			cvReviewsDeleted: false,
+			verificationRequestsDeleted: false,
+			verificationDocumentsDeleted: false,
+			workExperienceDeleted: false,
+			educationDeleted: false,
+			candidateSkillsDeleted: false,
+			linkedinProfileDeleted: false,
+			careerDiagnosesDeleted: false,
+			messagesDeleted: false,
+			userMemoryDeleted: false,
+			matchResultsDeleted: false,
+			practiceSessionsDeleted: false,
+			screeningSessionsDeleted: false,
+			interviewTranscriptsDeleted: false,
+			omniScoresDeleted: false,
+			roleScoresDeleted: false,
+			screeningAnswersDeleted: false,
+			interviewEvaluationsDeleted: false,
+			interviewCompositeScoresDeleted: false,
+			scoreComponentsDeleted: false,
+			scoreHistoryDeleted: false,
+			jobRecommendationsDeleted: false,
+			jobApplicationsRedacted: false, // #780
+			jobApplicationRowsHeld: 0, // #780
+			screeningResponsesDeleted: false, // #813
+			jobApplicationScreeningsDeleted: false, // #813
+			aiScreeningsDeleted: false, // #813
+			outreachAttemptsDeleted: false, // #813
+			autoApplyProfileDeleted: false, // #813
+			aiScreeningAuditLogsDeleted: 0, // #813
+			aiScreeningHumanReviewsDeleted: 0, // #813
+			applicationKeyedRowsHeld: 0, // #813
+			applicationKeyedHeldDetails: [], // #813
+			autoApplyConsentTombstone: null, // #813
+			threatIntelChecksDeleted: 0, // #807
+			threatIntelRowsHeld: 0, // #807
+			applicationIpCapturesDeleted: 0, // #815
+			applicationIpRowsHeld: 0, // #815
+			recordingConsentRedacted: false,
+			observerReportsDeleted: false,
+			observerJobsDeleted: false,
+			observerAudioChunksDeleted: false,
+			observerSpeechMeasurementsDeleted: false,
+			observerCaptureOutcomesDeleted: false,
+			interviewSessionsStripped: false, // GAP-A (#1120)
+			sessionsStripped: 0,
+			sessionsHeld: 0,
+			transcriptsDeleted: 0,
+			recordingsLedgered: 0,
+			recordingsRedacted: 0,
+			recordingsHeld: 0,
+			recordingsUndecryptable: 0,
+			recordingFramesLedgered: false,
+			framesLedgered: 0,
+			framesHeld: 0,
+			gapAHeldSkips: 0,
+			gapB: {
+				scoreSnapshots: 0,
+				omniscoreResults: 0,
+				scoreAppeals: 0,
+				mutualMatches: 0,
+				screeningLogs: 0,
+				skillAssessments: 0,
+				jobAssessmentAttempts: 0,
+				assessmentConversations: 0,
+				assessmentSessions: 0,
+				assessmentEvents: 0,
+				rowsHeld: 0,
+				heldTables: [],
+			},
+			gapC: {
+				scheduledInterviews: 0,
+				interviewReminders: 0,
+				interviewFeedback: 0,
+				candidateFeedback: 0,
+				interviewPanels: 0,
+				panelNotes: 0,
+				panelMembers: 0,
+				scorecards: 0,
+				scorecardItems: 0,
+				interviewEventsRedacted: 0,
+				interviewEventsDeleted: 0,
+				proposedSlots: 0,
+				interviewRooms: 0,
+				interviewRoomsKeptForRecordings: 0,
+				mockInterviewSessions: 0,
+				interviews: 0,
+				interviewAnalysis: 0,
+				humanInterviewRequests: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				storageLedgered: 0,
+				nonPatternStorageUrls: [],
+			},
+			gapD: {
+				candidateOnboardingData: 0,
+				onboardingDocuments: 0,
+				onboardingChecklists: 0,
+				onboardingChats: 0,
+				onboardingPlans: 0,
+				onboardingTasks: 0,
+				bgVerificationRequests: 0,
+				discrepancies: 0,
+				educationHistory: 0,
+				employmentHistory: 0,
+				referenceChecks: 0,
+				verifiedCredentials: 0,
+				offersRedacted: 0,
+				signatureRequests: 0,
+				signingPartiesDeleted: 0,
+				signingPartiesRedacted: 0,
+				signatureDocuments: 0,
+				documentHashRecords: 0,
+				signatureAuditEvents: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				storageLedgered: 0,
+				nonPatternStorageUrls: [],
+				signatureAuditResidual: 0,
+			},
+			gapE: {
+				candidateDemographics: 0,
+				recruiterFeedback: 0,
+				sharedNotes: 0,
+				skillEndorsements: 0,
+				candidateInvites: 0,
+				careerRecommendations: 0,
+				skillGapAnalyses: 0,
+				learningPaths: 0,
+				companyResearchBriefs: 0,
+				salaryPracticeSessions: 0,
+				profileToolProgress: 0,
+				careerCoachSessions: 0,
+				applicationOptimizations: 0,
+				comments: 0,
+				commentMentions: 0,
+				portfolioProjects: 0,
+				candidateJobActions: 0,
+				savedJobs: 0,
+				jobAlerts: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				storageLedgered: 0,
+			},
+			gapF: {
+				communications: 0,
+				sequenceEnrollments: 0,
+				emailQueue: 0,
+				notificationQueue: 0,
+				notificationLogs: 0,
+				userNotifications: 0,
+				notificationPreferences: 0,
+				notificationAudioCache: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				emailCaptureFailed: true, // #1125 F1: finite mock queue resolves no email at GAP-F capture — unresolvable capture is capture-failed
+			},
+			gapG: {
+				calendarConnections: 0,
+				oauthExchangeCodes: 0,
+				refreshTokens: 0,
+				oauthConnections: 0,
+				passwordResetTokens: 0,
+				userSettings: 0,
+				userRoles: 0,
+				usageLimits: 0,
+				assessmentReferrals: 0,
+				apiKeys: 0,
+				usersRedacted: 0,
+				assignedBySevered: 0,
+				companyIdResidual: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+			},
+			gapH: {
+				consentRecordsRedacted: 0,
+				consentRecordsHeld: 0,
+				consentRecordsLookupFailed: 0,
+				consentHistoryRedacted: 0,
+				consentHistoryHeld: 0,
+				consentHistoryLookupFailed: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				actorFkResidual: 0,
+				actorFkResidualColumns: ['consent_records.revoked_by', 'consent_history.changed_by'],
+			},
+			storageKeys: [],
+		});
+	});
+
+	test('embeddings DELETE runs even when no DEK exists (independent)', async () => {
+		const client = { query: jest.fn() };
+		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
+			.mockResolvedValueOnce({ rowCount: 0 }) // destroyDEK: DEKNotFound
+			.mockResolvedValueOnce({ rowCount: 1 }) // Gate A: DEK tombstone INSERT (pre-existing chain gap, repaired #799)
+			.mockResolvedValueOnce({ rowCount: 1 }) // embeddings DELETE
+			.mockResolvedValueOnce({ rowCount: 1 }) // search-index DELETE
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1123: verified_credentials SELECT (FK-ordered, no rows)
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: parsed_resumes
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: candidate_profiles
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: identity_verifications
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: cv_analyses
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: cv_reviews
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: verification_requests
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: verification_documents
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: work_experience
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: education
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: candidate_skills
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: linkedin_profiles
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: career_diagnoses
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: avatar_url clear
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // S-078: messages
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: user_memory
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: match_results
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: practice_sessions
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_sessions
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_transcripts
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_evaluations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_composite_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_components
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1127: consent_records SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1127: consent_history SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: screening_responses SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: job_application_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: ai_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: outreach_attempts SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: auto_apply_profiles SELECT (no rows)
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
+		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
+
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		const deleteCall = client.query.mock.calls.find(([sql]) =>
+			/DELETE FROM candidate_embeddings/i.test(sql),
+		);
+		expect(deleteCall).toBeDefined();
+		expect(result).toEqual({
+			shredded: false,
+			embeddingsDeleted: true,
+			searchIndexDeleted: true,
+			cvUploadsDeleted: false,
+			parsedResumesDeleted: false,
+			candidateProfileDeleted: false,
+			identityVerificationsDeleted: false,
+			cvAnalysesDeleted: false,
+			cvReviewsDeleted: false,
+			verificationRequestsDeleted: false,
+			verificationDocumentsDeleted: false,
+			workExperienceDeleted: false,
+			educationDeleted: false,
+			candidateSkillsDeleted: false,
+			linkedinProfileDeleted: false,
+			careerDiagnosesDeleted: false,
+			messagesDeleted: false,
+			userMemoryDeleted: false,
+			matchResultsDeleted: false,
+			practiceSessionsDeleted: false,
+			screeningSessionsDeleted: false,
+			interviewTranscriptsDeleted: false,
+			omniScoresDeleted: false,
+			roleScoresDeleted: false,
+			screeningAnswersDeleted: false,
+			interviewEvaluationsDeleted: false,
+			interviewCompositeScoresDeleted: false,
+			scoreComponentsDeleted: false,
+			scoreHistoryDeleted: false,
+			jobRecommendationsDeleted: false,
+			jobApplicationsRedacted: false, // #780
+			jobApplicationRowsHeld: 0, // #780
+			screeningResponsesDeleted: false, // #813
+			jobApplicationScreeningsDeleted: false, // #813
+			aiScreeningsDeleted: false, // #813
+			outreachAttemptsDeleted: false, // #813
+			autoApplyProfileDeleted: false, // #813
+			aiScreeningAuditLogsDeleted: 0, // #813
+			aiScreeningHumanReviewsDeleted: 0, // #813
+			applicationKeyedRowsHeld: 0, // #813
+			applicationKeyedHeldDetails: [], // #813
+			autoApplyConsentTombstone: null, // #813
+			threatIntelChecksDeleted: 0, // #807
+			threatIntelRowsHeld: 0, // #807
+			applicationIpCapturesDeleted: 0, // #815
+			applicationIpRowsHeld: 0, // #815
+			recordingConsentRedacted: false,
+			observerReportsDeleted: false,
+			observerJobsDeleted: false,
+			observerAudioChunksDeleted: false,
+			observerSpeechMeasurementsDeleted: false,
+			observerCaptureOutcomesDeleted: false,
+			interviewSessionsStripped: false, // GAP-A (#1120)
+			sessionsStripped: 0,
+			sessionsHeld: 0,
+			transcriptsDeleted: 0,
+			recordingsLedgered: 0,
+			recordingsRedacted: 0,
+			recordingsHeld: 0,
+			recordingsUndecryptable: 0,
+			recordingFramesLedgered: false,
+			framesLedgered: 0,
+			framesHeld: 0,
+			gapAHeldSkips: 0,
+			gapB: {
+				scoreSnapshots: 0,
+				omniscoreResults: 0,
+				scoreAppeals: 0,
+				mutualMatches: 0,
+				screeningLogs: 0,
+				skillAssessments: 0,
+				jobAssessmentAttempts: 0,
+				assessmentConversations: 0,
+				assessmentSessions: 0,
+				assessmentEvents: 0,
+				rowsHeld: 0,
+				heldTables: [],
+			},
+			gapC: {
+				scheduledInterviews: 0,
+				interviewReminders: 0,
+				interviewFeedback: 0,
+				candidateFeedback: 0,
+				interviewPanels: 0,
+				panelNotes: 0,
+				panelMembers: 0,
+				scorecards: 0,
+				scorecardItems: 0,
+				interviewEventsRedacted: 0,
+				interviewEventsDeleted: 0,
+				proposedSlots: 0,
+				interviewRooms: 0,
+				interviewRoomsKeptForRecordings: 0,
+				mockInterviewSessions: 0,
+				interviews: 0,
+				interviewAnalysis: 0,
+				humanInterviewRequests: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				storageLedgered: 0,
+				nonPatternStorageUrls: [],
+			},
+			gapD: {
+				candidateOnboardingData: 0,
+				onboardingDocuments: 0,
+				onboardingChecklists: 0,
+				onboardingChats: 0,
+				onboardingPlans: 0,
+				onboardingTasks: 0,
+				bgVerificationRequests: 0,
+				discrepancies: 0,
+				educationHistory: 0,
+				employmentHistory: 0,
+				referenceChecks: 0,
+				verifiedCredentials: 0,
+				offersRedacted: 0,
+				signatureRequests: 0,
+				signingPartiesDeleted: 0,
+				signingPartiesRedacted: 0,
+				signatureDocuments: 0,
+				documentHashRecords: 0,
+				signatureAuditEvents: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				storageLedgered: 0,
+				nonPatternStorageUrls: [],
+				signatureAuditResidual: 0,
+			},
+			gapE: {
+				candidateDemographics: 0,
+				recruiterFeedback: 0,
+				sharedNotes: 0,
+				skillEndorsements: 0,
+				candidateInvites: 0,
+				careerRecommendations: 0,
+				skillGapAnalyses: 0,
+				learningPaths: 0,
+				companyResearchBriefs: 0,
+				salaryPracticeSessions: 0,
+				profileToolProgress: 0,
+				careerCoachSessions: 0,
+				applicationOptimizations: 0,
+				comments: 0,
+				commentMentions: 0,
+				portfolioProjects: 0,
+				candidateJobActions: 0,
+				savedJobs: 0,
+				jobAlerts: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				storageLedgered: 0,
+			},
+			gapF: {
+				communications: 0,
+				sequenceEnrollments: 0,
+				emailQueue: 0,
+				notificationQueue: 0,
+				notificationLogs: 0,
+				userNotifications: 0,
+				notificationPreferences: 0,
+				notificationAudioCache: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				emailCaptureFailed: true, // #1125 F1: finite mock queue resolves no email at GAP-F capture — unresolvable capture is capture-failed
+			},
+			gapG: {
+				calendarConnections: 0,
+				oauthExchangeCodes: 0,
+				refreshTokens: 0,
+				oauthConnections: 0,
+				passwordResetTokens: 0,
+				userSettings: 0,
+				userRoles: 0,
+				usageLimits: 0,
+				assessmentReferrals: 0,
+				apiKeys: 0,
+				usersRedacted: 0,
+				assignedBySevered: 0,
+				companyIdResidual: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+			},
+			gapH: {
+				consentRecordsRedacted: 0,
+				consentRecordsHeld: 0,
+				consentRecordsLookupFailed: 0,
+				consentHistoryRedacted: 0,
+				consentHistoryHeld: 0,
+				consentHistoryLookupFailed: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				actorFkResidual: 0,
+				actorFkResidualColumns: ['consent_records.revoked_by', 'consent_history.changed_by'],
+			},
+			storageKeys: [],
+		});
+		// No DEK destroyed → no purge audit entry, but embeddings still deleted.
+		expect(biometricAudit.logAccess).not.toHaveBeenCalled();
+	});
+
+	test('embeddingsDeleted=false when no embeddings row existed', async () => {
+		const client = { query: jest.fn() };
+		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
+			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
+			.mockResolvedValueOnce({ rowCount: 0 }) // embeddings DELETE: no row
+			.mockResolvedValueOnce({ rowCount: 0 }) // search-index DELETE: no row
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1123: verified_credentials SELECT (FK-ordered, no rows)
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: parsed_resumes
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: candidate_profiles
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: identity_verifications
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: cv_analyses
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: cv_reviews
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: verification_requests
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: verification_documents
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: work_experience
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: education
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: candidate_skills
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: linkedin_profiles
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: career_diagnoses
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: avatar_url clear
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // S-078: messages
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: user_memory
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: match_results
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: practice_sessions
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_sessions
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_transcripts
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_evaluations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_composite_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_components
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1127: consent_records SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1127: consent_history SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: screening_responses SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: job_application_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: ai_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: outreach_attempts SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: auto_apply_profiles SELECT (no rows)
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
+		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
+
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		expect(result).toEqual({
+			shredded: true,
+			embeddingsDeleted: false,
+			searchIndexDeleted: false,
+			cvUploadsDeleted: false,
+			parsedResumesDeleted: false,
+			candidateProfileDeleted: false,
+			identityVerificationsDeleted: false,
+			cvAnalysesDeleted: false,
+			cvReviewsDeleted: false,
+			verificationRequestsDeleted: false,
+			verificationDocumentsDeleted: false,
+			workExperienceDeleted: false,
+			educationDeleted: false,
+			candidateSkillsDeleted: false,
+			linkedinProfileDeleted: false,
+			careerDiagnosesDeleted: false,
+			messagesDeleted: false,
+			userMemoryDeleted: false,
+			matchResultsDeleted: false,
+			practiceSessionsDeleted: false,
+			screeningSessionsDeleted: false,
+			interviewTranscriptsDeleted: false,
+			omniScoresDeleted: false,
+			roleScoresDeleted: false,
+			screeningAnswersDeleted: false,
+			interviewEvaluationsDeleted: false,
+			interviewCompositeScoresDeleted: false,
+			scoreComponentsDeleted: false,
+			scoreHistoryDeleted: false,
+			jobRecommendationsDeleted: false,
+			jobApplicationsRedacted: false, // #780
+			jobApplicationRowsHeld: 0, // #780
+			screeningResponsesDeleted: false, // #813
+			jobApplicationScreeningsDeleted: false, // #813
+			aiScreeningsDeleted: false, // #813
+			outreachAttemptsDeleted: false, // #813
+			autoApplyProfileDeleted: false, // #813
+			aiScreeningAuditLogsDeleted: 0, // #813
+			aiScreeningHumanReviewsDeleted: 0, // #813
+			applicationKeyedRowsHeld: 0, // #813
+			applicationKeyedHeldDetails: [], // #813
+			autoApplyConsentTombstone: null, // #813
+			threatIntelChecksDeleted: 0, // #807
+			threatIntelRowsHeld: 0, // #807
+			applicationIpCapturesDeleted: 0, // #815
+			applicationIpRowsHeld: 0, // #815
+			recordingConsentRedacted: false,
+			observerReportsDeleted: false,
+			observerJobsDeleted: false,
+			observerAudioChunksDeleted: false,
+			observerSpeechMeasurementsDeleted: false,
+			observerCaptureOutcomesDeleted: false,
+			interviewSessionsStripped: false, // GAP-A (#1120)
+			sessionsStripped: 0,
+			sessionsHeld: 0,
+			transcriptsDeleted: 0,
+			recordingsLedgered: 0,
+			recordingsRedacted: 0,
+			recordingsHeld: 0,
+			recordingsUndecryptable: 0,
+			recordingFramesLedgered: false,
+			framesLedgered: 0,
+			framesHeld: 0,
+			gapAHeldSkips: 0,
+			gapB: {
+				scoreSnapshots: 0,
+				omniscoreResults: 0,
+				scoreAppeals: 0,
+				mutualMatches: 0,
+				screeningLogs: 0,
+				skillAssessments: 0,
+				jobAssessmentAttempts: 0,
+				assessmentConversations: 0,
+				assessmentSessions: 0,
+				assessmentEvents: 0,
+				rowsHeld: 0,
+				heldTables: [],
+			},
+			gapC: {
+				scheduledInterviews: 0,
+				interviewReminders: 0,
+				interviewFeedback: 0,
+				candidateFeedback: 0,
+				interviewPanels: 0,
+				panelNotes: 0,
+				panelMembers: 0,
+				scorecards: 0,
+				scorecardItems: 0,
+				interviewEventsRedacted: 0,
+				interviewEventsDeleted: 0,
+				proposedSlots: 0,
+				interviewRooms: 0,
+				interviewRoomsKeptForRecordings: 0,
+				mockInterviewSessions: 0,
+				interviews: 0,
+				interviewAnalysis: 0,
+				humanInterviewRequests: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				storageLedgered: 0,
+				nonPatternStorageUrls: [],
+			},
+			gapD: {
+				candidateOnboardingData: 0,
+				onboardingDocuments: 0,
+				onboardingChecklists: 0,
+				onboardingChats: 0,
+				onboardingPlans: 0,
+				onboardingTasks: 0,
+				bgVerificationRequests: 0,
+				discrepancies: 0,
+				educationHistory: 0,
+				employmentHistory: 0,
+				referenceChecks: 0,
+				verifiedCredentials: 0,
+				offersRedacted: 0,
+				signatureRequests: 0,
+				signingPartiesDeleted: 0,
+				signingPartiesRedacted: 0,
+				signatureDocuments: 0,
+				documentHashRecords: 0,
+				signatureAuditEvents: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				storageLedgered: 0,
+				nonPatternStorageUrls: [],
+				signatureAuditResidual: 0,
+			},
+			gapE: {
+				candidateDemographics: 0,
+				recruiterFeedback: 0,
+				sharedNotes: 0,
+				skillEndorsements: 0,
+				candidateInvites: 0,
+				careerRecommendations: 0,
+				skillGapAnalyses: 0,
+				learningPaths: 0,
+				companyResearchBriefs: 0,
+				salaryPracticeSessions: 0,
+				profileToolProgress: 0,
+				careerCoachSessions: 0,
+				applicationOptimizations: 0,
+				comments: 0,
+				commentMentions: 0,
+				portfolioProjects: 0,
+				candidateJobActions: 0,
+				savedJobs: 0,
+				jobAlerts: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				storageLedgered: 0,
+			},
+			gapF: {
+				communications: 0,
+				sequenceEnrollments: 0,
+				emailQueue: 0,
+				notificationQueue: 0,
+				notificationLogs: 0,
+				userNotifications: 0,
+				notificationPreferences: 0,
+				notificationAudioCache: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				emailCaptureFailed: true, // #1125 F1: finite mock queue resolves no email at GAP-F capture — unresolvable capture is capture-failed
+			},
+			gapG: {
+				calendarConnections: 0,
+				oauthExchangeCodes: 0,
+				refreshTokens: 0,
+				oauthConnections: 0,
+				passwordResetTokens: 0,
+				userSettings: 0,
+				userRoles: 0,
+				usageLimits: 0,
+				assessmentReferrals: 0,
+				apiKeys: 0,
+				usersRedacted: 0,
+				assignedBySevered: 0,
+				companyIdResidual: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+			},
+			gapH: {
+				consentRecordsRedacted: 0,
+				consentRecordsHeld: 0,
+				consentRecordsLookupFailed: 0,
+				consentHistoryRedacted: 0,
+				consentHistoryHeld: 0,
+				consentHistoryLookupFailed: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				actorFkResidual: 0,
+				actorFkResidualColumns: ['consent_records.revoked_by', 'consent_history.changed_by'],
+			},
+			storageKeys: [],
+		});
+	});
+
+	test('embeddings DELETE failure propagates (caller rolls back)', async () => {
+		const client = { query: jest.fn() };
+		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
+			.mockResolvedValueOnce({ rowCount: 1 }) // destroyDEK UPDATE
+			.mockRejectedValueOnce(new Error('embeddings delete failed')); // embeddings DELETE fails
+		biometricAudit.logAccess.mockResolvedValueOnce({ id: 1 });
+
+		await expect(
+			erasureService.erasePersonalData(7, { client }),
+		).rejects.toThrow('embeddings delete failed');
+	});
+
+	test('search-index DELETE runs even when no embeddings row existed (twin-copy gap)', async () => {
+		const client = { query: jest.fn() };
+		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
+			.mockResolvedValueOnce({ rowCount: 0 }) // destroyDEK: DEKNotFound
+			.mockResolvedValueOnce({ rowCount: 1 }) // Gate A: DEK tombstone INSERT (pre-existing chain gap, repaired #799)
+			.mockResolvedValueOnce({ rowCount: 0 }) // embeddings DELETE: no row
+			.mockResolvedValueOnce({ rowCount: 1 }) // search-index DELETE
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1123: verified_credentials SELECT (FK-ordered, no rows)
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: parsed_resumes
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: candidate_profiles
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: identity_verifications
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: cv_analyses
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: cv_reviews
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: verification_requests
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: verification_documents
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: work_experience
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: education
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: candidate_skills
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: linkedin_profiles
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: career_diagnoses
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: avatar_url clear
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // S-078: messages
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: user_memory
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: match_results
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: practice_sessions
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_sessions
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_transcripts
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_evaluations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_composite_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_components
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1127: consent_records SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1127: consent_history SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: screening_responses SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: job_application_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: ai_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: outreach_attempts SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: auto_apply_profiles SELECT (no rows)
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
+
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		expect(result).toEqual({
+			shredded: false,
+			embeddingsDeleted: false,
+			searchIndexDeleted: true,
+			cvUploadsDeleted: false,
+			parsedResumesDeleted: false,
+			candidateProfileDeleted: false,
+			identityVerificationsDeleted: false,
+			cvAnalysesDeleted: false,
+			cvReviewsDeleted: false,
+			verificationRequestsDeleted: false,
+			verificationDocumentsDeleted: false,
+			workExperienceDeleted: false,
+			educationDeleted: false,
+			candidateSkillsDeleted: false,
+			linkedinProfileDeleted: false,
+			careerDiagnosesDeleted: false,
+			messagesDeleted: false,
+			userMemoryDeleted: false,
+			matchResultsDeleted: false,
+			practiceSessionsDeleted: false,
+			screeningSessionsDeleted: false,
+			interviewTranscriptsDeleted: false,
+			omniScoresDeleted: false,
+			roleScoresDeleted: false,
+			screeningAnswersDeleted: false,
+			interviewEvaluationsDeleted: false,
+			interviewCompositeScoresDeleted: false,
+			scoreComponentsDeleted: false,
+			scoreHistoryDeleted: false,
+			jobRecommendationsDeleted: false,
+			jobApplicationsRedacted: false, // #780
+			jobApplicationRowsHeld: 0, // #780
+			screeningResponsesDeleted: false, // #813
+			jobApplicationScreeningsDeleted: false, // #813
+			aiScreeningsDeleted: false, // #813
+			outreachAttemptsDeleted: false, // #813
+			autoApplyProfileDeleted: false, // #813
+			aiScreeningAuditLogsDeleted: 0, // #813
+			aiScreeningHumanReviewsDeleted: 0, // #813
+			applicationKeyedRowsHeld: 0, // #813
+			applicationKeyedHeldDetails: [], // #813
+			autoApplyConsentTombstone: null, // #813
+			threatIntelChecksDeleted: 0, // #807
+			threatIntelRowsHeld: 0, // #807
+			applicationIpCapturesDeleted: 0, // #815
+			applicationIpRowsHeld: 0, // #815
+			recordingConsentRedacted: false,
+			observerReportsDeleted: false,
+			observerJobsDeleted: false,
+			observerAudioChunksDeleted: false,
+			observerSpeechMeasurementsDeleted: false,
+			observerCaptureOutcomesDeleted: false,
+			interviewSessionsStripped: false, // GAP-A (#1120)
+			sessionsStripped: 0,
+			sessionsHeld: 0,
+			transcriptsDeleted: 0,
+			recordingsLedgered: 0,
+			recordingsRedacted: 0,
+			recordingsHeld: 0,
+			recordingsUndecryptable: 0,
+			recordingFramesLedgered: false,
+			framesLedgered: 0,
+			framesHeld: 0,
+			gapAHeldSkips: 0,
+			gapB: {
+				scoreSnapshots: 0,
+				omniscoreResults: 0,
+				scoreAppeals: 0,
+				mutualMatches: 0,
+				screeningLogs: 0,
+				skillAssessments: 0,
+				jobAssessmentAttempts: 0,
+				assessmentConversations: 0,
+				assessmentSessions: 0,
+				assessmentEvents: 0,
+				rowsHeld: 0,
+				heldTables: [],
+			},
+			gapC: {
+				scheduledInterviews: 0,
+				interviewReminders: 0,
+				interviewFeedback: 0,
+				candidateFeedback: 0,
+				interviewPanels: 0,
+				panelNotes: 0,
+				panelMembers: 0,
+				scorecards: 0,
+				scorecardItems: 0,
+				interviewEventsRedacted: 0,
+				interviewEventsDeleted: 0,
+				proposedSlots: 0,
+				interviewRooms: 0,
+				interviewRoomsKeptForRecordings: 0,
+				mockInterviewSessions: 0,
+				interviews: 0,
+				interviewAnalysis: 0,
+				humanInterviewRequests: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				storageLedgered: 0,
+				nonPatternStorageUrls: [],
+			},
+			gapD: {
+				candidateOnboardingData: 0,
+				onboardingDocuments: 0,
+				onboardingChecklists: 0,
+				onboardingChats: 0,
+				onboardingPlans: 0,
+				onboardingTasks: 0,
+				bgVerificationRequests: 0,
+				discrepancies: 0,
+				educationHistory: 0,
+				employmentHistory: 0,
+				referenceChecks: 0,
+				verifiedCredentials: 0,
+				offersRedacted: 0,
+				signatureRequests: 0,
+				signingPartiesDeleted: 0,
+				signingPartiesRedacted: 0,
+				signatureDocuments: 0,
+				documentHashRecords: 0,
+				signatureAuditEvents: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				storageLedgered: 0,
+				nonPatternStorageUrls: [],
+				signatureAuditResidual: 0,
+			},
+			gapE: {
+				candidateDemographics: 0,
+				recruiterFeedback: 0,
+				sharedNotes: 0,
+				skillEndorsements: 0,
+				candidateInvites: 0,
+				careerRecommendations: 0,
+				skillGapAnalyses: 0,
+				learningPaths: 0,
+				companyResearchBriefs: 0,
+				salaryPracticeSessions: 0,
+				profileToolProgress: 0,
+				careerCoachSessions: 0,
+				applicationOptimizations: 0,
+				comments: 0,
+				commentMentions: 0,
+				portfolioProjects: 0,
+				candidateJobActions: 0,
+				savedJobs: 0,
+				jobAlerts: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				storageLedgered: 0,
+			},
+			gapF: {
+				communications: 0,
+				sequenceEnrollments: 0,
+				emailQueue: 0,
+				notificationQueue: 0,
+				notificationLogs: 0,
+				userNotifications: 0,
+				notificationPreferences: 0,
+				notificationAudioCache: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				emailCaptureFailed: true, // #1125 F1: finite mock queue resolves no email at GAP-F capture — unresolvable capture is capture-failed
+			},
+			gapG: {
+				calendarConnections: 0,
+				oauthExchangeCodes: 0,
+				refreshTokens: 0,
+				oauthConnections: 0,
+				passwordResetTokens: 0,
+				userSettings: 0,
+				userRoles: 0,
+				usageLimits: 0,
+				assessmentReferrals: 0,
+				apiKeys: 0,
+				usersRedacted: 0,
+				assignedBySevered: 0,
+				companyIdResidual: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+			},
+			gapH: {
+				consentRecordsRedacted: 0,
+				consentRecordsHeld: 0,
+				consentRecordsLookupFailed: 0,
+				consentHistoryRedacted: 0,
+				consentHistoryHeld: 0,
+				consentHistoryLookupFailed: 0,
+				rowsHeld: 0,
+				heldTables: [],
+				holdLookupFailed: 0,
+				lookupFailedTables: [],
+				actorFkResidual: 0,
+				actorFkResidualColumns: ['consent_records.revoked_by', 'consent_history.changed_by'],
+			},
+			storageKeys: [],
+		});
+	});
+
+	test('embeddings DELETE uses the provided client (transaction support)', async () => {
+		const db = require('../../../lib/db');
+		const client = { query: jest.fn() };
+		client.query
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
+			.mockResolvedValueOnce({ rowCount: 0 }) // DEKNotFound
+			.mockResolvedValueOnce({ rowCount: 1 }) // Gate A: DEK tombstone INSERT (pre-existing chain gap, repaired #799)
+			.mockResolvedValueOnce({ rowCount: 1 }) // embeddings DELETE
+			.mockResolvedValueOnce({ rowCount: 1 }) // search-index DELETE
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1123: verified_credentials SELECT (FK-ordered, no rows)
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: cv_uploads
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: parsed_resumes
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: candidate_profiles
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: identity_verifications
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: cv_analyses
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: cv_reviews
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: verification_requests
+			.mockResolvedValueOnce({ rowCount: 0, rows: [] }) // S-076: verification_documents
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: work_experience
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: education
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: candidate_skills
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: linkedin_profiles
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: career_diagnoses
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-076: avatar_url clear
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // S-078: messages
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: user_memory
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: match_results
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: practice_sessions
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_sessions
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_transcripts
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_evaluations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_composite_scores
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_components
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: score_history
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: job_recommendations
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: recording_consent
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1127: consent_records SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #1127: consent_history SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #780: job_applications SELECT (no applications)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: screening_responses SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: job_application_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: ai_screenings SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: outreach_attempts SELECT (no rows)
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #813: auto_apply_profiles SELECT (no rows)
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-047: ai_observer_reports
+			.mockResolvedValueOnce({ rowCount: 0 }); // S-047: observer_jobs
+
+		await erasureService.erasePersonalData(7, { client });
+
+		// Pool must NOT be touched when a transaction client is given.
+		expect(db.query).not.toHaveBeenCalled();
+	});
+});

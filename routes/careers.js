@@ -5,6 +5,23 @@ const { authMiddleware } = require('../lib/auth');
 
 const router = express.Router();
 
+// #1188: real average time to hire, in days, from hired applications.
+// Null when the company has no hires - never a default number.
+// Mirrors the pattern in routes/recruiter.js (dashboard time-to-hire).
+async function getAvgTimeToHire(companyId) {
+	try {
+		const result = await pool.query(
+			`SELECT AVG(EXTRACT(EPOCH FROM (hired_at - applied_at)) / 86400) as avg_days
+			 FROM job_applications
+			 WHERE company_id = $1 AND status = 'hired' AND hired_at IS NOT NULL`,
+			[companyId],
+		);
+		return result.rows[0]?.avg_days ? Number(parseFloat(result.rows[0].avg_days).toFixed(1)) : null;
+	} catch (_err) {
+		return null;
+	}
+}
+
 // GET /api/careers/default — return default career page for current recruiter's company
 router.get('/default', authMiddleware, async (req, res) => {
 	try {
@@ -15,12 +32,11 @@ router.get('/default', authMiddleware, async (req, res) => {
 
 		// Get company data
 		const companyResult = await pool.query(
-			`SELECT id, name, slug, industry, size, website, description, logo_url, location, founded_year,
+			`SELECT id, name, slug, industry, company_size AS size, website, description, logo_url, headquarters AS location, founded_year,
 			        (SELECT COUNT(*) FROM jobs WHERE company_id = companies.id AND status = 'active') as open_positions,
-			        (SELECT COUNT(*) FROM users WHERE company_id = companies.id AND role IN ('recruiter','hiring_manager','admin')) as employee_count,
-			        (SELECT COALESCE(AVG(overall_rating), 0) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
+			        (SELECT AVG(overall_rating) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
 			        (SELECT COUNT(*) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as review_count,
-			        (SELECT COALESCE(AVG(total_score), 0) FROM omni_scores os JOIN users u ON os.user_id = u.id WHERE u.company_id = companies.id) as trustscore
+			        (SELECT ts.total_score FROM trust_scores ts WHERE ts.company_id = companies.id) as trustscore
 			 FROM companies WHERE id = $1`,
 			[companyId],
 		);
@@ -33,10 +49,12 @@ router.get('/default', authMiddleware, async (req, res) => {
 
 		// Get active jobs for this company
 		const jobsResult = await pool.query(
-			`SELECT id, title, department, location, job_type, salary_range, created_at
-			 FROM jobs WHERE company_id = $1 AND status = 'active' ORDER BY created_at DESC`,
+			`SELECT j.id, j.title, d.name AS department, j.location, j.job_type, j.salary_range, j.created_at
+			 FROM jobs j LEFT JOIN departments d ON d.id = j.department_id WHERE j.company_id = $1 AND j.status = 'active' ORDER BY j.created_at DESC`,
 			[companyId],
 		);
+
+		const avgTimeToHire = await getAvgTimeToHire(company.id);
 
 		// Build response matching CareerPageData type
 		const data = {
@@ -52,12 +70,14 @@ router.get('/default', authMiddleware, async (req, res) => {
 					`${company.name} is a leading company in the ${company.industry || 'technology'} industry.`,
 				website: company.website || '#',
 				location: company.location || 'Remote-friendly',
-				size: company.size || '11-50 employees',
+				size: company.size || null,
 				industry: company.industry || 'Technology / SaaS',
-				founded: company.founded_year ? String(company.founded_year) : '2020',
-				trustscore: Math.round(company.trustscore || 75),
+				founded: company.founded_year ? String(company.founded_year) : null,
+				trustscore: company.trustscore != null ? Math.round(company.trustscore) : null,
 				rating:
-					parseFloat(company.rating || '0') > 0 ? parseFloat(company.rating).toFixed(1) : '4.5',
+					parseInt(company.review_count, 10) > 0 && company.rating != null
+						? Number(parseFloat(company.rating).toFixed(1))
+						: null,
 				reviewCount: parseInt(company.review_count, 10) || 0,
 			},
 			culture: {
@@ -132,9 +152,12 @@ router.get('/default', authMiddleware, async (req, res) => {
 			})),
 			stats: {
 				openPositions: parseInt(company.open_positions, 10) || jobsResult.rows.length,
-				avgTimeToHire: 18,
-				employees: parseInt(company.employee_count, 10) || 50,
-				growthRate: 34,
+				avgTimeToHire,
+				// Declared company_size, not a headcount - never the platform
+				// team-account count, never a default.
+				employees: company.size ? String(company.size) : null,
+				// No real source for growth exists; do not invent one (#1188).
+				growthRate: null,
 			},
 		};
 
@@ -154,23 +177,21 @@ router.get('/:id', async (req, res) => {
 		let companyResult;
 		if (/^\d+$/.test(id)) {
 			companyResult = await pool.query(
-				`SELECT id, name, slug, industry, size, website, description, logo_url, location, founded_year,
+				`SELECT id, name, slug, industry, company_size AS size, website, description, logo_url, headquarters AS location, founded_year,
 				        (SELECT COUNT(*) FROM jobs WHERE company_id = companies.id AND status = 'active') as open_positions,
-				        (SELECT COUNT(*) FROM users WHERE company_id = companies.id AND role IN ('recruiter','hiring_manager','admin')) as employee_count,
-				        (SELECT COALESCE(AVG(overall_rating), 0) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
+				        (SELECT AVG(overall_rating) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
 				        (SELECT COUNT(*) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as review_count,
-				        (SELECT COALESCE(AVG(total_score), 0) FROM omni_scores os JOIN users u ON os.user_id = u.id WHERE u.company_id = companies.id) as trustscore
+				        (SELECT ts.total_score FROM trust_scores ts WHERE ts.company_id = companies.id) as trustscore
 				 FROM companies WHERE id = $1`,
 				[id],
 			);
 		} else {
 			companyResult = await pool.query(
-				`SELECT id, name, slug, industry, size, website, description, logo_url, location, founded_year,
+				`SELECT id, name, slug, industry, company_size AS size, website, description, logo_url, headquarters AS location, founded_year,
 				        (SELECT COUNT(*) FROM jobs WHERE company_id = companies.id AND status = 'active') as open_positions,
-				        (SELECT COUNT(*) FROM users WHERE company_id = companies.id AND role IN ('recruiter','hiring_manager','admin')) as employee_count,
-				        (SELECT COALESCE(AVG(overall_rating), 0) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
+				        (SELECT AVG(overall_rating) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
 				        (SELECT COUNT(*) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as review_count,
-				        (SELECT COALESCE(AVG(total_score), 0) FROM omni_scores os JOIN users u ON os.user_id = u.id WHERE u.company_id = companies.id) as trustscore
+				        (SELECT ts.total_score FROM trust_scores ts WHERE ts.company_id = companies.id) as trustscore
 				 FROM companies WHERE slug = $1`,
 				[id],
 			);
@@ -184,10 +205,12 @@ router.get('/:id', async (req, res) => {
 
 		// Get active jobs for this company
 		const jobsResult = await pool.query(
-			`SELECT id, title, department, location, job_type, salary_range, created_at
-			 FROM jobs WHERE company_id = $1 AND status = 'active' ORDER BY created_at DESC`,
+			`SELECT j.id, j.title, d.name AS department, j.location, j.job_type, j.salary_range, j.created_at
+			 FROM jobs j LEFT JOIN departments d ON d.id = j.department_id WHERE j.company_id = $1 AND j.status = 'active' ORDER BY j.created_at DESC`,
 			[company.id],
 		);
+
+		const avgTimeToHire = await getAvgTimeToHire(company.id);
 
 		// Build response matching CareerPageData type
 		const data = {
@@ -203,12 +226,14 @@ router.get('/:id', async (req, res) => {
 					`${company.name} is a leading company in the ${company.industry || 'technology'} industry.`,
 				website: company.website || '#',
 				location: company.location || 'Remote-friendly',
-				size: company.size || '11-50 employees',
+				size: company.size || null,
 				industry: company.industry || 'Technology / SaaS',
-				founded: company.founded_year ? String(company.founded_year) : '2020',
-				trustscore: Math.round(company.trustscore || 75),
+				founded: company.founded_year ? String(company.founded_year) : null,
+				trustscore: company.trustscore != null ? Math.round(company.trustscore) : null,
 				rating:
-					parseFloat(company.rating || '0') > 0 ? parseFloat(company.rating).toFixed(1) : '4.5',
+					parseInt(company.review_count, 10) > 0 && company.rating != null
+						? Number(parseFloat(company.rating).toFixed(1))
+						: null,
 				reviewCount: parseInt(company.review_count, 10) || 0,
 			},
 			culture: {
@@ -283,9 +308,12 @@ router.get('/:id', async (req, res) => {
 			})),
 			stats: {
 				openPositions: parseInt(company.open_positions, 10) || jobsResult.rows.length,
-				avgTimeToHire: 18,
-				employees: parseInt(company.employee_count, 10) || 50,
-				growthRate: 34,
+				avgTimeToHire,
+				// Declared company_size, not a headcount - never the platform
+				// team-account count, never a default.
+				employees: company.size ? String(company.size) : null,
+				// No real source for growth exists; do not invent one (#1188).
+				growthRate: null,
 			},
 		};
 

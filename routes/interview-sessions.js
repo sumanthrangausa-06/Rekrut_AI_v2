@@ -11,10 +11,14 @@
  *   POST   /interview-sessions/:id/tts         synthesize a turn's text to audio
  *   POST   /interview-sessions/:id/observer/enable  hiring team enables the AI
  *                                              observer (Track B, consent-gated)
- *   POST   /interview-sessions/:id/observer/report  observer analysis report
- *                                              (Q&A extraction + analysis stack)
+ *   POST   /interview-sessions/:id/observer/qa-report  observer Q&A report
+ *                                              (Q&A extraction + analysis stack;
+ *                                              /observer/report = deprecated alias, S-083)
+ *   GET    /interview-sessions/:id             single-session full read
+ *                                              (canAccess-gated, S-087)
  *   GET    /interview-sessions                 unified list (unified sessions +
- *                                              read-linked human-scheduled interviews)
+ *                                              read-linked human-scheduled interviews;
+ *                                              projected rows only, S-087)
  *   POST   /interview-flows                    create an interview flow (Task 7)
  *   GET    /interview-flows                    list active flows
  *   GET    /interview-flows/:id                read one flow
@@ -31,8 +35,13 @@ const crypto = require('node:crypto');
 const multer = require('multer');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
+const { canEnableObserver } = require('../lib/observerConsentGate');
+const {
+	getReportSectionStates,
+	getRecruiterObserverNotice,
+} = require('../lib/observerReportStates');
 const { conductTurn } = require('../services/conversation-engine');
-const { generateScreeningReport } = require('../services/interview-ai');
+const { generateScreeningReport, runMultiEvaluation } = require('../services/interview-ai');
 // Task 5 (#323): Track B observer — Q&A extraction + analysis over the muted
 // observer agent's transcript (config.observer_transcript).
 const { extractQAPairs, analyzeObserverSession } = require('../services/qa-extraction');
@@ -41,6 +50,11 @@ const { notifyUser } = require('../lib/notify');
 // insertAuditLog → audit_logs table). No new table, no new event schema.
 const { insertAuditLog } = require('./audit');
 const livekitService = require('../server/services/livekit');
+// Phase 1 (#447): shared transcription hygiene.
+const {
+	filterWhisperHallucination,
+	isValidTranscriptLength,
+} = require('../lib/transcription');
 const aiProvider = require('../lib/ai-provider');
 const { textToSpeech } = require('../lib/polsia-ai');
 
@@ -78,6 +92,106 @@ function canAccess(session, user) {
 		user.company_id != null &&
 		Number(user.company_id) === Number(session.company_id)
 	);
+}
+
+// The candidate-safe report composition, shared by GET /:id/report and the
+// candidate-self view of GET /:id (S-087 privacy review F2, #790): candidates
+// never receive raw AI internals or internal metadata from a report.
+function toCandidateSafeReport(report) {
+	if (!report) return null;
+	return {
+		overall_score: report.overall_score ?? null,
+		recommendation: report.recommendation ?? null,
+		recommendation_reasoning: report.recommendation_reasoning ?? null,
+		strengths: report.strengths || [],
+		red_flags: report.red_flags || [],
+		dimension_scores: report.dimension_scores || {},
+		question_scores: report.question_scores || [],
+		key_moments: report.key_moments || [],
+		communication_clarity: report.communication_clarity || null,
+		technical_depth: report.technical_depth || null,
+		confidence_enthusiasm: report.confidence_enthusiasm || null,
+	};
+}
+
+// Recursively remove question-bank scoring points (key_points) from a config
+// copy served to candidate-self (F2): they are the answer rubric for the
+// candidate's own pending session — an integrity exposure, not their data.
+function stripKeyPoints(value) {
+	if (Array.isArray(value)) {
+		for (const item of value) stripKeyPoints(item);
+	} else if (value && typeof value === 'object') {
+		delete value.key_points;
+		for (const v of Object.values(value)) stripKeyPoints(v);
+	}
+	return value;
+}
+
+// ─── List projections (S-087, #790) ────────────────────────────────────────
+// The sessions list serialises ONLY what the list view renders. Full config
+// (consent state, observer transcript, report), the conversation transcript,
+// frame analysis, and the invite_token bearer credential never leave the
+// server in a list payload; full session data is served by the gated
+// single-session GET below. The two config-derived values the panel needs
+// are projected in SQL as scalars (see the list handler's SELECT lists);
+// the config fallbacks here keep the shape identical if a row ever arrives
+// unprojected — config itself is never serialised.
+function toUnifiedListRow(s) {
+	return {
+		id: s.id,
+		type: s.type,
+		job_id: s.job_id,
+		application_id: s.application_id,
+		candidate_id: s.candidate_id,
+		company_id: s.company_id,
+		status: s.status,
+		started_at: s.started_at,
+		completed_at: s.completed_at,
+		created_at: s.created_at,
+		// F4 (privacy review, #790): the extraction must guarantee a
+		// number-or-null scalar — any non-numeric JSON ever stored in
+		// config.report.overall_score is dropped, never serialised.
+		overall_score: (() => {
+			const v = s.overall_score ?? s.config?.report?.overall_score;
+			return typeof v === 'number' ? v : null;
+		})(),
+		observer_enabled: Boolean(s.observer_enabled ?? s.config?.observer_enabled ?? false),
+		source: 'interview_session',
+	};
+}
+
+function toScheduledListRow(s) {
+	return {
+		id: s.id,
+		company_id: s.company_id,
+		job_id: s.job_id,
+		candidate_id: s.candidate_id,
+		scheduled_at: s.scheduled_at,
+		duration_minutes: s.duration_minutes,
+		interview_type: s.interview_type,
+		status: s.status,
+		created_at: s.created_at,
+		updated_at: s.updated_at,
+		source: 'scheduled_interviews',
+		type: 'human_scheduled',
+	};
+}
+
+function toEventListRow(s) {
+	return {
+		id: s.id,
+		job_application_id: s.job_application_id,
+		candidate_id: s.candidate_id,
+		job_id: s.job_id,
+		scheduled_at: s.scheduled_at,
+		duration_minutes: s.duration_minutes,
+		timezone: s.timezone,
+		status: s.status,
+		created_at: s.created_at,
+		updated_at: s.updated_at,
+		source: 'interview_events',
+		type: 'human_scheduled',
+	};
 }
 
 function newTimestamp() {
@@ -151,8 +265,8 @@ router.post('/interview-sessions', authMiddleware, async (req, res) => {
 		const token = invite_token || crypto.randomBytes(32).toString('hex');
 		const result = await pool.query(
 			`INSERT INTO interview_sessions
-			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, invite_expires_at, status, config, conversation)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW() + INTERVAL '7 weeks', 'invited', $8, $9)
 			 RETURNING *`,
 			[
 				type,
@@ -293,8 +407,8 @@ router.post('/interview-sessions/trigger', authMiddleware, async (req, res) => {
 		const token = crypto.randomBytes(32).toString('hex');
 		const result = await pool.query(
 			`INSERT INTO interview_sessions
-			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+			   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, invite_expires_at, status, config, conversation)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW() + INTERVAL '7 weeks', 'invited', $8, $9)
 			 RETURNING *`,
 			[
 				'ai_interview',
@@ -359,7 +473,7 @@ router.get('/interview-sessions/by-token/:token', async (req, res) => {
 	try {
 		const result = await pool.query(
 			`SELECT id, type, status, job_id, company_id, candidate_id, invite_token,
-			        config, created_at
+			        invite_expires_at, config, created_at
 			   FROM interview_sessions WHERE invite_token = $1`,
 			[req.params.token],
 		);
@@ -367,6 +481,17 @@ router.get('/interview-sessions/by-token/:token', async (req, res) => {
 			return res.status(404).json({ error: 'Interview not found' });
 		}
 		const s = result.rows[0];
+		// 7-week invite window: an un-started invite past its expiry is gone.
+		// Started/completed sessions keep working — the token already did its job.
+		if (
+			s.status === 'invited' &&
+			s.invite_expires_at &&
+			new Date(s.invite_expires_at).getTime() < Date.now()
+		) {
+			return res
+				.status(410)
+				.json({ success: false, error: 'Invite expired', code: 'INVITE_EXPIRED' });
+		}
 		const job = s.config?.job || null;
 		res.json({
 			success: true,
@@ -386,11 +511,93 @@ router.get('/interview-sessions/by-token/:token', async (req, res) => {
 						}
 					: null,
 				created_at: s.created_at,
+				invite_expires_at: s.invite_expires_at || null,
 			},
 		});
 	} catch (err) {
 		console.error('[interview-sessions] by-token error:', err.message);
 		res.status(500).json({ error: 'Failed to resolve interview' });
+	}
+});
+
+// POST /interview-sessions/:id/resend — recruiter re-sends an invite.
+//
+// Generates a fresh invite token (the old link stops resolving) and starts a
+// new 7-week window. Only the hiring team of the session's company may resend,
+// and only while the invite is still un-started (status='invited'). A new
+// in-app notification goes to the candidate with the fresh link.
+router.post('/interview-sessions/:id/resend', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		const user = req.user;
+		const isHiringTeam =
+			HIRING_ROLES.includes(user.role) &&
+			user.company_id != null &&
+			Number(user.company_id) === Number(session.company_id);
+		if (!isHiringTeam && user.role !== 'admin') {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+		if (session.status !== 'invited') {
+			return res.status(409).json({
+				error: 'Only un-started invites can be resent',
+				code: 'INVITE_NOT_RESENDABLE',
+			});
+		}
+
+		const newToken = crypto.randomBytes(32).toString('hex');
+		const updated = await pool.query(
+			`UPDATE interview_sessions
+			    SET invite_token = $1,
+			        invite_expires_at = NOW() + INTERVAL '7 weeks'
+			  WHERE id = $2
+			  RETURNING *`,
+			[newToken, session.id],
+		);
+		const fresh = updated.rows[0];
+
+		const inviteUrl = `/interview/session/${newToken}`;
+		const job = fresh.config?.job || {};
+		const notifType =
+			fresh.type === 'ai_interview' ? 'ai_interview_invited' : 'screening_invited';
+		await notifyUser(
+			fresh.candidate_id,
+			notifType,
+			notifType === 'ai_interview_invited'
+				? `AI interview invited: ${job.title || ''}`.trim()
+				: 'AI screening interview invited',
+			notifType === 'ai_interview_invited'
+				? `${job.company_name || 'The hiring team'} invited you to a personalized AI interview for the ${job.title || 'this'} role.`
+				: `You've been invited to complete an AI screening interview.`,
+			{
+				session_id: fresh.id,
+				job_id: fresh.job_id,
+				application_id: fresh.application_id,
+				invite_token: newToken,
+				invite_url: inviteUrl,
+				url: inviteUrl,
+				resent: true,
+			},
+		);
+
+		try {
+			await insertAuditLog({
+				company_id: fresh.company_id ?? null,
+				actor_id: user.id,
+				target_id: fresh.id,
+				action: 'session.resent',
+				metadata: { session_id: fresh.id, type: fresh.type },
+			});
+		} catch (auditErr) {
+			console.error('[interview-sessions] resend audit failed:', auditErr.message);
+		}
+
+		res.json({ success: true, session_id: fresh.id, invite_url: inviteUrl });
+	} catch (err) {
+		console.error('[interview-sessions] resend error:', err.message);
+		res.status(500).json({ error: 'Failed to resend invite' });
 	}
 });
 
@@ -444,7 +651,7 @@ router.post('/interview-sessions/:id/start', authMiddleware, async (req, res) =>
 		}
 		const updated = await pool.query(
 			`UPDATE interview_sessions
-			    SET status = 'in_progress', started_at = NOW(), conversation = $1, config = $2
+			    SET status = 'in_progress', started_at = NOW(), last_heartbeat_at = NOW(), conversation = $1, config = $2
 			  WHERE id = $3 RETURNING *`,
 			[JSON.stringify(conversation), JSON.stringify(config), session.id],
 		);
@@ -538,13 +745,22 @@ router.post(
 				} catch (asrErr) {
 					console.error('[interview-sessions] transcription failed:', asrErr.message);
 				}
+				// Phase 1 (#447): use shared transcription module.
+				const { isHallucination } = filterWhisperHallucination(candidateText);
+				if (isHallucination) {
+					console.log(`[interview-sessions] Filtered Whisper hallucination: "${candidateText}"`);
+					candidateText = '';
+					hasAudio = false;
+				}
 				// Client SpeechRecognition fallback (mirrors the mock voice-respond path)
 				if (!candidateText && (req.body?.client_transcript || '').trim().length >= 10) {
 					candidateText = req.body.client_transcript.trim();
 				}
 			}
 
-			if (!candidateText || candidateText.length < 2) {
+			// AI interview is conversational — short acknowledgments like "OK" (2 chars)
+			// are legitimate (e.g., "Ready for the next question?" → "OK").
+			if (!isValidTranscriptLength(candidateText, 2)) {
 				return res.status(400).json({ error: 'Response too short. Please elaborate.' });
 			}
 
@@ -655,6 +871,9 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 		// human interviews, so the standard path would score nothing.
 		const observerTranscript = config.observer_transcript;
 		let report;
+		// #1541: branch (c) — the non-observer, non-human path — is the only
+		// branch that fires multi-evaluation after completion (design #1510).
+		let isBranchC = false;
 		if (Array.isArray(observerTranscript) && observerTranscript.length > 0) {
 			const qaPairs = await extractQAPairs(observerTranscript);
 			report = await analyzeObserverSession({
@@ -675,6 +894,7 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 				observer_enabled: false,
 			};
 		} else {
+			isBranchC = true;
 			const questions =
 				config.question_source === 'personalized'
 					? (config.base_questions || []).map((q) => ({
@@ -692,11 +912,28 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 			// M1 (#323): jsonb merge instead of read-modify-write — the agent's
 			// shutdown callback persists observer_transcript the same way, so
 			// concurrent writes can't clobber each other.
+			// #1541: transition guard in the statement itself — only the
+			// request that actually transitions the row to 'completed' runs
+			// the post-completion side effects (incl. multi-evaluation).
 			`UPDATE interview_sessions
 			    SET status = 'completed', completed_at = NOW(), conversation = $1, config = config || $2::jsonb
-			  WHERE id = $3 RETURNING *`,
+			  WHERE id = $3 AND status <> 'completed' RETURNING *`,
 			[JSON.stringify(session.conversation || []), JSON.stringify({ report }), session.id],
 		);
+		if (updated.rowCount === 0) {
+			// #1541: a concurrent request won the completion transition.
+			// Respond as the sequential duplicate would; fire nothing.
+			console.error(
+				`[interview-sessions] completion transition lost to a concurrent request session_id=${session.id} — responding already_completed`,
+			);
+			const fresh = await loadSession(session.id);
+			return res.json({
+				success: true,
+				session: fresh || session,
+				report: fresh?.config?.report || report,
+				already_completed: true,
+			});
+		}
 
 		// Task 4 (#322): persist transcript segments against the session's
 		// recording, aggregate per-turn frame indicators into frame_analysis,
@@ -741,21 +978,41 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 				// file (spec §6: analysis re-runnable from the recording).
 				// completeRecordingRecord encrypts storage_path (BYTEA) the
 				// same way the event-flow does.
+				// GAP-A2 (#1130, R-5): completion goes through the
+				// encrypt-at-completion choke point; the unconditional
+				// completed UPDATE below is gated on its success — a
+				// quarantined recording stays failed/non-completed.
+				let completion = null;
 				if (egressResult?.fileLocation) {
-					await livekitService.completeRecordingRecord(
+					completion = await livekitService.completeRecordingRecord(
 						recording.id,
 						egressResult.fileLocation,
 						egressResult.durationSeconds ?? null,
 						egressResult.fileSizeBytes ?? null,
 					);
 				}
-				await pool.query(
-					`UPDATE interview_recordings
+				if (completion?.completed !== false) {
+					// DB C1 (#1130 gate fix): atomic guard in the statement
+					// itself — a row concurrently set 'deleted', or whose
+					// candidate DEK is destroyed, matches 0 rows; 0 rows is
+					// NOT treated as completed (operator-logged, the row
+					// keeps its concurrent/terminal state).
+					const finalizeRes = await pool.query(
+						`UPDATE interview_recordings
 					    SET status = 'completed', stopped_at = NOW(), updated_at = NOW(),
 					        retention_expires_at = COALESCE(retention_expires_at, $2)
-					  WHERE id = $1`,
-					[recording.id, livekitService.getRecordingRetentionDate()],
-				);
+					  WHERE id = $1
+					    AND status <> 'deleted'
+					    AND NOT EXISTS (SELECT 1 FROM candidate_data_keys
+					                    WHERE candidate_id = $3 AND destroyed_at IS NOT NULL)`,
+						[recording.id, livekitService.getRecordingRetentionDate(), session.candidate_id],
+					);
+					if (finalizeRes.rowCount === 0) {
+						console.error(
+							`[interview-sessions] recording finalize matched 0 rows recording_id=${recording.id} (deleted row or destroyed candidate DEK) — not treated as completed`,
+						);
+					}
+				}
 			}
 			const indicators = turns.filter((t) => t?.frame_indicators).map((t) => t.frame_indicators);
 			if (indicators.length > 0) {
@@ -812,6 +1069,46 @@ router.post('/interview-sessions/:id/complete', authMiddleware, async (req, res)
 			}
 		}
 
+		// #1541 (design #1510): branch-(c) completions of allow-listed types
+		// fire the multi-evaluator in the background so interview_evaluations
+		// rows exist for OmniScore (#793) and the #1504 display subqueries.
+		// Allow-list fails closed: practice never feeds OmniScore (Sumanth's
+		// practice-separation ruling) and human sessions have no AI-scorable
+		// data on this branch. Fire is transition-gated above, so it runs at
+		// most once per session. Failure never fails completion (#1505):
+		// failed lenses persist nothing — unavailability is a state, not a
+		// score.
+		const MULTI_EVAL_TYPES = ['screening', 'ai_interview'];
+		if (isBranchC && MULTI_EVAL_TYPES.includes(session.type)) {
+			Promise.resolve()
+				.then(async () => {
+					const job = await getJobForSession(session);
+					const result = await runMultiEvaluation(
+						session.candidate_id,
+						session.job_id,
+						session.company_id,
+						{
+							interviewSessionId: session.id,
+							conversation: session.conversation || [],
+							responses: session.responses || [],
+							jobTitle: job.title,
+							jobDescription: job.description,
+						},
+					);
+					if (result === null) {
+						console.log(
+							`[interview-sessions] multi-evaluation skipped: insufficient transcript for session ${session.id}`,
+						);
+					}
+				})
+				.catch((evalErr) => {
+					console.error(
+						'[interview-sessions] background multi-evaluation failed:',
+						evalErr.message,
+					);
+				});
+		}
+
 		res.json({ success: true, session: updated.rows[0], report });
 	} catch (err) {
 		console.error('[interview-sessions] complete error:', err.message);
@@ -837,22 +1134,7 @@ router.get('/interview-sessions/:id/report', authMiddleware, async (req, res) =>
 			return res.status(404).json({ error: 'Report not available yet' });
 		}
 		// Whitelist candidate-safe fields.
-		res.json({
-			success: true,
-			report: {
-				overall_score: report.overall_score ?? null,
-				recommendation: report.recommendation ?? null,
-				recommendation_reasoning: report.recommendation_reasoning ?? null,
-				strengths: report.strengths || [],
-				red_flags: report.red_flags || [],
-				dimension_scores: report.dimension_scores || {},
-				question_scores: report.question_scores || [],
-				key_moments: report.key_moments || [],
-				communication_clarity: report.communication_clarity || null,
-				technical_depth: report.technical_depth || null,
-				confidence_enthusiasm: report.confidence_enthusiasm || null,
-			},
-		});
+		res.json({ success: true, report: toCandidateSafeReport(report) });
 	} catch (err) {
 		console.error('[interview-sessions] report error:', err.message);
 		res.status(500).json({ error: 'Failed to load report' });
@@ -911,10 +1193,14 @@ function isHiringTeamForSession(session, user) {
 }
 
 // POST /interview-sessions/:id/observer/enable — hiring team enables the AI
-// observer on a human interview. Consent-gated: without the candidate's
-// active recording consent the observer may not subscribe (403
-// CONSENT_REQUIRED, and the agent is never dispatched). Dispatch failure
-// leaves the flag unset — enabling the observer IS the dispatch.
+// observer on a human interview. Consent-gated: the default-deny biometric
+// gate (lib/observerConsentGate.js) runs before anything else — without the
+// candidate's explicit biometric consent the observer may not subscribe (403
+// BIOMETRIC_CONSENT_DECLINED / BIOMETRIC_CONSENT_UNKNOWN, and the agent is
+// never dispatched). Recording consent is checked separately (403
+// CONSENT_REQUIRED). On success the route dispatches the agent and records
+// the intent in config.observer_enabled; dispatch failure leaves the flag
+// unset.
 router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (req, res) => {
 	try {
 		const session = await loadSession(req.params.id);
@@ -926,6 +1212,16 @@ router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (re
 		}
 		if (session.status === 'completed') {
 			return res.status(409).json({ error: 'Observer cannot be enabled on a completed session' });
+		}
+
+		// S-046 (#694): default-deny gate runs BEFORE the already_enabled
+		// short-circuit. The schema defaults observer_enabled to true
+		// (recruiter intent, AC-1), so the flag alone cannot prove the
+		// observer was consent-cleared. The gate must pass on every enable
+		// call — otherwise a default-created session would bypass consent.
+		const gate = canEnableObserver(session);
+		if (!gate.allowed) {
+			return res.status(403).json({ error: gate.message, code: gate.code });
 		}
 
 		if (session.config?.observer_enabled) {
@@ -951,6 +1247,19 @@ router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (re
 		} catch (err) {
 			console.error('[interview-sessions] observer dispatch failed:', err.message);
 			return res.status(502).json({ error: 'Failed to dispatch observer agent' });
+		}
+
+		// S-047 (E-008, #695): enqueue the observer job for the worker process.
+		// The gate already passed above (canEnableObserver) — this is the
+		// enqueue-time gate (spec §3.1 point 1). The worker re-checks at
+		// claim time and pre-subscribe.
+		try {
+			const observerJobs = require('../lib/observerJobs');
+			await observerJobs.enqueue(session.id);
+		} catch (err) {
+			console.error('[interview-sessions] observer job enqueue failed:', err.message);
+			// Non-blocking: the Track B voice agent is the fallback.
+			// The worker will pick up the job if/when the enqueue succeeds.
 		}
 
 		// Task 6 (#323): the human call is live — start room-composite egress
@@ -988,11 +1297,161 @@ router.post('/interview-sessions/:id/observer/enable', authMiddleware, async (re
 	}
 });
 
-// POST /interview-sessions/:id/observer/report — generate the observer
-// analysis report on demand: Q&A extraction over the observer transcript,
+// POST /interview-sessions/:id/observer/disable — hiring team disables the AI
+// observer on a human interview. Phase 3 (#447): terminates the observer
+// agent (removes participant + deletes dispatch) and flips observer_enabled
+// to false. Idempotent — safe to call when already disabled.
+router.post('/interview-sessions/:id/observer/disable', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		if (!isHiringTeamForSession(session, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+
+		if (!session.config?.observer_enabled) {
+			return res.json({ success: true, observer_enabled: false, already_disabled: true });
+		}
+
+		// Terminate the observer agent. Non-blocking on failure — the flag
+		// flip is the source of truth; a stale agent is harmless (muted).
+		let disconnectResult = null;
+		try {
+			disconnectResult = await livekitService.disconnectVoiceAgent(session.id, 'observer');
+		} catch (err) {
+			console.error('[interview-sessions] observer disconnect failed:', err.message);
+		}
+
+		await pool.query('UPDATE interview_sessions SET config = config || $1::jsonb WHERE id = $2', [
+			JSON.stringify({ observer_enabled: false }),
+			session.id,
+		]);
+
+		await emitInterviewAudit({
+			company_id: session.company_id,
+			actor_id: req.user.id,
+			target_id: session.id,
+			action: 'session.observer_disabled',
+			metadata: { session_id: session.id },
+		});
+
+		res.json({ success: true, observer_enabled: false, disconnectResult });
+	} catch (err) {
+		console.error('[interview-sessions] observer disable error:', err.message);
+		res.status(500).json({ error: 'Failed to disable observer' });
+	}
+});
+
+// GET /interview-sessions/:id/observer/status — S-047 (#695)
+// Returns the observer job status + report state for a session.
+// Job queue (observer_jobs) is the source of truth; config.observer_enabled
+// is intent only. S-087 (#790): also returns section_states resolved
+// server-side via lib/observerReportStates (the raw consent flag is never
+// sent).
+router.get('/interview-sessions/:id/observer/status', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		if (!isHiringTeamForSession(session, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+
+		const observerJobs = require('../lib/observerJobs');
+		const job = await observerJobs.getStatus(session.id);
+
+		// Check if a report exists
+		const { rows } = await pool.query(
+			`SELECT id, consent_state, created_at, analysis, integrity_summary FROM ai_observer_reports
+			 WHERE interview_session_id = $1`,
+			[session.id],
+		);
+		const reportRow = rows[0] || null;
+
+		// S-087 (#790): section states resolved on the SERVER through the
+		// canonical observerReportStates module — clients receive the
+		// resolved state (+ canonical copy), never the raw config or the
+		// biometric_collection flag. A section counts as having data only
+		// when the stored report marks it present; report rows exist only
+		// for granted sessions (S-049a), so declined/withdrawn/unknown
+		// resolve from consent alone.
+		const section_states = getReportSectionStates({
+			session,
+			dataBySection: {
+				vocal: reportRow?.analysis?.vocal?.state === 'present',
+				visual: reportRow?.analysis?.visual?.state === 'present',
+				integrity: reportRow?.integrity_summary?.state === 'present',
+			},
+			// This channel is hiring-team-gated (the audit record) — full
+			// disclosure scope, opted into explicitly (the resolver's
+			// scope flag is fail-closed by default).
+			inDisclosureScope: true,
+		});
+
+		// S-039 (#686): the recruiter-surface metadata notice, resolved
+		// through the same canonical module. The audience split lives in
+		// the resolver: this gated channel keeps the named section_states
+		// (audit record), while the recruiter report renders ONLY this
+		// notice — candidate-side non-consent arrives there as one
+		// neutral, indistinguishable sentence.
+		const recruiter_notice = getRecruiterObserverNotice({
+			observerEnabled: !!session.config?.observer_enabled,
+			// Current consent vetoes history (privacy B-1): withdrawal
+			// flips biometric_collection to false but a granted report
+			// row persists — the stale row must never resurrect a
+			// "granted" signal, or withdrawn sessions become
+			// distinguishable from declined/unknown ones.
+			consentGranted:
+				session.config?.biometric_collection === false
+					? false
+					: session.config?.biometric_collection === true ||
+						reportRow?.consent_state === 'granted',
+			anySectionPresent: Object.values(section_states).some((s) => s.state === 'present'),
+		});
+
+		// Consent-state material is never cached (mirrors the F9
+		// defence-in-depth on the gated single-session read).
+		res.set('Cache-Control', 'no-store');
+		res.json({
+			success: true,
+			session_id: session.id,
+			observer_enabled: !!session.config?.observer_enabled,
+			job: job ? {
+				id: job.id,
+				status: job.status,
+				worker_id: job.worker_id,
+				attempt_count: job.attempt_count,
+				error_message: job.error_message,
+			} : null,
+			report: reportRow ? {
+				id: reportRow.id,
+				consent_state: reportRow.consent_state,
+				created_at: reportRow.created_at,
+				// Projection shape version (spec §4.3) for the report
+				// page's view metadata — version + rendered-at only,
+				// never persisted from the client (S-039 panel record).
+				version: reportRow.integrity_summary?.version ?? null,
+			} : null,
+			section_states,
+			recruiter_notice,
+		});
+	} catch (err) {
+		console.error('[interview-sessions] observer status error:', err.message);
+		res.status(500).json({ error: 'Failed to get observer status' });
+	}
+});
+
+// POST /interview-sessions/:id/observer/qa-report — generate the observer
+// Q&A report on demand: Q&A extraction over the observer transcript,
 // then the mock-interview analysis stack with the job's rubric weights
 // (recruiter-defined when present, default otherwise).
-router.post('/interview-sessions/:id/observer/report', authMiddleware, async (req, res) => {
+// S-083 (#783): canonical path is /observer/qa-report; the original
+// /observer/report path is kept as a deprecated alias for one sprint
+// (Decision D1, Option A) — both registrations serve this same handler.
+const observerReportHandler = async (req, res) => {
 	try {
 		const session = await loadSession(req.params.id);
 		if (!session) {
@@ -1037,7 +1496,11 @@ router.post('/interview-sessions/:id/observer/report', authMiddleware, async (re
 		console.error('[interview-sessions] observer report error:', err.message);
 		res.status(500).json({ error: 'Failed to generate observer report' });
 	}
-});
+};
+
+router.post('/interview-sessions/:id/observer/qa-report', authMiddleware, observerReportHandler);
+// Deprecated alias (S-083) — removal follow-up owned by Lead after one sprint.
+router.post('/interview-sessions/:id/observer/report', authMiddleware, observerReportHandler);
 
 // POST /interview-sessions/:id/tts — synthesize text to audio (mirrors /mock/tts).
 router.post('/interview-sessions/:id/tts', authMiddleware, async (req, res) => {
@@ -1077,10 +1540,65 @@ router.post('/interview-sessions/:id/tts', authMiddleware, async (req, res) => {
 	}
 });
 
+// GET /interview-sessions/:id — single-session read (S-087, #790).
+// The gated channel for FULL session data (config, transcript, frame
+// analysis): candidate-self / admin / same-company hiring team via
+// canAccess — the same gate as /:id/report and /:id/recording. The list
+// endpoint below no longer serves full rows, so single-session consumers
+// (the recruiter report page) read here. Two fields are withheld even
+// here (privacy-engineer design review, #790): invite_token — a bearer
+// credential whose only legitimate read channel is the by-token
+// resolution path — and triggered_by, an internal actor id no
+// single-session consumer renders.
+router.get('/interview-sessions/:id', authMiddleware, async (req, res) => {
+	try {
+		const session = await loadSession(req.params.id);
+		if (!session) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
+		if (!canAccess(session, req.user)) {
+			return res.status(403).json({ error: 'Forbidden' });
+		}
+		// Audit consistency with the recording read (privacy review F3,
+		// #790): this is the highest-sensitivity read in the subsystem, so
+		// it emits the same non-blocking audit trail.
+		await emitInterviewAudit({
+			company_id: session.company_id,
+			actor_id: req.user.id,
+			target_id: session.id,
+			action: 'session.full_read',
+			metadata: { session_id: session.id },
+		});
+		const { invite_token: _inviteToken, triggered_by: _triggeredBy, ...fullSession } = session;
+		// Audience shaping (privacy review F2, #790): the hiring team gets
+		// the full shape (its consumer is InterviewReport); candidate-self
+		// gets a copy with the question-bank scoring points removed and the
+		// report reduced to the candidate-safe composition. No
+		// candidate-facing consumer exists, so this costs no regressions.
+		let view = fullSession;
+		if (Number(req.user.id) === Number(session.candidate_id) && fullSession.config) {
+			const config = JSON.parse(JSON.stringify(fullSession.config));
+			stripKeyPoints(config);
+			if (config.report) config.report = toCandidateSafeReport(config.report);
+			view = { ...fullSession, config };
+		}
+		// Defence in depth (privacy review F9, #790): no caching of full
+		// session payloads.
+		res.set('Cache-Control', 'no-store');
+		res.json({ success: true, session: view });
+	} catch (err) {
+		console.error('[interview-sessions] get session error:', err.message);
+		res.status(500).json({ error: 'Failed to load interview session' });
+	}
+});
+
 // GET /interview-sessions?candidate_id=|job_id= — unified list.
 // interview_sessions rows plus read-linked human-scheduled interviews
 // (scheduled_interviews / interview_events), which Task 1 deliberately did not
 // backfill. Each entry carries `source` so consumers can distinguish them.
+// S-087 (#790): rows are projected (explicit column lists + the to*ListRow
+// shaping above) — full config/transcripts/credentials are never serialised
+// here; see GET /interview-sessions/:id for the gated full read.
 router.get('/interview-sessions', authMiddleware, async (req, res) => {
 	try {
 		const { candidate_id, job_id } = req.query;
@@ -1110,67 +1628,68 @@ router.get('/interview-sessions', authMiddleware, async (req, res) => {
 		const withCompany = (column) => (scopedToCompany ? ` AND ${column}company_id = $2` : '');
 		const withParams = (id) => (scopedToCompany ? [id, scopeCompanyId] : [id]);
 
+		// S-087 (#790): explicit projections — no SELECT *. interview_sessions
+		// projects the two list scalars out of config in SQL; scheduled /
+		// events project only display columns (meeting links, notes,
+		// feedback/outcome, calendar/LiveKit URLs and panel lists stay
+		// server-side). Rows are additionally whitelist-shaped by the
+		// to*ListRow helpers before serialising.
+		const UNIFIED_LIST_COLUMNS = `id, type, job_id, application_id, candidate_id, company_id,
+			status, started_at, completed_at, created_at,
+			CASE WHEN jsonb_typeof(config->'report'->'overall_score') = 'number'
+				THEN config->'report'->'overall_score' END AS overall_score,
+			config->'observer_enabled' AS observer_enabled`;
+		const SCHEDULED_LIST_COLUMNS = `id, company_id, job_id, candidate_id,
+			scheduled_at, duration_minutes, interview_type, status, created_at, updated_at`;
+		const EVENT_LIST_COLUMNS = `e.id, e.job_application_id, e.candidate_id,
+			e.scheduled_at, e.duration_minutes, e.timezone, e.status, e.created_at, e.updated_at,
+			ja.job_id`;
+
 		const sessions = [];
 		if (candidate_id) {
 			const unified = await pool.query(
-				`SELECT * FROM interview_sessions WHERE candidate_id = $1${withCompany('')} ORDER BY created_at DESC`,
+				`SELECT ${UNIFIED_LIST_COLUMNS} FROM interview_sessions WHERE candidate_id = $1${withCompany('')} ORDER BY created_at DESC`,
 				withParams(candidate_id),
 			);
-			sessions.push(...unified.rows.map((s) => ({ ...s, source: 'interview_session' })));
+			sessions.push(...unified.rows.map(toUnifiedListRow));
 
 			const scheduled = await pool.query(
-				`SELECT * FROM scheduled_interviews WHERE candidate_id = $1${withCompany('')} ORDER BY scheduled_at DESC`,
+				`SELECT ${SCHEDULED_LIST_COLUMNS} FROM scheduled_interviews WHERE candidate_id = $1${withCompany('')} ORDER BY scheduled_at DESC`,
 				withParams(candidate_id),
 			);
-			sessions.push(
-				...scheduled.rows.map((s) => ({
-					...s,
-					source: 'scheduled_interviews',
-					type: 'human_scheduled',
-				})),
-			);
+			sessions.push(...scheduled.rows.map(toScheduledListRow));
 
 			const events = await pool.query(
-				`SELECT e.*, ja.job_id FROM interview_events e
+				`SELECT ${EVENT_LIST_COLUMNS} FROM interview_events e
 				   JOIN job_applications ja ON ja.id = e.job_application_id
 				 WHERE e.candidate_id = $1 AND e.status <> 'cancelled'${withCompany('ja.')}
 				 ORDER BY e.scheduled_at DESC`,
 				withParams(candidate_id),
 			);
-			sessions.push(
-				...events.rows.map((s) => ({ ...s, source: 'interview_events', type: 'human_scheduled' })),
-			);
+			sessions.push(...events.rows.map(toEventListRow));
 		} else {
 			const unified = await pool.query(
-				`SELECT * FROM interview_sessions WHERE job_id = $1${withCompany('')} ORDER BY created_at DESC`,
+				`SELECT ${UNIFIED_LIST_COLUMNS} FROM interview_sessions WHERE job_id = $1${withCompany('')} ORDER BY created_at DESC`,
 				withParams(job_id),
 			);
-			sessions.push(...unified.rows.map((s) => ({ ...s, source: 'interview_session' })));
+			sessions.push(...unified.rows.map(toUnifiedListRow));
 
 			// Read-link human-scheduled interviews for the recruiter's job view
 			// too (mirrors the candidate_id branch above).
 			const scheduled = await pool.query(
-				`SELECT * FROM scheduled_interviews WHERE job_id = $1${withCompany('')} ORDER BY scheduled_at DESC`,
+				`SELECT ${SCHEDULED_LIST_COLUMNS} FROM scheduled_interviews WHERE job_id = $1${withCompany('')} ORDER BY scheduled_at DESC`,
 				withParams(job_id),
 			);
-			sessions.push(
-				...scheduled.rows.map((s) => ({
-					...s,
-					source: 'scheduled_interviews',
-					type: 'human_scheduled',
-				})),
-			);
+			sessions.push(...scheduled.rows.map(toScheduledListRow));
 
 			const events = await pool.query(
-				`SELECT e.*, ja.job_id FROM interview_events e
+				`SELECT ${EVENT_LIST_COLUMNS} FROM interview_events e
 				   JOIN job_applications ja ON ja.id = e.job_application_id
 				 WHERE ja.job_id = $1 AND e.status <> 'cancelled'${withCompany('ja.')}
 				 ORDER BY e.scheduled_at DESC`,
 				withParams(job_id),
 			);
-			sessions.push(
-				...events.rows.map((s) => ({ ...s, source: 'interview_events', type: 'human_scheduled' })),
-			);
+			sessions.push(...events.rows.map(toEventListRow));
 		}
 
 		sessions.sort(

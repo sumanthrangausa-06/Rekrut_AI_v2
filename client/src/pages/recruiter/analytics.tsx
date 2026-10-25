@@ -15,6 +15,7 @@ import {
 	Star,
 	Target,
 	Timer,
+	TrendingUp,
 	Users,
 	XCircle,
 	Zap,
@@ -51,6 +52,10 @@ interface AnalyticsData {
 		status: string;
 		application_count: number;
 		views: number;
+	}>;
+	daily_applications?: Array<{
+		day: string;
+		count: number;
 	}>;
 	score_distribution?: {
 		'900': number;
@@ -584,6 +589,83 @@ ${data.diversity_pipeline_dropoff.gender
 				</CardContent>
 			</Card>
 
+			{/* Daily Applications Trend (#524) — SVG line chart, responds to timeRange */}
+			<Card>
+				<CardHeader className="pb-3">
+					<CardTitle className="text-lg flex items-center gap-2">
+						<TrendingUp className="h-4 w-4 text-indigo-500" />
+						Applications Trend
+						<span className="text-xs font-normal text-muted-foreground ml-2">
+							Last {timeRange} days
+						</span>
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					{(() => {
+						const trend = data?.daily_applications || [];
+						if (trend.length === 0) {
+							return (
+								<div className="text-center py-6 text-sm text-muted-foreground">
+									No application data for this period
+								</div>
+							);
+						}
+						const maxCount = Math.max(...trend.map((d) => d.count), 1);
+						const W = 600;
+						const H = 160;
+						const PAD = 28;
+						const stepX = trend.length > 1 ? (W - PAD * 2) / (trend.length - 1) : 0;
+						const points = trend
+							.map((d, i) => {
+								const x = PAD + i * stepX;
+								const y = H - PAD - (d.count / maxCount) * (H - PAD * 2);
+								return `${x},${y}`;
+							})
+							.join(' ');
+						const areaPoints = `${PAD},${H - PAD} ${points} ${PAD + (trend.length - 1) * stepX},${H - PAD}`;
+						return (
+							<div>
+								<svg
+									viewBox={`0 0 ${W} ${H}`}
+									className="w-full h-40"
+									role="img"
+									aria-label="Daily applications trend"
+								>
+									<polygon points={areaPoints} fill="rgba(99,102,241,0.12)" />
+									<polyline
+										points={points}
+										fill="none"
+										stroke="#6366f1"
+										strokeWidth="2.5"
+										strokeLinejoin="round"
+										strokeLinecap="round"
+									/>
+									{trend.map((d, i) => {
+										const x = PAD + i * stepX;
+										const y = H - PAD - (d.count / maxCount) * (H - PAD * 2);
+										return (
+											<circle key={d.day} cx={x} cy={y} r="3" fill="#6366f1">
+												<title>
+													{d.day}: {d.count} applications
+												</title>
+											</circle>
+										);
+									})}
+								</svg>
+								<div className="flex justify-between text-xs text-muted-foreground mt-1">
+									<span>{trend[0]?.day}</span>
+									<span>
+										Peak: {maxCount} on{' '}
+										{trend.find((d) => d.count === maxCount)?.day}
+									</span>
+									<span>{trend[trend.length - 1]?.day}</span>
+								</div>
+							</div>
+						);
+					})()}
+				</CardContent>
+			</Card>
+
 			{/* Two-column grid: Velocity + Sources */}
 			<div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
 				{/* Hiring Velocity */}
@@ -742,38 +824,42 @@ ${data.diversity_pipeline_dropoff.gender
 							/>
 						) : (
 							<div className="space-y-3">
-								{data.jobs.slice(0, 5).map((job) => (
-									<div
-										key={job.id}
-										className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors"
-									>
-										<div className="min-w-0 flex-1">
-											<p className="truncate font-medium text-sm">{job.title}</p>
-											<Badge
-												variant={
-													job.status === 'active'
-														? 'default'
-														: job.status === 'paused'
-															? 'secondary'
-															: 'outline'
-												}
-												className="mt-1 text-[10px]"
-											>
-												{job.status}
-											</Badge>
-										</div>
-										<div className="flex items-center gap-4 shrink-0">
-											<div className="text-center">
-												<p className="font-semibold text-sm">{job.application_count || 0}</p>
-												<p className="text-[10px] text-muted-foreground">Apps</p>
+								{(() => {
+									const topJobs = [...data.jobs]
+										.sort((a, b) => (b.application_count || 0) - (a.application_count || 0))
+										.slice(0, 5);
+									const maxApps = Math.max(...topJobs.map((j) => j.application_count || 0), 1);
+									return topJobs.map((job) => (
+										<div key={job.id} className="space-y-1">
+											<div className="flex items-center justify-between text-sm">
+												<p className="truncate font-medium flex-1 mr-2">{job.title}</p>
+												<Badge
+													variant={
+														job.status === 'active'
+															? 'default'
+															: job.status === 'paused'
+																? 'secondary'
+																: 'outline'
+													}
+													className="text-[10px] shrink-0 mr-2"
+												>
+													{job.status}
+												</Badge>
+												<span className="text-xs text-muted-foreground shrink-0 w-20 text-right">
+													{job.application_count || 0} apps · {job.views || 0} views
+												</span>
 											</div>
-											<div className="text-center">
-												<p className="font-semibold text-sm">{job.views || 0}</p>
-												<p className="text-[10px] text-muted-foreground">Views</p>
+											<div className="h-2.5 rounded-full bg-muted overflow-hidden">
+												<div
+													className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-all duration-500"
+													style={{
+														width: `${Math.max(((job.application_count || 0) / maxApps) * 100, 3)}%`,
+													}}
+												/>
 											</div>
 										</div>
-									</div>
-								))}
+									));
+								})()}
 							</div>
 						)}
 					</CardContent>

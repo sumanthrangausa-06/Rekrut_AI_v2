@@ -1,0 +1,12 @@
+{
+  "url": "http://localhost:3000/leaderboard",
+  "hasFailedToLoad": false,
+  "hasAlpha": true,
+  "hasBeta": true,
+  "hasGamma": true,
+  "hasLowSuff": false,
+  "failedResponses": [
+    "404 http://localhost:3000/leaderboard"
+  ],
+  "textExcerpt": "Company TrustScore Leaderboard\n\nCompare companies by their TrustScore — a composite of candidate feedback, response rates, interview experience, and hiring transparency.\n\n3 companies ranked\n1\nQuinn Alpha Corp\nVerified\n900\nTechnology\nVerified\nHighly Trusted\n0%\nresponse\nView\n2\nQuinn Beta Corp\nVerified\n750\nTechnology\nVerified\n0%\nresponse\nView\n3\nQuinn Gamma Corp\nVerified\n600\nTechnology\nVerified\n0%\nresponse\nView"
+}

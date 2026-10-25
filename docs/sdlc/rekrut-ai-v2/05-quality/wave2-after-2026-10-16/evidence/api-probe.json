@@ -1,0 +1,879 @@
+{
+  "candidateDashboardStats": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "stats": {
+        "omniscore": {
+          "total_score": null,
+          "score_tier": null
+        },
+        "profile_completeness": 8,
+        "missing_sections": [
+          "Headline",
+          "Bio",
+          "Location",
+          "Social Links",
+          "Resume",
+          "Skills",
+          "Experience",
+          "Education",
+          "Phone",
+          "Years of Experience",
+          "Profile Photo"
+        ],
+        "skills": {
+          "total": 0,
+          "verified": 0
+        },
+        "experience_count": 0,
+        "education_count": 0,
+        "interviews": {
+          "total": 0,
+          "avg_score": 0
+        },
+        "applications": 0,
+        "saved_jobs": 0,
+        "assessments": {
+          "total": 0,
+          "passed": 0
+        }
+      }
+    }
+  },
+  "candidateOmniscore": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "omniscore": {
+        "total_score": null,
+        "interview": 0,
+        "technical": 0,
+        "resume": 0,
+        "behavior": 43,
+        "tier": null,
+        "tier_label": null,
+        "peer_percentile": null,
+        "fraud_signals": [],
+        "factors": {
+          "verified_skills": {
+            "raw": 0,
+            "weight": 0.25,
+            "details": [
+              "0 verified skills (+0)",
+              "0 passed skill assessments, 0 passed job assessments (+0)",
+              "0 portfolio projects (+0)",
+              "0 verified documents (+0)"
+            ],
+            "hasData": false
+          },
+          "interview_performance": {
+            "raw": 0,
+            "weight": 0.2,
+            "details": [
+              "No practice sessions yet",
+              "No completed interviews yet"
+            ],
+            "hasData": false
+          },
+          "experience_quality": {
+            "raw": 0,
+            "weight": 0.15,
+            "details": [
+              "0.0 years experience (+0.0)",
+              "0 current role(s) (+0)",
+              "Role progression bonus (+0)",
+              "0 documented achievements (+0)"
+            ],
+            "hasData": false
+          },
+          "education_credentials": {
+            "raw": 0,
+            "weight": 0.1,
+            "details": [
+              "Education quality (+0)",
+              "0 verified education docs (+0)",
+              "0 fields of study (+0)"
+            ],
+            "hasData": false
+          },
+          "reliability_signals": {
+            "raw": 85,
+            "weight": 0.1,
+            "details": [
+              "Interview attendance 50% (+15.0)",
+              "Application follow-through 100% (+20.0)"
+            ],
+            "hasData": false
+          },
+          "soft_skills": {
+            "raw": 0,
+            "weight": 0.1,
+            "details": [
+              "No soft-skill practice sessions yet",
+              "No soft-skill interview feedback yet"
+            ],
+            "hasData": false
+          },
+          "market_demand": {
+            "raw": 20,
+            "weight": 0.05,
+            "details": [
+              "0 in-demand skill categories (+20)"
+            ],
+            "hasData": false
+          },
+          "growth_trajectory": {
+            "raw": 0,
+            "weight": 0.05,
+            "details": [
+              "0 new skills in last 90d (+0)",
+              "0 assessments in last 90d (+0)",
+              "0 active weeks in last 30d (+0)"
+            ],
+            "hasData": false
+          }
+        }
+      }
+    }
+  },
+  "candidateOmniscoreBreakdown": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "current": {
+        "total_score": null,
+        "interview": 0,
+        "technical": 0,
+        "resume": 0,
+        "behavior": 43,
+        "tier": null,
+        "tier_label": null,
+        "peer_percentile": null,
+        "fraud_signals": []
+      },
+      "breakdown": {
+        "verified_skills": {
+          "score": 0,
+          "max": 100,
+          "has_data": false,
+          "weight": 0.25,
+          "weighted_contribution": 0,
+          "label": "Verified Skills",
+          "description": "Assessments passed, certifications, and work samples.",
+          "details": [
+            "0 verified skills (+0)",
+            "0 passed skill assessments, 0 passed job assessments (+0)",
+            "0 portfolio projects (+0)",
+            "0 verified documents (+0)"
+          ]
+        },
+        "interview_performance": {
+          "score": 0,
+          "max": 100,
+          "has_data": false,
+          "weight": 0.2,
+          "weighted_contribution": 0,
+          "label": "Interview Performance",
+          "description": "Mock and real interviews plus communication quality.",
+          "details": [
+            "No practice sessions yet",
+            "No completed interviews yet"
+          ]
+        },
+        "experience_quality": {
+          "score": 0,
+          "max": 100,
+          "has_data": false,
+          "weight": 0.15,
+          "weighted_contribution": 0,
+          "label": "Experience Quality",
+          "description": "Tenure, company tier, and role progression.",
+          "details": [
+            "0.0 years experience (+0.0)",
+            "0 current role(s) (+0)",
+            "Role progression bonus (+0)",
+            "0 documented achievements (+0)"
+          ]
+        },
+        "education_credentials": {
+          "score": 0,
+          "max": 100,
+          "has_data": false,
+          "weight": 0.1,
+          "weighted_contribution": 0,
+          "label": "Education & Credentials",
+          "description": "Degrees, courses, and verified credentials.",
+          "details": [
+            "Education quality (+0)",
+            "0 verified education docs (+0)",
+            "0 fields of study (+0)"
+          ]
+        },
+        "reliability_signals": {
+          "score": 85,
+          "max": 100,
+          "has_data": false,
+          "weight": 0.1,
+          "weighted_contribution": 47,
+          "label": "Reliability Signals",
+          "description": "Response time, attendance, and follow-through.",
+          "details": [
+            "Interview attendance 50% (+15.0)",
+            "Application follow-through 100% (+20.0)"
+          ]
+        },
+        "soft_skills": {
+          "score": 0,
+          "max": 100,
+          "has_data": false,
+          "weight": 0.1,
+          "weighted_contribution": 0,
+          "label": "Soft Skills",
+          "description": "Collaboration, leadership, and adaptability.",
+          "details": [
+            "No soft-skill practice sessions yet",
+            "No soft-skill interview feedback yet"
+          ]
+        },
+        "market_demand": {
+          "score": 20,
+          "max": 100,
+          "has_data": false,
+          "weight": 0.05,
+          "weighted_contribution": 6,
+          "label": "Market Demand",
+          "description": "How your skills match current job market needs.",
+          "details": [
+            "0 in-demand skill categories (+20)"
+          ]
+        },
+        "growth_trajectory": {
+          "score": 0,
+          "max": 100,
+          "has_data": false,
+          "weight": 0.05,
+          "weighted_contribution": 0,
+          "label": "Growth Trajectory",
+          "description": "Learning velocity and skill acquisition rate.",
+          "details": [
+            "0 new skills in last 90d (+0)",
+            "0 assessments in last 90d (+0)",
+            "0 active weeks in last 30d (+0)"
+          ]
+        }
+      },
+      "recent_activity": [],
+      "history": [],
+      "recommendations": [
+        {
+          "type": "interview",
+          "priority": "high",
+          "title": "Complete More Mock Interviews",
+          "description": "Your interview score has room to grow. Complete 3-5 more practice sessions.",
+          "potential_gain": 33
+        },
+        {
+          "type": "technical",
+          "priority": "high",
+          "title": "Take Skill Assessments",
+          "description": "Pass verified assessments to prove your technical abilities.",
+          "potential_gain": 55
+        },
+        {
+          "type": "resume",
+          "priority": "medium",
+          "title": "Enhance Your Work Experience",
+          "description": "Add detailed achievements and quantify your impact.",
+          "potential_gain": 25
+        },
+        {
+          "type": "growth",
+          "priority": "low",
+          "title": "Accelerate Your Learning",
+          "description": "Set weekly learning goals and track your progress.",
+          "potential_gain": 7
+        }
+      ]
+    }
+  },
+  "recruiterDashboard": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "trust_score": {
+        "total_score": null,
+        "verification": 0,
+        "job_authenticity": 0,
+        "hiring_ratio": 0,
+        "feedback": 0,
+        "behavior": 0,
+        "tier": null,
+        "tier_label": null,
+        "tier_color": "#94a3b8"
+      },
+      "job_stats": {
+        "active_jobs": "1",
+        "paused_jobs": "0",
+        "closed_jobs": "0",
+        "total_views": 0
+      },
+      "application_stats": {
+        "total_applications": "0",
+        "new_applications": "0",
+        "screening": "0",
+        "reviewed": "0",
+        "interviewed": "0",
+        "offered": "0",
+        "hired": "0",
+        "rejected": "0"
+      },
+      "avg_time_to_hire": null,
+      "score_distribution": {
+        "600": "0",
+        "700": "0",
+        "800": "0",
+        "900": "0",
+        "below": "0"
+      },
+      "source_breakdown": [
+        {
+          "name": "Direct",
+          "count": 0,
+          "percentage": 0
+        },
+        {
+          "name": "LinkedIn",
+          "count": 0,
+          "percentage": 0
+        },
+        {
+          "name": "Indeed",
+          "count": 0,
+          "percentage": 0
+        },
+        {
+          "name": "Referral",
+          "count": 0,
+          "percentage": 0
+        }
+      ],
+      "hiring_velocity": [],
+      "time_to_hire_by_stage": [
+        {
+          "stage": "Applied → Screened",
+          "avg_days": 0,
+          "count": 0
+        },
+        {
+          "stage": "Screened → Interview",
+          "avg_days": 0,
+          "count": 0
+        },
+        {
+          "stage": "Interview → Offer",
+          "avg_days": 0,
+          "count": 0
+        },
+        {
+          "stage": "Offer → Hired",
+          "avg_days": 0,
+          "count": 0
+        }
+      ],
+      "diversity_metrics": {
+        "gender_distribution": [],
+        "ethnicity_distribution": []
+      },
+      "diversity_pipeline_dropoff": {
+        "gender": [],
+        "ethnicity": []
+      },
+      "time_to_hire_breakdown": null,
+      "cost_per_hire": null,
+      "quality_of_hire": null,
+      "conversion_rate": null,
+      "offer_acceptance_rate": null,
+      "upcoming_interviews": [],
+      "recent_applications": [],
+      "daily_applications": []
+    }
+  },
+  "trustscoreRoot": {
+    "status": 403,
+    "data": {
+      "error": "Recruiter access required"
+    }
+  },
+  "trustscoreBreakdown": {
+    "status": 403,
+    "data": {
+      "error": "Recruiter access required"
+    }
+  },
+  "trustscoreStandalone": {
+    "status": 403,
+    "data": {
+      "error": "Recruiter access required"
+    }
+  },
+  "trustscorePublicById": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "company": {
+        "id": 1,
+        "name": "QA Corp 2026",
+        "slug": "qa-corp-2026-2",
+        "logo_url": null,
+        "industry": null,
+        "company_size": null,
+        "headquarters": null,
+        "is_verified": true,
+        "description": null
+      },
+      "trustscore": {
+        "score": null,
+        "tier": null,
+        "tier_label": null,
+        "tier_color": "#94a3b8",
+        "insufficient_data": true,
+        "data_sufficiency_score": 0
+      },
+      "factors": {
+        "verification": {
+          "score": 0,
+          "max": 80
+        },
+        "job_authenticity": {
+          "score": 0,
+          "max": 120
+        },
+        "hiring_ratio": {
+          "score": 0,
+          "max": 120
+        },
+        "feedback": {
+          "score": 0,
+          "max": 80
+        },
+        "behavior": {
+          "score": 0,
+          "max": 50
+        },
+        "employee_satisfaction": {
+          "score": 0,
+          "max": 100,
+          "sufficient": false
+        },
+        "interview_experience": {
+          "score": 0,
+          "max": 100,
+          "sufficient": false
+        },
+        "offer_acceptance_rate": {
+          "score": 0,
+          "max": 75,
+          "sufficient": false
+        },
+        "time_to_hire": {
+          "score": 0,
+          "max": 50,
+          "sufficient": false
+        },
+        "response_rate": {
+          "score": 0,
+          "max": 75,
+          "sufficient": false
+        },
+        "salary_competitiveness": {
+          "score": 0,
+          "max": 50,
+          "sufficient": false
+        },
+        "diversity_metrics": {
+          "score": 0,
+          "max": 0,
+          "sufficient": false,
+          "message": "Diversity metrics require demographic data not yet available"
+        },
+        "career_growth": {
+          "score": 0,
+          "max": 100,
+          "sufficient": false
+        }
+      },
+      "ai_summary": null,
+      "badges": [
+        {
+          "type": "verified",
+          "label": "Verified"
+        }
+      ],
+      "reviews": [],
+      "company_responses": []
+    }
+  },
+  "trustscorePublicBySlug": {
+    "status": 404,
+    "data": {
+      "error": "Company not found"
+    }
+  },
+  "careersBySlug": {
+    "status": 200,
+    "data": {
+      "company": {
+        "id": "1",
+        "name": "QA Corp 2026",
+        "logo": null,
+        "tagline": "Join QA Corp 2026 — we're hiring!",
+        "description": "QA Corp 2026 is a leading company in the technology industry.",
+        "website": "#",
+        "location": "Remote-friendly",
+        "size": null,
+        "industry": "Technology / SaaS",
+        "founded": "2020",
+        "trustscore": null,
+        "rating": null,
+        "reviewCount": 0
+      },
+      "culture": {
+        "values": [
+          "Innovation",
+          "Diversity",
+          "Transparency",
+          "Growth",
+          "Impact"
+        ],
+        "benefits": [
+          {
+            "icon": "health",
+            "label": "Health Insurance",
+            "description": "100% coverage for you and dependents"
+          },
+          {
+            "icon": "remote",
+            "label": "Remote Work",
+            "description": "Work from anywhere, async-friendly"
+          },
+          {
+            "icon": "flexible",
+            "label": "Flexible Hours",
+            "description": "Choose your own schedule"
+          },
+          {
+            "icon": "learning",
+            "label": "Learning Budget",
+            "description": "$5,000/year for courses and conferences"
+          },
+          {
+            "icon": "equity",
+            "label": "Equity",
+            "description": "Meaningful stock options for all employees"
+          },
+          {
+            "icon": "vacation",
+            "label": "Unlimited PTO",
+            "description": "Take time when you need it"
+          },
+          {
+            "icon": "parental",
+            "label": "Parental Leave",
+            "description": "20 weeks paid for all parents"
+          },
+          {
+            "icon": "gym",
+            "label": "Wellness",
+            "description": "$100/month gym or wellness stipend"
+          }
+        ],
+        "photos": []
+      },
+      "team": [
+        {
+          "id": "1",
+          "name": "Team Lead",
+          "role": "Engineering Manager",
+          "quote": "We build the future together"
+        },
+        {
+          "id": "2",
+          "name": "Hiring Manager",
+          "role": "People Operations",
+          "quote": "People are our greatest asset"
+        }
+      ],
+      "jobs": [
+        {
+          "id": "1",
+          "title": "QA Fixture Data Analyst",
+          "department": "General",
+          "location": "Remote",
+          "type": "full-time",
+          "salary": "Competitive",
+          "postedAt": "2026-10-16"
+        }
+      ],
+      "stats": {
+        "openPositions": 1,
+        "avgTimeToHire": null,
+        "employees": null,
+        "growthRate": null
+      }
+    }
+  },
+  "careersDefaultAuthed": {
+    "status": 200,
+    "data": {
+      "company": {
+        "id": "1",
+        "name": "QA Corp 2026",
+        "logo": null,
+        "tagline": "Join QA Corp 2026 — we're hiring!",
+        "description": "QA Corp 2026 is a leading company in the technology industry.",
+        "website": "#",
+        "location": "Remote-friendly",
+        "size": null,
+        "industry": "Technology / SaaS",
+        "founded": "2020",
+        "trustscore": null,
+        "rating": null,
+        "reviewCount": 0
+      },
+      "culture": {
+        "values": [
+          "Innovation",
+          "Diversity",
+          "Transparency",
+          "Growth",
+          "Impact"
+        ],
+        "benefits": [
+          {
+            "icon": "health",
+            "label": "Health Insurance",
+            "description": "100% coverage for you and dependents"
+          },
+          {
+            "icon": "remote",
+            "label": "Remote Work",
+            "description": "Work from anywhere, async-friendly"
+          },
+          {
+            "icon": "flexible",
+            "label": "Flexible Hours",
+            "description": "Choose your own schedule"
+          },
+          {
+            "icon": "learning",
+            "label": "Learning Budget",
+            "description": "$5,000/year for courses and conferences"
+          },
+          {
+            "icon": "equity",
+            "label": "Equity",
+            "description": "Meaningful stock options for all employees"
+          },
+          {
+            "icon": "vacation",
+            "label": "Unlimited PTO",
+            "description": "Take time when you need it"
+          },
+          {
+            "icon": "parental",
+            "label": "Parental Leave",
+            "description": "20 weeks paid for all parents"
+          },
+          {
+            "icon": "gym",
+            "label": "Wellness",
+            "description": "$100/month gym or wellness stipend"
+          }
+        ],
+        "photos": []
+      },
+      "team": [
+        {
+          "id": "1",
+          "name": "Team Lead",
+          "role": "Engineering Manager",
+          "quote": "We build the future together"
+        },
+        {
+          "id": "2",
+          "name": "Hiring Manager",
+          "role": "People Operations",
+          "quote": "People are our greatest asset"
+        }
+      ],
+      "jobs": [
+        {
+          "id": "1",
+          "title": "QA Fixture Data Analyst",
+          "department": "General",
+          "location": "Remote",
+          "type": "full-time",
+          "salary": "Competitive",
+          "postedAt": "2026-10-16"
+        }
+      ],
+      "stats": {
+        "openPositions": 1,
+        "avgTimeToHire": null,
+        "employees": null,
+        "growthRate": null
+      }
+    }
+  },
+  "complianceBiasFlagged": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "rows": [],
+      "total": 0
+    }
+  },
+  "complianceBiasReports": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "reports": []
+    }
+  },
+  "complianceFairnessAudits": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "audits": []
+    }
+  },
+  "complianceRetentionPolicies": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "policies": [
+        {
+          "id": 3,
+          "data_type": "assessment_results",
+          "retention_days": 1825,
+          "auto_delete": false,
+          "description": "Keep assessment results for 5 years",
+          "created_at": "2026-10-16T11:44:31.039Z",
+          "updated_at": "2026-10-16T11:44:31.039Z",
+          "company_id": null,
+          "policy_scope": "global",
+          "scope_id": null
+        },
+        {
+          "id": 1,
+          "data_type": "audit_logs",
+          "retention_days": 2555,
+          "auto_delete": false,
+          "description": "Keep audit logs for 7 years for compliance",
+          "created_at": "2026-10-16T11:44:31.039Z",
+          "updated_at": "2026-10-16T11:44:31.039Z",
+          "company_id": null,
+          "policy_scope": "global",
+          "scope_id": null
+        },
+        {
+          "id": 4,
+          "data_type": "candidate_data",
+          "retention_days": 1095,
+          "auto_delete": false,
+          "description": "Keep inactive candidate data for 3 years",
+          "created_at": "2026-10-16T11:44:31.039Z",
+          "updated_at": "2026-10-16T11:44:31.039Z",
+          "company_id": null,
+          "policy_scope": "global",
+          "scope_id": null
+        },
+        {
+          "id": 2,
+          "data_type": "interview_recordings",
+          "retention_days": 90,
+          "auto_delete": true,
+          "description": "Delete interview recordings after 90 days (aligned with enforced retention_expires_at)",
+          "created_at": "2026-10-16T11:44:31.039Z",
+          "updated_at": "2026-10-16T11:44:33.421Z",
+          "company_id": null,
+          "policy_scope": "global",
+          "scope_id": null
+        },
+        {
+          "id": 7,
+          "data_type": "observer_audio",
+          "retention_days": 30,
+          "auto_delete": true,
+          "description": "Delete observer-captured audio 30 days post-capture (Gate A D-1 recording-class sub-policy, S-085)",
+          "created_at": "2026-10-16T11:44:33.445Z",
+          "updated_at": "2026-10-16T11:44:33.445Z",
+          "company_id": null,
+          "policy_scope": "global",
+          "scope_id": null
+        },
+        {
+          "id": 6,
+          "data_type": "unified_recordings",
+          "retention_days": 90,
+          "auto_delete": true,
+          "description": "Delete unified-engine recordings 90 days post-session (S-077)",
+          "created_at": "2026-10-16T11:44:33.421Z",
+          "updated_at": "2026-10-16T11:44:33.421Z",
+          "company_id": null,
+          "policy_scope": "global",
+          "scope_id": null
+        },
+        {
+          "id": 5,
+          "data_type": "vision_frames",
+          "retention_days": 30,
+          "auto_delete": true,
+          "description": "Delete encrypted vision frames 30 days post-capture (S-077)",
+          "created_at": "2026-10-16T11:44:33.421Z",
+          "updated_at": "2026-10-16T11:44:33.421Z",
+          "company_id": null,
+          "policy_scope": "global",
+          "scope_id": null
+        }
+      ]
+    }
+  },
+  "recruiterJobsForCompliance": {
+    "status": 200,
+    "data": {
+      "jobs": [
+        {
+          "id": 1,
+          "user_id": 2,
+          "title": "QA Fixture Data Analyst",
+          "company": "QA Corp 2026",
+          "description": "Fixture job created by the Quinn Wave 2 AFTER verification run (Oct 16) on a fresh install.",
+          "requirements": "SQL, dashboards",
+          "location": "Remote",
+          "salary_range": null,
+          "job_type": "full-time",
+          "status": "active",
+          "created_at": "2026-10-16T11:45:44.975Z",
+          "updated_at": "2026-10-16T11:45:44.975Z",
+          "company_id": 1,
+          "screening_questions": null,
+          "country_code": "US",
+          "currency_code": "USD",
+          "salary_min": "90000.00",
+          "salary_max": "120000.00",
+          "remote_type": null,
+          "experience_level": null,
+          "skills_required": null,
+          "department_id": null,
+          "auto_send_on_apply": false,
+          "auto_send_min_score": 70,
+          "views": 0,
+          "application_count": "0",
+          "interviews": 0
+        }
+      ]
+    }
+  }
+}

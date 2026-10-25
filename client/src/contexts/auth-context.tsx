@@ -1,4 +1,12 @@
-import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
+import {
+	createContext,
+	type Dispatch,
+	type ReactNode,
+	type SetStateAction,
+	useContext,
+	useEffect,
+	useState,
+} from 'react';
 import {
 	apiCall,
 	clearTokens,
@@ -75,6 +83,45 @@ function stripOAuthCodeParam() {
 	}
 }
 
+// #1223: /company/profile is the client's membership source of truth —
+// the server loads the user from the DB, so it succeeds for a company
+// member/owner even when the login payload omitted company_id. Its
+// response carries BOTH facts the classifiers need: the company id and
+// whether this user owns it. Earlier code kept only the owner flag and
+// discarded company.id, so a logged-in owner stayed classified as
+// pending approval until a full reload (bootstrap via /auth/me).
+type CompanyProfileResponse = { company: { id: number; owner_id: number } };
+
+function applyCompanyProfile(
+	prev: User,
+	companyData: CompanyProfileResponse,
+): User {
+	return {
+		...prev,
+		company_id: companyData.company?.id ?? prev.company_id,
+		is_company_owner: companyData.company?.owner_id === prev.id,
+	};
+}
+
+// #1259: bound for the login() hydration await. A healthy
+// /company/profile is one authenticated GET (~500–2000 ms worst case in
+// the #105 latency history); 5 s clears a slow-but-healthy response
+// (incl. cold starts) while bounding a truly hung request to a
+// tolerable login wait.
+const LOGIN_HYDRATION_TIMEOUT_MS = 5000;
+
+// Background variant used where the user is already on screen
+// (bootstrap / register): patches company_id + ownership when ready.
+function patchCompanyProfile(setUser: Dispatch<SetStateAction<User | null>>) {
+	apiCall<CompanyProfileResponse>('/company/profile', { skipAuthCheck: false })
+		.then((companyData) => {
+			setUser((prev) => (prev ? applyCompanyProfile(prev, companyData) : prev));
+		})
+		.catch(() => {
+			// Company endpoint may fail if user has no company — defaults stay
+		});
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
 	const [user, setUser] = useState<User | null>(null);
 	// Sync check: only show loading spinner if there's a token to verify.
@@ -132,20 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 					});
 
 				if (isRecruiterRole(user.role)) {
-					apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
-						.then((companyData) => {
-							setUser((prev) =>
-								prev
-									? {
-											...prev,
-											is_company_owner: companyData.company?.owner_id === prev.id,
-										}
-									: prev,
-							);
-						})
-						.catch(() => {
-							// Company endpoint may fail if user has no company — default already set
-						});
+					patchCompanyProfile(setUser);
 				}
 			})
 			.catch(() => {
@@ -160,8 +194,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 	const isPendingApproval = (u: User | null): boolean => {
 		if (!u) return false;
-		// Platform admins bypass company join approval
-		if (u.role === 'admin') return false;
+		// Platform admins bypass company join approval (users.role or user_roles RBAC table)
+		if (u.role === 'admin' || u.is_platform_admin) return false;
+		// #1223: a company owner is the approver, never the pending joiner
+		if (u.is_company_owner) return false;
 		return isRecruiterRole(u.role) && !u.company_id;
 	};
 
@@ -170,6 +206,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			const data = await apiCall<{ user: User }>('/auth/me', { skipAuthCheck: false });
 			const refreshedUser = data.user;
 			refreshedUser.subscriptionTier = user?.subscriptionTier || 'free';
+			// /auth/me carries no owner flag — don't drop a known one (#1223)
+			refreshedUser.is_company_owner = user?.is_company_owner ?? false;
 			setUser(refreshedUser);
 		} catch {
 			// Silently ignore — user may have been logged out
@@ -190,15 +228,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		});
 
 		const user = data.user;
-		// Set tokens and user immediately so the redirect is not blocked by
-		// a secondary API call. Default tier to 'free'; background fetch
-		// patches the real tier when it arrives.
-		// Root cause (#105): awaiting /billing/tier before setTokens/setUser
-		// added 500-2000ms of blocking latency to every login.
+		// Default tier to 'free'; the background fetch below patches the
+		// real tier when it arrives (#105: awaiting /billing/tier before
+		// setUser added 500-2000ms of blocking latency to every login —
+		// the tier fetch stays non-blocking).
 		user.subscriptionTier = 'free';
 		user.is_company_owner = false;
 		setTokens(data.accessToken || data.token, data.refreshToken);
-		setUser(user);
+
+		// #1223: for recruiters, resolve company membership BEFORE the
+		// first setUser. The login response omits company_id, so routing
+		// on it directly misclassifies a company owner/member as a
+		// pending joiner — post-login routing must be decided on known
+		// membership, not on a missing field. This reuses the profile
+		// call that was already fired (in the background) on every
+		// recruiter login; a genuine pending joiner has no company, the
+		// call fails, and they keep company_id=null → still walled.
+		let resolvedUser = user;
+		if (isRecruiterRole(user.role)) {
+			const profilePromise = apiCall<CompanyProfileResponse>('/company/profile', {
+				skipAuthCheck: false,
+			});
+			try {
+				// #1259: bound the hydration await — apiCall has no timeout
+				// of its own, so a never-resolving profile request would
+				// hang the login transition (and the first setUser) forever.
+				let timer: ReturnType<typeof setTimeout> | undefined;
+				let companyData: CompanyProfileResponse | null;
+				try {
+					companyData = await Promise.race([
+						profilePromise,
+						new Promise<null>((resolve) => {
+							timer = setTimeout(() => resolve(null), LOGIN_HYDRATION_TIMEOUT_MS);
+						}),
+					]);
+				} finally {
+					if (timer) clearTimeout(timer);
+				}
+				if (companyData) {
+					resolvedUser = applyCompanyProfile(user, companyData);
+				} else {
+					// Timed out: fall back to the genuine pending state —
+					// the same resolvedUser the failure path below produces
+					// — and keep hydrating in the background off the SAME
+					// request (the patchCompanyProfile pattern): a late
+					// success patches membership in, a late failure changes
+					// nothing. No error state, no duplicate request.
+					profilePromise
+						.then((lateData) => {
+							setUser((prev) =>
+								prev && prev.id === user.id ? applyCompanyProfile(prev, lateData) : prev,
+							);
+						})
+						.catch(() => {
+							// Late failure — genuine pending state already shown
+						});
+				}
+			} catch {
+				// No company associated — genuine pending-approval state
+			}
+		}
+		setUser(resolvedUser);
 
 		// Fetch subscription tier in the background — non-blocking
 		apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
@@ -208,23 +298,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			.catch(() => {
 				// Tier endpoint may fail if billing is not configured — default already set
 			});
-
-		if (isRecruiterRole(user.role)) {
-			apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
-				.then((companyData) => {
-					setUser((prev) =>
-						prev
-							? {
-									...prev,
-									is_company_owner: companyData.company?.owner_id === prev.id,
-								}
-							: prev,
-					);
-				})
-				.catch(() => {
-					// Company endpoint may fail if user has no company — default already set
-				});
-		}
 	};
 
 	const register = async (registerData: RegisterData) => {
@@ -286,20 +359,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			});
 
 		if (isRecruiterRole(user.role)) {
-			apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
-				.then((companyData) => {
-					setUser((prev) =>
-						prev
-							? {
-									...prev,
-									is_company_owner: companyData.company?.owner_id === prev.id,
-								}
-							: prev,
-					);
-				})
-				.catch(() => {
-					// Company endpoint may fail if user has no company — default already set
-				});
+			patchCompanyProfile(setUser);
 		}
 	};
 

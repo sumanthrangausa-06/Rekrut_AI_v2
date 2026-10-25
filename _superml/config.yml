@@ -1,0 +1,42 @@
+# Smart SDLC Project Configuration — Rekrut AI v2
+project_name: "Rekrut AI v2"
+project_type: "web-app"
+team_name: "AI Agents Company"
+
+# Persona names (smart-sdlc defaults, customized)
+persona_name_scout: "Scout"
+persona_name_product: "Aria"
+persona_name_architect: "Rex"
+persona_name_team_lead: "Lead"
+persona_name_developer: "Nova"
+persona_name_qa: "Quinn"
+persona_name_release: "Relay"
+persona_name_modernization: "Sage"
+
+# Founder / approver
+founder: "Sumanth"
+cto: "Suga"
+
+# Artifact paths
+docs_path: "docs/sdlc"
+planning_artifacts: "docs/sdlc"
+
+# Artifact readiness flags
+artifacts:
+  prd: false
+  architecture: false
+  epics: false
+
+# Integrations (disabled — we use GitHub Issues, not JIRA)
+integrations:
+  jira: false
+  confluence: false
+  github: true
+
+# Hard rules (Sumanth's directives)
+rules:
+  approval_before_build: true
+  verify_before_theorizing: true
+  zero_budget: true
+  branch_flow: "feature -> dev -> staging -> main"
+  no_direct_push_to_staging_or_main: true

@@ -29,6 +29,7 @@ const ENTITY_TYPES = Object.freeze({
 	JOB: 'job',
 	COMPANY: 'company',
 	USER: 'user',
+	RETENTION_PURGE: 'retention_purge', // S-077 (#760): system purge audit entries
 });
 
 const GENESIS_HASH = '0';
@@ -180,7 +181,30 @@ async function getAuditTrail(filters = {}) {
 }
 
 async function getCandidateDecisions(candidateId, options = {}) {
-	const { limit = 500, offset = 0 } = options;
+	const { limit = 500, offset = 0, companyId } = options;
+
+	// #920 (Sumanth ruling): when a companyId is provided, BOTH the count
+	// and the rows query scope to that company's events only. When it is
+	// absent, the queries below are byte-identical to the pre-#920 shape
+	// (candidate-self and admin callers keep the unscoped view).
+	if (companyId !== undefined && companyId !== null) {
+		const countResult = await pool.query(
+			`SELECT COUNT(*) as total FROM compliance_audit_trail
+     WHERE entity_type = $1 AND entity_id = $2 AND company_id = $3`,
+			[ENTITY_TYPES.CANDIDATE, candidateId, companyId],
+		);
+		const total = parseInt(countResult.rows[0].total, 10);
+
+		const result = await pool.query(
+			`SELECT * FROM compliance_audit_trail
+     WHERE entity_type = $1 AND entity_id = $2 AND company_id = $3
+     ORDER BY created_at ASC
+     LIMIT $4 OFFSET $5`,
+			[ENTITY_TYPES.CANDIDATE, candidateId, companyId, limit, offset],
+		);
+
+		return { rows: result.rows, total };
+	}
 
 	const countResult = await pool.query(
 		`SELECT COUNT(*) as total FROM compliance_audit_trail

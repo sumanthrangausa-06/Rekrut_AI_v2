@@ -1,0 +1,211 @@
+PASS server/__tests__/routes/recruiter-pipeline-auto-check-1717.test.js (6.68 s)
+  ● Console
+
+    console.log
+      [db] Pool config: {
+        "connectionString": "postgresql://root@***:***/rekrut_1717_test",
+        "ssl": false,
+        "max": 25,
+        "idleTimeoutMillis": 30000,
+        "connectionTimeoutMillis": 10000,
+        "allowExitOnIdle": false
+      }
+
+      at Object.log (lib/db.js:68:9)
+
+    console.log
+      [token-budget] Initialized. Daily budget: 100,000 tokens
+
+      at new log (lib/token-budget.js:54:11)
+
+    console.log
+      [self-hosted-audio] STT (whisper.cpp tiny.en): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:76:10)
+
+    console.log
+      [self-hosted-audio] TTS (Piper lessac-medium): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:79:10)
+
+    console.log
+      [ai-provider] Initialized. NIM: false | Groq: false | Cerebras: false | Kimi: false
+
+      at new log (lib/ai-provider.js:293:11)
+
+    console.log
+      [ai-provider] Providers:
+
+      at new log (lib/ai-provider.js:303:11)
+
+    console.log
+      [ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety
+
+      at new log (lib/ai-provider.js:304:11)
+
+    console.warn
+      [polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled
+
+      39 | 		_openai = new OpenAI({ ...agentOpts }); // Uses OPENAI_BASE_URL and OPENAI_API_KEY from env
+      40 | 	} else {
+    > 41 | 		console.warn('[polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled');
+         | 		        ^
+      42 | 	}
+      43 | } catch (err) {
+      44 | 	console.warn('[polsia-ai] Failed to initialize OpenAI client:', err.message);
+
+      at Object.warn (lib/polsia-ai.js:41:11)
+      at Object.require (services/job-optimizer.js:2:18)
+      at Object.require (routes/recruiter.js:8:22)
+      at Object.require (server/__tests__/routes/recruiter-pipeline-auto-check-1717.test.js:149:27)
+
+PASS server/__tests__/services/matching-engine-omniscore-null-1717.test.js
+  ● Console
+
+    console.log
+      [db] Pool config: {
+        "connectionString": "postgresql://root@***:***/rekrut_1717_test",
+        "ssl": false,
+        "max": 25,
+        "idleTimeoutMillis": 30000,
+        "connectionTimeoutMillis": 10000,
+        "allowExitOnIdle": false
+      }
+
+      at Object.log (lib/db.js:68:9)
+
+    console.log
+      [token-budget] Initialized. Daily budget: 100,000 tokens
+
+      at new log (lib/token-budget.js:54:11)
+
+    console.log
+      [self-hosted-audio] STT (whisper.cpp tiny.en): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:76:10)
+
+    console.log
+      [self-hosted-audio] TTS (Piper lessac-medium): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:79:10)
+
+    console.log
+      [ai-provider] Initialized. NIM: false | Groq: false | Cerebras: false | Kimi: false
+
+      at new log (lib/ai-provider.js:293:11)
+
+    console.log
+      [ai-provider] Providers:
+
+      at new log (lib/ai-provider.js:303:11)
+
+    console.log
+      [ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety
+
+      at new log (lib/ai-provider.js:304:11)
+
+    console.warn
+      Failed to update job embedding for 1717001: No available providers for embedding. openai_embed: not configured, nim_embed_qa: not configured, nim_embed_vl: not configured
+
+      422 | 			await updateJobEmbedding(jobId);
+      423 | 		} catch (embedErr) {
+    > 424 | 			console.warn(`Failed to update job embedding for ${jobId}:`, embedErr.message);
+          | 			        ^
+      425 | 		}
+      426 |
+      427 | 		// Get job details and TrustScore
+
+      at Object.warn [as findMatchingCandidates] (services/matching-engine.js:424:12)
+      at Object.<anonymous> (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:172:20)
+
+    console.warn
+      Failed to update job embedding for 1717001: No available providers for embedding. openai_embed: not configured, nim_embed_qa: not configured, nim_embed_vl: not configured
+
+      422 | 			await updateJobEmbedding(jobId);
+      423 | 		} catch (embedErr) {
+    > 424 | 			console.warn(`Failed to update job embedding for ${jobId}:`, embedErr.message);
+          | 			        ^
+      425 | 		}
+      426 |
+      427 | 		// Get job details and TrustScore
+
+      at Object.warn [as findMatchingCandidates] (services/matching-engine.js:424:12)
+      at Object.<anonymous> (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:193:20)
+
+    console.warn
+      Failed to update job embedding for 1717001: No available providers for embedding. openai_embed: not configured, nim_embed_qa: not configured, nim_embed_vl: not configured
+
+      422 | 			await updateJobEmbedding(jobId);
+      423 | 		} catch (embedErr) {
+    > 424 | 			console.warn(`Failed to update job embedding for ${jobId}:`, embedErr.message);
+          | 			        ^
+      425 | 		}
+      426 |
+      427 | 		// Get job details and TrustScore
+
+      at Object.warn [as findMatchingCandidates] (services/matching-engine.js:424:12)
+      at Object.<anonymous> (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:209:20)
+
+    console.warn
+      Failed to update job embedding for 1717001: No available providers for embedding. openai_embed: not configured, nim_embed_qa: not configured, nim_embed_vl: not configured
+
+      422 | 			await updateJobEmbedding(jobId);
+      423 | 		} catch (embedErr) {
+    > 424 | 			console.warn(`Failed to update job embedding for ${jobId}:`, embedErr.message);
+          | 			        ^
+      425 | 		}
+      426 |
+      427 | 		// Get job details and TrustScore
+
+      at Object.warn [as findMatchingCandidates] (services/matching-engine.js:424:12)
+      at Object.<anonymous> (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:224:20)
+
+    console.warn
+      Failed to update candidate embedding for 1717101: No available providers for embedding. openai_embed: not configured, nim_embed_qa: not configured, nim_embed_vl: not configured
+
+      604 | 			await updateCandidateEmbedding(userId);
+      605 | 		} catch (embedErr) {
+    > 606 | 			console.warn(`Failed to update candidate embedding for ${userId}:`, embedErr.message);
+          | 			        ^
+      607 | 		}
+      608 |
+      609 | 		// Get candidate's OmniScore
+
+      at Object.warn [as findMatchingJobs] (services/matching-engine.js:606:12)
+      at Object.<anonymous> (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:240:20)
+
+    console.warn
+      Failed to update candidate embedding for 1717103: No available providers for embedding. openai_embed: not configured, nim_embed_qa: not configured, nim_embed_vl: not configured
+
+      604 | 			await updateCandidateEmbedding(userId);
+      605 | 		} catch (embedErr) {
+    > 606 | 			console.warn(`Failed to update candidate embedding for ${userId}:`, embedErr.message);
+          | 			        ^
+      607 | 		}
+      608 |
+      609 | 		// Get candidate's OmniScore
+
+      at Object.warn [as findMatchingJobs] (services/matching-engine.js:606:12)
+      at Object.<anonymous> (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:261:20)
+
+    console.warn
+      Failed to update candidate embedding for 1717104: No available providers for embedding. openai_embed: not configured, nim_embed_qa: not configured, nim_embed_vl: not configured
+
+      604 | 			await updateCandidateEmbedding(userId);
+      605 | 		} catch (embedErr) {
+    > 606 | 			console.warn(`Failed to update candidate embedding for ${userId}:`, embedErr.message);
+          | 			        ^
+      607 | 		}
+      608 |
+      609 | 		// Get candidate's OmniScore
+
+      at Object.warn [as findMatchingJobs] (services/matching-engine.js:606:12)
+      at Object.<anonymous> (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:272:20)
+
+
+Test Suites: 2 passed, 2 total
+Tests:       11 passed, 11 total
+Snapshots:   0 total
+Time:        8.426 s
+Ran all test suites matching server/__tests__/services/matching-engine-omniscore-null-1717.test.js|server/__tests__/routes/recruiter-pipeline-auto-check-1717.test.js.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

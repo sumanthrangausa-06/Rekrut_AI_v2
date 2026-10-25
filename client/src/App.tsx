@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AdminAuthGuard } from '@/components/admin-auth-guard';
 import { ErrorBoundary, RouteErrorBoundary } from '@/components/error-boundary';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
@@ -33,6 +33,12 @@ const PricingPage = lazy(() => import('@/pages/pricing').then((m) => ({ default:
 const AboutPage = lazy(() => import('@/pages/about').then((m) => ({ default: m.AboutPage })));
 const ContactPage = lazy(() => import('@/pages/contact').then((m) => ({ default: m.ContactPage })));
 const PrivacyPage = lazy(() => import('@/pages/privacy').then((m) => ({ default: m.PrivacyPage })));
+const BiometricPolicyPage = lazy(() =>
+	import('@/pages/biometric-policy').then((m) => ({ default: m.BiometricPolicyPage })),
+);
+const ConsentScreensPage = lazy(() =>
+	import('@/pages/consent-screens').then((m) => ({ default: m.ConsentScreensPage })),
+);
 const TermsPage = lazy(() => import('@/pages/terms').then((m) => ({ default: m.TermsPage })));
 const PaymentSuccessPage = lazy(() =>
 	import('@/pages/payment-success').then((m) => ({ default: m.PaymentSuccessPage })),
@@ -58,18 +64,9 @@ const TestCameraPage = lazy(() =>
 const _PostHireFeedbackPage = lazy(() =>
 	import('@/pages/post-hire-feedback').then((m) => ({ default: m.RecruiterPostHireFeedbackPage })),
 );
-const RecruiterProfilePage = lazy(() =>
-	import('@/pages/recruiter-profile').then((m) => ({ default: m.RecruiterProfilePage })),
-);
 const RecruiterTrustscorePage = lazy(() =>
 	import('@/pages/recruiter-trustscore').then((m) => ({ default: m.RecruiterTrustscorePage })),
 );
-const RecruiterCommunicationsPage = lazy(() =>
-	import('@/pages/recruiter-communications').then((m) => ({
-		default: m.RecruiterCommunicationsPage,
-	})),
-);
-
 const LeaderboardPage = lazy(() =>
 	import('@/pages/candidate/leaderboard').then((m) => ({ default: m.LeaderboardPage })),
 );
@@ -136,6 +133,11 @@ const CandidatePayrollPage = lazy(() =>
 const AiCoachingPage = lazy(() =>
 	import('@/pages/candidate/ai-coaching').then((m) => ({ default: m.AiCoachingPage })),
 );
+const QuickPracticeSessionPage = lazy(() =>
+	import('@/pages/candidate/quick-practice-session').then((m) => ({
+		default: m.QuickPracticeSessionPage,
+	})),
+);
 const CareerCoachPage = lazy(() =>
 	import('@/pages/candidate/career-coach').then((m) => ({ default: m.CareerCoachPage })),
 );
@@ -163,6 +165,12 @@ const CandidateBackgroundCheckPage = lazy(() =>
 const CandidateInterviewSessionPage = lazy(() =>
 	import('@/pages/candidate/InterviewSession').then((m) => ({ default: m.default })),
 );
+// /signup is a common alias for the real /register route (#1354); preserve
+// the query string because register reads role/returnTo params from it.
+function SignupRedirect() {
+	const { search } = useLocation();
+	return <Navigate to={`/register${search}`} replace />;
+}
 // Legacy /screening/:token links forward to the unified interview session page (#322)
 function ScreeningTokenRedirect() {
 	const { token } = useParams<{ token: string }>();
@@ -448,6 +456,11 @@ const AdminEmailQueuePage = lazy(() =>
 		default: m.AdminEmailQueuePage,
 	})),
 );
+const BiometricAuditPage = lazy(() =>
+	import('@/pages/admin/biometric-audit').then((m) => ({
+		default: m.BiometricAuditPage,
+	})),
+);
 
 const SignDocumentPage = lazy(() =>
 	import('@/pages/signature/SignDocument').then((m) => ({ default: m.SignDocumentPage })),
@@ -553,6 +566,7 @@ function AppRoutes() {
 			<Route path="/" element={<LandingPage />} />
 			<Route path="/login" element={<LoginPage />} />
 			<Route path="/register" element={<RegisterPage />} />
+			<Route path="/signup" element={<SignupRedirect />} />
 			<Route path="/ref" element={<ReferralLandingPage />} />
 			<Route path="/forgot-password" element={<ForgotPasswordPage />} />
 			<Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -567,6 +581,8 @@ function AppRoutes() {
 			<Route path="/about" element={<AboutPage />} />
 			<Route path="/contact" element={<ContactPage />} />
 			<Route path="/privacy" element={<PrivacyPage />} />
+			<Route path="/privacy/biometric-policy" element={<BiometricPolicyPage />} />
+			<Route path="/interview/consent" element={<ConsentScreensPage />} />
 			<Route path="/terms" element={<TermsPage />} />
 
 			<Route path="/leaderboard" element={<LeaderboardPage />} />
@@ -691,6 +707,14 @@ function AppRoutes() {
 					element={
 						<Protected>
 							<AiCoachingPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path="quick-practice/:questionId"
+					element={
+						<Protected>
+							<QuickPracticeSessionPage />
 						</Protected>
 					}
 				/>
@@ -902,6 +926,9 @@ function AppRoutes() {
 						</Protected>
 					}
 				/>
+				{/* Redirects for dead routes (Issue #407) */}
+				<Route path="scores" element={<Navigate to="/candidate/assessments" replace />} />
+				<Route path="messages" element={<Navigate to="/candidate/chat" replace />} />
 				<Route
 					path="offers"
 					element={
@@ -1275,15 +1302,10 @@ function AppRoutes() {
 						</Protected>
 					}
 				/>
+				{/* #889: invented inbox retired — the real messages home is chat */}
 				<Route
 					path="communications"
-					element={
-						<Protected>
-							<RecruiterGuard>
-								<RecruiterCommunicationsPage />
-							</RecruiterGuard>
-						</Protected>
-					}
+					element={<Navigate to="/recruiter/chat" replace />}
 				/>
 				<Route
 					path="trustscore"
@@ -1345,16 +1367,7 @@ function AppRoutes() {
 						</Protected>
 					}
 				/>
-				<Route
-					path="profile"
-					element={
-						<Protected>
-							<RecruiterGuard>
-								<RecruiterProfilePage />
-							</RecruiterGuard>
-						</Protected>
-					}
-				/>
+				<Route path="profile" element={<Navigate to="/recruiter/company" replace />} />
 				<Route
 					path="payroll"
 					element={
@@ -1570,6 +1583,14 @@ function AppRoutes() {
 				element={
 					<AdminAuthGuard>
 						<AdminEmailQueuePage />
+					</AdminAuthGuard>
+				}
+			/>
+			<Route
+				path="/admin/biometric-audit"
+				element={
+					<AdminAuthGuard allowedRoles={['admin', 'hiring_manager']}>
+						<BiometricAuditPage />
 					</AdminAuthGuard>
 				}
 			/>

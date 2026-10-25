@@ -150,7 +150,7 @@ jest.mock('../../../lib/db', () => {
 		}
 
 		// SELECT refresh token
-		if (normalized.includes('select rt.*, u.email, u.role, u.name from refresh_tokens')) {
+		if (normalized.includes('select rt.*, u.email, u.role, u.name, u.company_id from refresh_tokens')) {
 			return { rows: [], rowCount: 0 };
 		}
 
@@ -206,7 +206,6 @@ jest.mock('../../../lib/db', () => {
 				if (normalized === 'begin') return {};
 				if (normalized.includes('update companies set owner_id')) return { rows: [] };
 				if (normalized.includes("update users set role = 'admin'")) return { rows: [] };
-				if (normalized.includes("update users set role = 'owner'")) return { rows: [] };
 				if (normalized === 'commit') return {};
 				if (normalized === 'rollback') return {};
 				return { rows: [], rowCount: 0 };

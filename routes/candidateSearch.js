@@ -16,9 +16,22 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
+const { analyticsCache } = require('../lib/analytics-cache');
 const { DistributedRateLimiter } = require('../lib/distributed-rate-limiter');
 const { AuditLogger } = require('../services/auditLogService');
 const matchingEngine = require('../services/matching-engine');
+const omniscoreService = require('../services/omniscore');
+
+// #1787: candidate_search_index.score_tier is a copy of the STORED
+// omni_scores tier (metal vocabulary). Filters arrive in the API label
+// vocabulary and results are rendered as labels — translate at this
+// read boundary; storage stays metal.
+const storedTierForFilter = (tier) =>
+	omniscoreService.SCORE_RANGES.TIERS[tier] ? omniscoreService.dbTierFromLabel(tier) : tier;
+const withLabelTier = (row) => {
+	if (row && 'score_tier' in row) row.score_tier = omniscoreService.labelFromDbTier(row.score_tier);
+	return row;
+};
 
 // ─── Auth & Authorization ────────────────────────────────────────
 
@@ -151,10 +164,10 @@ function buildSearchWhere(params) {
 		idx++;
 	}
 
-	// Score tier filter
+	// Score tier filter (#1787: label → stored metal before comparing)
 	if (params.score_tier) {
 		conditions.push(`csi.score_tier = $${idx}`);
-		queryParams.push(params.score_tier);
+		queryParams.push(storedTierForFilter(params.score_tier));
 		idx++;
 	}
 
@@ -229,7 +242,7 @@ router.get('/search', authMiddleware, requireRecruiter, async (req, res) => {
 		const queryTime = Date.now() - startTime;
 
 		res.json({
-			candidates: dataResult.rows,
+			candidates: dataResult.rows.map(withLabelTier),
 			pagination: { limit, offset, total, hasMore: offset + dataResult.rows.length < total },
 			meta: { queryTimeMs: queryTime },
 		});
@@ -342,7 +355,7 @@ router.get('/search/semantic', authMiddleware, requireRecruiter, async (req, res
 		const queryTime = Date.now() - startTime;
 
 		res.json({
-			candidates: dataResult.rows,
+			candidates: dataResult.rows.map(withLabelTier),
 			pagination: { limit, offset, total, hasMore: offset + dataResult.rows.length < total },
 			meta: { queryTimeMs: queryTime, query: queryText },
 		});
@@ -515,6 +528,18 @@ router.get('/:id/preview', authMiddleware, requireRecruiter, async (req, res) =>
 			return res.status(404).json({ error: 'Not a candidate profile' });
 		}
 
+		// Issue #522: cache preview per candidate AND viewing recruiter.
+		// The visibility check above stays uncached (#416 privacy); the payload below
+		// includes recruiter-specific invite_status, so recruiterId is part of the key.
+		const previewCacheKey = analyticsCache.key('/api/candidates/preview', {
+			candidateId,
+			recruiterId: req.user.id,
+		});
+		const cachedPreview = analyticsCache.get(previewCacheKey);
+		if (cachedPreview) {
+			return res.json({ success: true, cached: true, ...cachedPreview });
+		}
+
 		const profileResult = await client.query(
 			`
         SELECT
@@ -552,6 +577,31 @@ router.get('/:id/preview', authMiddleware, requireRecruiter, async (req, res) =>
 			[candidateId],
 		);
 
+		// Issue #527: fetch endorsement counts + whether this recruiter endorsed each skill
+		const endorsementsResult = await client.query(
+			`SELECT skill_name,
+			        COUNT(*)::int AS endorsement_count,
+			        BOOL_OR(recruiter_id = $2) AS endorsed_by_me
+			 FROM skill_endorsements
+			 WHERE candidate_id = $1
+			 GROUP BY skill_name`,
+			[candidateId, req.user.id],
+		);
+		const endorsementMap = new Map(
+			endorsementsResult.rows.map((r) => [
+				r.skill_name,
+				{
+					endorsement_count: r.endorsement_count,
+					endorsed_by_me: r.endorsed_by_me,
+				},
+			]),
+		);
+		const skillsWithEndorsements = skillsResult.rows.map((s) => ({
+			...s,
+			endorsement_count: endorsementMap.get(s.skill_name)?.endorsement_count || 0,
+			endorsed_by_me: endorsementMap.get(s.skill_name)?.endorsed_by_me || false,
+		}));
+
 		// Fetch top 3 work experiences
 		const experienceResult = await client.query(
 			`
@@ -587,15 +637,21 @@ router.get('/:id/preview', authMiddleware, requireRecruiter, async (req, res) =>
 			[candidateId, req.user.id],
 		);
 
-		res.json({
+		const previewResponse = {
 			candidate: {
 				...profile,
-				skills: skillsResult.rows,
+				score_tier: omniscoreService.labelFromDbTier(profile.score_tier),
+				skills: skillsWithEndorsements,
 				experience: experienceResult.rows,
 				education: educationResult.rows,
 				invite_status: inviteResult.rows[0]?.status || null,
 			},
-		});
+		};
+
+		// Issue #522: populate cache
+		analyticsCache.set(previewCacheKey, previewResponse);
+
+		res.json(previewResponse);
 	} catch (err) {
 		console.error('[candidateSearch] Preview error:', err);
 		res.status(500).json({ error: 'Failed to load candidate preview' });
@@ -604,7 +660,114 @@ router.get('/:id/preview', authMiddleware, requireRecruiter, async (req, res) =>
 	}
 });
 
-// ─── 7. POST /api/candidates/:id/invite — Invite candidate ───────
+// ─── 7. POST /api/candidates/:id/skills/endorse — Endorse a skill ───
+// Issue #527: recruiter-only. Validates the candidate actually has the skill.
+
+router.post('/:id/skills/endorse', authMiddleware, requireRecruiter, async (req, res) => {
+	const candidateId = parseInt(req.params.id, 10);
+	const { skill_name } = req.body || {};
+	if (Number.isNaN(candidateId)) {
+		return res.status(400).json({ error: 'Invalid candidate ID' });
+	}
+	if (!skill_name || typeof skill_name !== 'string' || !skill_name.trim()) {
+		return res.status(400).json({ error: 'skill_name is required' });
+	}
+	const skillName = skill_name.trim();
+
+	const client = await pool.connect();
+	try {
+		// Candidate must actually have this skill
+		const skillCheck = await client.query(
+			`SELECT 1 FROM candidate_skills WHERE user_id = $1 AND skill_name = $2 LIMIT 1`,
+			[candidateId, skillName],
+		);
+		if (skillCheck.rows.length === 0) {
+			return res.status(400).json({ error: 'Candidate does not have this skill' });
+		}
+
+		// No double endorsements
+		const existing = await client.query(
+			`SELECT id FROM skill_endorsements WHERE candidate_id = $1 AND skill_name = $2 AND recruiter_id = $3`,
+			[candidateId, skillName, req.user.id],
+		);
+		if (existing.rows.length > 0) {
+			return res.status(400).json({ error: 'Already endorsed' });
+		}
+
+		await client.query(
+			`INSERT INTO skill_endorsements (candidate_id, skill_name, recruiter_id) VALUES ($1, $2, $3)`,
+			[candidateId, skillName, req.user.id],
+		);
+
+		// Invalidate cached previews for this candidate (same pattern as #522)
+		analyticsCache.invalidate(`/api/candidates/preview?candidateId=${candidateId}&`);
+
+		const countResult = await client.query(
+			`SELECT COUNT(*)::int AS count FROM skill_endorsements WHERE candidate_id = $1 AND skill_name = $2`,
+			[candidateId, skillName],
+		);
+
+		res.status(201).json({
+			success: true,
+			skill_name: skillName,
+			endorsement_count: countResult.rows[0].count,
+			endorsed_by_me: true,
+		});
+	} catch (err) {
+		console.error('[candidateSearch] Endorse error:', err);
+		res.status(500).json({ error: 'Failed to endorse skill' });
+	} finally {
+		client.release();
+	}
+});
+
+// ─── 8. DELETE /api/candidates/:id/skills/endorse — Remove endorsement ───
+// Issue #527: recruiter-only.
+
+router.delete('/:id/skills/endorse', authMiddleware, requireRecruiter, async (req, res) => {
+	const candidateId = parseInt(req.params.id, 10);
+	const { skill_name } = req.body || {};
+	if (Number.isNaN(candidateId)) {
+		return res.status(400).json({ error: 'Invalid candidate ID' });
+	}
+	if (!skill_name || typeof skill_name !== 'string' || !skill_name.trim()) {
+		return res.status(400).json({ error: 'skill_name is required' });
+	}
+	const skillName = skill_name.trim();
+
+	const client = await pool.connect();
+	try {
+		const result = await client.query(
+			`DELETE FROM skill_endorsements WHERE candidate_id = $1 AND skill_name = $2 AND recruiter_id = $3`,
+			[candidateId, skillName, req.user.id],
+		);
+		if (result.rowCount === 0) {
+			return res.status(404).json({ error: 'Endorsement not found' });
+		}
+
+		// Invalidate cached previews for this candidate (same pattern as #522)
+		analyticsCache.invalidate(`/api/candidates/preview?candidateId=${candidateId}&`);
+
+		const countResult = await client.query(
+			`SELECT COUNT(*)::int AS count FROM skill_endorsements WHERE candidate_id = $1 AND skill_name = $2`,
+			[candidateId, skillName],
+		);
+
+		res.json({
+			success: true,
+			skill_name: skillName,
+			endorsement_count: countResult.rows[0].count,
+			endorsed_by_me: false,
+		});
+	} catch (err) {
+		console.error('[candidateSearch] Unendorse error:', err);
+		res.status(500).json({ error: 'Failed to remove endorsement' });
+	} finally {
+		client.release();
+	}
+});
+
+// ─── 9. POST /api/candidates/:id/invite — Invite candidate ───────
 
 router.post('/:id/invite', authMiddleware, requireRecruiter, async (req, res) => {
 	const candidateId = parseInt(req.params.id, 10);

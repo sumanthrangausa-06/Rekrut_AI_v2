@@ -18,6 +18,7 @@ import {
 	X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -200,6 +201,7 @@ function FileCard({ msg }: { msg: ChatMessage }) {
 
 // ─── Main Component ───────────────────────────────────────
 export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
+	const [searchParams] = useSearchParams();
 	const [conversations, setConversations] = useState<Conversation[]>([]);
 	const [activeConv, setActiveConv] = useState<number | null>(null);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -232,7 +234,11 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 			const convs = data.conversations || data || [];
 			setConversations(convs);
 			if (convs.length > 0 && !activeConv) {
-				setActiveConv(convs[0].id);
+				// Deep link: ?conversation=<id> auto-selects that conversation
+				const paramId = parseInt(searchParams.get('conversation') || '', 10);
+				const match =
+					!Number.isNaN(paramId) && convs.some((c: Conversation) => c.id === paramId);
+				setActiveConv(match ? paramId : convs[0].id);
 			}
 		} catch (err) {
 			console.error('[chat] Failed to load conversations:', err);
@@ -240,7 +246,7 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 		} finally {
 			setLoading(false);
 		}
-	}, [mode, activeConv]);
+	}, [mode, activeConv, searchParams]);
 
 	const loadMessages = useCallback(async (convId: number) => {
 		try {

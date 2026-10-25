@@ -1,0 +1,131 @@
+{
+  "dormancy": {
+    "test": "T1 flag OFF full synthetic session",
+    "sfu": {
+      "candidate_audio_frames_offered": 120,
+      "candidate_video_frames_offered": 120,
+      "interviewer_audio_frames_offered": 60,
+      "non_vacuous": true
+    },
+    "set_subscribed_calls_total": 0,
+    "track_handlers_registered": [],
+    "audio_streams_constructed": 0,
+    "frames_delivered": 0,
+    "counters": {
+      "streamsOpened": 0,
+      "framesReceived": 0,
+      "bytesBuffered": 0,
+      "chunksPersisted": 0,
+      "chunksDropped": 0,
+      "registryRowsWritten": 0,
+      "asrInvocations": 0,
+      "measurementWrites": 0,
+      "outcomeRowsWritten": 0
+    },
+    "db_diff": {
+      "recording_objects": 0,
+      "observer_audio_chunks": 0,
+      "observer_speech_measurements": 0,
+      "observer_capture_outcomes": 0,
+      "registry_inserts": 0,
+      "candidate_data_keys_rows": 0,
+      "pending_storage_deletions": 0
+    },
+    "storage_diff": {
+      "objects": 0,
+      "put_calls": 0,
+      "get_calls": 0,
+      "delete_calls": 0
+    },
+    "workdir_files": 0,
+    "presence": {
+      "report_flush_calls": 1,
+      "room_disconnected": true
+    }
+  },
+  "malformedFlag": {
+    "test": "T2 flag value 'TRUE' (malformed)",
+    "set_subscribed_calls_total": 0,
+    "track_handlers_registered": []
+  },
+  "capture": {
+    "test": "T3 flag ON, test scope, synthetic session (120 Hz tone, 35 s)",
+    "subscriptions": {
+      "candidate_audio": [
+        true,
+        false
+      ],
+      "candidate_video": [],
+      "interviewer_audio": []
+    },
+    "audio_streams_constructed": 1,
+    "chunks_persisted": 2,
+    "chunks_confirmed_registry": 2,
+    "storage_objects": 2,
+    "outcome_stop_reason": "session_end",
+    "outcome_chunks_persisted": 2,
+    "measurements": {
+      "speaking_time_sec": 35,
+      "pitch_median_hz": 120.30075187969925,
+      "speech_rate_wpm_reason": "ASR_UNAVAILABLE",
+      "response_latency_reason": "NOT_VALIDATED",
+      "capture_gap_ratio": 0
+    },
+    "stored_chunk_decrypted": {
+      "bytes": 2880000,
+      "pitch_median_hz": 120.30075187969925,
+      "speaking_time_sec": 30
+    },
+    "asr_invocations": 1,
+    "dek_rows_for_candidate": 1
+  },
+  "flagOffKill": {
+    "test": "T5 flag OFF mid-capture",
+    "teardown_ms": 362,
+    "outcome_stop_reason": "flag_off",
+    "measurements_reason": "CAPTURE_INCOMPLETE",
+    "active_capture_after": null,
+    "unsubscribed_on_teardown": true
+  },
+  "withdrawal": {
+    "test": "T6 withdrawal mid-capture",
+    "outcome_stop_reason": "consent_withdrawn",
+    "measurements_written": false,
+    "sweeper": {
+      "sessions": 1,
+      "chunksQueued": 1,
+      "measurementsDeleted": 0,
+      "heldSkips": 0
+    },
+    "chunk_rows_after_sweep": 0,
+    "ledger_rows": 1,
+    "registry_deleted_at_set": true,
+    "dek_destroyed": false
+  },
+  "roleFlip": {
+    "test": "T13 role flip mid-capture",
+    "outcome_stop_reason": "role_flip"
+  },
+  "interviewerFirst": {
+    "test": "B-1 interviewer publishes first",
+    "interviewer_subscribed": false,
+    "candidate_subscribed_after": true
+  },
+  "originMismatch": {
+    "test": "T14 production-stamped job, staging worker",
+    "set_subscribed_calls_total": 0,
+    "gate_code": "CAPTURE_ENV_MISMATCH"
+  },
+  "concurrencyCap": {
+    "test": "Concurrency cap: second capturing-eligible session stays dormant",
+    "second_session_set_subscribed_calls": 0,
+    "second_session_outcome": "concurrency_cap",
+    "first_session_still_capturing": true
+  },
+  "restartConsistency": {
+    "test": "T10 restart consistency (module level — multi-process restart is Rung 2)",
+    "confirmed_registry_rows_before": 4,
+    "reconciler_intents_found": 0,
+    "confirmed_registry_rows_after": 4
+  }
+}

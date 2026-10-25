@@ -1,0 +1,577 @@
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+Running migration: add_omniscore_tables
+OmniScore tables created successfully
+Migration add_omniscore_tables completed
+Running migration: add_trustscore_tables
+TrustScore tables created successfully
+Migration add_trustscore_tables completed
+Running migration: 003_add_company_profile_fields
+✅ Added company profile fields (culture, values, benefits, locations)
+Migration 003_add_company_profile_fields completed
+Running migration: 003_add_role_column
+Migration 003_add_role_column completed
+Running migration: 004_candidate_profiles
+Candidate profiles tables created
+Migration 004_candidate_profiles completed
+Running migration: 005_backfill_application_company_id
+Backfilling company_id for job_applications...
+job_applications company_id backfill complete
+Migration 005_backfill_application_company_id completed
+Running migration: 005_oauth_refresh_tokens
+OAuth and refresh tokens tables created
+Migration 005_oauth_refresh_tokens completed
+Running migration: 006_dynamic_assessments
+Dynamic assessment tables created and seeded
+Migration 006_dynamic_assessments completed
+Running migration: add_practice_sessions
+Practice sessions table created successfully
+Migration add_practice_sessions completed
+Running migration: 008_matching_engine
+Matching engine tables created successfully
+Migration 008_matching_engine completed
+Running migration: 009_document_verification
+Document verification tables created successfully
+Migration 009_document_verification completed
+Running migration: 010_document_status_enum_update
+Document status enum updated: processed→verified, flagged→rejected
+Encryption columns added to verification_documents
+document_scan_logs table created
+Migration 010_document_status_enum_update completed
+Running migration: 010_video_analysis
+Created interview_analysis table
+Migration 010_video_analysis completed
+Running migration: 011_payroll_system
+✓ Payroll system tables created
+Migration 011_payroll_system completed
+Running migration: 012_payroll_fixes
+✓ Payroll fixes applied
+Migration 012_payroll_fixes completed
+Running migration: 013_compliance_system
+Compliance system tables created successfully
+Migration 013_compliance_system completed
+Running migration: 014_onboarding_system
+Onboarding system tables created successfully
+Migration 014_onboarding_system completed
+Running migration: 015_add_company_id_to_offers
+Added company_id to offers table and backfilled data
+Migration 015_add_company_id_to_offers completed
+Running migration: conversion_tracking
+Conversion tracking tables created successfully
+Migration conversion_tracking completed
+Running migration: 017_fix_missing_schema
+Fixed missing schema: avatar_url column and omniscore_results table
+Migration 017_fix_missing_schema completed
+Running migration: 018_extend_onboarding_documents
+Extended onboarding_documents table with signed_at, company_id, and content_summary columns
+Migration 018_extend_onboarding_documents completed
+Running migration: 019_candidate_onboarding_wizard
+Candidate onboarding wizard tables created successfully
+Migration 019_candidate_onboarding_wizard completed
+Running migration: 020_w4_filing_status
+Added w4_filing_status column to candidate_onboarding_data
+Migration 020_w4_filing_status completed
+Running migration: 021_payroll_company_bridge
+Payroll company bridge migration complete
+Migration 021_payroll_company_bridge completed
+Running migration: screening_questions
+Migration 022: Added screening_questions to jobs and screening_answers to job_applications
+Migration screening_questions completed
+Running migration: fix_interviews_updated_at
+Added updated_at column to interviews table
+Migration fix_interviews_updated_at completed
+Running migration: 024_offer_letter_generation
+Added offer letter generation columns to offers table
+Migration 024_offer_letter_generation completed
+Running migration: 025_real_onboarding_documents
+Added real onboarding document fields (I-9 attestation, full W-4, AI HTML)
+Migration 025_real_onboarding_documents completed
+Running migration: 026_i9_government_spec_fields
+Added I-9 government spec fields (other_last_names, email, preparer)
+Migration 026_i9_government_spec_fields completed
+Running migration: 027_multi_country_support
+Multi-country support migration complete — 8 countries seeded with document types
+Migration 027_multi_country_support completed
+Running migration: 028_video_practice
+Extended practice_sessions for video practice
+Migration 028_video_practice completed
+Running migration: 029_global_payroll_enhancements
+✓ Global payroll enhancements applied (US + India)
+Migration 029_global_payroll_enhancements completed
+Running migration: omniscore_v2_two_sided
+OmniScore v2 tables created successfully
+Migration omniscore_v2_two_sided completed
+Running migration: question_bank_and_mock_sessions
+Question bank and mock interview sessions tables created
+Migration question_bank_and_mock_sessions completed
+Running migration: mock_interview_cached_feedback
+Migration mock_interview_cached_feedback completed
+Running migration: tts_audio_cache
+Migration tts_audio_cache completed
+Running migration: 034_activity_log
+Migration 034_activity_log completed
+Running migration: 035_email_notifications
+Migration 035_email_notifications completed
+Running migration: 035_pg_sessions
+[migration] Created user_sessions table for persistent session storage
+Migration 035_pg_sessions completed
+Running migration: 036_smart_data_reuse
+[migration] 036_smart_data_reuse complete
+Migration 036_smart_data_reuse completed
+Running migration: 037_smart_profile_memory
+[migration] 037_smart_profile_memory complete
+Migration 037_smart_profile_memory completed
+Running migration: 038_ai_agents_pipeline_automation
+[Migration 038] Pipeline automation rules + AI agent tables created
+Migration 038_ai_agents_pipeline_automation completed
+Running migration: 039_ai_health_monitoring
+[migration-039] AI health monitoring tables created
+Migration 039_ai_health_monitoring completed
+Running migration: 040_communication_hub
+Created communication hub tables: communications, communication_templates, communication_sequences, sequence_enrollments
+Migration 040_communication_hub completed
+Running migration: mock_per_question_analysis
+Migration mock_per_question_analysis completed
+Running migration: 041_interview_scheduling_screening
+Migration 041: Interview scheduling, screening & evaluation tables created
+Migration 041_interview_scheduling_screening completed
+Running migration: 042_job_assessments
+[migration] Job assessment engine tables created
+Migration 042_job_assessments completed
+Running migration: 043_ai_health_persistence
+[migration-043] AI health persistence tables created
+Migration 043_ai_health_persistence completed
+Running migration: 044_ai_onboarding_plans
+AI onboarding plans + tasks + enhanced chat + doc intelligence tables created
+Migration 044_ai_onboarding_plans completed
+Running migration: 045_fix_company_id_fk_constraints.sql
+Migration 045_fix_company_id_fk_constraints.sql completed
+Running migration: password_reset_tokens
+Migration password_reset_tokens completed
+Running migration: 046_voice_notifications
+✅ Voice notification migration applied
+Migration 046_voice_notifications completed
+Running migration: p2_schema_hardening
+[migration] screening_sessions timestamptz conversion applied
+[migration] Converted 5 columns in activity_log
+[migration] Converted 1 columns in agent_data
+[migration] Converted 2 columns in ai_ab_tests
+[migration] Converted 2 columns in ai_agent_actions
+[migration] Converted 5 columns in ai_call_log
+[migration] Converted 1 columns in ai_prompt_versions
+[migration] Converted 5 columns in ai_prompts
+[migration] Converted 1 columns in ai_provider_stats
+[migration] Converted 4 columns in ai_provider_verification
+[migration] Converted 1 columns in assessment_conversations
+[migration] Converted 1 columns in assessment_events
+[migration] Converted 2 columns in assessment_questions
+[migration] Converted 1 columns in assessment_sessions
+[migration] Converted 3 columns in audit_logs
+[migration] Converted 1 columns in bias_reports
+[migration] Converted 1 columns in candidate_feedback
+[migration] Converted 29 columns in candidate_onboarding_data
+[migration] Converted 12 columns in candidate_profiles
+[migration] Converted 2 columns in candidate_skills
+[migration] Converted 2 columns in communication_sequences
+[migration] Converted 4 columns in communication_templates
+[migration] Converted 4 columns in communications
+[migration] Skipping missing column: companies.company_size
+[migration] Skipping missing column: companies.headquarters
+[migration] Skipping missing column: companies.industry
+[migration] Converted 3 columns in companies
+[migration] Converted 2 columns in company_policies
+[migration] Converted 1 columns in company_ratings
+[migration] Converted 2 columns in consent_records
+[migration] Converted 6 columns in country_configs
+[migration] Converted 3 columns in country_document_types
+[migration] Converted 2 columns in data_requests
+[migration] Converted 1 columns in data_retention_policies
+[migration] Converted 2 columns in document_access_logs
+[migration] Converted 2 columns in document_score_impacts
+[migration] Converted 3 columns in document_verifications
+[migration] Converted 3 columns in education
+[migration] Converted 4 columns in employee_benefits
+[migration] Converted 5 columns in employees
+[migration] Converted 2 columns in events
+[migration] Converted 2 columns in fairness_audits
+[migration] Converted 1 columns in interview_composite_scores
+[migration] Converted 1 columns in interview_evaluations
+[migration] Converted 2 columns in interview_questions
+[migration] Converted 1 columns in interview_reminders
+[migration] Converted 2 columns in interviews
+[migration] Converted 2 columns in job_applications
+[migration] Converted 1 columns in job_assessment_attempts
+[migration] Converted 2 columns in job_assessment_questions
+[migration] Converted 3 columns in job_assessments
+[migration] Converted 6 columns in jobs
+[migration] Converted 1 columns in match_results
+[migration] Converted 3 columns in mock_interview_sessions
+[migration] Converted 1 columns in mutual_matches
+[migration] Converted 2 columns in oauth_connections
+[migration] Converted 1 columns in offer_templates
+[migration] Converted 7 columns in offers
+[migration] Converted 1 columns in omni_scores
+[migration] Converted 2 columns in onboarding_checklists
+[migration] Converted 3 columns in onboarding_documents
+[migration] Converted 3 columns in onboarding_plans
+[migration] Converted 6 columns in onboarding_tasks
+[migration] Converted 3 columns in parsed_resumes
+[migration] Converted 2 columns in pay_periods
+[migration] Converted 1 columns in paychecks
+[migration] Converted 6 columns in payroll_configs
+[migration] Converted 1 columns in payroll_runs
+[migration] Converted 2 columns in pipeline_automation_rules
+[migration] Converted 5 columns in portfolio_projects
+[migration] Converted 2 columns in post_hire_feedback
+[migration] Converted 3 columns in practice_sessions
+[migration] Converted 5 columns in question_bank
+[migration] Converted 1 columns in recruiter_feedback
+[migration] Converted 2 columns in refresh_tokens
+[migration] Converted 1 columns in role_scores
+[migration] Converted 3 columns in scheduled_interviews
+[migration] Converted 1 columns in scheduling_preferences
+[migration] Converted 2 columns in score_appeals
+[migration] Converted 2 columns in score_components
+[migration] Converted 2 columns in score_history
+[migration] Converted 2 columns in screening_sessions
+[migration] Converted 2 columns in screening_templates
+[migration] Converted 1 columns in sequence_enrollments
+[migration] Converted 2 columns in skill_assessments
+[migration] Converted 2 columns in tax_documents
+[migration] Converted 2 columns in trust_score_components
+[migration] Converted 2 columns in trust_score_history
+[migration] Converted 1 columns in trust_scores
+[migration] Converted 3 columns in tts_cache
+[migration] Converted 3 columns in user_memory
+[migration] Skipping missing column: users.subscription_plan
+[migration] Skipping missing column: users.subscription_status
+[migration] Converted 9 columns in users
+[migration] Converted 5 columns in verification_documents
+[migration] Converted 4 columns in verified_credentials
+[migration] Converted 3 columns in work_experience
+[migration] Added constraint chk_users_role
+[migration] Added constraint chk_jobs_status
+[migration] Added constraint chk_jobs_job_type
+[migration] Added constraint chk_job_applications_status
+[migration] Added constraint chk_job_applications_screening_status
+[migration] Added constraint chk_interviews_status
+[migration] Added constraint chk_interviews_type
+[migration] Added constraint chk_screening_sessions_status
+[migration] Added constraint chk_screening_sessions_score
+[migration] Added constraint chk_offers_status
+[migration] Added constraint chk_offers_employment_type
+[migration] Added constraint chk_employees_status
+[migration] Added constraint chk_employees_employment_type
+[migration] Added constraint chk_employee_benefits_status
+[migration] Added constraint chk_payroll_runs_status
+[migration] Added constraint chk_paychecks_status
+[migration] Added constraint chk_pay_periods_status
+[migration] Added constraint chk_tax_documents_status
+[migration] Added constraint chk_communications_status
+[migration] Added constraint chk_communications_type
+[migration] Added constraint chk_communication_templates_type
+[migration] Added constraint chk_communication_sequences_status
+[migration] Added constraint chk_sequence_enrollments_status
+[migration] Added constraint chk_candidate_profiles_availability
+[migration] Added constraint chk_candidate_profiles_remote_preference
+[migration] Added constraint chk_candidate_profiles_work_authorization
+[migration] Added constraint chk_onboarding_plans_status
+[migration] Added constraint chk_onboarding_checklists_status
+[migration] Added constraint chk_onboarding_tasks_status
+[migration] Added constraint chk_onboarding_documents_status
+[migration] Added constraint chk_job_assessments_status
+[migration] Added constraint chk_job_assessments_difficulty
+[migration] Added constraint chk_job_assessment_attempts_status
+[migration] Added constraint chk_assessment_sessions_status
+[migration] Added constraint chk_mock_interview_sessions_status
+[migration] Added constraint chk_verification_documents_status
+[migration] Added constraint chk_fairness_audits_status
+[migration] Added constraint chk_data_requests_status
+[migration] Added constraint chk_score_appeals_status
+[migration] Added constraint chk_post_hire_feedback_status
+[migration] Added constraint chk_parsed_resumes_status
+[migration] Added constraint chk_scheduled_interviews_status
+[migration] P2 schema hardening applied: 5 timestamptz (if table exists), 274 varchar→TEXT (available columns), 37 CHECK constraints (if tables exist)
+Migration p2_schema_hardening completed
+Running migration: company_domain_enforcement
+Company domain enforcement migration completed
+Migration company_domain_enforcement completed
+Running migration: 051_screening_tables
+[migration] Creating screening tables...
+[migration] Screening tables created
+Migration 051_screening_tables completed
+Running migration: 060_add_user_settings
+[migration 060] user_settings table created
+Migration 060_add_user_settings completed
+Running migration: 061_add_notification_system
+[migration 061] Notification tables created + templates seeded
+Migration 061_add_notification_system completed
+Running migration: 062_calendar_integration
+Migration 062: Calendar integration tables created
+Migration 062_calendar_integration completed
+Running migration: 063_add_missing_email_templates
+[migration] Template 'hired' created/updated
+[migration] Template 'rejection' created/updated
+[migration] Template 'interview_reminder' created/updated
+[migration] Missing email templates added successfully
+Migration 063_add_missing_email_templates completed
+Running migration: 064_add_job_like_dislike
+Job like/dislike tables created
+Migration 064_add_job_like_dislike completed
+Running migration: usage_limits
+[migration] usage_limits table created
+Migration usage_limits completed
+Running migration: 066_e_signature_engine
+[migration] E-Signature Engine tables created
+Migration 066_e_signature_engine completed
+Running migration: 067_encrypted_oauth_tokens
+Migration 067: Encrypted OAuth token storage schema updated
+Migration 067_encrypted_oauth_tokens completed
+Running migration: 068_identity_verification
+[migration-068] Identity verification tables created
+Migration 068_identity_verification completed
+Running migration: 068_job_search_filter_columns
+Migration 068: Job search filter columns added
+Migration 068_job_search_filter_columns completed
+Running migration: 069_in_app_notifications
+[migration 069] In-app notifications table created
+Migration 069_in_app_notifications completed
+Running migration: 070_analytics_indexes
+[070_analytics_indexes] skipped (relation "pipeline_stages" does not exist): CREATE INDEX IF NOT EXISTS idx_pipeline_stages_job_id ON pipeline_stages(job_id)
+[070_analytics_indexes] skipped (relation "pipeline_stages" does not exist): CREATE INDEX IF NOT EXISTS idx_pipeline_stages_order_num ON pipeline_stages(job_id, order_num)
+[070_analytics_indexes] skipped (relation "company_engagement_metrics" does not exist): CREATE INDEX IF NOT EXISTS idx_company_engagement_date ON company_engagement_metrics(date DESC)
+[070_analytics_indexes] skipped (relation "company_engagement_metrics" does not exist): CREATE INDEX IF NOT EXISTS idx_company_engagement_company_date ON company_engagement_metrics(company_id, date DESC)
+[070_analytics_indexes] skipped (column "user_id" does not exist): CREATE INDEX IF NOT EXISTS idx_trust_scores_user_id ON trust_scores(user_id)
+Migration 070_analytics_indexes completed
+Running migration: 070_audit_logs
+[migration 070] audit_logs columns added
+Migration 070_audit_logs completed
+Running migration: 070_refer_and_earn
+[migration 070] Refer & Earn tables created
+Migration 070_refer_and_earn completed
+Running migration: 071_audit_logs_fix
+[migration 071] audit_logs columns verified
+Migration 071_audit_logs_fix completed
+Running migration: 072_add_conversations_messages_saved_searches
+Migration 072 completed: conversations, messages, saved_searches tables created
+Migration 072_add_conversations_messages_saved_searches completed
+Running migration: screening_questionnaire
+[migration] Creating screening questionnaire tables...
+[migration] Screening questionnaire tables created
+Migration screening_questionnaire completed
+Running migration: aptitude_test_engine
+[migration] Creating aptitude test engine tables...
+[migration] Aptitude test engine tables created and 30 questions seeded
+Migration aptitude_test_engine completed
+Running migration: ai_screener_results
+[migration 076] Creating AI screener results schema...
+[migration 076] AI screener results schema created
+Migration ai_screener_results completed
+Running migration: omniscore_v2_eight_factor
+OmniScore v2 (8-factor) migration completed successfully
+Migration omniscore_v2_eight_factor completed
+Running migration: 078_chat_schema_enhancements
+Migration 078 completed: chat schema enhancements
+Migration 078_chat_schema_enhancements completed
+Running migration: 117_code_sandbox
+[migration] Code sandbox tables created (Issue #117)
+Migration 117_code_sandbox completed
+Running migration: 119_coding_templates
+[migration] Coding templates and auto-grading system created (Issue #119)
+Migration 119_coding_templates completed
+Running migration: 120_proctoring_system.sql
+Migration 120_proctoring_system.sql completed
+Running migration: 125_interview_panels
+[migration] Interview panel tables created (Issue #125)
+Migration 125_interview_panels completed
+Running migration: 126_interview_events_proposed_slots
+[migration] Interview events & proposed slots tables created (Issue #127)
+Migration 126_interview_events_proposed_slots completed
+Running migration: 127_livekit_interview_rooms
+[migration] LiveKit interview_rooms table created (Issue #124)
+Migration 127_livekit_interview_rooms completed
+Running migration: 128_collaboration.sql
+Migration 128_collaboration.sql completed
+Running migration: interview_recordings
+Migration interview_recordings completed
+Running migration: 128_rbac_foundation
+[migration:128] RBAC foundation tables, indexes, and seed data created
+Migration 128_rbac_foundation completed
+Running migration: 129_compliance_audit_trail
+[migration 129] compliance_audit_trail table created with hash chain
+Migration 129_compliance_audit_trail completed
+Running migration: 129_interview_sessions_unified
+Migration 129: interview_sessions unified table created and backfilled
+Migration 129_interview_sessions_unified completed
+Running migration: 130_recordings_session_nullable
+Migration 130_recordings_session_nullable completed
+Running migration: career_coach_schema
+[migration] career_coach_schema tables created
+Migration career_coach_schema completed
+Running migration: trustscore_v2
+TrustScore v2 migration applied successfully
+Migration trustscore_v2 completed
+Running migration: 133_eu_ai_act_compliance
+EU AI Act compliance tables created (migration 133)
+Migration 133_eu_ai_act_compliance completed
+Running migration: 134_document_fraud_detection.sql
+Migration 134_document_fraud_detection.sql completed
+Running migration: 135_aadhaar_verification.sql
+Migration 135_aadhaar_verification.sql completed
+Running migration: 135_background_check
+[migration-135] Background check tables created
+Migration 135_background_check completed
+Running migration: profile_enhancement_tools
+[migration] profile_enhancement_tools tables created
+Migration profile_enhancement_tools completed
+Running migration: 137_outreach_attempts
+Migration 137_outreach_attempts completed
+Running migration: interview_flows
+Migration interview_flows completed
+Running migration: interview_rooms_session_link
+Migration interview_rooms_session_link completed
+Running migration: p1_interview_flow_schema
+Migration p1_interview_flow_schema completed
+Running migration: add-email-templates
+[migration] Inserted 15 email templates
+Migration add-email-templates completed
+Running migration: 2024-06-14-add-email-queue
+Email queue table created
+Migration 2024-06-14-add-email-queue completed
+Running migration: 2026-08-11-add-user-suspended-at.sql
+Migration 2026-08-11-add-user-suspended-at.sql completed
+Running migration: 2026-08-16_recruiter_introductions.sql
+Migration 2026-08-16_recruiter_introductions.sql completed
+Running migration: 219_add_auto_apply_flag.sql
+Migration 219_add_auto_apply_flag.sql completed
+Running migration: 220_cv_analyses.sql
+Migration 220_cv_analyses.sql completed
+Running migration: 221_cv_reviews.sql
+Migration 221_cv_reviews.sql completed
+Running migration: 222_bulk_import.sql
+Migration 222_bulk_import.sql completed
+Running migration: 223_api_keys.sql
+Migration 223_api_keys.sql completed
+Running migration: 224_department_hierarchy
+[migration:224] Department hierarchy tables and indexes created
+Migration 224_department_hierarchy completed
+Running migration: 225_career_diagnosis
+[migration:225] career_diagnoses table and indexes created
+Migration 225_career_diagnosis completed
+Running migration: 226_working_style_profile
+Migration 226_working_style_profile completed
+Running migration: 227_linkedin_profile_import
+Migration 227: LinkedIn profile import columns added
+Migration 227_linkedin_profile_import completed
+Running migration: 228_auto_apply_schema.sql
+Migration 228_auto_apply_schema.sql completed
+Running migration: 228_qa_schema_hotfixes
+[migration:228] QA schema hotfixes applied
+Migration 228_qa_schema_hotfixes completed
+Running migration: 229_career_diagnoses_updated_at
+[migration:229] career_diagnoses.updated_at added
+Migration 229_career_diagnoses_updated_at completed
+Running migration: 230_oauth_exchange_codes
+[migration:230] oauth_exchange_codes created
+Migration 230_oauth_exchange_codes completed
+Running migration: 231_add_users_deleted_at
+[migration:231] users.deleted_at added
+Migration 231_add_users_deleted_at completed
+Running migration: 232_assessment_attempt_due_date
+Migration 232_assessment_attempt_due_date completed
+Running migration: 233_assessment_score_roundtrip
+Migration 233_assessment_score_roundtrip completed
+Running migration: 234_assessment_referrals
+[migration:234] assessment_referrals created
+Migration 234_assessment_referrals completed
+Running migration: 235_interview_invite_expiry
+[migration:235] interview_sessions.invite_expires_at added
+Migration 235_interview_invite_expiry completed
+Running migration: 236_unified_interviews_view
+[migration:236] unified_interviews view created
+Migration 236_unified_interviews_view completed
+Running migration: 237_unified_interviews_view_slot_ids
+[migration:237] unified_interviews view recreated with slot ids
+Migration 237_unified_interviews_view_slot_ids completed
+Running migration: 238_v_candidate_full_profile
+Migration 238_v_candidate_full_profile completed
+Running migration: 239_drop_dead_materialized_views
+Migration 239_drop_dead_materialized_views completed
+Running migration: 240_extend_candidate_full_profile_view
+Migration 240_extend_candidate_full_profile_view completed
+Running migration: 240_v_unified_assessments
+Migration 240_v_unified_assessments completed
+Running migration: 241_skill_endorsements
+Migration 241_skill_endorsements completed
+Running migration: 242_job_alerts
+Migration 242_job_alerts completed
+Running migration: 243_biometric_audit_log
+Migration 243_biometric_audit_log completed
+Running migration: 244_consent_tables
+Migration 244_consent_tables completed
+Running migration: 245_consent_hardening
+Migration 245_consent_hardening completed
+Running migration: 246_biometric_segregation
+Migration 246_biometric_segregation completed
+Running migration: 247_interview_sessions_indexes
+Migration 247_interview_sessions_indexes completed
+Running migration: 248_session_lifecycle
+Migration 248_session_lifecycle completed
+Running migration: 249_human_interview_requests
+Migration 249_human_interview_requests completed
+Running migration: 250_qp_biometric_consent_text
+Migration 250_qp_biometric_consent_text completed
+Running migration: 251_audit_log_company_id
+Migration 251_audit_log_company_id completed
+Running migration: 252_pending_storage_deletions_ledger
+Migration 252: pending_storage_deletions + audit metadata done
+Migration 252_pending_storage_deletions_ledger completed
+Running migration: 253_recording_objects_registry
+Migration 253_recording_objects_registry completed
+Running migration: 254_compliance_audit_retention_purge
+Migration 254_compliance_audit_retention_purge completed
+Running migration: 255_observer_jobs
+Migration 255_observer_jobs completed
+Running migration: 256_ai_observer_reports
+Migration 256_ai_observer_reports completed
+Running migration: 257_observer_capture
+Migration 257: Gate A dormant-capture substrate done
+Migration 257_observer_capture completed
+Running migration: 258_legal_holds
+Migration 258: legal_holds table done
+Migration 258_legal_holds completed
+Running migration: 259_offers_salary_nullable
+Migration 259: offers.salary is now nullable
+Migration 259_offers_salary_nullable completed
+Running migration: 260_threat_intel_checks
+Migration 260: threat_intel_checks created (dark chassis, #807)
+Migration 260_threat_intel_checks completed
+Running migration: 261_application_ip_captures
+Migration 261: application_ip_captures created + application_ip consent text seeded (#815)
+Migration 261_application_ip_captures completed
+Running migration: 262_schema_drift_class_fix
+Migration 262: schema-drift class fix applied (#1184)
+Migration 262_schema_drift_class_fix completed
+Running migration: p2_schema_hardening.sql
+Migration error: error: cannot alter type of a column used by a view or rule
+    at /home/hatch/workspace/rekrut-quinn-batch-after/repo/node_modules/pg/lib/client.js:588:17
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async migrate (/home/hatch/workspace/rekrut-quinn-batch-after/repo/migrate.js:326:13) {
+  length: 347,
+  severity: 'ERROR',
+  code: '0A000',
+  detail: 'rule _RETURN on view v_candidate_full_profile depends on column "availability"',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: 'SQL statement "ALTER TABLE candidate_profiles ALTER COLUMN availability TYPE text"\n' +
+    'PL/pgSQL function inline_code_block line 7 at SQL statement',
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'tablecmds.c',
+  line: '12989',
+  routine: 'ATExecAlterColumnType'
+}

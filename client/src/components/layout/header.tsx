@@ -14,17 +14,20 @@ import {
 	Search,
 	Settings,
 	Sparkles,
+	User,
 	Users,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { NotificationCenter } from '@/components/domain/notification-center';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { NotificationCenter } from '@/components/domain/notification-center';
+import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/contexts/auth-context';
+import { buildHeaderApplyParams } from '@/lib/job-board-url';
 
 interface HeaderProps {
 	onMenuToggle: () => void;
@@ -87,18 +90,96 @@ function useDropdown() {
 	return { open, setOpen, ref };
 }
 
+// #1600: the header Filters sheet drives the Job Board's ONE filter model.
+// It writes the board's own query-param names (search, location, type,
+// remote_type, experience_level, salary_min, salary_max) to /candidate/jobs;
+// jobs.tsx syncs its FilterState from those params, so the header door and
+// the in-page JobFilterBar controls always set the same filters.
+interface JobFilterDraft {
+	search: string;
+	location: string;
+	type: string;
+	remote_type: string;
+	experience_level: string;
+	salary_min: string;
+	salary_max: string;
+}
+
+const EMPTY_FILTER_DRAFT: JobFilterDraft = {
+	search: '',
+	location: '',
+	type: '',
+	remote_type: '',
+	experience_level: '',
+	salary_min: '',
+	salary_max: '',
+};
+
+function draftFromSearch(search: string): JobFilterDraft {
+	const params = new URLSearchParams(search);
+	// Only the header's own marked filter URLs prefill the draft — a bare
+	// `type`/`location` param from any other link is not filter intent (#1600 B1).
+	if (params.get('filters') !== 'hdr1') return EMPTY_FILTER_DRAFT;
+	return {
+		search: params.get('search') ?? '',
+		location: params.get('location') ?? '',
+		type: params.get('type') ?? '',
+		remote_type: params.get('remote_type') ?? '',
+		experience_level: params.get('experience_level') ?? '',
+		salary_min: params.get('salary_min') ?? '',
+		salary_max: params.get('salary_max') ?? '',
+	};
+}
+
 export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 	const { user, logout, isRecruiter } = useAuth();
 	const navigate = useNavigate();
+	const location = useLocation();
 
 	const userDropdown = useDropdown();
 	const sortDropdown = useDropdown();
 	const [sortValue, setSortValue] = useState('relevance');
 	const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+	const [filterDraft, setFilterDraft] = useState<JobFilterDraft>(EMPTY_FILTER_DRAFT);
+
+	const jobsPathForFilters = '/candidate/jobs';
+	const onJobBoard = location.pathname === jobsPathForFilters;
+	// No active-count badge in the header: after the board consumes a filter
+	// signal it strips the marker from the URL, so a URL-derived count here
+	// could lie. The board's own JobFilterBar shows the authoritative
+	// active-filter count from the shared state (delta review D-B1).
+
+	// Opening the sheet starts from the filters currently applied on the board.
+	useEffect(() => {
+		if (filterSheetOpen) setFilterDraft(draftFromSearch(location.search));
+	}, [filterSheetOpen, location.search]);
+
+	const applyFilters = () => {
+		// #1634: params are built by the shared pure builder — it preserves
+		// the open-job param (`job`) but NOT `skill`: a preserved stale
+		// `?skill=` was re-applied by jobs.tsx's skill effect after the
+		// header keyword was adopted, silently clobbering that keyword.
+		const params = buildHeaderApplyParams(
+			filterDraft,
+			onJobBoard ? new URLSearchParams(location.search) : null,
+		);
+		const qs = params.toString();
+		// Applying an empty draft is an explicit clear, not a bare navigation.
+		navigate(qs ? `${jobsPathForFilters}?${qs}` : `${jobsPathForFilters}?filters=clear`);
+		setFilterSheetOpen(false);
+	};
+
+	const clearFilters = () => {
+		setFilterDraft(EMPTY_FILTER_DRAFT);
+		// Explicit clear signal — the board resets its URL-driven fields for
+		// `filters=clear` only; a bare navigation must never read as a clear.
+		if (onJobBoard) navigate(`${jobsPathForFilters}?filters=clear`);
+	};
 
 	const isPremium = user?.subscriptionTier === 'pro';
 	const navLinks = isRecruiter ? recruiterLinks : candidateLinks;
 	const settingsPath = isRecruiter ? '/recruiter/settings' : '/candidate/settings';
+	const profilePath = isRecruiter ? '/recruiter/company' : '/candidate/profile';
 	const jobsPath = isRecruiter ? '/recruiter/jobs' : '/candidate/jobs';
 
 	const handleSort = (value: string) => {
@@ -186,15 +267,19 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 					)}
 				</div>
 
-				{/* Filters button — hidden on mobile */}
-				<button
-					type="button"
-					onClick={() => setFilterSheetOpen(true)}
-					className="hidden h-9 items-center gap-2 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:inline-flex"
-				>
-					<Filter className="h-4 w-4 text-muted-foreground" />
-					<span className="text-muted-foreground">Filters</span>
-				</button>
+				{/* Filters button — candidates only (the Job Board is a candidate
+				    surface); visible at every width so the mobile journey works. */}
+				{!isRecruiter && (
+					<button
+						type="button"
+						onClick={() => setFilterSheetOpen(true)}
+						className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						aria-label="Filters"
+					>
+						<Filter className="h-4 w-4 text-muted-foreground" />
+						<span className="text-muted-foreground">Filters</span>
+					</button>
+				)}
 
 				<ThemeToggle />
 
@@ -228,8 +313,14 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 							aria-label="User menu"
 							className="absolute right-0 mt-2 w-64 rounded-lg border bg-card shadow-lg"
 						>
-							{/* User info */}
-							<div className="border-b px-4 py-3">
+							{/* User info — click to open My Profile */}
+							<button
+								type="button"
+								role="menuitem"
+								onClick={() => handleNav(profilePath)}
+								className="block w-full border-b px-4 py-3 text-left transition-colors hover:bg-muted"
+								aria-label="Go to my profile"
+							>
 								<div className="flex items-center gap-3">
 									<Avatar
 										src={user?.avatar_url}
@@ -247,7 +338,7 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 										{isRecruiter ? 'Recruiter' : 'Candidate'}
 									</Badge>
 								</div>
-							</div>
+							</button>
 
 							{/* Role-based navigation */}
 							<div className="p-1">
@@ -284,6 +375,15 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 
 							{/* General links */}
 							<div className="p-1">
+								<button
+									type="button"
+									role="menuitem"
+									onClick={() => handleNav(profilePath)}
+									className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted"
+								>
+									<User className="h-4 w-4 text-muted-foreground" />
+									My Profile
+								</button>
 								<button
 									type="button"
 									role="menuitem"
@@ -335,14 +435,142 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 				</div>
 			</div>
 
-			{/* Filter sheet */}
+			{/* Filter sheet — the Job Board's real filters (#1600). Apply writes
+			    the board's query params; the board syncs its state from them. */}
 			<Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
 				<SheetHeader>
 					<SheetTitle>Filters</SheetTitle>
 					<SheetClose />
 				</SheetHeader>
 				<SheetContent>
-					<p className="text-sm text-muted-foreground">Filter options will be wired here.</p>
+					<div className="space-y-5 px-1 pb-4">
+						<div>
+							<label htmlFor="header-filter-search" className="mb-2 block text-sm font-semibold">
+								Keyword
+							</label>
+							<Input
+								id="header-filter-search"
+								placeholder="Job title or keyword..."
+								value={filterDraft.search}
+								onChange={(e) => setFilterDraft((d) => ({ ...d, search: e.target.value }))}
+								className="h-11 text-base sm:text-sm"
+							/>
+						</div>
+						<div>
+							<label htmlFor="header-filter-location" className="mb-2 block text-sm font-semibold">
+								Location
+							</label>
+							<Input
+								id="header-filter-location"
+								placeholder="City, state, or country..."
+								value={filterDraft.location}
+								onChange={(e) => setFilterDraft((d) => ({ ...d, location: e.target.value }))}
+								className="h-11 text-base sm:text-sm"
+							/>
+						</div>
+						<div>
+							<label htmlFor="header-filter-type" className="mb-2 block text-sm font-semibold">
+								Job Type
+							</label>
+							<select
+								id="header-filter-type"
+								value={filterDraft.type}
+								onChange={(e) => setFilterDraft((d) => ({ ...d, type: e.target.value }))}
+								className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-base sm:text-sm"
+							>
+								<option value="">All Types</option>
+								<option value="full-time">Full-time</option>
+								<option value="part-time">Part-time</option>
+								<option value="internship">Internship</option>
+								<option value="contract">Contract</option>
+							</select>
+						</div>
+						<div>
+							<label htmlFor="header-filter-remote" className="mb-2 block text-sm font-semibold">
+								Work Mode
+							</label>
+							<select
+								id="header-filter-remote"
+								value={filterDraft.remote_type}
+								onChange={(e) => setFilterDraft((d) => ({ ...d, remote_type: e.target.value }))}
+								className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-base sm:text-sm"
+							>
+								<option value="">Any</option>
+								<option value="remote">Remote</option>
+								<option value="hybrid">Hybrid</option>
+								<option value="onsite">On-site</option>
+							</select>
+						</div>
+						<div>
+							<label
+								htmlFor="header-filter-experience"
+								className="mb-2 block text-sm font-semibold"
+							>
+								Experience Level
+							</label>
+							<select
+								id="header-filter-experience"
+								value={filterDraft.experience_level}
+								onChange={(e) =>
+									setFilterDraft((d) => ({ ...d, experience_level: e.target.value }))
+								}
+								className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-base sm:text-sm"
+							>
+								<option value="">All Levels</option>
+								<option value="entry">Entry Level</option>
+								<option value="mid">Mid Level</option>
+								<option value="senior">Senior</option>
+								<option value="lead">Lead / Staff</option>
+								<option value="executive">Executive</option>
+							</select>
+						</div>
+						<div>
+							<span className="mb-2 block text-sm font-semibold">Salary Range</span>
+							<div className="flex items-center gap-2">
+								<label htmlFor="header-filter-salary-min" className="sr-only">
+									Minimum salary
+								</label>
+								<Input
+									id="header-filter-salary-min"
+									placeholder="Min"
+									type="number"
+									min={0}
+									value={filterDraft.salary_min}
+									onChange={(e) => setFilterDraft((d) => ({ ...d, salary_min: e.target.value }))}
+									className="h-11 text-base sm:text-sm"
+								/>
+								<span className="text-sm text-muted-foreground">to</span>
+								<label htmlFor="header-filter-salary-max" className="sr-only">
+									Maximum salary
+								</label>
+								<Input
+									id="header-filter-salary-max"
+									placeholder="Max"
+									type="number"
+									min={0}
+									value={filterDraft.salary_max}
+									onChange={(e) => setFilterDraft((d) => ({ ...d, salary_max: e.target.value }))}
+									className="h-11 text-base sm:text-sm"
+								/>
+							</div>
+						</div>
+						<div className="flex gap-2 pt-2">
+							<button
+								type="button"
+								onClick={applyFilters}
+								className="inline-flex h-11 flex-1 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							>
+								Apply Filters
+							</button>
+							<button
+								type="button"
+								onClick={clearFilters}
+								className="inline-flex h-11 items-center justify-center rounded-md border border-input bg-transparent px-4 text-sm font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							>
+								Clear Filters
+							</button>
+						</div>
+					</div>
 				</SheetContent>
 			</Sheet>
 		</header>

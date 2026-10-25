@@ -1,0 +1,341 @@
+{
+  "seed": {
+    "rows": [
+      {
+        "slug": "quinn1237-a",
+        "name": "Quinn Alpha Corp",
+        "total_score": 900,
+        "score_tier": "excellent",
+        "data_sufficiency_score": 80
+      },
+      {
+        "slug": "quinn1237-b",
+        "name": "Quinn Beta Corp",
+        "total_score": 750,
+        "score_tier": "trusted",
+        "data_sufficiency_score": 90
+      },
+      {
+        "slug": "quinn1237-c",
+        "name": "Quinn Gamma Corp",
+        "total_score": 600,
+        "score_tier": "good",
+        "data_sufficiency_score": 60
+      },
+      {
+        "slug": "quinn1237-low",
+        "name": "Quinn LowSuff Corp",
+        "total_score": 900,
+        "score_tier": "excellent",
+        "data_sufficiency_score": 10
+      }
+    ]
+  },
+  "sqlCounts": {
+    "all": 3,
+    "tier_trusted": 1,
+    "tier_excellent": 1,
+    "min_score_800": 1
+  },
+  "api": {
+    "noParams": {
+      "status": 200,
+      "data": {
+        "success": true,
+        "companies": [
+          {
+            "company_id": 1,
+            "company_name": "Quinn Alpha Corp",
+            "slug": "quinn1237-a",
+            "logo_url": null,
+            "industry": "Technology",
+            "is_verified": true,
+            "total_score": 900,
+            "score_tier": "excellent",
+            "verification_score": 0,
+            "job_authenticity_score": 0,
+            "hiring_ratio_score": 0,
+            "feedback_score": 0,
+            "behavior_score": 0,
+            "employee_satisfaction_score": 0,
+            "interview_experience_score": 0,
+            "offer_acceptance_rate_score": 0,
+            "time_to_hire_score": 0,
+            "response_rate_score": 0,
+            "salary_competitiveness_score": 0,
+            "career_growth_score": 0,
+            "data_sufficiency_score": 80,
+            "ai_summary": null,
+            "last_updated": "2026-10-16T19:30:22.680Z",
+            "active_jobs": "0",
+            "badges": [
+              {
+                "type": "verified",
+                "label": "Verified"
+              },
+              {
+                "type": "trusted",
+                "label": "Highly Trusted"
+              }
+            ],
+            "insufficient_data": false
+          },
+          {
+            "company_id": 2,
+            "company_name": "Quinn Beta Corp",
+            "slug": "quinn1237-b",
+            "logo_url": null,
+            "industry": "Technology",
+            "is_verified": true,
+            "total_score": 750,
+            "score_tier": "trusted",
+            "verification_score": 0,
+            "job_authenticity_score": 0,
+            "hiring_ratio_score": 0,
+            "feedback_score": 0,
+            "behavior_score": 0,
+            "employee_satisfaction_score": 0,
+            "interview_experience_score": 0,
+            "offer_acceptance_rate_score": 0,
+            "time_to_hire_score": 0,
+            "response_rate_score": 0,
+            "salary_competitiveness_score": 0,
+            "career_growth_score": 0,
+            "data_sufficiency_score": 90,
+            "ai_summary": null,
+            "last_updated": "2026-10-16T19:30:22.683Z",
+            "active_jobs": "0",
+            "badges": [
+              {
+                "type": "verified",
+                "label": "Verified"
+              }
+            ],
+            "insufficient_data": false
+          },
+          {
+            "company_id": 3,
+            "company_name": "Quinn Gamma Corp",
+            "slug": "quinn1237-c",
+            "logo_url": null,
+            "industry": "Technology",
+            "is_verified": true,
+            "total_score": 600,
+            "score_tier": "good",
+            "verification_score": 0,
+            "job_authenticity_score": 0,
+            "hiring_ratio_score": 0,
+            "feedback_score": 0,
+            "behavior_score": 0,
+            "employee_satisfaction_score": 0,
+            "interview_experience_score": 0,
+            "offer_acceptance_rate_score": 0,
+            "time_to_hire_score": 0,
+            "response_rate_score": 0,
+            "salary_competitiveness_score": 0,
+            "career_growth_score": 0,
+            "data_sufficiency_score": 60,
+            "ai_summary": null,
+            "last_updated": "2026-10-16T19:30:22.685Z",
+            "active_jobs": "0",
+            "badges": [
+              {
+                "type": "verified",
+                "label": "Verified"
+              }
+            ],
+            "insufficient_data": false
+          }
+        ],
+        "pagination": {
+          "total": 3,
+          "limit": 50,
+          "offset": 0,
+          "has_more": false
+        }
+      }
+    },
+    "tierTrusted": {
+      "status": 200,
+      "data": {
+        "success": true,
+        "companies": [
+          {
+            "company_id": 2,
+            "company_name": "Quinn Beta Corp",
+            "slug": "quinn1237-b",
+            "logo_url": null,
+            "industry": "Technology",
+            "is_verified": true,
+            "total_score": 750,
+            "score_tier": "trusted",
+            "verification_score": 0,
+            "job_authenticity_score": 0,
+            "hiring_ratio_score": 0,
+            "feedback_score": 0,
+            "behavior_score": 0,
+            "employee_satisfaction_score": 0,
+            "interview_experience_score": 0,
+            "offer_acceptance_rate_score": 0,
+            "time_to_hire_score": 0,
+            "response_rate_score": 0,
+            "salary_competitiveness_score": 0,
+            "career_growth_score": 0,
+            "data_sufficiency_score": 90,
+            "ai_summary": null,
+            "last_updated": "2026-10-16T19:30:22.683Z",
+            "active_jobs": "0",
+            "badges": [
+              {
+                "type": "verified",
+                "label": "Verified"
+              }
+            ],
+            "insufficient_data": false
+          }
+        ],
+        "pagination": {
+          "total": 1,
+          "limit": 50,
+          "offset": 0,
+          "has_more": false
+        }
+      }
+    },
+    "tierExcellent": {
+      "status": 200,
+      "data": {
+        "success": true,
+        "companies": [
+          {
+            "company_id": 1,
+            "company_name": "Quinn Alpha Corp",
+            "slug": "quinn1237-a",
+            "logo_url": null,
+            "industry": "Technology",
+            "is_verified": true,
+            "total_score": 900,
+            "score_tier": "excellent",
+            "verification_score": 0,
+            "job_authenticity_score": 0,
+            "hiring_ratio_score": 0,
+            "feedback_score": 0,
+            "behavior_score": 0,
+            "employee_satisfaction_score": 0,
+            "interview_experience_score": 0,
+            "offer_acceptance_rate_score": 0,
+            "time_to_hire_score": 0,
+            "response_rate_score": 0,
+            "salary_competitiveness_score": 0,
+            "career_growth_score": 0,
+            "data_sufficiency_score": 80,
+            "ai_summary": null,
+            "last_updated": "2026-10-16T19:30:22.680Z",
+            "active_jobs": "0",
+            "badges": [
+              {
+                "type": "verified",
+                "label": "Verified"
+              },
+              {
+                "type": "trusted",
+                "label": "Highly Trusted"
+              }
+            ],
+            "insufficient_data": false
+          }
+        ],
+        "pagination": {
+          "total": 1,
+          "limit": 50,
+          "offset": 0,
+          "has_more": false
+        }
+      }
+    },
+    "minScore800": {
+      "status": 200,
+      "data": {
+        "success": true,
+        "companies": [
+          {
+            "company_id": 1,
+            "company_name": "Quinn Alpha Corp",
+            "slug": "quinn1237-a",
+            "logo_url": null,
+            "industry": "Technology",
+            "is_verified": true,
+            "total_score": 900,
+            "score_tier": "excellent",
+            "verification_score": 0,
+            "job_authenticity_score": 0,
+            "hiring_ratio_score": 0,
+            "feedback_score": 0,
+            "behavior_score": 0,
+            "employee_satisfaction_score": 0,
+            "interview_experience_score": 0,
+            "offer_acceptance_rate_score": 0,
+            "time_to_hire_score": 0,
+            "response_rate_score": 0,
+            "salary_competitiveness_score": 0,
+            "career_growth_score": 0,
+            "data_sufficiency_score": 80,
+            "ai_summary": null,
+            "last_updated": "2026-10-16T19:30:22.680Z",
+            "active_jobs": "0",
+            "badges": [
+              {
+                "type": "verified",
+                "label": "Verified"
+              },
+              {
+                "type": "trusted",
+                "label": "Highly Trusted"
+              }
+            ],
+            "insufficient_data": false
+          }
+        ],
+        "pagination": {
+          "total": 1,
+          "limit": 50,
+          "offset": 0,
+          "has_more": false
+        }
+      }
+    }
+  },
+  "checks": [
+    {
+      "label": "no params: HTTP 200",
+      "pass": true,
+      "detail": "status=200"
+    },
+    {
+      "label": "no params: pagination.total == SQL count (3)",
+      "pass": true,
+      "detail": "api=3 sql=3"
+    },
+    {
+      "label": "no params: 3 companies returned, low-sufficiency excluded",
+      "pass": true,
+      "detail": "names=Quinn Alpha Corp, Quinn Beta Corp, Quinn Gamma Corp"
+    },
+    {
+      "label": "tier=trusted: HTTP 200 + total 1",
+      "pass": true,
+      "detail": "api=1 sql=1"
+    },
+    {
+      "label": "tier=excellent: HTTP 200 + total 1 (low-suff row in same tier excluded)",
+      "pass": true,
+      "detail": "api=1 sql=1"
+    },
+    {
+      "label": "min_score=800: HTTP 200 + total 1",
+      "pass": true,
+      "detail": "api=1 sql=1"
+    }
+  ],
+  "allPass": true
+}

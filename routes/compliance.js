@@ -7,6 +7,45 @@ const { AuditLogger } = auditLogService;
 const BiasDetection = require('../services/biasDetection');
 const { explainOmniScore, explainDecision } = require('../services/scoreExplainer');
 
+// #927: candidate-safe projection of a decision explanation (privacy
+// seat, STOP 1 on #927; S-087 toCandidateSafeReport precedent). The
+// candidate-self audience of GET /explain/decision receives ONLY the
+// fields enumerated here, constructed key by key at every level —
+// never a spread with deletions: explainDecision() is fed by
+// `SELECT ja.*`, so under a denylist any future column or service
+// field would reach candidates by default. The privacy seat owns
+// this list at the PR gate. Two cautions for future editors:
+// (1) this projection controls KEYS, not values — a new factor type
+// or template that writes internal data into factors[].explanation
+// free text needs privacy review before it ships; (2) fields are the
+// candidate's own (name/email, the job applied to, the decision and
+// its timing, their own OmniScores, and the explanation factors) —
+// recruiter_notes and every other internal field stay server-side.
+function toCandidateSafeDecisionExplanation(explanation) {
+	const candidate = explanation.candidate || {};
+	const job = explanation.job || {};
+	const decision = explanation.decision || {};
+	return {
+		application_id: explanation.application_id,
+		candidate: { name: candidate.name, email: candidate.email },
+		job: { title: job.title },
+		decision: { status: decision.status, decided_at: decision.decided_at },
+		omniscore_at_apply: explanation.omniscore_at_apply,
+		current_omniscore: explanation.current_omniscore,
+		factors: Array.isArray(explanation.factors)
+			? explanation.factors.map((f) => {
+					const factor = f || {};
+					return {
+						factor: factor.factor,
+						value: factor.value,
+						impact: factor.impact,
+						explanation: factor.explanation,
+					};
+				})
+			: [],
+	};
+}
+
 function canAccessUserRecord(req, userId) {
 	const targetId = Number(userId);
 	if (!Number.isInteger(targetId)) {
@@ -38,9 +77,22 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 
 		// Gather all user data
 		const userData = await pool.query('SELECT * FROM users WHERE id = $1', [targetUserId]);
-		const omniscoreData = await pool.query('SELECT * FROM omniscore_results WHERE user_id = $1', [
+		// #1533 (R7, Lex ruling on #1528): the score section is re-sourced
+		// from the live omni_scores family — omniscore_results was never
+		// written, so the old read exported [] for every user. Rows are
+		// exported raw/native (no normalisation): total_score stays on
+		// its native 300-850 scale, factors on 0-100; a NULL total stays
+		// null, and no row exports as score: null (honest absence).
+		const omniScoreData = await pool.query('SELECT * FROM omni_scores WHERE user_id = $1', [
 			targetUserId,
 		]);
+		const scoreHistoryData = await pool.query('SELECT * FROM score_history WHERE user_id = $1', [
+			targetUserId,
+		]);
+		const scoreSnapshotsData = await pool.query(
+			'SELECT * FROM score_snapshots WHERE user_id = $1',
+			[targetUserId],
+		);
 		const interviewData = await pool.query('SELECT * FROM interviews WHERE user_id = $1', [
 			targetUserId,
 		]);
@@ -59,7 +111,15 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 
 		const exportData = {
 			user: userData.rows[0],
-			omniscore: omniscoreData.rows,
+			// Replaced in place per Lex's #1528 ruling — never supplemented:
+			// one score section, structured by source table, with the
+			// scale_note annotation (annotation, not alteration).
+			omniscore: {
+				score: omniScoreData.rows[0] ?? null,
+				score_history: scoreHistoryData.rows,
+				score_snapshots: scoreSnapshotsData.rows,
+				scale_note: 'total 300-850, factors 0-100',
+			},
 			interviews: interviewData.rows,
 			assessments: assessmentData.rows,
 			profile: profileData.rows[0],
@@ -216,6 +276,16 @@ router.post('/bias/analyze', authMiddleware, async (req, res) => {
 	try {
 		const report = await BiasDetection.generateReport();
 
+		// #1517: no scored candidates — no report was persisted, so there
+		// is nothing to audit-log; return the insufficient-data result.
+		if (report.insufficient_data) {
+			return res.json({
+				success: true,
+				insufficient_data: true,
+				report,
+			});
+		}
+
 		await AuditLogger.log({
 			actionType: 'bias_analysis_generated',
 			userId: req.user?.id,
@@ -261,29 +331,37 @@ router.post('/fairness/audit', authMiddleware, async (_req, res) => {
 	try {
 		const auditDate = new Date().toISOString().split('T')[0];
 
-		// Get score distribution
+		// Get score distribution.
+		// #1522 (Rex #1152 §3.2/§4 R8): repointed from the never-written
+		// omniscore_results to live omni_scores. total_score is native
+		// 300-850 (NULL = no data); buckets and averages run over the
+		// normalised value (total_score - 300) / 5.5 AS overall_score_norm,
+		// converted once at this SQL boundary, so bucket labels and the
+		// fairnessScore formula below keep their 0-100 meaning (on native
+		// totals, 100 - (max - min) would run to -450).
 		const scoreDistribution = await pool.query(`
       SELECT
-        FLOOR(overall_score / 10) * 10 as bucket,
+        FLOOR(((total_score - 300) / 5.5) / 10) * 10 as bucket,
         COUNT(*) as count,
-        AVG(overall_score) as avg_score
-      FROM omniscore_results
-      WHERE overall_score IS NOT NULL
+        AVG((total_score - 300) / 5.5) as avg_score
+      FROM omni_scores
+      WHERE total_score IS NOT NULL
       GROUP BY bucket
       ORDER BY bucket
     `);
 
-		// Get demographic breakdowns
+		// Get demographic breakdowns (avg_score is overall_score_norm, above)
 		const demographics = await pool.query(`
       SELECT
-        cp.gender,
-        cp.ethnicity,
+        cd.gender,
+        cd.ethnicity,
         COUNT(*) as total,
-        AVG(os.overall_score) as avg_score
+        AVG((os.total_score - 300) / 5.5) as avg_score
       FROM candidate_profiles cp
-      LEFT JOIN omniscore_results os ON os.user_id = cp.user_id
-      WHERE os.overall_score IS NOT NULL
-      GROUP BY cp.gender, cp.ethnicity
+      LEFT JOIN candidate_demographics cd ON cd.user_id = cp.user_id
+      LEFT JOIN omni_scores os ON os.user_id = cp.user_id
+      WHERE os.total_score IS NOT NULL
+      GROUP BY cd.gender, cd.ethnicity
     `);
 
 		// Get appeal statistics
@@ -296,10 +374,27 @@ router.post('/fairness/audit', authMiddleware, async (_req, res) => {
       GROUP BY status
     `);
 
+		// #1517: zero scored candidates means there is nothing to audit.
+		// Never persist a fairness_audits row carrying a score — return an
+		// explicit insufficient-data result (no score, no issues count).
+		if (demographics.rows.length === 0) {
+			return res.json({
+				success: true,
+				insufficient_data: true,
+				auditId: null,
+				fairnessScore: null,
+				issues_found: null,
+				summary: {
+					score_distribution: scoreDistribution.rows,
+					demographics: demographics.rows,
+					appeals: appeals.rows,
+				},
+			});
+		}
+
 		// Calculate overall fairness score (simplified metric)
 		const avgScores = demographics.rows.map((r) => parseFloat(r.avg_score));
-		const fairnessScore =
-			avgScores.length > 0 ? 100 - (Math.max(...avgScores) - Math.min(...avgScores)) : 100;
+		const fairnessScore = 100 - (Math.max(...avgScores) - Math.min(...avgScores));
 
 		const result = await pool.query(
 			`INSERT INTO fairness_audits
@@ -428,6 +523,14 @@ router.get('/appeal/:userId', authMiddleware, async (req, res) => {
 // Query audit logs
 router.get('/audit/logs', authMiddleware, async (req, res) => {
 	try {
+		// S-097 (#821): admin-only. The legacy audit_logs table has no
+		// company_id, so company-scoping is not implementable here — the
+		// company-scoped regulator path already exists at /audit-trail/export.
+		// Any non-admin audience for the unscoped log is precisely the leak.
+		if (req.user?.role !== 'admin') {
+			return res.status(403).json({ error: 'Admin access required' });
+		}
+
 		const { userId, actionType, startDate, endDate, limit, offset } = req.query;
 
 		const logs = await AuditLogger.query({
@@ -452,6 +555,12 @@ router.get('/audit/logs', authMiddleware, async (req, res) => {
 // Export audit logs
 router.post('/audit/export', authMiddleware, async (req, res) => {
 	try {
+		// S-097 (#821): admin-only, same ruling as GET /audit/logs above —
+		// audit_logs cannot be company-scoped (no company_id column).
+		if (req.user?.role !== 'admin') {
+			return res.status(403).json({ error: 'Admin access required' });
+		}
+
 		const { startDate, endDate, format } = req.body;
 
 		if (!startDate || !endDate) {
@@ -552,6 +661,31 @@ router.get('/explain/omniscore/:userId', authMiddleware, async (req, res) => {
 	try {
 		const { userId } = req.params;
 
+		// S-097 (#821): this is a user-record endpoint, so the file's own
+		// canAccessUserRecord guard (self-or-admin, used by 8 siblings) is
+		// the right shape — not a company-scoped query. One extension: a
+		// hiring-side caller may read the score of a candidate who has an
+		// application with their company (recruiter-of-record), proven by a
+		// job_applications linkage row. Guard runs before the service call.
+		const access = canAccessUserRecord(req, userId);
+		if (!access.ok) {
+			if (access.status !== 403) {
+				return res.status(access.status).json({ error: access.error });
+			}
+			const isHiringRole = ['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role);
+			let linked = false;
+			if (isHiringRole && req.user?.company_id != null) {
+				const linkage = await pool.query(
+					'SELECT 1 FROM job_applications WHERE candidate_id = $1 AND company_id = $2 LIMIT 1',
+					[parseInt(userId, 10), req.user.company_id],
+				);
+				linked = linkage.rows.length > 0;
+			}
+			if (!linked) {
+				return res.status(access.status).json({ error: access.error });
+			}
+		}
+
 		const explanation = await explainOmniScore(parseInt(userId, 10));
 
 		await AuditLogger.log({
@@ -577,8 +711,57 @@ router.get('/explain/omniscore/:userId', authMiddleware, async (req, res) => {
 router.get('/explain/decision/:applicationId', authMiddleware, async (req, res) => {
 	try {
 		const { applicationId } = req.params;
+		const applicationIdInt = parseInt(applicationId, 10);
 
-		const explanation = await explainDecision(parseInt(applicationId, 10));
+		// S-097 (#821): object-level authorisation BEFORE the service call.
+		// The guard must live in the route: explainDecision re-throws on
+		// error (it depends on the phantom candidate_job_matches table), so
+		// a denied caller must never reach it. The resource is an
+		// application, not a user record, so canAccessUserRecord does not
+		// fit — load the application's own candidate/company anchors and
+		// compare here (the scoped-load shape used across this codebase).
+		// Allow: admin; the candidate themself; a hiring role whose
+		// company owns the application (fail-closed on null company_id).
+		// Everything else — including a non-existent ID — is the same 404,
+		// so foreign IDs cannot be distinguished from missing ones.
+		const appResult = Number.isInteger(applicationIdInt)
+			? await pool.query('SELECT candidate_id, company_id FROM job_applications WHERE id = $1', [
+					applicationIdInt,
+				])
+			: { rows: [] };
+		const application = appResult.rows[0];
+		const isAdmin = req.user?.role === 'admin';
+		const isCandidateSelf = !!application && req.user?.id === application.candidate_id;
+		const isOwningHiring =
+			!!application &&
+			['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) &&
+			req.user?.company_id != null &&
+			Number(req.user.company_id) === Number(application.company_id);
+		if (!application || (!isAdmin && !isCandidateSelf && !isOwningHiring)) {
+			return res.status(404).json({ error: 'Application not found' });
+		}
+
+		const rawExplanation = await explainDecision(applicationIdInt);
+
+		// Audience shaping (S-097, privacy seat; S-087 toCandidateSafeReport
+		// precedent — shape at the route boundary): a candidate audience
+		// receives only the allowlist projection in
+		// toCandidateSafeDecisionExplanation (#927 — the previous denylist
+		// deleted only recruiter_notes and let every other current and
+		// future field ride). Fix round (privacy F1 / security F-3, Lead's
+		// ruling): shape on the authorisation identity, not the role
+		// string — a self-applicant whose account role is no longer
+		// `candidate` (e.g. converted to recruiter) is still the candidate
+		// audience for their own application. Recruiter/employer-of-record
+		// and admin callers (an admin keeps the full record even when they
+		// are the applicant) keep the full record unchanged.
+		let explanation = rawExplanation;
+		// #1457: shaping is unconditional for a candidate-self caller — it
+		// must not depend on the service result carrying a `decision`
+		// field (an allowlist that only sometimes applies is a leak).
+		if (isCandidateSelf && !isAdmin) {
+			explanation = toCandidateSafeDecisionExplanation(rawExplanation);
+		}
 
 		await AuditLogger.log({
 			actionType: 'decision_explanation_viewed',
@@ -686,17 +869,37 @@ router.get('/audit-trail/candidate/:candidateId', authMiddleware, async (req, re
 		// Access control: candidate viewing own record, or admin/employer
 		const isOwn = req.user?.role === 'candidate' && req.user?.id === candidateId;
 		const isAdmin = req.user?.role === 'admin';
-		const isCompanyUser =
-			['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) && req.user?.company_id;
+		let isCompanyUser = false;
 
-		if (!isOwn && !isAdmin && !isCompanyUser) {
-			return res.status(403).json({ error: 'Access denied' });
+		// #920: a company user may read a candidate's audit trail only when
+		// the candidate is linked to their company by a job_applications
+		// row — the same SELECT 1 … LIMIT 1 linkage idiom as the merged
+		// #926 guards above (:584, :1119). Fail-closed when company_id is
+		// null. Guard runs before the service call; denial is this
+		// endpoint's existing 403, identical for foreign and non-existent
+		// candidate IDs (no existence oracle). Self/admin paths unchanged.
+		if (!isOwn && !isAdmin) {
+			const isHiringRole = ['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role);
+			if (!isHiringRole || req.user?.company_id == null) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
+			const linkage = await pool.query(
+				'SELECT 1 FROM job_applications WHERE candidate_id = $1 AND company_id = $2 LIMIT 1',
+				[candidateId, req.user.company_id],
+			);
+			if (linkage.rows.length === 0) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
+			isCompanyUser = true;
 		}
 
 		const { limit, offset } = req.query;
 		const result = await auditLogService.getCandidateDecisions(candidateId, {
 			limit: limit ? parseInt(limit, 10) : 500,
 			offset: offset ? parseInt(offset, 10) : 0,
+			// #920 (Sumanth ruling): company-user callers receive only
+			// their own company's events; self/admin stay unscoped.
+			...(isCompanyUser ? { companyId: req.user.company_id } : {}),
 		});
 
 		res.json({ success: true, ...result });
@@ -999,11 +1202,44 @@ router.get('/explain/job/:jobId/candidate/:candidateId', authMiddleware, async (
 
 		// Candidate can view their own explanation
 		const isOwn = req.user?.role === 'candidate' && req.user?.id === candidateId;
-		const isCompanyUser = ['employer', 'recruiter', 'hiring_manager', 'admin'].includes(
-			req.user?.role,
-		);
-		if (!isOwn && !isCompanyUser) {
+		const isAdmin = req.user?.role === 'admin';
+		const isHiringRole = ['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role);
+		if (!isOwn && !isAdmin && !isHiringRole) {
 			return res.status(403).json({ error: 'Access denied' });
+		}
+
+		// S-097 (#821): a hiring role may only explain decisions for jobs
+		// their own company owns. The resource here is the job, so the
+		// job-company ownership check is the right shape (contrast the
+		// user-record guard on /explain/omniscore above). Foreign and
+		// non-existent jobs are the same 404, and the check runs before
+		// the service call. Candidate-self and admin are not job-scoped.
+		if (!isOwn && !isAdmin) {
+			const jobResult = await pool.query('SELECT company_id FROM jobs WHERE id = $1', [jobId]);
+			const job = jobResult.rows[0];
+			if (
+				!job ||
+				req.user?.company_id == null ||
+				Number(req.user.company_id) !== Number(job.company_id)
+			) {
+				return res.status(404).json({ error: 'Job not found' });
+			}
+
+			// Fix round (security F-1, Lead ruling option (a)): owning a job
+			// alone does not link the candidate to the caller's company, and
+			// the service returns the candidate's global score data — so a
+			// hiring role additionally needs a job_applications
+			// candidate×company linkage, mirroring the read-only SELECT 1
+			// linkage on /explain/omniscore above. Denial is this endpoint's
+			// existing non-subject-candidate 403, before the service call.
+			// Candidate-self and admin paths above are unchanged.
+			const linkage = await pool.query(
+				'SELECT 1 FROM job_applications WHERE candidate_id = $1 AND company_id = $2 LIMIT 1',
+				[candidateId, req.user.company_id],
+			);
+			if (linkage.rows.length === 0) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
 		}
 
 		const explanation = await EuComplianceService.explainDecisionForJob({
@@ -1173,6 +1409,11 @@ router.post('/retention/policies', authMiddleware, async (req, res) => {
 /**
  * POST /api/compliance/retention/purge
  * Execute automated data purge based on retention policies.
+ *
+ * S-077 (#760): live deletion (dryRun: false) is gated behind
+ * RETENTION_PURGE_LIVE — same gate as the scheduled cron. Per Sumanth's
+ * standing rule, live storage deletion needs his explicit approval.
+ * Dry-run is always available for preview.
  */
 router.post('/retention/purge', authMiddleware, async (req, res) => {
 	try {
@@ -1181,9 +1422,25 @@ router.post('/retention/purge', authMiddleware, async (req, res) => {
 		}
 
 		const { dryRun = true, companyId } = req.body;
+		const isLive = dryRun === false;
+
+		if (isLive && process.env.RETENTION_PURGE_LIVE !== 'true') {
+			return res.status(403).json({
+				error: 'Live purge is disabled. Run with dryRun: true for preview, or set RETENTION_PURGE_LIVE=true (requires Sumanth approval).',
+			});
+		}
+
+		// Staging guard: staging shares the production database. Live purge
+		// is only allowed in production, even with the flag set.
+		if (isLive && process.env.NODE_ENV !== 'production') {
+			return res.status(403).json({
+				error: 'Live purge is only allowed in production (staging shares the production database).',
+			});
+		}
+
 		const targetCompanyId = req.user.role === 'admin' ? companyId : req.user.company_id;
 		const summary = await EuComplianceService.executePurge({
-			dryRun: dryRun !== false,
+			dryRun: !isLive,
 			companyId: targetCompanyId,
 		});
 

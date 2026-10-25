@@ -1,0 +1,5 @@
+percent_rank count: 0
+explainer error count: 0
+Failed to load score explainer: 0
+Valid interview ID required: 0
+recruiter/activity failed: 0

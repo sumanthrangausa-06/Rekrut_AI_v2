@@ -1,0 +1,114 @@
+# docs/release/module-versions.yaml
+# Release truth for module trains. Canonical copy: staging branch.
+# staging_version / prod_version / status / last_train are Relay-owned.
+# dev_version is supplied by Lead in the train manifest and verified
+# by Relay against the live dev tip before the manifest freezes.
+# A version counts as "on staging" ONLY when status: current, i.e.
+# the train deployed AND passed the per-module staging retest.
+# Anything else (in-flight, failed, aborted) is not a promotion.
+#
+# Seeded 2026-10-19 by Relay (first commit) with Train 1 in flight.
+# Seed values per module-trains design (2026-10-18) section 1/2.4:
+# v1.0 where the module journey is proven, v0.x where it is not.
+
+modules:
+  auth-accounts:
+    current_version: "1.0"        # journey proven on dev; live since promotion #2
+    dev_version:     "1.0"
+    staging_version: "1.0"
+    prod_version:    "1.0"
+    status: current
+    last_train_date: "2026-10-18" # registry seed date
+    train_pr: "seed: promotion #2"
+    train_commit: "007a6552"      # staging tip at promotion #2
+    tag: null                     # pre-train-system; no tag exists
+
+  consent-privacy:
+    current_version: "1.1"
+    dev_version:     "1.1"
+    staging_version: "1.1"
+    prod_version:    "1.0"
+    status: current
+    last_train_date: "2026-10-19"
+    train_pr: "PR #1465"
+    train_commit: "63b9684a1e04f1aec83db500645426f2580190d3"
+    tag: "staging/consent-privacy@v1.1"
+
+  landing-honesty:
+    current_version: "1.1"
+    dev_version:     "1.1"
+    staging_version: "1.1"
+    prod_version:    "1.0"
+    status: current
+    last_train_date: "2026-10-19"
+    train_pr: "PR #1465"
+    train_commit: "63b9684a1e04f1aec83db500645426f2580190d3"
+    tag: "staging/landing-honesty@v1.1"
+
+  cv-review:
+    current_version: "2.1"        # v2.1 proven on staging 2026-10-24 (Train 3 retest):
+                                  # product-path parse completes + persists, free gate
+                                  # exact, Documents fixed, QP neighbour green.
+    dev_version:     "2.1"
+    staging_version: "2.1"
+    prod_version:    "1.0"        # main promotion HELD: Pro-analyze leg unproven on
+                                  # staging (Pro provisioning blocker, Train 2 V3/V4)
+    status: current
+    last_train_date: "2026-10-24"
+    train_pr: "PR #1817"
+    train_commit: "223b159e33baa17b57ad447e0ba45b580f7ae8d6"
+    tag: "staging/cv-review@v2.1"
+    riders:
+      - "parse first-try reliability ~2/10 on staging (honest failures, re-upload succeeds) — #1818"
+      - "Pro-analyze staging leg unproven — no API-completable Pro account (Stripe hosted checkout); dev proof stands (#1471, score 72)"
+
+  jobs-careers:
+    current_version: "1.0"        # v1.0 proven on staging 2026-10-24 (Train 4 retest):
+                                  # filters live, completion truthful, #1607/#1608
+                                  # browser-proven in the live app.
+    dev_version:     "1.0"
+    staging_version: "1.0"
+    prod_version:    "0.1"        # main promotion not yet run for this module
+    status: current
+    last_train_date: "2026-10-24"
+    train_pr: "PR #1820"
+    train_commit: "b7479dac41bdf83d5984eccfa33613997223ff75"
+    tag: "staging/jobs-careers@v1.0"
+    riders:
+      - "mobile-viewport rendering of the sidebar not directly proven (browser tool could not resize); sidebar entry + identity block verified in the live app and by the shipped SidebarMyProfile1636 suite on the deployed code"
+      - "Job Board page itself shows no completion % (percentages there are match scores); the canonical completion shows truthfully on profile/dashboard/job-detail (8% fresh, 58% filled via API, 17% after photo in browser)"
+
+  assessments:
+    current_version: "1.0"        # v1.0 proven on staging 2026-10-24 (Train 5 retest):
+                                  # catalogue + parity live, #1606 journey completes,
+                                  # exit dialog + save-draft verified in the live app.
+    dev_version:     "1.0"
+    staging_version: "1.0"
+    prod_version:    "0.1"        # main promotion not yet run for this module
+    status: current
+    last_train_date: "2026-10-24"
+    train_pr: "PR #1822 + patch PR #1833"
+    train_commit: "dcecd3f71e6c9cf50b8f4210e95c4bc48efa1112"
+    tag: "staging/assessments@v1.0"
+    riders:
+      - "subjects count on staging is 18 vs 19 on fresh install (staging's pre-existing DSA subject has no topics and renders an honest empty state; all 17 launch topics at full parity)"
+      - "Train 7 patch (PR #1833, 2026-10-24) cleared both Train 5 riders: #1824 Resume door staging-proven (catalogue resumable {sessionId} appears for the saved topic only, resume read-back in_progress + draft intact, no cross-user leak — retest2 7/7 PASS on dcecd3f71); #1718 NULL-guard sweep live on staging (patch-id identical picks; AntiCheatNullGuard1718 suite 11/11 on the train tree)"
+
+  omniscore:
+    current_version: "1.0"        # v1.0 proven on staging 2026-10-24 (Train 6 retest):
+                                  # honest-NULL fresh candidate, renormalised total +
+                                  # explainer agreement, recruiter surfaces honest,
+                                  # migration 290/293 read-backs, neighbours green;
+                                  # step 3c first FAILED (#1828 explain 500), fixed by
+                                  # patch PR #1829 and re-run green the same evening.
+    dev_version:     "1.0"
+    staging_version: "1.0"
+    prod_version:    "0.1"        # main promotion not yet run for this module
+    status: current
+    last_train_date: "2026-10-24"
+    train_pr: "PR #1826 + patch PR #1829"
+    train_commit: "1efac91ce620b692ffbdc0b9361d44d8711266f0"
+    tag: "staging/omniscore@v1.0"
+    riders:
+      - "test-hygiene: score-explainer-match-results-1458 suite still pins the pre-split v2 weights_hash (dev-parity failure) — #1827"
+      - "staging transport intermittently truncated responses during the 3c re-run (partial reads; retry returns clean 200; app logs show the guarded path completing, no app error) — environment-level, watch only"

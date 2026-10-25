@@ -29,7 +29,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 import type { CategoryProgress, HistorySession, RecentSession } from './coaching-types';
-import { categoryConfig, ScoreBar, scoreBg, scoreColor, scoreLabel } from './coaching-utils';
+import { categoryConfig, formatScore, ScoreBar, scoreBg, scoreBgSafe, scoreColor, scoreColorSafe, scoreLabel } from './coaching-utils';
 
 // ==================== Progress Tab ====================
 
@@ -376,7 +376,7 @@ export function HistoryTab({
 														icon={Volume2}
 													/>
 													<ScoreBar
-														score={cd.presentation?.score || 5}
+														score={cd.presentation?.score ?? null}
 														label="Presentation"
 														icon={Eye}
 													/>
@@ -720,9 +720,9 @@ export function HistoryTab({
 															Presentation
 															{cd.presentation ? (
 																<span
-																	className={`text-xs font-bold ${scoreColor(cd.presentation.score)}`}
+																	className={`text-xs font-bold ${scoreColorSafe(cd.presentation.score)}`}
 																>
-																	{cd.presentation.score}/10
+																	{formatScore(cd.presentation.score)}
 																</span>
 															) : (
 																<span className="text-xs text-muted-foreground">Not available</span>
@@ -750,16 +750,16 @@ export function HistoryTab({
 																			return (
 																				<div
 																					key={item.key}
-																					className={`p-2.5 rounded-lg border ${scoreBg(data.score)}`}
+																					className={`p-2.5 rounded-lg border ${scoreBgSafe(data.score)}`}
 																				>
 																					<div className="flex items-center justify-between mb-1">
 																						<span className="text-[10px] font-medium text-muted-foreground">
 																							{item.label}
 																						</span>
 																						<span
-																							className={`text-sm font-bold ${scoreColor(data.score)}`}
+																							className={`text-sm font-bold ${scoreColorSafe(data.score)}`}
 																						>
-																							{data.score}/10
+																							{formatScore(data.score)}
 																						</span>
 																					</div>
 																					<p className="text-[10px] text-muted-foreground leading-relaxed">
@@ -1206,9 +1206,9 @@ export function HistoryTab({
 															<Eye className="h-4 w-4 text-emerald-600" /> Body Language &
 															Presentation
 															<span
-																className={`text-xs font-bold ${scoreColor(cd.presentation.score)}`}
+																className={`text-xs font-bold ${scoreColorSafe(cd.presentation.score)}`}
 															>
-																{cd.presentation.score}/10
+																{formatScore(cd.presentation.score)}
 															</span>
 														</span>
 														{reviewExpanded === 'presentation' ? (
@@ -1231,16 +1231,16 @@ export function HistoryTab({
 																	return (
 																		<div
 																			key={item.key}
-																			className={`p-2.5 rounded-lg border ${scoreBg(data.score)}`}
+																			className={`p-2.5 rounded-lg border ${scoreBgSafe(data.score)}`}
 																		>
 																			<div className="flex items-center justify-between mb-1">
 																				<span className="text-[10px] font-medium text-muted-foreground">
 																					{item.label}
 																				</span>
 																				<span
-																					className={`text-sm font-bold ${scoreColor(data.score)}`}
+																					className={`text-sm font-bold ${scoreColorSafe(data.score)}`}
 																				>
-																					{data.score}/10
+																					{formatScore(data.score)}
 																				</span>
 																			</div>
 																			<p className="text-[10px] text-muted-foreground leading-relaxed">

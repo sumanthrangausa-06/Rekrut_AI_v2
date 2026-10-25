@@ -1,0 +1,20 @@
+[
+  {
+    "name": "1239-recruiter-trustscore-recruiter-role",
+    "url": "/recruiter/trustscore",
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/recruiter/trustscore",
+    "text": "Skip to content Rekrut AI Dashboard Jobs Applications Assessments Candidates Interviews Messages AI Screening Recordings Panels Calendar Offers Onboarding Scores Analytics Compliance (EU AI Act) Proctoring Company Team Payroll Settings Sign out Recruiter Try Premium Relevance Filters QA Recruiter Role Back to Dashboard Insufficient data TrustScore No score yet Updated daily V1 Score N/A V2: N/A TrustScore v2 Factors Company Verification 0 / 200 Company Verification score Job Authenticity 0 / 250 Job Authenticity score Interview-to-Offer Ratio 0 / 250 Interview-to-Offer Ratio score Candidate Feedback 0 / 200 Candidate Feedback score Platform Behavior 0 / 100 Platform Behavior score Employee Satisfaction Not enough data — / 100 Employee Satisfaction score Interview Experience Not enough data — / 100 Interview Experience score Offer Acceptance Rate Not enough data — / 75 Offer Acceptance Ra",
+    "shot": "1239-recruiter-trustscore-recruiter-role.png"
+  },
+  {
+    "name": "1188-careers-authed",
+    "url": "/careers/qa-corp-2026-2",
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/careers/qa-corp-2026-2",
+    "text": "? QA Corp 2026 Join QA Corp 2026 — we're hiring! Remote-friendly Website TrustScore: Insufficient data 1 Open Positions About QA Corp 2026 QA Corp 2026 is a leading company in the technology industry. Innovation Diversity Transparency Growth Impact Benefits & Perks Health Insurance 100% coverage for you and dependents Remote Work Work from anywhere, async-friendly Flexible Hours Choose your own schedule Learning Budget $5,000/year for courses and conferences Equity Meaningful stock options for all employees Unlimited PTO Take time when you need it Parental Leave 20 weeks paid for all parents Wellness $100/month gym or wellness stipend Meet the Team ? Team Lead Engineering Manager \"We build the future together\" ? Hiring Manager People Operations \"People are our greatest asset\" Open Positions All General QA Fixture Data Analyst General Remote full-time Competitive Apply",
+    "shot": "1188-careers-authed.png"
+  }
+]

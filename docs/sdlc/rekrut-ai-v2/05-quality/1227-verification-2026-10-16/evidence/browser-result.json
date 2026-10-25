@@ -1,0 +1,37 @@
+{
+  "afterLoginUrl": "http://localhost:3000/candidate",
+  "finalUrl": "http://localhost:3000/candidate/linkedin-optimizer",
+  "tipsCalls": [
+    "200 /api/linkedin/tips/1"
+  ],
+  "tips200": [
+    "200 /api/linkedin/tips/1"
+  ],
+  "phantomCalls": [],
+  "notFoundCalls": [],
+  "hasHeading": true,
+  "hasOptimizationTipsTab": true,
+  "hasCompleteness": true,
+  "hasApiEndpointNotFound": false,
+  "hasErrorBoundary": false,
+  "textExcerpt": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nIdentity\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAI Screening\nAssessments\nOmniScore\nOTHER\nInterviews\nMessages\nOffers\nDocuments\nPay & Compensation\nOnboarding\nRefer & Earn\nSettings\nUpgrade to Pro\nSign out\nCandidate\nTry Premium\nRelevance\nFilters\nQuinn After 1227 Candidate\nLinkedIn Optimizer\n\nAI-generated tips to optimize your LinkedIn profile and grow your professional network\n\nConnected\n\nProfile Completeness\n25%\n\nMissing: headline, about, skills\n\nView Profile\n\nYour LinkedIn profile is 25% complete. Focus on headline and about and skills to increase visibility.\n\nOptimization Tips\nHeadlines\nAbout Section\nWeekly Plan\nHEADLINE\nHIGH\nStrengthen your headline\n\nYour headline is the first thing recruiters see. Include your role, specialty, and value proposition.\n\nExample: \"Senior Frontend Engineer | React & TypeScript | Scaling products from 0 to 1M users\"\n\nABOUT\nHIGH\nWrite a compelling About section\n\nUse the About section to tell your story. 3-5 short paragraphs work best.\n\nStart with your current role, then highlight 2-3 key achievements, and end with what you're looking for.\n\nSKILLS\nMEDIUM\nAdd more skills\n\nProfiles with 5+ relevant skills get up to 17x more profile views.\n\nAdd at least 10 skills, prioritizing those in your target job descriptions.\n\nNETWORKING\nMEDIUM\nGrow your network strategically\n\nConnect with people in your target industry, not just colleagues.\n\nSend 5 personalized connection requests per week to hiring managers or senior engineers.\n\nCONTENT\nLOW\nPost weekly content\n\nActive posters are 9x more likely to be contacted by recruiters.\n\nShare one thing you learned, built, or observed each week.\n\n© 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+  "apiCalls": [
+    "200 /api/auth/me",
+    "200 /api/auth/me",
+    "200 /api/billing/tier",
+    "200 /api/billing/tier",
+    "200 /api/notifications/in-app?limit=50",
+    "200 /api/linkedin/tips/1"
+  ],
+  "consoleMsgs": [
+    "warning: Error with Permissions-Policy header: Unrecognized feature: 'vr'.",
+    "warning: Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'.",
+    "error: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED",
+    "error: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED",
+    "warning: Error with Permissions-Policy header: Unrecognized feature: 'vr'.",
+    "warning: Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'.",
+    "error: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED",
+    "error: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED",
+    "error: Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ]
+}

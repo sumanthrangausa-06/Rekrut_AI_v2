@@ -12,6 +12,54 @@ const {
 
 const router = express.Router();
 
+// #1468: candidate-safe projection of an explainMatch() result (privacy
+// seat, STOP 1 on #1468; #1458/#1463 precedent). explainMatch() returns
+// the raw match_results row (SELECT *) — or, on its on-demand branch, an
+// object nesting the same explanation — whose match_explanation /
+// explanation carries recruiter-side artifacts (company TrustScore and
+// OmniScore boost text) alongside trustscore_at_match /
+// omniscore_at_match. A candidate-self caller receives ONLY the fields
+// enumerated here, constructed key by key — never a spread with
+// deletions, so a future match_results column cannot leak by default.
+function toCandidateSafeMatchResult(result) {
+	if (!result || typeof result !== 'object') return result;
+	// Privacy review note (#1468): the projection controls keys, not
+	// values — the two allowlisted JSONB skill lists are passed only as
+	// string arrays, so a future writer storing objects/free text in
+	// those columns cannot pass it through to candidates verbatim.
+	const skillList = (v) =>
+		v === undefined ? undefined : Array.isArray(v) ? v.filter((s) => typeof s === 'string') : [];
+	return {
+		weighted_score: result.weighted_score,
+		similarity_score: result.similarity_score,
+		match_level: result.match_level,
+		matching_skills: skillList(result.matching_skills),
+		missing_skills: skillList(result.missing_skills),
+	};
+}
+
+// #1731 Lane 3 (S-8): audit-log confidence is the measured weighted_score
+// the matching producers actually carry — never final_score/score (fields
+// that do not exist on these objects) and never a fabricated 0 / 0.5.
+// No measured score => confidence: null (nothing was measured).
+// Producers carry the value in two shapes: constructed objects hold a JS
+// number, while explainMatch's cached path returns the raw match_results
+// row whose DECIMAL(5,2) weighted_score node-pg returns as a string —
+// coerce numeric strings before judging, or every cached explanation
+// would falsely record "nothing measured" (review F-1).
+function measuredConfidenceValue(v) {
+	if (v === null || v === undefined) return null;
+	const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+	return Number.isFinite(n) ? n : null;
+}
+
+function maxMeasuredConfidence(matches) {
+	const scores = (matches || [])
+		.map((m) => measuredConfidenceValue(m?.weighted_score))
+		.filter((v) => v !== null);
+	return scores.length > 0 ? Math.max(...scores) : null;
+}
+
 // Secure error response helper
 function sendError(res, err, consolePrefix) {
 	const ref = crypto.randomUUID();
@@ -50,8 +98,7 @@ router.get('/recommendations', authMiddleware, async (req, res) => {
 				match_count: matches.length,
 				min_score: parseFloat(min_score) / 100,
 				model_version: 'matching-engine-v1',
-				confidence:
-					matches.length > 0 ? Math.max(...matches.map((m) => m.final_score || m.score || 0)) : 0,
+				confidence: maxMeasuredConfidence(matches),
 			},
 			req,
 		});
@@ -100,8 +147,7 @@ router.get(
 					match_count: matches.length,
 					min_score: parseFloat(min_score) / 100,
 					model_version: 'matching-engine-v1',
-					confidence:
-						matches.length > 0 ? Math.max(...matches.map((m) => m.final_score || m.score || 0)) : 0,
+					confidence: maxMeasuredConfidence(matches),
 				},
 				req,
 			});
@@ -143,6 +189,36 @@ router.get('/explain/:candidateId/:jobId', authMiddleware, async (req, res) => {
 			return res.status(403).json({ error: 'Not authorized' });
 		}
 
+		// Object authorization (#1479): a non-self, non-admin caller must be
+		// hiring-side AND related to this candidate+job pair — the job is
+		// theirs (or their company's, per the /stats convention below) and
+		// the candidate has applied to it. Any other authenticated role
+		// could previously read any candidate's full match record.
+		const isSelf = Number(req.user.id) === candidateId;
+		if (!isSelf && req.user.role !== 'admin') {
+			if (!['recruiter', 'hiring_manager', 'employer'].includes(req.user.role)) {
+				return res.status(403).json({ error: 'Not authorized' });
+			}
+			const pool = require('../lib/db');
+			const rel = await pool.query(
+				`SELECT 1
+				 FROM jobs j
+				 WHERE j.id = $1
+				   AND (j.user_id = $2 OR (j.company_id IS NOT NULL AND j.company_id IN (
+				     SELECT company_id FROM users WHERE id = $2 AND company_id IS NOT NULL
+				   )))
+				   AND EXISTS (
+				     SELECT 1 FROM job_applications ja
+				     WHERE ja.job_id = j.id AND ja.candidate_id = $3
+				   )
+				 LIMIT 1`,
+				[jobId, req.user.id, candidateId],
+			);
+			if (rel.rows.length === 0) {
+				return res.status(403).json({ error: 'Not authorized' });
+			}
+		}
+
 		const explanation = await explainMatch(candidateId, jobId);
 
 		// Log AI explanation generation for compliance
@@ -156,16 +232,23 @@ router.get('/explain/:candidateId/:jobId', authMiddleware, async (req, res) => {
 				job_id: jobId,
 				model_version: 'matching-engine-v1',
 				explanation_type: 'match_explanation',
-				confidence: explanation?.score || explanation?.final_score || 0.5,
+				confidence: measuredConfidenceValue(explanation?.weighted_score),
 			},
 			req,
 		});
+
+		// Audience shaping (#1468, privacy seat; #927 fix-round ruling):
+		// shape on authorisation identity (self && !admin), not on
+		// role === 'candidate' alone — a self-applicant whose account role
+		// has changed is still the candidate audience. Other callers
+		// (recruiter / hiring roles / admin) keep the full record.
+		const isCandidateSelf = Number(req.user.id) === candidateId && req.user.role !== 'admin';
 
 		res.json({
 			success: true,
 			candidate_id: candidateId,
 			job_id: jobId,
-			match_result: explanation,
+			match_result: isCandidateSelf ? toCandidateSafeMatchResult(explanation) : explanation,
 			transparency_note:
 				'Our matching algorithm uses semantic analysis of skills and experience, combined with OmniScore and TrustScore for fairness and quality.',
 		});
@@ -249,13 +332,25 @@ router.get('/stats', authMiddleware, async (req, res) => {
 			});
 		} else {
 			// Recruiter stats
+			// #1728a: avg_match_score is the fully-measured average ONLY.
+			// A weighted_score whose basis was renormalised over measured
+			// components only (either at-match column NULL, #1717/#1724
+			// semantics) is reported separately — never blended into the
+			// headline average. Empty bucket → NULL average, never 0.
+			// Legacy caveat: rows calculated before the #1717/#1724
+			// honesty fixes can carry at-match values from the
+			// fabricated-score era and are indistinguishable; the split
+			// is truthful for rows calculated at/after those fixes.
 			const result = await pool.query(
 				`
         SELECT
           j.id as job_id,
           j.title,
           COUNT(mr.id) as candidate_matches,
-          AVG(mr.weighted_score) as avg_match_score,
+          AVG(mr.weighted_score) FILTER (WHERE mr.omniscore_at_match IS NOT NULL AND mr.trustscore_at_match IS NOT NULL) as avg_match_score,
+          COUNT(mr.id) FILTER (WHERE mr.omniscore_at_match IS NOT NULL AND mr.trustscore_at_match IS NOT NULL) as fully_measured_matches,
+          COUNT(mr.id) FILTER (WHERE mr.omniscore_at_match IS NULL OR mr.trustscore_at_match IS NULL) as insufficient_data_matches,
+          AVG(mr.weighted_score) FILTER (WHERE mr.omniscore_at_match IS NULL OR mr.trustscore_at_match IS NULL) as avg_insufficient_data_score,
           COUNT(CASE WHEN mr.match_level = 'excellent' THEN 1 END) as excellent_matches
         FROM jobs j
         LEFT JOIN match_results mr ON j.id = mr.job_id

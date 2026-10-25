@@ -1,0 +1,7 @@
+QUINN #1187 AFTER — server log checks (full log: logs/server.log in run dir; server at 2b1b75a8 on port 3000, DB rekrut_1187_after @127.0.0.1:55433)
+Health: GET /api/health -> {"status":"ok","db":"connected"}
+grep counts over server.log:
+  'Career page error' -> 0
+  'does not exist' -> 0
+  '42P18' -> 0
+Note: startup emitted a few 'Connection terminated due to connection timeout' lines from background loaders (ai-call-logger/activity-logger/token-budget) during boot; health and all careers probes were unaffected (all 200).

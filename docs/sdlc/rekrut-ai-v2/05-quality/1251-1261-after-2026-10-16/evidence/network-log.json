@@ -1,0 +1,44 @@
+{
+  "loginUrl": "http://localhost:3000/candidate",
+  "finalUrl": "http://localhost:3000/candidate/career-diagnosis",
+  "introHasStart": true,
+  "diagnosisPosts": [
+    {
+      "method": "POST",
+      "path": "/api/career-diagnosis",
+      "postData": "{\"quizAnswers\":[{\"question\":\"How do you prefer to solve problems?\",\"answer\":\"Analyze data and find patterns\"},{\"question\":\"Which work environment excites you most?\",\"answer\":\"A fast-paced startup with rapid changes\"},{\"question\":\"When facing a tight deadline, you typically:\",\"answer\":\"Break it into tasks and delegate efficiently\"},{\"question\":\"What motivates you most in your career?\",\"answer\":\"Climbing the leadership ladder\"},{\"question\":\"How do you handle ambiguity and uncertainty?\",\"answer\":\"I create structure and define clear goals\"},{\"question\":\"Which skill would you most like to develop?\",\"answer\":\"Strategic thinking and decision-making\"},{\"question\":\"In a group project, what role do you naturally take?\",\"answer\":\"The project manager who keeps everything on track\"},{\"question\":\"How do you prefer to measure your success?\",\"answer\":\"By the results and outcomes I deliver\"},{\"question\":\"What is your ideal work-life balance?\",\"answer\":\"I am driven and do not mind long hours for big goals\"},{\"question\":\"If you could switch careers instantly, you would choose:\",\"answer\":\"A C-suite executive or founder\"}]}"
+    }
+  ],
+  "parsedBodyFieldNames": [
+    "quizAnswers"
+  ],
+  "quizAnswersLength": 10,
+  "bodyWasDoubleStringified": false,
+  "phantomRequests": [],
+  "diagnosisResponses": [
+    "200 POST /api/career-diagnosis"
+  ],
+  "resultRendered": true,
+  "hasArchetype": false,
+  "hasRecommendedPaths": true,
+  "resultExcerpt": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nIdentity\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAI Screening\nAssessments\nOmniScore\nOTHER\nInterviews\nMessages\nOffers\nDocuments\nPay & Compensation\nOnboarding\nRefer & Earn\nSettings\nUpgrade to Pro\nSign out\nCandidate\nTry Premium\nRelevance\nFilters\nQuinn 1251 quinn-1251-solo\nYour Career Diagnosis\n\nPersonalized career insights based on your answers\n\nRetake\n\nYOUR CAREER ARCHETYPE\n\nThe Creative Problem-Solver\n\nYou naturally gravitate toward creative problem-solver roles where you can leverage your strengths in analysis and execution.\n\nAs a The Creative Problem-Solver, you're well-positioned for growth into technical leadership. Focus on communication and strategic thinking to accelerate your trajectory.\n\nRecommended Career Paths\nEngineering Management\n82% fit\n\nLead technical teams while staying close to the code.\n\n2-4 years\nLeadership\nSystem Design\nCommunication\nStaff Engineer\n76% fit\n\nDeep technical expertise across multiple domains.\n\n3-5 years\nArchitecture\nMentoring\nCross-team Collaboration\nYour Strengths\nAnalytical thinking\nStrong communication\nAdaptability\nGrowth Areas\nPublic speaking\nStrategic planning\nDelegation\nRecommended Roles\n\nEngineering Manager\n\n$140K - $200K\n\nCombines technical depth with people leadership.\n\nStaff Software Engineer\n\n$160K - $250K\n\nLeverages your technical breadth and mento",
+  "allApiRequests": [
+    "GET /api/auth/oauth/status",
+    "POST /api/analytics/events",
+    "POST /api/analytics/events",
+    "POST /api/auth/login",
+    "GET /api/billing/tier",
+    "POST /api/analytics/events",
+    "GET /api/notifications/in-app?limit=50",
+    "GET /api/candidate/dashboard/stats",
+    "GET /api/jobs?limit=5",
+    "GET /api/interviews/my-interviews",
+    "GET /api/interviews/screening/my-sessions",
+    "GET /api/auth/me",
+    "GET /api/auth/me",
+    "GET /api/billing/tier",
+    "GET /api/billing/tier",
+    "GET /api/notifications/in-app?limit=50",
+    "POST /api/career-diagnosis"
+  ]
+}

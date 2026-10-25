@@ -1,0 +1,343 @@
+FAIL server/__tests__/services/matching-engine-omniscore-null-1717.test.js
+  ● Console
+
+    console.log
+      [db] Pool config: {
+        "connectionString": "postgresql://root@***:***/rekrut_1717_test",
+        "ssl": false,
+        "max": 25,
+        "idleTimeoutMillis": 30000,
+        "connectionTimeoutMillis": 10000,
+        "allowExitOnIdle": false
+      }
+
+      at Object.log (lib/db.js:68:9)
+
+    console.log
+      [token-budget] Initialized. Daily budget: 100,000 tokens
+
+      at new log (lib/token-budget.js:54:11)
+
+    console.log
+      [self-hosted-audio] STT (whisper.cpp tiny.en): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:76:10)
+
+    console.log
+      [self-hosted-audio] TTS (Piper lessac-medium): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:79:10)
+
+    console.log
+      [ai-provider] Initialized. NIM: false | Groq: false | Cerebras: false | Kimi: false
+
+      at new log (lib/ai-provider.js:293:11)
+
+    console.log
+      [ai-provider] Providers:
+
+      at new log (lib/ai-provider.js:303:11)
+
+    console.log
+      [ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety
+
+      at new log (lib/ai-provider.js:304:11)
+
+    console.warn
+      Failed to update job embedding for 1717001: No available providers for embedding. openai_embed: not configured, nim_embed_qa: not configured, nim_embed_vl: not configured
+
+      422 | 			await updateJobEmbedding(jobId);
+      423 | 		} catch (embedErr) {
+    > 424 | 			console.warn(`Failed to update job embedding for ${jobId}:`, embedErr.message);
+          | 			        ^
+      425 | 		}
+      426 |
+      427 | 		// Get job details and TrustScore
+
+      at Object.warn [as findMatchingCandidates] (services/matching-engine.js:424:12)
+      at Object.<anonymous> (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:171:20)
+
+    console.warn
+      Failed to update job embedding for 1717001: No available providers for embedding. openai_embed: not configured, nim_embed_qa: not configured, nim_embed_vl: not configured
+
+      422 | 			await updateJobEmbedding(jobId);
+      423 | 		} catch (embedErr) {
+    > 424 | 			console.warn(`Failed to update job embedding for ${jobId}:`, embedErr.message);
+          | 			        ^
+      425 | 		}
+      426 |
+      427 | 		// Get job details and TrustScore
+
+      at Object.warn [as findMatchingCandidates] (services/matching-engine.js:424:12)
+      at Object.<anonymous> (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:192:20)
+
+    console.warn
+      Failed to update job embedding for 1717001: No available providers for embedding. openai_embed: not configured, nim_embed_qa: not configured, nim_embed_vl: not configured
+
+      422 | 			await updateJobEmbedding(jobId);
+      423 | 		} catch (embedErr) {
+    > 424 | 			console.warn(`Failed to update job embedding for ${jobId}:`, embedErr.message);
+          | 			        ^
+      425 | 		}
+      426 |
+      427 | 		// Get job details and TrustScore
+
+      at Object.warn [as findMatchingCandidates] (services/matching-engine.js:424:12)
+      at Object.<anonymous> (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:208:20)
+
+    console.warn
+      Failed to update job embedding for 1717001: No available providers for embedding. openai_embed: not configured, nim_embed_qa: not configured, nim_embed_vl: not configured
+
+      422 | 			await updateJobEmbedding(jobId);
+      423 | 		} catch (embedErr) {
+    > 424 | 			console.warn(`Failed to update job embedding for ${jobId}:`, embedErr.message);
+          | 			        ^
+      425 | 		}
+      426 |
+      427 | 		// Get job details and TrustScore
+
+      at Object.warn [as findMatchingCandidates] (services/matching-engine.js:424:12)
+      at Object.<anonymous> (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:223:20)
+
+    console.warn
+      Failed to update candidate embedding for 1717101: No available providers for embedding. openai_embed: not configured, nim_embed_qa: not configured, nim_embed_vl: not configured
+
+      595 | 			await updateCandidateEmbedding(userId);
+      596 | 		} catch (embedErr) {
+    > 597 | 			console.warn(`Failed to update candidate embedding for ${userId}:`, embedErr.message);
+          | 			        ^
+      598 | 		}
+      599 |
+      600 | 		// Get candidate's OmniScore
+
+      at Object.warn [as findMatchingJobs] (services/matching-engine.js:597:12)
+      at Object.<anonymous> (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:239:20)
+
+    console.warn
+      Failed to update candidate embedding for 1717103: No available providers for embedding. openai_embed: not configured, nim_embed_qa: not configured, nim_embed_vl: not configured
+
+      595 | 			await updateCandidateEmbedding(userId);
+      596 | 		} catch (embedErr) {
+    > 597 | 			console.warn(`Failed to update candidate embedding for ${userId}:`, embedErr.message);
+          | 			        ^
+      598 | 		}
+      599 |
+      600 | 		// Get candidate's OmniScore
+
+      at Object.warn [as findMatchingJobs] (services/matching-engine.js:597:12)
+      at Object.<anonymous> (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:260:20)
+
+    console.warn
+      Failed to update candidate embedding for 1717104: No available providers for embedding. openai_embed: not configured, nim_embed_qa: not configured, nim_embed_vl: not configured
+
+      595 | 			await updateCandidateEmbedding(userId);
+      596 | 		} catch (embedErr) {
+    > 597 | 			console.warn(`Failed to update candidate embedding for ${userId}:`, embedErr.message);
+          | 			        ^
+      598 | 		}
+      599 |
+      600 | 		// Get candidate's OmniScore
+
+      at Object.warn [as findMatchingJobs] (services/matching-engine.js:597:12)
+      at Object.<anonymous> (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:271:20)
+
+  ● #1717 matching-engine OmniScore NULL honesty (real DB) › Site A — findMatchingCandidates › no omni_scores row → omniscore null + marker, renormalized score, persisted NULL
+
+    expect(received).toBeNull()
+
+    Received: 300
+
+      172 | 			const m = matches.find((x) => x.candidate_id === CAND_NO_ROW);
+      173 | 			expect(m).toBeTruthy();
+    > 174 | 			expect(m.omniscore).toBeNull();
+          | 			                    ^
+      175 | 			expect(m.omniscore_status).toBe('insufficient_data');
+      176 | 			// (0.45 + 0.20 + 0.10) / 0.75 * 100 — no OmniScore term counted.
+      177 | 			expect(m.weighted_score).toBe(100);
+
+      at Object.toBeNull (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:174:24)
+
+  ● #1717 matching-engine OmniScore NULL honesty (real DB) › Site A — findMatchingCandidates › NULL-total omni_scores row → same honest treatment as no row
+
+    expect(received).toBeNull()
+
+    Received: 300
+
+      193 | 			const m = matches.find((x) => x.candidate_id === CAND_NULL_TOTAL);
+      194 | 			expect(m).toBeTruthy();
+    > 195 | 			expect(m.omniscore).toBeNull();
+          | 			                    ^
+      196 | 			expect(m.omniscore_status).toBe('insufficient_data');
+      197 | 			expect(m.weighted_score).toBe(100);
+      198 | 			expect(m.explanation.omniscore_boost).not.toMatch(/\d/);
+
+      at Object.toBeNull (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:195:24)
+
+  ● #1717 matching-engine OmniScore NULL honesty (real DB) › Site A — findMatchingCandidates › control: measured 0 is scored as a real 0, never skipped or rewritten
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 300
+
+      223 | 			const matches = await engine.findMatchingCandidates(JOB_ID, { limit: 20, minScore: 0.5 });
+      224 | 			const m = matches.find((x) => x.candidate_id === CAND_0);
+    > 225 | 			expect(m.omniscore).toBe(0);
+          | 			                    ^
+      226 | 			// (0.45 + 0.20 + 0*0.25 + 0.10) * 100 = 75
+      227 | 			expect(m.weighted_score).toBe(75);
+      228 | 			const persisted = await pool.query(
+
+      at Object.toBe (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:225:24)
+
+  ● #1717 matching-engine OmniScore NULL honesty (real DB) › Site B — findMatchingJobs › NULL candidate still gets recommendations, renormalized ÷0.90, no phantom term
+
+    expect(received).toBeNull()
+
+    Received: undefined
+
+      241 | 			const m = matches[0];
+      242 | 			expect(m.job_id).toBe(JOB_ID);
+    > 243 | 			expect(m.omniscore).toBeNull();
+          | 			                    ^
+      244 | 			expect(m.omniscore_status).toBe('insufficient_data');
+      245 | 			// (0.45 + 0.20 + 0.25) / 0.90 * 100 = 100 — derived only from measured parts.
+      246 | 			expect(m.weighted_score).toBe(100);
+
+      at Object.toBeNull (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:243:24)
+
+  ● #1717 matching-engine OmniScore NULL honesty (real DB) › Site B — findMatchingJobs › control: measured 0 candidate is scored with a real 0 term
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 90
+    Received: 93
+
+      272 | 			expect(matches).toHaveLength(1);
+      273 | 			// (0.45 + 0.20 + 0.25 + 0*0.10) * 100 = 90
+    > 274 | 			expect(matches[0].weighted_score).toBe(90);
+          | 			                                  ^
+      275 | 		});
+      276 | 	});
+      277 | });
+
+      at Object.toBe (server/__tests__/services/matching-engine-omniscore-null-1717.test.js:274:38)
+
+FAIL server/__tests__/routes/recruiter-pipeline-auto-check-1717.test.js (11.95 s)
+  ● Console
+
+    console.log
+      [db] Pool config: {
+        "connectionString": "postgresql://root@***:***/rekrut_1717_test",
+        "ssl": false,
+        "max": 25,
+        "idleTimeoutMillis": 30000,
+        "connectionTimeoutMillis": 10000,
+        "allowExitOnIdle": false
+      }
+
+      at Object.log (lib/db.js:68:9)
+
+    console.log
+      [token-budget] Initialized. Daily budget: 100,000 tokens
+
+      at new log (lib/token-budget.js:54:11)
+
+    console.log
+      [self-hosted-audio] STT (whisper.cpp tiny.en): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:76:10)
+
+    console.log
+      [self-hosted-audio] TTS (Piper lessac-medium): not installed
+
+      at Object.log [as initialize] (lib/self-hosted-audio.js:79:10)
+
+    console.log
+      [ai-provider] Initialized. NIM: false | Groq: false | Cerebras: false | Kimi: false
+
+      at new log (lib/ai-provider.js:293:11)
+
+    console.log
+      [ai-provider] Providers:
+
+      at new log (lib/ai-provider.js:303:11)
+
+    console.log
+      [ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety
+
+      at new log (lib/ai-provider.js:304:11)
+
+    console.warn
+      [polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled
+
+      39 | 		_openai = new OpenAI({ ...agentOpts }); // Uses OPENAI_BASE_URL and OPENAI_API_KEY from env
+      40 | 	} else {
+    > 41 | 		console.warn('[polsia-ai] OPENAI_API_KEY not set — OpenAI client disabled');
+         | 		        ^
+      42 | 	}
+      43 | } catch (err) {
+      44 | 	console.warn('[polsia-ai] Failed to initialize OpenAI client:', err.message);
+
+      at Object.warn (lib/polsia-ai.js:41:11)
+      at Object.require (services/job-optimizer.js:2:18)
+      at Object.require (routes/recruiter.js:8:22)
+      at Object.require (server/__tests__/routes/recruiter-pipeline-auto-check-1717.test.js:149:27)
+
+  ● #1717 Site C — pipeline auto-check NULL OmniScore skip (real DB) › NULL candidate (no row) with auto_reject=true / threshold 400 is NOT rejected, not notified, skip accounted
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "applied"
+    Received: "rejected"
+
+      172 | 		const res = await request(app).post('/api/recruiter/pipeline/auto-check/10');
+      173 | 		expect(res.status).toBe(200);
+    > 174 | 		expect(await statusOf(1)).toBe('applied');
+          | 		                          ^
+      175 | 		expect(notifyUser).not.toHaveBeenCalled();
+      176 | 		const skipped = res.body.actions.filter((a) => a.type === 'skipped');
+      177 | 		expect(skipped).toHaveLength(1);
+
+      at Object.toBe (server/__tests__/routes/recruiter-pipeline-auto-check-1717.test.js:174:29)
+
+  ● #1717 Site C — pipeline auto-check NULL OmniScore skip (real DB) › NULL-total candidate with auto_reject=true / threshold 400 is NOT rejected
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "applied"
+    Received: "rejected"
+
+      187 | 		const res = await request(app).post('/api/recruiter/pipeline/auto-check/10');
+      188 | 		expect(res.status).toBe(200);
+    > 189 | 		expect(await statusOf(1)).toBe('applied');
+          | 		                          ^
+      190 | 		expect(notifyUser).not.toHaveBeenCalled();
+      191 | 		expect(res.body.actions.filter((a) => a.type === 'skipped')).toHaveLength(1);
+      192 | 	});
+
+      at Object.toBe (server/__tests__/routes/recruiter-pipeline-auto-check-1717.test.js:189:29)
+
+  ● #1717 Site C — pipeline auto-check NULL OmniScore skip (real DB) › NULL candidate with auto_advance=true / threshold 200 is NOT advanced, skip accounted
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "applied"
+    Received: "screening"
+
+      202 | 		const res = await request(app).post('/api/recruiter/pipeline/auto-check/11');
+      203 | 		expect(res.status).toBe(200);
+    > 204 | 		expect(await statusOf(2)).toBe('applied');
+          | 		                          ^
+      205 | 		expect(notifyUser).not.toHaveBeenCalled();
+      206 | 		const skipped = res.body.actions.filter((a) => a.type === 'skipped');
+      207 | 		expect(skipped).toHaveLength(1);
+
+      at Object.toBe (server/__tests__/routes/recruiter-pipeline-auto-check-1717.test.js:204:29)
+
+Test Suites: 2 failed, 2 total
+Tests:       8 failed, 3 passed, 11 total
+Snapshots:   0 total
+Time:        15.191 s
+Ran all test suites matching server/__tests__/services/matching-engine-omniscore-null-1717.test.js|server/__tests__/routes/recruiter-pipeline-auto-check-1717.test.js.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

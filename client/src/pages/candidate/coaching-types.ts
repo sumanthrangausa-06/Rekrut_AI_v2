@@ -22,7 +22,8 @@ export interface PracticeStats {
 }
 
 export interface CategoryScoreDetail {
-	score: number;
+	// null = no data (e.g. no video frames) — renders as "N/A", not a fake score
+	score: number | null;
 	feedback: string;
 }
 
@@ -62,7 +63,8 @@ export interface VideoCoaching {
 		};
 	};
 	presentation: {
-		score: number;
+		// null = no video data (renders "N/A")
+		score: number | null;
 		eye_contact: CategoryScoreDetail;
 		facial_expressions: CategoryScoreDetail;
 		body_language: CategoryScoreDetail;

@@ -10,12 +10,16 @@ const calendarService = require('../server/services/calendar-service');
 const auditLogService = require('../services/auditLogService');
 const { AuditLogger } = auditLogService;
 const { dataAccessAudit } = require('../middleware/dataAccessAudit');
+const { buildRecruiterFeed } = require('../lib/activity-feed');
 const emailService = require('../lib/email-service');
 const { notifyUser } = require('../lib/notify');
 const DOMPurify = require('isomorphic-dompurify');
 
 const router = express.Router();
 const { analyticsCache } = require('../lib/analytics-cache');
+
+// #1731: excellent-tier floor (services/omniscore.js SCORE_RANGES.TIERS.excellent.min), founder-ruled 2026-10-22 for #1731.
+const TOP_OMNISCORE_THRESHOLD = 740;
 
 // ── Analytics helpers (Issue #143) ──────────────────────────────
 
@@ -326,12 +330,13 @@ router.get(
 				const genderResult = await pool.query(
 					`
         SELECT
-          COALESCE(cp.gender, 'Unknown') as label,
+          COALESCE(cd.gender, 'Unknown') as label,
           COUNT(*) as count
         FROM job_applications ja
         JOIN candidate_profiles cp ON ja.candidate_id = cp.user_id
+        LEFT JOIN candidate_demographics cd ON cd.user_id = cp.user_id
         WHERE ja.company_id = $1 ${dateFilter}
-        GROUP BY cp.gender
+        GROUP BY cd.gender
       `,
 					[companyId, days],
 				);
@@ -345,12 +350,13 @@ router.get(
 				const ethnicityResult = await pool.query(
 					`
         SELECT
-          COALESCE(cp.ethnicity, 'Unknown') as label,
+          COALESCE(cd.ethnicity, 'Unknown') as label,
           COUNT(*) as count
         FROM job_applications ja
         JOIN candidate_profiles cp ON ja.candidate_id = cp.user_id
+        LEFT JOIN candidate_demographics cd ON cd.user_id = cp.user_id
         WHERE ja.company_id = $1 ${dateFilter}
-        GROUP BY cp.ethnicity
+        GROUP BY cd.ethnicity
       `,
 					[companyId, days],
 				);
@@ -411,26 +417,28 @@ router.get(
 				const genderPipelineResult = await pool.query(
 					`
         SELECT
-          COALESCE(cp.gender, 'Unknown') as group_label,
+          COALESCE(cd.gender, 'Unknown') as group_label,
           ja.status as stage,
           COUNT(*) as count
         FROM job_applications ja
         JOIN candidate_profiles cp ON ja.candidate_id = cp.user_id
+        LEFT JOIN candidate_demographics cd ON cd.user_id = cp.user_id
         WHERE ja.company_id = $1 ${dateFilter}
-        GROUP BY cp.gender, ja.status
+        GROUP BY cd.gender, ja.status
       `,
 					[companyId, days],
 				);
 				const ethnicityPipelineResult = await pool.query(
 					`
         SELECT
-          COALESCE(cp.ethnicity, 'Unknown') as group_label,
+          COALESCE(cd.ethnicity, 'Unknown') as group_label,
           ja.status as stage,
           COUNT(*) as count
         FROM job_applications ja
         JOIN candidate_profiles cp ON ja.candidate_id = cp.user_id
+        LEFT JOIN candidate_demographics cd ON cd.user_id = cp.user_id
         WHERE ja.company_id = $1 ${dateFilter}
-        GROUP BY cp.ethnicity, ja.status
+        GROUP BY cd.ethnicity, ja.status
       `,
 					[companyId, days],
 				);
@@ -570,6 +578,27 @@ router.get(
 				[companyId, days],
 			);
 
+			// ─── DAILY APPLICATIONS TREND (graceful, for #524 charts) ───
+			let dailyApplications = [];
+			try {
+				const trendResult = await pool.query(
+					`
+        SELECT DATE(applied_at) as day, COUNT(*) as count
+        FROM job_applications
+        WHERE company_id = $1 ${dateFilter}
+        GROUP BY DATE(applied_at)
+        ORDER BY day
+      `,
+					[companyId, days],
+				);
+				dailyApplications = trendResult.rows.map((r) => ({
+					day: r.day instanceof Date ? r.day.toISOString().split('T')[0] : String(r.day),
+					count: parseInt(r.count, 10) || 0,
+				}));
+			} catch (_trendErr) {
+				console.log('[dashboard] daily applications trend not available');
+			}
+
 			const response = {
 				success: true,
 				trust_score: trustScore,
@@ -594,6 +623,7 @@ router.get(
 				offer_acceptance_rate: offerAcceptanceRate,
 				upcoming_interviews: upcomingInterviews.rows,
 				recent_applications: recentApps.rows,
+				daily_applications: dailyApplications,
 			};
 
 			analyticsCache.set(cacheKey, response);
@@ -601,6 +631,24 @@ router.get(
 		} catch (err) {
 			console.error('Dashboard error:', err);
 			res.status(500).json({ error: 'Failed to load dashboard' });
+		}
+	},
+);
+
+// Issue #529: Recruiter activity feed — richer than recent applications alone.
+// Aggregates new applications, interviews, and endorsements given.
+router.get(
+	'/activity',
+	authMiddleware,
+	requireApprovedRecruiter,
+	ensureCompany,
+	async (req, res) => {
+		try {
+			const activities = await buildRecruiterFeed(req.user.id, req.user.company_id);
+			res.json({ success: true, activities });
+		} catch (err) {
+			console.error('[recruiter/activity] failed:', err.message);
+			res.status(500).json({ error: 'Failed to load activity feed' });
 		}
 	},
 );
@@ -810,6 +858,14 @@ router.post(
 					analysis,
 					message: optimize ? 'Job created with AI optimization!' : 'Job created successfully',
 				});
+
+				// #528: Match new job against candidate job alerts (fire-and-forget)
+				try {
+					const { matchAndNotifyForJob } = require('../lib/job-alert-matcher');
+					matchAndNotifyForJob(job).catch(() => {});
+				} catch (_e) {
+					/* job alerts are best-effort; never fail job creation */
+				}
 			} catch (_e) {
 				// Issue #143: Invalidate analytics cache on new job
 				analyticsCache.invalidatePatterns([
@@ -1170,6 +1226,14 @@ router.put(
 				console.error('Screening template sync failed:', templateErr.message);
 			}
 
+			// Invalidate analytics cache on job update (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
+
 			res.json({ success: true, job: result.rows[0] });
 		} catch (err) {
 			if (err.statusCode === 400) {
@@ -1458,6 +1522,14 @@ router.post(
 				[application_id],
 			);
 
+			// Invalidate analytics cache on interview creation (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
+
 			res.json({ success: true, interview: result.rows[0] });
 
 			// ── Calendar auto-sync (non-blocking) ──
@@ -1505,6 +1577,14 @@ router.delete(
 			} catch (calErr) {
 				console.error('[calendar] Auto-sync delete failed (non-blocking):', calErr.message);
 			}
+
+			// Invalidate analytics cache on interview deletion (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
 
 			res.json({ success: true });
 		} catch (err) {
@@ -1626,13 +1706,23 @@ router.get(
 			}
 
 			if (minScore) {
-				conditions.push(`COALESCE(os.total_score, ja.match_score, 0) >= $${paramIdx}`);
+				// #1725: honest OmniScore only — a NULL score can never satisfy a
+				// minimum, so no-data candidates are excluded (never judged on
+				// their match score or a fabricated 0).
+				conditions.push(`os.total_score >= $${paramIdx}`);
 				params.push(parseInt(minScore, 10));
 				paramIdx++;
 			}
 
 			if (maxScore) {
-				conditions.push(`COALESCE(os.total_score, ja.match_score, 0) <= $${paramIdx}`);
+				// #1725: with a minimum also set, NULL is already excluded above.
+				// Max-only: no-data candidates are INCLUDED — no measured score
+				// exists that could exceed the maximum.
+				conditions.push(
+					minScore
+						? `os.total_score <= $${paramIdx}`
+						: `(os.total_score IS NULL OR os.total_score <= $${paramIdx})`,
+				);
 				params.push(parseInt(maxScore, 10));
 				paramIdx++;
 			}
@@ -1669,7 +1759,7 @@ router.get(
         cp.salary_min,
         cp.salary_max,
         cp.remote_preference,
-        COALESCE(os.total_score, latest_ja.match_score, 0) as omniscore,
+        os.total_score as omniscore,
         os.score_tier,
         latest_ja.status as application_status,
         latest_ja.applied_at,
@@ -1709,12 +1799,14 @@ router.get(
 				experienceYears: row.years_experience || 0,
 				phone: row.phone,
 				skills: row.skills || [],
-				matchScore: row.match_score || 0,
-				omniscore: row.omniscore || 0,
+				matchScore: row.match_score ?? null,
+				matchScore_status: row.match_score == null ? 'insufficient_data' : 'measured',
+				omniscore: row.omniscore ?? null,
+				omniscore_status: row.omniscore == null ? 'insufficient_data' : 'measured',
 				scoreTier: row.score_tier,
 				applicationStatus: row.application_status,
 				lastActivity: row.applied_at ? new Date(row.applied_at).toISOString() : null,
-				isTopCandidate: row.omniscore >= 85,
+				isTopCandidate: row.omniscore != null && row.omniscore >= TOP_OMNISCORE_THRESHOLD,
 				salaryMin: row.salary_min,
 				salaryMax: row.salary_max,
 				remotePreference: row.remote_preference,
@@ -1797,9 +1889,9 @@ router.get(
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id
-      WHERE ja.company_id = $1 AND COALESCE(os.total_score, ja.match_score, 0) >= 85
+      WHERE ja.company_id = $1 AND os.total_score >= $2
     `,
-					[companyId],
+					[companyId, TOP_OMNISCORE_THRESHOLD],
 				);
 				topCandidatesCount = parseInt(topCandidates.rows[0].count, 10) || 0;
 			} catch (_topErr) {
@@ -1925,7 +2017,7 @@ router.put(
 			if (status && status !== existing.rows[0].old_status) {
 				try {
 					await pool.query(
-						`INSERT INTO events (user_id, event_type, event_data, created_at)
+						`INSERT INTO events (user_id, event_type, metadata, created_at)
            VALUES ($1, 'application_status_changed', $2, NOW())`,
 						[
 							req.user.id,
@@ -2103,6 +2195,14 @@ router.put(
 				});
 			}
 
+			// Invalidate analytics cache on application update (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
+
 			res.json({ success: true, application: result.rows[0] });
 		} catch (err) {
 			console.error('Update application error:', err);
@@ -2190,6 +2290,14 @@ router.post(
 				10,
 			);
 
+			// Invalidate analytics cache on interview schedule (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
+
 			res.json({ success: true, interview: result.rows[0] });
 		} catch (err) {
 			console.error('Schedule interview error:', err);
@@ -2254,6 +2362,70 @@ router.put(
 		try {
 			const { status, outcome, feedback, meeting_link } = req.body;
 
+			// #1783: outcome is a closed vocabulary
+			// (chk_scheduled_interviews_outcome) — an out-of-vocabulary
+			// value must be an honest 400, not a PG 23514 500.
+			// #1789 (design §5/§6.1, option (b)): the recruiter client
+			// speaks the hire-family vocabulary; translate it server-side
+			// to the canonical CHECK vocabulary so only canonical values
+			// are ever stored. 'completed' is the client's no-selection
+			// default — it records no hire decision, so it maps to
+			// no_decision, never to a fabricated passed (D4). Leans are
+			// decisions: lean_hire -> passed, lean_no_hire -> failed (D5).
+			const CANONICAL_OUTCOMES = ['passed', 'failed', 'pending_review', 'no_decision'];
+			const OUTCOME_TRANSLATIONS = {
+				strong_hire: 'passed',
+				hire: 'passed',
+				lean_hire: 'passed',
+				lean_no_hire: 'failed',
+				no_hire: 'failed',
+				completed: 'no_decision',
+			};
+			// #1788 (design §6.1, D5): status is the canonical
+			// scheduled_interviews vocabulary (chk_scheduled_interviews_status
+			// as widened by migration 293). Unlike outcome (#1789) there is
+			// no second status vocabulary spoken by any real client — the
+			// clients speak the canonical values themselves — so this is
+			// validation, NOT translation: status null/omitted keeps the
+			// stored value (the COALESCE below); anything else outside
+			// the vocabulary, including '', is an honest 400, row
+			// unchanged, instead of the same PG 23514 -> 500 class.
+			const ALLOWED_STATUSES = [
+				'scheduled',
+				'confirmed',
+				'in_progress',
+				'completed',
+				'cancelled',
+				'no_show',
+				'rescheduled',
+				'reschedule_requested',
+			];
+			let storedStatus = status;
+			if (status != null) {
+				if (ALLOWED_STATUSES.includes(status)) {
+					storedStatus = status;
+				} else {
+					return res.status(400).json({
+						error: `Invalid interview status: ${status}. Allowed: ${ALLOWED_STATUSES.join(', ')}`,
+					});
+				}
+			}
+
+			// D7: outcome null/omitted keeps the stored value (the
+			// COALESCE below); there is no clear-to-NULL via this PUT.
+			let storedOutcome = outcome;
+			if (outcome != null) {
+				if (CANONICAL_OUTCOMES.includes(outcome)) {
+					storedOutcome = outcome;
+				} else if (Object.prototype.hasOwnProperty.call(OUTCOME_TRANSLATIONS, outcome)) {
+					storedOutcome = OUTCOME_TRANSLATIONS[outcome];
+				} else {
+					return res.status(400).json({
+						error: `Invalid interview outcome: ${outcome}. Allowed: ${[...CANONICAL_OUTCOMES, ...Object.keys(OUTCOME_TRANSLATIONS)].join(', ')}`,
+					});
+				}
+			}
+
 			const result = await pool.query(
 				`UPDATE scheduled_interviews SET
         status = COALESCE($1, status),
@@ -2264,8 +2436,8 @@ router.put(
        WHERE id = $5 AND company_id = $6
        RETURNING *`,
 				[
-					status,
-					outcome,
+					storedStatus,
+					storedOutcome,
 					feedback ? JSON.stringify(feedback) : null,
 					meeting_link,
 					req.params.id,
@@ -2276,6 +2448,14 @@ router.put(
 			if (result.rows.length === 0) {
 				return res.status(404).json({ error: 'Interview not found' });
 			}
+
+			// Invalidate analytics cache on interview update (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
 
 			res.json({ success: true, interview: result.rows[0] });
 
@@ -2710,6 +2890,14 @@ router.put(
 				}
 			}
 
+			// Invalidate analytics cache on batch status update (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
+
 			res.json({
 				success: true,
 				updated: result.rows.length,
@@ -2831,7 +3019,10 @@ router.get(
       LEFT JOIN match_results mr ON mr.candidate_id = ja.candidate_id AND mr.job_id = ja.job_id
       WHERE ja.job_id = $1
         AND ja.status NOT IN ('withdrawn', 'rejected')
-        AND COALESCE(ja.match_score, 0) >= $2
+        -- #1731 S-6: a NULL match is not a measured 0. It is included exactly
+        -- when no minimum was requested ($2 <= 0) and never passes a
+        -- requested minimum.
+        AND (ja.match_score >= $2 OR ($2 <= 0 AND ja.match_score IS NULL))
       ORDER BY ja.match_score DESC NULLS LAST, os.total_score DESC NULLS LAST
     `,
 				[jobId, min_score],
@@ -3027,12 +3218,34 @@ router.post(
 	requirePermission('jobs:update'),
 	async (req, res) => {
 		try {
-			const { questions } = req.body;
-			if (!questions || !Array.isArray(questions))
-				return res.status(400).json({ error: 'questions array required' });
+			// #1740: accept BOTH shapes — { questions: [...] } and the live
+			// client's single-question body { question_text, question_type,
+			// category, options } (job-form.tsx saveQuestionsToBank).
+			const items = Array.isArray(req.body?.questions)
+				? req.body.questions
+				: req.body && (req.body.question_text || req.body.question)
+					? [req.body]
+					: null;
+			if (!items || items.length === 0)
+				return res.status(400).json({ error: 'question_text or questions array required' });
+
+			// Normalise + validate every item before inserting any, so a
+			// text-less item rejects the whole request with no partial save.
+			const normalized = [];
+			for (const q of items) {
+				const text = q?.question || q?.question_text;
+				if (!text || !String(text).trim())
+					return res.status(400).json({ error: 'question text required' });
+				normalized.push({
+					text,
+					category: q.category || 'general',
+					type: q.question_type || q.type || 'text',
+					options: q.options || [],
+				});
+			}
 
 			const saved = [];
-			for (const q of questions) {
+			for (const q of normalized) {
 				const result = await pool.query(
 					`
         INSERT INTO question_bank (recruiter_id, question_text, category, question_type, options)
@@ -3043,10 +3256,10 @@ router.post(
       `,
 					[
 						req.user.id,
-						q.question || q.question_text,
-						q.category || 'general',
-						q.type || 'text',
-						JSON.stringify(q.options || []),
+						q.text,
+						q.category,
+						q.type,
+						JSON.stringify(q.options),
 					],
 				);
 				saved.push(result.rows[0]);
@@ -3152,6 +3365,14 @@ router.post(
 					reporting_to || null,
 				],
 			);
+
+			// Invalidate analytics cache on offer creation (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
 
 			res.json({ success: true, offer: result.rows[0] });
 
@@ -3265,6 +3486,14 @@ router.get(
 			if (result.rows.length === 0) {
 				return res.status(404).json({ error: 'Offer not found' });
 			}
+
+			// Invalidate analytics cache on offer update (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
 
 			res.json({ success: true, offer: result.rows[0] });
 		} catch (err) {
@@ -3526,6 +3755,14 @@ router.put(
 				req,
 			});
 
+			// Invalidate analytics cache on offer send (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
+
 			res.json({ success: true, offer: result.rows[0] });
 		} catch (err) {
 			console.error('Send offer error:', err);
@@ -3564,6 +3801,14 @@ router.put(
        WHERE id = $1 RETURNING *`,
 				[req.params.id, reason || 'Rescinded by recruiter'],
 			);
+
+			// Invalidate analytics cache on offer withdraw (#524)
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
 
 			res.json({ success: true, offer: result.rows[0] });
 		} catch (err) {
@@ -3709,15 +3954,25 @@ router.get(
              os.interview_score, os.technical_score, os.resume_score, os.behavior_score,
              cp.headline, cp.years_experience,
              mr.matching_skills, mr.missing_skills,
-             -- Composite rank: 50% OmniScore + 50% match_score
-             (COALESCE(os.total_score, 300) * 0.5 + COALESCE(ja.match_score, 50) * 0.5 * 8.5) as composite_score
+             -- Composite rank: 50% OmniScore + 50% match_score (match scaled x8.5
+             -- to the OmniScore range), renormalised over measured components
+             -- only (#1731 S-5, #1724 precedent): both measured -> unchanged;
+             -- one measured -> that component alone on the composite scale;
+             -- neither -> NULL, sorted last, never an invented 50 or 0.
+             (CASE
+                WHEN os.total_score IS NOT NULL AND ja.match_score IS NOT NULL
+                  THEN os.total_score * 0.5 + ja.match_score * 8.5 * 0.5
+                WHEN os.total_score IS NOT NULL THEN os.total_score::numeric
+                WHEN ja.match_score IS NOT NULL THEN ja.match_score * 8.5
+                ELSE NULL
+              END) as composite_score
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
       LEFT JOIN match_results mr ON mr.candidate_id = ja.candidate_id AND mr.job_id = ja.job_id
       WHERE ja.job_id = $1 AND ja.status NOT IN ('withdrawn', 'rejected')
-      ORDER BY composite_score DESC
+      ORDER BY composite_score DESC NULLS LAST
     `,
 				[jobId],
 			);
@@ -3728,7 +3983,9 @@ router.get(
 				ranked_candidates: ranked.rows.map((r, i) => ({
 					...r,
 					rank: i + 1,
-					composite_score: Math.round(r.composite_score * 100) / 100,
+					composite_score:
+						r.composite_score == null ? null : Math.round(r.composite_score * 100) / 100,
+					composite_status: r.composite_score == null ? 'insufficient_data' : 'measured',
 					matching_skills: r.matching_skills
 						? typeof r.matching_skills === 'string'
 							? JSON.parse(r.matching_skills)
@@ -3741,6 +3998,7 @@ router.get(
 						: [],
 				})),
 				total: ranked.rows.length,
+				unranked_insufficient_data: ranked.rows.filter((r) => r.composite_score == null).length,
 			});
 		} catch (err) {
 			console.error('AI rank all error:', err);
@@ -3973,12 +4231,62 @@ router.post(
 				for (const rule of rules.rows) {
 					if (app.status !== rule.from_stage) continue;
 
-					const omniscore = app.omniscore || 300;
-					const matchScore = app.match_score || 0;
+					// #1717: NULL OmniScore (no row, or #1192 honest-NULL total)
+					// is insufficient data — automation must not judge this
+					// application at all: no auto-advance, no auto-reject, no
+					// status write, no notification. The skip is accounted for
+					// in the response actions. A measured value, including a
+					// measured 0, is judged exactly as before.
+					if (app.omniscore === null || app.omniscore === undefined) {
+						actions.push({
+							type: 'skipped',
+							application_id: app.id,
+							candidate_id: app.candidate_id,
+							from: rule.from_stage,
+							reason: 'OmniScore: insufficient data — automation not applied',
+						});
+						continue;
+					}
 
-					// Auto-advance check
+					const matchScore = app.match_score;
+					const omniscore = app.omniscore;
+
+					// #1731 S-7 (fix round F-1): NULL match score is
+					// insufficient data for the auto-advance judgement ONLY
+					// — it is not a measured 0, and it must not suppress
+					// the auto-reject leg: the reject leg's sole input
+					// (OmniScore) is measured, because the #1717 OmniScore
+					// skip above has already passed, so the reject
+					// judgement CAN be made — and a makeable judgement is
+					// never reported as un-makeable (review §3). The
+					// advance skip is therefore DEFERRED: it is accounted
+					// after the reject check, and only if no reject fired.
+					// If reject fires, the application is rejected with no
+					// skipped action and exactly one notification, exactly
+					// as pristine judged it. Auto-reject-only rules never
+					// set this flag (auto_advance is false) and are judged
+					// exactly as before — they never consumed matchScore.
+					// A measured match score, including a measured 0, is
+					// judged exactly as before (explicit null test, never
+					// truthiness).
+					const advanceMatchUnmeasured =
+						rule.auto_advance &&
+						(app.match_score === null || app.match_score === undefined);
+
+					// Auto-advance check — judged only when its match input
+					// is measured (explicit gate: bare `null >= 0` is true
+					// in JS and would resurrect the threshold-0 trap).
+					// Precedence note: the advance and reject checks keep
+					// their pristine independent-if order (#1717 structure
+					// — reject is an independent `if` after the advance
+					// check, not an else). On measured scores where both
+					// legs could fire, both actions are recorded and the
+					// final status is 'rejected', exactly as before this
+					// fix. For a NULL match the advance leg cannot fire at
+					// all, so the reject leg is the only judgable leg.
 					if (
 						rule.auto_advance &&
+						!advanceMatchUnmeasured &&
 						omniscore >= rule.omniscore_threshold &&
 						matchScore >= rule.match_score_threshold
 					) {
@@ -3996,7 +4304,9 @@ router.post(
 						});
 					}
 
-					// Auto-reject check
+					// Auto-reject check — judges OmniScore alone; it never
+					// consumed matchScore, so a NULL match cannot gate it.
+					let autoRejected = false;
 					if (rule.auto_reject && omniscore < rule.auto_reject_threshold) {
 						await pool.query(
 							`UPDATE job_applications SET status = 'rejected', updated_at = NOW() WHERE id = $1`,
@@ -4016,6 +4326,22 @@ router.post(
 							from: rule.from_stage,
 							reason: `OmniScore ${omniscore} < ${rule.auto_reject_threshold}`,
 						});
+						autoRejected = true;
+					}
+
+					// Deferred S-7 skip: the advance judgement could not
+					// be made (match unmeasured) and no reject fired, so
+					// account the skip now — same shape as the #1717
+					// OmniScore skip, counted by the existing
+					// skipped_insufficient_data response field.
+					if (advanceMatchUnmeasured && !autoRejected) {
+						actions.push({
+							type: 'skipped',
+							application_id: app.id,
+							candidate_id: app.candidate_id,
+							from: rule.from_stage,
+							reason: 'Match score: insufficient data — automation not applied',
+						});
 					}
 				}
 			}
@@ -4025,6 +4351,7 @@ router.post(
 				actions,
 				total_checked: apps.rows.length,
 				rules_applied: rules.rows.length,
+				skipped_insufficient_data: actions.filter((a) => a.type === 'skipped').length,
 			});
 		} catch (err) {
 			console.error('Pipeline auto-check error:', err);
@@ -4299,16 +4626,16 @@ router.get(
 			try {
 				const diversityResult = await pool.query(
 					`SELECT 
-					COUNT(*) FILTER (WHERE u.gender = 'male') as male_count,
-					COUNT(*) FILTER (WHERE u.gender = 'female') as female_count,
-					COUNT(*) FILTER (WHERE u.gender = 'non_binary') as non_binary_count,
-					COUNT(*) FILTER (WHERE u.gender IS NULL OR u.gender = 'prefer_not_to_say') as gender_unspecified,
-					COUNT(*) FILTER (WHERE u.ethnicity = 'asian') as asian_count,
-					COUNT(*) FILTER (WHERE u.ethnicity = 'black') as black_count,
-					COUNT(*) FILTER (WHERE u.ethnicity = 'hispanic') as hispanic_count,
-					COUNT(*) FILTER (WHERE u.ethnicity = 'white') as white_count,
-					COUNT(*) FILTER (WHERE u.ethnicity = 'other') as ethnicity_other,
-					COUNT(*) FILTER (WHERE u.ethnicity IS NULL) as ethnicity_unspecified,
+					COUNT(*) FILTER (WHERE cd.gender = 'male') as male_count,
+					COUNT(*) FILTER (WHERE cd.gender = 'female') as female_count,
+					COUNT(*) FILTER (WHERE cd.gender = 'non_binary') as non_binary_count,
+					COUNT(*) FILTER (WHERE cd.gender IS NULL OR cd.gender = 'prefer_not_to_say') as gender_unspecified,
+					COUNT(*) FILTER (WHERE cd.ethnicity = 'asian') as asian_count,
+					COUNT(*) FILTER (WHERE cd.ethnicity = 'black') as black_count,
+					COUNT(*) FILTER (WHERE cd.ethnicity = 'hispanic') as hispanic_count,
+					COUNT(*) FILTER (WHERE cd.ethnicity = 'white') as white_count,
+					COUNT(*) FILTER (WHERE cd.ethnicity = 'other') as ethnicity_other,
+					COUNT(*) FILTER (WHERE cd.ethnicity IS NULL) as ethnicity_unspecified,
 					COUNT(*) FILTER (WHERE DATE_PART('year', AGE(COALESCE(u.date_of_birth, NOW() - INTERVAL '30 years'))) < 25) as age_under_25,
 					COUNT(*) FILTER (WHERE DATE_PART('year', AGE(COALESCE(u.date_of_birth, NOW() - INTERVAL '30 years'))) BETWEEN 25 AND 34) as age_25_34,
 					COUNT(*) FILTER (WHERE DATE_PART('year', AGE(COALESCE(u.date_of_birth, NOW() - INTERVAL '30 years'))) BETWEEN 35 AND 44) as age_35_44,
@@ -4316,6 +4643,7 @@ router.get(
 					COUNT(*) FILTER (WHERE DATE_PART('year', AGE(COALESCE(u.date_of_birth, NOW() - INTERVAL '30 years'))) >= 55) as age_55_plus
 				 FROM job_applications a
 				 JOIN users u ON a.candidate_id = u.id
+				 LEFT JOIN candidate_demographics cd ON cd.user_id = u.id
 				 WHERE a.company_id = $1 AND a.applied_at >= NOW() - INTERVAL '${days} days'`,
 					[companyId],
 				);

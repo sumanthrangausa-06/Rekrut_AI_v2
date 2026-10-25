@@ -19,7 +19,34 @@ const {
 	analyzeVideoInterviewResponse,
 } = require('../lib/qp-ai');
 
+// S-066 (#719): consent infrastructure for the QP biometric gate.
+// Practice sessions are lightweight interview_sessions rows (type='practice');
+// consent receipts bind to them through the existing consent service.
+const SessionService = require('../lib/sessionService');
+const { requireBiometricConsent } = require('../server/middleware/requireBiometricConsent');
+
 const router = express.Router();
+
+// ─── PRACTICE SESSION START (S-066) ─────────────────────────────
+// Creates the practice session that biometric consent receipts bind to
+// (Option A: practice-session-bound receipts — reuses consent infrastructure).
+// The frontend calls this before showing the consent screen, then records
+// consent via POST /api/consent/record with the returned sessionId.
+router.post('/practice/session/start', authMiddleware, async (req, res) => {
+	try {
+		const session = await SessionService.create({
+			type: 'practice',
+			triggeredBy: req.user.id,
+			candidateId: req.user.id,
+		});
+		res.status(201).json({ sessionId: session.id });
+	} catch (err) {
+		// Fail closed: without a session, consent cannot be recorded and
+		// frames cannot be uploaded.
+		console.error('[QP] practice session start failed:', err.message);
+		res.status(500).json({ error: 'Could not start practice session. Please try again.' });
+	}
+});
 
 // ─── PRACTICE QUESTION LIBRARY ──────────────────────────────────
 // Quick Practice's OWN copy — not shared with Mock Interview
@@ -337,7 +364,17 @@ router.post('/practice/submit', authMiddleware, async (req, res) => {
 });
 
 // ─── POST /practice/submit-video ────────────────────────────────
-router.post('/practice/submit-video', authMiddleware, async (req, res) => {
+router.post(
+	'/practice/submit-video',
+	authMiddleware,
+	// S-066 (#719): biometric consent gate — no valid consent receipt for the
+	// practice session → 403, frames never reach the upload path (AC-1).
+	// Uses the QP-specific 'biometric_practice' consent type (C-1: the
+	// interview 'biometric' text is misleading for practice users) with
+	// practice-surface messaging (H-2/M-1: non-punitive, correct nouns).
+	// The sessionId comes from POST /practice/session/start (request body).
+	requireBiometricConsent('biometric_practice', { surface: 'practice' }),
+	async (req, res) => {
 	try {
 		const { transcription, frames, duration_seconds, audio_data } = req.body;
 		const question_id = req.body.question_id || 'general';
@@ -358,6 +395,22 @@ router.post('/practice/submit-video', authMiddleware, async (req, res) => {
 				.json({ error: 'No video frames captured. Please allow camera access.' });
 		}
 
+		// ── vision-debug (Tasks 12-13): diagnose mobile frames producing no analysis ──
+		// Log per-frame size + format so we can compare mobile vs laptop submissions.
+		// A blank 320×240 JPEG (video not rendering yet) is ~2-5KB; a real frame is ~15-40KB.
+		try {
+			console.log(`[vision-debug] submit-video: ${frames.length} frame(s) received`);
+			frames.forEach((f, i) => {
+				const s = typeof f === 'string' ? f : '';
+				const prefix = s.substring(0, 40);
+				console.log(
+					`[vision-debug] frame ${i}: type=${typeof f}, base64_len=${s.length}, prefix=${prefix}`,
+				);
+			});
+		} catch (logErr) {
+			console.log('[vision-debug] frame logging failed:', logErr.message);
+		}
+
 		const keyPoints = resolved
 			? resolved.key_points
 			: ['Content quality', 'Structure', 'Clarity', 'Relevance'];
@@ -371,7 +424,12 @@ router.post('/practice/submit-video', authMiddleware, async (req, res) => {
 				frames,
 				duration_seconds || 60,
 				keyPoints,
-				{ subscriptionId: req.user.stripe_subscription_id, audioData: audio_data || null },
+				{
+					subscriptionId: req.user.stripe_subscription_id,
+					audioData: audio_data || null,
+					// S-059 (#630): candidateId required for DEK-encrypted frame upload
+					candidateId: req.user.id,
+				},
 			),
 			new Promise((_, reject) =>
 				setTimeout(() => {

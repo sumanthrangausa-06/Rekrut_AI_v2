@@ -85,8 +85,15 @@ jest.mock('../../lib/db', () => {
 		if (normalized.includes('update users set password_hash')) {
 			const newHash = params[0];
 			const userId = params[1];
+			// #105 C1: the rehash-on-login update is compare-and-swap
+			// (… AND password_hash = $3). Honour the predicate so tests can
+			// prove a mid-flight password change is never overwritten.
+			const casExpected = normalized.includes('and password_hash') ? params[2] : undefined;
 			for (const user of mockUsers.values()) {
 				if (user.id === userId) {
+					if (casExpected !== undefined && user.password_hash !== casExpected) {
+						return { rows: [], rowCount: 0 };
+					}
 					user.password_hash = newHash;
 					break;
 				}
@@ -126,7 +133,7 @@ jest.mock('../../lib/db', () => {
 		}
 
 		// Auth routes: SELECT refresh token
-		if (normalized.includes('select rt.*, u.email, u.role, u.name from refresh_tokens')) {
+		if (normalized.includes('select rt.*, u.email, u.role, u.name, u.company_id from refresh_tokens')) {
 			return { rows: [], rowCount: 0 };
 		}
 
@@ -206,6 +213,16 @@ jest.mock('../../lib/db', () => {
 		// Jobs routes: COUNT jobs
 		if (normalized.includes('count(*)') && normalized.includes('from jobs')) {
 			return { rows: [{ count: '1' }], rowCount: 1 };
+		}
+
+		// S-067 (#720): DEK crypto-shredding on account deletion
+		if (normalized.includes('update candidate_data_keys')) {
+			return { rows: [], rowCount: 1 };
+		}
+
+		// S-067 (#720): biometric audit log INSERT (DEK destruction audit)
+		if (normalized.includes('insert into biometric_audit_log')) {
+			return { rows: [{ id: 1 }], rowCount: 1 };
 		}
 
 		// Fallback: empty result

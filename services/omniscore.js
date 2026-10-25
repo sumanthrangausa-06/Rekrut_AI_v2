@@ -4,6 +4,33 @@
 
 const pool = require('../lib/db');
 
+// #1776: named scoring-semantics version bump (panel ruling on #1761,
+// Option D). Reliability raw is measured-only from this version on —
+// no neutral base, no default attendance/follow-through rates. Rows and
+// snapshots written under earlier semantics keep their stored values;
+// they are not reinterpreted, only new computations use this version.
+// #1777: v4 — the weighted total is renormalised over MEASURED factors
+// only (the #1596 compatScore / #1731 pattern applied to the total), and
+// calcMarketDemand's +20 fallback floor is removed (measured-only).
+// #1801: v6 — the rescheduled family ('rescheduled',
+// 'reschedule_requested') earns no interview credit in any calculator:
+// the interview has not happened, so an outcome of 'passed' on such a
+// row (producible via the recruiter PUT COALESCE passthrough) is not
+// attendance. One shared credited-interview predicate (below) for
+// calcInterviewPerformance / calcReliabilitySignals / calcSoftSkills;
+// in reliability the rescheduled family is also outside the attendance
+// denominator — pending and unmeasured until the row resolves.
+// #1782: v5 — calcInterviewPerformance counts completed interviews in
+// the real scheduled_interviews vocabulary (status 'completed' OR
+// outcome 'passed'); the pre-fix outcome='completed' branch was dead
+// (chk_scheduled_interviews_outcome forbids it), so completed-but-not-
+// passed interviews were invisible to the factor. Candidates whose
+// interviews all ended outcome='passed' are unchanged.
+// Partially-measured candidates' totals change; fully-measured totals
+// are identical (renormalising over the full weight sum 1.0 is the
+// identity), and the no-data total stays null (#1192/#1538).
+const SCORING_SEMANTICS_VERSION = 'v6-rescheduled-no-credit';
+
 // ─── Score ranges and tiers ─────────────────────────────────
 const SCORE_RANGES = {
 	MIN: 300,
@@ -87,6 +114,29 @@ function dbTierFromLabel(tier) {
 	return map[tier] || 'new';
 }
 
+// #1787: the inverse of dbTierFromLabel, for READERS of the stored
+// column. omni_scores.score_tier is stored in the metal vocabulary
+// (platinum/gold/silver/bronze/new) while the API tier vocabulary is
+// the label keys (exceptional/excellent/good/fair/needs_work). The
+// writer is correct — bronze IS the stored encoding of Fair — so
+// readers must translate at the read boundary, never render the
+// stored metal as if it were the label. A value already in label
+// vocabulary (a legacy row) passes through; null/unknown stays null
+// (honest no-tier, never a fabricated label).
+function labelFromDbTier(dbTier) {
+	if (!dbTier) return null;
+	const map = {
+		platinum: 'exceptional',
+		gold: 'excellent',
+		silver: 'good',
+		bronze: 'fair',
+		new: 'needs_work',
+	};
+	if (map[dbTier]) return map[dbTier];
+	if (SCORE_RANGES.TIERS[dbTier]) return dbTier;
+	return null;
+}
+
 function daysBetween(a, b) {
 	return Math.floor((new Date(b) - new Date(a)) / (1000 * 60 * 60 * 24));
 }
@@ -150,8 +200,21 @@ async function fetchCandidateData(userId) {
 
 		// Scheduled interviews
 		const interviewsRes = await client.query(
-			`SELECT outcome, feedback, scheduled_at, created_at
+			`SELECT status, outcome, feedback, scheduled_at, created_at
 			 FROM scheduled_interviews WHERE candidate_id = $1`,
+			[userId],
+		);
+
+		// Real interview evaluations (#793) — the three AI evaluator lenses
+		// written by runMultiEvaluation. Fabricated neutral-50 fallback rows
+		// (AI failure) are excluded: counting them would import a fake number.
+		const evaluationsRes = await client.query(
+			`SELECT score, max_score, evaluator_type, created_at
+			 FROM interview_evaluations
+			 WHERE candidate_id = $1
+			   AND score IS NOT NULL
+			   AND COALESCE(max_score, 100) > 0
+			   AND (reasoning IS NULL OR reasoning <> 'AI evaluation unavailable — using neutral score')`,
 			[userId],
 		);
 
@@ -201,6 +264,7 @@ async function fetchCandidateData(userId) {
 			jobAssessments: jobAssessmentsRes.rows,
 			practice: practiceRes.rows,
 			interviews: interviewsRes.rows,
+			evaluations: evaluationsRes.rows,
 			applications: appsRes.rows,
 			projects: projectsRes.rows,
 			docs: docsRes.rows,
@@ -264,6 +328,29 @@ function calcVerifiedSkills(data) {
 	};
 }
 
+// #1801: the ONE credited-interview predicate for every calculator —
+// status wins over outcome (#1781/#1798), and the rescheduled family
+// has not happened yet, so it earns no credit whatever its outcome
+// says. When the interview actually happens the row's status becomes
+// 'completed' and it credits then: credit follows attendance.
+const NON_CREDITED_STATUSES = new Set([
+	'no_show',
+	'cancelled',
+	'rescheduled',
+	'reschedule_requested',
+]);
+function isCreditedInterview(i) {
+	return (
+		!NON_CREDITED_STATUSES.has(i.status) &&
+		(i.status === 'completed' || i.outcome === 'passed')
+	);
+}
+// #1801: a rescheduled-family row is pending — reliability excludes it
+// from the attendance denominator as well as the credited count.
+function isRescheduledFamily(i) {
+	return i.status === 'rescheduled' || i.status === 'reschedule_requested';
+}
+
 function calcInterviewPerformance(data) {
 	let score = 0;
 	const details = [];
@@ -283,10 +370,27 @@ function calcInterviewPerformance(data) {
 		details.push('No practice sessions yet');
 	}
 
-	// Completed real interviews with positive feedback (max 50)
-	const completedInterviews = data.interviews.filter(
-		(i) => i.outcome === 'completed' || i.outcome === 'passed',
-	);
+	// Completed real interviews (max 50)
+	// #1782: status and outcome are different vocabularies — the same
+	// grounding calcReliabilitySignals carries (#1776). 'completed' is a
+	// STATUS (chk_scheduled_interviews_status), never an outcome:
+	// chk_scheduled_interviews_outcome permits only
+	// passed/failed/pending_review/no_decision/NULL, so the pre-fix
+	// `outcome === 'completed'` branch was dead on real data and this
+	// factor counted only outcome='passed' rows — an attended interview
+	// concluded 'failed'/'pending_review'/'no_decision' was invisible
+	// to the feedback path, the count fallback, and hasData. Writers
+	// agree: routes/recruiter.js PUT /interviews/:id passes status and
+	// outcome through separately (the feedback shape is status
+	// 'completed' + outcome 'failed'/'passed'). Completed :=
+	// status 'completed' OR outcome 'passed' (the #1776 attended
+	// definition, reused — no second mechanism).
+	// #1798: status wins over outcome (the #1781 disjointness rule,
+	// applied here): a contradictory row (status 'no_show'/'cancelled'
+	// with outcome 'passed') is NOT completed — the candidate never
+	// attended, so it earns no feedback credit, no count fallback,
+	// and no hasData from this factor.
+	const completedInterviews = data.interviews.filter(isCreditedInterview);
 	const feedbackScores = completedInterviews
 		.map((i) => {
 			try {
@@ -298,7 +402,27 @@ function calcInterviewPerformance(data) {
 		})
 		.filter((s) => s > 0);
 
-	if (feedbackScores.length > 0) {
+	// Real interview evaluations (#793) take precedence over legacy feedback:
+	// one interview must never be double-counted from two sources.
+	// ponytail: row-level average; per-session grouping is the upgrade path
+	// if lens dropout becomes common.
+	const evalScores = (data.evaluations || [])
+		.map((e) => {
+			const s = Number(e.score);
+			const m = Number(e.max_score ?? 100) || 100;
+			if (!Number.isFinite(s) || m <= 0) return null;
+			return clamp((s / m) * 100, 0, 100);
+		})
+		.filter((s) => s !== null);
+
+	if (evalScores.length > 0) {
+		const avgEval = evalScores.reduce((a, b) => a + b, 0) / evalScores.length;
+		const evalPts = Math.min(50, avgEval * 0.5); // 0-100 scale → 0-50
+		score += evalPts;
+		details.push(
+			`${evalScores.length} interview evaluations, avg ${avgEval.toFixed(1)}/100 (+${evalPts.toFixed(1)})`,
+		);
+	} else if (feedbackScores.length > 0) {
 		const avgFb = feedbackScores.reduce((a, b) => a + b, 0) / feedbackScores.length;
 		const fbPts = Math.min(50, avgFb * 10); // 0-5 scale → 0-50
 		score += fbPts;
@@ -313,7 +437,17 @@ function calcInterviewPerformance(data) {
 		details.push('No completed interviews yet');
 	}
 
-	const hasData = practiceScores.length > 0 || completedInterviews.length > 0;
+	// #1782 hasData audit: feedbackScores derives from
+	// completedInterviews, so it needs no separate term — widening the
+	// filter above is what makes feedback on a status-'completed'
+	// interview set hasData truthfully. A completed interview with no
+	// feedback/evaluations is measured data (the count fallback), not a
+	// phantom; a merely scheduled interview contributes nothing here,
+	// and a no_show/cancelled interview contributes nothing EVEN when
+	// its outcome says 'passed' (#1798: status wins — the credited set
+	// above excludes those statuses outright).
+	const hasData =
+		practiceScores.length > 0 || evalScores.length > 0 || completedInterviews.length > 0;
 
 	return {
 		raw: clamp(score, 0, 100),
@@ -459,47 +593,119 @@ function calcEducationCredentials(data) {
 }
 
 function calcReliabilitySignals(data) {
-	let score = 50; // start neutral
 	const details = [];
 
-	// Attendance rate: completed interviews / scheduled interviews
-	const scheduled = data.interviews.length;
-	const completed = data.interviews.filter(
-		(i) => i.outcome === 'completed' || i.outcome === 'passed',
-	).length;
-	const noShows = data.interviews.filter(
-		(i) => i.outcome === 'no_show' || i.outcome === 'cancelled',
-	).length;
-	const attendanceRate = scheduled > 0 ? completed / scheduled : 0.5;
-	const attendancePts = attendanceRate * 30;
-	score += attendancePts;
-	details.push(
-		`Interview attendance ${(attendanceRate * 100).toFixed(0)}% (+${attendancePts.toFixed(1)})`,
-	);
+	// #1776 (panel ruling on #1761, Option D): measured-only raw. There is
+	// no neutral base and no default rate — a sub-signal contributes only
+	// when it was actually measured, and raw renormalises over the
+	// measured weights (the #1731 measured-only pattern): attendance
+	// (weight 60) only when >=1 interview is scheduled, follow-through
+	// (weight 40) only when >=1 application exists. Both measured:
+	// raw = 60a + 40f - penalty. One measured: that rate alone, scaled
+	// to 0-100. None measured: raw 0 with hasData=false (#1538 persists
+	// null), and no attendance/follow-through detail string is produced.
+	// Vocabulary grounded in the real scheduled_interviews schema/writers
+	// (Quinn gate failure on PR #1778, 2026-10-23): status and outcome are
+	// different vocabularies. chk_scheduled_interviews_status allows
+	// scheduled/confirmed/completed/cancelled/no_show (+rescheduled in
+	// migrations/p2_schema_hardening.sql:2809, in_progress in
+	// migrations/047_p2_schema_hardening.js — both agree on the values
+	// used here; read back identically from a fresh migrate.js DB), while
+	// chk_scheduled_interviews_outcome (p2_schema_hardening.sql:2820)
+	// allows only passed/failed/pending_review/no_decision/NULL. Writers
+	// agree: routes/recruiter.js PUT /interviews/:id passes status and
+	// outcome through separately (Quinn's attended write was status
+	// 'completed' + outcome 'passed'; her no-show write was status
+	// 'no_show' + outcome NULL), routes/interviews.js and
+	// routes/candidate.js write cancellations as status 'cancelled'
+	// (candidate decline even puts a free-text reason in outcome). So:
+	// attended := status 'completed' OR outcome 'passed' (outcome
+	// 'completed' cannot exist per the CHECK — the pre-fix rule relied on
+	// it); no-shows := status 'no_show' ONLY (penalty set narrowed by
+	// #1780 interim (b) — see below) — the outcome variants are dropped
+	// because no writer writes them and the CHECK forbids them
+	// (PG 23514), which is why the penalty never fired on real data
+	// (Quinn's candidate scored 70 instead of 60).
+	// #1801: the attendance denominator counts RESOLVED interviews only —
+	// rescheduled-family rows are pending (the interview moves to a new
+	// time), so they are neither credited nor counted against the
+	// candidate; attendance is unmeasured when no resolved row exists.
+	const scheduled = data.interviews.filter((i) => !isRescheduledFamily(i)).length;
+	// #1780 interim (b): the penalty set is true no-shows ONLY. A
+	// 'cancelled' row is actor-blind — scheduled_interviews has no
+	// cancelled_by column and only one of its three writers is
+	// candidate-caused (candidate decline; the others are the recruiter
+	// PUT and the reschedule-cancel branch) — so counting cancellations
+	// here punished candidates for recruiter/reschedule cancellations.
+	// Cancelled rows still earn no credit (isCreditedInterview, #1801)
+	// and still count in the attendance denominator above; only the
+	// -10 penalty is removed. Actor-aware penalties return only if
+	// Sumanth rules in the cancelled_by schema option (#1780 (c)).
+	const noShows = data.interviews.filter((i) => i.status === 'no_show').length;
+	// #1781: the attended set and the no-show set must be disjoint —
+	// status wins over outcome. A contradictory row (status
+	// 'no_show'/'cancelled' with outcome 'passed', producible via the
+	// recruiter PUT COALESCE passthrough and the unguarded reschedule
+	// cancel branch) previously matched BOTH filters: attendance
+	// credit AND the no-show penalty for the same interview (raw 90
+	// for a candidate who never attended). Excluding no-show/cancelled
+	// statuses from the credited set makes such a row earn no credit;
+	// since #1780 the penalty half applies to the no_show twin only.
+	const completed = data.interviews.filter(isCreditedInterview).length;
+	const attendanceMeasured = scheduled > 0;
+	const attendanceRate = attendanceMeasured ? completed / scheduled : null;
 
-	// Application follow-through (not withdrawn)
 	const totalApps = data.applications.length;
 	const withdrawnApps = data.applications.filter((a) => a.status === 'withdrawn').length;
-	const followRate = totalApps > 0 ? (totalApps - withdrawnApps) / totalApps : 1;
-	const followPts = followRate * 20;
-	score += followPts;
-	details.push(
-		`Application follow-through ${(followRate * 100).toFixed(0)}% (+${followPts.toFixed(1)})`,
-	);
+	const followMeasured = totalApps > 0;
+	const followRate = followMeasured ? (totalApps - withdrawnApps) / totalApps : null;
 
-	// Penalty for no-shows
-	const noShowPenalty = Math.min(20, noShows * 10);
-	score -= noShowPenalty;
-	if (noShowPenalty > 0) details.push(`${noShows} no-shows/cancellations (-${noShowPenalty})`);
+	let weighted = 0;
+	let weightSum = 0;
+	if (attendanceMeasured) {
+		weighted += attendanceRate * 60;
+		weightSum += 60;
+	}
+	if (followMeasured) {
+		weighted += followRate * 40;
+		weightSum += 40;
+	}
+	// Detail points are each sub-signal's renormalised contribution.
+	if (attendanceMeasured) {
+		const pts = (attendanceRate * 60 * 100) / weightSum;
+		details.push(
+			`Interview attendance ${(attendanceRate * 100).toFixed(0)}% (+${pts.toFixed(1)})`,
+		);
+	}
+	if (followMeasured) {
+		const pts = (followRate * 40 * 100) / weightSum;
+		details.push(
+			`Application follow-through ${(followRate * 100).toFixed(0)}% (+${pts.toFixed(1)})`,
+		);
+	}
 
-	// Neutral defaults (50 base, 50% attendance, 100% follow-through) apply with
-	// zero input records, so flag that explicitly instead of showing a real score.
-	const hasData = data.interviews.length > 0 || data.applications.length > 0;
+	// Penalty for no-shows — only when interviews are measured.
+	const noShowPenalty = attendanceMeasured ? Math.min(20, noShows * 10) : 0;
+	if (noShowPenalty > 0) details.push(`${noShows} no-shows (-${noShowPenalty})`);
+
+	const hasData = weightSum > 0;
+	const coverage = { attendance: attendanceMeasured, followThrough: followMeasured };
+	// Partial coverage must be stated wherever this factor is graded or
+	// labelled (AC-2 main text) — a single-component score is never an
+	// unqualified grade.
+	let coverageNote = null;
+	if (hasData && !attendanceMeasured)
+		coverageNote = 'based on application follow-through only; attendance: insufficient data';
+	else if (hasData && !followMeasured)
+		coverageNote =
+			'based on interview attendance only; application follow-through: insufficient data';
 
 	return {
-		raw: clamp(score, 0, 100),
+		raw: hasData ? clamp((weighted / weightSum) * 100 - noShowPenalty, 0, 100) : 0,
 		details,
 		hasData,
+		coverage,
+		coverageNote,
 	};
 }
 
@@ -531,9 +737,14 @@ function calcSoftSkills(data) {
 	}
 
 	// Interview feedback soft-skill signals
+	// #1798: status wins — feedback on a no_show/cancelled row is not
+	// evidence of soft skills (the candidate never attended), even
+	// when the row's outcome says 'passed'. Same guard as
+	// calcInterviewPerformance above.
 	let feedbackScore = 0;
 	let feedbackCount = 0;
 	for (const iv of data.interviews) {
+		if (!isCreditedInterview(iv)) continue;
 		try {
 			const fb = typeof iv.feedback === 'string' ? JSON.parse(iv.feedback) : iv.feedback;
 			if (fb) {
@@ -594,7 +805,11 @@ function calcMarketDemand(data) {
 		const matchCount = [...skillCategories].filter((c) =>
 			inDemandCategories.some((d) => c.includes(d)),
 		).length;
-		const pts = Math.min(100, matchCount * 20 + 20);
+		// #1777 measured-only: no +20 floor. The old constant awarded 20
+		// points with zero skills and zero in-demand categories alike —
+		// phantom points in the total. Skills present but none in-demand
+		// is a measured 0; no skills at all stays hasData=false, raw 0.
+		const pts = Math.min(100, matchCount * 20);
 		score += pts;
 		details.push(`${matchCount} in-demand skill categories (+${pts})`);
 	}
@@ -704,10 +919,13 @@ function detectFraudSignals(_userId, data, factors) {
 		});
 	}
 
-	// 4. Anti-cheat red flags from assessments
+	// 4. Anti-cheat red flags from assessments — #1715 O3: missing
+	// anti_cheat_score stays missing (?? null): absence raises no flag,
+	// and a genuine measured 0 is data, not absence — it must flag
+	// instead of being rewritten to a perfect 100 by `||`.
 	const suspiciousAssessments = data.assessments.filter((a) => {
-		const antiCheat = a.anti_cheat_score || 100;
-		return antiCheat < 50;
+		const antiCheat = a.anti_cheat_score ?? null;
+		return antiCheat !== null && antiCheat < 50;
 	});
 	if (suspiciousAssessments.length > 0) {
 		signals.push({
@@ -735,18 +953,28 @@ async function computeFactors(userId) {
 		growth_trajectory: calcGrowthTrajectory(data),
 	};
 
-	// ponytail: factors with no evidence keep their computed raw score and are
-	// flagged via hasData for the UI ("Insufficient data"). Weights are NOT
-	// re-normalized across data-bearing factors: that changes scoring semantics
-	// and needs validation against real hiring outcomes first. Upgrade path:
-	// confidence-weighted totals once outcome data exists (#113).
-	// Compute weighted total
+	// #1777 (panel ruling on #1761, companion (2)): the total is the
+	// weighted renormalisation over MEASURED factors only — the same
+	// measured-only pattern as compatScore (#1596) and the #1731 match
+	// renormalisation. A no-data factor contributes neither points nor
+	// weight: before this, its raw was summed over the full weight sum
+	// 1.0, so market_demand's fallback floor added phantom points and
+	// every other no-data factor diluted the measured factors' weights.
+	// Fully-measured candidates are unchanged (measured weight = 1.0).
+	// No measured factor: weightedSum stays 0 and the floor total below
+	// is an artifact that calculateScore nulls via hasAnyData (#1192).
 	let weightedSum = 0;
+	let measuredWeight = 0;
 	for (const [key, factor] of Object.entries(factors)) {
+		if (!factor.hasData) continue;
 		weightedSum += (factor.raw / 100) * FACTOR_WEIGHTS[key];
+		measuredWeight += FACTOR_WEIGHTS[key];
 	}
 
-	const total = Math.round(SCORE_RANGES.MIN + weightedSum * 550);
+	const total =
+		measuredWeight > 0
+			? Math.round(SCORE_RANGES.MIN + (weightedSum / measuredWeight) * 550)
+			: Math.round(SCORE_RANGES.MIN + weightedSum * 550);
 	const clampedTotal = clamp(total, SCORE_RANGES.MIN, SCORE_RANGES.MAX);
 
 	// Fraud detection
@@ -757,10 +985,39 @@ async function computeFactors(userId) {
 		factors,
 		fraudSignals,
 		tier: tierFromScore(clampedTotal),
+		// #1192: a candidate whose every factor reports has_data:false has no
+		// score — the floor formula's output is an artifact, not a verdict.
+		hasAnyData: Object.values(factors).some((f) => f.hasData),
 	};
 }
 
+// #1777: a measured factor's effective weight in the renormalised
+// total — its nominal FACTOR_WEIGHTS share divided by the combined
+// weight of measured factors only; 0 for a no-data factor. Shared by
+// getScoreBreakdown and getScoreExplainer so their per-factor
+// contributions sum to the headline total they sit next to. Operates
+// on the calculateScore() factors shape ({ raw, weight, hasData }).
+function renormalisedWeight(factors, key) {
+	const f = factors[key];
+	if (!f?.hasData) return 0;
+	const measuredWeight = Object.values(factors).reduce(
+		(sum, v) => sum + (v.hasData ? v.weight : 0),
+		0,
+	);
+	return measuredWeight > 0 ? f.weight / measuredWeight : 0;
+}
+
 // ─── Public API ─────────────────────────────────────────────
+
+/**
+ * #1192: the engine's own no-data predicate — true when at least one factor
+ * reports has_data. Used by the legacy-row heal script so the engine, not a
+ * value heuristic, arbitrates which stored rows are real.
+ */
+async function hasScoreData(userId) {
+	const { hasAnyData } = await computeFactors(userId);
+	return hasAnyData;
+}
 
 async function getOrCreateScore(userId) {
 	const existing = await pool.query('SELECT * FROM omni_scores WHERE user_id = $1', [userId]);
@@ -768,38 +1025,74 @@ async function getOrCreateScore(userId) {
 		return existing.rows[0];
 	}
 
+	// #1192: seed an honest null, never the 300 starter literal — a row
+	// created here is served by the profile's LEFT JOIN before any compute.
 	const result = await pool.query(
 		`INSERT INTO omni_scores (user_id, total_score, score_tier, version)
-     VALUES ($1, $2, 'new', 2)
+     VALUES ($1, NULL, NULL, 2)
      RETURNING *`,
-		[userId, SCORE_RANGES.MIN],
+		[userId],
 	);
 	return result.rows[0];
+}
+
+// #1538: the persisted factor_scores shape, shared by both write sites in
+// calculateScore() (omni_scores UPDATE + score_snapshots INSERT) so the two
+// can never drift. A factor with no underlying data persists as JSON null —
+// the honest "insufficient data" — never a flattened number (its raw is a
+// default or 0, not a measurement). A measured factor persists as its
+// rounded raw, so a genuine measured 0 stays distinguishable from null.
+function persistedFactorScores(factors) {
+	return Object.fromEntries(
+		Object.entries(factors).map(([k, v]) => [k, v.hasData ? Math.round(v.raw) : null]),
+	);
 }
 
 /**
  * Calculate score on-demand (deterministic). Does NOT require explicit checkin.
  */
 async function calculateScore(userId) {
-	const { total, factors, fraudSignals, tier } = await computeFactors(userId);
+	const { total, factors, fraudSignals, tier, hasAnyData } = await computeFactors(userId);
+	const noData = !hasAnyData;
 
-	// Backwards-compat mapping to old columns
-	const interview_score = Math.round(factors.interview_performance.raw);
-	const technical_score = Math.round(factors.verified_skills.raw);
-	const resume_score = Math.round(
-		(factors.experience_quality.raw + factors.education_credentials.raw) / 2,
-	);
-	const behavior_score = Math.round(
-		(factors.reliability_signals.raw + factors.soft_skills.raw) / 2,
-	);
+	// Backwards-compat mapping to old columns. #1596: the compat columns
+	// follow the #1538 rule — a column averages its MEASURED source
+	// factors only, and is null when no source factor has data. A no-data
+	// factor's raw is a neutral default or 0, not a measurement: averaging
+	// it in fabricated a behavior_score of 43 for the #1588 candidate
+	// (reliability 85 via 1 application under the pre-#1776 neutral-base
+	// semantics, soft_skills unmeasured) and halved a measured resume
+	// raw of 10 into 5.
+	const compatScore = (...sources) => {
+		const measured = sources.filter((f) => f.hasData);
+		return measured.length === 0
+			? null
+			: Math.round(measured.reduce((sum, f) => sum + f.raw, 0) / measured.length);
+	};
+	const interview_score = compatScore(factors.interview_performance);
+	const technical_score = compatScore(factors.verified_skills);
+	const resume_score = compatScore(factors.experience_quality, factors.education_credentials);
+	const behavior_score = compatScore(factors.reliability_signals, factors.soft_skills);
 
-	// Compute peer percentile
-	const percentileRes = await pool.query(
-		`SELECT COUNT(*) FILTER (WHERE total_score <= $1) * 100.0 / NULLIF(COUNT(*), 0) as percentile
+	// Compute peer percentile (a no-data candidate has no percentile — the
+	// 50th-percentile default is the same fabrication as the floor total).
+	// #1251 honest-null: the denominator counts only SCORED peers
+	// (COUNT(total_score) skips NULL totals), so when no scored peers exist
+	// the expression is NULL — and a NULL percentile stays null, never a
+	// fabricated 50. (Numerator needs no change: NULL <= $1 is never true.)
+	let peerPercentile = null;
+	if (!noData) {
+		const percentileRes = await pool.query(
+			`SELECT COUNT(*) FILTER (WHERE total_score <= $1) * 100.0 / NULLIF(COUNT(total_score), 0) as percentile
      FROM omni_scores`,
-		[total],
-	);
-	const peerPercentile = Math.round(parseFloat(percentileRes.rows[0]?.percentile || '50'));
+			[total],
+		);
+		const rawPercentile = percentileRes.rows[0]?.percentile;
+		const parsedPercentile =
+			rawPercentile === null || rawPercentile === undefined ? NaN : parseFloat(rawPercentile);
+		// NaN (NULL / non-numeric) stays honest null — never a number, never 50.
+		peerPercentile = Number.isNaN(parsedPercentile) ? null : Math.round(parsedPercentile);
+	}
 
 	// Update the score record
 	await pool.query(
@@ -817,50 +1110,52 @@ async function calculateScore(userId) {
       version = 2
     WHERE user_id = $10`,
 		[
-			total,
+			// #1192 persisted-row trap: a no-data compute must overwrite any
+			// stored starter/floor total with NULL, so the profile LEFT JOIN
+			// can never serve a fabricated verdict after this call.
+			noData ? null : total,
 			interview_score,
 			technical_score,
 			resume_score,
 			behavior_score,
-			dbTierFromLabel(tier),
-			JSON.stringify(
-				Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)])),
-			),
+			noData ? null : dbTierFromLabel(tier),
+			JSON.stringify(persistedFactorScores(factors)),
 			peerPercentile,
 			JSON.stringify(fraudSignals),
 			userId,
 		],
 	);
 
-	// Weekly snapshot (idempotent — only one per week)
-	await pool.query(
-		`INSERT INTO score_snapshots (user_id, total_score, factor_scores, peer_percentile, snapshot_week, created_at)
+	// Weekly snapshot (idempotent — only one per week). Skipped when noData:
+	// a snapshot of a fabricated total would re-create the verdict on read.
+	if (!noData)
+		await pool.query(
+			`INSERT INTO score_snapshots (user_id, total_score, factor_scores, peer_percentile, snapshot_week, created_at)
      VALUES ($1, $2, $3, $4, DATE_TRUNC('week', CURRENT_DATE)::DATE, NOW())
      ON CONFLICT (user_id, snapshot_week) DO UPDATE SET
        total_score = EXCLUDED.total_score,
        factor_scores = EXCLUDED.factor_scores,
        peer_percentile = EXCLUDED.peer_percentile,
        created_at = NOW()`,
-		[
-			userId,
-			total,
-			JSON.stringify(
-				Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)])),
-			),
-			peerPercentile,
-		],
-	);
+			[
+				userId,
+				total,
+				JSON.stringify(persistedFactorScores(factors)),
+				peerPercentile,
+			],
+		);
 
 	return {
-		total_score: total,
+		total_score: noData ? null : total,
 		interview: interview_score,
 		technical: technical_score,
 		resume: resume_score,
 		behavior: behavior_score,
-		tier,
-		tier_label: SCORE_RANGES.TIERS[tier]?.label || 'New',
+		tier: noData ? null : tier,
+		tier_label: noData ? null : SCORE_RANGES.TIERS[tier]?.label || 'New',
 		peer_percentile: peerPercentile,
 		fraud_signals: fraudSignals,
+		scoring_semantics_version: SCORING_SEMANTICS_VERSION,
 		factors: Object.fromEntries(
 			Object.entries(factors).map(([k, v]) => [
 				k,
@@ -869,6 +1164,10 @@ async function calculateScore(userId) {
 					weight: FACTOR_WEIGHTS[k],
 					details: v.details,
 					hasData: v.hasData,
+					// #1776: per-sub-signal coverage (reliability only today;
+					// null elsewhere) so grading surfaces can state it.
+					coverage: v.coverage ?? null,
+					coverageNote: v.coverageNote ?? null,
 				},
 			]),
 		),
@@ -999,10 +1298,19 @@ async function getScoreBreakdown(userId) {
 			max: 100,
 			has_data: factorData?.hasData ?? true,
 			weight: FACTOR_WEIGHTS[key],
-			weighted_contribution: Math.round(((factorData?.raw || 0) / 100) * FACTOR_WEIGHTS[key] * 550),
+			// #1777: contribution under the renormalised total — measured
+			// factors carry their effective weight, no-data factors 0, so
+			// the contributions sum to (total − 300).
+			effective_weight: renormalisedWeight(scoreData.factors, key),
+			weighted_contribution: Math.round(
+				((factorData?.raw || 0) / 100) * renormalisedWeight(scoreData.factors, key) * 550,
+			),
 			label: meta.label,
 			description: meta.description,
 			details: factorData?.details || [],
+			// #1776: partial-coverage note (reliability) rides the breakdown
+			// so the grading surface states it; null when fully measured.
+			coverage_note: factorData?.coverageNote ?? null,
 		};
 	}
 
@@ -1036,6 +1344,27 @@ async function getScoreExplainer(userId) {
 		const f = factors[key];
 		const raw = f?.raw || 0;
 
+		// #1776 explainer gate (panel companion on #1761): a factor with no
+		// measured data gets no grade and no verdict — "Insufficient data".
+		// Before this gate the explainer graded reliability's neutral-
+		// default 85 "Excellent / exceptional" for zero-input candidates.
+		if (!f?.hasData) {
+			explainers.push({
+				name: meta.label,
+				impact: 0,
+				raw_score: raw,
+				weight: FACTOR_WEIGHTS[key],
+				grade: 'Insufficient data',
+				description: meta.description,
+				plain_text: 'Insufficient data',
+				details: f?.details || [],
+				action: null,
+				has_data: false,
+				coverage_note: null,
+			});
+			continue;
+		}
+
 		let grade = 'Needs Work';
 		if (raw >= 80) grade = 'Excellent';
 		else if (raw >= 60) grade = 'Good';
@@ -1050,9 +1379,17 @@ async function getScoreExplainer(userId) {
 		else
 			plainText = `Your ${meta.label.toLowerCase()} needs attention — this is a growth opportunity.`;
 
+		// #1776 AC-2: partial coverage qualifies the verdict in the text
+		// itself, so the grade is never presented unqualified.
+		const coverageNote = f?.coverageNote ?? null;
+		if (coverageNote) plainText += ` Coverage: ${coverageNote}.`;
+
 		explainers.push({
 			name: meta.label,
-			impact: Math.round((raw / 100) * FACTOR_WEIGHTS[key] * 550),
+			// #1777: impact is the factor's contribution to the
+			// renormalised total (effective weight), matching the
+			// breakdown's weighted_contribution.
+			impact: Math.round((raw / 100) * renormalisedWeight(factors, key) * 550),
 			raw_score: raw,
 			weight: FACTOR_WEIGHTS[key],
 			grade,
@@ -1060,13 +1397,19 @@ async function getScoreExplainer(userId) {
 			plain_text: plainText,
 			details: f?.details || [],
 			action: raw < 60 ? getImprovementAction(key) : null,
+			has_data: true,
+			coverage_note: coverageNote,
 		});
 	}
 
-	// Peer comparison
+	// Peer comparison. #1219: the old query also selected
+	// `PERCENT_RANK() WITHIN GROUP (ORDER BY total_score)` — a hypothetical-set
+	// aggregate with zero direct arguments against one ordering column, which
+	// Postgres can never resolve ("function percent_rank(integer) does not
+	// exist") and which 500'd this endpoint. Its result was never used:
+	// percentile comes from calculateScore (COUNT FILTER / NULLIF, above).
 	const percentileRes = await pool.query(
 		`SELECT
-      PERCENT_RANK() WITHIN GROUP (ORDER BY total_score) * 100 as percentile,
       AVG(total_score) as avg_score,
       MAX(total_score) as top_score,
       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total_score) as median_score
@@ -1074,14 +1417,17 @@ async function getScoreExplainer(userId) {
 	);
 	const peerStats = percentileRes.rows[0] || {};
 	const userPercentile = scoreData.peer_percentile;
+	// #1219/#1192 honest-null: aggregates over an empty omni_scores table are
+	// NULL — serve null, never the old fabricated 500/1000/500 fallbacks.
+	const peerStat = (v) => (v === null || v === undefined ? null : Math.round(parseFloat(v)));
 
 	return {
 		factors: explainers.sort((a, b) => b.impact - a.impact),
 		peerComparison: {
 			percentile: userPercentile,
-			avgScore: Math.round(parseFloat(peerStats.avg_score || '500')),
-			topScore: Math.round(parseFloat(peerStats.top_score || '1000')),
-			medianScore: Math.round(parseFloat(peerStats.median_score || '500')),
+			avgScore: peerStat(peerStats.avg_score),
+			topScore: peerStat(peerStats.top_score),
+			medianScore: peerStat(peerStats.median_score),
 		},
 		improvementRoadmap: buildRoadmap(factors),
 		fraud_signals: scoreData.fraud_signals,
@@ -1218,6 +1564,7 @@ async function updateRoleScore(userId, roleName, interviewScore) {
 }
 
 module.exports = {
+	SCORING_SEMANTICS_VERSION,
 	calcVerifiedSkills,
 	calcInterviewPerformance,
 	calcExperienceQuality,
@@ -1227,10 +1574,14 @@ module.exports = {
 	calcMarketDemand,
 	calcGrowthTrajectory,
 	SCORE_RANGES,
+	tierFromScore,
+	dbTierFromLabel,
+	labelFromDbTier,
 	FACTOR_WEIGHTS,
 	FACTOR_META,
 	getOrCreateScore,
 	calculateScore,
+	hasScoreData,
 	recordCheckin,
 	addInterviewComponent,
 	addTechnicalComponent,

@@ -1,0 +1,201 @@
+{
+  "seed": {
+    "soloId": 1,
+    "zeroId": 2,
+    "omniRowsAtStart": {
+      "n": 0,
+      "scored": 0
+    }
+  },
+  "phases": {
+    "logins": {
+      "solo": 200,
+      "zero": 200
+    },
+    "A_soloOmniscore": {
+      "status": 200,
+      "total_score": 372,
+      "peer_percentile": null,
+      "hasPeerKey": true
+    },
+    "A_db": {
+      "omniRow": {
+        "total_score": 372,
+        "peer_percentile": null
+      },
+      "snapshot": {
+        "total_score": 372,
+        "peer_percentile": null
+      }
+    },
+    "A_explainer": {
+      "status": 200,
+      "peerComparison": {
+        "percentile": 100,
+        "avgScore": 372,
+        "topScore": 372,
+        "medianScore": 372
+      }
+    },
+    "A_zeroOmniscore": {
+      "status": 200,
+      "total_score": null,
+      "peer_percentile": null
+    },
+    "B_seed": {
+      "peerIds": [
+        3,
+        4
+      ],
+      "peerTotals": [
+        300,
+        400
+      ]
+    },
+    "B_expectedFromSql": {
+      "raw": "66.6666666666666667",
+      "rounded": 67,
+      "note": "scored rows at query time on re-calc: peers 300/400 + solo persisted 372; FILTER <=372 counts 300+372 = 2 of 3"
+    },
+    "B_soloOmniscore": {
+      "status": 200,
+      "total_score": 372,
+      "peer_percentile": 67
+    },
+    "B_db": {
+      "omniRow": {
+        "peer_percentile": 67
+      },
+      "snapshot": {
+        "peer_percentile": 67
+      }
+    },
+    "B_explainer": {
+      "status": 200,
+      "peerComparison": {
+        "percentile": 67,
+        "avgScore": 357,
+        "topScore": 400,
+        "medianScore": 372
+      }
+    },
+    "C_flatQuizAnswers": {
+      "status": 200,
+      "success": true,
+      "archetype": "The Creative Problem-Solver",
+      "firstPath": "Engineering Management",
+      "firstPathFit": 82
+    },
+    "C_wrongField": {
+      "status": 400,
+      "body": {
+        "error": "Quiz answers are required"
+      }
+    },
+    "C_phantom": {
+      "status": 404,
+      "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /api/profile-enhancement/career-diagnosis</pre>\n</body>\n</html>\n"
+    },
+    "C_anon": {
+      "status": 403
+    },
+    "C_doubleStringified": {
+      "status": 200,
+      "note": "informational: known #1268 server double-parse tolerance; not a #1261 verdict input",
+      "bodyExcerpt": "{\"success\":true,\"diagnosis\":{\"id\":1,\"careerArchetype\":{\"name\":\"The Creative Problem-Solver\",\"description\":\"You naturally gravitate toward creative problem-solve"
+    }
+  },
+  "checks": [
+    {
+      "id": "setup",
+      "label": "both candidate logins 200 + token",
+      "pass": true,
+      "detail": "solo=200 zero=200"
+    },
+    {
+      "id": "1251",
+      "label": "A: solo candidate WITH data, zero scored peers -> peer_percentile is null (never 50)",
+      "pass": true,
+      "detail": "status=200 total=372 peer=null"
+    },
+    {
+      "id": "1251",
+      "label": "A: solo total is the real computed 372 (unit-suite anchor)",
+      "pass": true,
+      "detail": "total=372"
+    },
+    {
+      "id": "1251",
+      "label": "A: persisted omni_scores.peer_percentile is NULL",
+      "pass": true,
+      "detail": "db={\"total_score\":372,\"peer_percentile\":null}"
+    },
+    {
+      "id": "1251",
+      "label": "A: persisted snapshot peer_percentile is NULL",
+      "pass": true,
+      "detail": "snap={\"total_score\":372,\"peer_percentile\":null}"
+    },
+    {
+      "id": "1251",
+      "label": "A: explainer peerComparison.percentile is null (UI renders N/A)",
+      "pass": false,
+      "detail": "status=200 peer={\"percentile\":100,\"avgScore\":372,\"topScore\":372,\"medianScore\":372}"
+    },
+    {
+      "id": "1251",
+      "label": "A: zero-input candidate -> total null AND peer_percentile null",
+      "pass": true,
+      "detail": "status=200 body={\"total_score\":null,\"interview\":0,\"technical\":0,\"resume\":0,\"behavior\":43,\"tier\":null,\"tier_label\":null,\"peer_percentile\":null,\"fraud_signals\":[],\"factors\":{\"verified_skills\":{\"raw\":0,\"weight\":0.25,\"de"
+    },
+    {
+      "id": "1251",
+      "label": "B: with scored peers -> peer_percentile is a real number, not null, not fabricated 50",
+      "pass": true,
+      "detail": "peer=67"
+    },
+    {
+      "id": "1251",
+      "label": "B: peer_percentile equals the SQL expression result",
+      "pass": true,
+      "detail": "api=67 sql=67"
+    },
+    {
+      "id": "1251",
+      "label": "B: persisted omni + snapshot peer_percentile match API",
+      "pass": true,
+      "detail": "db={\"peer_percentile\":67} snap={\"peer_percentile\":67}"
+    },
+    {
+      "id": "1251",
+      "label": "B: explainer peerComparison.percentile equals computed value",
+      "pass": true,
+      "detail": "explainer={\"percentile\":67,\"avgScore\":357,\"topScore\":400,\"medianScore\":372}"
+    },
+    {
+      "id": "1261",
+      "label": "C: POST /api/career-diagnosis {quizAnswers} -> 200 + real diagnosis shape",
+      "pass": true,
+      "detail": "status=200 archetype=The Creative Problem-Solver path=Engineering Management"
+    },
+    {
+      "id": "1261",
+      "label": "C: POST with wrong field {answers} -> 400 (field contract real)",
+      "pass": true,
+      "detail": "status=400 body={\"error\":\"Quiz answers are required\"}"
+    },
+    {
+      "id": "1261",
+      "label": "C: phantom /api/profile-enhancement/career-diagnosis -> 404 (no such route)",
+      "pass": true,
+      "detail": "status=404 body=\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n<meta charset=\\\"utf-8\\\">\\n<title>Error</title>\\n</head>\\n<body>\\n<pre>Cannot POST /api/profile-enhancement/career-"
+    },
+    {
+      "id": "1261",
+      "label": "C: anon POST -> 401 (auth still enforced)",
+      "pass": false,
+      "detail": "status=403"
+    }
+  ],
+  "allPass": false
+}

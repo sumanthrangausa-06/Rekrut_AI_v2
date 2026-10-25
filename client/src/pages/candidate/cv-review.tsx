@@ -176,6 +176,12 @@ export function CVReviewPage() {
 		(analysisId: number) => {
 			clearPoll();
 			setState({ kind: 'analyzing', analysisId });
+			// #1407: cap polling so a row that never leaves 'pending' (e.g.
+			// the server died mid-analysis) cannot spin this page forever.
+			// 30 polls ≈ 60s — the analysis "usually takes 10–30 seconds"
+			// and the server cascade caps at 12s.
+			const CV_POLL_MAX_ATTEMPTS = 30;
+			let pollAttempts = 0;
 
 			const poll = async () => {
 				try {
@@ -192,8 +198,17 @@ export function CVReviewPage() {
 							kind: 'failed',
 							message: 'CV analysis failed. Please try again.',
 						});
+					} else {
+						// pending → keep polling, up to the cap
+						pollAttempts += 1;
+						if (pollAttempts >= CV_POLL_MAX_ATTEMPTS) {
+							clearPoll();
+							setState({
+								kind: 'failed',
+								message: 'CV analysis timed out. Please try again.',
+							});
+						}
 					}
-					// pending → keep polling
 				} catch (err: any) {
 					clearPoll();
 					setState({
@@ -333,13 +348,13 @@ export function CVReviewPage() {
 						<div>
 							<h2 className="text-lg font-semibold">Upload Your CV First</h2>
 							<p className="text-sm text-muted-foreground mt-1 max-w-md">
-								We couldn't find a CV on file. Please upload your resume to the Documents section
-								first, then come back to analyze it.
+								We couldn't find a CV on file. Please upload your resume via Profile → Settings →
+								Upload Resume first, then come back to analyze it.
 							</p>
 						</div>
-						<Button onClick={() => navigate('/candidate/documents')} className="gap-2">
+						<Button onClick={() => navigate('/candidate/profile')} className="gap-2">
 							<Upload className="h-4 w-4" />
-							Go to Documents
+							Go to Profile
 						</Button>
 						<Button variant="ghost" size="sm" onClick={handleReset}>
 							Go Back

@@ -42,7 +42,7 @@ interface Offer {
 	candidate_email: string;
 	job_title: string;
 	recruiter_name: string;
-	salary: number;
+	salary: number | null;
 	start_date: string;
 	benefits: string;
 	reporting_to: string;
@@ -522,7 +522,7 @@ export function RecruiterOffersPage() {
 									<DollarSign className="h-3 w-3" /> Salary
 								</p>
 								<p className="font-medium text-emerald-600">
-									${Number(selectedOffer.salary).toLocaleString()}/yr
+									{selectedOffer.salary != null ? `$${Number(selectedOffer.salary).toLocaleString()}/yr` : '—'}
 								</p>
 							</div>
 							<div className="rounded-lg bg-muted/50 p-3">
@@ -959,7 +959,7 @@ function OfferRow({
 								{offer.job_title || offer.title}
 							</span>
 							<span className="flex items-center gap-1">
-								<DollarSign className="h-3 w-3" />${Number(offer.salary).toLocaleString()}/yr
+								<DollarSign className="h-3 w-3" />{offer.salary != null ? `$${Number(offer.salary).toLocaleString()}/yr` : '—'}
 							</span>
 							{offer.start_date && (
 								<span className="flex items-center gap-1">

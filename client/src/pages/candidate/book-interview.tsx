@@ -1,9 +1,10 @@
-import { AlertCircle, Calendar, CheckCircle, Clock, Loader2, MapPin, Video } from 'lucide-react';
+import { AlertCircle, Calendar, CheckCircle, Clock, Loader2, Video } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { JoinInterviewButton } from '@/components/interview-join-button';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall } from '@/lib/api';
 
@@ -221,12 +222,11 @@ export function BookInterviewPage() {
 								</a>
 							)}
 							{interview.meeting_link && !interview.livekit_room_url && (
-								<a href={interview.meeting_link} target="_blank" rel="noopener noreferrer">
-									<Button className="w-full min-h-[44px]">
-										<MapPin className="h-4 w-4 mr-2" />
-										Join Meeting
-									</Button>
-								</a>
+								<JoinInterviewButton
+									interviewId={interview.id}
+									label="Join Meeting"
+									iconClassName="h-4 w-4 mr-2"
+								/>
 							)}
 							<Button
 								variant="outline"

@@ -22,7 +22,9 @@ import {
 	Loader2,
 	Mic,
 	MicOff,
+	Pause,
 	PhoneOff,
+	Play,
 	Send,
 	ShieldCheck,
 	Video,
@@ -36,13 +38,21 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useInterviewerAudio } from '@/hooks/useInterviewerAudio';
+import { getCameraErrorMessage, useInterviewCamera } from '@/hooks/useInterviewCamera';
+import { useSessionHeartbeat } from '@/hooks/useSessionHeartbeat';
+import {
+	isSpeechRecognitionAvailable,
+	SPEECH_NOT_SUPPORTED_MESSAGE,
+} from '@/hooks/useSpeechRecognition';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall, getToken } from '@/lib/api';
+import { WithdrawnConsentRecovery } from '@/components/WithdrawnConsentRecovery';
 import { useVoiceRoom, type VoiceRoomTurn } from './useVoiceRoom';
 
 type Phase =
 	| 'loading'
 	| 'invalid'
+	| 'expired'
 	| 'invite'
 	| 'signin'
 	| 'consent'
@@ -64,6 +74,7 @@ interface TokenSession {
 		description: string | null;
 	} | null;
 	created_at: string;
+	invite_expires_at: string | null;
 }
 
 interface Turn {
@@ -84,6 +95,8 @@ interface Session {
 		question_source?: string;
 		current_phase?: string;
 		observer_enabled?: boolean;
+		// S-048 (#696): biometric consent state for observer disclosure branching
+		biometric_collection?: boolean | null;
 	};
 }
 
@@ -113,16 +126,63 @@ export default function CandidateInterviewSessionPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [notice, setNotice] = useState<string | null>(null);
 
+	// S-063 (#713): session heartbeat + pause/resume. Sends a heartbeat every
+	// 20s while the session is active; detects backend auto-pause (stale
+	// heartbeat, e.g. after iOS Safari suspends background timers).
+	const {
+		heartbeatState,
+		error: lifecycleError,
+		clearError: clearLifecycleError,
+		pause: pauseSession,
+		resume: resumeSession,
+	} = useSessionHeartbeat({
+		sessionId: session?.id ?? null,
+		inviteToken: tokenSession?.invite_token ?? null,
+		enabled: phase === 'active',
+		onAutoPaused: () => {
+			setNotice(
+				'Your session was paused because the connection was lost. Nothing is lost \u2014 resume when you\u2019re ready.',
+			);
+		},
+		onSessionEnded: (status) => {
+			setNotice(
+				`This session has ended (${status}). Please refresh the page if you believe this is a mistake.`,
+			);
+		},
+		onResumed: () => {
+			// L5: clear any stale auto-pause notice.
+			setNotice(null);
+		},
+	});
+
+	// S-064 (#714): withdrawn-consent recovery. When a biometric-gated call
+	// fails with 403 CONSENT_WITHDRAWN, api.ts dispatches a 'consent-withdrawn'
+	// event — we show the inline recovery UI instead of a generic error.
+	const [withdrawnConsent, setWithdrawnConsent] = useState<{
+		consentType: string;
+		sessionId: number | null;
+	} | null>(null);
+
 	// Consent state
 	const [videoConsent, setVideoConsent] = useState(false);
 	const [consentDeclined, setConsentDeclined] = useState(false);
 	const [consentBusy, setConsentBusy] = useState(false);
 
-	// Camera/mic
+	// Camera/mic — Phase 2 (#447): shared camera hook.
+	// videoConsent gate is preserved: startCamera is only called when consented.
 	const videoRef = useRef<HTMLVideoElement>(null);
-	const streamRef = useRef<MediaStream | null>(null);
-	const [cameraReady, setCameraReady] = useState(false);
-	const [cameraError, setCameraError] = useState<string | null>(null);
+	const {
+		cameraReady,
+		cameraError,
+		startCamera: startCameraInternal,
+		stopCamera,
+		getStream,
+	} = useInterviewCamera({ videoRef });
+	// Consent-gated wrapper: matches the original startCamera behavior.
+	const startCamera = useCallback(async () => {
+		if (!videoConsent) return;
+		await startCameraInternal();
+	}, [videoConsent, startCameraInternal]);
 
 	// Frame capture
 	const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -140,6 +200,8 @@ export default function CandidateInterviewSessionPage() {
 
 	// Chat
 	const [draft, setDraft] = useState('');
+	// Phase 3 (#447): tracks when Web Speech API is absent.
+	const [speechNotSupported, setSpeechNotSupported] = useState(false);
 	const [sending, setSending] = useState(false);
 	const [finishing, setFinishing] = useState(false);
 	const [confirmEnd, setConfirmEnd] = useState(false);
@@ -220,22 +282,45 @@ export default function CandidateInterviewSessionPage() {
 				}
 				setTokenSession(s);
 				setPhase(getToken() ? 'invite' : 'signin');
-			} catch {
-				setPhase('invalid');
+			} catch (err) {
+				if ((err as Error & { code?: string }).code === 'INVITE_EXPIRED') {
+					setPhase('expired');
+				} else {
+					setPhase('invalid');
+				}
 			}
 		}
 		resolve();
 	}, [token]);
 
 	// ---- elapsed timer ----
+	// M2: stop counting while the session is paused (heartbeatState from S-063).
 	useEffect(() => {
-		if (phase === 'active') {
+		if (phase === 'active' && heartbeatState !== 'paused') {
 			timerRef.current = setInterval(() => setElapsedSec((s) => s + 1), 1000);
 		}
 		return () => {
 			if (timerRef.current) clearInterval(timerRef.current);
 		};
-	}, [phase]);
+	}, [phase, heartbeatState]);
+
+	// ---- withdrawn-consent recovery (S-064 #714) ----
+	// api.ts dispatches 'consent-withdrawn' when a biometric-gated call fails
+	// with 403 CONSENT_WITHDRAWN. Show the inline recovery UI.
+	useEffect(() => {
+		const handler = (e: Event) => {
+			const detail = (e as CustomEvent).detail as {
+				consentType?: string;
+				sessionId?: number | null;
+			};
+			setWithdrawnConsent({
+				consentType: detail.consentType ?? 'biometric',
+				sessionId: detail.sessionId ?? null,
+			});
+		};
+		window.addEventListener('consent-withdrawn', handler);
+		return () => window.removeEventListener('consent-withdrawn', handler);
+	}, []);
 
 	// ---- auto-scroll transcript when new content arrives ----
 	const transcriptVersion = turns.length + (liveTranscript ? 1 : 0);
@@ -319,54 +404,9 @@ export default function CandidateInterviewSessionPage() {
 		setPhase('devices');
 	}, [recordingId]);
 
-	// ---- camera ----
-	const startCamera = useCallback(async () => {
-		if (!videoConsent) return;
-		setCameraError(null);
-		try {
-			const constraints: MediaStreamConstraints[] = [
-				{ video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: true },
-				{ video: true, audio: true },
-				{ video: true },
-			];
-			let stream: MediaStream | null = null;
-			let lastErr: unknown = null;
-			for (const c of constraints) {
-				try {
-					stream = await navigator.mediaDevices.getUserMedia(c);
-					break;
-				} catch (e) {
-					lastErr = e;
-				}
-			}
-			if (!stream) throw lastErr ?? new Error('Camera unavailable');
-			streamRef.current = stream;
-			if (videoRef.current) {
-				videoRef.current.srcObject = stream;
-				// play() can hang indefinitely on some platforms — don't let it block joining
-				await Promise.race([
-					videoRef.current.play().catch(() => {}),
-					new Promise((res) => setTimeout(res, 3000)),
-				]);
-			}
-			setCameraReady(true);
-		} catch {
-			setCameraError('Camera unavailable. You can continue with text and voice answers.');
-		}
-	}, [videoConsent]);
-
-	const stopCamera = useCallback(() => {
-		streamRef.current?.getTracks().forEach((t) => {
-			t.stop();
-		});
-		streamRef.current = null;
-		if (videoRef.current) videoRef.current.srcObject = null;
-		setCameraReady(false);
-	}, []);
-
 	// ---- frame capture (same cadence as mock-interview) ----
 	const captureFrame = useCallback(() => {
-		if (!videoConsent || !streamRef.current || !videoRef.current || !canvasRef.current) return;
+		if (!videoConsent || !getStream() || !videoRef.current || !canvasRef.current) return;
 		if (perQuestionFramesRef.current.length >= MAX_FRAMES_PER_QUESTION) return;
 		if (framesRef.current.length >= MAX_FRAMES_TOTAL) return;
 		try {
@@ -396,6 +436,42 @@ export default function CandidateInterviewSessionPage() {
 		frameIntervalRef.current = setInterval(captureFrame, FRAME_INTERVAL_MS);
 	}, [captureFrame, stopFrameCapture]);
 
+	// ---- withdrawn-consent recovery handlers (S-064 #714) ----
+	// Placed after stopFrameCapture/stopCamera declarations (declaration order).
+
+	// Exit path: abandon the session gracefully.
+	const handleWithdrawnExit = useCallback(async () => {
+		const id = session?.id ?? withdrawnConsent?.sessionId;
+		if (id) {
+			try {
+				await apiCall(`/interviews/sessions/${id}/state`, {
+					method: 'PATCH',
+					body: { to_state: 'abandoned' },
+				});
+			} catch {
+				// Best-effort — the candidate is leaving regardless.
+			}
+		}
+		setWithdrawnConsent(null);
+		setPhase('done');
+	}, [session, withdrawnConsent]);
+
+	// Continue-without path: stop the withdrawn collection at the source,
+	// dismiss the recovery UI, keep interviewing. The DB withdrawal already
+	// blocks biometric-gated calls server-side.
+	const handleWithdrawnContinue = useCallback(() => {
+		const type = withdrawnConsent?.consentType ?? 'biometric';
+		if (type === 'biometric') {
+			setVideoConsent(false);
+			stopFrameCapture();
+			stopCamera();
+		}
+		setWithdrawnConsent(null);
+		setNotice(
+			'Continuing without biometric collection — only the steps that need it will be skipped.',
+		);
+	}, [withdrawnConsent, stopFrameCapture, stopCamera]);
+
 	// ---- join: devices -> active ----
 	const handleJoin = useCallback(async () => {
 		if (videoConsent) await startCamera();
@@ -424,8 +500,13 @@ export default function CandidateInterviewSessionPage() {
 
 	// ---- voice input (manual toggle, same as mock-interview v1) ----
 	const startDictation = useCallback(() => {
+		// Phase 3 (#447): shared check. When absent, show the typed-answer
+		// fallback message instead of silently doing nothing.
+		if (!isSpeechRecognitionAvailable()) {
+			setSpeechNotSupported(true);
+			return;
+		}
 		const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-		if (!SR) return;
 		try {
 			const rec = new SR();
 			rec.continuous = true;
@@ -701,6 +782,25 @@ export default function CandidateInterviewSessionPage() {
 		);
 	}
 
+	if (phase === 'expired') {
+		return (
+			<div className="min-h-screen flex items-center justify-center bg-background p-4">
+				<Card className="max-w-md w-full">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<Clock className="h-5 w-5 text-amber-500" />
+							Invite expired
+						</CardTitle>
+						<CardDescription>
+							This interview invitation has expired — invites are valid for 7 weeks. Please
+							contact the recruiter to request a new invitation.
+						</CardDescription>
+					</CardHeader>
+				</Card>
+			</div>
+		);
+	}
+
 	if (phase === 'signin') {
 		return (
 			<div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -762,6 +862,17 @@ export default function CandidateInterviewSessionPage() {
 								</li>
 							</ul>
 						</div>
+					{tokenSession?.invite_expires_at && (
+						<p className="text-xs text-muted-foreground flex items-center gap-1.5">
+							<Clock className="h-3.5 w-3.5 shrink-0" />
+							This invite expires on{' '}
+							{new Date(tokenSession.invite_expires_at).toLocaleDateString(undefined, {
+								year: 'numeric',
+								month: 'long',
+								day: 'numeric',
+							})}
+						</p>
+					)}
 						{tokenSession?.status === 'in_progress' && (
 							<p className="text-sm text-muted-foreground bg-muted rounded-md p-3">
 								You have an interview in progress — you can pick up where you left off.
@@ -815,17 +926,31 @@ export default function CandidateInterviewSessionPage() {
 								without video, or close this page — no recording was made.
 							</p>
 						)}
-						{/* Task 5 (#323) — Track B: the candidate is told the AI
-						    observer is present before joining (spec §5). */}
-						{session?.config?.observer_enabled && (
-							<p className="text-sm bg-blue-50 border border-blue-200 rounded-md p-3">
-								<strong className="text-blue-900">AI observer present:</strong>{' '}
-								<span className="text-blue-800">
-									an AI assistant will silently observe this interview to help the hiring
-									team evaluate it. It listens only — it won't speak or interrupt.
-								</span>
-							</p>
-						)}
+						{/* S-048 (#696): observer disclosure branched on default-deny
+						    gate state (privacy-engineer BLOCKER). The pre-existing
+						    notice claimed the observer "will" observe on intent
+						    alone — false under default-deny for declined/unknown.
+						    granted → affirmative; declined → reassurance; unknown
+						    or disabled → nothing. */}
+						{session?.config?.observer_enabled &&
+							session?.config?.biometric_collection === true && (
+								<p className="text-sm bg-blue-50 border border-blue-200 rounded-md p-3">
+									<strong className="text-blue-900">AI observer present:</strong>{' '}
+									<span className="text-blue-800">
+										an AI assistant will silently observe this interview to help the hiring
+										team evaluate it. It listens only — it won't speak or interrupt.
+									</span>
+								</p>
+							)}
+						{session?.config?.observer_enabled &&
+							session?.config?.biometric_collection === false && (
+								<p className="text-sm bg-emerald-50 border border-emerald-200 rounded-md p-3">
+									<span className="text-emerald-800">
+										AI-assisted analysis of this session is disabled — you declined
+										biometric analysis.
+									</span>
+								</p>
+							)}
 						{error && <p className="text-sm text-destructive">{error}</p>}
 						<div className="space-y-2">
 							<Button
@@ -895,7 +1020,11 @@ export default function CandidateInterviewSessionPage() {
 								</div>
 							)}
 						</div>
-						{cameraError && <p className="text-sm text-amber-600">{cameraError}</p>}
+						{cameraError && (
+							<p className="text-sm text-amber-600">
+								{getCameraErrorMessage(cameraError, true)}
+							</p>
+						)}
 						{!videoConsent && (
 							<p className="text-sm text-muted-foreground">
 								You'll answer by text and voice. Video analysis is off.
@@ -1025,6 +1154,18 @@ export default function CandidateInterviewSessionPage() {
 							End interview
 						</Button>
 					)}
+					{/* S-063 (#713): pause/resume — only during the active session */}
+					{heartbeatState === 'active' ? (
+						<Button size="sm" variant="outline" onClick={() => void pauseSession()}>
+							<Pause className="h-4 w-4 mr-1" />
+							Pause
+						</Button>
+					) : (
+						<Button size="sm" variant="outline" onClick={() => void resumeSession()}>
+							<Play className="h-4 w-4 mr-1" />
+							Resume
+						</Button>
+					)}
 				</div>
 			</header>
 
@@ -1042,6 +1183,71 @@ export default function CandidateInterviewSessionPage() {
 							×
 						</button>
 					</div>
+				</div>
+			)}
+
+			{/* S-063 (#713): lifecycle errors — friendly copy for invalid transitions (AC-4) */}
+			{lifecycleError && (
+				<div className="px-4 pt-3">
+					<div className="bg-red-50 border border-red-200 text-red-800 rounded-md px-3 py-2 text-sm flex items-start gap-2">
+						<AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+						<span>{lifecycleError}</span>
+						<button
+							type="button"
+							className="ml-auto text-red-600 hover:text-red-800"
+							onClick={clearLifecycleError}
+							aria-label="Dismiss"
+						>
+							×
+						</button>
+					</div>
+				</div>
+			)}
+
+			{/* S-063 (#713): paused overlay — session paused (explicitly or auto-paused) */}
+			{heartbeatState === 'paused' && (
+				<div className="px-4 pt-3">
+					<Card className="border-blue-200 bg-blue-50">
+						<CardContent className="py-6 flex flex-col items-center gap-3 text-center">
+							<Pause className="h-8 w-8 text-blue-600" />
+							<p className="font-medium">Interview paused</p>
+							<p className="text-sm text-muted-foreground max-w-md">
+								Your progress is saved and the timer is stopped. Resume when
+								you&apos;re ready to continue.
+							</p>
+							<Button onClick={() => void resumeSession()}>
+								<Play className="h-4 w-4 mr-1" />
+								Resume interview
+							</Button>
+						</CardContent>
+					</Card>
+				</div>
+			)}
+
+			{/* S-063 (#713): session ended server-side (e.g. completed) */}
+			{heartbeatState === 'ended' && (
+				<div className="px-4 pt-3">
+					<Card className="border-amber-200 bg-amber-50">
+						<CardContent className="py-6 flex flex-col items-center gap-3 text-center">
+							<AlertTriangle className="h-8 w-8 text-amber-600" />
+							<p className="font-medium">This session has ended</p>
+							<p className="text-sm text-muted-foreground max-w-md">
+								The session is no longer active on the server. Please refresh
+								the page if you believe this is a mistake.
+							</p>
+						</CardContent>
+					</Card>
+				</div>
+			)}
+			{/* S-064 (#714): withdrawn-consent recovery — inline, not a redirect */}
+			{withdrawnConsent && (
+				<div className="px-4 pt-3">
+					<WithdrawnConsentRecovery
+						consentType={withdrawnConsent.consentType}
+						sessionId={withdrawnConsent.sessionId}
+						onContinue={handleWithdrawnContinue}
+						onExit={handleWithdrawnExit}
+					/>
 				</div>
 			)}
 
@@ -1133,6 +1339,13 @@ export default function CandidateInterviewSessionPage() {
 							</Button>
 						</div>
 					) : (
+					<div className="space-y-2">
+						{/* Phase 3 (#447): typed-answer fallback when Web Speech API absent */}
+						{speechNotSupported && (
+							<p className="text-sm text-amber-600">
+								{SPEECH_NOT_SUPPORTED_MESSAGE}
+							</p>
+						)}
 					<div className="flex gap-2 items-end">
 						<Textarea
 							value={draft}
@@ -1165,6 +1378,7 @@ export default function CandidateInterviewSessionPage() {
 							{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
 							<span className="ml-1">Send</span>
 						</Button>
+					</div>
 					</div>
 					)}
 				</div>

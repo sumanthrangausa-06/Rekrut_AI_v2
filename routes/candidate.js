@@ -5,6 +5,7 @@ const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const { authMiddleware, requireRole } = require('../lib/auth');
 const pool = require('../lib/db');
+const { analyticsCache } = require('../lib/analytics-cache');
 const {
 	parseResume,
 	generateSkillAssessment,
@@ -15,6 +16,7 @@ const {
 
 const omniscoreService = require('../services/omniscore');
 const { decrypt } = require('../lib/crypto-utils');
+const { buildCandidateFeed } = require('../lib/activity-feed');
 const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-limiter');
 const marketBenchmarks = require('../lib/market-benchmarks');
 const { uploadToB2, checkB2Health } = require('../lib/file-storage');
@@ -24,6 +26,8 @@ const { notifyUser } = require('../lib/notify');
 // insertAuditLog → audit_logs table).
 const { insertAuditLog } = require('./audit');
 const { checkFeatureAccess, incrementUsage } = require('../lib/subscription');
+const { captureApplicationIp } = require('../lib/applicationIpCapture');
+const { companySizeRanges } = require('../lib/company-size');
 const calendarService = require('../server/services/calendar-service');
 
 let matchingEngine;
@@ -40,6 +44,26 @@ function badRequest(message) {
 	const err = new Error(message);
 	err.statusCode = 400;
 	return err;
+}
+
+// ============= JOB ALERTS helpers (#528) =============
+// Defined here (before the /profile route) because GET /profile
+// includes job_alerts in its response.
+const { countMatchesForAlert } = require('../lib/job-alert-matcher');
+
+function toJobAlertRow(row, matchCount = 0) {
+	return {
+		id: row.id,
+		keywords: row.keywords,
+		location: row.location || '',
+		frequency: row.frequency || 'daily',
+		active: !!row.is_active,
+		match_count: matchCount,
+		job_type: row.job_type || null,
+		salary_min: row.salary_min,
+		created_at: row.created_at,
+		updated_at: row.updated_at,
+	};
 }
 
 function normalizeTextField(value, maxLength, fieldName) {
@@ -132,6 +156,86 @@ async function extractTextFromFile(buffer, mimetype) {
 	}
 }
 
+// ============= RESUME PARSE LIFECYCLE (#1471) =============
+
+// Shared parse lifecycle for a parsed_resumes row that already exists at
+// parsing_status='processing'. Owns: extractTextFromFile → subscription
+// lookup → parseResume under the existing 30s Promise.race → the
+// terminal-status UPDATEs. Returns { status, parsedData } and NEVER
+// throws — every path lands a truthful terminal status:
+//   'completed' (parsed_data written) or 'failed' (extraction/parse
+//   exception, or extracted text ≤50 chars — #1477: 'uploaded' is not
+//   in chk_parsed_resumes_status, so short text lands 'failed'
+//   directly). Callers decide what a non-completed parse means for
+//   their response; for /profile/resume it
+// must stay non-fatal to the upload (STOP 1 binding AC on #1471).
+async function parseResumeRecord({ buffer, mimetype, userId, resumeId }) {
+	let parsedData = null;
+	try {
+		const resumeText = await extractTextFromFile(buffer, mimetype);
+
+		if (resumeText && resumeText.trim().length > 50) {
+			// Get user's subscription for tracking
+			const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
+				userId,
+			]);
+			const subscriptionId = user.rows[0]?.stripe_subscription_id;
+
+			// Parse with AI, with a 30-second timeout
+			const parsePromise = parseResume(resumeText.substring(0, 15000), { subscriptionId });
+			const timeoutPromise = new Promise((_, reject) =>
+				setTimeout(() => reject(new Error('AI parsing timeout')), 30000),
+			);
+
+			parsedData = await Promise.race([parsePromise, timeoutPromise]);
+
+			// Update the record with parsed data
+			await pool.query(
+				`
+          UPDATE parsed_resumes
+          SET parsed_data = $1, parsing_status = 'completed', parsed_at = NOW()
+          WHERE id = $2
+        `,
+				[JSON.stringify(parsedData), resumeId],
+			);
+
+			console.log(`Successfully parsed ${mimetype} resume for user ${userId}`);
+			return { status: 'completed', parsedData };
+		}
+
+		// #1477: 'uploaded' violates chk_parsed_resumes_status (allowed:
+		// pending/processing/completed/failed) — write the honest terminal
+		// 'failed' directly instead of via the catch path.
+		console.log('Extracted text too short - marking as failed');
+		await pool.query(
+			`
+          UPDATE parsed_resumes
+          SET parsing_status = 'failed', parsed_at = NOW()
+          WHERE id = $1
+        `,
+			[resumeId],
+		);
+		return { status: 'failed', parsedData: null };
+	} catch (parseErr) {
+		console.error('Resume parsing failed (non-fatal):', parseErr.message);
+		try {
+			await pool.query(
+				`
+        UPDATE parsed_resumes
+        SET parsing_status = 'failed', parsed_at = NOW()
+        WHERE id = $1
+      `,
+				[resumeId],
+			);
+		} catch (updateErr) {
+			// Never-throws contract: even the terminal UPDATE failing is
+			// reported via the return value, not an exception.
+			console.error('Failed to mark resume as failed:', updateErr.message);
+		}
+		return { status: 'failed', parsedData: null };
+	}
+}
+
 // ============= PROFILE MANAGEMENT =============
 
 // Get candidate profile
@@ -139,7 +243,10 @@ router.get('/profile', authMiddleware, async (req, res) => {
 	try {
 		const profile = await pool.query(
 			`
-      SELECT cp.*, u.name, u.email, u.avatar_url, os.total_score as omni_score
+      SELECT cp.*, u.name, u.email, u.avatar_url, os.total_score as omni_score,
+      (SELECT original_filename FROM parsed_resumes
+        WHERE user_id = u.id AND file_url = cp.resume_url
+        ORDER BY id DESC LIMIT 1) as resume_filename
       FROM users u
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id
@@ -159,7 +266,16 @@ router.get('/profile', authMiddleware, async (req, res) => {
 		);
 
 		const skills = await pool.query(
-			'SELECT * FROM candidate_skills WHERE user_id = $1 ORDER BY level DESC, skill_name',
+			`SELECT cs.*,
+			        COALESCE(e.endorsement_count, 0)::int AS endorsements
+			 FROM candidate_skills cs
+			 LEFT JOIN (
+			   SELECT candidate_id, skill_name, COUNT(*) AS endorsement_count
+			   FROM skill_endorsements
+			   WHERE candidate_id = $1
+			   GROUP BY candidate_id, skill_name
+			 ) e ON e.skill_name = cs.skill_name
+			 WHERE cs.user_id = $1 ORDER BY cs.level DESC, cs.skill_name`,
 			[req.user.id],
 		);
 
@@ -169,6 +285,33 @@ router.get('/profile', authMiddleware, async (req, res) => {
 		);
 
 		const profileRow = profile.rows[0] || {};
+		let jobAlerts = [];
+		try {
+			const alertsResult = await pool.query(
+				'SELECT * FROM job_alerts WHERE user_id = $1 ORDER BY created_at DESC',
+				[req.user.id],
+			);
+			for (const row of alertsResult.rows) {
+				let matchCount = 0;
+				try {
+					matchCount = await countMatchesForAlert(row);
+				} catch (_e) {
+					// match_count is best-effort; don't fail profile load
+				}
+				jobAlerts.push(toJobAlertRow(row, matchCount));
+			}
+		} catch (_e) {
+			// job_alerts table may not exist yet on older DBs; don't fail profile load
+		}
+
+		// Issue #529: candidate activity feed (best-effort, never fails profile load)
+		let activities = [];
+		try {
+			activities = await buildCandidateFeed(req.user.id);
+		} catch (feedErr) {
+			console.error('[profile] activity feed failed:', feedErr.message);
+		}
+
 		res.json({
 			success: true,
 			profile: profileRow,
@@ -184,6 +327,10 @@ router.get('/profile', authMiddleware, async (req, res) => {
 			// Certifications live in candidate_profiles.certifications JSONB;
 			// frontend reads data.certifications (top-level)
 			certifications: profileRow.certifications || [],
+			// Job alerts for the JobAlertsTab (#528)
+			job_alerts: jobAlerts,
+			// Issue #529: unified activity feed (frontend ActivityTab)
+			activities,
 		});
 	} catch (err) {
 		console.error('Get profile error:', err);
@@ -349,6 +496,13 @@ router.put('/profile', authMiddleware, async (req, res) => {
 			]);
 		}
 
+		// Issue #522: invalidate cached dashboard stats + recruiter previews for this candidate
+		analyticsCache.del(
+			analyticsCache.key('/api/candidate/dashboard/stats', { userId: req.user.id }),
+		);
+		// Preview keys are per-recruiter; the trailing & scopes the pattern to this candidate only
+		analyticsCache.invalidate(`/api/candidates/preview?candidateId=${req.user.id}&`);
+
 		res.json({ success: true, profile: result.rows[0] });
 	} catch (err) {
 		if (err.statusCode === 400) {
@@ -405,7 +559,8 @@ router.post('/profile/photo', authMiddleware, upload.single('photo'), async (req
 	}
 });
 
-// Upload profile resume (simple — stores file, no AI parsing or auto-apply)
+// Upload profile resume (stores file + parses via parseResumeRecord;
+// NO auto-apply — that stays exclusive to /resume/upload, #1471)
 router.post('/profile/resume', authMiddleware, upload.single('resume'), async (req, res) => {
 	try {
 		if (!req.file) {
@@ -442,8 +597,9 @@ router.post('/profile/resume', authMiddleware, upload.single('resume'), async (r
 			});
 		}
 
+		let resumeId;
 		try {
-			await pool.query(
+			const inserted = await pool.query(
 				`
 				INSERT INTO parsed_resumes (user_id, original_filename, file_url, parsing_status)
 				VALUES ($1, $2, $3, 'processing')
@@ -451,6 +607,7 @@ router.post('/profile/resume', authMiddleware, upload.single('resume'), async (r
 				`,
 				[req.user.id, req.file.originalname, resumeUrl],
 			);
+			resumeId = inserted.rows[0].id;
 
 			// Update profile with resume URL
 			await pool.query(
@@ -469,7 +626,23 @@ router.post('/profile/resume', authMiddleware, upload.single('resume'), async (r
 			});
 		}
 
-		res.json({ success: true, resume_url: resumeUrl });
+		// #1471: run the shared parse lifecycle synchronously so the row
+		// never strands at 'processing'. The helper never throws and a
+		// parse failure must NOT fail the upload (binding AC) — the row
+		// lands in a truthful terminal status and we still return 200.
+		const parseResult = await parseResumeRecord({
+			buffer: req.file.buffer,
+			mimetype: req.file.mimetype,
+			userId: req.user.id,
+			resumeId,
+		});
+
+		res.json({
+			success: true,
+			resume_url: resumeUrl,
+			resume_filename: req.file.originalname,
+			parsing_status: parseResult.status,
+		});
 	} catch (err) {
 		console.error('Profile resume upload error:', err);
 		res.status(500).json({ error: 'Failed to upload resume', code: 'UNKNOWN' });
@@ -543,47 +716,28 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
 			[req.user.id, fileUrl],
 		);
 
-		// Extract text from the resume (supports PDF, DOCX, and plain text)
-		let parsedData = null;
-		try {
-			// Extract text from the file buffer
-			const resumeText = await extractTextFromFile(req.file.buffer, req.file.mimetype);
+		// Parse via the shared lifecycle (#1471): parseResumeRecord owns
+		// extract → parse (30s race) → terminal-status UPDATEs and never
+		// throws. Its 'completed' UPDATE lands BEFORE auto-apply below, so
+		// the auto-apply mutation of parsedData._applySummary still happens
+		// after the DB write, exactly as the old inline code ordered it.
+		const parseResult = await parseResumeRecord({
+			buffer: req.file.buffer,
+			mimetype: req.file.mimetype,
+			userId: req.user.id,
+			resumeId: resumeRecord.rows[0].id,
+		});
+		const parsedData = parseResult.parsedData;
 
-			if (resumeText && resumeText.trim().length > 50) {
-				// Get user's subscription for tracking
-				const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
-					req.user.id,
-				]);
-				const subscriptionId = user.rows[0]?.stripe_subscription_id;
+		if (parseResult.status === 'completed' && parsedData) {
+			// ====== AUTO-APPLY parsed data to profile ======
+			try {
+				const applySummary = { profile: false, experience: 0, education: 0, skills: 0 };
 
-				// Parse with AI, with a 30-second timeout
-				const parsePromise = parseResume(resumeText.substring(0, 15000), { subscriptionId });
-				const timeoutPromise = new Promise((_, reject) =>
-					setTimeout(() => reject(new Error('AI parsing timeout')), 30000),
-				);
-
-				parsedData = await Promise.race([parsePromise, timeoutPromise]);
-
-				// Update the record with parsed data
-				await pool.query(
-					`
-          UPDATE parsed_resumes
-          SET parsed_data = $1, parsing_status = 'completed', parsed_at = NOW()
-          WHERE id = $2
-        `,
-					[JSON.stringify(parsedData), resumeRecord.rows[0].id],
-				);
-
-				console.log(`Successfully parsed ${req.file.mimetype} resume for user ${req.user.id}`);
-
-				// ====== AUTO-APPLY parsed data to profile ======
-				try {
-					const applySummary = { profile: false, experience: 0, education: 0, skills: 0 };
-
-					// 1. Apply contact/profile info
-					if (parsedData.contact) {
-						await pool.query(
-							`
+				// 1. Apply contact/profile info
+				if (parsedData.contact) {
+					await pool.query(
+						`
               INSERT INTO candidate_profiles (user_id, headline, bio, location, phone, linkedin_url, github_url, portfolio_url, years_experience)
               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
               ON CONFLICT (user_id) DO UPDATE SET
@@ -598,188 +752,168 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
                 updated_at = NOW()
               RETURNING *
             `,
-							[
-								req.user.id,
-								normalizeTextField(
-									parsedData.contact.headline || parsedData.contact.title,
-									120,
-									'Headline',
-								),
-								normalizeTextField(parsedData.contact.bio, 2000, 'Bio'),
-								normalizeTextField(parsedData.contact.location, 120, 'Location'),
-								normalizeTextField(parsedData.contact.phone, 40, 'Phone'),
-								normalizeUrlField(
-									parsedData.contact.linkedin_url || parsedData.contact.linkedin,
-									'LinkedIn URL',
-								),
-								normalizeUrlField(
-									parsedData.contact.github_url || parsedData.contact.github,
-									'GitHub URL',
-								),
-								normalizeUrlField(
-									parsedData.contact.portfolio_url || parsedData.contact.website,
-									'Portfolio URL',
-								),
-								normalizePositiveInteger(
-									parsedData.contact.years_experience,
-									'years_experience',
-									80,
-								),
-							],
+						[
+							req.user.id,
+							normalizeTextField(
+								parsedData.contact.headline || parsedData.contact.title,
+								120,
+								'Headline',
+							),
+							normalizeTextField(parsedData.contact.bio, 2000, 'Bio'),
+							normalizeTextField(parsedData.contact.location, 120, 'Location'),
+							normalizeTextField(parsedData.contact.phone, 40, 'Phone'),
+							normalizeUrlField(
+								parsedData.contact.linkedin_url || parsedData.contact.linkedin,
+								'LinkedIn URL',
+							),
+							normalizeUrlField(
+								parsedData.contact.github_url || parsedData.contact.github,
+								'GitHub URL',
+							),
+							normalizeUrlField(
+								parsedData.contact.portfolio_url || parsedData.contact.website,
+								'Portfolio URL',
+							),
+							normalizePositiveInteger(
+								parsedData.contact.years_experience,
+								'years_experience',
+								80,
+							),
+						],
+					);
+					applySummary.profile = true;
+
+					// Update user name/email if empty
+					if (parsedData.contact.name) {
+						await pool.query(
+							`UPDATE users SET name = $1 WHERE id = $2 AND (name IS NULL OR name = '')`,
+							[parsedData.contact.name, req.user.id],
 						);
-						applySummary.profile = true;
-
-						// Update user name/email if empty
-						if (parsedData.contact.name) {
-							await pool.query(
-								`UPDATE users SET name = $1 WHERE id = $2 AND (name IS NULL OR name = '')`,
-								[parsedData.contact.name, req.user.id],
-							);
-						}
 					}
+				}
 
-					// 2. Apply work experience (with dedup: skip if same company+title exists)
-					if (parsedData.experience && Array.isArray(parsedData.experience)) {
-						for (let i = 0; i < parsedData.experience.length; i++) {
-							const exp = parsedData.experience[i];
-							if (!exp.company || !exp.title) continue;
+				// 2. Apply work experience (with dedup: skip if same company+title exists)
+				if (parsedData.experience && Array.isArray(parsedData.experience)) {
+					for (let i = 0; i < parsedData.experience.length; i++) {
+						const exp = parsedData.experience[i];
+						if (!exp.company || !exp.title) continue;
 
-							// Check for duplicate
-							const existing = await pool.query(
-								`SELECT id FROM work_experience WHERE user_id = $1 AND LOWER(company_name) = LOWER($2) AND LOWER(title) = LOWER($3)`,
-								[req.user.id, exp.company, exp.title],
-							);
-							if (existing.rows.length > 0) continue;
+						// Check for duplicate
+						const existing = await pool.query(
+							`SELECT id FROM work_experience WHERE user_id = $1 AND LOWER(company_name) = LOWER($2) AND LOWER(title) = LOWER($3)`,
+							[req.user.id, exp.company, exp.title],
+						);
+						if (existing.rows.length > 0) continue;
 
-							await pool.query(
-								`
+						await pool.query(
+							`
                 INSERT INTO work_experience (user_id, company_name, title, location, start_date, end_date, is_current, description, achievements, skills_used, order_index)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
               `,
-								[
-									req.user.id,
-									exp.company,
-									exp.title,
-									exp.location || null,
-									exp.start_date
-										? new Date(
-												exp.start_date.length === 4
-													? `${exp.start_date}-01-01`
-													: `${exp.start_date}-01`,
-											)
-										: null,
-									exp.end_date && exp.end_date !== 'Present'
-										? new Date(
-												exp.end_date.length === 4 ? `${exp.end_date}-01-01` : `${exp.end_date}-01`,
-											)
-										: null,
-									exp.is_current || exp.end_date === 'Present',
-									exp.description || null,
-									JSON.stringify(exp.achievements || []),
-									JSON.stringify(exp.skills_used || []),
-									i,
-								],
-							);
-							applySummary.experience++;
-						}
+							[
+								req.user.id,
+								exp.company,
+								exp.title,
+								exp.location || null,
+								exp.start_date
+									? new Date(
+											exp.start_date.length === 4
+												? `${exp.start_date}-01-01`
+												: `${exp.start_date}-01`,
+										)
+									: null,
+								exp.end_date && exp.end_date !== 'Present'
+									? new Date(
+											exp.end_date.length === 4 ? `${exp.end_date}-01-01` : `${exp.end_date}-01`,
+										)
+									: null,
+								exp.is_current || exp.end_date === 'Present',
+								exp.description || null,
+								JSON.stringify(exp.achievements || []),
+								JSON.stringify(exp.skills_used || []),
+								i,
+							],
+						);
+						applySummary.experience++;
 					}
+				}
 
-					// 3. Apply education (with dedup: skip if same institution+degree exists)
-					if (parsedData.education && Array.isArray(parsedData.education)) {
-						for (let i = 0; i < parsedData.education.length; i++) {
-							const edu = parsedData.education[i];
-							if (!edu.institution) continue;
+				// 3. Apply education (with dedup: skip if same institution+degree exists)
+				if (parsedData.education && Array.isArray(parsedData.education)) {
+					for (let i = 0; i < parsedData.education.length; i++) {
+						const edu = parsedData.education[i];
+						if (!edu.institution) continue;
 
-							// Check for duplicate
-							const existing = await pool.query(
-								`SELECT id FROM education WHERE user_id = $1 AND LOWER(institution) = LOWER($2) AND LOWER(COALESCE(degree, '')) = LOWER(COALESCE($3, ''))`,
-								[req.user.id, edu.institution, edu.degree || ''],
-							);
-							if (existing.rows.length > 0) continue;
+						// Check for duplicate
+						const existing = await pool.query(
+							`SELECT id FROM education WHERE user_id = $1 AND LOWER(institution) = LOWER($2) AND LOWER(COALESCE(degree, '')) = LOWER(COALESCE($3, ''))`,
+							[req.user.id, edu.institution, edu.degree || ''],
+						);
+						if (existing.rows.length > 0) continue;
 
-							await pool.query(
-								`
+						await pool.query(
+							`
                 INSERT INTO education (user_id, institution, degree, field_of_study, start_date, end_date, gpa, achievements, order_index)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
               `,
-								[
-									req.user.id,
-									edu.institution,
-									edu.degree || null,
-									edu.field || null,
-									edu.start_date ? new Date(`${edu.start_date}-01-01`) : null,
-									edu.end_date && edu.end_date !== 'Present'
-										? new Date(`${edu.end_date}-01-01`)
-										: null,
-									edu.gpa || null,
-									JSON.stringify(edu.achievements || []),
-									i,
-								],
-							);
-							applySummary.education++;
-						}
+							[
+								req.user.id,
+								edu.institution,
+								edu.degree || null,
+								edu.field || null,
+								edu.start_date ? new Date(`${edu.start_date}-01-01`) : null,
+								edu.end_date && edu.end_date !== 'Present'
+									? new Date(`${edu.end_date}-01-01`)
+									: null,
+								edu.gpa || null,
+								JSON.stringify(edu.achievements || []),
+								i,
+							],
+						);
+						applySummary.education++;
 					}
+				}
 
-					// 4. Apply skills (upsert — won't duplicate due to UNIQUE constraint)
-					if (parsedData.skills && Array.isArray(parsedData.skills)) {
-						for (const skill of parsedData.skills) {
-							if (!skill.name) continue;
-							try {
-								// Coerce string level names to integers
-								let skillLevel = skill.level || 3;
-								if (typeof skillLevel === 'string') {
-									const lvlMap = { beginner: 1, basic: 2, intermediate: 3, advanced: 4, expert: 5 };
-									skillLevel = lvlMap[skillLevel.toLowerCase()] || parseInt(skillLevel, 10) || 3;
-								}
-								skillLevel = Math.max(1, Math.min(5, parseInt(skillLevel, 10) || 3));
-								await pool.query(
-									`
+				// 4. Apply skills (upsert — won't duplicate due to UNIQUE constraint)
+				if (parsedData.skills && Array.isArray(parsedData.skills)) {
+					for (const skill of parsedData.skills) {
+						if (!skill.name) continue;
+						try {
+							// Coerce string level names to integers
+							let skillLevel = skill.level || 3;
+							if (typeof skillLevel === 'string') {
+								const lvlMap = { beginner: 1, basic: 2, intermediate: 3, advanced: 4, expert: 5 };
+								skillLevel = lvlMap[skillLevel.toLowerCase()] || parseInt(skillLevel, 10) || 3;
+							}
+							skillLevel = Math.max(1, Math.min(5, parseInt(skillLevel, 10) || 3));
+							await pool.query(
+								`
                   INSERT INTO candidate_skills (user_id, skill_name, category, level)
                   VALUES ($1, $2, $3, $4)
                   ON CONFLICT (user_id, skill_name) DO UPDATE SET
                     category = COALESCE(NULLIF($3, ''), candidate_skills.category),
                     level = GREATEST(candidate_skills.level, $4)
                 `,
-									[req.user.id, skill.name, skill.category || 'technical', skillLevel],
-								);
-								applySummary.skills++;
-							} catch (skillErr) {
-								console.error('Skip skill insert:', skillErr.message);
-							}
+								[req.user.id, skill.name, skill.category || 'technical', skillLevel],
+							);
+							applySummary.skills++;
+						} catch (skillErr) {
+							console.error('Skip skill insert:', skillErr.message);
 						}
 					}
-
-					parsedData._applySummary = applySummary;
-					console.log(`Auto-applied resume data for user ${req.user.id}:`, applySummary);
-				} catch (applyErr) {
-					console.error('Auto-apply resume data failed (non-fatal):', applyErr.message);
 				}
-			} else {
-				console.log('Extracted text too short - marking as uploaded');
-				await pool.query(
-					`
-          UPDATE parsed_resumes
-          SET parsing_status = 'uploaded', parsed_at = NOW()
-          WHERE id = $1
-        `,
-					[resumeRecord.rows[0].id],
-				);
+
+				parsedData._applySummary = applySummary;
+				console.log(`Auto-applied resume data for user ${req.user.id}:`, applySummary);
+			} catch (applyErr) {
+				console.error('Auto-apply resume data failed (non-fatal):', applyErr.message);
 			}
-		} catch (parseErr) {
-			console.error('Resume parsing failed (non-fatal):', parseErr.message);
-			await pool.query(
-				`
-        UPDATE parsed_resumes
-        SET parsing_status = 'failed', parsed_at = NOW()
-        WHERE id = $1
-      `,
-				[resumeRecord.rows[0].id],
-			);
 		}
 
 		res.json({
 			success: true,
 			resume_url: fileUrl,
+			resume_filename: req.file.originalname,
 			parsed_data: parsedData,
 			resume_id: resumeRecord.rows[0].id,
 		});
@@ -922,74 +1056,111 @@ router.post('/resume/apply', authMiddleware, async (req, res) => {
 
 // ============= CV REVIEW / ANALYSIS =============
 
-// Helper: generate realistic mock CV analysis
-function generateMockAnalysis() {
-	const sections = [
-		{
-			name: 'Experience',
-			score: Math.floor(Math.random() * 25) + 65, // 65-90
-			impact: 'Highest',
-			recommendations: [
-				'Quantify achievements with metrics (e.g., "increased revenue by 20%")',
-				'Use strong action verbs at the beginning of each bullet point',
-				'Include 3-5 bullet points per role with clear outcomes',
-			],
-		},
-		{
-			name: 'Skills',
-			score: Math.floor(Math.random() * 30) + 60, // 60-90
-			impact: 'Medium',
-			recommendations: [
-				'Group skills by category (e.g., Technical, Soft Skills, Languages)',
-				'Prioritize skills mentioned in target job descriptions',
-				'Remove outdated or irrelevant skills to keep the list focused',
-			],
-		},
-		{
-			name: 'ATS & Recruiter Optimization',
-			score: Math.floor(Math.random() * 35) + 55, // 55-90
-			impact: 'Highest',
-			recommendations: [
-				'Include relevant keywords from the job posting naturally',
-				'Avoid tables, headers/footers, and graphics that confuse ATS parsers',
-				'Use standard section headings like "Work Experience" and "Education"',
-			],
-		},
-		{
-			name: 'Formatting & Layout',
-			score: Math.floor(Math.random() * 30) + 60, // 60-90
-			impact: 'Low',
-			recommendations: [
-				'Maintain consistent spacing and alignment throughout',
-				'Use a clean, professional font (e.g., Arial, Calibri, Helvetica)',
-				'Keep the resume to 1-2 pages for optimal readability',
-			],
-		},
-		{
-			name: 'Education',
-			score: Math.floor(Math.random() * 20) + 70, // 70-90
-			impact: 'Low',
-			recommendations: [
-				'Include relevant coursework or certifications if applicable',
-				'List GPA only if it is 3.5 or above and recent',
-				'Add honors, awards, or extracurriculars that demonstrate leadership',
-			],
-		},
-	];
+// #1386: real CV analysis output contract. The five sections, in display
+// order — provider output missing any of them is invalid, not partial data.
+const CV_ANALYSIS_SECTIONS = [
+	'Experience',
+	'Skills',
+	'ATS & Recruiter Optimization',
+	'Formatting & Layout',
+	'Education',
+];
 
-	const overallScore = Math.round(sections.reduce((sum, s) => sum + s.score, 0) / sections.length);
+function clampCvScore(value) {
+	const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+	if (typeof n !== 'number' || !Number.isFinite(n)) return null;
+	return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function normalizeCvImpact(value) {
+	if (typeof value !== 'string') return null;
+	const t = value.trim().toLowerCase();
+	if (t === 'highest' || t === 'high') return 'Highest';
+	if (t === 'medium') return 'Medium';
+	if (t === 'low') return 'Low';
+	return null;
+}
+
+// Validate + normalize a provider CV analysis into the persisted shape.
+// Returns null for anything unparseable/invalid — the caller treats null
+// as provider failure (no score is ever invented or defaulted here).
+function validateCvAnalysis(data) {
+	if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+
+	const overallScore = clampCvScore(data.overall_score);
+	if (overallScore === null) return null;
+	if (!Array.isArray(data.section_scores)) return null;
+
+	const byName = new Map();
+	for (const section of data.section_scores) {
+		if (!section || typeof section !== 'object') continue;
+		if (!CV_ANALYSIS_SECTIONS.includes(section.name)) continue;
+		const score = clampCvScore(section.score);
+		const impact = normalizeCvImpact(section.impact);
+		if (score === null || impact === null) return null;
+		const recommendations = Array.isArray(section.recommendations)
+			? section.recommendations
+					.filter((r) => typeof r === 'string' && r.trim())
+					.map((r) => r.trim())
+			: [];
+		byName.set(section.name, { name: section.name, score, impact, recommendations });
+	}
+	if (byName.size !== CV_ANALYSIS_SECTIONS.length) return null;
+	const sectionScores = CV_ANALYSIS_SECTIONS.map((name) => byName.get(name));
+
+	let recommendations;
+	if (Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+		recommendations = [];
+		for (const rec of data.recommendations) {
+			if (!rec || typeof rec !== 'object') continue;
+			if (typeof rec.text !== 'string' || !rec.text.trim()) continue;
+			if (!CV_ANALYSIS_SECTIONS.includes(rec.section)) continue;
+			// #1407 LOW-1: fail closed like every other field in this
+			// validator — a recommendation with a missing/invalid impact
+			// invalidates the analysis instead of silently inheriting the
+			// parent section's impact.
+			const impact = normalizeCvImpact(rec.impact);
+			if (impact === null) return null;
+			recommendations.push({
+				section: rec.section,
+				impact,
+				text: rec.text.trim(),
+			});
+		}
+		if (recommendations.length === 0) return null;
+	} else {
+		// Provider gave per-section recommendations only — restructure them
+		// into the flat shape (provider text, never invented text).
+		recommendations = sectionScores.flatMap((s) =>
+			s.recommendations.map((text) => ({ section: s.name, impact: s.impact, text })),
+		);
+	}
 
 	return {
 		overall_score: overallScore,
-		section_scores: sections,
-		recommendations: sections.flatMap((s) =>
-			s.recommendations.map((r) => ({
-				section: s.name,
-				impact: s.impact,
-				text: r,
-			})),
-		),
+		section_scores: sectionScores,
+		recommendations,
 	};
+}
+
+// #1407: POST /cv/analyze runs synchronously (LLM cascade caps at 12s), so
+// a row still 'pending' after 5 minutes can only be a dangling row from a
+// process that died mid-call. Flip such rows to the truthful terminal
+// 'failed' state (no scores are ever written) when they are read — the
+// poll/list reads below are where a dangling row would otherwise spin or
+// linger forever. Best-effort: a sweep failure must not break the read.
+async function failStalePendingCvAnalyses(userId) {
+	try {
+		await pool.query(
+			`UPDATE cv_analyses
+			 SET status = 'failed', updated_at = NOW()
+			 WHERE user_id = $1 AND status = 'pending'
+			   AND created_at < NOW() - INTERVAL '5 minutes'`,
+			[userId],
+		);
+	} catch (err) {
+		console.error('[CV Review] Stale pending sweep failed:', err.message);
+	}
 }
 
 // Trigger CV analysis (async-style)
@@ -1008,7 +1179,7 @@ router.post('/cv/analyze', authMiddleware, async (req, res) => {
 
 		// Check user has uploaded documents (parsed_resumes)
 		const docs = await pool.query(
-			'SELECT id FROM parsed_resumes WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+			'SELECT id, parsed_data, parsing_status, created_at FROM parsed_resumes WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
 			[req.user.id],
 		);
 
@@ -1020,6 +1191,43 @@ router.post('/cv/analyze', authMiddleware, async (req, res) => {
 		}
 
 		const documentId = docs.rows[0].id;
+		const parsedData = docs.rows[0].parsed_data;
+		const cvContent = parsedData ? JSON.stringify(parsedData) : '';
+		if (!cvContent.trim() || cvContent === '{}' || cvContent === 'null') {
+			// #1471: a latest row still 'processing' with no parsed content
+			// is "not parsed yet", not an invalid CV. Synchronous parse
+			// (plus the 30s race in parseResumeRecord) can never legitimately
+			// still be running after 5 minutes — the #1407 staleness guard —
+			// so an older row is stranded: flip it to the truthful terminal
+			// 'failed' state and direct a re-upload. A younger row may be
+			// genuinely in flight in another request: no state change.
+			if (docs.rows[0].parsing_status === 'processing') {
+				const createdAtMs = docs.rows[0].created_at
+					? new Date(docs.rows[0].created_at).getTime()
+					: NaN;
+				const isStale = Number.isFinite(createdAtMs) && Date.now() - createdAtMs > 5 * 60 * 1000;
+				if (isStale) {
+					await pool.query(
+						`UPDATE parsed_resumes
+						 SET parsing_status = 'failed', parsed_at = NOW()
+						 WHERE id = $1 AND parsing_status = 'processing'`,
+						[documentId],
+					);
+					return res.status(400).json({
+						error: 'Your resume could not be parsed. Please upload your CV again.',
+						code: 'RESUME_NOT_PARSED',
+					});
+				}
+				return res.status(400).json({
+					error: 'Your resume is still processing — try again in a moment.',
+					code: 'RESUME_NOT_PARSED',
+				});
+			}
+			return res.status(400).json({
+				error: 'Document has no parsed content. Please upload a valid CV.',
+				code: 'EMPTY_DOCUMENT',
+			});
+		}
 
 		// Create analysis record in pending state
 		const result = await pool.query(
@@ -1033,47 +1241,78 @@ router.post('/cv/analyze', authMiddleware, async (req, res) => {
 
 		const analysisId = result.rows[0].id;
 
-		// Async mock analysis — complete immediately in MVP
-		setImmediate(async () => {
-			try {
-				const mock = generateMockAnalysis();
-				await pool.query(
-					`
-					UPDATE cv_analyses
-					SET status = 'completed',
-						overall_score = $2,
-						section_scores = $3,
-						recommendations = $4,
-						updated_at = NOW()
-					WHERE id = $1
-					`,
-					[
-						analysisId,
-						mock.overall_score,
-						JSON.stringify(mock.section_scores),
-						JSON.stringify(mock.recommendations),
-					],
-				);
-				console.log(
-					`[CV Review] Mock analysis completed for user ${req.user.id}, analysis ${analysisId}`,
-				);
-			} catch (asyncErr) {
-				console.error(
-					`[CV Review] Async mock analysis failed for analysis ${analysisId}:`,
-					asyncErr.message,
-				);
-				try {
-					await pool.query(
-						"UPDATE cv_analyses SET status = 'failed', updated_at = NOW() WHERE id = $1",
-						[analysisId],
-					);
-				} catch (markErr) {
-					console.error('[CV Review] Failed to mark analysis as failed:', markErr.message);
-				}
-			}
-		});
+		// #1386: synchronous REAL analysis via the provider cascade (same
+		// plumbing as POST /cv-review in this file). On any failure the
+		// pending row is deleted — no score is persisted for an analysis
+		// that never ran (#1352/#1357 honest-failure contract).
+		try {
+			const { chat, safeParseJSON } = require('../lib/polsia-ai');
+			const prompt = `You are an expert CV/resume reviewer. Analyze the following CV and score it.
 
-		res.json({ success: true, analysis_id: analysisId, status: 'pending' });
+CV CONTENT (parsed resume data):
+${cvContent.substring(0, 12000)}
+
+Provide your analysis as a JSON object with exactly this structure:
+{
+  "overall_score": <integer 0-100>,
+  "section_scores": [
+    { "name": "<section name>", "score": <integer 0-100>, "impact": "<Highest|Medium|Low>", "recommendations": ["<specific recommendation>", "..."] }
+  ],
+  "recommendations": [
+    { "section": "<section name>", "impact": "<Highest|Medium|Low>", "text": "<specific recommendation>" }
+  ]
+}
+
+Score exactly these five sections, using these exact names: "Experience", "Skills", "ATS & Recruiter Optimization", "Formatting & Layout", "Education". Base every score and recommendation only on the CV content above. Be constructive and specific. Only return the JSON object, no other text.`;
+
+			const aiResponse = await chat(prompt, {
+				task: 'cv-analyze',
+				module: 'candidate',
+				feature: 'cv_review',
+			});
+
+			const analysis = validateCvAnalysis(safeParseJSON(aiResponse));
+			if (!analysis) {
+				throw new Error('CV analysis provider returned unparseable or invalid output');
+			}
+
+			await pool.query(
+				`
+				UPDATE cv_analyses
+				SET status = 'completed',
+					overall_score = $2,
+					section_scores = $3,
+					recommendations = $4,
+					updated_at = NOW()
+				WHERE id = $1
+				`,
+				[
+					analysisId,
+					analysis.overall_score,
+					JSON.stringify(analysis.section_scores),
+					JSON.stringify(analysis.recommendations),
+				],
+			);
+			console.log(
+				`[CV Review] Analysis completed for user ${req.user.id}, analysis ${analysisId}`,
+			);
+		} catch (analysisErr) {
+			console.error(
+				`[CV Review] Analysis failed for analysis ${analysisId}:`,
+				analysisErr.message,
+			);
+			try {
+				await pool.query('DELETE FROM cv_analyses WHERE id = $1', [analysisId]);
+			} catch (deleteErr) {
+				console.error('[CV Review] Failed to delete pending analysis:', deleteErr.message);
+			}
+			return res.status(503).json({
+				error: 'CV analysis is temporarily unavailable. Please try again in a moment.',
+				retryable: true,
+			});
+		}
+
+		res.json({ success: true, analysis_id: analysisId, status: 'completed' });
 	} catch (err) {
 		console.error('CV analyze error:', err);
 		res.status(500).json({ error: 'Failed to start CV analysis' });
@@ -1083,6 +1322,7 @@ router.post('/cv/analyze', authMiddleware, async (req, res) => {
 // Get analysis result by ID
 router.get('/cv/analysis/:id', authMiddleware, async (req, res) => {
 	try {
+		await failStalePendingCvAnalyses(req.user.id);
 		const result = await pool.query(
 			`
 			SELECT id, user_id, document_id, status, overall_score, section_scores, recommendations, created_at, updated_at
@@ -1120,6 +1360,7 @@ router.get('/cv/analysis/:id', authMiddleware, async (req, res) => {
 // List user's analyses with pagination
 router.get('/cv/analyses', authMiddleware, async (req, res) => {
 	try {
+		await failStalePendingCvAnalyses(req.user.id);
 		const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
 		const offset = parseInt(req.query.offset, 10) || 0;
 
@@ -1542,7 +1783,16 @@ router.delete('/education/:id', authMiddleware, async (req, res) => {
 router.get('/skills', authMiddleware, async (req, res) => {
 	try {
 		const skills = await pool.query(
-			'SELECT * FROM candidate_skills WHERE user_id = $1 ORDER BY category, level DESC',
+			`SELECT cs.*,
+			        COALESCE(e.endorsement_count, 0)::int AS endorsements
+			 FROM candidate_skills cs
+			 LEFT JOIN (
+			   SELECT candidate_id, skill_name, COUNT(*) AS endorsement_count
+			   FROM skill_endorsements
+			   WHERE candidate_id = $1
+			   GROUP BY candidate_id, skill_name
+			 ) e ON e.skill_name = cs.skill_name
+			 WHERE cs.user_id = $1 ORDER BY cs.category, cs.level DESC`,
 			[req.user.id],
 		);
 		res.json({ success: true, skills: skills.rows });
@@ -1643,6 +1893,143 @@ router.delete('/skills/:id', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Delete skill error:', err);
 		res.status(500).json({ error: 'Failed to delete skill' });
+	}
+});
+
+// ============= JOB ALERTS (#528) =============
+// Frontend: JobAlertsTab in client/src/pages/candidate/profile.tsx
+// The tab expects `active` (not is_active) and `match_count` on each alert.
+// Helpers (toJobAlertRow, countMatchesForAlert) are defined near the top
+// of this file so GET /profile can use them too.
+
+router.get('/job-alerts', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			'SELECT * FROM job_alerts WHERE user_id = $1 ORDER BY created_at DESC',
+			[req.user.id],
+		);
+		const alerts = [];
+		for (const row of result.rows) {
+			let matchCount = 0;
+			try {
+				matchCount = await countMatchesForAlert(row);
+			} catch (_e) {
+				// match_count is best-effort; don't fail the whole request
+			}
+			alerts.push(toJobAlertRow(row, matchCount));
+		}
+		res.json({ success: true, alerts });
+	} catch (err) {
+		console.error('Get job alerts error:', err);
+		res.status(500).json({ error: 'Failed to get job alerts' });
+	}
+});
+
+router.post('/job-alerts', authMiddleware, async (req, res) => {
+	try {
+		const { keywords, location, frequency, job_type, salary_min, active } = req.body || {};
+		if (!keywords || !String(keywords).trim()) {
+			return res.status(400).json({ error: 'keywords is required' });
+		}
+		const allowedFrequencies = ['daily', 'weekly', 'instant'];
+		const freq = allowedFrequencies.includes(frequency) ? frequency : 'daily';
+		const result = await pool.query(
+			`INSERT INTO job_alerts (user_id, keywords, location, job_type, salary_min, frequency, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+			[
+				req.user.id,
+				String(keywords).trim(),
+				location ? String(location).trim() : null,
+				job_type || null,
+				salary_min != null ? parseInt(salary_min, 10) : null,
+				freq,
+				active !== false,
+			],
+		);
+		res.json({ success: true, alert: toJobAlertRow(result.rows[0], 0) });
+	} catch (err) {
+		console.error('Create job alert error:', err);
+		res.status(500).json({ error: 'Failed to create job alert' });
+	}
+});
+
+router.put('/job-alerts/:id', authMiddleware, async (req, res) => {
+	try {
+		const alertId = parseInt(req.params.id, 10);
+		const { active, keywords, location, frequency, job_type, salary_min } = req.body || {};
+		// Ownership check
+		const existing = await pool.query(
+			'SELECT id FROM job_alerts WHERE id = $1 AND user_id = $2',
+			[alertId, req.user.id],
+		);
+		if (existing.rows.length === 0) {
+			return res.status(404).json({ error: 'Job alert not found' });
+		}
+		const updates = [];
+		const params = [];
+		let i = 1;
+		if (active !== undefined) {
+			updates.push(`is_active = $${i}`);
+			params.push(!!active);
+			i += 1;
+		}
+		if (keywords !== undefined) {
+			updates.push(`keywords = $${i}`);
+			params.push(String(keywords).trim());
+			i += 1;
+		}
+		if (location !== undefined) {
+			updates.push(`location = $${i}`);
+			params.push(location ? String(location).trim() : null);
+			i += 1;
+		}
+		if (frequency !== undefined) {
+			const allowedFrequencies = ['daily', 'weekly', 'instant'];
+			updates.push(`frequency = $${i}`);
+			params.push(allowedFrequencies.includes(frequency) ? frequency : 'daily');
+			i += 1;
+		}
+		if (job_type !== undefined) {
+			updates.push(`job_type = $${i}`);
+			params.push(job_type || null);
+			i += 1;
+		}
+		if (salary_min !== undefined) {
+			updates.push(`salary_min = $${i}`);
+			params.push(salary_min != null ? parseInt(salary_min, 10) : null);
+			i += 1;
+		}
+		if (updates.length === 0) {
+			return res.status(400).json({ error: 'Nothing to update' });
+		}
+		updates.push(`updated_at = NOW()`);
+		params.push(alertId, req.user.id);
+		const result = await pool.query(
+			`UPDATE job_alerts SET ${updates.join(', ')} WHERE id = $${i} AND user_id = $${i + 1} RETURNING *`,
+			params,
+		);
+		res.json({ success: true, alert: toJobAlertRow(result.rows[0], 0) });
+	} catch (err) {
+		console.error('Update job alert error:', err);
+		res.status(500).json({ error: 'Failed to update job alert' });
+	}
+});
+
+router.delete('/job-alerts/:id', authMiddleware, async (req, res) => {
+	try {
+		const alertId = parseInt(req.params.id, 10);
+		const result = await pool.query(
+			'DELETE FROM job_alerts WHERE id = $1 AND user_id = $2 RETURNING id',
+			[alertId, req.user.id],
+		);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Job alert not found' });
+		}
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Delete job alert error:', err);
+		res.status(500).json({ error: 'Failed to delete job alert' });
 	}
 });
 
@@ -1993,22 +2380,21 @@ router.delete('/projects/:id', authMiddleware, async (req, res) => {
 router.get('/jobs', authMiddleware, async (req, res) => {
 	try {
 		const userId = req.user.id;
-		const {
-			search,
-			location,
-			job_type,
-			salary_min,
-			salary_max,
-			remoteType,
-			experienceLevel,
-			skills,
-			companySize,
-			sortBy = 'newest',
-			limit = 20,
-			offset = 0,
-			page,
-			pageSize,
-		} = req.query;
+		const { search, location, salary_min, salary_max, skills, limit = 20, offset = 0, page, pageSize } =
+			req.query;
+
+		// #1600: the Job Board client sends snake_case names (type, remote_type,
+		// experience_level, company_size, sort_by). Accept them as aliases of the
+		// legacy names so no rendered filter is silently ignored server-side.
+		// #1634: non-empty coalesce — `??` let an empty legacy param
+		// (`?job_type=&type=full-time`) defeat the alias and silently drop
+		// the filter.
+		const pickParam = (...vals) => vals.find((v) => v !== undefined && v !== null && v !== '');
+		const job_type = pickParam(req.query.job_type, req.query.type);
+		const remoteType = pickParam(req.query.remoteType, req.query.remote_type);
+		const experienceLevel = pickParam(req.query.experienceLevel, req.query.experience_level);
+		const companySize = pickParam(req.query.companySize, req.query.company_size);
+		const sortBy = pickParam(req.query.sortBy, req.query.sort_by) || 'newest';
 
 		// Support both page-based and offset-based pagination
 		const pageLimit = Math.min(parseInt(pageSize, 10) || parseInt(limit, 10) || 20, 50);
@@ -2073,9 +2459,22 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 			}
 		}
 		if (companySize) {
-			whereClause += ` AND c.company_size = $${paramIndex}`;
-			params.push(companySize);
-			paramIndex++;
+			// #1634: the JobFilterBar sends bucket labels (startup/small/
+			// medium/large) but companies.company_size stores ranges —
+			// exact equality returned zero jobs for every selection.
+			// Translate a bucket to its stored range set; any other value
+			// (e.g. a raw range) keeps exact-match behaviour.
+			const ranges = companySizeRanges(companySize);
+			if (ranges) {
+				const placeholders = ranges.map((_, i) => `$${paramIndex + i}`).join(', ');
+				whereClause += ` AND c.company_size IN (${placeholders})`;
+				params.push(...ranges);
+				paramIndex += ranges.length;
+			} else {
+				whereClause += ` AND c.company_size = $${paramIndex}`;
+				params.push(companySize);
+				paramIndex++;
+			}
 		}
 
 		// ORDER BY clause
@@ -2478,6 +2877,75 @@ router.get('/jobs/dismissed', authMiddleware, async (req, res) => {
 	}
 });
 
+// ─── S-096 (#820): candidate-safe application projection ────────────────────
+// Candidate-facing application responses must NEVER serialise the raw
+// job_applications row: recruiter_notes and screening_score are
+// recruiter-internal, and omniscore_at_apply / resume_url are not consumed
+// by any candidate application surface. This explicit allowlist is the
+// candidate-safe column set (S-087/#790 precedent: explicit SQL projection
+// + whitelist shaping at the response layer). The privacy seat owns judging
+// this list at the PR gate.
+//
+// Candidate-safe fields (the candidate's own application, as rendered by
+// the candidate Kanban / application detail):
+//   id, job_id, candidate_id, company_id, status,
+//   cover_letter (candidate's own), screening_answers (candidate's own),
+//   screening_status (their screening progress state — NOT the score),
+//   match_score (shown to the candidate in the detail dialog),
+//   assessment_score / assessment_result (candidate's own, shown on the
+//   Kanban card), is_auto_applied, applied_via, applied_at, updated_at.
+// Explicitly EXCLUDED: recruiter_notes, screening_score, omniscore_at_apply,
+// resume_url.
+const CANDIDATE_APPLICATION_FIELDS = [
+	'id',
+	'job_id',
+	'candidate_id',
+	'company_id',
+	'status',
+	'cover_letter',
+	'screening_answers',
+	'screening_status',
+	'match_score',
+	'assessment_score',
+	'assessment_result',
+	'is_auto_applied',
+	'applied_via',
+	'applied_at',
+	'updated_at',
+];
+const CANDIDATE_APPLICATION_COLUMNS = CANDIDATE_APPLICATION_FIELDS.join(', ');
+// GET /applications list rows additionally carry the job/company basics the
+// board already exposes to the candidate, plus intro/outreach display data.
+const CANDIDATE_APPLICATION_LIST_FIELDS = [
+	...CANDIDATE_APPLICATION_FIELDS,
+	'title',
+	'company',
+	'location',
+	'salary_range',
+	'job_type',
+	'screening_questions',
+	'posted_by_company',
+	'poster_company',
+	'intro_status',
+	'intro_id',
+	'outreach_count',
+];
+
+function pickCandidateFields(row, fields) {
+	if (!row) return row;
+	const out = {};
+	for (const field of fields) out[field] = row[field] ?? null;
+	return out;
+}
+
+function toCandidateApplication(row) {
+	return pickCandidateFields(row, CANDIDATE_APPLICATION_FIELDS);
+}
+
+function toCandidateApplicationListRow(row) {
+	return pickCandidateFields(row, CANDIDATE_APPLICATION_LIST_FIELDS);
+}
+
 // Helper: shared application submission logic (manual + auto-apply)
 async function submitApplication({
 	candidateId,
@@ -2617,8 +3085,8 @@ async function submitApplication({
 
 						const autoSendResult = await pool.query(
 							`INSERT INTO interview_sessions
-							   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, status, config, conversation)
-							 VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+							   (type, job_id, application_id, candidate_id, company_id, triggered_by, invite_token, invite_expires_at, status, config, conversation)
+							 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW() + INTERVAL '7 weeks', 'invited', $8, $9)
 							 RETURNING id`,
 							[
 								'screening',
@@ -2662,7 +3130,7 @@ async function submitApplication({
 
 						// Notify candidate
 						await pool.query(
-							`INSERT INTO notifications (user_id, type, title, message, data, created_at)
+							`INSERT INTO user_notifications (user_id, type, title, message, metadata, created_at)
 							 VALUES ($1, 'screening_invite', $2, $3, $4, NOW())`,
 							[
 								candidateId,
@@ -2815,10 +3283,10 @@ async function submitApplication({
 
 	return result.rows[0];
 }
-// Apply to a job
-router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
+// Apply to a job (rate-limited per S-096/#820, in-file rateLimits precedent)
+router.post('/jobs/:jobId/apply', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
-		const { cover_letter, screening_answers } = req.body;
+		const { cover_letter, screening_answers, ip_capture_consent } = req.body;
 		const application = await submitApplication({
 			candidateId: req.user.id,
 			jobId: req.params.jobId,
@@ -2826,7 +3294,34 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
 			screeningAnswers: screening_answers,
 			appliedVia: 'manual',
 		});
-		res.json({ success: true, application });
+		// #815 (S-095): application-time IP capture, wired at THIS route
+		// level only — submitApplication is shared with both auto-apply
+		// routes, which must never capture. Manual-only, consent-gated,
+		// flag-gated inside the capture module; the captured fingerprint
+		// lives in its own table and never enters the application row or
+		// this response. Best-effort: any capture failure logs ONLY the
+		// error code (never a message, which could carry values) and the
+		// application response is unchanged.
+		try {
+			await captureApplicationIp(
+				{
+					applicationId: application.id,
+					candidateId: req.user.id,
+					companyId: application.company_id,
+					reqIp: req.ip,
+					consentGiven: ip_capture_consent === true,
+				},
+				{ client: pool },
+			);
+		} catch (captureErr) {
+			console.error(
+				'[application-ip-capture] capture failed:',
+				captureErr && captureErr.code ? captureErr.code : 'UNKNOWN',
+			);
+		}
+		// #820: shape at the response layer — submitApplication's internal
+		// return value (shared with auto-apply) is unchanged.
+		res.json({ success: true, application: toCandidateApplication(application) });
 	} catch (err) {
 		if (err.statusCode) {
 			return res.status(err.statusCode).json({ error: err.message });
@@ -2841,7 +3336,10 @@ router.get('/applications', authMiddleware, async (req, res) => {
 	try {
 		const applications = await pool.query(
 			`
-      SELECT ja.*, ja.is_auto_applied, j.title, j.company, j.location, j.salary_range, j.job_type,
+      SELECT ja.id, ja.job_id, ja.candidate_id, ja.company_id, ja.status, ja.cover_letter,
+             ja.screening_answers, ja.screening_status, ja.match_score, ja.assessment_score,
+             ja.assessment_result, ja.is_auto_applied, ja.applied_via, ja.applied_at, ja.updated_at,
+             j.title, j.company, j.location, j.salary_range, j.job_type,
              j.screening_questions, u.company_name as posted_by_company,
              COALESCE(NULLIF(u.company_name, ''), j.company) as poster_company,
              ri.status as intro_status, ri.id as intro_id,
@@ -2856,7 +3354,12 @@ router.get('/applications', authMiddleware, async (req, res) => {
 			[req.user.id],
 		);
 
-		res.json({ success: true, applications: applications.rows });
+		// #820: whitelist-shape list rows as well as projecting in SQL —
+		// recruiter_notes / screening_score never leave the server.
+		res.json({
+			success: true,
+			applications: applications.rows.map(toCandidateApplicationListRow),
+		});
 	} catch (err) {
 		console.error('Get applications error:', err);
 		res.status(500).json({ error: 'Failed to get applications' });
@@ -2902,7 +3405,8 @@ router.post('/applications/auto-apply', authMiddleware, async (req, res) => {
 		});
 
 		await incrementUsage(req.user.id, 'auto_apply');
-		res.json({ success: true, application });
+		// #820: candidate-facing response — candidate-safe projection only.
+		res.json({ success: true, application: toCandidateApplication(application) });
 	} catch (err) {
 		if (err.statusCode) {
 			return res.status(err.statusCode).json({ error: err.message });
@@ -3049,7 +3553,8 @@ router.post('/jobs/:id/auto-apply', authMiddleware, rateLimits.standard, async (
 		});
 
 		await incrementUsage(req.user.id, 'auto_apply');
-		res.json({ success: true, application });
+		// #820: candidate-facing response — candidate-safe projection only.
+		res.json({ success: true, application: toCandidateApplication(application) });
 	} catch (err) {
 		if (err.statusCode) {
 			return res.status(err.statusCode).json({ error: err.message });
@@ -3080,19 +3585,24 @@ router.put('/applications/:id/withdraw', authMiddleware, async (req, res) => {
 		}
 
 		const result = await pool.query(
-			`UPDATE job_applications SET status = 'withdrawn', updated_at = NOW() WHERE id = $1 RETURNING *`,
+			`UPDATE job_applications SET status = 'withdrawn', updated_at = NOW() WHERE id = $1 RETURNING ${CANDIDATE_APPLICATION_COLUMNS}`,
 			[req.params.id],
 		);
 
-		res.json({ success: true, application: result.rows[0] });
+		res.json({ success: true, application: toCandidateApplication(result.rows[0]) });
 	} catch (err) {
 		console.error('Withdraw application error:', err);
 		res.status(500).json({ error: 'Failed to withdraw application' });
 	}
 });
 
-// Update application status
-router.put('/applications/:id/status', authMiddleware, async (req, res) => {
+// Update application status — S-096 (#820): candidates own exactly ONE
+// transition, `withdrawn`. Every other status is recruiter-owned pipeline
+// state; a candidate attempt to set one is 403 and the row is unchanged
+// (previously any of the 9 statuses was accepted, so a candidate could
+// self-advance to `hired` and even reverse a recruiter's `rejected`).
+// Rate-limited per #820 (in-file rateLimits precedent).
+router.put('/applications/:id/status', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
 		const { status } = req.body;
 		const validStatuses = [
@@ -3123,12 +3633,27 @@ router.put('/applications/:id/status', authMiddleware, async (req, res) => {
 			return res.status(404).json({ error: 'Application not found' });
 		}
 
+		// Transition guard: the only candidate-writable status is `withdrawn`.
+		if (status !== 'withdrawn') {
+			return res.status(403).json({
+				error: 'Candidates can only withdraw their own application',
+			});
+		}
+
+		// Same terminal-state rule as the withdraw sibling endpoint: a
+		// withdrawn/hired/rejected application cannot be withdrawn.
+		if (['withdrawn', 'hired', 'rejected'].includes(existing.rows[0].status)) {
+			return res.status(400).json({
+				error: `Cannot withdraw an application with status: ${existing.rows[0].status}`,
+			});
+		}
+
 		const result = await pool.query(
-			`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+			`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING ${CANDIDATE_APPLICATION_COLUMNS}`,
 			[status, req.params.id],
 		);
 
-		res.json({ success: true, application: result.rows[0] });
+		res.json({ success: true, application: toCandidateApplication(result.rows[0]) });
 	} catch (err) {
 		console.error('Update application status error:', err);
 		res.status(500).json({ error: 'Failed to update application status' });
@@ -3161,88 +3686,126 @@ router.post('/coaching', authMiddleware, async (req, res) => {
 
 router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 	try {
-		// Get OmniScore
-		const omniscore = await pool.query(
-			'SELECT total_score, score_tier FROM omni_scores WHERE user_id = $1',
+		// Issue #522: Cache dashboard stats per candidate (5-min TTL, same class as recruiter dashboard)
+		const cacheKey = analyticsCache.key('/api/candidate/dashboard/stats', {
+			userId: req.user.id,
+		});
+		const cached = analyticsCache.get(cacheKey);
+		if (cached) {
+			return res.json({ success: true, cached: true, ...cached });
+		}
+
+		// Query 1: identity + profile + omni score + counts from the unified view.
+		// Replaces 6 sequential queries: omni_scores, candidate_profiles, users,
+		// candidate_skills, work_experience, education. (#521)
+		const profileRes = await pool.query(
+			'SELECT * FROM v_candidate_full_profile WHERE id = $1',
 			[req.user.id],
 		);
+		const v = profileRes.rows[0] || {};
 
-		// Get profile completeness
-		const profile = await pool.query('SELECT * FROM candidate_profiles WHERE user_id = $1', [
-			req.user.id,
-		]);
-
-		const skillCount = await pool.query(
-			'SELECT COUNT(*) as count, COUNT(*) FILTER (WHERE is_verified) as verified FROM candidate_skills WHERE user_id = $1',
+		// Query 2: remaining aggregates in a single round-trip.
+		// Replaces 4 sequential queries: interviews, job_applications,
+		// saved_jobs, skill_assessments. (#521)
+		const aggRes = await pool.query(
+			`SELECT
+				(SELECT COUNT(*)::integer FROM interviews WHERE user_id = $1 AND status = 'completed') AS interview_total,
+				(SELECT AVG(overall_score) FROM interviews WHERE user_id = $1 AND status = 'completed') AS interview_avg,
+				(SELECT COUNT(*)::integer FROM job_applications WHERE candidate_id = $1) AS application_count,
+				(SELECT COUNT(*)::integer FROM saved_jobs WHERE user_id = $1) AS saved_job_count,
+				(SELECT COUNT(*)::integer FROM skill_assessments WHERE user_id = $1 AND completed_at IS NOT NULL) AS assessment_total,
+				(SELECT COUNT(*)::integer FROM skill_assessments WHERE user_id = $1 AND completed_at IS NOT NULL AND passed) AS assessment_passed`,
 			[req.user.id],
 		);
+		const a = aggRes.rows[0] || {};
 
-		const experienceCount = await pool.query(
-			'SELECT COUNT(*) as count FROM work_experience WHERE user_id = $1',
-			[req.user.id],
-		);
+		// name and avatar_url live on users, NOT candidate_profiles
+		// (candidate_profiles has no name column; photo_url is its legacy avatar field).
+		// The view resolves this join once, correctly — see v_candidate_full_profile.
+		const name = v.name;
+		const avatarUrl = v.avatar_url || v.photo_url;
+		const hasSkills = parseInt(v.skill_count, 10) > 0;
+		const hasExperience = parseInt(v.experience_count, 10) > 0;
+		const hasEducation = parseInt(v.education_count, 10) > 0;
 
-		const educationCount = await pool.query(
-			'SELECT COUNT(*) as count FROM education WHERE user_id = $1',
-			[req.user.id],
-		);
-
-		const interviewCount = await pool.query(
-			"SELECT COUNT(*) as total, AVG(overall_score) as avg_score FROM interviews WHERE user_id = $1 AND status = 'completed'",
-			[req.user.id],
-		);
-
-		const applicationCount = await pool.query(
-			'SELECT COUNT(*) as count FROM job_applications WHERE candidate_id = $1',
-			[req.user.id],
-		);
-
-		const savedJobCount = await pool.query(
-			'SELECT COUNT(*) as count FROM saved_jobs WHERE user_id = $1',
-			[req.user.id],
-		);
-
-		const assessmentCount = await pool.query(
-			'SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE passed) as passed FROM skill_assessments WHERE user_id = $1 AND completed_at IS NOT NULL',
-			[req.user.id],
-		);
-
-		// Calculate profile completeness
-		const p = profile.rows[0] || {};
+		// Calculate profile completeness — 12-field formula shared with the
+		// frontend (client/src/lib/profile-completion.ts). Both the Profile
+		// page and Dashboard must always show the same percentage.
 		const completenessFields = [
-			p.headline,
-			p.bio,
-			p.location,
-			p.linkedin_url || p.github_url,
-			parseInt(skillCount.rows[0]?.count, 10) > 0,
-			parseInt(experienceCount.rows[0]?.count, 10) > 0,
+			name,
+			v.headline,
+			v.bio,
+			v.location,
+			v.linkedin_url || v.github_url,
+			v.resume_url,
+			hasSkills,
+			hasExperience,
+			hasEducation,
+			v.phone,
+			v.years_experience != null,
+			avatarUrl,
 		];
 		const completeness = Math.round(
 			(completenessFields.filter(Boolean).length / completenessFields.length) * 100,
 		);
 
-		res.json({
-			success: true,
+		// Missing sections for the dashboard "complete your profile" nudge.
+		// Labels mirror client/src/lib/profile-completion.ts getMissingProfileSections.
+		const missingSections = [
+			!name && 'Name',
+			!v.headline && 'Headline',
+			!v.bio && 'Bio',
+			!v.location && 'Location',
+			!(v.linkedin_url || v.github_url) && 'Social Links',
+			!v.resume_url && 'Resume',
+			!hasSkills && 'Skills',
+			!hasExperience && 'Experience',
+			!hasEducation && 'Education',
+			!v.phone && 'Phone',
+			v.years_experience == null && 'Years of Experience',
+			!avatarUrl && 'Profile Photo',
+		].filter(Boolean);
+
+		const response = {
 			stats: {
-				omniscore: omniscore.rows[0] || { total_score: 300, score_tier: 'new' },
+				omniscore:
+					v.omni_score != null
+						? {
+								total_score: v.omni_score,
+								// #1787: the view carries the STORED metal tier;
+								// the dashboard renders this field as the tier
+								// label, so translate metal → label at the read
+								// boundary (592 stored 'bronze' must read 'fair').
+								score_tier: omniscoreService.labelFromDbTier(v.score_tier),
+							}
+						: { total_score: null, score_tier: null },
 				profile_completeness: completeness,
+				missing_sections: missingSections,
 				skills: {
-					total: parseInt(skillCount.rows[0]?.count, 10) || 0,
-					verified: parseInt(skillCount.rows[0]?.verified, 10) || 0,
+					total: parseInt(v.skill_count, 10) || 0,
+					verified: parseInt(v.skill_verified_count, 10) || 0,
 				},
-				experience_count: parseInt(experienceCount.rows[0]?.count, 10) || 0,
-				education_count: parseInt(educationCount.rows[0]?.count, 10) || 0,
+				experience_count: parseInt(v.experience_count, 10) || 0,
+				education_count: parseInt(v.education_count, 10) || 0,
 				interviews: {
-					total: parseInt(interviewCount.rows[0]?.total, 10) || 0,
-					avg_score: Math.round(interviewCount.rows[0]?.avg_score) || 0,
+					total: parseInt(a.interview_total, 10) || 0,
+					avg_score: Math.round(a.interview_avg) || 0,
 				},
-				applications: parseInt(applicationCount.rows[0]?.count, 10) || 0,
-				saved_jobs: parseInt(savedJobCount.rows[0]?.count, 10) || 0,
+				applications: parseInt(a.application_count, 10) || 0,
+				saved_jobs: parseInt(a.saved_job_count, 10) || 0,
 				assessments: {
-					total: parseInt(assessmentCount.rows[0]?.total, 10) || 0,
-					passed: parseInt(assessmentCount.rows[0]?.passed, 10) || 0,
+					total: parseInt(a.assessment_total, 10) || 0,
+					passed: parseInt(a.assessment_passed, 10) || 0,
 				},
 			},
+		};
+
+		// Issue #522: populate cache
+		analyticsCache.set(cacheKey, response);
+
+		res.json({
+			success: true,
+			...response,
 		});
 	} catch (err) {
 		console.error('Get dashboard stats error:', err);
@@ -3327,9 +3890,17 @@ router.put('/interviews/:id/decline', authMiddleware, async (req, res) => {
 	try {
 		const { reason } = req.body;
 
+		// #1783: outcome is a closed evaluation vocabulary
+		// (chk_scheduled_interviews_outcome: passed/failed/pending_review/
+		// no_decision/NULL) — the free-text decline reason can never live
+		// there (PG 23514 on a migrated DB). A declined interview has no
+		// outcome (NULL); the reason goes to notes, the same lawful column
+		// the reschedule route below appends candidate reasons to.
 		const result = await pool.query(
 			`UPDATE scheduled_interviews
-       SET status = 'cancelled', outcome = $3, updated_at = NOW()
+       SET status = 'cancelled', outcome = NULL,
+           notes = COALESCE(notes, '') || E'\n[Declined] ' || $3,
+           updated_at = NOW()
        WHERE id = $1 AND candidate_id = $2 AND status IN ('scheduled', 'confirmed')
        RETURNING *`,
 			[req.params.id, req.user.id, reason || 'Candidate declined'],
@@ -3912,7 +4483,7 @@ router.put('/offers/:id/accept', authMiddleware, async (req, res) => {
 
 		// Update application status to 'hired'
 		await pool.query(
-			`UPDATE job_applications SET status = 'hired', updated_at = NOW()
+			`UPDATE job_applications SET status = 'hired', hired_at = NOW(), updated_at = NOW()
        WHERE job_id = $1 AND candidate_id = $2`,
 			[existing.rows[0].job_id, req.user.id],
 		);
@@ -4480,9 +5051,88 @@ router.get('/documents', authMiddleware, async (req, res) => {
 });
 
 // POST /api/candidate/documents/upload — upload a document for the authenticated candidate (Issue #109)
-router.post('/documents/upload', authMiddleware, async (req, res) => {
+// #1472: multipart requests (the Documents page sends FormData, field `file`)
+// are parsed by multer first; JSON {name,url} requests fall through unchanged.
+const parseDocumentFile = (req, res, next) => {
+	if (!req.is('multipart/form-data')) {
+		return next();
+	}
+	// Map multer errors to honest JSON (mirrors handleMulterError in
+	// routes/voice.js) instead of forwarding them as opaque 500s.
+	return upload.single('file')(req, res, (err) => {
+		if (!err) {
+			return next();
+		}
+		if (err.code === 'LIMIT_FILE_SIZE') {
+			return res
+				.status(413)
+				.json({ error: 'File too large', message: 'Document exceeds 10MB limit' });
+		}
+		return res.status(400).json({ error: 'File upload error' });
+	});
+};
+router.post('/documents/upload', authMiddleware, parseDocumentFile, async (req, res) => {
 	try {
 		const userId = req.user.id;
+
+		// Multipart branch (#1472): store the file via the existing uploadToB2
+		// plumbing and INSERT into the same `documents` table GET /documents reads.
+		if (req.file) {
+			let fileUrl;
+			try {
+				const result = await uploadToB2({
+					buffer: req.file.buffer,
+					mimetype: req.file.mimetype,
+					filename: req.file.originalname,
+					prefix: 'documents',
+				});
+				fileUrl = result.url;
+			} catch (uploadErr) {
+				return res.status(502).json({ error: uploadErr.message, code: uploadErr.code || 'UNKNOWN' });
+			}
+
+			await pool.query(`
+				CREATE TABLE IF NOT EXISTS documents (
+					id SERIAL PRIMARY KEY,
+					user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+					name VARCHAR(500) NOT NULL,
+					type VARCHAR(50) DEFAULT 'other',
+					url TEXT,
+					size INTEGER DEFAULT 0,
+					status VARCHAR(50) DEFAULT 'pending',
+					fraud_score NUMERIC(3,2),
+					oer_text TEXT,
+					oer_confidence NUMERIC(4,3),
+					document_score INTEGER,
+					verification_details JSONB DEFAULT '{}',
+					created_at TIMESTAMP DEFAULT NOW()
+				)
+			`);
+
+			const result = await pool.query(
+				`INSERT INTO documents (user_id, name, type, url, size, status)
+				 VALUES ($1, $2, $3, $4, $5, 'pending')
+				 RETURNING *`,
+				[userId, req.file.originalname, req.body?.type || 'other', fileUrl, req.file.size || 0],
+			);
+
+			const d = result.rows[0];
+			return res.json({
+				document: {
+					id: String(d.id),
+					name: d.name,
+					type: d.type || 'other',
+					url: d.url || '',
+					size: parseInt(d.size, 10) || 0,
+					uploadedAt: d.created_at ? new Date(d.created_at).toISOString() : new Date().toISOString(),
+					status: 'pending',
+				},
+			});
+		}
+		if (req.is('multipart/form-data')) {
+			return res.status(400).json({ error: 'No file uploaded' });
+		}
+
 		const { name, type, url, size } = req.body;
 
 		if (!name || !url) {
@@ -5292,6 +5942,24 @@ async function mergeLinkedInProfile(userId, linkedinProfile) {
 			updated_at = NOW()
 		`,
 		[userId, linkedinProfile.headline, linkedinProfile.summary, linkedinProfile.picture],
+	);
+
+	// 2b. One avatar value (#1638): the header reads users.avatar_url, so a
+	// photo sitting on candidate_profiles.photo_url must also fill
+	// users.avatar_url — otherwise an imported picture never reaches the
+	// header (same divergence class as #1608). Fill-gaps only, like the
+	// rest of this merge: an existing avatar is never overwritten, and the
+	// value copied is the profile's effective photo_url.
+	await pool.query(
+		`
+		UPDATE users u
+		SET avatar_url = cp.photo_url, updated_at = NOW()
+		FROM candidate_profiles cp
+		WHERE cp.user_id = u.id AND u.id = $1
+			AND (u.avatar_url IS NULL OR TRIM(u.avatar_url) = '')
+			AND cp.photo_url IS NOT NULL AND TRIM(cp.photo_url) <> ''
+		`,
+		[userId],
 	);
 	summary.profile_updated = true;
 

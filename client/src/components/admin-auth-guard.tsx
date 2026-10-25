@@ -3,9 +3,16 @@ import { Navigate, useLocation } from 'react-router-dom';
 
 interface AdminAuthGuardProps {
 	children: ReactNode;
+	/**
+	 * Main-app roles allowed in addition to admin-panel access.
+	 * Defaults to ['admin'] (existing behavior). S-065 (#715) passes
+	 * ['admin', 'hiring_manager'] for the biometric audit viewer —
+	 * server-side enforcement is at GET /api/admin/biometric-audit.
+	 */
+	allowedRoles?: string[];
 }
 
-export function AdminAuthGuard({ children }: AdminAuthGuardProps) {
+export function AdminAuthGuard({ children, allowedRoles = ['admin'] }: AdminAuthGuardProps) {
 	const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
 	const location = useLocation();
 
@@ -33,6 +40,15 @@ export function AdminAuthGuard({ children }: AdminAuthGuardProps) {
 				// Step 2: Try to bridge — if user is logged into main app with admin role
 				const token = getStoredToken();
 				if (token) {
+					// S-065: for non-admin allowed roles (e.g. hiring_manager),
+					// check the main-app JWT role directly. This is UI gating only;
+					// the API enforces authorization server-side.
+					const jwtRole = getJwtRole(token);
+					if (jwtRole && allowedRoles.includes(jwtRole)) {
+						if (!cancelled) setStatus('authenticated');
+						return;
+					}
+
 					const bridgeRes = await fetch('/api/admin/bridge', {
 						method: 'POST',
 						credentials: 'include',
@@ -101,4 +117,17 @@ function getAuthHeaders(): Record<string, string> {
 		return { Authorization: `Bearer ${token}` };
 	}
 	return {};
+}
+
+// Helper: decode the role claim from a JWT without verifying the signature.
+// UI gating only — the API enforces authorization server-side.
+function getJwtRole(token: string): string | null {
+	try {
+		const payload = token.split('.')[1];
+		if (!payload) return null;
+		const decoded = JSON.parse(atob(payload));
+		return typeof decoded.role === 'string' ? decoded.role : null;
+	} catch {
+		return null;
+	}
 }

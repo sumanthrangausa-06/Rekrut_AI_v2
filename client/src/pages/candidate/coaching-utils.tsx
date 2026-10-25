@@ -19,6 +19,20 @@ export const difficultyColors: Record<string, string> = {
 	Hard: 'bg-red-100 text-red-700',
 };
 
+// Null-safe score helpers — null/undefined means "no data" (e.g. no video frames),
+// which renders as neutral "N/A" instead of a misleading fake score.
+export function formatScore(score: number | null | undefined): string {
+	return score == null ? 'N/A' : `${score}/10`;
+}
+
+export function scoreColorSafe(score: number | null | undefined): string {
+	return score == null ? 'text-muted-foreground' : scoreColor(score);
+}
+
+export function scoreBgSafe(score: number | null | undefined): string {
+	return score == null ? 'bg-muted/40 border-muted' : scoreBg(score);
+}
+
 // Score color helper
 export function scoreColor(score: number): string {
 	if (score >= 8) return 'text-green-600';

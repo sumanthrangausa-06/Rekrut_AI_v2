@@ -1,0 +1,62 @@
+{
+  "recruiterDashboard": {
+    "afterLoginUrl": "http://localhost:3000/recruiter/pending-approval",
+    "finalUrl": "http://localhost:3000/recruiter",
+    "apiCalls": [
+      "200 /api/auth/oauth/status",
+      "200 /api/analytics/events",
+      "200 /api/analytics/events",
+      "200 /api/auth/login",
+      "200 /api/billing/tier",
+      "200 /api/analytics/events",
+      "200 /api/company/profile",
+      "200 /api/auth/me",
+      "200 /api/auth/me",
+      "200 /api/billing/tier",
+      "200 /api/company/profile",
+      "200 /api/billing/tier",
+      "200 /api/company/profile",
+      "200 /api/notifications/in-app?limit=50",
+      "200 /api/recruiter/activity",
+      "200 /api/recruiter/applications",
+      "200 /api/interviews/my-interviews",
+      "200 /api/recruiter/dashboard"
+    ],
+    "textExcerpt": "Skip to content\nRekrut AI\nDashboard\nJobs\nApplications\nAssessments\nCandidates\nInterviews\nMessages\nAI Screening\nRecordings\nPanels\nCalendar\nOffers\nOnboarding\nScores\nAnalytics\nCompliance (EU AI Act)\nProctoring\nCompany\nTeam\nPayroll\nSettings\nSign out\nRecruiter\nTry Premium\nRelevance\nFilters\nQuinn Batch Recruiter\nWelcome back, Quinn\n\nHere's what's happening with your hiring pipeline today\n\nPost New Job\n\nUpgrade to Pro to unlock advanced features\n\nSearch entire candidate database, AI video interviews, advanced analytics, and contract generation\n\nUpgrade\n\nEmployer Trust Score: Insufficient data\n\nHigher scores attract more qualified candidates\n\nImprove Score\n0%\n\n0\n\nActive Jobs\n\n0%\n\n0\n\nTotal Applicants\n\n0%\n\n0\n\nHires This Month\n\n0%\n\n—\n\nAvg Time-to-Fill\n\nPost New Job\n\nAI-assisted job creation\n\nView Candidates\n\nBrowse your talent pool\n\nSchedule Interview\n\nCalendar integration\n\nApplicants Over Time\n\nNo applicant data yet\n\nApplications will appear here once candidates start applying to your jobs.\n\nPost a Job\nPipeline Funnel\nApplied\nScreened\nInterview\nOffer\nHired\nNo candidates in pipeline yet\n0 candidates total\nView pipeline\nPipeline Overview\nView all\n0\nApplied\n0\nScreened\n0\nInterview\n0\nOffer\n0\nHired\n\nNo candidates in pipeline\n\nYour pipeline will fill up as candidates apply to your open positions.\n\nPost a Job\nRecent Activity\n\nNo recent activity\n\nActivity from candidates and your team will appear here.\n\nView all activity\nApplicant Geography\nNorth America\nSouth America\nEurope\nAfrica\n0 applicants ",
+    "activityCall200": true,
+    "doublePrefixCalls": [],
+    "bouncedToLogin": false
+  },
+  "candidateOmniscore": {
+    "afterLoginUrl": "http://localhost:3000/candidate",
+    "finalUrl": "http://localhost:3000/candidate/omniscore",
+    "apiCalls": [
+      "200 /api/auth/oauth/status",
+      "200 /api/analytics/events",
+      "200 /api/analytics/events",
+      "200 /api/auth/login",
+      "200 /api/billing/tier",
+      "200 /api/analytics/events",
+      "200 /api/jobs?limit=5",
+      "200 /api/notifications/in-app?limit=50",
+      "200 /api/candidate/dashboard/stats",
+      "200 /api/interviews/my-interviews",
+      "200 /api/interviews/screening/my-sessions",
+      "200 /api/auth/me",
+      "200 /api/auth/me",
+      "200 /api/billing/tier",
+      "200 /api/billing/tier",
+      "200 /api/notifications/in-app?limit=50",
+      "200 /api/memory/omniscore-trend?days=30",
+      "200 /api/omniscore/breakdown",
+      "200 /api/omniscore/explainer"
+    ],
+    "textExcerpt": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nIdentity\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAI Screening\nAssessments\nOmniScore\nOTHER\nInterviews\nMessages\nOffers\nDocuments\nPay & Compensation\nOnboarding\nRefer & Earn\nSettings\nUpgrade to Pro\nSign out\nCandidate\nTry Premium\nRelevance\nFilters\nQuinn Batch Candidate\nOmniScore\n\nYour candidate credit score — like FICO for hiring\n\nTwo-Sided Scoring\nMy Score\nMutual Matches\nRate Companies\nInsufficient data\nOMNISCORE\nNew\nYour Candidate Credit Score\n\nRanges from 300 (minimum) to 850 (exceptional). This score is visible to recruiters and affects your ranking in job matches.\n\n300\n850\nScore Breakdown\nVerified Skills\nInsufficient data\n\nAssessments passed, certifications, and work samples. Complete the related activities to unlock this factor.\n\nInterview Performance\nInsufficient data\n\nMock and real interviews plus communication quality. Complete the related activities to unlock this factor.\n\nExperience Quality\nInsufficient data\n\nTenure, company tier, and role progression. Complete the related activities to unlock this factor.\n\nEducation & Credentials\nInsufficient data\n\nDegrees, courses, and verified credentials. Complete the related activities to unlock this factor.\n\nReliability Signals\nInsufficient data\n\nResponse time, attendance, and follow-through. Complete the related activities to unlock this factor.\n\n",
+    "explainerCalls": [
+      "200 /api/omniscore/explainer"
+    ],
+    "explainerCall500": false,
+    "hasOmniScoreText": true,
+    "bouncedToLogin": false
+  }
+}

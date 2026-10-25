@@ -24,18 +24,18 @@ interface QuizQuestion {
 }
 
 interface CareerPath {
-	path_name: string;
-	fit_score: number;
+	pathName: string;
+	fitScore: number;
 	description: string;
-	time_to_achievable: string;
-	required_skills: string[];
-	skills_to_develop: string[];
+	timeToAchievable: string;
+	requiredSkills: string[];
+	skillsToDevelop: string[];
 }
 
 interface RecommendedRole {
 	title: string;
-	why_fits: string;
-	salary_range: string;
+	whyFits: string;
+	salaryRange: string;
 }
 
 interface ActionPhase {
@@ -181,17 +181,20 @@ export function CareerDiagnosisPage() {
 				// Submit
 				setLoading(true);
 				setError(null);
-				apiCall<CareerDiagnosisResult & { success: boolean; error?: string }>(
-					'/profile-enhancement/career-diagnosis',
+				// Real route: POST /api/career-diagnosis (flat in the
+				// profile-enhancement router). apiCall prepends /api and
+				// JSON-stringifies the body itself, so pass a plain object
+				// with the field the handler requires: quizAnswers.
+				apiCall<{ success: boolean; error?: string; diagnosis?: CareerDiagnosisResult }>(
+					'/career-diagnosis',
 					{
 						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ answers: newAnswers }),
+						body: { quizAnswers: newAnswers },
 					},
 				)
 					.then((res) => {
-						if (res.success) {
-							setResult(res);
+						if (res.success && res.diagnosis) {
+							setResult(res.diagnosis);
 							setStep('result');
 						} else {
 							setError(res.error || 'Diagnosis failed. Please try again.');
@@ -416,25 +419,25 @@ export function CareerDiagnosisPage() {
 						<Card key={i}>
 							<CardContent className="p-4">
 								<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-									<h3 className="font-medium">{path.path_name}</h3>
+									<h3 className="font-medium">{path.pathName}</h3>
 									<div className="flex items-center gap-2">
 										<div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
 											<div
 												className="h-full rounded-full bg-emerald-500"
-												style={{ width: `${path.fit_score}%` }}
+												style={{ width: `${path.fitScore}%` }}
 											/>
 										</div>
 										<span className="text-xs font-medium text-emerald-600">
-											{path.fit_score}% fit
+											{path.fitScore}% fit
 										</span>
 									</div>
 								</div>
 								<p className="text-sm text-muted-foreground">{path.description}</p>
 								<div className="mt-2 flex flex-wrap gap-1.5">
 									<span className="inline-flex rounded bg-muted px-2 py-0.5 text-[10px] font-medium">
-										{path.time_to_achievable}
+										{path.timeToAchievable}
 									</span>
-									{path.required_skills.slice(0, 3).map((skill, j) => (
+									{path.requiredSkills.slice(0, 3).map((skill, j) => (
 										<span
 											key={j}
 											className="inline-flex rounded bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
@@ -499,9 +502,9 @@ export function CareerDiagnosisPage() {
 							<div key={i} className="rounded-lg bg-muted p-3">
 								<div className="flex items-center justify-between">
 									<p className="text-sm font-medium">{role.title}</p>
-									<span className="text-xs text-muted-foreground">{role.salary_range}</span>
+									<span className="text-xs text-muted-foreground">{role.salaryRange}</span>
 								</div>
-								<p className="text-xs text-muted-foreground mt-1">{role.why_fits}</p>
+								<p className="text-xs text-muted-foreground mt-1">{role.whyFits}</p>
 							</div>
 						))}
 					</CardContent>

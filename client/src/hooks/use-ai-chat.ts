@@ -92,8 +92,16 @@ export function useAIChat(context?: ChatContext) {
 					),
 				);
 			} catch (err) {
-				const errorMessage =
-					err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+				// Show the backend's friendly message when it provided one (e.g. 503
+				// "AI service temporarily unavailable"). Never surface raw technical
+				// errors like "Request failed" or "Failed to fetch" to the user.
+				const rawMessage = err instanceof Error ? err.message : '';
+				const isTechnical = /request failed|failed to fetch|networkerror|load failed/i.test(
+					rawMessage,
+				);
+				const errorMessage = isTechnical
+					? "Couldn't reach the assistant. Please check your connection and try again."
+					: rawMessage || 'Something went wrong. Please try again.';
 				setError(errorMessage);
 				// Update placeholder with error
 				setMessages((prev) =>

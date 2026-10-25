@@ -23,6 +23,12 @@ export interface UnifiedSession {
 	started_at?: string | null;
 	completed_at?: string | null;
 	scheduled_at?: string | null;
+	// S-087 (#790): the list endpoint no longer ships `config` — the two
+	// values the list view needs arrive as server-derived scalars.
+	overall_score?: number | null;
+	observer_enabled?: boolean;
+	// Full-session fields, present only on the gated single-session read
+	// (GET /interview-sessions/:id) — never on list rows.
 	config?: {
 		report?: { overall_score?: number | null } | null;
 		question_source?: string;
@@ -128,7 +134,9 @@ export function InterviewPanel({ candidateId, applicationId, onViewReport }: Int
 		setStartingHuman(true);
 		setHumanMsg(null);
 		try {
-			await apiCall('/interviews/interview-sessions', {
+			// S-062 (#712): session creation migrated to the S-001 unified endpoint.
+			// (Old /interviews/interview-sessions stays for its other callers.)
+			await apiCall('/interviews/sessions', {
 				method: 'POST',
 				body: { type: 'human', candidate_id: candidateId, application_id: applicationId },
 			});
@@ -224,7 +232,7 @@ export function InterviewPanel({ candidateId, applicationId, onViewReport }: Int
 			) : (
 				<div className="space-y-2">
 					{sessions.map((s) => {
-						const score = s.config?.report?.overall_score;
+						const score = s.overall_score;
 						const isUnified = s.source === 'interview_session';
 						return (
 							<div
@@ -279,7 +287,7 @@ export function InterviewPanel({ candidateId, applicationId, onViewReport }: Int
 								{/* Task 5 (#323) — Track B observer toggle, default off. */}
 								{isUnified &&
 									s.status !== 'completed' &&
-									(s.config?.observer_enabled ? (
+									(s.observer_enabled ? (
 										<Badge variant="outline" className="text-xs shrink-0">
 											Observer on
 										</Badge>

@@ -1,0 +1,20 @@
+51:Get leaderboard error: error: could not determine data type of parameter $1
+52-    at /home/hatch/workspace/rekrut-1184-quinn/node_modules/pg-pool/index.js:45:11
+53-    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+54-    at async pool.query (/home/hatch/workspace/rekrut-1184-quinn/lib/db.js:107:19)
+55-    at async pool.query (/home/hatch/workspace/rekrut-1184-quinn/lib/query-profiler.js:37:20)
+56-    at async Object.getLeaderboard (/home/hatch/workspace/rekrut-1184-quinn/services/trustscore.js:1146:22)
+57-    at async /home/hatch/workspace/rekrut-1184-quinn/routes/trustscore.js:212:23 {
+58-  length: 124,
+59-  severity: 'ERROR',
+60-  code: '42P18',
+61-  detail: undefined,
+62-  hint: undefined,
+63-  position: undefined,
+64-  internalPosition: undefined,
+65-  internalQuery: undefined,
+66-  where: undefined,
+67-  schema: undefined,
+--
+88:Get leaderboard error: error: could not determine data type of parameter $1
+89-    at /home/hatch/workspace/rekrut-1184-quinn/node_modules/pg-pool/index.js:45:11

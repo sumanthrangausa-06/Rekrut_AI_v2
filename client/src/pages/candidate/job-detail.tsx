@@ -39,6 +39,7 @@ import { SEO } from '@/components/SEO';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -123,6 +124,7 @@ export function CandidateJobDetailPage() {
 	const [job, setJob] = useState<Job | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [applying, setApplying] = useState(false);
+	const [ipCaptureConsent, setIpCaptureConsent] = useState(false);
 	const [applied, setApplied] = useState(false);
 	const [showApplyForm, setShowApplyForm] = useState(false);
 	const [showOneClickModal, setShowOneClickModal] = useState(false);
@@ -173,7 +175,9 @@ export function CandidateJobDetailPage() {
 		};
 	}, [job?.company_id]);
 	const [saved, setSaved] = useState(false);
-	const [profileCompleteness, setProfileCompleteness] = useState(0);
+	// #1601: null = unknown (not yet loaded / load failed) — never render a
+	// percentage for an unknown value; only a real canonical value displays.
+	const [profileCompleteness, setProfileCompleteness] = useState<number | null>(null);
 	const [tailoredDocs, setTailoredDocs] = useState<TailoredDocument | null>(null);
 	const [generatingDocs, setGeneratingDocs] = useState(false);
 	const [showDocs, setShowDocs] = useState(false);
@@ -305,11 +309,26 @@ export function CandidateJobDetailPage() {
 		}
 	}, [id]);
 
+	// #1601 (FR-P1): profile completion has ONE source of truth — the
+	// canonical 12-field calculation in @/lib/profile-completion and its
+	// server mirror, GET /candidate/dashboard/stats (the same value the
+	// Dashboard shows). GET /candidate/profile returns the raw profile row
+	// and has no completeness field; reading one off it always yielded 0.
 	const loadProfileCompleteness = useCallback(async () => {
 		try {
-			const data = await apiCall<{ profile: { completeness: number } }>('/candidate/profile');
-			setProfileCompleteness(data.profile?.completeness || 0);
+			const data = await apiCall<{ stats: { profile_completeness: number } }>(
+				'/candidate/dashboard/stats',
+			);
+			setProfileCompleteness(
+				typeof data.stats?.profile_completeness === 'number' &&
+					Number.isFinite(data.stats.profile_completeness)
+					? data.stats.profile_completeness
+					: null,
+			);
 		} catch (err) {
+			// A failed (re)load means the value is unknown again — never let a
+			// stale percentage keep governing the banner/gate (FR-P3).
+			setProfileCompleteness(null);
 			console.error('[job-detail] Operation failed:', err);
 		}
 	}, []);
@@ -515,7 +534,11 @@ export function CandidateJobDetailPage() {
 		try {
 			await apiCall(`/candidate/jobs/${job.id}/apply`, {
 				method: 'POST',
-				body: { cover_letter: coverLetter, screening_answers: screeningAnswers },
+				body: {
+					cover_letter: coverLetter,
+					screening_answers: screeningAnswers,
+					ip_capture_consent: ipCaptureConsent,
+				},
 			});
 			setApplied(true);
 			setShowApplyForm(false);
@@ -717,7 +740,7 @@ export function CandidateJobDetailPage() {
 	}
 
 	const score = matchBreakdown?.overall_score ? Math.round(matchBreakdown.overall_score) : null;
-	const canOneClick = profileCompleteness >= 80;
+	const canOneClick = profileCompleteness != null && profileCompleteness >= 80;
 	const _skillsRequired = job?.skills_required || [];
 	const matchingSkills = matchBreakdown?.dimensions?.skills?.matching || [];
 	const missingSkills = matchBreakdown?.dimensions?.skills?.missing || [];
@@ -1092,7 +1115,7 @@ export function CandidateJobDetailPage() {
 			)}
 
 			{/* Profile completeness banner for new users */}
-			{user && !applied && profileCompleteness < 80 && (
+			{user && !applied && profileCompleteness != null && profileCompleteness < 80 && (
 				<Card className="border-amber-200 bg-amber-50/50">
 					<CardContent className="p-4">
 						<div className="flex items-start gap-3">
@@ -1555,6 +1578,25 @@ export function CandidateJobDetailPage() {
 								)}
 							</div>
 						)}
+						<div className="rounded-lg border p-3 sm:p-4 space-y-2">
+							<p className="text-xs text-muted-foreground">
+								Optional security check: with your consent, we record a pseudonymised
+								fingerprint made from your IP address — never your actual IP address — so
+								this employer can detect duplicate or fraudulent applications. It is kept
+								for 12 months, is never used to judge your application, and you can
+								withdraw consent any time via privacy@rekrutai.co. Declining changes
+								nothing about your application.
+							</p>
+							<Checkbox
+								checked={ipCaptureConsent}
+								onCheckedChange={(checked) => setIpCaptureConsent(checked === true)}
+								label={
+									<span className="text-sm">
+										I consent to the security fingerprint capture described above
+									</span>
+								}
+							/>
+						</div>
 						<div className="flex flex-col sm:flex-row gap-2 pt-2 border-t">
 							<Button onClick={handleApply} disabled={applying} className="gap-2 min-h-[44px]">
 								{applying ? (

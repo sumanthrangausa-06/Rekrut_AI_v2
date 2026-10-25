@@ -34,6 +34,11 @@ import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/comp
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { getCameraErrorMessage } from '@/hooks/useInterviewCamera';
+import {
+	SPEECH_NOT_SUPPORTED_MESSAGE,
+	isSpeechRecognitionAvailable,
+} from '@/hooks/useSpeechRecognition';
 
 import type { MockConversationTurn, MockSession } from './coaching-types';
 import { formatTime } from './coaching-utils';
@@ -269,11 +274,11 @@ export function InterviewActiveLayout({
 						<MoreHorizontal className="h-4 w-4" />
 					</Button>
 
-					{/* Mobile chat toggle */}
+					{/* Mobile chat toggle (hidden: chat panel is now inline on mobile, bottom-sheet is fallback) */}
 					<Button
 						variant="ghost"
 						size="sm"
-						className="lg:hidden h-8 w-8 p-0 text-white/60 hover:text-white hover:bg-white/10"
+						className="hidden lg:hidden h-8 w-8 p-0 text-white/60 hover:text-white hover:bg-white/10"
 						onClick={() => setChatPanelMobileOpen(true)}
 					>
 						<MessageSquare className="h-4 w-4" />
@@ -297,19 +302,25 @@ export function InterviewActiveLayout({
 			</header>
 
 			{/* ===== MAIN CONTENT ===== */}
-			<div className="flex flex-1 overflow-hidden relative">
+			<div className="flex flex-col lg:flex-row flex-1 overflow-hidden relative">
 				{/* Video Area */}
-				<div className="flex-1 flex flex-col relative min-w-0 bg-[#0a0a0a]">
+				<div className="flex flex-col relative min-w-0 bg-[#0a0a0a] w-full lg:flex-1 lg:w-auto">
 					{/* Primary Video Stage */}
-					<div ref={videoContainerRef} className="flex-1 relative min-h-0">
+					{/* Responsive: 40vh mobile, 50vh tablet, flex-1 desktop */}
+					<div ref={videoContainerRef} className="relative min-h-0 h-[40vh] sm:h-[50vh] lg:h-auto lg:flex-1">
 						{/* Active Speaker Video Feed */}
+						{/* Hidden (not unmounted) when AI speaks so mockVideoRef stays attached
+							for the parent stream, PiP srcObject copy, and frame capture. */}
 						<video
 							ref={mockVideoRef}
 							autoPlay
 							muted
 							playsInline
 							webkit-playsinline=""
-							className="absolute inset-0 w-full h-full object-cover"
+							className={cn(
+								'absolute inset-0 w-full h-full object-cover',
+								activeSpeaker === 'ai' && 'invisible',
+							)}
 							style={{ transform: 'scaleX(-1)' }}
 						/>
 
@@ -333,7 +344,7 @@ export function InterviewActiveLayout({
 										<>
 											<VideoOff className="h-10 w-10 mx-auto mb-3 opacity-60" />
 											<p className="text-sm font-medium">Camera unavailable</p>
-											<p className="text-xs opacity-60 mt-1">{mockCameraError}</p>
+											<p className="text-xs opacity-60 mt-1">{getCameraErrorMessage(mockCameraError)}</p>
 											<Button
 												variant="outline"
 												size="sm"
@@ -517,9 +528,9 @@ export function InterviewActiveLayout({
 					</div>
 				</div>
 
-				{/* ===== CHAT PANEL (Desktop) ===== */}
+				{/* ===== CHAT PANEL (responsive: inline below video on mobile/tablet, sidebar on desktop) ===== */}
 				{showChat && (
-					<div className="hidden lg:flex w-[30%] max-w-md flex-col border-l border-white/5 bg-[#111111]/80 backdrop-blur-xl shrink-0">
+					<div className="flex flex-1 lg:flex-none min-h-0 w-full lg:w-[30%] lg:max-w-md flex-col border-t lg:border-t-0 lg:border-l border-white/5 bg-[#111111]/80 backdrop-blur-xl">
 						<ChatPanelContent
 							conversation={mockSession.conversation}
 							candidateRecording={candidateRecording}
@@ -634,8 +645,13 @@ export function InterviewActiveLayout({
 					</Tooltip>
 
 					{/* Settings */}
-					<Tooltip content="Settings">
-						<button type="button" className="h-11 w-11 rounded-xl flex items-center justify-center bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all duration-200">
+					{/* Phase 3 (#447): honestly disabled — no settings panel exists yet. */}
+					<Tooltip content="Settings (coming soon)">
+						<button
+							type="button"
+							disabled
+							className="h-11 w-11 rounded-xl flex items-center justify-center bg-white/5 text-white/30 cursor-not-allowed transition-all duration-200"
+						>
 							<Settings className="h-5 w-5" />
 						</button>
 					</Tooltip>
@@ -711,6 +727,7 @@ export function InterviewActiveLayout({
 							active={false}
 							icon={Settings}
 							label="Settings"
+							disabled
 						/>
 						<MobileControlButton
 							onClick={toggleFullscreen}
@@ -877,6 +894,13 @@ function ChatPanelContent({
 			{/* Text input fallback */}
 			{!candidateRecording && (
 				<div className="shrink-0 p-3 border-t border-white/5 bg-black/20">
+					{/* Phase 3 (#447): typed-answer fallback notice — above the
+						flex row so it stacks instead of squeezing inline. */}
+					{!isSpeechRecognitionAvailable() && (
+						<p className="text-[11px] text-amber-400/90 mb-2 px-1">
+							{SPEECH_NOT_SUPPORTED_MESSAGE}
+						</p>
+					)}
 					<div className="flex items-end gap-2">
 						{/* Attachment / formatting icons */}
 						<div className="flex items-center gap-1 shrink-0 pb-1">

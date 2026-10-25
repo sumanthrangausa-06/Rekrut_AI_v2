@@ -15,6 +15,7 @@ import {
 	Send,
 	Sparkles,
 	Square,
+	ThumbsUp,
 	User,
 	Users,
 	X,
@@ -63,9 +64,10 @@ export type Candidate = {
 	experienceYears?: number;
 	education?: string;
 	skills: string[];
-	matchScore?: number;
+	matchScore?: number | null;
+	matchScore_status?: 'insufficient_data' | 'measured';
 	omniScore?: number;
-	omniscore?: number;
+	omniscore?: number | null;
 	trustscore?: number;
 	isTopCandidate?: boolean;
 	applicationStatus?: 'applied' | 'screening' | 'interview' | 'offer' | 'hired' | 'rejected';
@@ -87,6 +89,12 @@ export type SavedSearch = {
 	createdAt: string;
 };
 
+export type PreviewSkill = {
+	name: string;
+	endorsement_count: number;
+	endorsed_by_me: boolean;
+};
+
 export type ProfilePreviewData = {
 	id: string;
 	name: string;
@@ -96,8 +104,8 @@ export type ProfilePreviewData = {
 	location?: string;
 	experienceYears?: number;
 	education?: string;
-	skills: string[];
-	matchScore?: number;
+	skills: PreviewSkill[];
+	matchScore?: number | null;
 	omniScore?: number;
 	trustscore?: number;
 	email?: string;
@@ -246,7 +254,17 @@ function normalizePreviewProfile(raw: any): ProfilePreviewData {
 		experienceYears: c.years_experience ?? undefined,
 		education: eduParts.length ? eduParts.join(' · ') : undefined,
 		skills: Array.isArray(c.skills)
-			? c.skills.map((s: any) => (typeof s === 'string' ? s : s?.skill_name)).filter(Boolean)
+			? c.skills
+					.map((s: any) =>
+						typeof s === 'string'
+							? { name: s, endorsement_count: 0, endorsed_by_me: false }
+							: {
+									name: s?.skill_name ?? '',
+									endorsement_count: s?.endorsement_count ?? 0,
+									endorsed_by_me: s?.endorsed_by_me ?? false,
+								},
+					)
+					.filter((s: PreviewSkill) => Boolean(s.name))
 			: [],
 		omniScore: c.omni_score ?? undefined,
 		availability: c.availability ?? undefined,
@@ -305,7 +323,8 @@ export function RecruiterCandidatesPage() {
 
 	const buildSearchParams = useCallback(() => {
 		const params = new URLSearchParams();
-		params.set('page', String(page));
+		// Backend honors `offset`, not `page` — derive the slice offset from page
+		params.set('offset', String((page - 1) * limit));
 		params.set('limit', String(limit));
 		if (searchQuery.trim()) params.set('q', searchQuery.trim());
 		if (activeFilters.experience) params.set('experience', activeFilters.experience);
@@ -343,14 +362,16 @@ export function RecruiterCandidatesPage() {
 
 			const candidatesData = await apiCall<{
 				candidates: Array<any>;
-				pagination: { totalPages: number; total: number };
+				pagination: { total: number; limit: number; offset?: number; hasMore?: boolean };
 			}>(searchEndpoint);
 
 			if (candidatesData) {
 				const raw =
 					candidatesData.candidates ?? (Array.isArray(candidatesData) ? candidatesData : []);
 				setCandidates(raw.map(normalizeCandidate));
-				setTotalPages(candidatesData.pagination?.totalPages || 1);
+				// Backend never sends totalPages — derive it from total/limit (issue #414)
+				const p = candidatesData.pagination;
+				setTotalPages(Math.max(1, Math.ceil((p?.total ?? 0) / (p?.limit || limit))));
 				setTotalResults(candidatesData.pagination?.total ?? raw.length);
 			}
 		} catch (err) {
@@ -571,7 +592,11 @@ export function RecruiterCandidatesPage() {
 				location: candidate.location,
 				experienceYears: candidate.experienceYears,
 				education: candidate.education,
-				skills: candidate.skills,
+				skills: (candidate.skills ?? []).map((s: string) => ({
+					name: s,
+					endorsement_count: 0,
+					endorsed_by_me: false,
+				})),
 				matchScore: candidate.matchScore,
 				omniScore: candidate.omniScore ?? candidate.omniscore,
 				trustscore: candidate.trustscore,
@@ -581,6 +606,41 @@ export function RecruiterCandidatesPage() {
 			});
 		} finally {
 			setProfilePreviewLoading(false);
+		}
+	};
+
+	// ── Skill Endorsements (Issue #527) ──
+	const handleToggleEndorse = async (skill: PreviewSkill) => {
+		if (!profilePreviewData) return;
+		const candidateId = profilePreviewData.id;
+		const method = skill.endorsed_by_me ? 'DELETE' : 'POST';
+		try {
+			const data = await apiCall<{
+				success: boolean;
+				endorsement_count: number;
+				endorsed_by_me: boolean;
+			}>(`/candidates/${candidateId}/skills/endorse`, {
+				method,
+				body: { skill_name: skill.name },
+			});
+			setProfilePreviewData((prev) =>
+				prev
+					? {
+							...prev,
+							skills: prev.skills.map((s) =>
+								s.name === skill.name
+									? {
+											...s,
+											endorsement_count: data.endorsement_count,
+											endorsed_by_me: data.endorsed_by_me,
+										}
+									: s,
+							),
+						}
+					: prev,
+			);
+		} catch (err) {
+			console.error('Failed to toggle endorsement:', err);
 		}
 	};
 
@@ -1215,8 +1275,33 @@ export function RecruiterCandidatesPage() {
 									<Label className="text-sm font-medium">Skills</Label>
 									<div className="flex flex-wrap gap-1.5 mt-1">
 										{profilePreviewData.skills.map((skill) => (
-											<Badge key={skill} variant="secondary" className="text-xs">
-												{skill}
+											<Badge
+												key={skill.name}
+												variant="secondary"
+												className="text-xs flex items-center gap-1.5 pr-1"
+											>
+												<span>{skill.name}</span>
+												{skill.endorsement_count > 0 && (
+													<span className="text-[10px] text-muted-foreground">
+														👍 {skill.endorsement_count}
+													</span>
+												)}
+												<button
+													type="button"
+													onClick={() => handleToggleEndorse(skill)}
+													title={
+														skill.endorsed_by_me
+															? 'Remove your endorsement'
+															: 'Endorse this skill'
+													}
+													className={`rounded-full p-1 transition-colors ${
+														skill.endorsed_by_me
+															? 'bg-primary text-primary-foreground'
+															: 'hover:bg-muted-foreground/20 text-muted-foreground'
+													}`}
+												>
+													<ThumbsUp className="h-3 w-3" />
+												</button>
 											</Badge>
 										))}
 									</div>

@@ -64,10 +64,12 @@ interface CandidateRow {
 	user_id: number;
 	total_score: number;
 	score_tier: string;
-	interview_score: number;
-	technical_score: number;
-	resume_score: number;
-	behavior_score: number;
+	// #1596: compat columns are null when no source factor has data
+	// (honest insufficient-data); React renders null as an empty cell.
+	interview_score: number | null;
+	technical_score: number | null;
+	resume_score: number | null;
+	behavior_score: number | null;
 	name: string;
 	email: string;
 	avatar_url: string | null;
@@ -266,7 +268,18 @@ export function RecruiterOmniScorePage() {
 						<Card className="overflow-hidden border-purple-500/20">
 							<div className="bg-gradient-to-br from-card to-purple-500/5 p-8">
 								<div className="flex flex-col md:flex-row items-center gap-8">
-									<ScoreRing score={trustScore?.score || 500} />
+									{trustScore?.score != null ? (
+										<ScoreRing score={trustScore.score} />
+									) : (
+										<div className="flex h-[140px] w-[140px] flex-col items-center justify-center rounded-full border-2 border-dashed border-muted text-center">
+											<span className="text-sm font-medium text-muted-foreground">
+												Insufficient data
+											</span>
+											<span className="text-xs text-muted-foreground uppercase tracking-wider">
+												TrustScore
+											</span>
+										</div>
+									)}
 									<div className="flex-1 text-center md:text-left">
 										<Badge variant="outline" className={tierBg[trustScore?.tier || 'new']}>
 											{trustScore?.tier_label || 'New Employer'}
