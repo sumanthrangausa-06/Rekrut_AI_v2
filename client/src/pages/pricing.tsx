@@ -59,6 +59,14 @@ type PlansResponse = {
 	plans: PricingPlan[];
 };
 
+// #1859: the caller's own subscription state, in the exact shape the
+// Settings → Billing panel already renders from (same endpoint).
+type SubscriptionStatus = {
+	isPaid: boolean;
+	plan: string | null;
+	status: string;
+};
+
 type ConfirmResponse = {
 	verified: boolean;
 	synced: boolean;
@@ -96,6 +104,7 @@ export function PricingPage() {
 	const [pageMessage, setPageMessage] = useState<string | null>(null);
 	const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
 	const [syncingSession, setSyncingSession] = useState(false);
+	const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
 
 	const dashboardPath = user ? getDashboardPath(user) : '/login';
 	const search = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -132,6 +141,41 @@ export function PricingPage() {
 			active = false;
 		};
 	}, []);
+
+	// #1859: on a clean load (no ?success return params) the page must
+	// still know the caller already pays — read the same
+	// /billing/subscription-status the Settings billing panel uses.
+	// Logged-out visitors skip it (the endpoint requires auth); a failed
+	// read claims no current plan, exactly as before this fix.
+	useEffect(() => {
+		if (!user) {
+			setSubscription(null);
+			return;
+		}
+		let active = true;
+		apiCall<SubscriptionStatus>('/billing/subscription-status', { method: 'GET' })
+			.then((data) => {
+				if (active) setSubscription(data);
+			})
+			.catch(() => {
+				if (active) setSubscription(null);
+			});
+		return () => {
+			active = false;
+		};
+		// Keyed on the user id, not the user object: the auth context
+		// replaces the object several times during bootstrap (tier patch,
+		// company patch), which would refire this read — and a late
+		// duplicate failure could clobber a good status with null.
+	}, [user?.id]);
+
+	// A card is the caller's current plan when they pay for exactly that
+	// plan id and the subscription is live — the same active-status set
+	// the server tier gate accepts (lib/subscription.js getUserTier).
+	const isCurrentPlan = (plan: PricingPlan) =>
+		!!subscription?.isPaid &&
+		(subscription.status === 'active' || subscription.status === 'trialing') &&
+		subscription.plan === plan.id;
 
 	useEffect(() => {
 		const canceled = search.get('canceled');
@@ -449,6 +493,11 @@ export function PricingPage() {
 														</Button>
 													</Link>
 												)
+											) : isCurrentPlan(plan) ? (
+												<Button type="button" variant="outline" className="w-full gap-2" disabled>
+													<Check className="h-4 w-4" />
+													Current plan
+												</Button>
 											) : plan.custom ? (
 												<Button
 													type="button"

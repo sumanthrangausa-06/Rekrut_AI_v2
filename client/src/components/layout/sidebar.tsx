@@ -184,7 +184,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 	// Review (#1636): the identity link's accessible name carries whose
 	// profile it opens, not just the destination.
 	const identityAriaLabel = user?.name ? `Go to my profile, ${user.name}` : 'Go to my profile';
-	const isProUser = (user as any)?.subscription_tier === 'pro' || (user as any)?.plan === 'pro';
+	// #1859: the auth user carries the tier as `subscriptionTier`
+	// (populated by the auth context from /billing/tier). The old
+	// `subscription_tier` / `plan` fields never exist on it, so this
+	// was always false and Pro candidates kept seeing the upgrade CTA.
+	const isProUser = user?.subscriptionTier === 'pro';
 	const showUpgradeCta = !isRecruiter && !isProUser;
 	const showJoinRequests = isRecruiter && user?.is_company_owner;
 
