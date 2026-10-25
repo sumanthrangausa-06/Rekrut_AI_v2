@@ -457,6 +457,11 @@ router.get('/subscription-status', optionalAuth, async (req, res) => {
 			return res.status(404).json({ error: 'User not found.' });
 		}
 
+		// #1843: same stranded-row heal as /tier — this endpoint computes its
+		// tier from the stored row, so a paid account stranded by the old
+		// confirm writers must not keep reporting 'free' here either.
+		await repairStalePaidStatus(user);
+
 		let stripeData = null;
 		if (req.query.refresh === '1' && user.stripe_subscription_id && getStripeSecret()) {
 			try {
