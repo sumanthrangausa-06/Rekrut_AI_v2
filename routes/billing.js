@@ -14,8 +14,35 @@ const router = express.Router();
 
 const PLANS = [
 	{
+		// #1853 (founder ruling 2026-10-25, Option b): a real candidate plan.
+		// Features are the Pro column of lib/subscription.js FEATURE_MATRIX;
+		// tier unlock flows through the same checkout/confirm mechanism and
+		// the plan-blind tier sync as starter/growth (plan id stored as-is).
+		id: 'pro',
+		name: 'Pro',
+		description: 'For candidates who want every AI career tool unlocked.',
+		audience: 'candidate',
+		monthlyAmount: 1900,
+		yearlyAmount: 19000,
+		popular: true,
+		highlight: 'For candidates',
+		features: [
+			'CV Review',
+			'LinkedIn Optimizer',
+			'Career Diagnosis',
+			'Auto-Apply (10 / day)',
+			'Top Matches',
+			'Recruiter Intros',
+			'Advanced assessments',
+			'Unlimited AI job matching',
+			'Unlimited mock interviews',
+			'Unlimited AI coaching',
+		],
+	},
+	{
 		id: 'starter',
 		name: 'Starter',
+		audience: 'recruiter',
 		description: 'For small teams that want a polished hiring workflow.',
 		monthlyAmount: 2900,
 		yearlyAmount: 29000,
@@ -31,6 +58,7 @@ const PLANS = [
 	{
 		id: 'growth',
 		name: 'Growth',
+		audience: 'recruiter',
 		description: 'For teams scaling hiring across multiple roles.',
 		monthlyAmount: 7900,
 		yearlyAmount: 79000,
@@ -46,6 +74,7 @@ const PLANS = [
 	{
 		id: 'enterprise',
 		name: 'Enterprise',
+		audience: 'recruiter',
 		description: 'Custom rollout for larger teams and more complex hiring ops.',
 		custom: true,
 		highlight: 'Custom pricing',
@@ -70,6 +99,7 @@ function publicPlan(plan) {
 	return {
 		id: plan.id,
 		name: plan.name,
+		audience: plan.audience || 'recruiter',
 		description: plan.description,
 		monthlyAmount: plan.monthlyAmount || null,
 		yearlyAmount: plan.yearlyAmount || null,
@@ -160,6 +190,20 @@ router.post('/checkout-session', optionalAuth, async (req, res) => {
 
 		if (plan.custom) {
 			return res.status(400).json({ error: 'Enterprise plans use custom pricing.' });
+		}
+
+		// #1853 (independent-review SHOULD-FIX): role-aware pricing must
+		// hold at the server too, not only in the page's grouping — a
+		// candidate account buys candidate plans, a recruiter account
+		// buys team plans. The tier sync stays plan-blind for the #1843
+		// heal; the purchase door is where audience is enforced.
+		const RECRUITER_ROLES = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+		const isRecruiterAccount = RECRUITER_ROLES.includes(req.user.role);
+		if ((plan.audience === 'candidate') === isRecruiterAccount) {
+			return res.status(403).json({
+				error: 'That plan is not available for your account type.',
+				code: 'PLAN_AUDIENCE_MISMATCH',
+			});
 		}
 
 		if (!['monthly', 'yearly'].includes(billingCycle)) {
