@@ -57,11 +57,11 @@ modules:
                                   # Prod rider: auth POST latency — #1837
     status: current
     last_train_date: "2026-10-24"
-    train_pr: "PR #1817"
-    train_commit: "223b159e33baa17b57ad447e0ba45b580f7ae8d6"
+    train_pr: "PR #1817 + patch PR #1839"
+    train_commit: "549bbf7593c7e9ca95f9d45b1a4503cfa9c4eaf9"
     tag: "staging/cv-review@v2.1"
     riders:
-      - "parse first-try reliability ~2/10 on staging (honest failures, re-upload succeeds) — #1818"
+      - "Train 8 patch (PR #1839, 2026-10-25) cleared the #1818 rider: the #1476 extraction seam (bounded Uint8Array copy at all 3 sites) had never ridden a train — staging/prod called pdfParse on the raw pooled buffer. Promoted patch-id identical; corpus suite 11/11 on the train tree; staging first-try measurement 10/10 completed through the real /candidate/profile/resume door on 549bbf759 (Train 3 baseline was 2/10)"
       - "Pro-analyze staging leg unproven — no API-completable Pro account (Stripe hosted checkout); dev proof stands (#1471, score 72)"
 
   jobs-careers:
