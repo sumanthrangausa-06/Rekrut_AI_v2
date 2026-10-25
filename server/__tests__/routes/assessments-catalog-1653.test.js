@@ -507,6 +507,7 @@ describe('#1653 C1 — GET /catalog', () => {
 			'id',
 			'name',
 			'progress',
+			'resumable',
 			'slug',
 		]);
 		expect(Object.keys(topic.availability).sort()).toEqual(['available', 'formats', 'maxCount']);
