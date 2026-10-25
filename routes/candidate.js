@@ -1,7 +1,7 @@
 // Candidate Profile API Routes
 const express = require('express');
 const multer = require('multer');
-const pdfParse = require('pdf-parse');
+const { parsePdf } = require('../lib/pdf-extract');
 const mammoth = require('mammoth');
 const { authMiddleware, requireRole } = require('../lib/auth');
 const pool = require('../lib/db');
@@ -130,7 +130,7 @@ async function extractTextFromFile(buffer, mimetype) {
 	try {
 		// Handle PDF files
 		if (mimetype === 'application/pdf' || buffer.toString('utf-8', 0, 4) === '%PDF') {
-			const pdfData = await pdfParse(buffer);
+			const pdfData = await parsePdf(buffer);
 			return pdfData.text;
 		}
 
