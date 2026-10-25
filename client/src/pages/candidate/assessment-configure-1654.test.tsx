@@ -51,6 +51,7 @@ const TOPIC: CatalogTopic = {
 		available: true,
 	},
 	progress: null,
+	resumable: null,
 };
 
 function availabilityResponse(over: Record<string, unknown> = {}) {

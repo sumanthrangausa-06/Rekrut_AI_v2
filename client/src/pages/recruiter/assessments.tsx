@@ -31,7 +31,7 @@ interface AssessmentResult {
 	score: number;
 	max_score: number;
 	passed: boolean;
-	anti_cheat_score: number;
+	anti_cheat_score: number | null;
 	duration_seconds: number;
 	completed_at: string;
 	title: string;
@@ -115,7 +115,7 @@ interface JobAssessmentResult {
 		strengths: string[];
 		weaknesses: string[];
 	} | null;
-	anti_cheat_score: number;
+	anti_cheat_score: number | null;
 	status: string;
 	completed_at: string;
 	scored_at: string;
@@ -381,9 +381,11 @@ export function RecruiterAssessmentsPage() {
 														<Clock className="h-3 w-3 inline" />{' '}
 														{Math.round((r.time_spent_seconds || 0) / 60)} min
 													</span>
+													{r.anti_cheat_score != null && (
 													<span>
 														<Shield className="h-3 w-3 inline" /> Integrity: {r.anti_cheat_score}%
 													</span>
+													)}
 													<Button
 														variant="ghost"
 														size="sm"
@@ -481,7 +483,7 @@ export function RecruiterAssessmentsPage() {
 															<XCircle className="h-3 w-3" /> Failed
 														</Badge>
 													)}
-													{a.anti_cheat_score < 70 && (
+													{a.anti_cheat_score != null && a.anti_cheat_score < 70 && (
 														<Badge
 															variant="outline"
 															className="gap-1 text-amber-600 border-amber-300 shrink-0"
@@ -507,10 +509,12 @@ export function RecruiterAssessmentsPage() {
 														<Clock className="h-3 w-3" />
 														{Math.round((a.duration_seconds || 0) / 60)}m
 													</span>
+													{a.anti_cheat_score != null && (
 													<span className="flex items-center gap-1">
 														<Shield className="h-3 w-3" />
 														{a.anti_cheat_score}%
 													</span>
+													)}
 													<span>Diff: {a.max_difficulty_reached}/5</span>
 													<span>{new Date(a.completed_at).toLocaleDateString()}</span>
 												</div>

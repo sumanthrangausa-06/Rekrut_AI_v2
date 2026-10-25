@@ -407,7 +407,30 @@ export function CandidateAssessmentsPage() {
 																	attempt.
 																</p>
 															)}
-															{topic.availability.available ? (
+															{topic.resumable ? (
+																<>
+																	{/* #1824: Save & Exit promised resume
+																	    from this page — a saved in-progress
+																	    session gets the Resume door INSTEAD
+																	    of Configure & Start (a new start
+																	    would abandon the saved session). */}
+																	<p className="text-xs text-muted-foreground mb-2">
+																		Test in progress — resume where you left off.
+																	</p>
+																	<Button
+																		size="sm"
+																		className="w-full gap-1 min-h-[44px]"
+																		onClick={() =>
+																			topic.resumable &&
+																			navigate(
+																				`/candidate/assessments/${topic.resumable.sessionId}/take`,
+																			)
+																		}
+																	>
+																		<Play className="h-3 w-3" /> Resume
+																	</Button>
+																</>
+															) : topic.availability.available ? (
 																<>
 																	<p className="text-xs text-muted-foreground mb-2">
 																		Up to {topic.availability.maxCount} questions
