@@ -41,9 +41,13 @@ describe('257_observer_capture migration', () => {
 		expect(typeof migration.down).toBe('function');
 	});
 
-	test('widens recording_objects.object_type to include observer_audio (by-name surgery, 254 pattern)', () => {
+	test('widens recording_objects.object_type to include observer_audio (by-name surgery via pg_constraint, #1155)', () => {
 		expect(src).toMatch(/object_type IN \('frame',\s*'recording',\s*'observer_audio'\)/);
-		expect(src).toMatch(/information_schema\.table_constraints/);
+		// #1155: lookup must be pg_constraint contype='c' — information_schema
+		// surfaces PG18 NOT NULL constraints as pseudo-CHECKs (see the
+		// 257_pg18_notnull_pseudo_check regression test).
+		expect(src).toMatch(/pg_constraint/);
+		expect(src).toMatch(/contype\s*=\s*'c'/);
 	});
 
 	test('adds registration_state pending/confirmed with confirmed default', () => {
