@@ -3929,9 +3929,12 @@ router.put('/interviews/:id/reschedule', authMiddleware, async (req, res) => {
 	try {
 		const { preferred_time, reason } = req.body;
 
+		// #1804(i): clear any stale outcome, mirroring the decline route
+		// above — outcome is a closed evaluation vocabulary (#1783) and a
+		// reschedule-requested interview has not been evaluated.
 		const result = await pool.query(
 			`UPDATE scheduled_interviews
-       SET status = 'reschedule_requested',
+       SET status = 'reschedule_requested', outcome = NULL,
            notes = COALESCE(notes, '') || E'\n[Reschedule request] ' || COALESCE($3, 'Candidate requested reschedule') || COALESCE(' - Preferred: ' || $4, ''),
            updated_at = NOW()
        WHERE id = $1 AND candidate_id = $2 AND status IN ('scheduled', 'confirmed')
