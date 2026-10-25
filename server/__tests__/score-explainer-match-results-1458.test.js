@@ -9,7 +9,7 @@
  *     in #1527 (R2 dead-code removal, zero callers); its tests went with it.
  *     The EuComplianceService.explainDecisionForJob tests below are a
  *     different, live function and remain.
- * Cached ai_decision_explanations rows move to weights_hash 'v2-match-results'
+ * Cached ai_decision_explanations rows move to weights_hash 'v3-omni-scores-split'
  * and the eu cache read only serves rows carrying the effective hash.
  *
  * DB-layer mock (no real DB): routes SQL text to canned result sets.
@@ -184,18 +184,18 @@ describe('#1458 euComplianceService cache never serves old-shape rows', () => {
 		const out = await EuComplianceService.explainDecisionForJob({ userId: 1, jobId: 1 });
 		// must not be the stale row
 		expect(out.weights_hash).not.toBe('default-v1');
-		expect(out.weights_hash).toBe('v2-match-results');
+		expect(out.weights_hash).toBe('v3-omni-scores-split');
 		const data = out.factor_breakdowns;
 		expect(data.factor_breakdowns.map((f) => f.factor)).not.toContain('Cultural Fit');
 		expect(JSON.stringify(data)).not.toContain('STALE');
 		// the upsert overwrote the stale row
 		const upsert = queries.find((q) => q.sql.includes('INSERT INTO ai_decision_explanations'));
 		expect(upsert).toBeDefined();
-		expect(upsert.params[5]).toBe('v2-match-results');
+		expect(upsert.params[5]).toBe('v3-omni-scores-split');
 	});
 
 	test('current-hash row is still served from cache (no rebuild)', async () => {
-		const fresh = { ...STALE, weights_hash: 'v2-match-results' };
+		const fresh = { ...STALE, weights_hash: 'v3-omni-scores-split' };
 		euMock({ cachedRows: [fresh] });
 		const out = await EuComplianceService.explainDecisionForJob({ userId: 1, jobId: 1 });
 		expect(out).toBe(fresh);
