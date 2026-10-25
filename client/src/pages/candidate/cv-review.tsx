@@ -145,6 +145,7 @@ function SectionAccordion({
 
 type PageState =
 	| { kind: 'idle' }
+	| { kind: 'starting' }
 	| { kind: 'analyzing'; analysisId: number }
 	| { kind: 'completed'; analysis: CVAnalysis }
 	| { kind: 'failed'; message: string }
@@ -225,7 +226,10 @@ export function CVReviewPage() {
 	);
 
 	const handleAnalyze = useCallback(async () => {
-		setState({ kind: 'idle' });
+		// #1843: show the analysing state from the click itself — the trigger
+		// POST runs synchronously server-side, and leaving the page 'idle'
+		// until it returns made the click look dead on a slow server.
+		setState({ kind: 'starting' });
 		setExpandedSection(null);
 
 		try {
@@ -295,7 +299,7 @@ export function CVReviewPage() {
 			)}
 
 			{/* ── Analyzing ── */}
-			{state.kind === 'analyzing' && (
+			{(state.kind === 'analyzing' || state.kind === 'starting') && (
 				<Card>
 					<CardContent className="p-8 flex flex-col items-center text-center gap-4">
 						<Loader2 className="h-8 w-8 text-primary animate-spin" />

@@ -2,7 +2,13 @@ const express = require('express');
 const crypto = require('node:crypto');
 const pool = require('../lib/db');
 const { optionalAuth, authMiddleware } = require('../lib/auth');
-const { getTierSummary, getUserFeatureList, checkFeatureAccess } = require('../lib/subscription');
+const {
+	getTierSummary,
+	getUserFeatureList,
+	checkFeatureAccess,
+	checkoutSubscriptionStatus,
+	repairStalePaidStatus,
+} = require('../lib/subscription');
 
 const router = express.Router();
 
@@ -134,6 +140,17 @@ router.post('/checkout-session', optionalAuth, async (req, res) => {
 			return res.status(503).json({ error: 'Stripe is not configured yet.' });
 		}
 
+		// #1843: a checkout created while signed out carries no
+		// client_reference_id and no account email, so confirm-session can
+		// NEVER sync the payment to an account — the buyer pays and stays
+		// Free silently. Require the account up front instead.
+		if (!req.user?.id) {
+			return res.status(401).json({
+				error: 'Sign in before upgrading so your payment is linked to your account.',
+				code: 'AUTH_REQUIRED',
+			});
+		}
+
 		const { planId, billingCycle = 'monthly' } = req.body || {};
 		const plan = PLANS.find((item) => item.id === planId);
 
@@ -203,6 +220,9 @@ router.post('/confirm-session', optionalAuth, async (req, res) => {
 		const subscriptionId =
 			subscription?.id || (typeof session.subscription === 'string' ? session.subscription : null);
 		const verified = session.status === 'complete' && session.payment_status === 'paid';
+		// #1843: never store session.status ('complete') as subscription_status —
+		// the tier gate rejects it and the paid account stays 'free'.
+		const storedStatus = checkoutSubscriptionStatus(subscription);
 		let synced = false;
 		let user = null;
 
@@ -222,12 +242,7 @@ router.post('/confirm-session', optionalAuth, async (req, res) => {
              subscription_status = $3
          WHERE id = $4
          RETURNING id, email, name, role, company_name, is_paid, stripe_subscription_id, subscription_plan, subscription_status`,
-				[
-					subscriptionId,
-					session.metadata?.plan_id || null,
-					subscription?.status || session.status,
-					req.user.id,
-				],
+				[subscriptionId, session.metadata?.plan_id || null, storedStatus, req.user.id],
 			);
 
 			user = updateResult.rows[0] || null;
@@ -241,7 +256,7 @@ router.post('/confirm-session', optionalAuth, async (req, res) => {
 			planId: session.metadata?.plan_id || null,
 			billingCycle: session.metadata?.billing_cycle || null,
 			subscriptionId,
-			subscriptionStatus: subscription?.status || session.status,
+			subscriptionStatus: storedStatus,
 			user,
 		});
 	} catch (error) {
@@ -409,6 +424,9 @@ router.get('/tier', authMiddleware, async (req, res) => {
 			return res.status(401).json({ error: 'Authentication required.' });
 		}
 
+		// #1843: a paid account stranded by the old confirm writers heals on
+		// read, so its tier and feature list never report 'free' again.
+		await repairStalePaidStatus(req.user);
 		const tierSummary = getTierSummary(req.user);
 		const features = await getUserFeatureList(req.user);
 
