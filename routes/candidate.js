@@ -1179,7 +1179,7 @@ router.post('/cv/analyze', authMiddleware, async (req, res) => {
 
 		// Check user has uploaded documents (parsed_resumes)
 		const docs = await pool.query(
-			'SELECT id, parsed_data, parsing_status, created_at FROM parsed_resumes WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+			'SELECT id, parsed_data, parsing_status, created_at FROM parsed_resumes WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1',
 			[req.user.id],
 		);
 
@@ -1328,7 +1328,7 @@ router.get('/cv/source-document', authMiddleware, async (req, res) => {
 			`SELECT original_filename, created_at, parsing_status
 			 FROM parsed_resumes
 			 WHERE user_id = $1
-			 ORDER BY created_at DESC
+			 ORDER BY created_at DESC, id DESC
 			 LIMIT 1`,
 			[req.user.id],
 		);
@@ -1359,7 +1359,7 @@ router.get('/cv/analysis/:id', authMiddleware, async (req, res) => {
 			SELECT ca.id, ca.user_id, ca.document_id, ca.status, ca.overall_score, ca.section_scores, ca.recommendations, ca.created_at, ca.updated_at,
 			       pr.original_filename AS document_filename, pr.created_at AS document_uploaded_at
 			FROM cv_analyses ca
-			LEFT JOIN parsed_resumes pr ON pr.id = ca.document_id
+			LEFT JOIN parsed_resumes pr ON pr.id = ca.document_id AND pr.user_id = ca.user_id
 			WHERE ca.id = $1 AND ca.user_id = $2
 			`,
 			[req.params.id, req.user.id],

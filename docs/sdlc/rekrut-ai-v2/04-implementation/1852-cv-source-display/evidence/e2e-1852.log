@@ -10,7 +10,10 @@ GET /api/candidate/cv/source-document -> 200 {"success":true,"document":{"origin
 GET /api/candidate/cv/source-document -> 200 {"success":true,"document":null}
 GET /api/candidate/cv/source-document -> 200 {"success":true,"document":{"original_filename":"bob-smith-resume.docx","created_at":"2026-10-21T09:30:00.000Z","parsing_status":"completed"}}
 GET /api/candidate/cv/source-document -> 200 {"success":true,"document":{"original_filename":"jane-doe-cv.pdf","created_at":"2026-10-20T10:00:00.000Z","parsing_status":"completed"}}
+GET /api/candidate/cv/source-document -> 200 {"success":true,"document":{"original_filename":"jane-doe-cv-v2.pdf","created_at":"2026-10-22T08:00:00.000Z","parsing_status":"completed"}}
 GET /api/candidate/cv/source-document -> 401 {"error":"Authentication required"}
-GET /api/candidate/cv/analysis/1 -> 200 {"success":true,"analysis":{"id":1,"user_id":1,"document_id":1,"status":"completed","overall_score":72,"section_scores":[],"recommendations":[],"created_at":"2026-10-25T23:19:12.747Z","updated_at":"2026-10-25T23:19:12.747Z","document_filename":"jane-doe-cv.pdf","document_uploaded_at":"2026-10-20T10:00:00.000Z"}}
+GET /api/candidate/cv/analysis/1 -> 200 {"success":true,"analysis":{"id":1,"user_id":1,"document_id":1,"status":"completed","overall_score":72,"section_scores":[],"recommendations":[],"created_at":"2026-10-25T23:21:44.723Z","updated_at":"2026-10-25T23:21:44.723Z","document_filename":"jane-doe-cv.pdf","document_uploaded_at":"2026-10-20T10:00:00.000Z"}}
 GET /api/candidate/cv/analysis/1 -> 404 {"error":"Analysis not found"}
+GET /api/candidate/cv/analysis/2 -> 200 {"success":true,"analysis":{"id":2,"user_id":1,"document_id":2,"status":"completed","overall_score":50,"section_scores":[],"recommendations":[],"created_at":"2026-10-25T23:21:44.744Z","updated_at":"2026-10-25T23:21:44.744Z","document_filename":null,"document_uploaded_at":null}}
+GET /api/candidate/cv/analysis/3 -> 200 {"success":true,"analysis":{"id":3,"user_id":1,"document_id":null,"status":"completed","overall_score":50,"section_scores":[],"recommendations":[],"created_at":"2026-10-25T23:21:44.753Z","updated_at":"2026-10-25T23:21:44.753Z","document_filename":null,"document_uploaded_at":null}}
 PASS: all #1852 journey legs green
