@@ -157,12 +157,25 @@ async function loadCatalogTables(userId) {
      ) lat ON true`,
 		[userId],
 	);
+	// #1824: latest in_progress session per topic for this user — the
+	// Resume door on the Assessments list. Save & Exit keeps the session
+	// in_progress with its draft; the catalogue must surface it so the
+	// exit dialog's promise ("resume from the Assessments page") is true.
+	// Explicit allowlist only: id + topic_id, never session content.
+	const resumableResult = await pool.query(
+		`SELECT DISTINCT ON (topic_id) id AS session_id, topic_id
+     FROM assessment_sessions
+     WHERE user_id = $1 AND status = 'in_progress' AND topic_id IS NOT NULL
+     ORDER BY topic_id, id DESC`,
+		[userId],
+	);
 	return {
 		subjects: subjectsResult.rows,
 		topics: topicsResult.rows,
 		counts: countsResult.rows,
 		progress: progressResult.rows,
 		topicProgress: topicProgressResult.rows,
+		resumableSessions: resumableResult.rows,
 	};
 }
 
@@ -636,7 +649,8 @@ router.get('/available', authMiddleware, async (req, res) => {
 // start draws from.
 router.get('/catalog', authMiddleware, async (req, res) => {
 	try {
-		const { subjects, topics, counts, progress, topicProgress } = await loadCatalogTables(req.user.id);
+		const { subjects, topics, counts, progress, topicProgress, resumableSessions } =
+			await loadCatalogTables(req.user.id);
 
 		const countsByTopic = new Map();
 		for (const row of counts) {
@@ -650,6 +664,14 @@ router.get('/catalog', authMiddleware, async (req, res) => {
 		const topicProgressById = new Map();
 		for (const row of topicProgress || []) {
 			if (Number.isInteger(row.topic_id)) topicProgressById.set(row.topic_id, row);
+		}
+		// #1824: topic_id → latest in-progress session id (this user only,
+		// enforced in loadCatalogTables' SQL).
+		const resumableByTopicId = new Map();
+		for (const row of resumableSessions || []) {
+			if (Number.isInteger(row.topic_id) && Number.isInteger(row.session_id)) {
+				resumableByTopicId.set(row.topic_id, row.session_id);
+			}
 		}
 		const topicsBySubject = new Map();
 		for (const topic of topics) {
@@ -704,6 +726,12 @@ router.get('/catalog', authMiddleware, async (req, res) => {
 						description: topic.description,
 						availability: computeTopicAvailability(countsByTopic.get(topic.id) || []),
 						progress: topicProgress,
+						// #1824: explicit field, never a spread row — null
+						// when this user has no saved in-progress session
+						// on this topic.
+						resumable: resumableByTopicId.has(topic.id)
+							? { sessionId: resumableByTopicId.get(topic.id) }
+							: null,
 					};
 				}),
 			})),
