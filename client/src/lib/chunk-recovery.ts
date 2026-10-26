@@ -38,10 +38,14 @@ interface ChunkReloadDeps {
  * Callers fall through to their normal error UI on false.
  */
 export function tryChunkReload(deps: ChunkReloadDeps = {}): boolean {
-	const storage = deps.storage ?? window.sessionStorage;
 	const reload = deps.reload ?? (() => window.location.reload());
 	const now = deps.now ?? Date.now;
 	try {
+		// Resolve the default storage INSIDE the try: merely accessing
+		// window.sessionStorage can itself throw (SecurityError when
+		// cookies/site-data are blocked) — that must fail safe (false),
+		// never propagate into the error boundaries (F1, PR #1869).
+		const storage = deps.storage ?? window.sessionStorage;
 		const last = Number(storage.getItem(RELOAD_KEY));
 		if (Number.isFinite(last) && last > 0 && now() - last < RELOAD_WINDOW_MS) {
 			return false;
