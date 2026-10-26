@@ -15,12 +15,20 @@
  * #1588 journey baseline observed behavior_score 43 for a candidate whose
  * total_score was honestly NULL.
  *
- * Mixed-case rule (documented in STOP 1, derived from the issue's own
- * repro arithmetic — the observed 43 IS a mixed case: reliability had
- * data via 1 application, soft_skills had none): a compat column is the
- * average of its MEASURED source factors only; it is NULL when no source
- * factor has data. Averaging an unmeasured raw in would halve a real 85
- * into a fabricated 43 (or a real 10 into a fabricated 5).
+ * Mixed-case rule — FOR PARENT/PANEL ADJUDICATION (HL-004: the issue
+ * requires a discussed team position, not a solo call). PROPOSED rule,
+ * implemented in this branch so the panel adjudicates working code:
+ * a compat column is the average of its MEASURED source factors only;
+ * it is NULL when no source factor has data. Precedent: this FOLLOWS
+ * #1538 (a no-data factor persists as null, never its default raw) for
+ * single-source columns exactly, and FOLLOWS the #1731 Lane 2/3 panel
+ * rule for composites (renormalise over measured components only;
+ * neither measured -> NULL) for the two-source columns — it departs
+ * from neither. It is also the only reading consistent with the issue's
+ * own repro: the observed 43 IS a mixed case (reliability measured 85
+ * via 1 application, soft_skills unmeasured 0), so averaging an
+ * unmeasured raw in would preserve the filed fabrication (and halve a
+ * real resume 10 into 5).
  *
  * #1776 UPDATE (panel ruling on #1761, Option D): calcReliabilitySignals
  * is measured-only now (no neutral base, no default rates). The one-app

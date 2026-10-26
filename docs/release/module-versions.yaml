@@ -61,7 +61,7 @@ modules:
     train_commit: "549bbf7593c7e9ca95f9d45b1a4503cfa9c4eaf9"
     tag: "staging/cv-review@v2.1"
     riders:
-      - "Train 8 patch (PR #1839, 2026-10-25) cleared the #1818 rider: the #1476 extraction seam (bounded Uint8Array copy at all 3 sites) had never ridden a train — staging/prod called pdfParse on the raw pooled buffer. Promoted patch-id identical; corpus suite 11/11 on the train tree; staging first-try measurement 10/10 completed through the real /candidate/profile/resume door on 549bbf759 (Train 3 baseline was 2/10)"
+      - "Train 8 patch (PR #1839, 2026-10-25) cleared the #1818 rider: the #1476 extraction seam (bounded Uint8Array copy at all 3 sites) had never ridden a train — staging/prod called pdfParse on the raw pooled buffer. Promoted patch-id identical; corpus suite 11/11 on the train tree; staging first-try measurement 10/10 completed through the real /candidate/profile/resume door on 549bbf759 (Train 3 baseline was 2/10). Promoted to prod in Patch Main Train M1.1 (PR #1841, deploy dep-dbetshdg1s2s73dpve80 live, /health read-back 83fc9dea4). Prod fresh-account measurement from the build VM was policy-blocked (sentinel denial on register); staging proof stands as the gate evidence"
       - "Pro-analyze staging leg unproven — no API-completable Pro account (Stripe hosted checkout); dev proof stands (#1471, score 72)"
 
   jobs-careers:
@@ -114,3 +114,58 @@ modules:
     riders:
       - "test-hygiene: score-explainer-match-results-1458 suite still pins the pre-split v2 weights_hash (dev-parity failure) — #1827"
       - "staging transport intermittently truncated responses during the 3c re-run (partial reads; retry returns clean 200; app logs show the guarded path completing, no app error) — environment-level, watch only"
+
+# Patch-train log (Relay, 2026-10-25 — trains that carry no versioned module entry):
+# - Train 11 (#1804 interview outcome hygiene, staging PR #1851 @ 9ccfb8abb):
+#   staging proof completed 2026-10-25 (suites re-run on the train tree PASS;
+#   live staging journey 15/15 PASS). Promoted to PRODUCTION via Main Train
+#   M1.3 (PR #1857, merge edf5d2993, deploy dep-dbf6to8473hc73c2lsp0 live,
+#   3/3 prod /health samples agree).
+# - Train 12 (#1853 candidate Pro plan + role-aware pricing, staging PR #1856
+#   @ f58d0c74e, deploy dep-dbf6rblg1s2s73emkkb0 live): staging session +
+#   sandbox-door legs PASS 7/7; hosted-checkout completion leg completed
+#   2026-10-25 (browser Stripe test-mode checkout, subscription verified
+#   first-hand via staging API) and #1853 CLOSED. Promoted to PRODUCTION
+#   via Main Train M1.4 (PR #1860, merge 879b034ff, deploy
+#   dep-dbf86pg473hc73c71l10 live, 3/3 prod /health samples agree; prod
+#   /api/billing/plans read-back shows pro $19/$190 audience candidate).
+#   Billing has no versioned module entry; it rides the cv-review Pro surface.
+# - Train 13 (#1852 CV source display + #1859 Pro active-state display,
+#   staging PR #1864 @ da821324e, deploy dep-dbf9cbo473hc73caomdg live):
+#   train-tree gates PASS (cv-source-document-1852 all legs,
+#   pricing-active-state-1859 7/7, #1853/#1843 billing regressions PASS);
+#   staging live proof 2026-10-25 (3/3 /health agree at da821324e; fresh
+#   candidate source-document {document:null}, unauth 401, subscription-
+#   status free read-back); #1852 + #1859 CLOSED. Promoted to PRODUCTION
+#   via Main Train M1.5 (PR #1865, merge ff68fb2b1, deploy
+#   dep-dbf9ep7avr4c73da4ml0 live, 3/3 prod /health samples agree; prod
+#   unauth source-document 401, plans read-back unchanged). Display-only
+#   changes on the cv-review + billing surfaces; no version bump.
+# - Train 14-0 (#1868 chunk-load recovery, staging PR #1870 @ f0180b89c,
+#   deploy dep-dbfc350m7kps738h6th0 live): small patch train ahead of
+#   Train 14A per the #1867 rider — every 14A deploy would otherwise
+#   break open sessions. Staging proof 2026-10-25: 3/3 /health agree at
+#   f0180b89c; shell Cache-Control: no-cache naming new bundle
+#   assets/index-DHEJiwQM.js (same hash as the train-tree build);
+#   /assets/* public, max-age=31536000, immutable; pre-deploy build's
+#   asset 404 (stale-chunk mode real) and recovery code present in the
+#   deployed bundle. Stated limit: in-browser cross-deploy navigation
+#   leg attempted but the browser tab did not survive to step 2, so the
+#   leg rests on HTTP-level proof (same standard as the #1868 dev
+#   proof). Promoted to PRODUCTION via Main Train M1.6 (PR #1871,
+#   merge 4a76429e7, deploy dep-dbfc77nb9u1s73ccn8i0 live, 3/3 prod
+#   /health agree at 4a76429e7; prod shell no-cache, same bundle hash,
+#   old asset 404). Client shell/server caching only; no version bump.
+# - Train 14A (#1867 slice A — privacy/erasure/compliance core, staging PR
+#   #1873 @ ea7a95485, deploy dep-dbfcsb0m7kps738jsvag live): content train,
+#   54 files byte-identical to dev + server.js #1180 Sentry hunk; migrations
+#   267/271/272/273 (expand-only) applied via the deploy's migrate step on
+#   the shared DB. Staging proof 2026-10-25: 3/3 /health agree at ea7a95485;
+#   fresh-candidate journey — GDPR export self 200 / foreign 403, consent
+#   record + read-back 200, delete-account 200 through the trained
+#   erasePersonalData (real auth.js caller), login-after-delete 401.
+#   Rex+Lex panel APPROVE WITH CONDITIONS (discharged; gap-f suite rides
+#   Train 14C with lib/email-queue.js). Promoted to PRODUCTION via Main
+#   Train M1.7 (PR #1874, merge 5d093fb22, deploy dep-dbfcv0navr4c73dlp340 live,
+#   3/3 prod /health agree at 5d093fb22; unauth compliance export 403).
+#   No version bump.

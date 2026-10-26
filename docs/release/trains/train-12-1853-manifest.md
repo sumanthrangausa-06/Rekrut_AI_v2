@@ -1,0 +1,10 @@
+# Train 12 — #1853 candidate Pro plan + role-aware pricing → staging
+
+- **Scope:** #1853, dev-proven and merged to dev 2026-10-25 (PR #1855, dev e784b517b). Issue stays OPEN for the staging leg of its own proof spec (sandbox checkout on staging + recruiter-session pricing check).
+- **Pick:** dev commit 08becb6f3 cherry-picked onto staging 9ccfb8abb as 7dc088a78 — applied clean, zero conflicts. **Patch-id identical** (stable patch-id `dabc87822c686f6233f1bd0130958d35ea8366cb` for both commits, verified first-hand by Relay).
+- **Files (exactly the dev PR's 5):** routes/billing.js, client/src/pages/pricing.tsx, client/src/__tests__/pages/PricingRoleAware1853.test.tsx, tests/billing-candidate-pro-1853.check.js, docs/sdlc build-log.
+- **Verification on the train tree (Relay, first-hand, fresh-install rig PG 18.4):** `tests/billing-candidate-pro-1853.check.js` PASS, all 7 legs (candidate Pro plan + audience, free gate 403, checkout door $19/$190 plan_id=pro, confirm unlocks tier pro + CV gate passes, recruiter growth unchanged, negative/spoof/cross-audience legs). Regression: `tests/billing-pro-confirm-1843.check.js` PASS, 9 legs — the #1843 heal path is intact on this tree.
+- **Dev gate evidence (from PR #1855):** independent security/payments review NO BLOCK (3 SHOULD-FIXes folded in before merge: server-side audience↔role checkout enforcement, Free-card label, negative legs); Suga first-hand E2E re-run PASS 7 legs + #1843 regression PASS before merge.
+- **Migrations:** none. **Env:** none.
+- **Staging proof (after deploy):** deploy record + /health samples at the new commit; GET /api/billing/plans read-back shows plan `pro` with audience candidate at $19/$190 and recruiter plans with audience recruiter; recruiter-session pricing check per the #1853 proof spec. The sandbox-checkout leg rides the same browser-only Stripe hosted-checkout constraint recorded on Trains 2/3/9 — if it cannot complete via API, it is recorded honestly and the founder staging session remains the completable path.
+- **Main:** rides a later main train after the staging proof lands; #1853 closes when its staging leg completes.
