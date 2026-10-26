@@ -21,10 +21,10 @@ import { apiCall } from '@/lib/api';
 interface InterviewAnalysis {
 	id: number;
 	question_index: number;
-	presentation_score: number;
-	eye_contact_score: number;
-	expression_score: number;
-	body_language_score: number;
+	presentation_score: number | null;
+	eye_contact_score: number | null;
+	expression_score: number | null;
+	body_language_score: number | null;
 	analysis_data: Record<string, any>;
 }
 
@@ -73,19 +73,17 @@ export function InterviewAnalysisPage() {
 		loadAnalysis();
 	}, [interviewId]);
 
+	// #1377: average only rows carrying a real score — a missing score is
+	// "insufficient data" (null → rendered N/A), never a 0 in the average.
+	const avgOf = (values: (number | null | undefined)[]): number | null => {
+		const real = values.map((v) => parseFloat(v as any)).filter((n) => Number.isFinite(n));
+		return real.length > 0 ? Math.round(real.reduce((sum, n) => sum + n, 0) / real.length) : null;
+	};
 	const avgScores = {
-		presentation: Math.round(
-			analysis.reduce((sum, a) => sum + (a.presentation_score || 0), 0) / (analysis.length || 1),
-		),
-		eyeContact: Math.round(
-			analysis.reduce((sum, a) => sum + (a.eye_contact_score || 0), 0) / (analysis.length || 1),
-		),
-		expression: Math.round(
-			analysis.reduce((sum, a) => sum + (a.expression_score || 0), 0) / (analysis.length || 1),
-		),
-		bodyLanguage: Math.round(
-			analysis.reduce((sum, a) => sum + (a.body_language_score || 0), 0) / (analysis.length || 1),
-		),
+		presentation: avgOf(analysis.map((a) => a.presentation_score)),
+		eyeContact: avgOf(analysis.map((a) => a.eye_contact_score)),
+		expression: avgOf(analysis.map((a) => a.expression_score)),
+		bodyLanguage: avgOf(analysis.map((a) => a.body_language_score)),
 	};
 
 	function _getScoreColor(score: number) {
@@ -109,7 +107,7 @@ export function InterviewAnalysisPage() {
 			type: 'positive' | 'neutral' | 'improvement' | 'tip';
 		}[] = [];
 
-		if (avgScores.presentation >= 80) {
+		if (avgScores.presentation != null && avgScores.presentation >= 80) {
 			insights.push({
 				icon: <Star className="h-5 w-5 text-amber-500" />,
 				text: (
@@ -120,7 +118,7 @@ export function InterviewAnalysisPage() {
 				),
 				type: 'positive',
 			});
-		} else if (avgScores.presentation >= 60) {
+		} else if (avgScores.presentation != null && avgScores.presentation >= 60) {
 			insights.push({
 				icon: <TrendingUp className="h-5 w-5 text-blue-500" />,
 				text: (
@@ -131,7 +129,7 @@ export function InterviewAnalysisPage() {
 				),
 				type: 'neutral',
 			});
-		} else {
+		} else if (avgScores.presentation != null) {
 			insights.push({
 				icon: <Activity className="h-5 w-5 text-red-500" />,
 				text: (
@@ -144,7 +142,7 @@ export function InterviewAnalysisPage() {
 			});
 		}
 
-		if (avgScores.eyeContact >= 75) {
+		if (avgScores.eyeContact != null && avgScores.eyeContact >= 75) {
 			insights.push({
 				icon: <Eye className="h-5 w-5 text-blue-500" />,
 				text: (
@@ -155,7 +153,7 @@ export function InterviewAnalysisPage() {
 				),
 				type: 'positive',
 			});
-		} else {
+		} else if (avgScores.eyeContact != null) {
 			insights.push({
 				icon: <Target className="h-5 w-5 text-amber-500" />,
 				text: (
@@ -168,7 +166,7 @@ export function InterviewAnalysisPage() {
 			});
 		}
 
-		if (avgScores.bodyLanguage >= 75) {
+		if (avgScores.bodyLanguage != null && avgScores.bodyLanguage >= 75) {
 			insights.push({
 				icon: <User className="h-5 w-5 text-emerald-500" />,
 				text: (
@@ -179,7 +177,7 @@ export function InterviewAnalysisPage() {
 				),
 				type: 'positive',
 			});
-		} else {
+		} else if (avgScores.bodyLanguage != null) {
 			insights.push({
 				icon: <Lightbulb className="h-5 w-5 text-amber-500" />,
 				text: (
@@ -291,16 +289,16 @@ export function InterviewAnalysisPage() {
 						const question = interview?.questions?.[item.question_index];
 						const suggestions = [];
 
-						if (item.eye_contact_score < 70) {
+						if (item.eye_contact_score != null && item.eye_contact_score < 70) {
 							suggestions.push('Maintain more consistent eye contact with the camera');
 						}
-						if (item.expression_score < 70) {
+						if (item.expression_score != null && item.expression_score < 70) {
 							suggestions.push('Show more confident facial expressions and smile naturally');
 						}
-						if (item.body_language_score < 70) {
+						if (item.body_language_score != null && item.body_language_score < 70) {
 							suggestions.push('Keep your head steady and maintain good posture');
 						}
-						if (item.presentation_score < 60) {
+						if (item.presentation_score != null && item.presentation_score < 60) {
 							suggestions.push('Practice in front of a mirror to improve overall presence');
 						}
 
@@ -330,6 +328,20 @@ export function InterviewAnalysisPage() {
 												</li>
 											))}
 										</ul>
+									</div>
+								) : [
+										item.eye_contact_score,
+										item.expression_score,
+										item.body_language_score,
+										item.presentation_score,
+									].some((s) => s == null) ? (
+									// #1377: a missing score is insufficient data, not
+									// an excellent performance.
+									<div className="flex items-center gap-2 text-muted-foreground">
+										<AlertTriangle className="h-5 w-5" />
+										<span className="font-semibold">
+											Insufficient data to assess this question
+										</span>
 									</div>
 								) : (
 									<div className="flex items-center gap-2 text-emerald-600">
@@ -383,44 +395,48 @@ function ScoreCard({
 	icon,
 	primary,
 }: {
-	score: number;
+	score: number | null;
 	label: string;
 	icon: React.ReactNode;
 	primary?: boolean;
 }) {
 	const color =
-		score >= 80
-			? 'text-emerald-500'
-			: score >= 60
-				? 'text-blue-500'
-				: score >= 40
-					? 'text-amber-500'
-					: 'text-red-500';
+		score == null
+			? 'text-muted-foreground'
+			: score >= 80
+				? 'text-emerald-500'
+				: score >= 60
+					? 'text-blue-500'
+					: score >= 40
+						? 'text-amber-500'
+						: 'text-red-500';
 
 	return (
 		<div
 			className={`flex flex-col items-center text-center p-4 rounded-lg ${primary ? 'bg-primary/5 border-2 border-primary/20' : 'bg-muted'}`}
 		>
-			<div className={`text-4xl font-bold mb-1 ${color}`}>{score}%</div>
+			<div className={`text-4xl font-bold mb-1 ${color}`}>{score == null ? 'N/A' : `${score}%`}</div>
 			<div className="text-sm text-muted-foreground mb-2">{label}</div>
 			<div className="text-muted-foreground">{icon}</div>
 		</div>
 	);
 }
 
-function MetricBadge({ score, label }: { score: number; label: string }) {
+function MetricBadge({ score, label }: { score: number | null; label: string }) {
 	const color =
-		score >= 80
-			? 'text-emerald-700 bg-emerald-100'
-			: score >= 60
-				? 'text-blue-700 bg-blue-100'
-				: score >= 40
-					? 'text-amber-700 bg-amber-100'
-					: 'text-red-700 bg-red-100';
+		score == null
+			? 'text-gray-700 bg-gray-100'
+			: score >= 80
+				? 'text-emerald-700 bg-emerald-100'
+				: score >= 60
+					? 'text-blue-700 bg-blue-100'
+					: score >= 40
+						? 'text-amber-700 bg-amber-100'
+						: 'text-red-700 bg-red-100';
 
 	return (
 		<div className={`flex flex-col items-center text-center p-3 rounded-lg ${color}`}>
-			<div className="text-2xl font-bold">{Math.round(score)}%</div>
+			<div className="text-2xl font-bold">{score == null ? 'N/A' : `${Math.round(score)}%`}</div>
 			<div className="text-xs font-medium">{label}</div>
 		</div>
 	);

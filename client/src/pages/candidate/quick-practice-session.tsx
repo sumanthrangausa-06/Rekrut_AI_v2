@@ -110,6 +110,10 @@ export function QuickPracticeSessionPage() {
 	const [consentStartError, setConsentStartError] = useState<string | null>(null);
 	const [responseText, setResponseText] = useState('');
 	const [submitting, setSubmitting] = useState(false);
+	// #1352: inline error for the text submit path. The handler previously had
+	// no else for !res.success and showed thrown errors only via alert(), so
+	// every failure rendered as a silent no-op.
+	const [submitError, setSubmitError] = useState<string | null>(null);
 	const [coaching, setCoaching] = useState<VideoCoaching | null>(null);
 	// Phase 3 (#447): tracks when Web Speech API is absent so the UI can
 	// show the typed-answer fallback message.
@@ -409,6 +413,12 @@ export function QuickPracticeSessionPage() {
 		}
 
 		setSubmitting(true);
+		setSubmitError(null);
+
+		// Delay before the single auto-retry. The resolved/AbortError retry
+		// paths keep the historical 2000ms; a thrown retryable 503 (#1371)
+		// overrides this with the server's retryAfterMs (fallback 3000ms).
+		let retryDelayMs = 2000;
 
 		// Inner function for the actual API call (allows retry)
 		const doSubmit = async (attempt: number): Promise<boolean> => {
@@ -437,7 +447,7 @@ export function QuickPracticeSessionPage() {
 					},
 				});
 
-				if (res.success) {
+				if (res.success && res.coaching) {
 					setCoaching(res.coaching);
 					stopCamera();
 						return true;
@@ -446,15 +456,40 @@ export function QuickPracticeSessionPage() {
 				if ((res as any).retryable && attempt === 1) {
 					return false; // signal retry needed
 				}
+				// #1357: !success / missing coaching was previously swallowed —
+				// doSubmit returned true with no error shown and the click
+				// rendered as a no-op (the silent branch #1352 fixed for text).
+				// Show the truthful error inline instead.
+				setSubmitError(
+					(res as any).error ||
+						'We could not get AI coaching for that response. Please try again.',
+				);
 				return true; // don't retry on other responses
 			} catch (err: any) {
+				// #1371: a real 503 THROWS through apiCall — it never reaches
+				// the resolved-value retryable check above. Since #1369 the
+				// thrown error preserves the server's status / retryable /
+				// retryAfterMs, so honour the retry signal here: on attempt 1,
+				// wait retryAfterMs (fallback 3000ms) and retry once. If the
+				// retry also fails, the branches below surface the honest error.
+				if (attempt === 1 && err.status === 503 && err.retryable === true) {
+					// #1378: clamp retryAfterMs before it reaches setTimeout —
+					// typeof NaN is 'number', and a negative/huge value must
+					// not pass through. Sane range 0–15000ms, fallback 3000.
+					retryDelayMs =
+						typeof err.retryAfterMs === 'number' && Number.isFinite(err.retryAfterMs)
+							? Math.min(15000, Math.max(0, err.retryAfterMs))
+							: 3000;
+					return false; // signal retry needed
+				}
 				if (err.name === 'AbortError' || abortController.signal.aborted) {
 					if (attempt === 1) return false; // retry on timeout
-					alert(
+					setSubmitError(
 						'Analysis is taking longer than expected. Please try again — the AI may need a moment.',
 					);
 				} else {
-					alert(err.message || 'Failed to get AI coaching. Please try again.');
+					// #1357: inline role="alert" (the #1352 pattern), not only alert()
+					setSubmitError(err.message || 'Failed to get AI coaching. Please try again.');
 				}
 				return true; // don't retry after showing error
 			} finally {
@@ -465,8 +500,9 @@ export function QuickPracticeSessionPage() {
 		// Attempt 1
 		const done = await doSubmit(1);
 		if (!done) {
-			// Auto-retry once after a brief pause
-			await new Promise((r) => setTimeout(r, 2000));
+			// Auto-retry once after a brief pause (retryDelayMs — 2000ms by
+			// default, or the server's retryAfterMs for a thrown 503, #1371)
+			await new Promise((r) => setTimeout(r, retryDelayMs));
 			await doSubmit(2);
 		}
 		setSubmitting(false);
@@ -480,6 +516,7 @@ export function QuickPracticeSessionPage() {
 		}
 
 		setSubmitting(true);
+		setSubmitError(null);
 		const abortController = new AbortController();
 		const fetchTimeout = setTimeout(() => abortController.abort(), 35000);
 		try {
@@ -497,14 +534,20 @@ export function QuickPracticeSessionPage() {
 				},
 			);
 
-			if (res.success) {
+			if (res.success && res.coaching) {
 				setTextCoaching(res.coaching);
+			} else {
+				// #1352: HTTP 200 with success:false / no coaching was previously
+				// swallowed by the missing else — the click looked like a no-op.
+				setSubmitError(
+					'We could not get AI coaching for that response. Please try again.',
+				);
 			}
 		} catch (err: any) {
 			if (err.name === 'AbortError' || abortController.signal.aborted) {
-				alert('Analysis is taking longer than expected. Please try again.');
+				setSubmitError('Analysis is taking longer than expected. Please try again.');
 			} else {
-				alert(err.message || 'Failed to get AI coaching. Please try again.');
+				setSubmitError(err.message || 'Failed to get AI coaching. Please try again.');
 			}
 		} finally {
 			clearTimeout(fetchTimeout);
@@ -736,6 +779,16 @@ export function QuickPracticeSessionPage() {
 							{/* Video Recording Mode */}
 							{responseMode === 'video' && (
 								<div className="mt-4 space-y-4">
+									{/* #1357: video submit failures surface inline (role="alert"),
+									    same pattern #1352 added for text mode. */}
+									{submitError && (
+										<div
+											role="alert"
+											className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700"
+										>
+											{submitError}
+										</div>
+									)}
 									{/* Phase 3 (#447): typed-answer fallback when Web Speech API absent */}
 									{speechNotSupported && (
 										<p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -1143,7 +1196,10 @@ export function QuickPracticeSessionPage() {
 									<label className="text-sm font-medium">Your Response</label>
 									<Textarea
 										value={responseText}
-										onChange={(e) => setResponseText(e.target.value)}
+										onChange={(e) => {
+											setResponseText(e.target.value);
+											if (submitError) setSubmitError(null);
+										}}
 										placeholder="Take your time to craft a thoughtful response. Use the STAR method (Situation, Task, Action, Result) for behavioral questions..."
 										rows={8}
 										className="resize-y"
@@ -1156,6 +1212,15 @@ export function QuickPracticeSessionPage() {
 											<CheckCircle className="h-3.5 w-3.5 text-green-500" />
 										)}
 									</div>
+
+									{submitError && (
+										<div
+											role="alert"
+											className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700"
+										>
+											{submitError}
+										</div>
+									)}
 
 									<div className="flex gap-2 mt-3">
 										<Button
@@ -1459,14 +1524,14 @@ export function QuickPracticeSessionPage() {
 															return (
 																<div
 																	key={item.key}
-																	className={`p-2.5 rounded-lg border ${scoreBg(data.score)}`}
+																	className={`p-2.5 rounded-lg border ${scoreBgSafe(data.score)}`}
 																>
 																	<div className="flex items-center justify-between mb-1">
 																		<span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
 																			<ItemIcon className="h-3 w-3" /> {item.label}
 																		</span>
-																		<span className={`text-sm font-bold ${scoreColor(data.score)}`}>
-																			{data.score}/10
+																		<span className={`text-sm font-bold ${scoreColorSafe(data.score)}`}>
+																			{formatScore(data.score)}
 																		</span>
 																	</div>
 																	<p className="text-[10px] text-muted-foreground leading-relaxed">

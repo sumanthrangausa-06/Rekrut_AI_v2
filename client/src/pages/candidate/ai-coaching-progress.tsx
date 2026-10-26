@@ -672,16 +672,16 @@ export function HistoryTab({
 																				return (
 																					<div
 																						key={item.key}
-																						className={`p-2.5 rounded-lg border ${scoreBg(data.score)}`}
+																						className={`p-2.5 rounded-lg border ${scoreBgSafe(data.score)}`}
 																					>
 																						<div className="flex items-center justify-between mb-1">
 																							<span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
 																								<ItemIcon className="h-3 w-3" /> {item.label}
 																							</span>
 																							<span
-																								className={`text-sm font-bold ${scoreColor(data.score)}`}
+																								className={`text-sm font-bold ${scoreColorSafe(data.score)}`}
 																							>
-																								{data.score}/10
+																								{formatScore(data.score)}
 																							</span>
 																						</div>
 																						<p className="text-[10px] text-muted-foreground leading-relaxed">
@@ -1160,16 +1160,16 @@ export function HistoryTab({
 																			return (
 																				<div
 																					key={item.key}
-																					className={`p-2.5 rounded-lg border ${scoreBg(data.score)}`}
+																					className={`p-2.5 rounded-lg border ${scoreBgSafe(data.score)}`}
 																				>
 																					<div className="flex items-center justify-between mb-1">
 																						<span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
 																							<ItemIcon className="h-3 w-3" /> {item.label}
 																						</span>
 																						<span
-																							className={`text-sm font-bold ${scoreColor(data.score)}`}
+																							className={`text-sm font-bold ${scoreColorSafe(data.score)}`}
 																						>
-																							{data.score}/10
+																							{formatScore(data.score)}
 																						</span>
 																					</div>
 																					<p className="text-[10px] text-muted-foreground leading-relaxed">
