@@ -169,3 +169,24 @@ modules:
 #   Train M1.7 (PR #1874, merge 5d093fb22, deploy dep-dbfcv0navr4c73dlp340 live,
 #   3/3 prod /health agree at 5d093fb22; unauth compliance export 403).
 #   No version bump.
+# - Train 14B (#1867 slice B — honesty / score integrity, staging PR #1877
+#   @ 3ebb45fd2, deploy dep-dbfdtutg1s2s73fe9q40 live): content train, all
+#   full files byte-identical to dev (AI provider layer, qp cascade,
+#   recruiter-screener, screening ownership, interview/QA/job/document
+#   services, tied client pages) + lib/proxy-env.js (panel C1) +
+#   routes/interviews.js mock-end hunk extraction (panel C2, 7 hunks);
+#   migration 275 (expand-only CHECK widening, pending_review) applied via
+#   the deploy's migrate step on the shared DB; fresh-chain migrate proof
+#   on the train tree + 275 read-back. Rex panel BLOCK-as-scoped ->
+#   APPROVE with C1/C2 (both verified first-hand), C3 #1338 basic-fit
+#   accepted as a designed labelled exception, C4 satisfied in-train.
+#   Staging proof 2026-10-25: 3/3 /health agree at 3ebb45fd2; fresh
+#   candidate journey — register 201, unauth screening 401, practice
+#   session 201, submit returned real provider coaching (score 8 citing
+#   the actual answer; the fabricated flat-5 path is deleted), sessions
+#   read-back persisted honestly. Promoted to PRODUCTION via Main Train
+#   M1.8 (PR #1878, merge 868632ad1): first prod deploy dep-dbfe09vavr4c
+#   update_failed — new instance never bound a port in 14 min against a
+#   cold DB (the #1837 class; code proven innocent by a ~10s local boot
+#   of the same tree); retry dep-dbfeb15g1s2s73fftvjg live, 3/3 prod
+#   /health agree at 868632ad1, unauth gates 401. No version bump.
