@@ -45,23 +45,18 @@ createdb journeybaseline
 DATABASE_URL=postgresql://postgres@127.0.0.1:<pg-port>/journeybaseline \
   node migrate.js
 
-# 3. Start the app from a worktree/checkout of the dev tip under test,
-#    with DATABASE_URL pointed at that database (service keys as in the
-#    normal dev environment):
+# 3+4. Start the app and run the suites with the canonical launcher
+#    (issue #1672): it spawns the server, waits for /health, runs the
+#    suite(s), and kills the server it started.
 DATABASE_URL=postgresql://postgres@127.0.0.1:<pg-port>/journeybaseline \
-  PORT=3211 node server.js
+  ./run-journey-rig.sh both
 
-# 4. Run a suite (from this directory; `pg` resolves from the repo's
-#    node_modules when run inside the repo):
-JOURNEY_BASE_URL=http://127.0.0.1:3211 \
-JOURNEY_DB_URL=postgresql://postgres@127.0.0.1:<pg-port>/journeybaseline \
-JOURNEY_OUT=./candidate-evidence.json \
-  node candidate-journey.js
-
-JOURNEY_BASE_URL=http://127.0.0.1:3211 \
-JOURNEY_DB_URL=postgresql://postgres@127.0.0.1:<pg-port>/journeybaseline \
-JOURNEY_OUT=./recruiter-evidence.json \
-  node recruiter-journey.js
+# NEVER start the server under test with NODE_ENV=test: server.js binds
+# its listener only when NODE_ENV !== 'test' (so jest can import the
+# app without a port), so a test-mode server never comes up and the
+# harness waits forever. The launcher pins NODE_ENV=development for
+# the spawned server. Do not copy new harness shapes — extend
+# run-journey-rig.sh.
 ```
 
 Notes:
