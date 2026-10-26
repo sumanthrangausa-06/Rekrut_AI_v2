@@ -1659,7 +1659,6 @@ app.get('/api/admin/modules', requireAdmin, async (_req, res) => {
 			commTemplates,
 			sequenceEnroll,
 			matchResults,
-			mutualMatches,
 			screeningTemplates,
 			screeningSessions,
 			userMemory,
@@ -1899,7 +1898,6 @@ app.get('/api/admin/modules', requireAdmin, async (_req, res) => {
           COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as this_week
         FROM match_results
       `),
-			safeQuery(`SELECT COUNT(*) as total FROM mutual_matches`),
 
 			// ─── Screening (architecture domain group 6 — separate from assessments) ───
 			safeQuery(`SELECT COUNT(*) as total FROM screening_templates`),
@@ -2067,7 +2065,10 @@ app.get('/api/admin/modules', requireAdmin, async (_req, res) => {
 				totalMatches: parseInt(matchResults.total || 0, 10),
 				avgMatchScore: matchResults.avg_score ? parseFloat(matchResults.avg_score) : null,
 				matchesThisWeek: parseInt(matchResults.this_week || 0, 10),
-				mutualMatches: parseInt(mutualMatches.total || 0, 10),
+				// #1152: no stored mutual-match total exists — mutual_matches has
+				// zero writers and mutual fit is computed per-candidate live
+				// (routes/omniscore.js /mutual-matches). Honest null, never a fake 0.
+				mutualMatches: null,
 			},
 			screening: {
 				templates: parseInt(screeningTemplates.total || 0, 10),

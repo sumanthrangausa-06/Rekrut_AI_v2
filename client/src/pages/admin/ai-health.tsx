@@ -339,7 +339,7 @@ interface ModulesData {
 		totalMatches: number;
 		avgMatchScore: number | null;
 		matchesThisWeek: number;
-		mutualMatches: number;
+		mutualMatches: number | null;
 	};
 	screening?: {
 		templates: number;
@@ -2063,7 +2063,10 @@ function ModuleCards({ modules }: { modules: ModulesData }) {
 								label: 'Avg Score',
 								value: mt.avgMatchScore !== null ? `${mt.avgMatchScore}%` : 'N/A',
 							},
-							{ label: 'Mutual', value: mt.mutualMatches },
+							{
+								label: 'Mutual',
+								value: mt.mutualMatches !== null ? mt.mutualMatches : 'N/A',
+							},
 							{ label: 'This Week', value: mt.matchesThisWeek },
 							{ label: '', value: '' },
 							{ label: '', value: '' },
