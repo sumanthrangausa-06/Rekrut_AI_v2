@@ -88,7 +88,7 @@ interface Profile {
 	preferred_job_types?: string[];
 	preferred_locations?: string[];
 	remote_preference?: string;
-	years_experience?: number;
+	years_experience?: number | null;
 	salary_currency?: string;
 	timezone_preference?: string;
 	travel_willingness?: string;
@@ -855,7 +855,10 @@ export function CandidateProfilePage() {
 								)}
 								{profile.years_experience != null && (
 									<span className="flex items-center gap-1">
-										<Clock className="h-3.5 w-3.5" /> {profile.years_experience} years exp.
+										<Clock className="h-3.5 w-3.5" />{' '}
+										{profile.years_experience === 0
+											? 'No experience'
+											: `${profile.years_experience} years exp.`}
 									</span>
 								)}
 							</div>
@@ -2011,7 +2014,7 @@ function PersonalInfoTab({
 		}
 	}
 
-	function updateField(key: string, value: string | number | string[]) {
+	function updateField(key: string, value: string | number | string[] | null) {
 		setProfile((p) => ({ ...p, [key]: value }));
 		if (key === 'linkedin_url') {
 			const url = String(value);
@@ -2284,14 +2287,24 @@ function PersonalInfoTab({
 						<div className="grid gap-4 sm:grid-cols-2">
 							<div>
 								<Label>Years of Experience</Label>
-								<Input
-									type="number"
+								<select
 									value={profile.years_experience ?? ''}
 									onChange={(e) =>
-										updateField('years_experience', parseInt(e.target.value, 10) || 0)
+										updateField(
+											'years_experience',
+											e.target.value === '' ? null : parseInt(e.target.value, 10),
+										)
 									}
-									placeholder="5"
-								/>
+									className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base sm:text-sm"
+								>
+									<option value="">Select…</option>
+									<option value={0}>No experience</option>
+									{Array.from({ length: 50 }, (_, i) => i + 1).map((n) => (
+										<option key={n} value={n}>
+											{n === 1 ? '1 year' : `${n} years`}
+										</option>
+									))}
+								</select>
 							</div>
 							<div>
 								<Label>Remote Preference</Label>
