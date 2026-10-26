@@ -130,3 +130,14 @@ modules:
 #   dep-dbf86pg473hc73c71l10 live, 3/3 prod /health samples agree; prod
 #   /api/billing/plans read-back shows pro $19/$190 audience candidate).
 #   Billing has no versioned module entry; it rides the cv-review Pro surface.
+# - Train 13 (#1852 CV source display + #1859 Pro active-state display,
+#   staging PR #1864 @ da821324e, deploy dep-dbf9cbo473hc73caomdg live):
+#   train-tree gates PASS (cv-source-document-1852 all legs,
+#   pricing-active-state-1859 7/7, #1853/#1843 billing regressions PASS);
+#   staging live proof 2026-10-25 (3/3 /health agree at da821324e; fresh
+#   candidate source-document {document:null}, unauth 401, subscription-
+#   status free read-back); #1852 + #1859 CLOSED. Promoted to PRODUCTION
+#   via Main Train M1.5 (PR #1865, merge ff68fb2b1, deploy
+#   dep-dbf9ep7avr4c73da4ml0 live, 3/3 prod /health samples agree; prod
+#   unauth source-document 401, plans read-back unchanged). Display-only
+#   changes on the cv-review + billing surfaces; no version bump.
