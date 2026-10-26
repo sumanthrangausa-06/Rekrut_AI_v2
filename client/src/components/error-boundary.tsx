@@ -1,5 +1,6 @@
 import { AlertTriangle, Home, RefreshCw } from 'lucide-react';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { isChunkLoadError, tryChunkReload } from '../lib/chunk-recovery';
 
 interface Props {
 	children: ReactNode;
@@ -23,6 +24,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
 	componentDidCatch(error: Error, errorInfo: ErrorInfo) {
 		console.error('[ErrorBoundary] Caught error:', error, errorInfo);
+		// #1868: stale chunk after a deploy — one guarded reload to the
+		// new shell; if it returns false, fall through to the UI below.
+		if (isChunkLoadError(error)) tryChunkReload();
 	}
 
 	render() {
@@ -86,6 +90,9 @@ export class RouteErrorBoundary extends Component<Props, State> {
 
 	componentDidCatch(error: Error, errorInfo: ErrorInfo) {
 		console.error('[RouteErrorBoundary] Page error:', error, errorInfo);
+		// #1868: stale chunk after a deploy — one guarded reload to the
+		// new shell; if it returns false, fall through to the UI below.
+		if (isChunkLoadError(error)) tryChunkReload();
 	}
 
 	render() {
