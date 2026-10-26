@@ -2212,10 +2212,51 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 				);
 			}
 
+			// #1500: disclose held survivals AS A CLASS — count + family
+			// label ONLY. Never held-row details (applicationKeyedHeldDetails
+			// ids/reasons, gap heldTables contents, company, content) in this
+			// persisted note. Absent/undefined counts are 0; when every held
+			// count is 0 the note is byte-identical to the pre-#1500 format.
+			const heldDisclosure = [
+				[erasure?.jobApplicationRowsHeld, 'job application'],
+				[erasure?.applicationKeyedRowsHeld, 'application-keyed'],
+				[erasure?.threatIntelRowsHeld, 'threat-intel'],
+				[erasure?.applicationIpRowsHeld, 'application IP capture'],
+				[erasure?.sessionsHeld, 'interview session'],
+				[erasure?.recordingsHeld, 'interview recording'],
+				[erasure?.framesHeld, 'recording frame'],
+			]
+				.filter(([n]) => n > 0)
+				.map(([n, label]) => `; ${n} ${label} row(s) retained under legal hold`)
+				.join('');
+			// GAP-B..H families are distinct from the top-level counts above
+			// (GAP-A IS the sessions/recordings/frames counts; no gapA object).
+			const gapDisclosure = ['B', 'C', 'D', 'E', 'F', 'G', 'H']
+				.map((x) => [x, erasure?.[`gap${x}`]?.rowsHeld])
+				.filter(([, n]) => n > 0)
+				.map(([x, n]) => `; ${n} held row(s) in erasure family GAP-${x} retained under legal hold`)
+				.join('');
+			// #1502 F-1: rows preserved fail-closed because the hold consult
+			// ERRORED (gap{X}.holdLookupFailed) — no hold was confirmed, so
+			// this class must NOT say "legal hold". Count + family label
+			// only; never lookupFailedTables names or row details.
+			const holdVerificationDisclosure = ['B', 'C', 'D', 'E', 'F', 'G', 'H']
+				.map((x) => [x, erasure?.[`gap${x}`]?.holdLookupFailed])
+				.filter(([, n]) => n > 0)
+				.map(([x, n]) => `; ${n} row(s) in erasure family GAP-${x} retained pending hold verification`)
+				.join('');
+			// #1502 F-2: recordings preserved whole because they could not
+			// be decrypted (top-level recordingsUndecryptable) — erasure of
+			// those recordings is incomplete, not held.
+			const undecryptableDisclosure =
+				erasure?.recordingsUndecryptable > 0
+					? `; ${erasure.recordingsUndecryptable} interview recording(s) retained — undecryptable, erasure incomplete`
+					: '';
+
 			const note =
 				dr.user_id == null
 					? 'Fulfilled with anomaly: user row hard-deleted out-of-band (app never hard-deletes users); DEK-store cleanup unverified — manual review advised'
-					: `Fulfilled by admin: DEK shredded=${erasure.shredded}, embeddings=${erasure.embeddingsDeleted}, searchIndex=${erasure.searchIndexDeleted}`;
+					: `Fulfilled by admin: DEK shredded=${erasure.shredded}, embeddings=${erasure.embeddingsDeleted}, searchIndex=${erasure.searchIndexDeleted}${heldDisclosure}${gapDisclosure}${holdVerificationDisclosure}${undecryptableDisclosure}`;
 			const notes = dr.notes ? `${dr.notes}\n${note}` : note;
 
 			await client.query(
@@ -2393,6 +2434,15 @@ router.post('/legal-holds', requireAdmin, async (req, res) => {
 		res.status(201).json({ success: true, hold });
 	} catch (error) {
 		console.error('[admin/legal-holds] place error:', error.message);
+		// #918: a non-existent subject is the caller's error — surface it
+		// (404 + the reason) instead of burying it in a generic 500.
+		if (error.code === 'SUBJECT_NOT_FOUND') {
+			return res.status(404).json({ error: error.message });
+		}
+		// #1404: a non-integer subject id is likewise the caller's error.
+		if (error.code === 'INVALID_SUBJECT_ID') {
+			return res.status(400).json({ error: error.message });
+		}
 		res.status(500).json({ error: 'Failed to place legal hold' });
 	}
 });
@@ -2411,6 +2461,11 @@ router.post('/legal-holds/:id/release', requireAdmin, async (req, res) => {
 		res.json({ success: true, hold });
 	} catch (error) {
 		console.error('[admin/legal-holds] release error:', error.message);
+		// #1416: an out-of-int4-range / non-integer hold id is the caller's
+		// error — surface it (400 + the reason) instead of a generic 500.
+		if (error.code === 'INVALID_HOLD_ID') {
+			return res.status(400).json({ error: error.message });
+		}
 		res.status(500).json({ error: 'Failed to release legal hold' });
 	}
 });

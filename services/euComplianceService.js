@@ -427,13 +427,11 @@ class EuComplianceService {
 		return upsert.rows[0];
 	}
 
-	static async getExplanationForJob(userId, jobId) {
-		const result = await pool.query(
-			`SELECT * FROM ai_decision_explanations WHERE user_id = $1 AND job_id = $2`,
-			[userId, jobId],
-		);
-		return result.rows[0] || null;
-	}
+	// #1462: getExplanationForJob was deleted — it returned cached
+	// ai_decision_explanations rows raw with no weights_hash check and had
+	// zero callers. Use explainDecisionForJob above: it serves a cached row
+	// only when its weights_hash matches the effective hash, and regenerates
+	// (overwriting) stale rows instead of serving them.
 
 	// ── Human Oversight ──────────────────────────────────────────────────
 
@@ -760,6 +758,13 @@ class EuComplianceService {
 		let storageDeleted = 0;
 		let errors = 0;
 		let heldSkips = 0;
+		// #1303 F-4: failure counts by error CLASS only (GAP-I precedent) —
+		// never a raw message, storage key, or bucket.
+		const errorClassCounts = {};
+		const bumpErrorClass = (cls) => {
+			const key = cls || 'Error';
+			errorClassCounts[key] = (errorClassCounts[key] || 0) + 1;
+		};
 
 		// ponytail: lazy-require to avoid hard deps at module load.
 		const livekitService = require('../server/services/livekit');
@@ -801,6 +806,7 @@ class EuComplianceService {
 						// forever while the object survives). Fail closed.
 						storageOk = false;
 						errors++;
+						bumpErrorClass('storage_path_undecryptable');
 						console.warn(`[retention] storage path undecryptable for recording ${row.id} — leaving for retry`);
 					} else {
 						// #1204: decrypted pointers for #1130-path recordings
@@ -812,6 +818,7 @@ class EuComplianceService {
 							// Q2 fix: don't mark deleted if storage delete soft-failed
 							storageOk = false;
 							errors++;
+							bumpErrorClass(r.reason || 'delete_failed');
 							console.warn(`[retention] storage delete soft-failed for recording ${row.id}: ${r.reason} — leaving for retry`);
 						}
 					}
@@ -836,6 +843,7 @@ class EuComplianceService {
 				// ponytail: best-effort per row — one bad row must not stop the sweep.
 				console.error(`[retention] purgeExpiredRecordings row ${row.id} failed:`, err.message);
 				errors++;
+				bumpErrorClass(err.code || err.name || 'Error');
 			}
 		}
 
@@ -845,11 +853,12 @@ class EuComplianceService {
 			storageDeleted,
 			dryRun,
 			errorCount: errors,
+			errorClassCounts,
 			heldSkips,
 			periodCovered: null, // per-row retention_expires_at; batch range not tracked
 		});
 
-		return { deletedCount, storageDeleted, dryRun, errors, heldSkips };
+		return { deletedCount, storageDeleted, dryRun, errors, errorClassCounts, heldSkips };
 	}
 
 	/**
@@ -892,6 +901,12 @@ class EuComplianceService {
 		let storageDeleted = 0;
 		let errors = 0;
 		let heldSkips = 0;
+		// #1303 F-4: failure counts by error CLASS only (GAP-I precedent).
+		const errorClassCounts = {};
+		const bumpErrorClass = (cls) => {
+			const key = cls || 'Error';
+			errorClassCounts[key] = (errorClassCounts[key] || 0) + 1;
+		};
 		let minExpiresAt = null;
 		let maxExpiresAt = null;
 
@@ -941,6 +956,7 @@ class EuComplianceService {
 						// the audit entry's objectCount. (Dry-run still
 						// counts every enumerated row below.)
 						errors++;
+						bumpErrorClass(r.reason || 'delete_failed');
 						// GAP-J (review F-5): reason + type only — never log
 						// the storage key itself.
 						console.warn(`[retention] storage delete soft-failed for ${row.object_type} object: ${r.reason} — leaving for retry`);
@@ -951,6 +967,7 @@ class EuComplianceService {
 			} catch (err) {
 				console.error(`[retention] purgeRecordingObjects ${row.object_type} object failed:`, err.message);
 				errors++;
+				bumpErrorClass(err.code || err.name || 'Error');
 			}
 		}
 
@@ -960,11 +977,12 @@ class EuComplianceService {
 			storageDeleted,
 			dryRun,
 			errorCount: errors,
+			errorClassCounts,
 			heldSkips,
 			periodCovered: minExpiresAt ? { minExpiresAt, maxExpiresAt } : null,
 		});
 
-		return { purgedCount, storageDeleted, dryRun, errors, heldSkips };
+		return { purgedCount, storageDeleted, dryRun, errors, errorClassCounts, heldSkips };
 	}
 
 	/**
@@ -1163,7 +1181,7 @@ class EuComplianceService {
 	 * Failure here is LOUD (not best-effort-silent): the audit entry IS the
 	 * Art. 5(2) compliance artifact.
 	 */
-	static async _auditPurge({ runType, objectCount, storageDeleted, dryRun, errorCount, periodCovered = null, heldSkips = 0 }) {
+	static async _auditPurge({ runType, objectCount, storageDeleted, dryRun, errorCount, errorClassCounts = {}, periodCovered = null, heldSkips = 0 }) {
 		const auditLogService = require('./auditLogService');
 		await auditLogService.logEvent({
 			eventType: auditLogService.EVENT_TYPES.STATUS_CHANGE,
@@ -1178,6 +1196,9 @@ class EuComplianceService {
 				storageDeleted,
 				dryRun: !!dryRun,
 				errorCount,
+				// #1303 F-4: { errorClass: count } — classes/codes only,
+				// never raw messages, storage keys, or bucket names.
+				errorClassCounts,
 				heldSkips, // #799: held rows visibly skipped, never silently retained
 				periodCovered, // { minExpiresAt, maxExpiresAt } per batch
 			},

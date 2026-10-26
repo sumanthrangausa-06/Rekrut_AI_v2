@@ -31,6 +31,10 @@ jest.mock('../../../lib/auth', () => ({
 	verifyToken: jest.fn(() => null),
 	authMiddleware: jest.fn((_req, _res, next) => next()),
 	requireRole: () => (_req, _res, next) => next(),
+	// #1456: routes/admin.js calls hashPassword at module load
+	// (initAdminCredentials, admin.js:96) — mock must match the real
+	// lib/auth export surface, mirroring admin-session-401-1224.
+	hashPassword: jest.fn(async () => 'hash'),
 }));
 jest.mock('../../../lib/db', () => ({
 	query: jest.fn(),
@@ -134,6 +138,52 @@ describe('legal-hold admin API', () => {
 		const res = await request(makeApp()).post('/api/admin/legal-holds').send({ userId: 7 });
 		expect(res.status).toBe(400);
 		expect(legalHold.placeHold).not.toHaveBeenCalled();
+	});
+
+	test('#918: a non-existent subject is surfaced as 404 with the reason, never a silent success or a buried 500', async () => {
+		const err = new Error('legalHold.placeHold: subject user 999 does not exist');
+		err.code = 'SUBJECT_NOT_FOUND';
+		err.status = 404;
+		legalHold.placeHold.mockRejectedValue(err);
+		const res = await request(makeApp())
+			.post('/api/admin/legal-holds')
+			.send({ userId: 999, reason: 'litigation' });
+		expect(res.status).toBe(404);
+		expect(res.body.error).toMatch(/user 999 does not exist/);
+	});
+
+	test('#1404: a non-integer subject id is surfaced as 400 with the reason, never a buried 500', async () => {
+		const err = new Error('legalHold.placeHold: userId must be an integer id (received "abc")');
+		err.code = 'INVALID_SUBJECT_ID';
+		err.status = 400;
+		legalHold.placeHold.mockRejectedValue(err);
+		const res = await request(makeApp())
+			.post('/api/admin/legal-holds')
+			.send({ userId: 'abc', reason: 'litigation' });
+		expect(res.status).toBe(400);
+		expect(res.body.error).toMatch(/must be an integer/);
+	});
+
+	test('#1409: an out-of-int4-range company id is surfaced as 400 via the same INVALID_SUBJECT_ID mapping', async () => {
+		const err = new Error('legalHold.placeHold: companyId must be an integer id (received 2147483648)');
+		err.code = 'INVALID_SUBJECT_ID';
+		err.status = 400;
+		legalHold.placeHold.mockRejectedValue(err);
+		const res = await request(makeApp())
+			.post('/api/admin/legal-holds')
+			.send({ companyId: 2147483648, reason: 'litigation' });
+		expect(res.status).toBe(400);
+		expect(res.body.error).toMatch(/must be an integer/);
+	});
+
+	test('#1416: an out-of-int4-range hold id is surfaced as 400 via the INVALID_HOLD_ID mapping, never a buried 500', async () => {
+		const err = new Error('legalHold.releaseHold: holdId must be an integer id (received 2147483648)');
+		err.code = 'INVALID_HOLD_ID';
+		err.status = 400;
+		legalHold.releaseHold.mockRejectedValue(err);
+		const res = await request(makeApp()).post('/api/admin/legal-holds/2147483648/release').send({});
+		expect(res.status).toBe(400);
+		expect(res.body.error).toMatch(/must be an integer/);
 	});
 
 	test('admin releases a hold: 200 with released row', async () => {

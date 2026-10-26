@@ -407,7 +407,7 @@ describe('#1123 GAP-D erasePersonalData — BGV & onboarding family', () => {
 		);
 	});
 
-	test('per-row hold-lookup failure fails closed: the row is skipped + counted, erasure does not throw', async () => {
+	test('per-row hold-lookup failure fails closed: the row is skipped + counted as lookup-failed (#1154 — never as held), erasure does not throw', async () => {
 		const scenario = fullScenario();
 		scenario.offers = [
 			{ id: 95, company_id: 4, signature_url: PATTERN_OFFER_URL },
@@ -420,8 +420,68 @@ describe('#1123 GAP-D erasePersonalData — BGV & onboarding family', () => {
 		const updates = callsMatching(client, /UPDATE offers/i);
 		expect(updates).toHaveLength(1);
 		expect(updates[0][1]).toEqual([7, [96]]);
-		expect(result.gapD.rowsHeld).toBeGreaterThanOrEqual(1);
+		// #1154 truthfulness: the failed row is preserved (retention-safe)
+		// but the audit record must NOT claim a legal hold exists for it.
+		expect(result.gapD.holdLookupFailed).toBe(1);
+		expect(result.gapD.lookupFailedTables).toEqual(['offers']);
+		expect(result.gapD.rowsHeld).toBe(0);
+		expect(result.gapD.heldTables).toEqual([]);
 		expect(result.storageKeys).not.toContain(PATTERN_OFFER_URL);
+	});
+
+	test('#1154 signature cluster: a document whose hold lookup fails survives as lookup-failed, never as held', async () => {
+		const scenario = fullScenario();
+		scenario.sigDocs = [{ id: 301, company_id: 4, created_by: 7, file_url: PATTERN_SIGDOC_URL }];
+		const client = makeClient({ ...scenario, errorCompanies: new Set([4]) });
+
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		// Document, its requests and its party all survive untouched:
+		// no delete, no party redaction, no hash/audit deletes.
+		expect(callsMatching(client, /DELETE FROM signature_documents/i)).toHaveLength(0);
+		expect(callsMatching(client, /DELETE FROM signature_requests/i)).toHaveLength(0);
+		expect(callsMatching(client, /DELETE FROM signing_parties/i)).toHaveLength(0);
+		expect(callsMatching(client, /UPDATE signing_parties/i)).toHaveLength(0);
+		expect(callsMatching(client, /DELETE FROM document_hash_records/i)).toHaveLength(0);
+		expect(callsMatching(client, /DELETE FROM signature_audit_events/i)).toHaveLength(0);
+		expect(result.storageKeys).not.toContain(PATTERN_SIGDOC_URL);
+		// Exactly three lookup-failed rows: the document, its request,
+		// and its party (which follows its failed document's bucket).
+		expect(result.gapD.holdLookupFailed).toBe(3);
+		expect(result.gapD.lookupFailedTables).toEqual([
+			'signature_documents',
+			'signature_requests',
+			'signing_parties',
+		]);
+		expect(result.gapD.rowsHeld).toBe(0);
+		expect(result.gapD.heldTables).toEqual([]);
+	});
+
+	test('#1154 child split: tasks of a lookup-failed plan count as lookup-failed, never as held', async () => {
+		const client = makeClient({
+			plans: [
+				{ id: 51, company_id: 4 },
+				{ id: 52, company_id: 3 },
+			],
+			tasks: [
+				{ id: 61, plan_id: 51 },
+				{ id: 62, plan_id: 52 },
+			],
+			errorCompanies: new Set([4]),
+		});
+
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		expect(callsMatching(client, /DELETE FROM onboarding_tasks/i)[0][1]).toEqual([[62]]);
+		expect(callsMatching(client, /DELETE FROM onboarding_plans/i)[0][1]).toEqual([7, [52]]);
+		// (No onboardingPlans/onboardingTasks count assertions: this
+		// suite's fake answers DELETE FROM onboarding_* via its SELECT
+		// router, so rowCount there is the scenario length, not the
+		// deleted count — the DELETE params above pin the behaviour.)
+		expect(result.gapD.holdLookupFailed).toBe(2);
+		expect(result.gapD.lookupFailedTables).toEqual(['onboarding_plans', 'onboarding_tasks']);
+		expect(result.gapD.rowsHeld).toBe(0);
+		expect(result.gapD.heldTables).toEqual([]);
 	});
 
 	test('signature split: surviving company document — candidate request deleted, party redacted (not deleted), audit chain untouched + residual counted', async () => {
