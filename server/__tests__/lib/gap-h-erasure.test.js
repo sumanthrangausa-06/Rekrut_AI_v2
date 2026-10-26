@@ -455,42 +455,30 @@ describe('#1127 GAP-H erasePersonalData — consent IP/UA redaction (K-1)', () =
 		expect(callsMatching(client, /^ROLLBACK TO SAVEPOINT/i)).toHaveLength(0);
 	});
 
-	test('autocommit guard: SAVEPOINT probe fails 25P01 (no surrounding transaction) ⇒ consults run bare and the erasure still completes with the three-way partition', async () => {
+	test('autocommit guard: SAVEPOINT probe fails 25P01 (no surrounding transaction) ⇒ #1396 entry guard refuses before any data statement', async () => {
+		// Pre-#1396 this scenario exercised the contained consults'
+		// bare (autocommit) mode and the erasure completed. #1396 makes
+		// that caller shape impossible: the entry transaction-state
+		// probe is the FIRST statement, its 25P01 converts to the #1343
+		// typed refusal, and no hold consult or GAP-H statement ever
+		// runs. The contained consults' bare-mode branch remains as
+		// defence-in-depth but is unreachable via this entry point.
 		const client = makeClient({
 			...fullScenario(),
 			savepointErrorCode: '25P01',
 			gapHHoldActions: ['none', 'error', 'none', 'none', 'none'],
 		});
-		const result = await erasureService.erasePersonalData(7, { client });
-
-		// In bare mode the SAVEPOINT probe is attempted per row but no
-		// RELEASE / ROLLBACK TO ever follows — and none is needed: in
-		// autocommit a throwing consult cannot poison later statements
-		// (each is its own implicit transaction).
-		expect(callsMatching(client, /^SAVEPOINT/i)).toHaveLength(5);
-		expect(callsMatching(client, /^RELEASE SAVEPOINT/i)).toHaveLength(0);
-		expect(callsMatching(client, /^ROLLBACK TO SAVEPOINT/i)).toHaveLength(0);
-		expect(gapHEvents(client)).toEqual([
-			'SELECT_RECORDS',
-			'SAVEPOINT', 'HOLD',
-			'SAVEPOINT', 'HOLD',
-			'UPDATE_RECORDS',
-			'SELECT_HISTORY',
-			'SAVEPOINT', 'HOLD',
-			'SAVEPOINT', 'HOLD',
-			'SAVEPOINT', 'HOLD',
-			'UPDATE_HISTORY',
-		]);
-		// The throwing bare consult still lands in the third bucket and
-		// the erasure completes with correct counters.
-		expect(callsMatching(client, recordsUpdateRe)[0][1]).toEqual([7, [11]]);
-		expect(result.gapH).toMatchObject({
-			consentRecordsRedacted: 1,
-			consentRecordsLookupFailed: 1,
-			consentHistoryRedacted: 3,
-			holdLookupFailed: 1,
-			lookupFailedTables: ['consent_records'],
-		});
+		const err = await erasureService
+			.erasePersonalData(7, { client })
+			.catch((e) => e);
+		expect(err).toBeInstanceOf(Error);
+		expect(err.name).toBe('ErasureTransactionRequiredError');
+		expect(err.code).toBe('ERASURE_TRANSACTION_REQUIRED');
+		// Exactly one statement was attempted — the guard probe itself.
+		expect(client.query.mock.calls).toHaveLength(1);
+		expect(callsMatching(client, /^SAVEPOINT erasure_tx_guard_probe/i)).toHaveLength(1);
+		expect(callsMatching(client, /FROM consent_records/i)).toHaveLength(0);
+		expect(callsMatching(client, /UPDATE consent_/i)).toHaveLength(0);
 	});
 
 	test('savepoint probe failure with a NON-25P01 code is not swallowed: the erasure aborts fail-closed (e.g. caller transaction already aborted)', async () => {

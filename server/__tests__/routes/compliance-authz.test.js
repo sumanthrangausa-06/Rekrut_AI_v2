@@ -91,18 +91,24 @@ jest.mock('../../../services/auditLogService', () => ({
 
 const mockExplainDecisionForJob = jest.fn();
 const mockGetConsentHistory = jest.fn();
+const mockGetBiasMetricsForJob = jest.fn();
+const mockCalculateBiasMetricsForJob = jest.fn();
+const mockCalculateFourFifthsRule = jest.fn();
+const mockGetOverrideById = jest.fn();
+const mockGetOverridesForJob = jest.fn();
+const mockRecordHumanOverride = jest.fn();
 jest.mock('../../../services/euComplianceService', () => ({
 	explainDecisionForJob: (...args) => mockExplainDecisionForJob(...args),
 	getConsentHistory: (...args) => mockGetConsentHistory(...args),
 	classifyJobRisk: jest.fn(),
 	getJobRiskClassification: jest.fn(),
 	listJobRiskClassifications: jest.fn(async () => ({ rows: [] })),
-	calculateBiasMetricsForJob: jest.fn(async () => []),
-	getBiasMetricsForJob: jest.fn(async () => []),
+	calculateBiasMetricsForJob: (...args) => mockCalculateBiasMetricsForJob(...args),
+	getBiasMetricsForJob: (...args) => mockGetBiasMetricsForJob(...args),
 	listFlaggedBiasMetrics: jest.fn(async () => ({ rows: [] })),
-	recordHumanOverride: jest.fn(),
-	getOverridesForJob: jest.fn(async () => ({ rows: [] })),
-	getOverrideById: jest.fn(),
+	recordHumanOverride: (...args) => mockRecordHumanOverride(...args),
+	getOverridesForJob: (...args) => mockGetOverridesForJob(...args),
+	getOverrideById: (...args) => mockGetOverrideById(...args),
 	setRetentionPolicy: jest.fn(),
 	executePurge: jest.fn(async () => []),
 	recordConsent: jest.fn(),
@@ -119,9 +125,10 @@ jest.mock('../../../services/biasDetection', () => ({
 		distributionAnalysis: { anomalies: [] },
 	})),
 	getReports: jest.fn(async () => []),
-	calculateFourFifthsRule: jest.fn(async () => ({})),
+	calculateFourFifthsRule: (...args) => mockCalculateFourFifthsRule(...args),
 }));
 
+const appealInserts = [];
 const db = require('../../../lib/db');
 
 const COMPANY_A = 5;
@@ -138,8 +145,21 @@ const applications = new Map([
 	[101, { id: 101, candidate_id: 22, company_id: COMPANY_A, job_id: 50 }],
 	[102, { id: 102, candidate_id: 1, company_id: COMPANY_A, job_id: 50 }],
 	[103, { id: 103, candidate_id: 23, company_id: COMPANY_A, job_id: 50 }],
+	// #1327: application 104's own company_id (B) disagrees with its job's
+	// company (job 50 is company A) — application↔job company inconsistency.
+	// Candidate 99 is deliberately unused elsewhere: using candidate 21
+	// here would create a candidate↔company-B linkage row and break the
+	// #920 unlinked-company tests above.
+	[104, { id: 104, candidate_id: 99, company_id: COMPANY_B, job_id: 50 }],
 ]);
-const jobs = new Map([[50, { id: 50, company_id: COMPANY_A }]]);
+const jobs = new Map([
+	[50, { id: 50, company_id: COMPANY_A }],
+	[51, { id: 51, company_id: null }],
+	// #1327: job 52 is also company A, but no application points at it —
+	// an owning-company caller naming it with application 100 is an
+	// application↔job mismatch, not a company-gate failure.
+	[52, { id: 52, company_id: COMPANY_A }],
+]);
 
 // #920: candidate 21's compliance_audit_trail events span two companies —
 // two events for company A (the linked company) and one for company B.
@@ -152,10 +172,15 @@ const AUDIT_EVENTS = [
 db.query.mockImplementation(async (sql, params = []) => {
 	const normalized = sql.toLowerCase().replace(/\s+/g, ' ').trim();
 
-	if (normalized.startsWith('select candidate_id, company_id from job_applications')) {
+	if (
+		normalized.startsWith('select candidate_id, company_id') &&
+		normalized.includes('from job_applications')
+	) {
 		const row = applications.get(Number(params[0]));
 		return {
-			rows: row ? [{ candidate_id: row.candidate_id, company_id: row.company_id }] : [],
+			rows: row
+				? [{ candidate_id: row.candidate_id, company_id: row.company_id, job_id: row.job_id }]
+				: [],
 			rowCount: row ? 1 : 0,
 		};
 	}
@@ -187,6 +212,10 @@ db.query.mockImplementation(async (sql, params = []) => {
 		const offset = params[idx++] ?? 0;
 		const sliced = rows.slice(offset, offset + limit);
 		return { rows: sliced, rowCount: sliced.length };
+	}
+	if (normalized.startsWith('insert into score_appeals')) {
+		appealInserts.push(params);
+		return { rows: [{ id: 900 }], rowCount: 1 };
 	}
 	if (normalized.includes('from consent_records where user_id =')) {
 		const rows =
@@ -269,12 +298,41 @@ beforeEach(() => {
 		23: CONVERTED_RECRUITER,
 	};
 	jest.clearAllMocks();
+	appealInserts.length = 0;
 	mockExplainDecision.mockResolvedValue(JSON.parse(JSON.stringify(FULL_EXPLANATION)));
 	mockExplainOmniScore.mockResolvedValue({ overall_score: 72, score_breakdown: {} });
 	mockExplainDecisionForJob.mockResolvedValue({ user_id: 21, job_id: 50, factor_breakdowns: [] });
 	mockAuditQuery.mockResolvedValue([{ id: 1, action_type: 'login' }]);
 	mockAuditExportLogs.mockResolvedValue([{ id: 1, action_type: 'login' }]);
 	mockGetConsentHistory.mockResolvedValue({ history: [{ id: 1 }], total: 1 });
+	mockGetBiasMetricsForJob.mockResolvedValue([
+		{ job_id: 50, metric_type: 'selection_rate', flagged: false },
+	]);
+	mockCalculateFourFifthsRule.mockResolvedValue({ job_id: 50, four_fifths_results: [] });
+	mockCalculateBiasMetricsForJob.mockResolvedValue([]);
+	// #1113: override 200 is about candidate 21, on job 50 (company A),
+	// recorded by recruiter A. Override 201 is on the same company-A job
+	// but was recorded by recruiter B (actor-self case).
+	const overrides = new Map([
+		[200, { id: 200, application_id: 100, user_id: 21, job_id: 50, overridden_by: 10, reason: 'OVERRIDE_REASON_INTERNAL' }],
+		[201, { id: 201, application_id: 100, user_id: 21, job_id: 50, overridden_by: 11, reason: 'OVERRIDE_REASON_INTERNAL' }],
+		[202, { id: 202, application_id: 100, user_id: 21, job_id: 9999, overridden_by: 10, reason: 'OVERRIDE_REASON_INTERNAL' }],
+		[203, { id: 203, application_id: 100, user_id: 21, job_id: 51, overridden_by: 10, reason: 'OVERRIDE_REASON_INTERNAL' }],
+	]);
+	mockGetOverrideById.mockImplementation(async (id) => overrides.get(Number(id)) || null);
+	mockGetOverridesForJob.mockResolvedValue({
+		rows: [{ id: 200, job_id: 50, reason: 'OVERRIDE_REASON_INTERNAL' }],
+		total: 1,
+	});
+	// #1327: the write-side service mock records every call — a denied
+	// caller must never reach it (the service is what INSERTs).
+	mockRecordHumanOverride.mockResolvedValue({
+		id: 300,
+		application_id: 100,
+		user_id: 21,
+		job_id: 50,
+		reason: 'reviewed manually',
+	});
 	// #920 service-contract mock: an honest implementation of the ruled
 	// contract — when the caller passes a companyId the service returns
 	// only that company's events and the scoped total; otherwise the
@@ -840,5 +898,425 @@ describe('services/auditLogService.getCandidateDecisions (actual module) — com
 		const res = await actualAuditLogService.getCandidateDecisions(21, { limit: 500, offset: 0 });
 		expect(res.total).toBe(AUDIT_EVENTS.length);
 		expect(res.rows.map((r) => r.id)).toEqual([1, 2, 3]);
+	});
+});
+
+describe('bias endpoints — job↔company authorisation (#1112)', () => {
+	const metricsUrl = '/api/compliance/bias/metrics/50';
+	const fourFifthsUrl = '/api/compliance/bias/four-fifths/50';
+
+	test.each([
+		['recruiter', 11],
+		['employer', 13],
+		['hiring_manager', 15],
+	])('GET /bias/metrics/:jobId: foreign-company %s → 403, service never reached', async (_l, uid) => {
+		const res = await request(app).get(metricsUrl).set(as(uid));
+		expect(res.status).toBe(403);
+		expect(mockGetBiasMetricsForJob).not.toHaveBeenCalled();
+	});
+
+	test.each([
+		['recruiter', 11],
+		['employer', 13],
+		['hiring_manager', 15],
+	])('GET /bias/four-fifths/:jobId: foreign-company %s → 403, service never reached', async (_l, uid) => {
+		const res = await request(app).get(fourFifthsUrl).set(as(uid));
+		expect(res.status).toBe(403);
+		expect(mockCalculateFourFifthsRule).not.toHaveBeenCalled();
+	});
+
+	test('candidate → 403 on both endpoints, services never reached', async () => {
+		expect((await request(app).get(metricsUrl).set(as(21))).status).toBe(403);
+		expect((await request(app).get(fourFifthsUrl).set(as(21))).status).toBe(403);
+		expect(mockGetBiasMetricsForJob).not.toHaveBeenCalled();
+		expect(mockCalculateFourFifthsRule).not.toHaveBeenCalled();
+	});
+
+	test('hiring role with company_id = null → 403 fail-closed on both endpoints', async () => {
+		expect((await request(app).get(metricsUrl).set(as(16))).status).toBe(403);
+		expect((await request(app).get(fourFifthsUrl).set(as(16))).status).toBe(403);
+		expect(mockGetBiasMetricsForJob).not.toHaveBeenCalled();
+		expect(mockCalculateFourFifthsRule).not.toHaveBeenCalled();
+	});
+
+	test('job with company_id = null → 403 fail-closed (explicit null guard), services never reached', async () => {
+		expect((await request(app).get('/api/compliance/bias/metrics/51').set(as(10))).status).toBe(403);
+		expect((await request(app).get('/api/compliance/bias/four-fifths/51').set(as(10))).status).toBe(403);
+		expect(mockGetBiasMetricsForJob).not.toHaveBeenCalled();
+		expect(mockCalculateFourFifthsRule).not.toHaveBeenCalled();
+	});
+
+	test('non-existent job → 403 for a non-admin (fail-closed), services never reached', async () => {
+		expect((await request(app).get('/api/compliance/bias/metrics/9999').set(as(10))).status).toBe(403);
+		expect((await request(app).get('/api/compliance/bias/four-fifths/9999').set(as(10))).status).toBe(403);
+		expect(mockGetBiasMetricsForJob).not.toHaveBeenCalled();
+		expect(mockCalculateFourFifthsRule).not.toHaveBeenCalled();
+	});
+
+	test('owning-company recruiter → 200 on both endpoints', async () => {
+		const metrics = await request(app).get(metricsUrl).set(as(10));
+		expect(metrics.status).toBe(200);
+		expect(metrics.body.metrics).toHaveLength(1);
+		expect(mockGetBiasMetricsForJob).toHaveBeenCalledWith(50);
+		const ff = await request(app).get(fourFifthsUrl).set(as(10));
+		expect(ff.status).toBe(200);
+		expect(ff.body.job_id).toBe(50);
+		expect(mockCalculateFourFifthsRule).toHaveBeenCalledWith(50, expect.any(Array));
+	});
+
+	test('owning-company hiring_manager → 200; admin → 200 on both endpoints (not job-scoped)', async () => {
+		expect((await request(app).get(metricsUrl).set(as(14))).status).toBe(200);
+		expect((await request(app).get(fourFifthsUrl).set(as(14))).status).toBe(200);
+		expect((await request(app).get(metricsUrl).set(as(1))).status).toBe(200);
+		expect((await request(app).get(fourFifthsUrl).set(as(1))).status).toBe(200);
+	});
+
+	test('unauthenticated → 401 on both endpoints', async () => {
+		expect((await request(app).get(metricsUrl)).status).toBe(401);
+		expect((await request(app).get(fourFifthsUrl)).status).toBe(401);
+	});
+});
+
+describe('POST /bias/analyze/:jobId — same ownership gate (security-reviewer HIGH residual on #1112)', () => {
+	const url = '/api/compliance/bias/analyze/50';
+	test('foreign-company recruiter → 403, calculate service never reached', async () => {
+		const res = await request(app).post(url).set(as(11)).send({});
+		expect(res.status).toBe(403);
+		expect(mockCalculateBiasMetricsForJob).not.toHaveBeenCalled();
+	});
+	test('owning-company recruiter → 200, service reached; admin → 200', async () => {
+		const own = await request(app).post(url).set(as(10)).send({});
+		expect(own.status).toBe(200);
+		expect(mockCalculateBiasMetricsForJob).toHaveBeenCalledWith(50, expect.any(Object));
+		expect((await request(app).post(url).set(as(1)).send({})).status).toBe(200);
+	});
+	test('candidate → 403 (existing role gate), service never reached', async () => {
+		const res = await request(app).post(url).set(as(21)).send({});
+		expect(res.status).toBe(403);
+		expect(mockCalculateBiasMetricsForJob).not.toHaveBeenCalled();
+	});
+});
+
+describe('GET /overrides/:id — company linkage authorisation (#1113)', () => {
+	const url = '/api/compliance/overrides/200';
+
+	test.each([
+		['recruiter', 11],
+		['employer', 13],
+		['hiring_manager', 15],
+	])('unrelated-company %s → 403, no override fields in response', async (_l, uid) => {
+		const res = await request(app).get(url).set(as(uid));
+		expect(res.status).toBe(403);
+		expect(JSON.stringify(res.body)).not.toContain('OVERRIDE_REASON_INTERNAL');
+	});
+
+	test('candidate the override is about → 403 (internal hiring record, no shaped variant)', async () => {
+		const res = await request(app).get(url).set(as(21));
+		expect(res.status).toBe(403);
+		expect(JSON.stringify(res.body)).not.toContain('OVERRIDE_REASON_INTERNAL');
+	});
+
+	test('hiring role with company_id = null → 403 fail-closed', async () => {
+		const res = await request(app).get(url).set(as(16));
+		expect(res.status).toBe(403);
+	});
+
+	test('owning-company recruiter → 200 with the override', async () => {
+		const res = await request(app).get(url).set(as(10));
+		expect(res.status).toBe(200);
+		expect(res.body.override.id).toBe(200);
+		expect(res.body.override.reason).toBe('OVERRIDE_REASON_INTERNAL');
+	});
+
+	test('owning-company hiring_manager → 200; owning-company employer → 200; admin → 200', async () => {
+		expect((await request(app).get(url).set(as(14))).status).toBe(200);
+		expect((await request(app).get(url).set(as(12))).status).toBe(200);
+		expect((await request(app).get(url).set(as(1))).status).toBe(200);
+	});
+
+	test("the override's actor from ANOTHER company → 403 (security-reviewer MEDIUM-1: actor-self dropped — its only incremental reach was cross-company/changed-role; a same-company actor passes via the owning-company path)", async () => {
+		const res = await request(app).get('/api/compliance/overrides/201').set(as(11));
+		expect(res.status).toBe(403);
+		expect(JSON.stringify(res.body)).not.toContain('OVERRIDE_REASON_INTERNAL');
+	});
+
+	test('override whose job row is missing → 403 fail-closed', async () => {
+		const res = await request(app).get('/api/compliance/overrides/202').set(as(10));
+		expect(res.status).toBe(403);
+	});
+
+	test("override whose job has company_id = null → 403 fail-closed (explicit null guard, not coercion)", async () => {
+		const res = await request(app).get('/api/compliance/overrides/203').set(as(10));
+		expect(res.status).toBe(403);
+	});
+
+	test('non-existent override → 404 unchanged', async () => {
+		const res = await request(app).get('/api/compliance/overrides/9999').set(as(10));
+		expect(res.status).toBe(404);
+	});
+
+	test('unauthenticated → 401', async () => {
+		expect((await request(app).get(url)).status).toBe(401);
+	});
+});
+
+describe('GET /overrides/job/:jobId — same company gate (security-reviewer HIGH-R1 residual on #1113)', () => {
+	const url = '/api/compliance/overrides/job/50';
+	test('foreign-company recruiter → 403, service never reached', async () => {
+		const res = await request(app).get(url).set(as(11));
+		expect(res.status).toBe(403);
+		expect(mockGetOverridesForJob).not.toHaveBeenCalled();
+	});
+	test('owning-company recruiter → 200; admin → 200 (not job-scoped)', async () => {
+		const own = await request(app).get(url).set(as(10));
+		expect(own.status).toBe(200);
+		expect(own.body.total).toBe(1);
+		expect(mockGetOverridesForJob).toHaveBeenCalledWith(50, expect.any(Object));
+		expect((await request(app).get(url).set(as(1))).status).toBe(200);
+	});
+	test('candidate → 403 (existing role gate), service never reached', async () => {
+		const res = await request(app).get(url).set(as(21));
+		expect(res.status).toBe(403);
+		expect(mockGetOverridesForJob).not.toHaveBeenCalled();
+	});
+});
+
+describe('POST /overrides — write-side company + consistency authorisation (#1327, HIGH-R2 from #1113)', () => {
+	const url = '/api/compliance/overrides';
+	const validBody = {
+		applicationId: 100,
+		userId: 21,
+		jobId: 50,
+		originalScore: 40,
+		newScore: 55,
+		reason: 'reviewed manually',
+	};
+
+	test.each([
+		['recruiter', 11],
+		['employer', 13],
+		['hiring_manager', 15],
+	])(
+		'foreign-company %s creating an override on a company-A application → 403, service (INSERT) never reached',
+		async (_l, uid) => {
+			const res = await request(app).post(url).set(as(uid)).send(validBody);
+			expect(res.status).toBe(403);
+			expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+		},
+	);
+
+	test('hiring role with company_id = null → 403 fail-closed, service never reached', async () => {
+		const res = await request(app).post(url).set(as(16)).send(validBody);
+		expect(res.status).toBe(403);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test('owning-company caller naming a job their company does not own in the body (missing job) → 403, service never reached', async () => {
+		const res = await request(app)
+			.post(url)
+			.set(as(10))
+			.send({ ...validBody, jobId: 9999 });
+		expect(res.status).toBe(403);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test('inconsistent: application belongs to a different job than jobId (both company-A) → 400, service never reached', async () => {
+		const res = await request(app)
+			.post(url)
+			.set(as(10))
+			.send({ ...validBody, jobId: 52 });
+		expect(res.status).toBe(400);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test('inconsistent: userId is not the application candidate → 400, service never reached', async () => {
+		const res = await request(app)
+			.post(url)
+			.set(as(10))
+			.send({ ...validBody, userId: 22 });
+		expect(res.status).toBe(400);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test('inconsistent: applicationId belongs to another candidate (application 101, userId 21) → 400, service never reached', async () => {
+		const res = await request(app)
+			.post(url)
+			.set(as(10))
+			.send({ ...validBody, applicationId: 101 });
+		expect(res.status).toBe(400);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test("inconsistent: application's company disagrees with the job's company (application 104) → 400, service never reached", async () => {
+		const res = await request(app)
+			.post(url)
+			.set(as(10))
+			.send({ ...validBody, applicationId: 104, userId: 99 });
+		expect(res.status).toBe(400);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test('inconsistent: non-existent applicationId → 400 (same as mismatch, no oracle), service never reached', async () => {
+		const res = await request(app)
+			.post(url)
+			.set(as(10))
+			.send({ ...validBody, applicationId: 9999 });
+		expect(res.status).toBe(400);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test('non-integer applicationId → 400, service never reached', async () => {
+		const res = await request(app)
+			.post(url)
+			.set(as(10))
+			.send({ ...validBody, applicationId: 'abc' });
+		expect(res.status).toBe(400);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test('partially-numeric applicationId "100abc" → 400, service never reached (security-reviewer LOW-1: strict Number() coercion, no parseInt aliasing)', async () => {
+		const res = await request(app)
+			.post(url)
+			.set(as(10))
+			.send({ ...validBody, applicationId: '100abc' });
+		expect(res.status).toBe(400);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test('job with company_id = null (job 51) → 403 fail-closed, service never reached (security-reviewer MEDIUM-1)', async () => {
+		const res = await request(app)
+			.post(url)
+			.set(as(10))
+			.send({ ...validBody, jobId: 51 });
+		expect(res.status).toBe(403);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test('admin naming a non-existent job → 400, service never reached (security-reviewer MEDIUM-1)', async () => {
+		const res = await request(app)
+			.post(url)
+			.set(as(1))
+			.send({ ...validBody, jobId: 9999 });
+		expect(res.status).toBe(400);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test('owning-company recruiter → 201 unchanged, service called with the parsed IDs and the caller as overriddenBy', async () => {
+		const res = await request(app).post(url).set(as(10)).send(validBody);
+		expect(res.status).toBe(201);
+		expect(res.body.success).toBe(true);
+		expect(res.body.override.id).toBe(300);
+		expect(mockRecordHumanOverride).toHaveBeenCalledWith(
+			expect.objectContaining({
+				applicationId: 100,
+				userId: 21,
+				jobId: 50,
+				overriddenBy: 10,
+			}),
+		);
+	});
+
+	test('owning-company employer / hiring_manager → 201; admin → 201 (not job-scoped, consistency still applies)', async () => {
+		expect((await request(app).post(url).set(as(12)).send(validBody)).status).toBe(201);
+		expect((await request(app).post(url).set(as(14)).send(validBody)).status).toBe(201);
+		expect((await request(app).post(url).set(as(1)).send(validBody)).status).toBe(201);
+	});
+
+	test('admin with inconsistent body IDs → 400, service never reached (consistency is not company-scoped)', async () => {
+		const res = await request(app)
+			.post(url)
+			.set(as(1))
+			.send({ ...validBody, userId: 22 });
+		expect(res.status).toBe(400);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test('candidate → 403 (existing role gate), service never reached', async () => {
+		const res = await request(app).post(url).set(as(21)).send(validBody);
+		expect(res.status).toBe(403);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test('missing required fields → 400 unchanged, service never reached', async () => {
+		const res = await request(app).post(url).set(as(10)).send({ applicationId: 100 });
+		expect(res.status).toBe(400);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test('unauthenticated → 401, service never reached', async () => {
+		const res = await request(app).post(url).send(validBody);
+		expect(res.status).toBe(401);
+		expect(mockRecordHumanOverride).not.toHaveBeenCalled();
+	});
+
+	test('service failure → 500 with a generic error, internal error.message never leaked', async () => {
+		mockRecordHumanOverride.mockRejectedValueOnce(
+			new Error('SECRET_INTERNAL_DETAIL: relation "human_overrides" does not exist'),
+		);
+		const res = await request(app).post(url).set(as(10)).send(validBody);
+		expect(res.status).toBe(500);
+		expect(res.body.error).toBe('Failed to record override');
+		expect(JSON.stringify(res.body)).not.toContain('SECRET_INTERNAL_DETAIL');
+	});
+});
+
+describe('POST /appeal — body userId ownership (#1111)', () => {
+	const url = '/api/compliance/appeal';
+	const bodyFor = (userId) => ({ userId, scoreType: 'omniscore', originalScore: 42, appealReason: 'please review' });
+
+	test('candidate filing an appeal AS another user → 403, no INSERT reaches the DB', async () => {
+		const res = await request(app).post(url).set(as(22)).send(bodyFor(21));
+		expect(res.status).toBe(403);
+		expect(appealInserts).toHaveLength(0);
+	});
+
+	test('recruiter filing an appeal as a candidate → 403, no INSERT', async () => {
+		const res = await request(app).post(url).set(as(10)).send(bodyFor(21));
+		expect(res.status).toBe(403);
+		expect(appealInserts).toHaveLength(0);
+	});
+
+	test('self → 200, INSERT carries the caller’s own ID', async () => {
+		const res = await request(app).post(url).set(as(21)).send(bodyFor(21));
+		expect(res.status).toBe(200);
+		expect(res.body.success).toBe(true);
+		expect(res.body.appealId).toBe(900);
+		expect(appealInserts).toHaveLength(1);
+		expect(appealInserts[0][0]).toBe(21);
+	});
+
+	test('admin filing for another user → 200 (helper’s established admin path, as on GET /appeal/:userId), audit metadata records the acting admin (LOW-1)', async () => {
+		const res = await request(app).post(url).set(as(1)).send(bodyFor(21));
+		expect(res.status).toBe(200);
+		expect(appealInserts).toHaveLength(1);
+		expect(appealInserts[0][0]).toBe(21);
+		expect(mockAuditLog).toHaveBeenCalledWith(
+			expect.objectContaining({ metadata: expect.objectContaining({ actor_id: 1 }) }),
+		);
+	});
+
+	test('self with a STRING userId "21" → 200, INSERT param is the normalized number 21 (LOW-3 coercion lock)', async () => {
+		const res = await request(app).post(url).set(as(21)).send(bodyFor('21'));
+		expect(res.status).toBe(200);
+		expect(appealInserts).toHaveLength(1);
+		expect(appealInserts[0][0]).toBe(21);
+	});
+
+	test('non-integer userId → 400 (helper shape), no INSERT', async () => {
+		const res = await request(app).post(url).set(as(21)).send(bodyFor('abc'));
+		expect(res.status).toBe(400);
+		expect(appealInserts).toHaveLength(0);
+	});
+
+	test('missing required fields → 400 unchanged, no INSERT', async () => {
+		const res = await request(app).post(url).set(as(21)).send({ userId: 21 });
+		expect(res.status).toBe(400);
+		expect(appealInserts).toHaveLength(0);
+	});
+
+	test('unauthenticated → 401, no INSERT', async () => {
+		const res = await request(app).post(url).send(bodyFor(21));
+		expect(res.status).toBe(401);
+		expect(appealInserts).toHaveLength(0);
 	});
 });

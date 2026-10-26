@@ -36,8 +36,96 @@ const GENESIS_HASH = '0';
 
 // ─── Hash chain helpers (compliance audit trail) ────────────────────────────
 
+// #1342: canonical payload serialisation for the hash chain.
+//
+// The payload lives in a JSONB column, which does NOT preserve JS key
+// order: Postgres emits object keys ordered by (UTF-8 byte length, then
+// bytewise), recursively. The pre-fix writer hashed JSON.stringify of
+// the pre-DB object (caller insertion order) while verifyChain
+// recomputed over the jsonb-normalised object, so any payload whose
+// insertion order differed from jsonb order could never verify. Both
+// sides now hash this canonical form, which is exactly what jsonb
+// storage preserves — rows that verified before this change keep the
+// same hash inputs. Postgres coupling is deliberate (the payload is
+// already jsonb); a storage-independent canonical form (e.g. RFC 8785)
+// would invalidate rows that verify today and belongs in a versioned
+// chain cutover, not this fix.
+//
+// Built manually, never by rebuilding a sorted object and calling
+// JSON.stringify on it: V8 enumerates integer-like keys numerically
+// regardless of insertion order, which would corrupt the canonical
+// order. Primitives delegate to JSON.stringify (escaping, 1e21, -0,
+// NaN/Infinity all match); undefined/function/symbol values are
+// dropped in objects and become null in arrays, as JSON.stringify does.
+function canonicalJsonbStringify(value) {
+	return serializeCanonical(value, new Set(), false);
+}
+
+// `toJSONApplied` preserves JSON.stringify's call-once semantics: a
+// toJSON() RESULT is canonicalised, but its own toJSON (if any) is not
+// invoked a second time at the same position. `ancestors` gives
+// circular payloads JSON.stringify's TypeError instead of a stack
+// overflow; shared (non-circular) references serialise normally.
+function serializeCanonical(value, ancestors, toJSONApplied) {
+	if (value === null || typeof value !== 'object') {
+		return JSON.stringify(value);
+	}
+	if (ancestors.has(value)) {
+		throw new TypeError('Converting circular structure to JSON');
+	}
+	if (!toJSONApplied && typeof value.toJSON === 'function') {
+		// e.g. a Date on the writer side (jsonb stores its ISO string),
+		// or a Buffer / custom toJSON returning an object — the result
+		// must be canonicalised, not stringified in insertion order.
+		const result = value.toJSON();
+		if (result !== value) {
+			// The originator stays on the ancestor stack while its
+			// result serialises, so a result that (transitively)
+			// references the originator is circular, as in JSON.stringify.
+			ancestors.add(value);
+			try {
+				return serializeCanonical(result, ancestors, true);
+			} finally {
+				ancestors.delete(value);
+			}
+		}
+		// Self-returning toJSON: JSON.stringify proceeds to serialise
+		// the object itself — fall through to the object/array branch
+		// below (toJSON is not invoked again at this position).
+	}
+	ancestors.add(value);
+	try {
+		if (Array.isArray(value)) {
+			// Array order is committed data — never sorted. Iterate by
+			// index: holes read as undefined and become null, exactly
+			// as JSON.stringify and jsonb ingest treat them (.map
+			// would skip holes and emit empty fields).
+			const items = [];
+			for (let i = 0; i < value.length; i++) {
+				const s = serializeCanonical(value[i], ancestors, false);
+				items.push(s === undefined ? 'null' : s);
+			}
+			return `[${items.join(',')}]`;
+		}
+		const keys = Object.keys(value).sort((a, b) => {
+			const ba = Buffer.from(a, 'utf8');
+			const bb = Buffer.from(b, 'utf8');
+			return ba.length - bb.length || Buffer.compare(ba, bb);
+		});
+		const parts = [];
+		for (const key of keys) {
+			const s = serializeCanonical(value[key], ancestors, false);
+			if (s === undefined) continue;
+			parts.push(`${JSON.stringify(key)}:${s}`);
+		}
+		return `{${parts.join(',')}}`;
+	} finally {
+		ancestors.delete(value);
+	}
+}
+
 function computeHash(previousHash, eventType, entityId, actorId, payload, createdAt) {
-	const data = `${previousHash}|${eventType}|${entityId}|${actorId || ''}|${JSON.stringify(payload)}|${createdAt}`;
+	const data = `${previousHash}|${eventType}|${entityId}|${actorId || ''}|${canonicalJsonbStringify(payload)}|${createdAt}`;
 	return crypto.createHash('sha256').update(data).digest('hex');
 }
 

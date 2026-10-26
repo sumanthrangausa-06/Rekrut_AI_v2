@@ -56,6 +56,7 @@ function setupPurge(cfg) {
 			return { rows: [], rowCount: 0 };
 		}
 		if (/FILTER \(WHERE status/.test(sql)) {
+			if (cfg.countsFailPool?.has(params[0])) throw new Error('pool counts boom');
 			const a = cfg.agg?.[params[0]] || { eligible_deleted: 0, failed: 0, pending: 0 };
 			return { rows: [a], rowCount: 1 };
 		}
@@ -72,22 +73,36 @@ function setupPurge(cfg) {
 				const rows = cfg.locked?.[params[0]] || [];
 				return { rows, rowCount: rows.length };
 			}
+			// #1178: the DELETE branch MUST be matched before the
+			// legal_holds branch — the purge DELETE itself now contains
+			// a legal_holds subquery (the statement-time hold predicate),
+			// so a legal_holds-first match would swallow the DELETE.
+			if (/DELETE FROM pending_storage_deletions/.test(sql)) {
+				const n = cfg.deleteRowCount?.[client._uid];
+				if (n != null) return { rows: [], rowCount: n };
+				// #1178 phantom simulation: a hold COMMITTED after the in-tx
+				// re-check but before this DELETE. Statement-time semantics:
+				// a DELETE whose WHERE carries the legal_holds predicate sees
+				// the hold and deletes 0 rows; a DELETE without it purges.
+				if (cfg.phantomHold?.has(client._uid)) {
+					const blocked = /FROM legal_holds/.test(sql);
+					return { rows: [], rowCount: blocked ? 0 : (cfg.locked?.[client._uid] || []).length };
+				}
+				return { rows: [], rowCount: (cfg.locked?.[client._uid] || []).length };
+			}
 			if (/FROM legal_holds/.test(sql)) {
 				const uid = params[0];
 				if (cfg.heldClient?.has(uid)) return { rows: [{ id: 10, user_id: uid, company_id: null }], rowCount: 1 };
 				return { rows: [], rowCount: 0 };
 			}
 			if (/FILTER \(WHERE status/.test(sql)) {
+				if (cfg.countsFailClient?.has(params[0])) throw new Error('client counts boom');
 				const a = cfg.agg?.[params[0]] || { eligible_deleted: 0, failed: 0, pending: 0 };
 				return { rows: [a], rowCount: 1 };
 			}
 			if (/INSERT INTO audit_logs/.test(sql)) {
 				if (cfg.insertError?.has(client._uid)) throw new Error('fold insert boom');
 				return { rows: [{ id: 1 }], rowCount: 1 };
-			}
-			if (/DELETE FROM pending_storage_deletions/.test(sql)) {
-				const n = cfg.deleteRowCount?.[client._uid];
-				return { rows: [], rowCount: n != null ? n : (cfg.locked?.[client._uid] || []).length };
 			}
 			throw new Error(`unexpected client query: ${sql.slice(0, 80)}`);
 		});
@@ -304,6 +319,198 @@ describe('#1128 purgeDrainedStorageDeletions (D-1..D-6)', () => {
 		expect(sqls.some((s) => /INSERT INTO audit_logs/.test(s))).toBe(false);
 		expect(res.usersPurged).toBe(0);
 		expect(res.usersSkipped).toBe(1);
+	});
+});
+
+
+describe('#1176 purge reporting completeness (skip-path counts + containment)', () => {
+	beforeEach(() => jest.resetAllMocks());
+
+	test('in-tx held path contributes retained failed/pending exactly once', async () => {
+		setupPurge({
+			candidates: [7],
+			heldClient: new Set([7]),
+			locked: { 7: [ROW(11), ROW(12)] },
+			agg: { 7: { eligible_deleted: 2, failed: 3, pending: 4 } },
+		});
+		const res = await erasureService.purgeDrainedStorageDeletions();
+		expect(res.perUser[0]).toMatchObject({ status: 'held', retainedHeld: 2, retainedFailed: 3, retainedPending: 4 });
+		expect(res.ledgerRowsRetainedFailed).toBe(3);
+		expect(res.ledgerRowsRetainedPending).toBe(4);
+		expect(res.ledgerRowsRetainedHeld).toBe(2);
+		expect(res.ledgerRowsPurged).toBe(0);
+	});
+
+	test('advisory-lock-lost skip contributes retained failed/pending exactly once', async () => {
+		setupPurge({
+			candidates: [7],
+			locked: { 7: [ROW(11)] },
+			agg: { 7: { eligible_deleted: 1, failed: 2, pending: 1 } },
+			advisoryLocked: false,
+		});
+		const res = await erasureService.purgeDrainedStorageDeletions();
+		expect(res.usersSkipped).toBe(1);
+		expect(res.ledgerRowsRetainedFailed).toBe(2);
+		expect(res.ledgerRowsRetainedPending).toBe(1);
+		expect(res.perUser[0]).toMatchObject({ retainedFailed: 2, retainedPending: 1 });
+	});
+
+	test('zero-locked-rows skip contributes retained failed/pending exactly once', async () => {
+		setupPurge({
+			candidates: [7],
+			locked: { 7: [] },
+			agg: { 7: { eligible_deleted: 0, failed: 5, pending: 6 } },
+		});
+		const res = await erasureService.purgeDrainedStorageDeletions();
+		expect(res.usersSkipped).toBe(1);
+		expect(res.ledgerRowsRetainedFailed).toBe(5);
+		expect(res.ledgerRowsRetainedPending).toBe(6);
+		expect(res.perUser[0]).toMatchObject({ retainedFailed: 5, retainedPending: 6 });
+	});
+
+	test('pre-pass countsFor failure is contained per-user: user errors, run continues, no counts fabricated', async () => {
+		setupPurge({
+			candidates: [7, 8],
+			throwPool: new Set([7]),
+			countsFailPool: new Set([7]),
+			locked: { 8: [ROW(21)] },
+			agg: { 7: { eligible_deleted: 2, failed: 9, pending: 9 }, 8: { eligible_deleted: 1, failed: 0, pending: 0 } },
+		});
+		const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+		const res = await erasureService.purgeDrainedStorageDeletions();
+		errSpy.mockRestore();
+		expect(res.perUser.find((u) => u.userId === 7).status).toBe('error');
+		expect(res.perUser.find((u) => u.userId === 8).status).toBe('purged');
+		expect(res.ledgerRowsPurged).toBe(1);
+		expect(res.ledgerRowsRetainedFailed).toBe(0);
+		expect(res.ledgerHoldLookupFailed).toBe(0);
+		expect(res.usersSkipped).toBe(1);
+	});
+
+	test('counts failure on the in-tx held skip path fails closed: error, nothing counted', async () => {
+		setupPurge({
+			candidates: [7],
+			heldClient: new Set([7]),
+			countsFailClient: new Set([7]),
+			locked: { 7: [ROW(11), ROW(12)] },
+			agg: { 7: { eligible_deleted: 2, failed: 3, pending: 4 } },
+		});
+		const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+		const res = await erasureService.purgeDrainedStorageDeletions();
+		errSpy.mockRestore();
+		expect(res.perUser[0].status).toBe('error');
+		expect(res.ledgerRowsRetainedFailed).toBe(0);
+		expect(res.ledgerRowsRetainedPending).toBe(0);
+		expect(res.ledgerRowsPurged).toBe(0);
+		expect(res.usersSkipped).toBe(1);
+	});
+});
+
+describe('#1176 purge log prefix (server.js)', () => {
+	const fs = require('node:fs');
+	const path = require('node:path');
+	const src = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'server.js'), 'utf8');
+
+	test('purge counters are NOT under the retention DRY-RUN/LIVE mode label; purge has its own log line', () => {
+		const modeLine = src.split('\n').find((l) => l.includes('${mode}:'));
+		expect(modeLine).toBeDefined();
+		expect(modeLine).not.toContain('storage_ledger_purged');
+		const purgeIdx = src.indexOf('storage_ledger_purged=');
+		expect(purgeIdx).toBeGreaterThan(-1);
+		const purgeStmt = src.slice(src.lastIndexOf('console.log(', purgeIdx), purgeIdx);
+		expect(purgeStmt).toContain('[erasure]');
+		expect(purgeStmt).not.toContain('${mode}');
+	});
+});
+
+describe('#1178 hold predicate inside the purge DELETE (TOCTOU phantom)', () => {
+	beforeEach(() => jest.resetAllMocks());
+
+	test('phantom hold (committed between in-tx re-check and DELETE): statement-time predicate blocks the purge — ROLLBACK, fold does not survive, nothing purged', async () => {
+		const clients = setupPurge({
+			candidates: [7],
+			locked: { 7: [ROW(11), ROW(12)] },
+			agg: { 7: { eligible_deleted: 2, failed: 1, pending: 2 } },
+			phantomHold: new Set([7]),
+		});
+		const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+		const res = await erasureService.purgeDrainedStorageDeletions();
+		errSpy.mockRestore();
+		const sqls = clients[0].query.mock.calls.map(([s]) => s);
+		// The fold INSERT ran in-tx, then the DELETE, then ROLLBACK — the
+		// fold can never commit without the full DELETE succeeding.
+		const insertIdx = sqls.findIndex((s) => /INSERT INTO audit_logs/.test(s));
+		const deleteIdx = sqls.findIndex((s) => /DELETE FROM pending_storage_deletions/.test(s));
+		expect(insertIdx).toBeGreaterThan(-1);
+		expect(deleteIdx).toBeGreaterThan(insertIdx);
+		expect(sqls).toContain('ROLLBACK');
+		expect(sqls).not.toContain('COMMIT');
+		expect(res.ledgerRowsPurged).toBe(0);
+		expect(res.usersPurged).toBe(0);
+		expect(res.usersSkipped).toBe(1);
+		expect(res.perUser[0].status).toBe('error');
+	});
+
+	test('DELETE SQL carries the exact session-less notHeldPredicate shape on pending_storage_deletions.user_id', async () => {
+		const clients = setupPurge({
+			candidates: [7],
+			locked: { 7: [ROW(11)] },
+			agg: { 7: { eligible_deleted: 1, failed: 0, pending: 0 } },
+		});
+		const res = await erasureService.purgeDrainedStorageDeletions();
+		expect(res.ledgerRowsPurged).toBe(1);
+		const delCall = clients[0].query.mock.calls.find(([s]) => /DELETE FROM pending_storage_deletions/.test(s));
+		expect(delCall).toBeDefined();
+		const sql = delCall[0];
+		expect(sql).toMatch(/NOT EXISTS \(SELECT 1 FROM legal_holds lh/);
+		expect(sql).toMatch(/lh\.released_at IS NULL/);
+		expect(sql).toMatch(/lh\.user_id = pending_storage_deletions\.user_id/);
+		expect(sql).toMatch(/lh\.company_id = \(SELECT u_lh\.company_id FROM users u_lh WHERE u_lh\.id = pending_storage_deletions\.user_id\)/);
+		expect(sql).toMatch(/lh\.company_id IN \(SELECT s_lh\.company_id FROM interview_sessions s_lh WHERE s_lh\.candidate_id = pending_storage_deletions\.user_id\)/);
+		// Eligibility predicate is still re-stated alongside the hold predicate.
+		expect(sql).toMatch(/status = 'deleted'/);
+		expect(delCall[1][0]).toEqual([11]);
+	});
+
+	test('counters exactly-once on the phantom throw path: retained failed/pending counted once, purged 0, blocked rows not misreported as held this run', async () => {
+		setupPurge({
+			candidates: [7],
+			locked: { 7: [ROW(11), ROW(12)] },
+			agg: { 7: { eligible_deleted: 2, failed: 3, pending: 4 } },
+			phantomHold: new Set([7]),
+		});
+		const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+		const res = await erasureService.purgeDrainedStorageDeletions();
+		errSpy.mockRestore();
+		expect(res.ledgerRowsRetainedFailed).toBe(3);
+		expect(res.ledgerRowsRetainedPending).toBe(4);
+		expect(res.perUser[0]).toMatchObject({ retainedFailed: 3, retainedPending: 4 });
+		expect(res.ledgerRowsPurged).toBe(0);
+		// Wrinkle pinned (see STOP 1 on #1178): the blocked eligible rows are
+		// retained via ROLLBACK but classify as 'error' this run, not 'held';
+		// the next run's pre-pass reports them as held.
+		expect(res.ledgerRowsRetainedHeld).toBe(0);
+		expect(res.perUser[0].status).toBe('error');
+	});
+
+	test('no hold anywhere: purge unchanged (fold + DELETE + COMMIT, counters as before)', async () => {
+		const clients = setupPurge({
+			candidates: [7],
+			locked: { 7: [ROW(11), ROW(12)] },
+			agg: { 7: { eligible_deleted: 2, failed: 1, pending: 2 } },
+		});
+		const res = await erasureService.purgeDrainedStorageDeletions();
+		const sqls = clients[0].query.mock.calls.map(([s]) => s);
+		expect(sqls[sqls.length - 1]).toBe('COMMIT');
+		expect(res).toMatchObject({
+			ledgerRowsPurged: 2,
+			ledgerRowsRetainedFailed: 1,
+			ledgerRowsRetainedPending: 2,
+			ledgerRowsRetainedHeld: 0,
+			usersPurged: 1,
+			usersSkipped: 0,
+		});
+		expect(res.perUser[0]).toMatchObject({ status: 'purged', ledgerRowsPurged: 2 });
 	});
 });
 
