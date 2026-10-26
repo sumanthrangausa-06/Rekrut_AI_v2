@@ -11,26 +11,28 @@ import { Badge } from '@/components/ui/badge';
 
 export interface SessionReport {
 	overall_score?: number | null;
-	recommendation?: 'advance' | 'consider' | 'decline' | string;
+	recommendation?: 'advance' | 'consider' | 'decline' | string | null;
 	recommendation_reasoning?: string;
+	analysis_unavailable?: boolean | null;
+	note?: string | null;
 	strengths?: string[];
 	red_flags?: string[];
 	dimension_scores?: Record<string, { score?: number; evidence?: string; feedback?: string }>;
-	technical_depth?: { score?: number; feedback?: string };
-	communication_clarity?: { score?: string | number; feedback?: string };
-	confidence_enthusiasm?: { score?: string | number; feedback?: string };
+	technical_depth?: { score?: number | null; feedback?: string };
+	communication_clarity?: { score?: string | number | null; feedback?: string };
+	confidence_enthusiasm?: { score?: string | number | null; indicators?: string[]; feedback?: string };
 	key_moments?: string[];
 	question_scores?: Array<{
 		question_index?: number;
 		topic?: string;
-		score?: number;
+		score?: number | null;
 		feedback?: string;
 	}>;
 }
 
 interface Dimension {
 	label: string;
-	score?: number | string;
+	score?: number | string | null;
 	feedback?: string;
 }
 
@@ -76,7 +78,10 @@ function scoreColor(score: number): string {
 }
 
 export function SessionReportBody({ report }: { report: SessionReport }) {
-	const score = report.overall_score ?? 0;
+	// #1512: a null score is the honest unavailable state — render N/A,
+	// never a re-fabricated 0/100, and a null recommendation gets a neutral
+	// badge, not the red "decline" styling.
+	const score = report.overall_score ?? null;
 	const dimensions = toDimensions(report);
 	const questions = report.question_scores || [];
 
@@ -84,7 +89,11 @@ export function SessionReportBody({ report }: { report: SessionReport }) {
 		<div className="space-y-4">
 			{/* Score + recommendation */}
 			<div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
-				<div className={`text-2xl sm:text-3xl font-bold ${scoreColor(score)}`}>{score}/100</div>
+				<div
+					className={`text-2xl sm:text-3xl font-bold ${score == null ? 'text-muted-foreground' : scoreColor(score)}`}
+				>
+					{score == null ? 'N/A' : `${score}/100`}
+				</div>
 				<div>
 					<Badge
 						variant={
@@ -92,11 +101,16 @@ export function SessionReportBody({ report }: { report: SessionReport }) {
 								? 'success'
 								: report.recommendation === 'consider'
 									? 'warning'
-									: 'destructive'
+									: report.recommendation == null
+										? 'secondary'
+										: 'destructive'
 						}
 					>
 						{report.recommendation?.toUpperCase() || 'N/A'}
 					</Badge>
+					{report.note && report.note !== report.recommendation_reasoning && (
+						<p className="text-sm text-muted-foreground mt-1">{report.note}</p>
+					)}
 					{report.recommendation_reasoning && (
 						<p className="text-sm text-muted-foreground mt-1">{report.recommendation_reasoning}</p>
 					)}
@@ -175,7 +189,9 @@ export function SessionReportBody({ report }: { report: SessionReport }) {
 										Q{(qs.question_index ?? i) + 1}
 										{qs.topic && <span className="font-normal text-muted-foreground"> — {qs.topic}</span>}
 									</span>
-									<span className={`text-sm font-bold ${scoreColor(qs.score || 0)}`}>
+									<span
+										className={`text-sm font-bold ${qs.score == null ? 'text-muted-foreground' : scoreColor(qs.score)}`}
+									>
 										{qs.score ?? '—'}/100
 									</span>
 								</div>

@@ -194,20 +194,41 @@ router.post('/batch', authMiddleware, async (req, res) => {
 			return res.json({ success: true, screenings: [], message: 'No candidates to screen' });
 		}
 
-		// Batch screening
-		const screenings = await screener.screenCandidatesBatch(candidates, job, {
+		// Batch screening — normalise the raw jobs row exactly as the
+		// single /analyze path above (and ai-screener's getJobForScreening)
+		// does: the scorer reads required_skills/min_years, never the DB
+		// column names skills_required/min_years_experience (#1366).
+		const jobData = {
+			...job,
+			required_skills: job.skills_required || [],
+			preferred_skills: job.preferred_skills || [],
+			min_years: job.min_years_experience || 0,
+		};
+		const screenings = await screener.screenCandidatesBatch(candidates, jobData, {
 			subscriptionId: req.user.id,
 		});
 
-		// Combine with candidate info
-		const results = screenings.map((s, i) => ({
-			candidate: {
-				id: candidates[i].id,
-				name: candidates[i].name,
-				omni_score: candidates[i].omni_score,
-			},
-			...s,
-		}));
+		// Combine with candidate info — pair by candidate_id (#1346):
+		// screenings are sorted by fit_score, so index pairing misattributes
+		// results. A result naming no known candidate is dropped, never
+		// attached to the wrong person. (Positional fallback only for
+		// legacy results without a candidate_id; the lib now always sets it.)
+		const candidatesById = new Map(candidates.map((c) => [c.id, c]));
+		const results = screenings.flatMap((s, i) => {
+			const candidate =
+				s.candidate_id != null ? candidatesById.get(s.candidate_id) : candidates[i];
+			if (!candidate) return [];
+			return [
+				{
+					candidate: {
+						id: candidate.id,
+						name: candidate.name,
+						omni_score: candidate.omni_score,
+					},
+					...s,
+				},
+			];
+		});
 
 		res.json({
 			success: true,
@@ -274,19 +295,47 @@ router.post('/questions', authMiddleware, async (req, res) => {
 	try {
 		const { candidate_id, job_id } = req.body;
 
-		// Get candidate and job data (simplified)
-		const [candidate, job] = await Promise.all([
-			pool.query('SELECT * FROM candidate_profiles WHERE user_id = $1', [candidate_id]),
-			pool.query('SELECT * FROM jobs WHERE id = $1', [job_id]),
-		]);
+		if (!candidate_id || !job_id) {
+			return res.status(400).json({ error: 'candidate_id and job_id are required' });
+		}
 
-		if (!candidate.rows.length || !job.rows.length) {
+		// Verify recruiter owns this job (parity with /analyze and /batch)
+		const jobCheck = await pool.query(
+			'SELECT * FROM jobs WHERE id = $1 AND company_id = (SELECT company_id FROM users WHERE id = $2)',
+			[job_id, req.user.id],
+		);
+
+		if (jobCheck.rows.length === 0) {
+			return res.status(403).json({ error: 'You do not have access to this job' });
+		}
+
+		const job = jobCheck;
+
+		// Get candidate data (simplified)
+		const candidate = await pool.query(
+			'SELECT * FROM candidate_profiles WHERE user_id = $1',
+			[candidate_id],
+		);
+
+		if (!candidate.rows.length) {
 			return res.status(404).json({ error: 'Candidate or job not found' });
 		}
 
+		// Normalise the raw jobs row exactly as the single /analyze path
+		// above (and the fixed /batch path) does: the question generator
+		// reads required_skills/min_years, never the DB column names
+		// skills_required/min_years_experience (#1373, follow-up to #1366).
+		const jobRow = job.rows[0];
+		const jobData = {
+			...jobRow,
+			required_skills: jobRow.skills_required || [],
+			preferred_skills: jobRow.preferred_skills || [],
+			min_years: jobRow.min_years_experience || 0,
+		};
+
 		const questions = await screener.generateTailoredInterviewQuestions(
 			candidate.rows[0],
-			job.rows[0],
+			jobData,
 		);
 
 		res.json({
@@ -306,6 +355,22 @@ router.post('/questions', authMiddleware, async (req, res) => {
 router.post('/compare', authMiddleware, async (req, res) => {
 	try {
 		const { candidate1_id, candidate2_id, job_id } = req.body;
+
+		if (!candidate1_id || !candidate2_id || !job_id) {
+			return res.status(400).json({ error: 'candidate1_id, candidate2_id and job_id are required' });
+		}
+
+		// Verify recruiter owns this job (parity with /analyze, /batch and /questions)
+		const jobCheck = await pool.query(
+			'SELECT * FROM jobs WHERE id = $1 AND company_id = (SELECT company_id FROM users WHERE id = $2)',
+			[job_id, req.user.id],
+		);
+
+		if (jobCheck.rows.length === 0) {
+			return res.status(403).json({ error: 'You do not have access to this job' });
+		}
+
+		const job = jobCheck;
 
 		// Get both candidates
 		const candidates = await Promise.all([
@@ -329,9 +394,7 @@ router.post('/compare', authMiddleware, async (req, res) => {
 			),
 		]);
 
-		const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [job_id]);
-
-		if (!candidates[0].rows.length || !candidates[1].rows.length || !job.rows.length) {
+		if (!candidates[0].rows.length || !candidates[1].rows.length) {
 			return res.status(404).json({ error: 'Candidate(s) or job not found' });
 		}
 

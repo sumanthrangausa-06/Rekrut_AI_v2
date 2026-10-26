@@ -447,58 +447,52 @@ Return ONLY valid JSON with this structure:
 		const match = text.match(/\{[\s\S]*\}/);
 		if (match) {
 			const report = JSON.parse(match[0]);
-			return report;
+			if (report && typeof report.overall_score === 'number') {
+				return report;
+			}
+			console.error(
+				'[screening] AI report had no numeric overall_score — treating as unavailable',
+			);
+		} else {
+			console.error('[screening] AI report output had no JSON object — treating as unavailable');
 		}
 	} catch (err) {
 		console.error('[screening] AI report generation failed:', err.message);
 	}
 
-	// Fallback basic report
-	const avgResponseLen =
-		responses.reduce((sum, r) => sum + (r?.response_text?.length || 0), 0) /
-		Math.max(responses.length, 1);
-	const answeredCount = responses.filter((r) => r?.response_text?.length > 20).length;
-	const completionRate = (answeredCount / Math.max(questions.length, 1)) * 100;
-	const baseScore = Math.min(
-		100,
-		Math.round(completionRate * 0.6 + Math.min(avgResponseLen / 5, 40)),
-	);
-
+	// #1512: AI analysis unavailable — return the honest unavailable state.
+	// No analysis happened, so every score is null and there is no
+	// recommendation; never fabricate numbers from answer length or
+	// completion (no-fabricated-numbers standard; #1505 precedent, and the
+	// human-no-observer report shape in routes/interview-sessions.js).
+	// Evaluative arrays stay empty: any answered/completed count derives
+	// from `responses` only, which conversation-sourced callers pass as []
+	// structurally — a "did not answer" claim here could be false.
+	const UNAVAILABLE = 'AI analysis unavailable — no score or recommendation assigned.';
 	return {
-		question_scores: questions.map((q, i) => {
-			const text = responses[i]?.response_text || '';
-			// Deterministic heuristic: length + keyword overlap with evaluation criteria.
-			// This is a degraded fallback (AI unavailable) — scores effort, not quality.
-			let s = 0;
-			if (text.length > 20) s = 40;
-			if (text.length > 100) s = 55;
-			if (text.length > 250) s = 65;
-			const criteria = (q.evaluation_criteria || []).join(' ').toLowerCase();
-			if (criteria && text.length > 50) {
-				const words = new Set(text.toLowerCase().split(/\W+/));
-				const hits = criteria.split(/\W+/).filter((w) => w.length > 4 && words.has(w)).length;
-				s = Math.min(85, s + hits * 5);
-			}
-			return {
-				question_index: i,
-				score: text ? s : 0,
-				feedback: text ? 'Response provided (AI analysis unavailable)' : 'No response',
-			};
-		}),
+		question_scores: questions.map((q, i) => ({
+			question_index: i,
+			score: null,
+			feedback: responses[i]?.response_text
+				? 'Response provided (AI analysis unavailable)'
+				: 'AI analysis unavailable',
+		})),
 		communication_clarity: {
-			score: baseScore,
-			feedback: 'AI analysis unavailable — basic scoring applied',
+			score: null,
+			feedback: 'AI analysis unavailable — no score assigned',
 		},
 		technical_depth: {
-			score: baseScore,
-			feedback: 'AI analysis unavailable — basic scoring applied',
+			score: null,
+			feedback: 'AI analysis unavailable — no score assigned',
 		},
-		confidence_enthusiasm: { score: baseScore, indicators: ['Completed screening'] },
-		red_flags: answeredCount < questions.length ? ['Did not answer all questions'] : [],
-		strengths: answeredCount > 0 ? ['Completed the screening'] : [],
-		overall_score: baseScore,
-		recommendation: baseScore >= 70 ? 'advance' : baseScore >= 50 ? 'consider' : 'decline',
-		recommendation_reasoning: `Candidate answered ${answeredCount}/${questions.length} questions. AI detailed analysis unavailable at this time.`,
+		confidence_enthusiasm: { score: null, indicators: [] },
+		red_flags: [],
+		strengths: [],
+		overall_score: null,
+		recommendation: null,
+		recommendation_reasoning: UNAVAILABLE,
+		analysis_unavailable: true,
+		note: UNAVAILABLE,
 	};
 }
 
@@ -601,20 +595,23 @@ Return JSON only:
 		}
 	}
 
-	// Provide fallback scores for any failed evaluators
-	for (const type of evaluatorTypes) {
-		if (!evaluations[type]) {
-			evaluations[type] = {
-				score: 50,
-				breakdown: {},
-				reasoning: 'AI evaluation unavailable — using neutral score',
-				key_observations: ['Evaluator was unable to process this response'],
-			};
-		}
+	// #1505: a failed evaluator is persisted honestly — no row at all.
+	// interview_evaluations.score is NOT NULL (migration 041) and the display
+	// subqueries in routes/interviews.js read the latest row, so a NULL-score
+	// row could mask real scores; absence is the honest state. Never persist
+	// a fabricated "neutral" score for a measurement that never happened.
+	const succeededTypes = evaluatorTypes.filter(
+		(type) => evaluations[type] && typeof evaluations[type].score === 'number',
+	);
+	const failedTypes = evaluatorTypes.filter((type) => !succeededTypes.includes(type));
+	if (failedTypes.length > 0) {
+		console.error(
+			`[multi-eval] Evaluator(s) unavailable, no score persisted for: ${failedTypes.join(', ')}`,
+		);
 	}
 
-	// Save individual evaluations
-	for (const type of evaluatorTypes) {
+	// Save individual evaluations — successful lenses only
+	for (const type of succeededTypes) {
 		await pool.query(
 			`INSERT INTO interview_evaluations
        (interview_id, screening_session_id, candidate_id, job_id, company_id, evaluator_type, score, max_score, breakdown, reasoning, interview_session_id)
@@ -638,18 +635,34 @@ Return JSON only:
 		);
 	}
 
-	// Synthesis: weighted composite
-	const techScore = evaluations.technical.score || 50;
-	const cultureScore = evaluations.culture.score || 50;
-	const expScore = evaluations.experience.score || 50;
-	const compositeScore = Math.round(techScore * 0.4 + cultureScore * 0.3 + expScore * 0.3);
+	// No successful lens => no composite and no OmniScore feed. Unavailability
+	// is a state, not a score (#1505).
+	if (succeededTypes.length === 0) {
+		return { evaluations, composite: null };
+	}
+
+	// Synthesis: weighted composite from successful lenses only, with the
+	// 0.4/0.3/0.3 weights renormalised over the lenses present. A missing lens
+	// persists as NULL (the composite columns are nullable, migration 041) —
+	// never a fallback number. Presence, not truthiness: a real 0 counts.
+	const weights = { technical: 0.4, culture: 0.3, experience: 0.3 };
+	const weightSum = succeededTypes.reduce((sum, type) => sum + weights[type], 0);
+	const lensScore = (type) => (succeededTypes.includes(type) ? evaluations[type].score : null);
+	const techScore = lensScore('technical');
+	const cultureScore = lensScore('culture');
+	const expScore = lensScore('experience');
+	const compositeScore = Math.round(
+		succeededTypes.reduce((sum, type) => sum + evaluations[type].score * weights[type], 0) /
+			weightSum,
+	);
 
 	// Recommendation logic
+	const showScore = (v) => (v === null ? 'unavailable' : v);
 	let recommendation = 'consider';
 	let recReasoning = '';
 	if (compositeScore >= 75) {
 		recommendation = 'strong_hire';
-		recReasoning = `Strong candidate (${compositeScore}/100). Technical: ${techScore}, Culture: ${cultureScore}, Experience: ${expScore}.`;
+		recReasoning = `Strong candidate (${compositeScore}/100). Technical: ${showScore(techScore)}, Culture: ${showScore(cultureScore)}, Experience: ${showScore(expScore)}.`;
 	} else if (compositeScore >= 60) {
 		recommendation = 'hire';
 		recReasoning = `Solid candidate (${compositeScore}/100) with room for growth. Worth advancing to next round.`;
@@ -659,6 +672,9 @@ Return JSON only:
 	} else {
 		recommendation = 'no_hire';
 		recReasoning = `Below threshold (${compositeScore}/100). Significant gaps identified.`;
+	}
+	if (failedTypes.length > 0) {
+		recReasoning += ` Note: ${failedTypes.join(', ')} evaluation unavailable — composite is based on the remaining evaluator(s) only.`;
 	}
 
 	// Save composite score

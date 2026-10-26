@@ -309,9 +309,22 @@ router.post('/practice/submit', authMiddleware, async (req, res) => {
 			? resolved.key_points
 			: ['Content quality', 'Structure', 'Clarity', 'Relevance'];
 
-		const analysis = await analyzeInterviewResponse(question, response_text, keyPoints, {
-			subscriptionId: req.user.stripe_subscription_id,
-		});
+		// #1352: a provider/analysis failure must be a truthful, retryable 503 —
+		// not a generic 500 the frontend could only surface via alert() (which
+		// rendered as a silent no-op). Same shape submit-video already uses.
+		// No practice_sessions row is written for an analysis that never ran.
+		let analysis;
+		try {
+			analysis = await analyzeInterviewResponse(question, response_text, keyPoints, {
+				subscriptionId: req.user.stripe_subscription_id,
+			});
+		} catch (analysisErr) {
+			console.error('[QP] Text analysis failed:', analysisErr.message);
+			return res.status(503).json({
+				error: 'AI coaching is temporarily unavailable. Please try again in a moment.',
+				retryable: true,
+			});
+		}
 
 		let coaching;
 		try {
@@ -439,46 +452,33 @@ router.post(
 			),
 		]);
 
-		if (!coaching || typeof coaching !== 'object') {
-			console.warn('[QP] AI analysis returned null/invalid — returning graceful error');
-			return res.status(200).json({
-				success: true,
-				coaching: {
-					overall_score: 5,
-					content: {
-						score: 5,
-						strengths: ['Response provided'],
-						improvements: ['AI analysis temporarily unavailable — please try again'],
-						covered_points: [],
-						missed_points: [],
-						detailed_feedback: 'Analysis could not be completed. Please try again.',
-						improved_response: '',
-						specific_tips: ['Try again for detailed coaching tips'],
-						common_mistake: '',
-						practice_prompt: '',
-					},
-					communication: {
-						score: 5,
-						word_count: 0,
-						words_per_minute: 0,
-						duration_seconds: duration_seconds || 60,
-						filler_words: {},
-						total_fillers: 0,
-						filler_rate: 0,
-						pace: 'unknown',
-						tips: [],
-						voice_analysis: null,
-					},
-					presentation: {
-						score: 5,
-						eye_contact: { score: 5, feedback: 'Analysis unavailable' },
-						facial_expressions: { score: 5, feedback: 'Analysis unavailable' },
-						body_language: { score: 5, feedback: 'Analysis unavailable' },
-						professional_appearance: { score: 5, feedback: 'Analysis unavailable' },
-						summary: 'Video analysis could not be completed.',
-						timestamped_notes: [],
-					},
-				},
+		if (
+			!coaching ||
+			typeof coaching !== 'object' ||
+			typeof coaching.overall_score !== 'number' ||
+			!Number.isFinite(coaching.overall_score) ||
+			coaching._content_failed === true
+		) {
+			// #1357: no usable analysis — return a truthful, retryable error
+			// (the same 503 shape this route's catch block uses for timeout /
+			// allProvidersFailed). Never fabricate scores: the previous
+			// fallback returned success:true with invented 5/10 scores, which
+			// violates the no-fake-scores rule. A shapeless object ({} / [])
+			// or one without a numeric overall_score is equally invalid —
+			// the frontend would render it as a blank "/10" verdict.
+			// Fix-forward: lib/qp-ai.js never returns null on total provider
+			// failure — its partial fallback returns a well-formed object
+			// flagged _content_failed:true with overall_score derived from
+			// the local speech-pattern score alone. Content was never
+			// analysed, so that object is not a usable analysis either.
+			// No session row is written.
+			console.warn(
+				`[QP] AI analysis returned null/invalid/content-failed (type: ${coaching === null ? 'null' : typeof coaching}, overall_score: ${coaching?.overall_score}, _content_failed: ${coaching?._content_failed}) — returning retryable 503`,
+			);
+			return res.status(503).json({
+				error: 'AI analysis is temporarily unavailable. Please try again in a moment.',
+				retryable: true,
+				retryAfterMs: 3000,
 			});
 		}
 
@@ -492,7 +492,7 @@ router.post(
 				question,
 				category,
 				transcription,
-				Math.round(coaching.overall_score || 5),
+				Math.round(coaching.overall_score),
 				JSON.stringify(coaching),
 				transcription,
 				JSON.stringify(coaching.communication || {}),
