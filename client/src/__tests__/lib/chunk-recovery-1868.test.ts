@@ -81,4 +81,32 @@ describe('tryChunkReload guard (#1868)', () => {
 		expect(tryChunkReload({ storage, reload, now: () => 131_000 })).toBe(true);
 		expect(reload).toHaveBeenCalledTimes(2);
 	});
+
+	it('returns false (no throw, no reload) when accessing window.sessionStorage itself throws', () => {
+		// F1 (PR #1869 review): in environments where cookies/site-data are
+		// blocked, merely ACCESSING window.sessionStorage throws a
+		// SecurityError — before any getItem/setItem call. The injectable-
+		// storage tests above cannot reach that path, so simulate it with
+		// a throwing getter for the property itself, and call with NO
+		// injected storage so the default resolution is exercised.
+		const reload = vi.fn();
+		Object.defineProperty(window, 'sessionStorage', {
+			configurable: true,
+			get() {
+				throw new Error('SecurityError: sessionStorage access denied');
+			},
+		});
+		try {
+			let result: boolean | undefined;
+			expect(() => {
+				result = tryChunkReload({ reload, now: () => 100_000 });
+			}).not.toThrow();
+			expect(result).toBe(false);
+			expect(reload).not.toHaveBeenCalled();
+		} finally {
+			// Remove the shadowing own property so jsdom's real
+			// sessionStorage accessor is visible again.
+			delete (window as unknown as Record<string, unknown>).sessionStorage;
+		}
+	});
 });
