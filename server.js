@@ -2232,6 +2232,13 @@ app.use(
 	express.static(reactBuildPath, {
 		// Don't serve index.html via static — we handle SPA fallback below
 		index: false,
+		// #1868: build assets are content-hashed, so they can be cached
+		// forever; everything else keeps the default (no long cache).
+		setHeaders: (res, filePath) => {
+			if (filePath.split(path.sep).includes('assets')) {
+				res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+			}
+		},
 	}),
 );
 
@@ -2373,6 +2380,9 @@ app.get('*', (req, res) => {
 
 		if (indexHtml) {
 			const statusCode = isKnownSpaRoute(req.path) ? 200 : 404;
+			// #1868: the shell must never be cached — it names the
+			// current build's hashed chunks.
+			res.setHeader('Cache-Control', 'no-cache');
 			res.status(statusCode).send(indexHtml);
 		} else {
 			// Fallback message if React build doesn't exist
