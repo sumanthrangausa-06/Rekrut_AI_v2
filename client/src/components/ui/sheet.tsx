@@ -17,7 +17,31 @@ const SheetContext = React.createContext<{ onClose: () => void; titleId: string 
 });
 
 const FOCUSABLE_SELECTOR =
-	'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+	'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false"])';
+
+// #1883 item 3: a selector cannot express every "not actually focusable"
+// case, so the queried list is filtered to what a keyboard user can reach:
+// hidden inputs, disabled controls (including controls disabled by an
+// ancestor fieldset — the disabled state lives on the fieldset, not the
+// control, and re-inclusion via the [tabindex] clause), and anything
+// hidden by itself or an ancestor up to the panel (hidden attribute or
+// computed display/visibility). ponytail: the fieldset first-<legend>
+// exception is not modelled — no Sheet consumer uses fieldset+legend;
+// model it if one appears.
+function isFocusableReachable(el: HTMLElement, panel: HTMLElement): boolean {
+	if (el instanceof HTMLInputElement && el.type === 'hidden') return false;
+	if ('disabled' in el && (el as HTMLButtonElement).disabled) return false;
+	if (el.closest('fieldset[disabled]')) return false;
+	let node: HTMLElement | null = el;
+	while (node) {
+		if (node.hidden) return false;
+		const style = getComputedStyle(node);
+		if (style.display === 'none' || style.visibility === 'hidden') return false;
+		if (node === panel) break;
+		node = node.parentElement;
+	}
+	return true;
+}
 
 function Sheet({ open, onOpenChange, children, side = 'right', className }: SheetProps) {
 	useScrollLock(Boolean(open));
@@ -38,7 +62,10 @@ function Sheet({ open, onOpenChange, children, side = 'right', className }: Shee
 		if (!panel) return;
 
 		const previouslyFocused = document.activeElement as HTMLElement | null;
-		const focusables = () => Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+		const focusables = () =>
+			Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((el) =>
+				isFocusableReachable(el, panel),
+			);
 		(focusables()[0] ?? panel).focus();
 
 		const handleKeyDown = (event: KeyboardEvent) => {
