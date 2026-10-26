@@ -69,7 +69,7 @@ function Sheet({ open, onOpenChange, children, side = 'right', className }: Shee
 		document.addEventListener('keydown', handleKeyDown);
 		return () => {
 			document.removeEventListener('keydown', handleKeyDown);
-			previouslyFocused?.focus?.();
+			if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus();
 		};
 	}, [open]);
 

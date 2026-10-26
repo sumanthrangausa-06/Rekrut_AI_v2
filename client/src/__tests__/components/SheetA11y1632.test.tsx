@@ -99,6 +99,19 @@ describe('#1632 Sheet dialog semantics + focus management', () => {
 		expect(document.activeElement).toBe(trigger);
 	});
 
+	it('Tab with focus stranded on the page body is pulled into the panel (trap owns stray focus while modal)', () => {
+		render(<Harness />);
+		fireEvent.click(screen.getByRole('button', { name: 'Open filters' }));
+		// A click on non-focusable panel content can leave focus on <body> in
+		// some browsers; while the dialog is modal that stray focus belongs
+		// to the trap, so Tab must land inside the panel, never behind it.
+		(document.activeElement as HTMLElement).blur();
+		expect(document.activeElement).toBe(document.body);
+		fireEvent.keyDown(document, { key: 'Tab' });
+		const dialog = screen.getByRole('dialog');
+		expect(dialog.contains(document.activeElement)).toBe(true);
+	});
+
 	it('renders nothing and traps nothing while closed', () => {
 		const onOpenChange = vi.fn();
 		render(

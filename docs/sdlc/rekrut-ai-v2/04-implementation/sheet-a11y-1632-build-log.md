@@ -48,17 +48,18 @@ auth, or network surface.
 
 ## Red → green evidence (vitest, jsdom, Testing Library)
 
-Suite: `client/src/__tests__/components/SheetA11y1632.test.tsx` — 7 tests:
+Suite: `client/src/__tests__/components/SheetA11y1632.test.tsx` — 8 tests:
 dialog role + aria-modal; accessible name = SheetTitle text; focus moves
 inside on open; Tab / Shift+Tab trap cycle; Escape → onOpenChange(false);
 focus returns to the trigger on close; SheetClose accessible name "Close";
 plus the closed-state guard (renders nothing, traps nothing).
 
-- RED on pristine dev sheet.tsx (fd07d0e62), verified first-hand by Suga:
+- RED on pristine dev sheet.tsx (fd07d0e62, file swapped in directly from
+  origin/dev), verified first-hand by Suga: the original 7-test suite ran
   **6 failed / 1 passed** (the pass is the closed-state guard, already
-  correct on pristine). Run logs: goal hidden_files
-  `0243-run-2026-10-26/red-1632.log`.
-- GREEN after the fix, verified first-hand by Suga: **7 passed / 7**.
+  correct on pristine); the full 8-test suite runs **7 failed / 1 passed**
+  on pristine. Run logs: goal hidden_files `0243-run-2026-10-26/red-1632.log`.
+- GREEN after the fix, verified first-hand by Suga: **8 passed / 8**.
 - `tsc --noEmit` (client): **78 errors with the fix, 78 on the pristine
   baseline** (same tree, sheet.tsx temporarily stashed) — zero new errors,
   none in the touched files. All 78 are pre-existing.
@@ -73,3 +74,34 @@ re-ran and read first-hand on 2026-10-26.
 Independent a11y-architect review on the PR → Quinn user-journey gate on a
 fresh dev build (Job Board Filters sheet driven by keyboard) → merge to
 dev → close #1632 with evidence.
+
+## Independent review — disposition (a11y-architect, PR #1882 comment 6413131870: BLOCK)
+
+- **F1 (outside-panel Tab branch) — KEPT, dissent recorded.** While the
+  dialog is modal, focus stranded on `<body>` (the Safari/non-focusable-
+  click case) is stray focus; pulling it to the first focusable element is
+  the trap doing its job. Narrowing the branch to the panel element only
+  would let that Tab press walk into the page behind the modal in exactly
+  those browsers — a trap leak. The behaviour is now pinned by a test
+  (see F7). Suga's call as CTO; the reviewer's contrary position is
+  preserved here and on the PR.
+- **F2 (open-state timing race) — ACCEPTED known limit.** The keydown
+  handler installs in the open effect; a key pressed in the sub-frame
+  window between the open render and the effect is not seen. The same
+  effect-installed-handler shape is the mainstream pattern; no cheap
+  restructure removes it.
+- **F3 (focus-return to a detached trigger) — FIXED.** Cleanup now checks
+  `document.contains(previouslyFocused)` before restoring focus.
+- **F4 (SheetTitle outside a Sheet) — REFUTED on this tree.** The committed
+  code is `id={ctx.titleId || undefined}`; the default `''` becomes
+  `undefined`, so no empty-string id attribute is rendered.
+- **F5 (two Sheets, two handlers) — DOCUMENTED limit, not a live defect.**
+  No consumer stacks two open Sheets at once (interview-active-layout's
+  two sheets are alternative panels). Stacked-sheet Escape ordering is
+  out of scope for this primitive fix and recorded here.
+- **F6 (aria-labelledby with no SheetTitle) — REFUTED for current
+  consumers.** Grep-verified on the branch tree: every consumer's Sheet
+  renders exactly one SheetTitle (header 1/1, JobFilterBar 1/1,
+  job-detail-drawer 1/1, interview-active-layout 2/2, recruiter jobs 1/1).
+- **F7 (outside-panel branch untested) — FIXED.** New suite leg pins the
+  body-focus Tab pull-in; suite is 8 tests (red 7/1 on pristine, green 8/8).
