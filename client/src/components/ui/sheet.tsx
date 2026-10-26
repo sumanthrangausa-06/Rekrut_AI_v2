@@ -43,6 +43,9 @@ function Sheet({ open, onOpenChange, children, side = 'right', className }: Shee
 
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.key === 'Escape') {
+				// #1883 item 2: an inner control that already consumed Escape
+				// (preventDefault) owns this keypress — don't also close.
+				if (event.defaultPrevented) return;
 				onOpenChangeRef.current?.(false);
 				return;
 			}
@@ -62,8 +65,10 @@ function Sheet({ open, onOpenChange, children, side = 'right', className }: Shee
 				event.preventDefault();
 				first.focus();
 			} else if (!panel.contains(document.activeElement)) {
+				// #1883 item 4: stray-focus recovery follows the user's
+				// direction — Shift+Tab enters at the last focusable.
 				event.preventDefault();
-				first.focus();
+				(event.shiftKey ? last : first).focus();
 			}
 		};
 		document.addEventListener('keydown', handleKeyDown);
