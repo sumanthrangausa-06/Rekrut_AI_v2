@@ -482,7 +482,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
 					remote_preference || 'hybrid',
 					sanitizedTimezonePreference,
 					sanitizedTravelWillingness,
-					sanitizedYearsExperience || 0,
+					sanitizedYearsExperience,
 				],
 			);
 		}
