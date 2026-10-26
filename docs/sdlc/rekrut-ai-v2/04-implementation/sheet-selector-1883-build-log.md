@@ -42,3 +42,20 @@ land on an invisible one.
 Item 1 (modal stacking — needs a stacking consumer + its own design) and
 item 5 (hardcoded "Close" aria-label — revisit if the client gains i18n)
 stay open, latent as filed.
+
+## Reviewer delta (independent a11y review, PR comment 6424701153 — APPROVE, no blocking)
+Three minor findings from the review were folded into this PR (same defect
+class — the trap list must equal the real Tab order), each pinned red-first
+(3 failed on the reviewed head, green after):
+1. An element with an explicit negative `tabindex` (e.g. `<a href
+   tabindex="-1">`) was counted via its element clause — now excluded by an
+   attribute check (attribute, not `el.tabIndex`, so contenteditable
+   regions without the attribute stay stops).
+2. `visibility: collapse` (treated as hidden on non-table elements) is
+   excluded alongside `visibility: hidden`.
+3. Visibility is now judged on the element's OWN computed value only —
+   computed visibility already resolves inheritance and overrides, so a
+   `visibility:visible` child inside a hidden ancestor is correctly a
+   stop; the ancestor walk now covers only `display:none`/`hidden`, which
+   cannot be overridden.
+Final Sheet suites after the delta: 20/20.

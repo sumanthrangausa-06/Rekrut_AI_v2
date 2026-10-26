@@ -112,3 +112,50 @@ describe('#1883 item 3 — Sheet focusable-selector edges', () => {
 		expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Real action' }));
 	});
 });
+
+describe('#1883 item 3 — reviewer delta (tabindex / visibility edges)', () => {
+	it('Shift+Tab wrap never lands on a link the author removed from tab order (tabindex="-1")', () => {
+		render(
+			<SheetWith>
+				<button type="button">Real action</button>
+				<a href="/somewhere" tabIndex={-1}>
+					Skipped link
+				</a>
+			</SheetWith>,
+		);
+		closeBtn().focus();
+		fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+		expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Real action' }));
+	});
+
+	it('Shift+Tab wrap never lands on a visibility:collapse control', () => {
+		render(
+			<SheetWith>
+				<button type="button">Real action</button>
+				<button type="button" style={{ visibility: 'collapse' }}>
+					Collapsed action
+				</button>
+			</SheetWith>,
+		);
+		closeBtn().focus();
+		fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+		expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Real action' }));
+	});
+
+	it('a child that re-declares visibility:visible inside a hidden ancestor IS a stop; its undeclared sibling is not', () => {
+		render(
+			<SheetWith>
+				<button type="button">Real action</button>
+				<div style={{ visibility: 'hidden' }}>
+					<button type="button">Still hidden</button>
+					<button type="button" style={{ visibility: 'visible' }}>
+						Override action
+					</button>
+				</div>
+			</SheetWith>,
+		);
+		closeBtn().focus();
+		fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+		expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Override action' }));
+	});
+});

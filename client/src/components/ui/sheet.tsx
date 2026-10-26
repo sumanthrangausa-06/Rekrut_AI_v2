@@ -32,11 +32,23 @@ function isFocusableReachable(el: HTMLElement, panel: HTMLElement): boolean {
 	if (el instanceof HTMLInputElement && el.type === 'hidden') return false;
 	if ('disabled' in el && (el as HTMLButtonElement).disabled) return false;
 	if (el.closest('fieldset[disabled]')) return false;
+	// An explicit negative tabindex removes the element from sequential
+	// (Tab) navigation even when an element clause above matched it; the
+	// trap list is the Tab order, so it must not contain such an element.
+	// (Attribute check, not el.tabIndex: a contenteditable region has no
+	// tabindex attribute and stays a stop.)
+	const tabIndexAttr = el.getAttribute('tabindex');
+	if (tabIndexAttr !== null && Number.parseInt(tabIndexAttr, 10) < 0) return false;
+	// Visibility is inherited but overridable, so the element's OWN
+	// computed value is the effective one (a visibility:visible child of a
+	// hidden ancestor really is visible and focusable). Display is not
+	// overridable that way, so display/hidden need the ancestor walk.
+	const ownStyle = getComputedStyle(el);
+	if (ownStyle.visibility === 'hidden' || ownStyle.visibility === 'collapse') return false;
 	let node: HTMLElement | null = el;
 	while (node) {
 		if (node.hidden) return false;
-		const style = getComputedStyle(node);
-		if (style.display === 'none' || style.visibility === 'hidden') return false;
+		if (getComputedStyle(node).display === 'none') return false;
 		if (node === panel) break;
 		node = node.parentElement;
 	}
