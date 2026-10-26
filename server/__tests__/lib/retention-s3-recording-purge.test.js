@@ -37,6 +37,7 @@ jest.mock('../../services/livekit', () => ({
 
 const { deleteStorageObject } = require('../../../lib/file-storage');
 const { deleteRecordingObjectVerified } = require('../../../lib/sessionRecordingStore');
+const auditLogService = require('../../../services/auditLogService');
 const db = require('../../../lib/db');
 
 const S3_KEY = 's3://egress-bucket/rekrut-recordings/room-1-123.mp4.enc';
@@ -285,5 +286,156 @@ describe('#1204 purgeExpiredRecordings — s3:// decrypted pointer (same file, s
 		expect(result.errors).toBeGreaterThan(0);
 		expect(deleteRecordingObjectVerified).not.toHaveBeenCalled();
 		expect(deleteStorageObject).not.toHaveBeenCalled();
+	});
+});
+
+describe('#1303 F-4 — purge audit payload aggregates failure error classes', () => {
+	function lastAuditPayload() {
+		expect(auditLogService.logEvent).toHaveBeenCalled();
+		const calls = auditLogService.logEvent.mock.calls;
+		return calls[calls.length - 1][0].payload;
+	}
+
+	test('purgeRecordingObjects: mixed failures aggregate by class in return + audit payload, with no key/bucket in the payload', async () => {
+		const EuComplianceService = require('../../../services/euComplianceService');
+		mockDb([
+			registryRow(S3_KEY),
+			registryRow(R2_KEY, 'frame'),
+			registryRow('s3://egress-bucket'),
+		]);
+		deleteRecordingObjectVerified.mockRejectedValue(
+			Object.assign(new Error('RECORDING_STORAGE_* required'), { code: 'CONFIG_ERROR' }),
+		);
+		deleteStorageObject.mockResolvedValue({ deleted: false, reason: 'provider_not_configured' });
+		auditLogService.logEvent.mockClear();
+		const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+		try {
+			const result = await EuComplianceService.purgeRecordingObjects({ dryRun: false });
+
+			expect(result.errors).toBe(3);
+			expect(result.errorClassCounts).toEqual({
+				CONFIG_ERROR: 1,
+				provider_not_configured: 1,
+				unrecognized_format: 1,
+			});
+			const payload = lastAuditPayload();
+			expect(payload.errorCount).toBe(3);
+			expect(payload.errorClassCounts).toEqual({
+				CONFIG_ERROR: 1,
+				provider_not_configured: 1,
+				unrecognized_format: 1,
+			});
+			const payloadJson = JSON.stringify(payload);
+			expect(payloadJson).not.toContain(S3_KEY);
+			expect(payloadJson).not.toContain(R2_KEY);
+			expect(payloadJson).not.toContain('egress-bucket');
+		} finally {
+			warnSpy.mockRestore();
+		}
+	});
+
+	test('purgeRecordingObjects: repeated failures of one class count up, successes contribute no class', async () => {
+		const EuComplianceService = require('../../../services/euComplianceService');
+		mockDb([registryRow(S3_KEY), registryRow(S3_KEY), registryRow(R2_KEY, 'frame')]);
+		deleteRecordingObjectVerified.mockRejectedValue(
+			Object.assign(new Error('boom'), { code: 'CONFIG_ERROR' }),
+		);
+		deleteStorageObject.mockResolvedValue({ deleted: true });
+		auditLogService.logEvent.mockClear();
+		const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+		try {
+			const result = await EuComplianceService.purgeRecordingObjects({ dryRun: false });
+
+			expect(result.errors).toBe(2);
+			expect(result.errorClassCounts).toEqual({ CONFIG_ERROR: 2 });
+			expect(lastAuditPayload().errorClassCounts).toEqual({ CONFIG_ERROR: 2 });
+		} finally {
+			warnSpy.mockRestore();
+		}
+	});
+
+	test('purgeRecordingObjects: a clean run writes an empty errorClassCounts object (uniform payload shape)', async () => {
+		const EuComplianceService = require('../../../services/euComplianceService');
+		mockDb([registryRow(S3_KEY)]);
+		deleteRecordingObjectVerified.mockResolvedValue(true);
+		auditLogService.logEvent.mockClear();
+
+		const result = await EuComplianceService.purgeRecordingObjects({ dryRun: false });
+
+		expect(result.errors).toBe(0);
+		expect(result.errorClassCounts).toEqual({});
+		expect(lastAuditPayload().errorClassCounts).toEqual({});
+	});
+
+	test('purgeExpiredRecordings: verified-delete failure and undecryptable pointer aggregate by class', async () => {
+		const EuComplianceService = require('../../../services/euComplianceService');
+		const livekit = require('../../services/livekit');
+		db.query.mockImplementation(async (sql) => {
+			if (sql.includes('FROM interview_recordings')) {
+				return {
+					rows: [
+						{ id: 21, storage_path: Buffer.from('a'), candidate_id: 7, interview_session_id: 55 },
+						{ id: 22, storage_path: Buffer.from('b'), candidate_id: 7, interview_session_id: 55 },
+					],
+					rowCount: 2,
+				};
+			}
+			if (sql.includes('FROM interview_sessions'))
+				return { rows: [{ candidate_id: 7, company_id: null }], rowCount: 1 };
+			return { rows: [], rowCount: 0 };
+		});
+		livekit.decryptStoragePath.mockImplementation((row) => (row.id === 21 ? S3_KEY : null));
+		deleteRecordingObjectVerified.mockRejectedValue(
+			Object.assign(new Error('RECORDING_STORAGE_* required'), { code: 'CONFIG_ERROR' }),
+		);
+		auditLogService.logEvent.mockClear();
+		const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+		try {
+			const result = await EuComplianceService.purgeExpiredRecordings({ dryRun: false });
+
+			expect(result.errors).toBe(2);
+			expect(result.errorClassCounts).toEqual({
+				CONFIG_ERROR: 1,
+				storage_path_undecryptable: 1,
+			});
+			const payload = lastAuditPayload();
+			expect(payload.errorClassCounts).toEqual({
+				CONFIG_ERROR: 1,
+				storage_path_undecryptable: 1,
+			});
+			expect(JSON.stringify(payload)).not.toContain(S3_KEY);
+			expect(JSON.stringify(payload)).not.toContain('egress-bucket');
+		} finally {
+			warnSpy.mockRestore();
+		}
+	});
+});
+
+describe('#1303 F-4 reviewer F4/F5 — outer catch aggregates by code, message never leaks', () => {
+	test('purgeRecordingObjects: a THROWN storage error aggregates err.code in the catch, and neither its message nor the key reaches the audit payload', async () => {
+		const EuComplianceService = require('../../../services/euComplianceService');
+		mockDb([registryRow(R2_KEY, 'frame')]);
+		deleteStorageObject.mockRejectedValue(
+			Object.assign(new Error(`provider exploded on ${R2_KEY}`), { code: 'PROVIDER_THROW' }),
+		);
+		auditLogService.logEvent.mockClear();
+		const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+		try {
+			const result = await EuComplianceService.purgeRecordingObjects({ dryRun: false });
+
+			expect(result.errors).toBe(1);
+			expect(result.errorClassCounts).toEqual({ PROVIDER_THROW: 1 });
+			const payload = auditLogService.logEvent.mock.calls.at(-1)[0].payload;
+			expect(payload.errorClassCounts).toEqual({ PROVIDER_THROW: 1 });
+			const payloadJson = JSON.stringify(payload);
+			expect(payloadJson).not.toContain('provider exploded');
+			expect(payloadJson).not.toContain(R2_KEY);
+		} finally {
+			errSpy.mockRestore();
+		}
 	});
 });

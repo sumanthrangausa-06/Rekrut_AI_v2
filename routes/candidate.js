@@ -3402,7 +3402,7 @@ router.get('/applications', authMiddleware, async (req, res) => {
 });
 
 // Auto-apply to a job (Pro feature, rate-limited) — uses stored auto-apply profile
-router.post('/applications/auto-apply', authMiddleware, async (req, res) => {
+router.post('/applications/auto-apply', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
 		const { job_id } = req.body;
 		if (!job_id) {
@@ -3454,7 +3454,7 @@ router.post('/applications/auto-apply', authMiddleware, async (req, res) => {
 // ============= AUTO-APPLY PROFILE MANAGEMENT (#83) =============
 
 // Activate auto-apply with GDPR consent
-router.post('/auto-apply/activate', authMiddleware, async (req, res) => {
+router.post('/auto-apply/activate', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
 		const { gdpr_consent, profile_data } = req.body;
 
@@ -3489,7 +3489,7 @@ router.post('/auto-apply/activate', authMiddleware, async (req, res) => {
 });
 
 // Deactivate auto-apply
-router.post('/auto-apply/deactivate', authMiddleware, async (req, res) => {
+router.post('/auto-apply/deactivate', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
 		await pool.query(
 			`
@@ -3526,7 +3526,7 @@ router.get('/auto-apply/status', authMiddleware, async (req, res) => {
 });
 
 // Update auto-apply profile data
-router.put('/auto-apply/profile', authMiddleware, async (req, res) => {
+router.put('/auto-apply/profile', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
 		const { profile_data } = req.body;
 		if (!profile_data || typeof profile_data !== 'object') {
@@ -3600,7 +3600,7 @@ router.post('/jobs/:id/auto-apply', authMiddleware, rateLimits.standard, async (
 });
 
 // Withdraw an application
-router.put('/applications/:id/withdraw', authMiddleware, async (req, res) => {
+router.put('/applications/:id/withdraw', authMiddleware, rateLimits.standard, async (req, res) => {
 	try {
 		// Verify application belongs to candidate and is withdrawable
 		const existing = await pool.query(
@@ -3619,10 +3619,23 @@ router.put('/applications/:id/withdraw', authMiddleware, async (req, res) => {
 				.json({ error: `Cannot withdraw an application with status: ${app.status}` });
 		}
 
+		// #929: status predicate makes the terminal check atomic — a
+		// recruiter transition landing after the SELECT above cannot be
+		// overwritten; a 0-row update is that race lost → 400, as below.
 		const result = await pool.query(
-			`UPDATE job_applications SET status = 'withdrawn', updated_at = NOW() WHERE id = $1 RETURNING ${CANDIDATE_APPLICATION_COLUMNS}`,
+			`UPDATE job_applications SET status = 'withdrawn', updated_at = NOW() WHERE id = $1 AND status NOT IN ('withdrawn','hired','rejected') RETURNING ${CANDIDATE_APPLICATION_COLUMNS}`,
 			[req.params.id],
 		);
+
+		if (result.rows.length === 0) {
+			const current = await pool.query(
+				`SELECT id, status FROM job_applications WHERE id = $1 AND candidate_id = $2`,
+				[req.params.id, req.user.id],
+			);
+			return res.status(400).json({
+				error: `Cannot withdraw an application with status: ${current.rows[0]?.status ?? app.status}`,
+			});
+		}
 
 		res.json({ success: true, application: toCandidateApplication(result.rows[0]) });
 	} catch (err) {
@@ -3683,10 +3696,21 @@ router.put('/applications/:id/status', authMiddleware, rateLimits.standard, asyn
 			});
 		}
 
+		// #929: same atomic status predicate as the withdraw sibling.
 		const result = await pool.query(
-			`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING ${CANDIDATE_APPLICATION_COLUMNS}`,
+			`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 AND status NOT IN ('withdrawn','hired','rejected') RETURNING ${CANDIDATE_APPLICATION_COLUMNS}`,
 			[status, req.params.id],
 		);
+
+		if (result.rows.length === 0) {
+			const current = await pool.query(
+				`SELECT id, status FROM job_applications WHERE id = $1 AND candidate_id = $2`,
+				[req.params.id, req.user.id],
+			);
+			return res.status(400).json({
+				error: `Cannot withdraw an application with status: ${current.rows[0]?.status ?? existing.rows[0].status}`,
+			});
+		}
 
 		res.json({ success: true, application: toCandidateApplication(result.rows[0]) });
 	} catch (err) {
@@ -4587,7 +4611,7 @@ router.post('/ai/match-explanation', authMiddleware, rateLimits.ai, async (req, 
 		// Get match data from match_results (already calculated by matching engine)
 		const matchData = await pool.query(
 			`
-      SELECT mr.*, j.title, j.company, j.requirements, j.description, j.location, j.salary_range
+      SELECT mr.weighted_score, mr.similarity_score, mr.match_level, mr.matching_skills, mr.missing_skills, j.title, j.company, j.requirements, j.description, j.location, j.salary_range
       FROM match_results mr
       JOIN jobs j ON j.id = mr.job_id
       WHERE mr.candidate_id = $1 AND mr.job_id = $2
@@ -4626,7 +4650,6 @@ Weighted Score: ${match?.weighted_score || 'N/A'}
 Similarity Score: ${match?.similarity_score || 'N/A'}
 Matching Skills: ${JSON.stringify(match?.matching_skills || [])}
 Missing Skills: ${JSON.stringify(match?.missing_skills || [])}
-Match Explanation: ${JSON.stringify(match?.match_explanation || {})}
 
 Return JSON:
 {
@@ -4764,14 +4787,17 @@ Only return JSON.`;
 			scoredJobs = jobs.rows.map((job) => {
 				const reqText = (job.requirements || '').toLowerCase();
 				const matchCount = candidateSkillNames.filter((s) => reqText.includes(s)).length;
+				// #1377: no candidate skills means relevance cannot be
+				// calculated — null ("insufficient data"), never a
+				// fabricated mid-range 50. Nulls sort last below.
 				const relevance =
 					candidateSkillNames.length > 0
 						? Math.round((matchCount / candidateSkillNames.length) * 100)
-						: 50;
+						: null;
 				return { ...job, relevance_score: relevance };
 			});
 
-			scoredJobs.sort((a, b) => b.relevance_score - a.relevance_score);
+			scoredJobs.sort((a, b) => (b.relevance_score ?? -1) - (a.relevance_score ?? -1));
 		}
 
 		res.json({
@@ -4866,11 +4892,14 @@ Only return JSON.`;
 			parsed = JSON.parse(result);
 		} catch {
 			const m = result.match(/\{[\s\S]*\}/);
+			// #1377: unparseable AI output means the review did NOT happen —
+			// completeness is null and the application is not certified
+			// ready; never a fabricated 50 plus a fabricated "ready".
 			parsed = m
 				? JSON.parse(m[0])
 				: {
-						ready_to_submit: true,
-						completeness_score: 50,
+						ready_to_submit: false,
+						completeness_score: null,
 						issues: [],
 						strengths: [],
 						suggestions: [],
@@ -4957,14 +4986,29 @@ Only return JSON.`;
 			parsed = JSON.parse(result);
 		} catch {
 			const m = result.match(/\{[\s\S]*\}/);
+			// #1377: unparseable AI output means the resume was NOT scored —
+			// overall_score is null, never a fabricated 50 (which used to be
+			// persisted as 20 real OmniScore points below).
 			parsed = m
 				? JSON.parse(m[0])
-				: { overall_score: 50, sections: {}, top_improvements: [], ats_friendly: false };
+				: { overall_score: null, sections: {}, top_improvements: [], ats_friendly: false };
 		}
 
-		// Feed resume score into OmniScore
-		try {
-			const resumePoints = Math.round((parsed.overall_score / 100) * 40); // Max 40 points for resume quality
+		// Feed resume score into OmniScore — only a real score may write
+		// points: a JSON number or a strictly numeric string, in the
+		// contract range 0-100. Null/missing/boolean/array/out-of-range
+		// values write nothing (Number(null)===0 and Number(true)===1
+		// must never become points).
+		const rawScore = parsed.overall_score;
+		const resumeScore =
+			typeof rawScore === 'number'
+				? rawScore
+				: typeof rawScore === 'string' && rawScore.trim() !== ''
+					? Number(rawScore)
+					: NaN;
+		if (Number.isFinite(resumeScore) && resumeScore >= 0 && resumeScore <= 100) {
+			try {
+				const resumePoints = Math.round((resumeScore / 100) * 40); // Max 40 points for resume quality
 			await pool.query(
 				`
         INSERT INTO score_components (user_id, component_type, source_type, points, max_points, metadata)
@@ -4975,10 +5019,11 @@ Only return JSON.`;
 				[req.user.id, resumePoints, JSON.stringify({ ai_score: parsed.overall_score })],
 			);
 
-			// Recalculate OmniScore
-			await omniscoreService.calculateScore(req.user.id);
-		} catch (scoreErr) {
-			console.error('OmniScore update from resume score (non-fatal):', scoreErr.message);
+				// Recalculate OmniScore
+				await omniscoreService.calculateScore(req.user.id);
+			} catch (scoreErr) {
+				console.error('OmniScore update from resume score (non-fatal):', scoreErr.message);
+			}
 		}
 
 		res.json({ success: true, score: parsed });
@@ -5813,7 +5858,7 @@ async function fetchLinkedInProfile(accessToken) {
 	const headers = { Authorization: `Bearer ${accessToken}` };
 
 	// 1. OpenID Connect userinfo — always available with `openid profile email` scope
-	const userinfoRes = await fetch('https://api.linkedin.com/v2/userinfo', { headers });
+	const userinfoRes = await fetch('https://api.linkedin.com/v2/userinfo', { headers, signal: AbortSignal.timeout(5000) });
 	if (!userinfoRes.ok) {
 		const errBody = await userinfoRes.text().catch(() => '');
 		throw new Error(`LinkedIn userinfo failed: ${userinfoRes.status} ${errBody}`);

@@ -5,7 +5,6 @@ import {
 	BarChart3,
 	BookOpen,
 	Briefcase,
-	Building2,
 	Calendar,
 	CheckCircle2,
 	ChevronDown,
@@ -158,17 +157,6 @@ const steps = [
 		description:
 			'Apply with one click. Track your applications. Get feedback from employers. Land the job.',
 	},
-];
-
-const companyLogos = [
-	'Google',
-	'Stripe',
-	'Airbnb',
-	'Netflix',
-	'Spotify',
-	'Shopify',
-	'Notion',
-	'Figma',
 ];
 
 const stats = [
@@ -663,29 +651,6 @@ function HeroSection() {
 								{stat.value}
 							</p>
 							<p className="mt-1 text-sm text-muted-foreground">{stat.label}</p>
-						</div>
-					))}
-				</div>
-			</div>
-		</section>
-	);
-}
-
-function CompanyTrustBarSection() {
-	return (
-		<section className="border-y bg-muted/30 py-10 sm:py-12">
-			<div className="mx-auto max-w-7xl px-4">
-				<p className="text-center text-xs font-medium uppercase tracking-wider text-muted-foreground mb-6">
-					Trusted by candidates at top companies
-				</p>
-				<div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-3 sm:gap-x-6">
-					{companyLogos.map((name) => (
-						<div
-							key={name}
-							className="flex items-center gap-2 rounded-lg bg-background border px-3 py-2 shadow-sm"
-						>
-							<Building2 className="h-4 w-4 text-indigo-500" />
-							<span className="text-sm font-semibold text-foreground">{name}</span>
 						</div>
 					))}
 				</div>
@@ -1566,7 +1531,6 @@ export function LandingPage() {
 			<Header />
 			<main>
 				<HeroSection />
-				<CompanyTrustBarSection />
 				<PlatformCapabilitiesSection />
 				<div id="features">
 					<FeaturesSection />

@@ -22,6 +22,29 @@ async function getAvgTimeToHire(companyId) {
 	}
 }
 
+// #1557: companies.benefits / core_values are JSONB string arrays
+// (migration 003, written via PUT /company/profile). pg returns them
+// as arrays; tolerate a JSON string for other drivers/mocks.
+function toArray(value) {
+	if (Array.isArray(value)) return value;
+	if (typeof value === 'string') {
+		try { const v = JSON.parse(value); return Array.isArray(v) ? v : []; } catch { return []; }
+	}
+	return [];
+}
+function realValues(value) {
+	return toArray(value).filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim());
+}
+function realBenefits(value) {
+	return toArray(value)
+		.map((b) => typeof b === 'string'
+			? { icon: 'default', label: b.trim(), description: '' }
+			: b && typeof b === 'object'
+				? { icon: b.icon || 'default', label: String(b.label || b.name || '').trim(), description: b.description || '' }
+				: null)
+		.filter((b) => b && b.label);
+}
+
 // GET /api/careers/default — return default career page for current recruiter's company
 router.get('/default', authMiddleware, async (req, res) => {
 	try {
@@ -32,7 +55,7 @@ router.get('/default', authMiddleware, async (req, res) => {
 
 		// Get company data
 		const companyResult = await pool.query(
-			`SELECT id, name, slug, industry, company_size AS size, website, description, logo_url, headquarters AS location, founded_year,
+			`SELECT id, name, slug, industry, company_size AS size, website, description, logo_url, headquarters AS location, founded_year, benefits, core_values,
 			        (SELECT COUNT(*) FROM jobs WHERE company_id = companies.id AND status = 'active') as open_positions,
 			        (SELECT AVG(overall_rating) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
 			        (SELECT COUNT(*) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as review_count,
@@ -81,65 +104,15 @@ router.get('/default', authMiddleware, async (req, res) => {
 				reviewCount: parseInt(company.review_count, 10) || 0,
 			},
 			culture: {
-				values: ['Innovation', 'Diversity', 'Transparency', 'Growth', 'Impact'],
-				benefits: [
-					{
-						icon: 'health',
-						label: 'Health Insurance',
-						description: '100% coverage for you and dependents',
-					},
-					{
-						icon: 'remote',
-						label: 'Remote Work',
-						description: 'Work from anywhere, async-friendly',
-					},
-					{
-						icon: 'flexible',
-						label: 'Flexible Hours',
-						description: 'Choose your own schedule',
-					},
-					{
-						icon: 'learning',
-						label: 'Learning Budget',
-						description: '$5,000/year for courses and conferences',
-					},
-					{
-						icon: 'equity',
-						label: 'Equity',
-						description: 'Meaningful stock options for all employees',
-					},
-					{
-						icon: 'vacation',
-						label: 'Unlimited PTO',
-						description: 'Take time when you need it',
-					},
-					{
-						icon: 'parental',
-						label: 'Parental Leave',
-						description: '20 weeks paid for all parents',
-					},
-					{
-						icon: 'gym',
-						label: 'Wellness',
-						description: '$100/month gym or wellness stipend',
-					},
-				],
+				// #1557: the company's own stored values/benefits (migration
+				// 003) — empty when unset, never hard-coded boilerplate.
+				values: realValues(company.core_values),
+				benefits: realBenefits(company.benefits),
 				photos: [],
 			},
-			team: [
-				{
-					id: '1',
-					name: 'Team Lead',
-					role: 'Engineering Manager',
-					quote: 'We build the future together',
-				},
-				{
-					id: '2',
-					name: 'Hiring Manager',
-					role: 'People Operations',
-					quote: 'People are our greatest asset',
-				},
-			],
+			// #1557: no career-team source exists in the schema — empty,
+			// never placeholder people/quotes.
+			team: [],
 			jobs: jobsResult.rows.map((j) => ({
 				id: String(j.id),
 				title: j.title,
@@ -177,7 +150,7 @@ router.get('/:id', async (req, res) => {
 		let companyResult;
 		if (/^\d+$/.test(id)) {
 			companyResult = await pool.query(
-				`SELECT id, name, slug, industry, company_size AS size, website, description, logo_url, headquarters AS location, founded_year,
+				`SELECT id, name, slug, industry, company_size AS size, website, description, logo_url, headquarters AS location, founded_year, benefits, core_values,
 				        (SELECT COUNT(*) FROM jobs WHERE company_id = companies.id AND status = 'active') as open_positions,
 				        (SELECT AVG(overall_rating) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
 				        (SELECT COUNT(*) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as review_count,
@@ -187,7 +160,7 @@ router.get('/:id', async (req, res) => {
 			);
 		} else {
 			companyResult = await pool.query(
-				`SELECT id, name, slug, industry, company_size AS size, website, description, logo_url, headquarters AS location, founded_year,
+				`SELECT id, name, slug, industry, company_size AS size, website, description, logo_url, headquarters AS location, founded_year, benefits, core_values,
 				        (SELECT COUNT(*) FROM jobs WHERE company_id = companies.id AND status = 'active') as open_positions,
 				        (SELECT AVG(overall_rating) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as rating,
 				        (SELECT COUNT(*) FROM company_ratings WHERE company_id = companies.id AND status = 'published') as review_count,
@@ -237,65 +210,15 @@ router.get('/:id', async (req, res) => {
 				reviewCount: parseInt(company.review_count, 10) || 0,
 			},
 			culture: {
-				values: ['Innovation', 'Diversity', 'Transparency', 'Growth', 'Impact'],
-				benefits: [
-					{
-						icon: 'health',
-						label: 'Health Insurance',
-						description: '100% coverage for you and dependents',
-					},
-					{
-						icon: 'remote',
-						label: 'Remote Work',
-						description: 'Work from anywhere, async-friendly',
-					},
-					{
-						icon: 'flexible',
-						label: 'Flexible Hours',
-						description: 'Choose your own schedule',
-					},
-					{
-						icon: 'learning',
-						label: 'Learning Budget',
-						description: '$5,000/year for courses and conferences',
-					},
-					{
-						icon: 'equity',
-						label: 'Equity',
-						description: 'Meaningful stock options for all employees',
-					},
-					{
-						icon: 'vacation',
-						label: 'Unlimited PTO',
-						description: 'Take time when you need it',
-					},
-					{
-						icon: 'parental',
-						label: 'Parental Leave',
-						description: '20 weeks paid for all parents',
-					},
-					{
-						icon: 'gym',
-						label: 'Wellness',
-						description: '$100/month gym or wellness stipend',
-					},
-				],
+				// #1557: the company's own stored values/benefits (migration
+				// 003) — empty when unset, never hard-coded boilerplate.
+				values: realValues(company.core_values),
+				benefits: realBenefits(company.benefits),
 				photos: [],
 			},
-			team: [
-				{
-					id: '1',
-					name: 'Team Lead',
-					role: 'Engineering Manager',
-					quote: 'We build the future together',
-				},
-				{
-					id: '2',
-					name: 'Hiring Manager',
-					role: 'People Operations',
-					quote: 'People are our greatest asset',
-				},
-			],
+			// #1557: no career-team source exists in the schema — empty,
+			// never placeholder people/quotes.
+			team: [],
 			jobs: jobsResult.rows.map((j) => ({
 				id: String(j.id),
 				title: j.title,

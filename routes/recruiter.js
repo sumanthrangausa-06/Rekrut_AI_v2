@@ -837,11 +837,15 @@ router.post(
 					company: req.user.company_name,
 				});
 
-				await trustscoreService.addJobAuthenticityComponent(
-					req.user.company_id,
-					job.id,
-					analysis.overall_score,
-				);
+				// #1570: only a real numeric score may enter the Trust Score —
+				// a missing/non-numeric overall_score skips the component.
+				if (Number.isFinite(analysis.overall_score)) {
+					await trustscoreService.addJobAuthenticityComponent(
+						req.user.company_id,
+						job.id,
+						analysis.overall_score,
+					);
+				}
 
 				// Issue #143: Invalidate analytics cache on new job
 				analyticsCache.invalidatePatterns([
@@ -2170,7 +2174,7 @@ router.put(
 							override_decision: status,
 							override_reason: recruiter_notes || 'Manual status change by recruiter',
 							ai_model: aiMetadata.model || 'unknown',
-							ai_confidence: aiMetadata.confidence || 0.85,
+							ai_confidence: aiMetadata.confidence ?? null,
 							job_title: existing.rows[0].job_title || 'Unknown Position',
 						},
 						req,
@@ -2827,7 +2831,7 @@ router.put(
 							override_decision: status,
 							override_reason: 'Batch status change by recruiter',
 							ai_model: aiMetadata.model || 'unknown',
-							ai_confidence: aiMetadata.confidence || 0.85,
+							ai_confidence: aiMetadata.confidence ?? null,
 							batch_operation: true,
 						},
 						req,
@@ -3770,7 +3774,7 @@ router.put(
 						override_decision: 'offered',
 						override_reason: 'Recruiter sent offer to candidate',
 						ai_model: aiMetadata.model || 'unknown',
-						ai_confidence: aiMetadata.confidence || 0.85,
+						ai_confidence: aiMetadata.confidence ?? null,
 						offer_id: parseInt(req.params.id, 10),
 					},
 					req,

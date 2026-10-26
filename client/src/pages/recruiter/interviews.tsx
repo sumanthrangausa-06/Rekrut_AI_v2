@@ -89,7 +89,7 @@ interface Application {
 	job_title: string;
 	status: string;
 	screening_status?: string;
-	screening_score?: number;
+	screening_score?: number | null;
 	screening_session_id?: number | null;
 }
 
@@ -984,7 +984,9 @@ export function RecruiterInterviewsPage() {
 																	className="text-xs"
 																>
 																	{app.screening_status === 'completed'
-																		? `Score: ${app.screening_score}/100`
+																		? app.screening_score != null
+																			? `Score: ${app.screening_score}/100`
+																			: 'Score: N/A'
 																		: app.screening_status}
 																</Badge>
 															)}
@@ -1045,14 +1047,16 @@ export function RecruiterInterviewsPage() {
 													<div className="flex items-center gap-3">
 														<div
 															className={`text-lg font-bold ${
-																(app.screening_score || 0) >= 70
-																	? 'text-green-600'
-																	: (app.screening_score || 0) >= 50
-																		? 'text-yellow-600'
-																		: 'text-red-600'
+																app.screening_score == null
+																	? 'text-muted-foreground'
+																	: app.screening_score >= 70
+																		? 'text-green-600'
+																		: app.screening_score >= 50
+																			? 'text-yellow-600'
+																			: 'text-red-600'
 															}`}
 														>
-															{app.screening_score || 0}
+															{app.screening_score ?? 'N/A'}
 														</div>
 														<div>
 															<span className="font-medium text-sm">{app.candidate_name}</span>
@@ -1739,14 +1743,18 @@ export function RecruiterInterviewsPage() {
 						<div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
 							<div
 								className={`text-2xl sm:text-3xl font-bold ${
-									(showScreeningReport.report.overall_score || 0) >= 70
-										? 'text-green-600'
-										: (showScreeningReport.report.overall_score || 0) >= 50
-											? 'text-yellow-600'
-											: 'text-red-600'
+									showScreeningReport.report.overall_score == null
+										? 'text-muted-foreground'
+										: showScreeningReport.report.overall_score >= 70
+											? 'text-green-600'
+											: showScreeningReport.report.overall_score >= 50
+												? 'text-yellow-600'
+												: 'text-red-600'
 								}`}
 							>
-								{showScreeningReport.report.overall_score || 0}/100
+								{showScreeningReport.report.overall_score == null
+									? 'N/A'
+									: `${showScreeningReport.report.overall_score}/100`}
 							</div>
 							<div>
 								<Badge
@@ -1755,10 +1763,12 @@ export function RecruiterInterviewsPage() {
 											? 'success'
 											: showScreeningReport.report.recommendation === 'consider'
 												? 'warning'
-												: 'destructive'
+												: showScreeningReport.report.recommendation == null
+													? 'secondary'
+													: 'destructive'
 									}
 								>
-									{showScreeningReport.report.recommendation?.toUpperCase()}
+									{showScreeningReport.report.recommendation?.toUpperCase() || 'N/A'}
 								</Badge>
 								<p className="text-sm text-muted-foreground mt-1">
 									{showScreeningReport.report.recommendation_reasoning}
@@ -1766,7 +1776,7 @@ export function RecruiterInterviewsPage() {
 							</div>
 						</div>
 
-						{showScreeningReport.report.strengths && (
+						{showScreeningReport.report.strengths && showScreeningReport.report.strengths.length > 0 && (
 							<div>
 								<h4 className="font-medium text-sm mb-1 text-green-700">Strengths</h4>
 								<ul className="space-y-1">
@@ -1854,11 +1864,13 @@ export function RecruiterInterviewsPage() {
 														</span>
 														<span
 															className={`text-sm font-bold ${
-																(qs.score || 0) >= 70
-																	? 'text-green-600'
-																	: (qs.score || 0) >= 50
-																		? 'text-yellow-600'
-																		: 'text-red-600'
+																qs.score == null
+																	? 'text-muted-foreground'
+																	: qs.score >= 70
+																		? 'text-green-600'
+																		: qs.score >= 50
+																			? 'text-yellow-600'
+																			: 'text-red-600'
 															}`}
 														>
 															{qs.score ?? '—'}/100

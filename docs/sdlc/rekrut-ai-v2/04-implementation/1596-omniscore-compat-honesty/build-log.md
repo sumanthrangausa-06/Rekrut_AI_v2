@@ -18,17 +18,40 @@ JSON (#1538 `persistedFactorScores`, lines 839–845) already honoured
 15 pts for a default 50% attendance rate with zero interviews + 20 pts
 follow-through); `calcSoftSkills` raw is 0 with `hasData=false`.
 
-### Mixed-case decision (documented per the issue's STOP 1 requirement)
+### Mixed-case rule — ⚠️ FOR PARENT/PANEL ADJUDICATION
 
-A compat column is the average of its **measured** source factors only;
-it is **null** when no source factor has data. Basis: the #1588 value the
-issue files as the defect — `behavior_score` 43 — is itself a mixed case
-(reliability_signals had data via 1 application, raw 85; soft_skills had
-none, raw 0; (85+0)/2 = 43). "Keep the computed value when at least one
-source is measured" would preserve the exact fabricated value, so the
-only reading consistent with the issue's own repro is measured-only
-averaging. Same shape for resume: a measured experience raw of 10 with
-no education data persisted as 5.
+> **This rule is a PROPOSAL by Nova, implemented so the panel adjudicates
+> working code. It is NOT a discussed team position and NOT a ruling**
+> (HL-004; the issue itself requires the mixed case to be a discussed
+> team position, no solo call). The independent reviewer / panel must
+> adjudicate it before merge; if the panel rules otherwise, the change
+> is confined to the single `compatScore` helper plus its tests.
+
+**Proposed rule:** a compat column is the average of its **measured**
+(`hasData`) source factors only; it is **null** when no source factor
+has data.
+
+**Relation to precedent — follows both, departs from neither:**
+- **#1538** persisted each no-data factor as JSON null (`hasData ?
+  Math.round(raw) : null`) — the per-factor honesty rule. For the two
+  single-source compat columns (`interview_score`, `technical_score`)
+  the proposed rule is exactly #1538 applied to the column.
+- **#1731 Lane 2/3** (panel-ruled) renormalised composite scores over
+  measured components only — both measured: unchanged; one measured:
+  that component alone; neither: NULL. The two-source compat columns
+  (`resume_score`, `behavior_score`) are composites, so the proposed
+  rule applies the #1731 renormalisation precedent to them directly.
+- The no-data → null and fully-measured cases are NOT in dispute (they
+  are #1538/#1731 settled ground) and were built red-first regardless;
+  only the mixed case rides on this adjudication.
+
+**Supporting evidence from the issue's own repro:** the #1588 value the
+issue files as the defect — `behavior_score` 43 — is itself a mixed
+case (reliability_signals had data via 1 application, raw 85;
+soft_skills had none, raw 0; (85+0)/2 = 43). "Keep the computed value
+when at least one source is measured" would preserve the exact
+fabricated value. Same shape for resume: a measured experience raw of
+10 with no education data persisted as 5.
 
 ### Specialist decision
 

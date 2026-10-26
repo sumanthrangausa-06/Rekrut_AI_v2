@@ -19,7 +19,8 @@
  *   4. Re-run `node migrate.js` — migrations 280+ run against a bank that
  *      already contains the hazard rows, exactly as a real pre-existing
  *      bank would present them.
- *   5. Read back every row's source/review_status and print verdicts.
+ *   5. Read back every row's source/review_status, print verdicts, and
+ *      ASSERT them (#1667): any mismatch exits non-zero with a FAIL line.
  *   6. If migration 282 exists in this checkout (GREEN), also prove its
  *      demote path directly: insert a NEW poisoned row already marked
  *      curated+approved (the state a loose-280 database is left in), run
@@ -50,6 +51,15 @@ const label = (process.argv[2] || 'run').toLowerCase().replace(/[^a-z0-9]/g, '')
 const keep = process.argv.includes('--keep');
 const dbName = `rekrut_1664_hazard_${label}_${process.pid}`;
 const dbUrl = `postgresql://postgres@127.0.0.1:55433/${dbName}`;
+
+// #1667: real assertions — a mismatch records a FAIL line and forces a
+// non-zero exit at the end of main() (previously verdicts were print-only
+// and the process exited 0 even when a hazard came out approved).
+const failures = [];
+function check(name, ok, detail) {
+	console.log(`${ok ? 'PASS' : 'FAIL'}: ${name}${detail ? ` — ${detail}` : ''}`);
+	if (!ok) failures.push(name);
+}
 
 function runMigrate(phase) {
 	console.log(`\n--- migrate.js (${phase}) against ${dbName} ---`);
@@ -151,6 +161,18 @@ async function main() {
 		console.log(`HAZARD React edited-answer (id=${hazard2.id}): source=${hazard2.source} review_status=${hazard2.review_status}`);
 		console.log(`curated+approved total: ${approvedTotal.rows[0].n} (genuine seed rows = 6)`);
 		console.log(`JavaScript mcq approved supply: ${jsMcq.rows[0].n} (genuine = 2)`);
+		console.log('\n--- ASSERTIONS (#1667) ---');
+		// #1667 review Finding 1: serving requires only review_status='approved'
+		// (routes/assessments.js serves approved rows regardless of source), so
+		// NOT-curated+approved is too weak — a hazard left legacy/approved would
+		// pass while staying servable. Assert the EXACT demoted state, which is
+		// both this harness's documented GREEN expectation and migration 282's
+		// demote target: source='legacy', review_status='pending'.
+		const isLegacyPending = (r) => r.source === 'legacy' && r.review_status === 'pending';
+		check('(a) hazard typeof-null poison is legacy/pending (exact demoted state)', isLegacyPending(hazard1), `source=${hazard1.source} review_status=${hazard1.review_status}`);
+		check('(a) hazard React edited-answer is legacy/pending (exact demoted state)', isLegacyPending(hazard2), `source=${hazard2.source} review_status=${hazard2.review_status}`);
+		check('(b) curated+approved total == 6 (genuine seed rows)', approvedTotal.rows[0].n === 6, `got ${approvedTotal.rows[0].n}`);
+		check('(c) JavaScript MCQ approved supply == 2', jsMcq.rows[0].n === 2, `got ${jsMcq.rows[0].n}`);
 
 		// ── Phase 3: 282 demote path (GREEN checkouts only) ──────────────
 		const mig282 = path.join(REPO, 'migrations', '282_curation_content_integrity.js');
@@ -174,6 +196,7 @@ async function main() {
 			}
 			const after = await client.query(`SELECT source, review_status FROM assessment_questions WHERE id=$1`, [poison.rows[0].id]);
 			console.log(`Phase 3: after 282 up() — poison row source=${after.rows[0].source} review_status=${after.rows[0].review_status}`);
+			check('(d) Phase-3 poison row demoted by migration 282 up() to legacy/pending', isLegacyPending(after.rows[0]), `source=${after.rows[0].source} review_status=${after.rows[0].review_status}`);
 			await client.query('BEGIN');
 			try {
 				await mig.up(client);
@@ -187,9 +210,16 @@ async function main() {
 				`SELECT COUNT(*)::int AS n FROM assessment_questions WHERE source='curated' AND review_status='approved'`,
 			);
 			console.log(`Phase 3: 282 up() re-run (idempotency) passed; poison row still source=${again.rows[0].source} review_status=${again.rows[0].review_status}; curated+approved total still ${total2.rows[0].n}`);
+			check('(d) Phase-3 poison row still legacy/pending after idempotent 282 re-run', isLegacyPending(again.rows[0]), `source=${again.rows[0].source} review_status=${again.rows[0].review_status}`);
+			check('(d) curated+approved total unchanged after 282 re-run', total2.rows[0].n === approvedTotal.rows[0].n, `before=${approvedTotal.rows[0].n} after=${total2.rows[0].n}`);
 		} else {
 			console.log('\nPhase 3 skipped: migration 282 not present in this checkout (RED baseline).');
+			check('(d) migration 282 present for Phase-3 demotion check', false, 'migrations/282_curation_content_integrity.js not found');
 		}
+		if (failures.length > 0) {
+			throw new Error(`FAIL: ${failures.length} assertion(s) failed: ${failures.join('; ')}`);
+		}
+		console.log('\nALL ASSERTIONS PASSED');
 	} finally {
 		await client.end();
 		if (keep) {

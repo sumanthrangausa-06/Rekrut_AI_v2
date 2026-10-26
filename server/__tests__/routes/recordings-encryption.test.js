@@ -145,6 +145,48 @@ describe('GET /recordings/:id/playback — .enc recordings', () => {
 		expect(res.status).toBe(403);
 		expect(JSON.stringify(res.body)).not.toMatch(/test-bucket|http/);
 	});
+
+	// #1200 item 1: STORAGE_UNAVAILABLE is never produced by the #1130
+	// decrypt path (sessionRecordingStore's own S3 client — raw failures
+	// propagate uncoded), so a decrypt error carrying that code must land
+	// on the same indistinct 403 as any other storage failure, NOT the
+	// distinct 503. CONFIG_ERROR (missing RECORDING_STORAGE_* config) IS
+	// produced on this path and stays a distinct 503.
+	test('#1200: STORAGE_UNAVAILABLE-coded decrypt error → indistinct 403, not 503', async () => {
+		const err = new Error('storage unavailable');
+		err.code = 'STORAGE_UNAVAILABLE';
+		mockLivekit.fetchDecryptedRecording.mockRejectedValue(err);
+
+		const res = await request(app).get('/recordings/5/playback').set(as(7));
+
+		expect(res.status).toBe(403);
+		expect(res.body.error).toBe('Recording access denied');
+	});
+
+	test('#1200: CONFIG_ERROR decrypt error → 503 (live branch, pinned)', async () => {
+		const err = new Error('RECORDING_STORAGE_* required');
+		err.code = 'CONFIG_ERROR';
+		mockLivekit.fetchDecryptedRecording.mockRejectedValue(err);
+
+		const res = await request(app).get('/recordings/5/playback').set(as(7));
+
+		expect(res.status).toBe(503);
+	});
+
+	// #1200 item 2: the decrypted playback buffer is zeroed after use
+	// (DEK zeroing habit — best-effort, JS GC), while the bytes actually
+	// sent to the client are unaffected.
+	test('#1200: decrypted playback buffer is zeroed after the response is sent', async () => {
+		const plainBuf = Buffer.from('PLAIN-VIDEO');
+		mockLivekit.fetchDecryptedRecording.mockResolvedValue(plainBuf);
+
+		const res = await request(app).get('/recordings/5/playback').set(as(7));
+
+		expect(res.status).toBe(200);
+		const bodyText = Buffer.isBuffer(res.body) ? res.body.toString() : res.text;
+		expect(bodyText).toBe('PLAIN-VIDEO');
+		expect(plainBuf.every((b) => b === 0)).toBe(true);
+	});
 });
 
 describe('GET /recordings/:id/playback — legacy plaintext unchanged', () => {

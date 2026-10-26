@@ -141,11 +141,15 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 			// ─── Issue #104: Email notification to company owner ───
 			try {
 				const ownerEmailResult = await pool.query(
-					`SELECT email, name FROM users WHERE company_id = $1 AND role = 'employer' ORDER BY created_at ASC LIMIT 1`,
+					`SELECT id, email, name FROM users WHERE company_id = $1 AND role = 'employer' ORDER BY created_at ASC LIMIT 1`,
 					[existingCompany.id],
 				);
 				if (ownerEmailResult.rows.length > 0) {
-					await emailService.sendEmailAsync({
+					// #1359: truly non-blocking — do NOT await. sendEmailAsync
+					// wraps a Brevo fetch with no timeout; awaiting it here
+					// withheld the 202 response below indefinitely when the
+					// email send stalled (same defect class as #1353).
+					void emailService.sendEmailAsync({
 						to: ownerEmailResult.rows[0].email,
 						templateName: 'recruiter_join_request',
 						templateData: {
@@ -162,6 +166,13 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 							requester_id: user.id,
 							trigger: 'recruiter_join_request',
 						},
+					}).catch((emailErr) => {
+						// sendEmailAsync already swallows send failures; this
+						// guards the fire-and-forget promise itself.
+						console.error(
+							'[company/register] Owner email notification error:',
+							emailErr?.message || emailErr,
+						);
 					});
 				}
 			} catch (emailErr) {
@@ -1024,8 +1035,9 @@ router.post(
 			invalidateUserCache(target.id);
 
 			// ─── Issue #157: Email notification to suspended user ───
+			// #1359: truly non-blocking — do NOT await (see :148 note).
 			try {
-				await emailService.sendEmailAsync({
+				void emailService.sendEmailAsync({
 					to: target.email,
 					templateName: 'account_suspended',
 					templateData: {
@@ -1039,6 +1051,13 @@ router.post(
 						actor_id: req.user.id,
 						trigger: 'team_member_suspended',
 					},
+				}).catch((emailErr) => {
+					// sendEmailAsync already swallows send failures; this
+					// guards the fire-and-forget promise itself.
+					console.error(
+						'[company/suspend] Email notification error:',
+						emailErr?.message || emailErr,
+					);
 				});
 			} catch (emailErr) {
 				console.error('[company/suspend] Email notification error:', emailErr.message);
@@ -1179,8 +1198,9 @@ router.post(
 				target.id,
 			]);
 
+			// #1359: truly non-blocking — do NOT await (see :148 note).
 			try {
-				await emailService.sendEmailAsync({
+				void emailService.sendEmailAsync({
 					to: target.email,
 					templateName: 'account_suspended',
 					templateData: {
@@ -1194,6 +1214,13 @@ router.post(
 						actor_id: req.user.id,
 						trigger: 'team_member_suspended',
 					},
+				}).catch((emailErr) => {
+					// sendEmailAsync already swallows send failures; this
+					// guards the fire-and-forget promise itself.
+					console.error(
+						'[company/suspend] Email notification error:',
+						emailErr?.message || emailErr,
+					);
 				});
 			} catch (emailErr) {
 				console.error('[company/suspend] Email notification error:', emailErr.message);
@@ -1354,8 +1381,14 @@ router.post(
 						new_owner_id: newOwnerId,
 						new_owner_email: target.email,
 						new_owner_name: target.name,
-						old_owner_role_change: { from: 'owner', to: 'recruiter' },
-						new_owner_role_change: { from: target.role, to: 'owner' },
+						// Issue #1196: RBAC (user_roles) and users.role changes are
+						// recorded separately — the old fields mixed the two
+						// vocabularies and implied a users.role delta for the new
+						// owner that never happens (#1140).
+						old_owner_rbac_role_change: { from: 'owner', to: null },
+						old_owner_users_role_change: { from: req.user.role, to: 'recruiter' },
+						new_owner_rbac_role_change: { from: null, to: 'owner' },
+						new_owner_users_role_change: { from: target.role, to: target.role },
 					},
 				});
 			} catch (auditErr) {
@@ -1363,8 +1396,12 @@ router.post(
 			}
 
 			// ─── Email notification to new owner ───
+			// #1385: truly non-blocking — do NOT await. sendOwnershipTransferEmail
+			// wraps sendEmailAsync, whose Brevo fetch has no timeout; awaiting it
+			// here withheld the success response below indefinitely when the
+			// email send stalled (same defect class as #1353/#1359).
 			try {
-				await emailService.sendOwnershipTransferEmail({
+				void emailService.sendOwnershipTransferEmail({
 					to: target.email,
 					name: target.name,
 					companyName: company.name,
@@ -1374,6 +1411,13 @@ router.post(
 						actor_id: req.user.id,
 						trigger: 'ownership_transferred',
 					},
+				}).catch((emailErr) => {
+					// sendEmailAsync already swallows send failures; this
+					// guards the fire-and-forget promise itself.
+					console.error(
+						'[company/transfer-ownership] Email notification error:',
+						emailErr?.message || emailErr,
+					);
 				});
 			} catch (emailErr) {
 				console.error('[company/transfer-ownership] Email notification error:', emailErr.message);

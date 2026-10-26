@@ -62,7 +62,7 @@ interface AttemptResult {
 		fit_notes: string;
 		suggested_interview_focus: string[];
 	} | null;
-	anti_cheat_score: number;
+	anti_cheat_score: number | null;
 	status: string;
 	completed_at: string;
 	scored_at: string;
@@ -677,9 +677,11 @@ export function RecruiterJobAssessmentPage() {
 												<Clock className="h-3 w-3 inline" />{' '}
 												{Math.round((r.time_spent_seconds || 0) / 60)} min
 											</span>
+											{r.anti_cheat_score != null && (
 											<span>
 												<Shield className="h-3 w-3 inline" /> Integrity: {r.anti_cheat_score}%
 											</span>
+											)}
 											<span className="ml-auto">
 												{r.scored_at ? new Date(r.scored_at).toLocaleDateString() : ''}
 											</span>

@@ -40,10 +40,14 @@ fails if either drifts. No change to `assessments.tsx` or
      exact literals, medium parsed out as [2, 4];
    - client pin: the exact string `Mixed · Medium (levels 2–4)`
      occurs exactly once in `assessments.tsx`;
-   - cross-contract: the expected label is DERIVED from the band the
-     snapshot literal names (parsed from the server source), so a
-     band change server-side breaks the agreement even if both
-     hard-coded literals were left untouched.
+   - cross-contract: the expected label's level numbers are DERIVED
+     from the band the snapshot literal names (parsed from the server
+     source), so a band change server-side breaks the agreement even
+     if both hard-coded literals were left untouched. The label's
+     words (`Mixed · Medium`) were originally re-hardcoded in that
+     leg; #1712 completed the derivation — the format and band words
+     are now also parsed from the snapshot literal and capitalised,
+     so the whole expected label is derived.
 2. **N2 (title only)** — `assessment-take-1654.test.tsx`: the
    `GAP-4 — completion labels from response fields` describe now also
    names the #1679 item 9 server-field discriminators its tests
