@@ -1547,7 +1547,9 @@ export function CandidateJobDetailPage() {
 											: 'Some improvements suggested'}
 									</span>
 									<Badge variant="outline" className="shrink-0">
-										{reviewResult.completeness_score || 0}% complete
+										{reviewResult.completeness_score == null
+											? 'Completeness: N/A'
+											: `${reviewResult.completeness_score}% complete`}
 									</Badge>
 								</div>
 								{reviewResult.strengths?.length > 0 && (

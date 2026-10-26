@@ -212,7 +212,6 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 	const [msgSearchQuery, setMsgSearchQuery] = useState('');
 	const [showMsgSearch, setShowMsgSearch] = useState(false);
 	const [showMobileSidebar, setShowMobileSidebar] = useState(true);
-	const [typingUsers, setTypingUsers] = useState<Set<number>>(new Set());
 	const [showProfilePanel, setShowProfilePanel] = useState(false);
 	const [sharedFiles, setSharedFiles] = useState<
 		{ name: string; type: string; size: string; date: string }[]
@@ -306,24 +305,6 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 		return () => clearInterval(interval);
 	}, [activeConv, pollNewMessages]);
 
-	// Simulate typing indicator for demo
-	useEffect(() => {
-		if (!activeConv) return;
-		const timer = setTimeout(() => {
-			const conv = conversations.find((c) => c.id === activeConv);
-			if (conv && Math.random() > 0.7) {
-				setTypingUsers((prev) => new Set([...prev, conv.other_user?.id || 0]));
-				setTimeout(() => {
-					setTypingUsers((prev) => {
-						const next = new Set(prev);
-						next.delete(conv.other_user?.id || 0);
-						return next;
-					});
-				}, 2000);
-			}
-		}, 3000);
-		return () => clearTimeout(timer);
-	}, [activeConv, conversations]);
 
 	async function sendMessage(textOverride?: string) {
 		const text = (textOverride || inputText).trim();
@@ -803,33 +784,6 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 											</div>
 										))}
 
-										{/* Typing indicator */}
-										{typingUsers.size > 0 && !msgSearchQuery && (
-											<div className="flex gap-2">
-												<Avatar
-													className="h-7 w-7 shrink-0"
-													seed={otherUser?.id}
-													fallback={otherUser?.name?.[0]?.toUpperCase() || '?'}
-													useDiceBear={true}
-												/>
-												<div className="bg-muted rounded-2xl rounded-tl-md px-4 py-2.5">
-													<div className="flex items-center gap-1">
-														<div
-															className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
-															style={{ animationDelay: '0ms' }}
-														/>
-														<div
-															className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
-															style={{ animationDelay: '150ms' }}
-														/>
-														<div
-															className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
-															style={{ animationDelay: '300ms' }}
-														/>
-													</div>
-												</div>
-											</div>
-										)}
 
 										<div ref={messagesEndRef} />
 									</div>

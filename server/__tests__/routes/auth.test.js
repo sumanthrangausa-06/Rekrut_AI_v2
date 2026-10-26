@@ -184,12 +184,14 @@ password,
 		});
 
 		it('rejects requests without authentication', async () => {
-			// No Bearer token and no CSRF token: the CSRF gate rejects first (403).
-			// A bad Bearer token reaches authMiddleware and gets 401.
+			// #1328: no credentials at all -> 401 AUTH_REQUIRED (the global CSRF
+			// layer no longer masks the missing auth as a 403 CSRF failure).
+			// A bad Bearer token reaches authMiddleware and also gets 401.
 			const noToken = await request(app)
 				.post('/api/auth/password')
 				.send({ currentPassword: oldPw, newPassword: newPw });
-			expect(noToken.status).toBe(403);
+			expect(noToken.status).toBe(401);
+			expect(noToken.body.code).toBe('AUTH_REQUIRED');
 
 			const badToken = await request(app)
 				.post('/api/auth/password')
@@ -264,10 +266,11 @@ password,
 		});
 
 		it('rejects requests without authentication', async () => {
-			// No Bearer token and no CSRF token: the CSRF gate rejects first (403).
-			// A bad Bearer token reaches authMiddleware and gets 401.
+			// #1328: no credentials at all -> 401 AUTH_REQUIRED (see above).
+			// A bad Bearer token reaches authMiddleware and also gets 401.
 			const noToken = await request(app).delete('/api/auth/delete-account').send({ password: pw });
-			expect(noToken.status).toBe(403);
+			expect(noToken.status).toBe(401);
+			expect(noToken.body.code).toBe('AUTH_REQUIRED');
 
 			const badToken = await request(app)
 				.delete('/api/auth/delete-account')

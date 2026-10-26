@@ -174,7 +174,13 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 						);
 						const owner = ownerResult.rows[0];
 						if (owner) {
-							await emailService.sendEmailAsync({
+							// #1353: truly non-blocking — do NOT await. sendEmailAsync
+							// wraps a Brevo fetch with no timeout; awaiting it here
+							// withheld the 202 response below indefinitely when the
+							// email send stalled, hanging the signup UI on
+							// 'Creating account...' even though the account and
+							// join request were already created.
+							void emailService.sendEmailAsync({
 								to: owner.email,
 								templateName: 'recruiter_join_request',
 								templateData: {
@@ -199,6 +205,13 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 									requester_id: user.id,
 									trigger: 'join_request_created',
 								},
+							}).catch((emailErr) => {
+								// sendEmailAsync already swallows send failures; this
+								// guards the fire-and-forget promise itself.
+								console.error(
+									'[auth] Failed to send recruiter join request email (non-blocking):',
+									emailErr?.message || emailErr,
+								);
 							});
 						}
 					} catch (emailErr) {
@@ -789,6 +802,7 @@ router.get('/google/callback', async (req, res) => {
 		const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			signal: AbortSignal.timeout(5000),
 			body: new URLSearchParams({
 				client_id: process.env.GOOGLE_CLIENT_ID,
 				client_secret: process.env.GOOGLE_CLIENT_SECRET,
@@ -814,6 +828,7 @@ router.get('/google/callback', async (req, res) => {
 		// Get user info
 		const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
 			headers: { Authorization: `Bearer ${tokens.access_token}` },
+			signal: AbortSignal.timeout(5000),
 		});
 
 		const googleUser = await userInfoResponse.json();
@@ -1066,6 +1081,7 @@ router.get('/linkedin/callback', async (req, res) => {
 		const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			signal: AbortSignal.timeout(5000),
 			body: new URLSearchParams({
 				grant_type: 'authorization_code',
 				code,
@@ -1091,6 +1107,7 @@ router.get('/linkedin/callback', async (req, res) => {
 		// Get user info using OpenID Connect userinfo endpoint
 		const userInfoResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
 			headers: { Authorization: `Bearer ${tokens.access_token}` },
+			signal: AbortSignal.timeout(5000),
 		});
 
 		const linkedinUser = await userInfoResponse.json();
@@ -1483,6 +1500,7 @@ router.post('/oauth/refresh', authMiddleware, async (req, res) => {
 			const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				signal: AbortSignal.timeout(5000),
 				body: new URLSearchParams({
 					client_id: process.env.GOOGLE_CLIENT_ID,
 					client_secret: process.env.GOOGLE_CLIENT_SECRET,
@@ -1547,7 +1565,10 @@ router.get('/verify-payment', authMiddleware, async (req, res) => {
 		// Verify with Polsia
 		const response = await fetch(
 			`${process.env.POLSIA_API_URL || 'https://polsia.com/api/proxy/ai'}/api/company-payments/verify?session_id=${sessionId}`,
-			{ headers: { Authorization: `Bearer ${process.env.POLSIA_API_KEY}` } },
+			{
+				headers: { Authorization: `Bearer ${process.env.POLSIA_API_KEY}` },
+				signal: AbortSignal.timeout(5000),
+			},
 		);
 		const { verified, payment } = await response.json();
 
@@ -1614,7 +1635,7 @@ router.post('/forgot-password', rateLimits.strict, async (req, res) => {
 				userId: user.id,
 				metadata: { token: resetToken },
 			});
-			console.log(`[email] Password reset email sent to ${email}`);
+			console.log(`[email] Password reset email sent to ${emailService.maskEmailForLog(email)}`);
 		} catch (emailErr) {
 			console.error('Failed to send reset email:', emailErr);
 			// Don't fail the request, just log the error

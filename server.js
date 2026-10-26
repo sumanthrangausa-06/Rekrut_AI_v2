@@ -500,6 +500,48 @@ function generateCsrfToken(req, res, next) {
 	next();
 }
 
+// #1328: public mutating entry points whose callers legitimately have no
+// session/JWT credential keep today's 403 CSRF_INVALID on CSRF failure.
+// Their credential, where any, travels in the URL/body/signature (screening
+// session token, verification ?token=, Stripe signature), or the caller is a
+// public form flow that fetches a CSRF token first (refresh/forgot/reset,
+// admin login, company register, guest checkout, guest job audio, referral
+// tracking). A NEW public mutating route that belongs here must be added
+// explicitly; protected routes need no entry — absence fails safe (denied).
+// Deliberately NOT here: /api/billing/cancel-subscription — its handler
+// 401-gates on req.user (routes/billing.js), so it is a protected route.
+function isCsrfPreservedPublicPost(path) {
+	return (
+		path === '/api/auth/refresh' ||
+		path === '/api/auth/forgot-password' ||
+		path === '/api/auth/reset-password' ||
+		path === '/api/admin/login' ||
+		path === '/api/company/register' ||
+		path === '/api/billing/webhook' ||
+		path === '/api/billing/checkout-session' ||
+		path === '/api/billing/confirm-session' ||
+		path === '/api/referrals/track' ||
+		path === '/api/referrals/attribution' ||
+		path.startsWith('/api/interviews/screening/session/') ||
+		/^\/api\/jobs\/[^/]+\/audio$/.test(path) ||
+		/^\/api\/verification-requests\/[^/]+\/respond$/.test(path)
+	);
+}
+
+// #1328: does the request carry ANY credential form this app accepts?
+// Bearer is handled by the exemption inside csrfProtection below. Presence
+// only — validity is the route auth layer's job; a request carrying a
+// (possibly invalid) credential is "credentialed" for status semantics and
+// keeps 403 on CSRF failure, exactly as before.
+function hasAnyCredential(req) {
+	return Boolean(
+		req.headers['x-api-key'] ||
+			req.headers['stripe-signature'] ||
+			req.session?.token ||
+			req.session?.isAdmin,
+	);
+}
+
 // CSRF validation: skip safe methods and /csrf-token endpoint
 function csrfProtection(req, res, next) {
 	if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
@@ -543,6 +585,17 @@ function csrfProtection(req, res, next) {
 			hasHeader: !!headerToken,
 			match: cookieToken === headerToken,
 		});
+		// #1328: CSRF runs before route auth, so an unauthenticated POST to a
+		// protected route would otherwise be misreported as a CSRF failure.
+		// Convention: no credential of any kind + CSRF failure + protected
+		// route => 401, so clients see the auth problem, not a CSRF problem.
+		// Any credentialed request (or a preserved public entry point) keeps
+		// the 403 — CSRF protection is NOT weakened for authenticated users.
+		if (!hasAnyCredential(req) && !isCsrfPreservedPublicPost(req.path)) {
+			return res
+				.status(401)
+				.json({ error: 'Authentication required', code: 'AUTH_REQUIRED' });
+		}
 		return res.status(403).json({ error: 'CSRF token validation failed', code: 'CSRF_INVALID' });
 	}
 	next();
@@ -557,9 +610,6 @@ app.get('/csrf-token', (req, res) => {
 
 // GET /metrics — Prometheus scrape endpoint (no auth required)
 app.get('/metrics', prometheus.metricsHandler);
-
-// Apply CSRF protection to all subsequent state-changing routes
-app.use(csrfProtection);
 
 // Validate session secret before configuring session middleware
 const sessionSecret = process.env.SESSION_SECRET;
@@ -591,6 +641,14 @@ app.use(
 	}),
 );
 
+// Apply CSRF protection to all subsequent state-changing routes.
+// #1328: registered AFTER session middleware (it used to run before it) so
+// csrfProtection can read req.session and tell a credentialed session user
+// from an anonymous request. All route mounts are below this line, so every
+// state-changing route is still covered; only /csrf-token and /metrics
+// (both GET, registered above) sit outside it, as before.
+app.use(csrfProtection);
+
 // Metrics middleware — tracks request counts, latency, error rates per endpoint
 try {
 	const { metricsMiddleware } = require('./lib/metrics-collector');
@@ -617,11 +675,12 @@ const { sendTemplatedEmail } = require('./lib/email-service');
 // Start email queue processor
 emailQueue.startProcessor(async (email) => {
 	try {
-		await sendTemplatedEmail({
-			to: email.to,
-			template: email.metadata.template || 'custom',
-			data: email.metadata,
-		});
+		// #1520: sendTemplatedEmail expects { templateName, templateData }
+		// (the shape sendEmailWithQueue uses) — map the queue payload via
+		// the shared helper instead of the old { template, data } keys,
+		// which left templateName undefined and failed logEmail on
+		// notification_logs.type NOT NULL.
+		await sendTemplatedEmail(emailQueue.toSendTemplatedEmailArgs(email));
 	} catch (err) {
 		console.error('[email-queue-processor] Failed:', err.message);
 		throw err;
@@ -1040,7 +1099,22 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 			// shadow key inventory in place indefinitely, which is the
 			// K-2 defect this story removes. Legal-hold fail-closed
 			// inside the purge itself (D-3/D-6).
-			const { purgeDrainedStorageDeletions } = require('./lib/erasureService');
+			// #1172: storage-deletion ledger sweep — drain crash-orphaned
+			// 'pending' rows (Phase 2 of an erasure that committed but whose
+			// post-commit drain never ran). Until this wiring the sweep had
+			// NO production caller, so orphaned rows were only re-drained
+			// if the same user was erased again. Deliberately NOT gated by
+			// LIVE_PURGE / opts.dryRun: this is erasure completion, not a
+			// retention schedule — every 'pending' row exists only because
+			// Phase 1 already committed that subject's own erasure request,
+			// and the route-context drain (routes/auth.js, routes/admin.js)
+			// runs ungated for the same rows. Gating it behind a
+			// production-only flag would retain erased
+			// users' files indefinitely. Legal-hold fail-closed inside the
+			// drain itself (#799): held rows stay 'pending' and counted.
+			const { sweepPendingStorageDeletions, purgeDrainedStorageDeletions } =
+				require('./lib/erasureService');
+			const storageSweep = await sweepPendingStorageDeletions();
 			const ledgerPurge = await purgeDrainedStorageDeletions();
 
 			const mode = opts.dryRun ? 'DRY-RUN' : 'LIVE';
@@ -1049,9 +1123,18 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 				`registry=${reg.purgedCount} (storage=${reg.storageDeleted}), templates=${tpl.deletedCount}, ` +
 				`observer_reports=${obs.deletedCount}, speech_measurements=${speechMeas.deletedCount}, ` +
 				`capture_intents_reconciled=${recon.rowsRetired}, test_capture_purged=${testPurge.objectsDeleted}, ` +
-				`storage_ledger_purged=${ledgerPurge.ledgerRowsPurged} (users=${ledgerPurge.usersPurged}, held=${ledgerPurge.ledgerRowsRetainedHeld}, lookup_failed=${ledgerPurge.ledgerHoldLookupFailed}), ` +
 				// #799: held rows are visibly skipped in the run report, never silently retained.
-				`held_skips=${(rec.heldSkips || 0) + (reg.heldSkips || 0) + (tpl.heldSkips || 0) + (obs.heldSkips || 0) + (speechMeas.heldSkips || 0) + (testPurge.heldSkips || 0) + (recon.heldSkips || 0)}`,
+				`held_skips=${(storageSweep.heldSkips || 0) + (rec.heldSkips || 0) + (reg.heldSkips || 0) + (tpl.heldSkips || 0) + (obs.heldSkips || 0) + (speechMeas.heldSkips || 0) + (testPurge.heldSkips || 0) + (recon.heldSkips || 0)}`,
+			);
+			// #1176 (security O-4): the storage-deletion ledger sweep +
+			// purge run LIVE in both retention modes (erasure completion,
+			// D-7/#1172 above) — they get their OWN log line and prefix so
+			// operators reading logs alone never mistake the live purge
+			// counters for the retention DRY-RUN/LIVE mode above.
+			console.log(
+				`[erasure] storage-ledger sweep+purge (LIVE, independent of retention mode): ` +
+				`storage_sweep_deleted=${storageSweep.deleted} (failed=${storageSweep.failed}, held=${storageSweep.heldSkips}), ` +
+				`storage_ledger_purged=${ledgerPurge.ledgerRowsPurged} (users=${ledgerPurge.usersPurged}, held=${ledgerPurge.ledgerRowsRetainedHeld}, lookup_failed=${ledgerPurge.ledgerHoldLookupFailed})`,
 			);
 		} catch (err) {
 			console.error('[retention] Failed:', err.message);
@@ -2159,7 +2242,7 @@ app.use(
 const KNOWN_ROUTES = [
 	// Public routes
 	'^/$',
-	'^/(login|register|forgot-password|reset-password)$',
+	'^/(login|register|signup|forgot-password|reset-password)$',
 	'^/(test-camera|pricing|payment-success)$',
 	'^/(ref|leaderboard|compare)$',
 	'^/screening/[^/]+$',

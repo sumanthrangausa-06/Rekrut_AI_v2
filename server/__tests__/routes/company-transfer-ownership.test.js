@@ -16,12 +16,19 @@
 const request = require('supertest');
 const express = require('express');
 
+const mockInsertAuditLog = jest.fn(async () => ({}));
+jest.mock('../../../routes/audit', () => ({
+	insertAuditLog: (...args) => mockInsertAuditLog(...args),
+}));
+
 jest.mock('../../../lib/auth', () => {
 	const actual = jest.requireActual('../../../lib/auth');
 	return {
 		...actual,
 		authMiddleware: (req, _res, next) => {
-			req.user = { id: 1, email: 'owner@test.com', name: 'Owner', company_id: 1 };
+			// role mirrors a real owner row (SELECT * in lib/auth): 'employer'
+			// is the users.role; 'owner' exists only as the RBAC role.
+			req.user = { id: 1, email: 'owner@test.com', name: 'Owner', role: 'employer', company_id: 1 };
 			next();
 		},
 	};
@@ -53,6 +60,7 @@ describe('POST /api/company/transfer-ownership — old-owner demotion (Issue #76
 	beforeEach(() => {
 		app = buildApp();
 		issuedUpdates = [];
+		mockInsertAuditLog.mockClear();
 
 		function serveReads(normalized, params, recordWrites) {
 			if (normalized.includes('select id, owner_id, name from companies where id =')) {
@@ -166,6 +174,31 @@ describe('POST /api/company/transfer-ownership — old-owner demotion (Issue #76
 		// new owner's owner role granted.
 		expect(issuedUpdates.some((u) => u.sql.startsWith('delete from user_roles'))).toBe(true);
 		expect(issuedUpdates.some((u) => u.sql.startsWith('insert into user_roles'))).toBe(true);
+	});
+
+	it('audit metadata separates RBAC and users.role changes (Issue #1196)', async () => {
+		const res = await request(app)
+			.post('/api/company/transfer-ownership')
+			.send({ newOwnerId: 2 });
+
+		expect(res.status).toBe(200);
+
+		const auditCall = mockInsertAuditLog.mock.calls
+			.map((c) => c[0])
+			.find((c) => c && c.action === 'ownership_transferred');
+		expect(auditCall).toBeDefined();
+		const { metadata } = auditCall;
+
+		// RBAC (user_roles) changes, vocabulary-pure:
+		expect(metadata.old_owner_rbac_role_change).toEqual({ from: 'owner', to: null });
+		expect(metadata.new_owner_rbac_role_change).toEqual({ from: null, to: 'owner' });
+		// users.role changes, vocabulary-pure: old owner really demoted to
+		// 'recruiter' from their pre-transfer role; new owner unchanged (#1140).
+		expect(metadata.old_owner_users_role_change).toEqual({ from: 'employer', to: 'recruiter' });
+		expect(metadata.new_owner_users_role_change).toEqual({ from: 'recruiter', to: 'recruiter' });
+		// The old mixed-vocabulary fields are gone.
+		expect(metadata.old_owner_role_change).toBeUndefined();
+		expect(metadata.new_owner_role_change).toBeUndefined();
 	});
 
 	it('grants the new owner the RBAC owner role (user_roles)', async () => {

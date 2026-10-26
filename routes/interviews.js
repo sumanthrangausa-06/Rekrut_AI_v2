@@ -428,11 +428,18 @@ router.get('/:id/analysis', authMiddleware, async (req, res) => {
 			[req.params.id],
 		);
 
-		// Calculate aggregate presentation score for OmniScore
+		// Calculate aggregate presentation score for OmniScore.
+		// #1377: average only rows carrying a real score — a NULL
+		// presentation_score is "insufficient data", never a 0 in the
+		// average; the aggregate stays null when no row has a real score.
 		let avgPresentationScore = null;
 		if (analysis.rows.length > 0) {
-			const scores = analysis.rows.map((row) => parseFloat(row.presentation_score || 0));
-			avgPresentationScore = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+			const scores = analysis.rows
+				.map((row) => parseFloat(row.presentation_score))
+				.filter((s) => Number.isFinite(s));
+			if (scores.length > 0) {
+				avgPresentationScore = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+			}
 		}
 
 		res.json({
@@ -2019,7 +2026,7 @@ router.post(
 					if (asrResult?.text) {
 						transcribedText = asrResult.text.trim();
 						console.log(
-							`[voice-respond] ASR transcription: "${transcribedText.substring(0, 100)}..."`,
+							`[voice-respond] ASR transcription: ${transcribedText.length} chars`,
 						);
 					} else if (clientTranscript.length >= 10) {
 						// ASR returned nothing — use client transcript
@@ -2034,7 +2041,7 @@ router.post(
 						transcribedText = clientTranscript;
 						usedFallback = true;
 						console.log(
-							`[voice-respond] Using client SpeechRecognition fallback: "${transcribedText.substring(0, 100)}..."`,
+							`[voice-respond] Using client SpeechRecognition fallback: ${transcribedText.length} chars`,
 						);
 					}
 				}
@@ -2056,7 +2063,9 @@ router.post(
 			// transcripts are real speech, not Whisper hallucinations.
 			const { isHallucination } = filterWhisperHallucination(transcribedText);
 			if (isHallucination && !usedFallback) {
-				console.log(`[voice-respond] Filtered Whisper hallucination: "${transcribedText}"`);
+				console.log(
+					`[voice-respond] Filtered Whisper hallucination: ${transcribedText.length} chars (content not logged)`,
+				);
 				// Try client transcript before rejecting
 				if (clientTranscript.length >= 10) {
 					transcribedText = clientTranscript;
@@ -2935,11 +2944,14 @@ router.post('/screening/send', authMiddleware, requireRole('admin', 'employer', 
 		const session = result.rows[0];
 
 		// Update application screening status and auto-advance pipeline status
-		// from 'applied' to 'screening' (don't override manual moves)
+		// from 'applied' to 'screening' (don't override manual moves).
+		// #923: the UPDATE itself carries the company predicate so the
+		// write stays self-defending even if the guarding lookup above
+		// is ever reordered or removed.
 		if (application_id) {
 			await pool.query(
-				`UPDATE job_applications SET screening_status = 'invited', status = CASE WHEN status = 'applied' THEN 'screening' ELSE status END, updated_at = NOW() WHERE id = $1`,
-				[application_id],
+				`UPDATE job_applications SET screening_status = 'invited', status = CASE WHEN status = 'applied' THEN 'screening' ELSE status END, updated_at = NOW() WHERE id = $1 AND company_id = $2`,
+				[application_id, req.user.company_id],
 			);
 		}
 
@@ -3312,7 +3324,9 @@ router.post(
 				// Phase 1 (#447): use shared transcription module.
 				const { isHallucination } = filterWhisperHallucination(transcribedText);
 				if (isHallucination) {
-					console.log(`[screening-voice] Filtered Whisper hallucination: "${transcribedText}"`);
+					console.log(
+					`[screening-voice] Filtered Whisper hallucination: ${transcribedText.length} chars (content not logged)`,
+				);
 					transcribedText = '';
 				}
 			}
@@ -3734,7 +3748,7 @@ router.post('/evaluate', authMiddleware, async (req, res) => {
 		if (interview_id) {
 			await pool.query(
 				`UPDATE scheduled_interviews SET ai_evaluation = $1, ai_composite_score = $2, updated_at = NOW() WHERE id = $3`,
-				[JSON.stringify(result), result.composite.composite_score, interview_id],
+				[JSON.stringify(result), result.composite?.composite_score ?? null, interview_id],
 			);
 		}
 

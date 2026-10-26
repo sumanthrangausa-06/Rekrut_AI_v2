@@ -131,6 +131,7 @@ export function AdminAgentsDashboardPage() {
 	const [runs, setRuns] = useState<AgentRun[]>([]);
 	const [stats, setStats] = useState<AgentStats | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [loadError, setLoadError] = useState<string | null>(null);
 	const [selectedTab, setSelectedTab] = useState('agents');
 	const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
 	const [refreshing, setRefreshing] = useState(false);
@@ -139,21 +140,24 @@ export function AdminAgentsDashboardPage() {
 
 	const loadData = useCallback(async () => {
 		setLoading(true);
+		setLoadError(null);
 		try {
 			const [agentsData, runsData, statsData] = await Promise.all([
-				apiCall<{ agents: Agent[] }>('/admin/agents').catch(() => ({ agents: [] })),
-				apiCall<{ runs: AgentRun[] }>('/admin/agents/runs?limit=50').catch(() => ({ runs: [] })),
-				apiCall<{ stats: AgentStats }>('/admin/agents/stats').catch(() => ({ stats: null })),
+				apiCall<{ agents: Agent[] }>('/admin/agents'),
+				apiCall<{ runs: AgentRun[] }>('/admin/agents/runs?limit=50'),
+				apiCall<{ stats: AgentStats }>('/admin/agents/stats'),
 			]);
 			setAgents(agentsData.agents || []);
 			setRuns(runsData.runs || []);
 			setStats(statsData.stats);
 		} catch (err) {
+			// Honest failure (#1568): never substitute invented data for a
+			// failed load — show the error state and let the admin retry.
 			console.error('Failed to load agent data:', err);
-			// Use mock data if API fails
-			setAgents(generateMockAgents());
-			setRuns(generateMockRuns());
-			setStats(generateMockStats());
+			setAgents([]);
+			setRuns([]);
+			setStats(null);
+			setLoadError(err instanceof Error ? err.message : 'Failed to load agent data');
 		} finally {
 			setLoading(false);
 		}
@@ -222,7 +226,7 @@ export function AdminAgentsDashboardPage() {
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 				<div>
 					<h1 className="font-heading text-2xl font-bold">Agent Monitor</h1>
-					<p className="text-muted-foreground">Real-time visibility into all 210 agents</p>
+					<p className="text-muted-foreground">Real-time visibility into your agents</p>
 				</div>
 				<div className="flex gap-2">
 					<Button
@@ -242,6 +246,15 @@ export function AdminAgentsDashboardPage() {
 				</div>
 			</div>
 
+			{loadError ? (
+				<EmptyState
+					icon={AlertTriangle}
+					title="Failed to load agent data"
+					description="Agent data is unavailable right now. Check your connection and try again."
+					action={{ label: 'Retry', onClick: () => void loadData() }}
+				/>
+			) : (
+				<>
 			{/* Stats */}
 			{stats && (
 				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -356,7 +369,7 @@ export function AdminAgentsDashboardPage() {
 							<p className="text-sm font-medium">Queue Status</p>
 							<div className="flex items-center justify-between">
 								<span className="text-sm text-muted-foreground">Pending jobs</span>
-								<span className="text-lg font-bold">{stats?.queueDepth || 0}</span>
+								<span className="text-lg font-bold">{stats ? stats.queueDepth : '—'}</span>
 							</div>
 							<Progress
 								value={Math.min(((stats?.queueDepth || 0) / 50) * 100, 100)}
@@ -424,6 +437,8 @@ export function AdminAgentsDashboardPage() {
 					)}
 				</TabsContent>
 			</Tabs>
+				</>
+			)}
 		</div>
 	);
 }
@@ -740,67 +755,4 @@ function formatDuration(seconds: number): string {
 	if (seconds < 60) return `${seconds}s`;
 	if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 	return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
-}
-
-// Mock data generators
-function generateMockAgents(): Agent[] {
-	const categories = [
-		'Recruitment',
-		'Screening',
-		'Analytics',
-		'Compliance',
-		'Messaging',
-		'Integration',
-	];
-	const types: Agent['type'][] = ['clawbot', 'scheduled', 'webhook', 'manual', 'integration'];
-	const statuses: Agent['status'][] = ['running', 'idle', 'failed', 'paused'];
-
-	return Array.from({ length: 210 }, (_, i) => ({
-		id: `agent-${i + 1}`,
-		name: `Agent ${i + 1}: ${categories[i % categories.length]} ${i % 3 === 0 ? 'Pipeline' : i % 3 === 1 ? 'Scanner' : 'Processor'}`,
-		type: types[i % types.length],
-		status: statuses[i % statuses.length],
-		lastRunAt: new Date(Date.now() - Math.random() * 86400000 * 7).toISOString(),
-		nextRunAt:
-			i % 2 === 0 ? new Date(Date.now() + Math.random() * 86400000).toISOString() : undefined,
-		totalRuns: Math.floor(Math.random() * 1000),
-		successRate: 70 + Math.random() * 30,
-		avgDuration: Math.floor(Math.random() * 300),
-		currentTask: i % 5 === 0 ? 'Processing candidate batch...' : undefined,
-		errorCount: Math.floor(Math.random() * 10),
-		warningCount: Math.floor(Math.random() * 20),
-		category: categories[i % categories.length],
-		description: `Automated ${categories[i % categories.length].toLowerCase()} agent handling ${i % 3 === 0 ? 'candidate pipeline' : i % 3 === 1 ? 'document screening' : 'data analysis'}`,
-	}));
-}
-
-function generateMockRuns(): AgentRun[] {
-	const triggers: AgentRun['trigger'][] = ['cron', 'manual', 'webhook', 'parent'];
-	const statuses: AgentRun['status'][] = ['success', 'failed', 'running', 'cancelled'];
-
-	return Array.from({ length: 50 }, (_, i) => ({
-		id: `run-${i + 1}`,
-		agentId: `agent-${(i % 210) + 1}`,
-		agentName: `Agent ${(i % 210) + 1}`,
-		status: statuses[i % statuses.length],
-		startedAt: new Date(Date.now() - Math.random() * 86400000).toISOString(),
-		endedAt: i % 2 === 0 ? new Date(Date.now() - Math.random() * 3600000).toISOString() : undefined,
-		duration: Math.floor(Math.random() * 300),
-		output: `Completed ${Math.floor(Math.random() * 100)} items. ${i % 3 === 0 ? 'Warning: slow response' : 'All systems normal'}`,
-		error: i % 4 === 0 ? 'Timeout: API response exceeded 30s' : undefined,
-		trigger: triggers[i % triggers.length],
-	}));
-}
-
-function generateMockStats(): AgentStats {
-	return {
-		totalAgents: 210,
-		activeNow: 47,
-		failedLast24h: 3,
-		completedLast24h: 1247,
-		avgSuccessRate: 94.2,
-		totalRunsToday: 1250,
-		avgDuration: 45,
-		queueDepth: 12,
-	};
 }

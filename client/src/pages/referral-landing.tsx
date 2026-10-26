@@ -1,4 +1,4 @@
-import { ArrowRight, Gift, Loader2, Sparkles, Users } from 'lucide-react';
+import { ArrowRight, Gift, Loader2, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -94,10 +94,6 @@ export function ReferralLandingPage() {
 
 					{/* Trust indicators */}
 					<div className="pt-8 flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
-						<div className="flex items-center gap-2">
-							<Users className="h-4 w-4" />
-							<span>10,000+ professionals</span>
-						</div>
 						<div className="flex items-center gap-2">
 							<Sparkles className="h-4 w-4" />
 							<span>AI-powered matching</span>

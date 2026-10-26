@@ -8,7 +8,6 @@ import {
 	Shield,
 	Sun,
 	User,
-	Users,
 } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
@@ -294,10 +293,6 @@ export function LoginPage() {
 									<div className="flex items-center gap-1.5">
 										<Shield className="h-3.5 w-3.5 text-emerald-500" />
 										<span>SSL Secured</span>
-									</div>
-									<div className="flex items-center gap-1.5">
-										<Users className="h-3.5 w-3.5 text-emerald-500" />
-										<span>Trusted by 2,000+ companies</span>
 									</div>
 								</div>
 								{/* TODO(copy): Replace with actual partner logos or testimonials */}

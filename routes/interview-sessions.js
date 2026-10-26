@@ -103,6 +103,8 @@ function toCandidateSafeReport(report) {
 		overall_score: report.overall_score ?? null,
 		recommendation: report.recommendation ?? null,
 		recommendation_reasoning: report.recommendation_reasoning ?? null,
+		analysis_unavailable: report.analysis_unavailable ?? null,
+		note: report.note ?? null,
 		strengths: report.strengths || [],
 		red_flags: report.red_flags || [],
 		dimension_scores: report.dimension_scores || {},
@@ -340,14 +342,20 @@ router.post('/interview-sessions/trigger', authMiddleware, async (req, res) => {
 		const application = appResult.rows[0];
 
 		const jobResult = await pool.query('SELECT * FROM jobs WHERE id = $1', [application.job_id]);
-		if (jobResult.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
-		}
-		const job = jobResult.rows[0];
+		const job = jobResult.rows[0] || null;
 
-		// The recruiter must own the job's company; admins bypass.
-		if (req.user.role !== 'admin' && Number(job.company_id) !== Number(req.user.company_id)) {
-			return res.status(403).json({ error: 'Forbidden' });
+		// #924: ownership parity — the job's company is the ownership anchor,
+		// and for non-admin callers a foreign-owned application must be
+		// indistinguishable from a non-existent one: both return the identical
+		// 404 'Application not found' above/below (PR #922 standard). Returning
+		// 403 here was an existence oracle. Admins bypass ownership; a missing
+		// job on their path keeps its distinct 404.
+		if (req.user.role !== 'admin') {
+			if (!job || Number(job.company_id) !== Number(req.user.company_id)) {
+				return res.status(404).json({ error: 'Application not found' });
+			}
+		} else if (!job) {
+			return res.status(404).json({ error: 'Job not found' });
 		}
 
 		// Idempotency: one AI interview per application.
@@ -748,7 +756,9 @@ router.post(
 				// Phase 1 (#447): use shared transcription module.
 				const { isHallucination } = filterWhisperHallucination(candidateText);
 				if (isHallucination) {
-					console.log(`[interview-sessions] Filtered Whisper hallucination: "${candidateText}"`);
+					console.log(
+						`[interview-sessions] Filtered Whisper hallucination: ${candidateText.length} chars (content not logged)`,
+					);
 					candidateText = '';
 					hasAudio = false;
 				}
