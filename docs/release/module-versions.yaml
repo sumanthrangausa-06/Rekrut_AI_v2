@@ -156,3 +156,16 @@ modules:
 #   merge 4a76429e7, deploy dep-dbfc77nb9u1s73ccn8i0 live, 3/3 prod
 #   /health agree at 4a76429e7; prod shell no-cache, same bundle hash,
 #   old asset 404). Client shell/server caching only; no version bump.
+# - Train 14A (#1867 slice A — privacy/erasure/compliance core, staging PR
+#   #1873 @ ea7a95485, deploy dep-dbfcsb0m7kps738jsvag live): content train,
+#   54 files byte-identical to dev + server.js #1180 Sentry hunk; migrations
+#   267/271/272/273 (expand-only) applied via the deploy's migrate step on
+#   the shared DB. Staging proof 2026-10-25: 3/3 /health agree at ea7a95485;
+#   fresh-candidate journey — GDPR export self 200 / foreign 403, consent
+#   record + read-back 200, delete-account 200 through the trained
+#   erasePersonalData (real auth.js caller), login-after-delete 401.
+#   Rex+Lex panel APPROVE WITH CONDITIONS (discharged; gap-f suite rides
+#   Train 14C with lib/email-queue.js). Promoted to PRODUCTION via Main
+#   Train M1.7 (PR #1874, merge 5d093fb22, deploy dep-dbfcv0navr4c73dlp340 live,
+#   3/3 prod /health agree at 5d093fb22; unauth compliance export 403).
+#   No version bump.
