@@ -8,7 +8,7 @@ jest.mock('../../../lib/db', () => ({
 }));
 
 const db = require('../../../lib/db');
-const { logAccess, VALID_ACTIONS } = require('../../../lib/biometricAudit');
+const { logAccess, VALID_ACTIONS, VALID_ROLES } = require('../../../lib/biometricAudit');
 
 describe('biometricAudit.logAccess', () => {
 	beforeEach(() => {
@@ -74,6 +74,46 @@ describe('biometricAudit.logAccess', () => {
 			});
 			expect(row.action).toBe(action);
 		}
+	});
+
+	// ─── #1194: 'system' role for context-free audit entries ─────────────────
+
+	test('#1194: VALID_ROLES mirrors the DB CHECK incl. system', () => {
+		expect(VALID_ROLES).toEqual([
+			'candidate',
+			'recruiter',
+			'employer',
+			'admin',
+			'hiring_manager',
+			'system',
+		]);
+	});
+
+	test('#1194: accepts system role (context-free drain aggregate entry)', async () => {
+		db.query.mockResolvedValueOnce({ rows: [{ id: 5, user_role: 'system' }] });
+		const row = await logAccess({
+			userId: 999,
+			userRole: 'system',
+			action: 'delete',
+			dataType: 'storage_file',
+			candidateId: 999,
+		});
+		expect(row.user_role).toBe('system');
+		const [, params] = db.query.mock.calls[0];
+		expect(params[1]).toBe('system');
+	});
+
+	test('#1194: rejects invalid role LOUDLY before any DB call', async () => {
+		await expect(
+			logAccess({
+				userId: 1,
+				userRole: 'bogus_role',
+				action: 'view',
+				dataType: 'face_embedding',
+				candidateId: 2,
+			}),
+		).rejects.toThrow(/Invalid role "bogus_role"/);
+		expect(db.query).not.toHaveBeenCalled();
 	});
 
 	test('rejects invalid action', async () => {

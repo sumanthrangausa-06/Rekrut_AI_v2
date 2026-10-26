@@ -34,7 +34,10 @@ jest.mock('../../../lib/auth', () => {
 		}
 		return next();
 	};
-	return { authMiddleware, requireRole, verifyToken: () => null };
+	// #1456: routes/admin.js calls hashPassword at module load
+	// (initAdminCredentials, admin.js:96) — mock must match the real
+	// lib/auth export surface, mirroring admin-session-401-1224.
+	return { authMiddleware, requireRole, verifyToken: () => null, hashPassword: jest.fn(async () => 'hash') };
 });
 
 // ─── External boundaries ─────────────────────────────────────────────────────

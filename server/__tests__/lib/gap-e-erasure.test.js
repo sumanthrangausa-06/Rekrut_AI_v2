@@ -44,7 +44,8 @@
  *   forced green by re-adding a candidate branch.
  *   LEGAL HOLD — shipped entry gate unchanged; per-row consults
  *   fail-closed via a GAP-E-LOCAL three-way partition (gapEPartition,
- *   beside the block; gapDPartition is NOT modified): unheld (delete)
+ *   beside the block; the shared gapDPartition was two-way when GAP-E
+ *   shipped and is three-way since #1154 — same buckets): unheld (delete)
  *   / genuinely held (rowsHeld + heldTables) / lookup-failed
  *   (holdLookupFailed + lookupFailedTables, SEPARATE — error-skips
  *   never masquerade as holds, #1116/#1154 honesty rule).
@@ -498,14 +499,14 @@ describe('#1124 GAP-E erasePersonalData — profile-adjacent & career family', (
 		expect(result.gapE.heldTables).toEqual([]);
 	});
 
-	test('DIVERGENCE PIN (§8): lookup failure is bucketed DIFFERENTLY by the shipped GAP-D partition and by gapEPartition', async () => {
-		// Shipped GAP-D machinery (lib/erasureService.js gapDRowHeld):
-		// a per-row lookup error is caught and read as HELD — the row is
-		// skipped and counted in gapD.rowsHeld / gapD.heldTables, and
-		// gapD has NO lookup-failure bucket. (Rex's comment described
-		// this as "propagates"; the shipped code + the GAP-D suite pin
-		// the catch-to-held behaviour — this pin records the ACTUAL
-		// shipped contract so a future "unification" fails loudly.)
+	test('CONVERGENCE PIN (§8, unified by #1154): lookup failure is bucketed the SAME way by the shared GAP-B/C/D partition and by gapEPartition', async () => {
+		// History: GAP-E shipped its own three-way partition because the
+		// shared gapDPartition read a lookup error as HELD, and this pin
+		// recorded that divergence "so a future unification fails
+		// loudly". #1154 IS that unification: the shared partition is
+		// now three-way, so a sabotaged row lands in the lookup-failed
+		// bucket (holdLookupFailed / lookupFailedTables) on BOTH sides —
+		// preserved, never deleted, never masquerading as a legal hold.
 		const scenario = fullScenario();
 		scenario.offers = [{ id: 95, company_id: 4, signature_url: null }];
 		scenario.invites = [
@@ -515,10 +516,10 @@ describe('#1124 GAP-E erasePersonalData — profile-adjacent & career family', (
 		const client = makeClient({ ...scenario, errorCompanies: new Set([4]) });
 		const result = await erasureService.erasePersonalData(7, { client });
 
-		// GAP-D side: sabotaged offer lands in the HELD bucket.
-		expect(result.gapD.rowsHeld).toBeGreaterThanOrEqual(1);
-		expect(result.gapD.heldTables).toContain('offers');
-		expect(result.gapD.holdLookupFailed).toBeUndefined();
+		// GAP-D side: sabotaged offer lands in the THIRD bucket.
+		expect(result.gapD.holdLookupFailed).toBe(1);
+		expect(result.gapD.lookupFailedTables).toEqual(['offers']);
+		expect(result.gapD.heldTables).not.toContain('offers');
 		const offerUpdates = callsMatching(client, /UPDATE offers/i);
 		for (const [, p] of offerUpdates) expect(p).not.toContainEqual([7, [95]]);
 		// GAP-E side: the SAME sabotage lands in the THIRD bucket.

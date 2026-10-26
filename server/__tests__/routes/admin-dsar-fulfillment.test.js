@@ -25,6 +25,10 @@ jest.mock('../../../lib/auth', () => ({
 	verifyToken: jest.fn(() => null),
 	authMiddleware: jest.fn((_req, _res, next) => next()),
 	requireRole: () => (_req, _res, next) => next(),
+	// #1456: routes/admin.js calls hashPassword at module load
+	// (initAdminCredentials, admin.js:96) — mock must match the real
+	// lib/auth export surface, mirroring admin-session-401-1224.
+	hashPassword: jest.fn(async () => 'hash'),
 }));
 
 // ─── External boundaries ─────────────────────────────────────────────────────
@@ -340,5 +344,314 @@ describe('POST /api/admin/compliance/data-requests/:id/fulfill', () => {
 			.expect(400);
 
 		expect(pool.query).not.toHaveBeenCalled();
+	});
+
+	// #1116: the human-readable fulfilment note must disclose held
+	// job-application rows — the structured audit metadata already carries
+	// jobApplicationRowsHeld, but the note named only shredded/embeddings/
+	// searchIndex, reading as a plain complete fulfilment.
+	test('#1116: note discloses held job-application rows when jobApplicationRowsHeld > 0', async () => {
+		pool.query.mockResolvedValueOnce({ rows: [PENDING_DELETION] });
+		const client = mockClient();
+		pool.connect.mockResolvedValueOnce(client);
+		erasePersonalData.mockResolvedValueOnce({
+			shredded: true,
+			embeddingsDeleted: true,
+			searchIndexDeleted: false,
+			jobApplicationsRedacted: false,
+			jobApplicationRowsHeld: 2,
+		});
+
+		await request(makeApp())
+			.post('/api/admin/compliance/data-requests/10/fulfill')
+			.expect(200);
+
+		const updateCall = client.query.mock.calls.find(([sql]) =>
+			/UPDATE data_requests[\s\S]*SET/.test(sql),
+		);
+		expect(updateCall[1][1]).toMatch(/2 job application row\(s\) retained under legal hold/i);
+	});
+
+	// #1500: the fulfilment note must disclose held survivals AS A CLASS —
+	// every held count > 0 on the erasure result, count + family label only.
+	describe('#1500: held-survivals class disclosure', () => {
+		const BASE_ERASURE = {
+			shredded: true,
+			embeddingsDeleted: true,
+			searchIndexDeleted: false,
+			jobApplicationRowsHeld: 0,
+		};
+
+		async function fulfilNote(erasure) {
+			pool.query.mockResolvedValueOnce({ rows: [PENDING_DELETION] });
+			const client = mockClient();
+			pool.connect.mockResolvedValueOnce(client);
+			erasePersonalData.mockResolvedValueOnce({ ...BASE_ERASURE, ...erasure });
+			await request(makeApp())
+				.post('/api/admin/compliance/data-requests/10/fulfill')
+				.expect(200);
+			const updateCall = client.query.mock.calls.find(([sql]) =>
+				/UPDATE data_requests[\s\S]*SET/.test(sql),
+			);
+			return updateCall[1][1];
+		}
+
+		test('discloses applicationKeyedRowsHeld > 0', async () => {
+			const notes = await fulfilNote({ applicationKeyedRowsHeld: 3 });
+			expect(notes).toMatch(/; 3 application-keyed row\(s\) retained under legal hold/);
+		});
+
+		test('discloses threatIntelRowsHeld > 0', async () => {
+			const notes = await fulfilNote({ threatIntelRowsHeld: 2 });
+			expect(notes).toMatch(/; 2 threat-intel row\(s\) retained under legal hold/);
+		});
+
+		test('discloses applicationIpRowsHeld > 0', async () => {
+			const notes = await fulfilNote({ applicationIpRowsHeld: 4 });
+			expect(notes).toMatch(/; 4 application IP capture row\(s\) retained under legal hold/);
+		});
+
+		test('discloses sessionsHeld > 0 (GAP-A)', async () => {
+			const notes = await fulfilNote({ sessionsHeld: 1 });
+			expect(notes).toMatch(/; 1 interview session row\(s\) retained under legal hold/);
+		});
+
+		test('discloses recordingsHeld > 0 (GAP-A)', async () => {
+			const notes = await fulfilNote({ recordingsHeld: 2 });
+			expect(notes).toMatch(/; 2 interview recording row\(s\) retained under legal hold/);
+		});
+
+		test('discloses framesHeld > 0 (GAP-A)', async () => {
+			const notes = await fulfilNote({ framesHeld: 5 });
+			expect(notes).toMatch(/; 5 recording frame row\(s\) retained under legal hold/);
+		});
+
+		test.each([
+			['gapB', 'GAP-B'],
+			['gapC', 'GAP-C'],
+			['gapD', 'GAP-D'],
+			['gapE', 'GAP-E'],
+			['gapF', 'GAP-F'],
+			['gapG', 'GAP-G'],
+			['gapH', 'GAP-H'],
+		])('discloses %s.rowsHeld > 0 as family %s', async (key, label) => {
+			const notes = await fulfilNote({ [key]: { rowsHeld: 2 } });
+			expect(notes).toMatch(
+				new RegExp(`; 2 held row\\(s\\) in erasure family ${label} retained under legal hold`),
+			);
+		});
+
+		test('combined: several families > 0 — all segments present, order stable, job-application segment first and unchanged', async () => {
+			const notes = await fulfilNote({
+				jobApplicationRowsHeld: 2,
+				applicationKeyedRowsHeld: 3,
+				sessionsHeld: 1,
+				framesHeld: 5,
+				gapC: { rowsHeld: 4 },
+				gapH: { rowsHeld: 6 },
+			});
+			const segments = [
+				'; 2 job application row(s) retained under legal hold',
+				'; 3 application-keyed row(s) retained under legal hold',
+				'; 1 interview session row(s) retained under legal hold',
+				'; 5 recording frame row(s) retained under legal hold',
+				'; 4 held row(s) in erasure family GAP-C retained under legal hold',
+				'; 6 held row(s) in erasure family GAP-H retained under legal hold',
+			];
+			let lastIndex = -1;
+			for (const segment of segments) {
+				const idx = notes.indexOf(segment);
+				expect(idx).toBeGreaterThan(lastIndex);
+				lastIndex = idx;
+			}
+			// Families at 0/absent contribute no segment.
+			expect(notes).not.toMatch(/threat-intel/);
+			expect(notes).not.toMatch(/GAP-B/);
+		});
+
+		test('privacy: note contains NO held-detail strings (applicationKeyedHeldDetails ids/reasons, gap heldTables names)', async () => {
+			const notes = await fulfilNote({
+				applicationKeyedRowsHeld: 1,
+				applicationKeyedHeldDetails: [
+					{ applicationId: 'SENTINEL-APP-ID-1500', reason: 'SENTINEL-HOLD-REASON-1500', companyId: 'SENTINEL-COMPANY-1500' },
+				],
+				gapB: { rowsHeld: 1, heldTables: ['SENTINEL_TABLE_B_1500'] },
+				gapD: { rowsHeld: 1, heldTables: ['SENTINEL_TABLE_D_1500'] },
+			});
+			expect(notes).toMatch(/; 1 application-keyed row\(s\) retained under legal hold/);
+			expect(notes).toMatch(/GAP-B/);
+			expect(notes).toMatch(/GAP-D/);
+			expect(notes).not.toContain('SENTINEL-APP-ID-1500');
+			expect(notes).not.toContain('SENTINEL-HOLD-REASON-1500');
+			expect(notes).not.toContain('SENTINEL-COMPANY-1500');
+			expect(notes).not.toContain('SENTINEL_TABLE_B_1500');
+			expect(notes).not.toContain('SENTINEL_TABLE_D_1500');
+		});
+
+		test('all-zero/absent: note is byte-identical to the pre-#1500 format', async () => {
+			const notes = await fulfilNote({
+				applicationKeyedRowsHeld: 0,
+				threatIntelRowsHeld: 0,
+				applicationIpRowsHeld: 0,
+				sessionsHeld: 0,
+				recordingsHeld: 0,
+				framesHeld: 0,
+				gapB: { rowsHeld: 0 },
+				gapC: { rowsHeld: 0 },
+				gapD: { rowsHeld: 0 },
+				gapE: { rowsHeld: 0 },
+				gapF: { rowsHeld: 0 },
+				gapG: { rowsHeld: 0 },
+				gapH: { rowsHeld: 0 },
+			});
+			expect(notes).toBe(
+				'Awaiting compliance review\nFulfilled by admin: DEK shredded=true, embeddings=true, searchIndex=false',
+			);
+		});
+	});
+
+	test('#1116: note unchanged (no held-rows disclosure) when jobApplicationRowsHeld is 0', async () => {
+		pool.query.mockResolvedValueOnce({ rows: [PENDING_DELETION] });
+		const client = mockClient();
+		pool.connect.mockResolvedValueOnce(client);
+		erasePersonalData.mockResolvedValueOnce({
+			shredded: true,
+			embeddingsDeleted: true,
+			searchIndexDeleted: false,
+			jobApplicationsRedacted: true,
+			jobApplicationRowsHeld: 0,
+		});
+
+		await request(makeApp())
+			.post('/api/admin/compliance/data-requests/10/fulfill')
+			.expect(200);
+
+		const updateCall = client.query.mock.calls.find(([sql]) =>
+			/UPDATE data_requests[\s\S]*SET/.test(sql),
+		);
+		expect(updateCall[1][1]).toMatch(/Fulfilled by admin: DEK shredded=true/);
+		expect(updateCall[1][1]).not.toMatch(/retained under legal hold/i);
+	});
+
+	// #1502: the fulfilment note must ALSO disclose two non-hold survival
+	// classes from the erasure result — (F-1) per-family holdLookupFailed
+	// rows (preserved fail-closed when the hold consult errors; NO hold was
+	// confirmed, so the words "legal hold" must NOT appear for this class)
+	// and (F-2) recordingsUndecryptable recordings (preserved whole because
+	// they could not be decrypted). Count + label ONLY — never
+	// lookupFailedTables names, row ids, or held-row details.
+	describe('#1502: hold-verification + undecryptable survivals disclosure', () => {
+		const BASE_ERASURE = {
+			shredded: true,
+			embeddingsDeleted: true,
+			searchIndexDeleted: false,
+			jobApplicationRowsHeld: 0,
+		};
+
+		async function fulfilNote(erasure) {
+			pool.query.mockResolvedValueOnce({ rows: [PENDING_DELETION] });
+			const client = mockClient();
+			pool.connect.mockResolvedValueOnce(client);
+			erasePersonalData.mockResolvedValueOnce({ ...BASE_ERASURE, ...erasure });
+			await request(makeApp())
+				.post('/api/admin/compliance/data-requests/10/fulfill')
+				.expect(200);
+			const updateCall = client.query.mock.calls.find(([sql]) =>
+				/UPDATE data_requests[\s\S]*SET/.test(sql),
+			);
+			return updateCall[1][1];
+		}
+
+		test.each([
+			['gapB', 'GAP-B'],
+			['gapC', 'GAP-C'],
+			['gapD', 'GAP-D'],
+			['gapE', 'GAP-E'],
+			['gapF', 'GAP-F'],
+			['gapG', 'GAP-G'],
+			['gapH', 'GAP-H'],
+		])('discloses %s.holdLookupFailed > 0 as family %s pending hold verification (no "legal hold")', async (key, label) => {
+			const notes = await fulfilNote({ [key]: { rowsHeld: 0, holdLookupFailed: 2 } });
+			expect(notes).toContain(
+				`; 2 row(s) in erasure family ${label} retained pending hold verification`,
+			);
+			expect(notes).not.toMatch(/legal hold/i);
+		});
+
+		test('discloses holdLookupFailed for several families, each with its own segment', async () => {
+			const notes = await fulfilNote({
+				gapB: { rowsHeld: 0, holdLookupFailed: 1 },
+				gapE: { rowsHeld: 0, holdLookupFailed: 3 },
+				gapH: { rowsHeld: 0, holdLookupFailed: 2 },
+			});
+			expect(notes).toContain('; 1 row(s) in erasure family GAP-B retained pending hold verification');
+			expect(notes).toContain('; 3 row(s) in erasure family GAP-E retained pending hold verification');
+			expect(notes).toContain('; 2 row(s) in erasure family GAP-H retained pending hold verification');
+			expect(notes).not.toMatch(/legal hold/i);
+			expect(notes).not.toMatch(/GAP-C/);
+			expect(notes).not.toMatch(/GAP-D/);
+			expect(notes).not.toMatch(/GAP-F/);
+			expect(notes).not.toMatch(/GAP-G/);
+		});
+
+		test('discloses recordingsUndecryptable > 0', async () => {
+			const notes = await fulfilNote({ recordingsUndecryptable: 2 });
+			expect(notes).toContain('; 2 interview recording(s) retained — undecryptable, erasure incomplete');
+			expect(notes).not.toMatch(/legal hold/i);
+		});
+
+		test('combined: new classes alongside existing held classes — all segments present, hold-verification segments carry no "legal hold"', async () => {
+			const notes = await fulfilNote({
+				jobApplicationRowsHeld: 2,
+				gapC: { rowsHeld: 4, holdLookupFailed: 1 },
+				recordingsUndecryptable: 3,
+			});
+			expect(notes).toContain('; 2 job application row(s) retained under legal hold');
+			expect(notes).toContain('; 4 held row(s) in erasure family GAP-C retained under legal hold');
+			expect(notes).toContain('; 1 row(s) in erasure family GAP-C retained pending hold verification');
+			expect(notes).toContain('; 3 interview recording(s) retained — undecryptable, erasure incomplete');
+			const holdVerificationSegment = notes
+				.split(';')
+				.find((s) => s.includes('pending hold verification'));
+			expect(holdVerificationSegment).not.toMatch(/legal hold/i);
+			const undecryptableSegment = notes
+				.split(';')
+				.find((s) => s.includes('undecryptable'));
+			expect(undecryptableSegment).not.toMatch(/legal hold/i);
+		});
+
+		test('privacy: note contains NO lookupFailedTables names or held-row details', async () => {
+			const notes = await fulfilNote({
+				gapB: { rowsHeld: 0, holdLookupFailed: 1, lookupFailedTables: ['SENTINEL_TABLE_B_1502'] },
+				gapF: { rowsHeld: 0, holdLookupFailed: 1, lookupFailedTables: ['SENTINEL_TABLE_F_1502'] },
+				recordingsUndecryptable: 1,
+			});
+			expect(notes).toContain('GAP-B');
+			expect(notes).toContain('GAP-F');
+			expect(notes).not.toContain('SENTINEL_TABLE_B_1502');
+			expect(notes).not.toContain('SENTINEL_TABLE_F_1502');
+		});
+
+		test('all-zero/absent (incl. new classes): note is byte-identical to the pre-#1500 format', async () => {
+			const notes = await fulfilNote({
+				applicationKeyedRowsHeld: 0,
+				threatIntelRowsHeld: 0,
+				applicationIpRowsHeld: 0,
+				sessionsHeld: 0,
+				recordingsHeld: 0,
+				framesHeld: 0,
+				recordingsUndecryptable: 0,
+				gapB: { rowsHeld: 0, holdLookupFailed: 0 },
+				gapC: { rowsHeld: 0, holdLookupFailed: 0 },
+				gapD: { rowsHeld: 0, holdLookupFailed: 0 },
+				gapE: { rowsHeld: 0, holdLookupFailed: 0 },
+				gapF: { rowsHeld: 0, holdLookupFailed: 0 },
+				gapG: { rowsHeld: 0, holdLookupFailed: 0 },
+				gapH: { rowsHeld: 0, holdLookupFailed: 0 },
+			});
+			expect(notes).toBe(
+				'Awaiting compliance review\nFulfilled by admin: DEK shredded=true, embeddings=true, searchIndex=false',
+			);
+		});
 	});
 });

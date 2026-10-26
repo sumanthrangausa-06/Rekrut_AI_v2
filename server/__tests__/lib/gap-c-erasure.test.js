@@ -56,8 +56,9 @@
  *   otherwise DERIVED (interview_events via job_application_id →
  *   job_applications.company_id; legacy interviews via job_id →
  *   jobs.company_id; NULL derivation ⇒ {userId} only). Fail-closed on
- *   lookup error: row skipped, counted in gapC.rowsHeld, table named
- *   in gapC.heldTables (#1116 disclosure).
+ *   lookup error: row skipped, counted in gapC.holdLookupFailed, table
+ *   named in gapC.lookupFailedTables (#1154 truthfulness;
+ *   gapC.rowsHeld/heldTables name GENUINE holds only, #1116 disclosure).
  *   STORAGE: only legacy interviews.video_urls — an entry matching the
  *   /api/files/ pattern is ledgered in-tx into
  *   pending_storage_deletions with source_family=
@@ -485,6 +486,73 @@ describe('#1122 GAP-C erasePersonalData — scheduling & human-interview family'
 		expect(result.gapC.heldTables).toEqual(
 			expect.arrayContaining(['interview_events', 'proposed_slots', 'interview_rooms', 'interviews', 'interview_analysis']),
 		);
+		// #1154 truthfulness: the error-company (4) event is preserved but
+		// is NOT a legal hold — it lands in the lookup-failed bucket only.
+		// Exactly one row failed (event 1002; it has no slots/rooms), so
+		// interview_events appears in BOTH lists: held via event 1001,
+		// lookup-failed via event 1002.
+		expect(result.gapC.holdLookupFailed).toBe(1);
+		expect(result.gapC.lookupFailedTables).toEqual(['interview_events']);
+	});
+
+	test('#1154 child split: the whole scheduled cluster of a lookup-failed parent counts as lookup-failed, never as held', async () => {
+		const scenario = {
+			scheduled: [
+				{ id: 101, company_id: 4 },
+				{ id: 103, company_id: 3 },
+			],
+			panels: [
+				{ id: 501, interview_session_id: 101 },
+				{ id: 503, interview_session_id: 103 },
+			],
+			panelNotes: [
+				{ id: 601, panel_id: 501 },
+				{ id: 603, panel_id: 503 },
+			],
+			panelMembers: [
+				{ id: 701, panel_id: 501 },
+				{ id: 703, panel_id: 503 },
+			],
+			scorecards: [
+				{ id: 801, panel_id: 501 },
+				{ id: 803, panel_id: 503 },
+			],
+			scorecardItems: [
+				{ id: 901, scorecard_id: 801 },
+				{ id: 903, scorecard_id: 803 },
+			],
+			reminders: [
+				{ id: 201, interview_id: 101, recipient_id: 55 },
+				{ id: 204, interview_id: 103, recipient_id: 55 },
+			],
+			errorCompanies: new Set([4]),
+		};
+		const client = makeClient(scenario);
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		// Only the clean branch is deleted, at every level.
+		expect(callsMatching(client, /DELETE FROM scheduled_interviews/i)[0][1]).toEqual([7, [103]]);
+		expect(callsMatching(client, /DELETE FROM interview_panels/i)[0][1]).toEqual([[503]]);
+		expect(callsMatching(client, /DELETE FROM scorecards/i)[0][1]).toEqual([[803]]);
+		expect(callsMatching(client, /DELETE FROM interview_reminders/i)[0][1]).toEqual([[204]]);
+		expect(result.gapC.scheduledInterviews).toBe(1);
+		expect(result.gapC.interviewPanels).toBe(1);
+		expect(result.gapC.scorecards).toBe(1);
+		// One failed row at each of the seven levels, all lookup-failed.
+		expect(result.gapC.holdLookupFailed).toBe(7);
+		expect(result.gapC.lookupFailedTables).toEqual(
+			expect.arrayContaining([
+				'scheduled_interviews',
+				'interview_panels',
+				'scorecards',
+				'scorecard_items',
+				'panel_notes',
+				'panel_members',
+				'interview_reminders',
+			]),
+		);
+		expect(result.gapC.rowsHeld).toBe(0);
+		expect(result.gapC.heldTables).toEqual([]);
 	});
 
 	test('storage: legacy video_urls /api/files/ entry ledgered as legacy_interview_video; non-pattern named; held row never ledgered', async () => {

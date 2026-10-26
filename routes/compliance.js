@@ -59,6 +59,34 @@ function canAccessUserRecord(req, userId) {
 	return { ok: false, status: 403, error: 'You can only access your own compliance data' };
 }
 
+// #1112: bias/adverse-impact results for a job are visible only to a
+// platform admin or a hiring role whose company owns the job — the
+// audience /bias/flagged and /bias/analyze already use in this router.
+// Ownership uses the /explain/job lookup shape (jobs table, fail-closed
+// on a null company_id or a missing job); the denial status is 403 per
+// #1112's spec — identical for missing and foreign jobs, so neither
+// endpoint is an existence oracle — and it fires before any bias
+// service is reached.
+async function canAccessJobBias(req, jobId) {
+	if (!['admin', 'employer', 'recruiter', 'hiring_manager'].includes(req.user?.role)) {
+		return { ok: false, status: 403, error: 'Insufficient permissions' };
+	}
+	if (req.user?.role === 'admin') {
+		return { ok: true };
+	}
+	const jobResult = await pool.query('SELECT company_id FROM jobs WHERE id = $1', [jobId]);
+	const job = jobResult.rows[0];
+	if (
+		!job ||
+		job.company_id == null ||
+		req.user?.company_id == null ||
+		Number(req.user.company_id) !== Number(job.company_id)
+	) {
+		return { ok: false, status: 403, error: 'Access denied' };
+	}
+	return { ok: true };
+}
+
 /**
  * GDPR COMPLIANCE ENDPOINTS
  */
@@ -77,6 +105,17 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 
 		// Gather all user data
 		const userData = await pool.query('SELECT * FROM users WHERE id = $1', [targetUserId]);
+
+		// #1548: no data subject = nothing to export. Without this check
+		// an admin exporting a non-existent id built a user:null bundle
+		// and then 500'd on the data_requests FK (audit_logs carries the
+		// same FK, swallowed inside AuditLogger.log). The check sits
+		// before AuditLogger.log and the insert so no audit/request rows
+		// are attempted for absent targets. Non-admins never reach here
+		// for foreign ids (canAccessUserRecord 403s first) — no oracle.
+		if (userData.rows.length === 0) {
+			return res.status(404).json({ error: 'User not found' });
+		}
 		// #1533 (R7, Lex ruling on #1528): the score section is re-sourced
 		// from the live omni_scores family — omniscore_results was never
 		// written, so the old read exported [] for every user. Rows are
@@ -110,7 +149,9 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 		]);
 
 		const exportData = {
-			user: userData.rows[0],
+			// #1544: same ?? null hardening as profile (#1540) — an absent
+			// row must export as explicit null, never a dropped key.
+			user: userData.rows[0] ?? null,
 			// Replaced in place per Lex's #1528 ruling — never supplemented:
 			// one score section, structured by source table, with the
 			// scale_note annotation (annotation, not alteration).
@@ -122,7 +163,10 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 			},
 			interviews: interviewData.rows,
 			assessments: assessmentData.rows,
-			profile: profileData.rows[0],
+			// #1540 (Lex ruling, Option 2): explicit null states "we hold no
+			// profile for you" — an absent key would silently drop from the
+			// JSON bundle and read as a gap in the subject's record.
+			profile: profileData.rows[0] ?? null,
 			consents: consentData.rows,
 			audit_trail: auditData.rows,
 			exported_at: new Date().toISOString(),
@@ -220,6 +264,19 @@ router.post('/gdpr/consent', authMiddleware, async (req, res) => {
 
 		if (!consentType || consented === undefined) {
 			return res.status(400).json({ error: 'Missing required fields' });
+		}
+
+		// #1550: no data subject = no consent to record. Without this
+		// check an admin recording consent for a non-existent id 500'd
+		// on the consent_records FK — and a consent record for a
+		// non-existent subject must never be attempted at all. The
+		// check sits before the insert and AuditLogger.log so no
+		// consent/audit rows are attempted for absent targets.
+		// Non-admins never reach here for foreign ids
+		// (canAccessUserRecord 403s first) — no oracle.
+		const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [targetUserId]);
+		if (userCheck.rows.length === 0) {
+			return res.status(404).json({ error: 'User not found' });
 		}
 
 		const result = await pool.query(
@@ -464,19 +521,35 @@ router.post('/appeal', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'Missing required fields' });
 		}
 
+		// #1111: same canAccessUserRecord guard as GET /appeal/:userId
+		// below — an appeal is filed by (or for, by an admin) its subject,
+		// never by an unrelated authenticated user supplying another ID.
+		const access = canAccessUserRecord(req, userId);
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
+		}
+		const targetUserId = access.targetId;
+
 		const result = await pool.query(
 			`INSERT INTO score_appeals (user_id, score_type, original_score, appeal_reason)
        VALUES ($1, $2, $3, $4)
        RETURNING id`,
-			[userId, scoreType, originalScore, appealReason],
+			[targetUserId, scoreType, originalScore, appealReason],
 		);
 
 		await AuditLogger.log({
 			actionType: 'score_appeal_submitted',
-			userId,
+			userId: targetUserId,
 			targetType: 'appeal',
 			targetId: result.rows[0].id,
-			metadata: { score_type: scoreType, original_score: originalScore },
+			metadata: {
+				score_type: scoreType,
+				original_score: originalScore,
+				// #1111 (security-reviewer LOW-1): an admin filing for
+				// another user is recorded as the actor, so the audit row
+				// is not indistinguishable from the subject filing.
+				...(req.user?.id !== targetUserId ? { actor_id: req.user?.id } : {}),
+			},
 			req,
 		});
 
@@ -1095,6 +1168,14 @@ router.post('/bias/analyze/:jobId', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'Valid job ID required' });
 		}
 
+		// #1112 (security-reviewer HIGH residual): this POST returns the
+		// same bias metrics the gated GETs read back, so the ownership
+		// gate applies here too — otherwise it bypasses them entirely.
+		const access = await canAccessJobBias(req, jobId);
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
+		}
+
 		const { selectionStatuses } = req.body;
 		const metrics = await EuComplianceService.calculateBiasMetricsForJob(jobId, {
 			selectionStatuses: Array.isArray(selectionStatuses) ? selectionStatuses : undefined,
@@ -1127,6 +1208,11 @@ router.get('/bias/metrics/:jobId', authMiddleware, async (req, res) => {
 		const jobId = parseInt(req.params.jobId, 10);
 		if (!Number.isInteger(jobId)) {
 			return res.status(400).json({ error: 'Valid job ID required' });
+		}
+
+		const access = await canAccessJobBias(req, jobId);
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
 		}
 
 		const metrics = await EuComplianceService.getBiasMetricsForJob(jobId);
@@ -1171,6 +1257,11 @@ router.get('/bias/four-fifths/:jobId', authMiddleware, async (req, res) => {
 		const jobId = parseInt(req.params.jobId, 10);
 		if (!Number.isInteger(jobId)) {
 			return res.status(400).json({ error: 'Valid job ID required' });
+		}
+
+		const access = await canAccessJobBias(req, jobId);
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
 		}
 
 		const { selectionStatuses } = req.query;
@@ -1294,10 +1385,80 @@ router.post('/overrides', authMiddleware, async (req, res) => {
 				.json({ error: 'applicationId, userId, jobId, and reason are required' });
 		}
 
+		// Strict Number() coercion, mirroring canAccessUserRecord in this
+		// file (security-reviewer LOW-1 on #1327): parseInt would silently
+		// alias "100abc" / 100.9 / [100] to 100; Number() rejects those,
+		// while a legitimate string "100" stays accepted (the #1111 LOW-3
+		// coercion precedent).
+		const applicationIdInt = Number(applicationId);
+		const userIdInt = Number(userId);
+		const jobIdInt = Number(jobId);
+		if (
+			!Number.isInteger(applicationIdInt) ||
+			applicationIdInt <= 0 ||
+			!Number.isInteger(userIdInt) ||
+			userIdInt <= 0 ||
+			!Number.isInteger(jobIdInt) ||
+			jobIdInt <= 0
+		) {
+			return res
+				.status(400)
+				.json({ error: 'applicationId, userId, and jobId must be valid IDs' });
+		}
+
+		// #1327 (security-reviewer HIGH-R2 on #1113): write-side gate —
+		// this handler previously trusted body IDs, so a foreign-company
+		// hiring user could CREATE an override against another company's
+		// candidate. Company gate first, reusing the exact #1113
+		// GET /overrides/job shape: non-admin callers must be a hiring
+		// role of the company that owns the job (fail-closed 403 on a
+		// missing job or a null company_id on either side); admin is
+		// not job-scoped, as in the sibling read gates.
+		const isAdmin = req.user?.role === 'admin';
+		const jobResult = await pool.query('SELECT company_id FROM jobs WHERE id = $1', [jobIdInt]);
+		const job = jobResult.rows[0];
+		if (
+			!isAdmin &&
+			(!job ||
+				job.company_id == null ||
+				req.user?.company_id == null ||
+				Number(req.user.company_id) !== Number(job.company_id))
+		) {
+			return res.status(403).json({ error: 'Access denied' });
+		}
+
+		// Consistency: the body IDs must describe one real application —
+		// application.job_id === jobId, application.candidate_id ===
+		// userId, and the application's company must agree with the
+		// job's company where both are recorded. Missing and mismatched
+		// applications are the same uniform 400 (no existence oracle),
+		// and the check runs before the service call, so a denied or
+		// inconsistent body never reaches the INSERT. This applies to
+		// admin too: consistency is a data-integrity check, not a
+		// company-scoping one.
+		const appResult = await pool.query(
+			'SELECT candidate_id, company_id, job_id FROM job_applications WHERE id = $1',
+			[applicationIdInt],
+		);
+		const application = appResult.rows[0];
+		if (
+			!job ||
+			!application ||
+			Number(application.job_id) !== jobIdInt ||
+			Number(application.candidate_id) !== userIdInt ||
+			(application.company_id != null &&
+				job?.company_id != null &&
+				Number(application.company_id) !== Number(job.company_id))
+		) {
+			return res
+				.status(400)
+				.json({ error: 'applicationId, userId, and jobId are inconsistent' });
+		}
+
 		const override = await EuComplianceService.recordHumanOverride({
-			applicationId: parseInt(applicationId, 10),
-			userId: parseInt(userId, 10),
-			jobId: parseInt(jobId, 10),
+			applicationId: applicationIdInt,
+			userId: userIdInt,
+			jobId: jobIdInt,
 			originalScore: originalScore !== undefined ? parseFloat(originalScore) : null,
 			newScore: newScore !== undefined ? parseFloat(newScore) : null,
 			originalStatus: originalStatus || null,
@@ -1309,7 +1470,7 @@ router.post('/overrides', authMiddleware, async (req, res) => {
 		res.status(201).json({ success: true, override });
 	} catch (error) {
 		console.error('[compliance/overrides] Failed:', error.message);
-		res.status(500).json({ error: error.message || 'Failed to record override' });
+		res.status(500).json({ error: 'Failed to record override' });
 	}
 });
 
@@ -1325,6 +1486,22 @@ router.get('/overrides/job/:jobId', authMiddleware, async (req, res) => {
 		const jobId = parseInt(req.params.jobId, 10);
 		if (!Number.isInteger(jobId)) {
 			return res.status(400).json({ error: 'Valid job ID required' });
+		}
+
+		// #1113 (security-reviewer HIGH-R1): same company gate as
+		// /overrides/:id — this list returns the same records in bulk, so
+		// a foreign-company hiring user is denied before the service call.
+		if (req.user?.role !== 'admin') {
+			const jobResult = await pool.query('SELECT company_id FROM jobs WHERE id = $1', [jobId]);
+			const job = jobResult.rows[0];
+			if (
+				!job ||
+				job.company_id == null ||
+				req.user?.company_id == null ||
+				Number(req.user.company_id) !== Number(job.company_id)
+			) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
 		}
 
 		const { limit, offset } = req.query;
@@ -1353,6 +1530,37 @@ router.get('/overrides/:id', authMiddleware, async (req, res) => {
 		const override = await EuComplianceService.getOverrideById(id);
 		if (!override) {
 			return res.status(404).json({ error: 'Override not found' });
+		}
+
+		// #1113: human_overrides has no company_id — its company linkage
+		// runs through job_id → jobs.company_id. Load-then-check is the
+		// /risk-classify/:jobId shape in this router: admin, or a hiring
+		// role whose company owns the override's job (fail-closed on a
+		// null company_id on either side, or a missing job). The
+		// candidate the override is about is not an audience — the reason
+		// is an internal hiring record with no shaped variant. An
+		// actor-self (overridden_by) allowance was dropped at security
+		// review (MEDIUM-1): its only reach beyond the owning-company
+		// path was cross-company / changed-role access.
+		const isAdmin = req.user?.role === 'admin';
+		let isOwningHiring = false;
+		if (!isAdmin) {
+			if (
+				['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) &&
+				req.user?.company_id != null
+			) {
+				const jobResult = await pool.query('SELECT company_id FROM jobs WHERE id = $1', [
+					override.job_id,
+				]);
+				const job = jobResult.rows[0];
+				isOwningHiring =
+					!!job &&
+					job.company_id != null &&
+					Number(req.user.company_id) === Number(job.company_id);
+			}
+			if (!isOwningHiring) {
+				return res.status(403).json({ error: 'Access denied' });
+			}
 		}
 
 		res.json({ success: true, override });
