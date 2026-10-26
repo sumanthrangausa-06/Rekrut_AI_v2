@@ -17,7 +17,43 @@ const SheetContext = React.createContext<{ onClose: () => void; titleId: string 
 });
 
 const FOCUSABLE_SELECTOR =
-	'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+	'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false"])';
+
+// #1883 item 3: a selector cannot express every "not actually focusable"
+// case, so the queried list is filtered to what a keyboard user can reach:
+// hidden inputs, disabled controls (including controls disabled by an
+// ancestor fieldset — the disabled state lives on the fieldset, not the
+// control, and re-inclusion via the [tabindex] clause), and anything
+// hidden by itself or an ancestor up to the panel (hidden attribute or
+// computed display/visibility). ponytail: the fieldset first-<legend>
+// exception is not modelled — no Sheet consumer uses fieldset+legend;
+// model it if one appears.
+function isFocusableReachable(el: HTMLElement, panel: HTMLElement): boolean {
+	if (el instanceof HTMLInputElement && el.type === 'hidden') return false;
+	if ('disabled' in el && (el as HTMLButtonElement).disabled) return false;
+	if (el.closest('fieldset[disabled]')) return false;
+	// An explicit negative tabindex removes the element from sequential
+	// (Tab) navigation even when an element clause above matched it; the
+	// trap list is the Tab order, so it must not contain such an element.
+	// (Attribute check, not el.tabIndex: a contenteditable region has no
+	// tabindex attribute and stays a stop.)
+	const tabIndexAttr = el.getAttribute('tabindex');
+	if (tabIndexAttr !== null && Number.parseInt(tabIndexAttr, 10) < 0) return false;
+	// Visibility is inherited but overridable, so the element's OWN
+	// computed value is the effective one (a visibility:visible child of a
+	// hidden ancestor really is visible and focusable). Display is not
+	// overridable that way, so display/hidden need the ancestor walk.
+	const ownStyle = getComputedStyle(el);
+	if (ownStyle.visibility === 'hidden' || ownStyle.visibility === 'collapse') return false;
+	let node: HTMLElement | null = el;
+	while (node) {
+		if (node.hidden) return false;
+		if (getComputedStyle(node).display === 'none') return false;
+		if (node === panel) break;
+		node = node.parentElement;
+	}
+	return true;
+}
 
 function Sheet({ open, onOpenChange, children, side = 'right', className }: SheetProps) {
 	useScrollLock(Boolean(open));
@@ -38,7 +74,10 @@ function Sheet({ open, onOpenChange, children, side = 'right', className }: Shee
 		if (!panel) return;
 
 		const previouslyFocused = document.activeElement as HTMLElement | null;
-		const focusables = () => Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+		const focusables = () =>
+			Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((el) =>
+				isFocusableReachable(el, panel),
+			);
 		(focusables()[0] ?? panel).focus();
 
 		const handleKeyDown = (event: KeyboardEvent) => {
