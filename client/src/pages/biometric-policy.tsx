@@ -43,22 +43,20 @@ const sections = [
 	{
 		icon: Eye,
 		title: '1. What We Collect',
-		content: `When you participate in a video interview or AI screening on Rekrut AI, we may collect the following biometric data — but only after you give explicit written consent:
+		content: `When you participate in a video interview or AI screening on Rekrut AI, we collect the following — but only after you give explicit written consent:
 
-Face data: Facial geometry measurements (landmark positions) extracted from your video feed. We do NOT store raw video frames for biometric purposes beyond the session recording retention described below.
+Session recordings: Video and audio of your interview session (your image and voice), kept under the retention periods described below.
 
-Voice data: Acoustic measurements extracted from your audio — pitch range, speech rate, pause patterns, and voice energy. We do NOT label emotions or infer emotional states.
+Observer presence: When the AI Observer is enabled for a session and you have consented, its presence during the session is recorded for the hiring team.
 
-Behavioral measurements: Gaze direction, blink rate, and head pose — used to detect integrity signals such as reading from a screen or the presence of multiple people. These are measurements, not judgments.`,
+What is NOT measured: We do not extract face measurements or voice measurements from your video or audio, and gaze direction, blink rate, and head pose are not measured. We do not label emotions or infer emotional states.`,
 	},
 	{
 		icon: FileText,
 		title: '2. Why We Collect It',
 		content: `We collect biometric data for these specific purposes only:
 
-• Identity verification: Confirming you are the person who applied (face match + liveness check).
-• Interview integrity: Detecting deepfakes, AI-generated answers, and proxy test-takers through multi-signal behavioral analysis.
-• Fairness calibration: A 60-second warm-up measures your personal baseline so integrity signals are compared against YOUR normal patterns, not a universal standard.
+• Interview integrity: Supporting a fair interview process — when the AI Observer is enabled for a session and you have consented, it is present during the interview and its presence is recorded for the hiring team.
 
 We never use biometric data for advertising, profiling unrelated to hiring, or any purpose not listed here.`,
 	},
@@ -67,12 +65,11 @@ We never use biometric data for advertising, profiling unrelated to hiring, or a
 		title: '3. Retention Periods',
 		content: `We retain biometric data only as long as necessary, and never longer than the law requires:
 
-• Raw video/audio recordings: Deleted 90 days after the hiring decision is finalized.
-• Government ID images: Deleted within 24 hours of identity verification.
-• Face/voice embeddings (mathematical templates): Deleted when the associated recording is deleted (90 days post-decision).
-• Per-turn behavioral measurements: Deleted with the video recording.
+• Raw video/audio recordings: Each recording carries a retention expiry — 90 days after it was recorded, or 30 days after the hiring decision for session recordings. Automated deletion at expiry is not yet enabled, so a recording may be kept longer until deletion runs — you can request deletion at any time (see Your Rights below).
+• Face/voice embeddings (mathematical templates): Kept for up to 90 days from creation; automated deletion at expiry is not yet enabled, as above.
+• Per-turn behavioral measurements: Observer speech measurements are kept for up to 30 days from when they were recorded, under their own retention rule — they are not deleted with the video recording. Automated deletion at expiry is not yet enabled, as above.
 • Aggregated assessment results (scores, not raw biometrics): Retained per our data retention schedule.
-• Biometric consent receipts: Retained for 5 years as proof of consent (required by Illinois BIPA).
+• Biometric consent receipts: Retained as part of your consent record, so we can show what you consented to and when.
 
 If you withdraw consent mid-process, collection stops immediately and already-collected data enters the deletion pipeline.`,
 	},
@@ -83,8 +80,7 @@ If you withdraw consent mid-process, collection stops immediately and already-co
 
 • Database records: Permanently deleted (hard delete, not soft delete).
 • Encrypted templates: Cryptographic shredding — the per-candidate encryption key is destroyed, rendering all encrypted biometric data permanently unreadable.
-• File storage (recordings): Deleted from object storage; lifecycle rules provide a backstop in case of application failure.
-• Backups: Encrypted backups age out on a 30-day cycle; deleted data is not restored from backups.
+• File storage (recordings): Deleted from object storage.
 
 Deletion is verified by automated jobs and logged in an append-only audit trail.`,
 	},
@@ -99,7 +95,7 @@ Deletion is verified by automated jobs and logged in an append-only audit trail.
 • Withdraw consent — collection stops immediately.
 • Opt for a human interview instead of AI screening/interview if you decline biometric consent.
 
-To exercise these rights, email privacy@rekrutai.co or use the data controls in your account settings. We respond to deletion requests within 30 days (GDPR) or 45 days (CCPA), and to breach notifications immediately where required by law (India DPDP Act).
+To exercise these rights, email privacy@rekrutai.co or use the data controls in your account settings. We respond to requests within the time required by the law that applies to you.
 
 For users in Illinois: You have specific rights under the Biometric Information Privacy Act (BIPA), including the right to sue for violations. For users in the EU: You have the right to lodge a complaint with your data protection authority.`,
 	},
@@ -109,7 +105,7 @@ For users in Illinois: You have specific rights under the Biometric Information 
 		content: `Biometric data is protected by:
 
 • AES-256 encryption at rest with per-candidate encryption keys.
-• TLS 1.3 in transit (no fallback to older protocols for biometric routes).
+• TLS encryption in transit.
 • Biometric tables are segregated from general user data with separate access controls.
 • Every access to biometric data is logged in an append-only audit trail.
 • No single employee can access raw biometric data without a logged business reason.`,

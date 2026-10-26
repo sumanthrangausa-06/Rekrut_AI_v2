@@ -1,0 +1,8 @@
+# Main Train M1.7 — Train 14A (privacy/erasure/compliance core) → production
+
+- **Picks:** the single Train 14A content commit from staging (f0be71cbe, PR #1873, staging ea7a95485) cherry-picked onto main as d2d52928a — **patch-id identical** (d5a6dd136493505c9c41b21c00aa19f5f90903dd, verified first-hand). 55 files, exactly the 14A scope; no other content.
+- **Staging proof (gate for this train, recorded on #1867):** deploy dep-dbfcsb0m7kps738jsvag LIVE at ea7a95485; /health 3/3 agree at ea7a95485, db connected. Start command runs `npm run migrate && npm start`, so the healthy boot at the new commit means migrations 267/271/272/273 applied cleanly on the shared DB (expand-only / insert-only; inert to the pre-14A prod code still running until this train deploys).
+- **Staging journey (fresh candidates, real API):** register 201 → GDPR export self 200 (honest bundle), foreign-id export 403 (no oracle), consent record 200 + read-back 200, DELETE /auth/delete-account 200 (the trained erasePersonalData running through the real auth.js caller, in-transaction), login after delete 401, deleted-user token 401. Second fresh account repeated export/consent/delete cleanly.
+- **Panel + train-tree gates:** Rex+Lex APPROVE WITH CONDITIONS (discharged in the 14A manifest, incl. the gap-f → 14C rescope); fresh-chain migrate PASS with CHECK/consent read-backs; 28 jest suites / 631 tests PASS in scope; client tsc clean.
+- **Prod proof (after deploy):** deploy record + 3/3 /health at the new main commit; unauthenticated compliance gates (export/consent 401/403). No test-account creation on production.
+- **Registry:** patch-train log entry follows on staging (Train 14A / M1.7). No version bump.

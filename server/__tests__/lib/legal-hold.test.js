@@ -60,6 +60,8 @@ let holds;
 let userCompany;
 let candidateSessionCompanies;
 let holdCheckError;
+let existingUserIds;
+let existingCompanyIds;
 
 function activeHoldMatches(uid, cids, anySessionBranch = true) {
 	const cidList = (Array.isArray(cids) ? cids : [cids]).filter((c) => c != null);
@@ -77,6 +79,20 @@ function activeHoldMatches(uid, cids, anySessionBranch = true) {
 }
 
 function routeLegalHolds(sql, params = []) {
+	// #918: placeHold subject-existence lookups (PK lookups on users /
+	// companies). Matched on the statement PREFIX only — the legal_holds
+	// query itself contains a `FROM users WHERE id` subquery and must
+	// NOT be intercepted here.
+	if (sql.trimStart().startsWith('SELECT id FROM users')) {
+		return existingUserIds.has(params[0])
+			? { rows: [{ id: params[0] }], rowCount: 1 }
+			: { rows: [], rowCount: 0 };
+	}
+	if (sql.trimStart().startsWith('SELECT id FROM companies')) {
+		return existingCompanyIds.has(params[0])
+			? { rows: [{ id: params[0] }], rowCount: 1 }
+			: { rows: [], rowCount: 0 };
+	}
 	if (sql.includes('INSERT INTO legal_holds')) {
 		const row = {
 			id: holds.length + 1,
@@ -124,6 +140,8 @@ beforeEach(() => {
 	userCompany = {}; // candidates: users.company_id IS NULL (see header)
 	candidateSessionCompanies = {};
 	holdCheckError = null;
+	existingUserIds = new Set([7]); // #918: subjects that exist for placeHold
+	existingCompanyIds = new Set([3]);
 	auditLogService.logEvent.mockResolvedValue({ id: 'audit-1' });
 });
 
@@ -301,6 +319,173 @@ describe('legalHold place/release + audit', () => {
 		await expect(placeHold({ userId: 7, setBy: 'a' })).rejects.toThrow(/reason/);
 	});
 
+	// ── #918 (Lex F-5): the subject must EXIST — a transposed ID must fail
+	// loudly and write NO hold row (a silent hold protects nobody).
+	test('#918: placeHold rejects a NON-EXISTENT user id loudly and writes no hold row', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		const err = await placeHold({ userId: 999, reason: 'litigation X', setBy: 'admin-1' }).catch((e) => e);
+		expect(err).toBeInstanceOf(Error);
+		expect(err.message).toMatch(/user 999 does not exist/);
+		expect(err.code).toBe('SUBJECT_NOT_FOUND');
+		expect(holds).toHaveLength(0);
+		expect(auditLogService.logEvent).not.toHaveBeenCalled();
+	});
+
+	test('#918: placeHold rejects a NON-EXISTENT company id loudly and writes no hold row', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		const err = await placeHold({ companyId: 999, reason: 'litigation X', setBy: 'admin-1' }).catch((e) => e);
+		expect(err).toBeInstanceOf(Error);
+		expect(err.message).toMatch(/company 999 does not exist/);
+		expect(err.code).toBe('SUBJECT_NOT_FOUND');
+		expect(holds).toHaveLength(0);
+		expect(auditLogService.logEvent).not.toHaveBeenCalled();
+	});
+
+	test('#918: placeHold rejects when BOTH subjects are supplied and either one is missing', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		await expect(
+			placeHold({ userId: 7, companyId: 999, reason: 'x', setBy: 'a' }),
+		).rejects.toThrow(/company 999 does not exist/);
+		await expect(
+			placeHold({ userId: 999, companyId: 3, reason: 'x', setBy: 'a' }),
+		).rejects.toThrow(/user 999 does not exist/);
+		expect(holds).toHaveLength(0);
+	});
+
+	// ── #1404: a NON-INTEGER subject id must fail as a typed 400 BEFORE any
+	// DB query — on real PG it raises 22P02 in the #918 existence lookup and
+	// the admin route buries that as a generic 500.
+	test.each([
+		['userId', 'abc'],
+		['userId', 7.5],
+		['userId', '7.5'],
+		['companyId', 'abc'],
+		['companyId', 7.5],
+		['companyId', '7.5'],
+	])('#1404: placeHold rejects non-integer %s %p with a typed 400 and writes no hold row', async (field, bad) => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		const err = await placeHold({ [field]: bad, reason: 'litigation X', setBy: 'admin-1' }).catch((e) => e);
+		expect(err).toBeInstanceOf(Error);
+		expect(err.code).toBe('INVALID_SUBJECT_ID');
+		expect(err.status).toBe(400);
+		expect(err.message).toMatch(/must be an integer/);
+		expect(holds).toHaveLength(0);
+		expect(db.query).not.toHaveBeenCalled();
+		expect(auditLogService.logEvent).not.toHaveBeenCalled();
+	});
+
+	// ── #1409: an integer ABOVE the Postgres int4 max (2,147,483,647) passes
+	// #1404's shape check but is not a valid int4 id — it must fail as the
+	// same typed 400 BEFORE any DB query, on BOTH subject types. The int4
+	// max itself is valid shape and must reach the existence check (404).
+	// #1417: the symmetric LOWER bound (INT4_MIN = -2,147,483,648) is pinned
+	// the same way — below-min rejected, the min itself valid shape (404).
+	test.each([
+		['userId', 2147483648],
+		['userId', '2147483648'],
+		['companyId', 2147483648],
+		['companyId', '2147483648'],
+		['userId', -2147483649],
+		['userId', '-2147483649'],
+		['companyId', -2147483649],
+		['companyId', '-2147483649'],
+	])('#1409: placeHold rejects out-of-int4-range %s %p with a typed 400 and writes no hold row', async (field, bad) => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		const err = await placeHold({ [field]: bad, reason: 'litigation X', setBy: 'admin-1' }).catch((e) => e);
+		expect(err).toBeInstanceOf(Error);
+		expect(err.code).toBe('INVALID_SUBJECT_ID');
+		expect(err.status).toBe(400);
+		expect(holds).toHaveLength(0);
+		expect(db.query).not.toHaveBeenCalled();
+		expect(auditLogService.logEvent).not.toHaveBeenCalled();
+	});
+
+	test.each([['userId'], ['companyId']])(
+		'#1409: int4 max 2147483647 is valid shape for %s — passes validation and reaches the existence check',
+		async (field) => {
+			db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+			const err = await placeHold({ [field]: 2147483647, reason: 'litigation X', setBy: 'admin-1' }).catch(
+				(e) => e,
+			);
+			expect(err.code).toBe('SUBJECT_NOT_FOUND');
+			expect(err.status).toBe(404);
+			expect(err.message).toMatch(/2147483647 does not exist/);
+			expect(db.query).toHaveBeenCalled();
+			expect(holds).toHaveLength(0);
+		},
+	);
+
+	test.each([['userId'], ['companyId']])(
+		'#1417: int4 min -2147483648 is valid shape for %s — passes validation and reaches the existence check',
+		async (field) => {
+			db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+			const err = await placeHold({ [field]: -2147483648, reason: 'litigation X', setBy: 'admin-1' }).catch(
+				(e) => e,
+			);
+			expect(err.code).toBe('SUBJECT_NOT_FOUND');
+			expect(err.status).toBe(404);
+			expect(err.message).toMatch(/-2147483648 does not exist/);
+			expect(db.query).toHaveBeenCalled();
+			expect(holds).toHaveLength(0);
+		},
+	);
+
+	test('#1404: integer-shaped string subject ids are normalised, valid ids unaffected', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		const row = await placeHold({ userId: '7', reason: 'litigation X', setBy: 'admin-1' });
+		expect(row.user_id).toBe(7);
+		expect(holds).toHaveLength(1);
+	});
+
+	test('#918: valid company-only and user+company holds are unaffected', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		const companyOnly = await placeHold({ companyId: 3, reason: 'company hold', setBy: 'admin-1' });
+		expect(companyOnly.company_id).toBe(3);
+		const both = await placeHold({ userId: 7, companyId: 3, reason: 'both hold', setBy: 'admin-1' });
+		expect(both.user_id).toBe(7);
+		expect(both.company_id).toBe(3);
+		expect(holds).toHaveLength(2);
+	});
+
+	// ── #1416: releaseHold's holdId reaches `WHERE id = $2` against the
+	// SERIAL (int4) legal_holds.id with NO normalisation — the route's
+	// parseInt guard passes 2147483648, so on real PG the UPDATE raises
+	// 22P02 and the route buries it as a generic 500. Same family
+	// #1404/#1409 closed for placeHold: typed 400 BEFORE any DB query.
+	test.each([[2147483648], ['2147483648'], [-2147483649], ['-2147483649'], ['abc'], [7.5], ['7.5']])(
+		'#1416: releaseHold rejects out-of-shape holdId %p with a typed 400 and queries nothing',
+		async (bad) => {
+			db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+			const err = await releaseHold({ holdId: bad, releasedBy: 'admin-2' }).catch((e) => e);
+			expect(err).toBeInstanceOf(Error);
+			expect(err.code).toBe('INVALID_HOLD_ID');
+			expect(err.status).toBe(400);
+			expect(err.message).toMatch(/must be an integer/);
+			expect(db.query).not.toHaveBeenCalled();
+			expect(auditLogService.logEvent).not.toHaveBeenCalled();
+		},
+	);
+
+	test('#1416: int4 max 2147483647 is valid shape for holdId — passes validation and reaches the UPDATE', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		await expect(releaseHold({ holdId: 2147483647, releasedBy: 'admin-2' })).resolves.toBeNull();
+		expect(db.query).toHaveBeenCalled();
+	});
+
+	test('#1417: int4 min -2147483648 is valid shape for holdId — passes validation and reaches the UPDATE', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		await expect(releaseHold({ holdId: -2147483648, releasedBy: 'admin-2' })).resolves.toBeNull();
+		expect(db.query).toHaveBeenCalled();
+	});
+
+	test('#1416: integer-shaped string hold ids are normalised, valid ids unaffected', async () => {
+		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
+		const row = await placeHold({ userId: 7, reason: 'litigation X', setBy: 'admin-1' });
+		const released = await releaseHold({ holdId: String(row.id), releasedBy: 'admin-2' });
+		expect(released.id).toBe(row.id);
+		expect(released.released_at).toBeTruthy();
+	});
+
 	test('releaseHold stamps released_by/at, audits, and unblocks isHeld', async () => {
 		const { isHeld } = require('../../../lib/legalHold');
 		db.query.mockImplementation(async (sql, p) => routeLegalHolds(sql, p));
@@ -440,7 +625,13 @@ describe('erasePersonalData under hold', () => {
 		const sqls = client.query.mock.calls.map((c) => c[0]);
 		expect(sqls.some((s) => s.includes('candidate_data_keys'))).toBe(false); // DEK untouched
 		expect(sqls.some((s) => s.includes('DELETE FROM'))).toBe(false);
-		expect(sqls).toHaveLength(1); // the hold check is the FIRST and only statement
+		// #1396: the tx-guard probe (SAVEPOINT + RELEASE, no data access)
+		// precedes the hold check, which remains the first and only DATA
+		// statement — nothing else ran before the erasure aborted.
+		expect(sqls).toHaveLength(3);
+		expect(sqls[0]).toMatch(/^SAVEPOINT erasure_tx_guard_probe/i);
+		expect(sqls[1]).toMatch(/^RELEASE SAVEPOINT erasure_tx_guard_probe/i);
+		expect(sqls[2]).toMatch(/FROM legal_holds/i);
 	});
 
 	test('company hold also blocks erasure of a company member', async () => {

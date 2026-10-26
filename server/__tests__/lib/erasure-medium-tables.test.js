@@ -47,6 +47,8 @@ function mockPhase1WithMedium(overrides = {}) {
 	const q = (rows = [], rowCount = 0) => ({ rows, rowCount });
 	// S-067/S-075/S-076 sequence (must match erasureService.js order).
 	client.query
+		.mockResolvedValueOnce(q([], 0)) // #1396: tx-guard SAVEPOINT probe (in-transaction caller)
+		.mockResolvedValueOnce(q([], 0)) // #1396: tx-guard RELEASE SAVEPOINT
 		.mockResolvedValueOnce(q([], 0)) // #799: legal-hold check (no hold)
 		.mockResolvedValueOnce(q([], 1)) // destroyDEK UPDATE
 		.mockResolvedValueOnce(q([], 1)) // embeddings DELETE
