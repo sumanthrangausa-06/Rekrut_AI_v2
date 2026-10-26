@@ -1897,10 +1897,15 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 		// surfaces the failure (nothing was deleted either way, so the
 		// user can simply retry).
 		if (err.code === 'LEGAL_HOLD') {
+			// #925: holdId null means the hold LOOKUP itself failed (no hold
+			// was verified) — the refusal stands (fail-closed) but the
+			// wording must say so, not claim an active hold (Lex wording).
+			const holdId = err.details?.holdId ?? null;
+			const holdUnverified = holdId == null;
 			try {
 				const { recordLegalHoldConflict } = require('../lib/legalHold');
 				await recordLegalHoldConflict({
-					holdId: err.details?.holdId ?? null,
+					holdId,
 					actor: req.user?.id ?? null,
 					actorRole: 'user',
 					subjectUserId: req.user?.id ?? null,
@@ -1910,17 +1915,22 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 			} catch (recErr) {
 				console.error('[auth/delete-account] legal-hold conflict AUDIT record failed:', recErr.message);
 				return res.status(500).json({
-					error:
-						'Legal hold active: nothing was deleted, but the conflict could not be recorded ' +
-						'in the compliance audit trail. Please retry so the conflict can be recorded.',
+					error: holdUnverified
+						? 'Erasure refused as a precaution: legal hold status could not be verified and the conflict ' +
+							'could not be recorded in the compliance audit trail. Nothing was deleted. ' +
+							'Please retry so the conflict can be recorded.'
+						: 'Legal hold active: nothing was deleted, but the conflict could not be recorded ' +
+							'in the compliance audit trail. Please retry so the conflict can be recorded.',
 					legalHold: true,
 					conflictRecorded: false,
 				});
 			}
 			return res.status(409).json({
-				error:
-					'Legal hold active: this account cannot be erased while it is under a legal hold ' +
-					'(GDPR Art. 17(3)(e)). Nothing was deleted.',
+				error: holdUnverified
+					? 'Erasure refused as a precaution: legal hold status could not be verified. ' +
+						'Nothing was deleted. Please try again later.'
+					: 'Legal hold active: this account cannot be erased while it is under a legal hold ' +
+						'(GDPR Art. 17(3)(e)). Nothing was deleted.',
 				legalHold: true,
 				conflictRecorded: true,
 			});

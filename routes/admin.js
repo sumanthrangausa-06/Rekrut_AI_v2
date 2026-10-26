@@ -2330,6 +2330,10 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 			// and answer 409 so the admin can release the hold and
 			// re-fulfil.
 			if (txErr.code === 'LEGAL_HOLD') {
+				// #925: holdId null means the hold LOOKUP itself failed (no
+				// hold was verified) — fail-closed refusal stands, but the
+				// wording must say so, not claim an active hold (Lex).
+				const holdUnverified = (txErr.details?.holdId ?? null) == null;
 				// Lex F-1 (#915 PR-gate fix round): the durable conflict
 				// record is the compliance_audit_trail entry (hold id,
 				// actor, request/subject identifiers) — the data_requests
@@ -2356,18 +2360,23 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 				}
 				if (!conflictRecorded) {
 					return res.status(500).json({
-						error:
-							'Legal hold active: erasure was NOT performed, but the conflict could not be recorded ' +
-							'in the compliance audit trail. Retry the fulfilment so the conflict can be recorded.',
+						error: holdUnverified
+							? 'Erasure refused as a precaution: legal hold status could not be verified, and the conflict ' +
+								'could not be recorded in the compliance audit trail. Erasure was NOT performed. ' +
+								'Retry the fulfilment so the conflict can be recorded.'
+							: 'Legal hold active: erasure was NOT performed, but the conflict could not be recorded ' +
+								'in the compliance audit trail. Retry the fulfilment so the conflict can be recorded.',
 						legalHold: true,
 						requestId: id,
 						conflictRecorded: false,
 					});
 				}
 				try {
-					const conflictNote =
-						`Fulfilment blocked ${new Date().toISOString()}: active legal hold on the subject ` +
-						'(GDPR Art. 17(3)(e)) — erasure NOT performed; conflict recorded in the compliance audit trail.';
+					const conflictNote = holdUnverified
+						? `Fulfilment blocked ${new Date().toISOString()}: legal hold status could not be verified ` +
+							'— erasure NOT performed as a precaution; conflict recorded in the compliance audit trail.'
+						: `Fulfilment blocked ${new Date().toISOString()}: active legal hold on the subject ` +
+							'(GDPR Art. 17(3)(e)) — erasure NOT performed; conflict recorded in the compliance audit trail.';
 					await pool.query(
 						`UPDATE data_requests SET notes = $1 WHERE id = $2`,
 						[dr.notes ? `${dr.notes}\n${conflictNote}` : conflictNote, id],
@@ -2376,9 +2385,11 @@ router.post('/compliance/data-requests/:id/fulfill', requireAdmin, async (req, r
 					console.error('[admin/compliance/data-requests/fulfill] legal-hold conflict note write failed:', recErr.message);
 				}
 				return res.status(409).json({
-					error:
-						'Legal hold active: this erasure cannot proceed while the subject is under a legal hold ' +
-						'(GDPR Art. 17(3)(e)). The conflict has been recorded; release the hold and re-fulfil.',
+					error: holdUnverified
+						? 'Erasure refused as a precaution: legal hold status could not be verified. ' +
+							'Erasure was NOT performed. The conflict has been recorded; verify hold status and re-fulfil.'
+						: 'Legal hold active: this erasure cannot proceed while the subject is under a legal hold ' +
+							'(GDPR Art. 17(3)(e)). The conflict has been recorded; release the hold and re-fulfil.',
 					legalHold: true,
 					requestId: id,
 					conflictRecorded: true,

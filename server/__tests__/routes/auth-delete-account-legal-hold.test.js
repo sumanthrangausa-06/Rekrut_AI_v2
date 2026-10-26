@@ -173,3 +173,69 @@ describe('DELETE /delete-account success — #1128 D-8b sanitised audit metadata
 		expect(JSON.stringify(arg.metadata)).not.toContain('self-serve-nonpattern');
 	});
 });
+
+describe('#925: lookup-failure (holdId null) vs verified-hold wording — self-serve', () => {
+	test('VERIFIED hold: 409 wording is the original "Legal hold active" text (pinned, unchanged)', async () => {
+		const res = await request(makeApp())
+			.delete('/api/auth/delete-account')
+			.send({ password: 'DeleteMe123!' });
+
+		expect(res.status).toBe(409);
+		expect(res.body.error).toBe(
+			'Legal hold active: this account cannot be erased while it is under a legal hold ' +
+				'(GDPR Art. 17(3)(e)). Nothing was deleted.',
+		);
+	});
+
+	test('VERIFIED hold + audit write fails: 500 wording is the original "Legal hold active" text (pinned, unchanged)', async () => {
+		legalHold.recordLegalHoldConflict.mockRejectedValue(new Error('audit trail down'));
+		const res = await request(makeApp())
+			.delete('/api/auth/delete-account')
+			.send({ password: 'DeleteMe123!' });
+
+		expect(res.status).toBe(500);
+		expect(res.body.error).toBe(
+			'Legal hold active: nothing was deleted, but the conflict could not be recorded ' +
+				'in the compliance audit trail. Please retry so the conflict can be recorded.',
+		);
+	});
+
+	test('LOOKUP FAILURE (holdId null): 409 answers the precaution wording — no hold asserted, no Art. 17(3)(e)', async () => {
+		erasePersonalData.mockRejectedValue(
+			new legalHold.LegalHoldError('hold lookup failed', { userId: 7, holdId: null }),
+		);
+		const res = await request(makeApp())
+			.delete('/api/auth/delete-account')
+			.send({ password: 'DeleteMe123!' });
+
+		expect(res.status).toBe(409);
+		expect(res.body.error).toBe(
+			'Erasure refused as a precaution: legal hold status could not be verified. ' +
+				'Nothing was deleted. Please try again later.',
+		);
+		expect(res.body.error).not.toMatch(/Legal hold active/i);
+		expect(res.body.error).not.toMatch(/17\(3\)\(e\)/);
+		// Audit payload still carries the honest null.
+		expect(legalHold.recordLegalHoldConflict).toHaveBeenCalledWith(
+			expect.objectContaining({ holdId: null, source: 'self_serve_delete_account' }),
+		);
+	});
+
+	test('LOOKUP FAILURE (holdId null) + audit write fails: 500 answers the precaution wording', async () => {
+		erasePersonalData.mockRejectedValue(
+			new legalHold.LegalHoldError('hold lookup failed', { userId: 7, holdId: null }),
+		);
+		legalHold.recordLegalHoldConflict.mockRejectedValue(new Error('audit trail down'));
+		const res = await request(makeApp())
+			.delete('/api/auth/delete-account')
+			.send({ password: 'DeleteMe123!' });
+
+		expect(res.status).toBe(500);
+		expect(res.body.error).toBe(
+			'Erasure refused as a precaution: legal hold status could not be verified and the conflict ' +
+				'could not be recorded in the compliance audit trail. Nothing was deleted. ' +
+				'Please retry so the conflict can be recorded.',
+		);
+		expect(res.body.error).not.toMatch(/Legal hold active/i);
+	});
+});
