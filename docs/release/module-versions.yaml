@@ -141,3 +141,18 @@ modules:
 #   dep-dbf9ep7avr4c73da4ml0 live, 3/3 prod /health samples agree; prod
 #   unauth source-document 401, plans read-back unchanged). Display-only
 #   changes on the cv-review + billing surfaces; no version bump.
+# - Train 14-0 (#1868 chunk-load recovery, staging PR #1870 @ f0180b89c,
+#   deploy dep-dbfc350m7kps738h6th0 live): small patch train ahead of
+#   Train 14A per the #1867 rider — every 14A deploy would otherwise
+#   break open sessions. Staging proof 2026-10-25: 3/3 /health agree at
+#   f0180b89c; shell Cache-Control: no-cache naming new bundle
+#   assets/index-DHEJiwQM.js (same hash as the train-tree build);
+#   /assets/* public, max-age=31536000, immutable; pre-deploy build's
+#   asset 404 (stale-chunk mode real) and recovery code present in the
+#   deployed bundle. Stated limit: in-browser cross-deploy navigation
+#   leg attempted but the browser tab did not survive to step 2, so the
+#   leg rests on HTTP-level proof (same standard as the #1868 dev
+#   proof). Promoted to PRODUCTION via Main Train M1.6 (PR #1871,
+#   merge 4a76429e7, deploy dep-dbfc77nb9u1s73ccn8i0 live, 3/3 prod
+#   /health agree at 4a76429e7; prod shell no-cache, same bundle hash,
+#   old asset 404). Client shell/server caching only; no version bump.
