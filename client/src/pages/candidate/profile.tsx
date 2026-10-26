@@ -198,17 +198,15 @@ const levelLabels: Record<number, string> = {
 };
 
 const availabilityColors: Record<string, string> = {
-	open: 'bg-green-100 text-green-700 border-green-200',
-	actively_looking: 'bg-amber-100 text-amber-700 border-amber-200',
-	not_looking: 'bg-slate-100 text-slate-700 border-slate-200',
-	available_soon: 'bg-blue-100 text-blue-700 border-blue-200',
+	immediately: 'bg-green-100 text-green-700 border-green-200',
+	'2 weeks': 'bg-blue-100 text-blue-700 border-blue-200',
+	'1 month': 'bg-amber-100 text-amber-700 border-amber-200',
 };
 
 const availabilityLabels: Record<string, string> = {
-	open: 'Open to Opportunities',
-	actively_looking: 'Actively Looking',
-	not_looking: 'Not Looking',
-	available_soon: 'Available Soon',
+	immediately: 'Available Immediately',
+	'2 weeks': 'Available in 2 Weeks',
+	'1 month': 'Available in 1 Month',
 };
 
 // 200+ common tech skills for autocomplete
@@ -2309,23 +2307,34 @@ function PersonalInfoTab({
 							<div>
 								<Label>Remote Preference</Label>
 								<select
-									value={profile.remote_preference || 'hybrid'}
-									onChange={(e) => updateField('remote_preference', e.target.value)}
+									value={profile.remote_preference || ''}
+									onChange={(e) =>
+										updateField(
+											'remote_preference',
+											e.target.value === '' ? null : e.target.value,
+										)
+									}
 									className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base sm:text-sm"
 								>
+									<option value="">Select…</option>
 									<option value="remote">Remote Only</option>
 									<option value="hybrid">Hybrid</option>
 									<option value="onsite">On-site</option>
-									<option value="flexible">Flexible</option>
 								</select>
 							</div>
 							<div>
 								<Label>Job Type</Label>
 								<select
-									value={profile.preferred_job_types?.[0] || 'full-time'}
-									onChange={(e) => updateField('preferred_job_types', [e.target.value])}
+									value={profile.preferred_job_types?.[0] || ''}
+									onChange={(e) =>
+										updateField(
+											'preferred_job_types',
+											e.target.value === '' ? [] : [e.target.value],
+										)
+									}
 									className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base sm:text-sm"
 								>
+									<option value="">Select…</option>
 									<option value="full-time">Full-time</option>
 									<option value="part-time">Part-time</option>
 									<option value="contract">Contract</option>
@@ -2336,14 +2345,19 @@ function PersonalInfoTab({
 							<div>
 								<Label>Availability</Label>
 								<select
-									value={profile.availability || 'open'}
-									onChange={(e) => updateField('availability', e.target.value)}
+									value={profile.availability || ''}
+									onChange={(e) =>
+										updateField(
+											'availability',
+											e.target.value === '' ? null : e.target.value,
+										)
+									}
 									className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base sm:text-sm"
 								>
-									<option value="open">Open to Opportunities</option>
-									<option value="actively_looking">Actively Looking</option>
-									<option value="not_looking">Not Looking</option>
-									<option value="available_soon">Available Soon</option>
+									<option value="">Select…</option>
+									<option value="immediately">Immediately</option>
+									<option value="2 weeks">2 Weeks</option>
+									<option value="1 month">1 Month</option>
 								</select>
 							</div>
 							<div>
