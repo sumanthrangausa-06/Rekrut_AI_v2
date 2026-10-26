@@ -150,6 +150,7 @@ describe('#1889 static contract — migration + profile page + server answered-s
 		expect(mig).toContain("ALTER COLUMN availability SET DEFAULT 'immediately'");
 		expect(mig).toContain("ALTER COLUMN remote_preference SET DEFAULT 'hybrid'");
 		expect(mig).toContain('ALTER COLUMN preferred_job_types SET DEFAULT');
+		expect(mig).toContain('\'["full-time"]\'::jsonb');
 		// No existing-row heal in this lane (separate founder data gate).
 		expect(mig).not.toMatch(/UPDATE\s+candidate_profiles\s+SET/i);
 	});
