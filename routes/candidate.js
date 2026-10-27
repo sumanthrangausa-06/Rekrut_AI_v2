@@ -2981,6 +2981,24 @@ function toCandidateApplicationListRow(row) {
 	return pickCandidateFields(row, CANDIDATE_APPLICATION_LIST_FIELDS);
 }
 
+// #1890: screening availability answers are free text, but
+// candidate_profiles.availability only stores the canonical notice-period
+// vocabulary — the storable intersection of its two CHECK constraints
+// (chk_candidate_profiles_availability /047 and chk_profiles_availability
+// /p2; see #1891). Map what we can onto that set; return null for the rest
+// so the caller skips the write with a logged reason instead of failing
+// the whole enrichment UPDATE.
+function mapScreeningAvailability(answer) {
+	const text = String(answer).trim().toLowerCase().replace(/\s+/g, ' ');
+	if (!text) return null;
+	if (text === 'immediately' || text === '2 weeks' || text === '1 month') return text;
+	if (text.includes('immediate') || text === 'now' || text.includes('asap') || text.includes('right away'))
+		return 'immediately';
+	if (text.includes('2 week') || text.includes('two week')) return '2 weeks';
+	if (text.includes('1 month') || text.includes('one month') || text.includes('30 day')) return '1 month';
+	return null;
+}
+
 // Helper: shared application submission logic (manual + auto-apply)
 async function submitApplication({
 	candidateId,
@@ -3198,7 +3216,14 @@ async function submitApplication({
 						if (nums.length > 1) updates.salary_max = parseInt(nums[1].replace(/,/g, ''), 10);
 					}
 				} else if (q.category === 'availability') {
-					updates.availability = String(answer);
+					const mappedAvailability = mapScreeningAvailability(answer);
+					if (mappedAvailability) {
+						updates.availability = mappedAvailability;
+					} else {
+						console.error(
+							`[enrichment] availability answer not mappable to canonical vocabulary — skipped for candidate ${candidateId}`,
+						);
+					}
 				} else if (q.category === 'experience') {
 					const bracket = String(answer);
 					if (bracket.includes('0-1')) updates.years_experience = 1;
@@ -3213,7 +3238,7 @@ async function submitApplication({
 				const values = [candidateId];
 				let idx = 2;
 				for (const [key, val] of Object.entries(updates)) {
-					setClauses.push(`${key} = COALESCE(${idx}, ${key})`);
+					setClauses.push(`${key} = COALESCE($${idx}, ${key})`);
 					values.push(val);
 					idx++;
 				}
