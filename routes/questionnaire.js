@@ -964,7 +964,7 @@ router.get(
 			]);
 			const userCompanyId = userResult.rows[0]?.company_id;
 
-			if (app.company_id !== userCompanyId && app.user_id !== req.user.id) {
+			if (app.company_id !== userCompanyId) {
 				return res.status(403).json({ error: 'Access denied' });
 			}
 
