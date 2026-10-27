@@ -372,6 +372,11 @@ router.put('/profile', authMiddleware, async (req, res) => {
 		const sanitizedSalaryMin = normalizePositiveInteger(salary_min, 'salary_min');
 		const sanitizedSalaryMax = normalizePositiveInteger(salary_max, 'salary_max');
 		const sanitizedSalaryCurrency = normalizeTextField(salary_currency, 3, 'salary_currency');
+		const sanitizedRemotePreference = normalizeTextField(
+			remote_preference,
+			50,
+			'remote_preference',
+		);
 		const sanitizedTimezonePreference = normalizeTextField(
 			timezone_preference,
 			100,
@@ -444,9 +449,9 @@ router.put('/profile', authMiddleware, async (req, res) => {
 					sanitizedSalaryCurrency,
 					preferred_job_types != null ? JSON.stringify(preferred_job_types) : null,
 					preferred_locations != null ? JSON.stringify(preferred_locations) : null,
-					remote_preference,
-					timezone_preference,
-					travel_willingness,
+					sanitizedRemotePreference,
+					sanitizedTimezonePreference,
+					sanitizedTravelWillingness,
 					sanitizedYearsExperience,
 				],
 			);
@@ -479,7 +484,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
 					sanitizedSalaryCurrency,
 					preferred_job_types ? JSON.stringify(preferred_job_types) : null,
 					JSON.stringify(preferred_locations || []),
-					remote_preference || null,
+					sanitizedRemotePreference,
 					sanitizedTimezonePreference,
 					sanitizedTravelWillingness,
 					sanitizedYearsExperience,
