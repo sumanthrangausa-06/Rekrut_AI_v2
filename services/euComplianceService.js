@@ -824,9 +824,14 @@ class EuComplianceService {
 					}
 				}
 				if (!dryRun && storageOk) {
+					// #1206: NULL the pointer with the stamp — erasure parity
+					// (keep-redacted: status='deleted', storage_path=NULL).
+					// This UPDATE only runs when the storage delete succeeded
+					// (or no pointer existed); failed/undecryptable rows keep
+					// their pointer above and stay retryable.
 					await pool.query(
 						`UPDATE interview_recordings
-						 SET status = 'deleted', updated_at = NOW()
+						 SET status = 'deleted', storage_path = NULL, updated_at = NOW()
 						 WHERE id = $1`,
 						[row.id],
 					);
