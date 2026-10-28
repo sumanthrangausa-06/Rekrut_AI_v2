@@ -33,10 +33,12 @@ session-linked recordings.
 ## Reproduction / E2E gate (HL-003) — GREEN on current dev
 
 Fresh DB `sd1938_fresh` on the local rig (PG 16.15, 127.0.0.1:55433),
-`node migrate.js` exit 0. Seeded session-linked recording in the exact
-shape `createRecordingRecord({ interviewSessionId })` writes
-(`interview_event_id` and `room_id` NULL), one transcript segment, one
-consent row. Suite:
+`node migrate.js` exit 0. Seeded session-linked recording in the
+access-relevant shape `createRecordingRecord({ interviewSessionId })`
+writes (`interview_event_id` and `room_id` NULL,
+`interview_session_id` set; the seed additionally sets
+`storage_path`/`duration_seconds`, which the detail handler never
+reads for access), one transcript segment, one consent row. Suite:
 `server/__tests__/routes/recordings-session-detail-1938.integration.test.js`
 (real recordings router, real `lib/db`, real auth, supertest):
 
@@ -73,6 +75,17 @@ event-linked only).
 - Privacy engineer — consulted at STOP 1: detail payload stays
   dual-audience-safe; suite asserts no `recruiter_notes` reaches the
   candidate on session-linked recordings; no new disclosure.
+- Independent security/code review of the PR diff — **APPROVE**
+  (reviewer re-ran the suite first-hand, 5/5; verified the central
+  claim at current dev and filing base; mutation reasoning: removing
+  the session-branch candidate grant turns the suite red). Minors
+  (non-blocking): M-1 seed-fidelity wording (fixed above); M-2 the
+  suite skips silently without `SD1938_INTEGRATION_DB_URL`, the same
+  pattern as sibling integration suites — coverage exists where the
+  var is wired; M-3 no playback control leg (a `'stub'` storage path
+  404s on decrypt, so playback parity rests on the identical
+  `canAccessRecording` call, verified by code identity) and no admin
+  case (pre-existing shared behaviour).
 
 ## Files
 
