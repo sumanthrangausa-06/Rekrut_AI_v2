@@ -118,6 +118,10 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: practice_sessions
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_sessions
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_transcripts
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-D13: diarization_runs
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-D13: transcript_speaker_audit
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-D13: recording_speaker_mappings
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-D13: diarization_jobs
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
@@ -200,6 +204,10 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			sessionsStripped: 0,
 			sessionsHeld: 0,
 			transcriptsDeleted: 0,
+			diarizationJobsDeleted: 0,
+			diarizationRunsDeleted: 0,
+			speakerMappingsDeleted: 0,
+			speakerAuditDeleted: 0,
 			recordingsLedgered: 0,
 			recordingsRedacted: 0,
 			recordingsHeld: 0,
@@ -389,6 +397,10 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: practice_sessions
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_sessions
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: interview_transcripts
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-D13: diarization_runs
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-D13: transcript_speaker_audit
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-D13: recording_speaker_mappings
+			.mockResolvedValueOnce({ rowCount: 0 }) // S-D13: diarization_jobs
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
@@ -470,6 +482,10 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			sessionsStripped: 0,
 			sessionsHeld: 0,
 			transcriptsDeleted: 0,
+			diarizationJobsDeleted: 0,
+			diarizationRunsDeleted: 0,
+			speakerMappingsDeleted: 0,
+			speakerAuditDeleted: 0,
 			recordingsLedgered: 0,
 			recordingsRedacted: 0,
 			recordingsHeld: 0,
