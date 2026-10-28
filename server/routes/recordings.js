@@ -684,9 +684,13 @@ router.post(
 			// Convert to base64 for Whisper
 			const audioBase64 = `data:audio/mp4;base64,${audioBuffer.toString('base64')}`;
 
-			// Call Whisper transcription
+			// Call Whisper transcription — with the S-D01 segment contract
+			// (#1903): requireSegments makes segment-less legs continue the
+			// cascade and an all-segment-less cascade return null, so a
+			// result here always carries timed segments (or is null).
 			const whisperResult = await transcribeAudioWithWhisper(audioBase64, {
 				subscriptionId: user.subscription_id,
+				requireSegments: true,
 			});
 
 			if (!whisperResult?.text) {
@@ -697,28 +701,80 @@ router.post(
 				return res.status(500).json({ error: 'Transcription failed' });
 			}
 
-			// Store transcript segments
-			// Whisper returns text; we store it as a single segment with the whole text
-			// For speaker attribution, we use a placeholder since Whisper doesn't do diarization
-			await pool.query(
-				`INSERT INTO interview_transcripts
-				 (recording_id, speaker_identity, text, start_time_ms, end_time_ms, confidence)
-				 VALUES ($1, $2, $3, $4, $5, $6)`,
-				[
-					recordingId,
-					'unknown', // Speaker diarization not available in basic Whisper
-					whisperResult.text,
-					0,
-					(recording.duration_seconds || 0) * 1000,
-					recordedConfidence(whisperResult.confidence),
-				],
-			);
+			// S-D02 (#1904, Architecture §3.1): store ONE ROW PER SEGMENT
+			// with real timestamps, replacing the previous generation
+			// atomically. The old segments AND any diarization artefacts
+			// for the recording are deleted in the SAME transaction as
+			// the new insert, so old labels can never sit on new text
+			// and a failed swap leaves the old generation untouched.
+			// speaker_identity stays 'unknown' — labels are composed at
+			// read time (S-D09), never stored here.
+			const segments = Array.isArray(whisperResult.segments) ? whisperResult.segments : [];
+			if (segments.length === 0) {
+				// requireSegments guarantees segments on a win; treat a
+				// segment-less result as an honest transcription failure
+				// rather than reviving the whole-recording single row.
+				await pool.query(
+					`UPDATE interview_recordings SET status = 'completed', updated_at = NOW() WHERE id = $1 AND status = 'processing'`,
+					[recordingId],
+				);
+				return res.status(500).json({ error: 'Transcription failed' });
+			}
 
-			// Mark as completed again
-			await pool.query(
-				`UPDATE interview_recordings SET status = 'completed', updated_at = NOW() WHERE id = $1 AND status = 'processing'`,
-				[recordingId],
-			);
+			const client = await pool.connect();
+			try {
+				await client.query('BEGIN');
+				await client.query(`DELETE FROM diarization_runs WHERE recording_id = $1`, [
+					recordingId,
+				]);
+				await client.query(
+					`DELETE FROM recording_speaker_mappings WHERE recording_id = $1`,
+					[recordingId],
+				);
+				await client.query(`DELETE FROM transcript_speaker_audit WHERE recording_id = $1`, [
+					recordingId,
+				]);
+				await client.query(`DELETE FROM diarization_jobs WHERE recording_id = $1`, [
+					recordingId,
+				]);
+				// transcript_highlights rows die with their segments
+				// (transcript_id ON DELETE CASCADE, migration 128).
+				await client.query(`DELETE FROM interview_transcripts WHERE recording_id = $1`, [
+					recordingId,
+				]);
+				for (const seg of segments) {
+					await client.query(
+						`INSERT INTO interview_transcripts
+						 (recording_id, speaker_identity, text, start_time_ms, end_time_ms, confidence)
+						 VALUES ($1, $2, $3, $4, $5, $6)`,
+						[
+							recordingId,
+							'unknown',
+							seg.text,
+							Math.round(seg.start_s * 1000),
+							Math.round(seg.end_s * 1000),
+							recordedConfidence(whisperResult.confidence),
+						],
+					);
+				}
+				// Completion flips in the same transaction; the
+				// diarization timeline resets with its artefacts (the
+				// next generation's job is S-D04's enqueue, not this
+				// story's). Scoped to 'processing' per the R-5 pattern.
+				await client.query(
+					`UPDATE interview_recordings
+					 SET status = 'completed', diarization_status = NULL,
+					     diarization_updated_at = NOW(), updated_at = NOW()
+					 WHERE id = $1 AND status = 'processing'`,
+					[recordingId],
+				);
+				await client.query('COMMIT');
+			} catch (txErr) {
+				await client.query('ROLLBACK').catch(() => {});
+				throw txErr;
+			} finally {
+				client.release();
+			}
 
 			res.json({
 				success: true,
