@@ -57,6 +57,8 @@ jest.mock('../../services/livekit', () => mockLivekit);
 
 const mockWhisper = jest.fn();
 jest.mock('../../../lib/polsia-ai', () => ({
+// #1904 (S-D02): the handler now calls with requireSegments, so a successful
+// Whisper result carries segments (S-D01 contract) — the mocks here do too.
 	transcribeAudioWithWhisper: (...a) => mockWhisper(...a),
 }));
 
@@ -206,7 +208,7 @@ describe('GET /recordings/:id/playback — legacy plaintext unchanged', () => {
 describe('POST /recordings/:id/transcribe — .enc branch', () => {
 	test('decrypts in memory, reuses Whisper, never uses downloadRecordingAudio', async () => {
 		mockLivekit.fetchDecryptedRecording.mockResolvedValue(Buffer.from('AUDIO-BYTES'));
-		mockWhisper.mockResolvedValue({ text: 'hello world', confidence: 0.9 });
+		mockWhisper.mockResolvedValue({ text: 'hello world', confidence: 0.9, segments: [{ start_s: 0, end_s: 1, text: 'hello world' }] });
 
 		const res = await request(app).post('/recordings/5/transcribe').set(as(9));
 
@@ -241,7 +243,7 @@ describe('POST /recordings/:id/transcribe — .enc branch', () => {
 		mockLivekit.isEncryptedRecording.mockReturnValue(false);
 		mockLivekit.decryptStoragePath.mockReturnValue(LEGACY_KEY);
 		mockLivekit.downloadRecordingAudio.mockResolvedValue(Buffer.from('AUDIO-BYTES'));
-		mockWhisper.mockResolvedValue({ text: 'legacy words', confidence: 0.8 });
+		mockWhisper.mockResolvedValue({ text: 'legacy words', confidence: 0.8, segments: [{ start_s: 0, end_s: 1, text: 'legacy words' }] });
 
 		const res = await request(app).post('/recordings/5/transcribe').set(as(9));
 

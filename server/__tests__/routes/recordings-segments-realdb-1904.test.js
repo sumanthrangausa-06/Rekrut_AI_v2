@@ -1,0 +1,331 @@
+/**
+ * #1904 (S-D02) — Recordings handler stores timestamped segments,
+ * replace-on-re-run. Architecture §3.1, PRD FR-D01..D03.
+ *
+ * Quinn-style user-journey suite on the fresh-install rig (HL-003):
+ * the REAL recordings router, REAL lib/db, REAL auth + RBAC, REAL
+ * livekit service and REAL ASR cascade (lib/ai-provider via
+ * lib/polsia-ai) over HTTP via supertest, against a fresh Postgres
+ * built by `node migrate.js`. State is read back from the DB.
+ *
+ * Stubs live ONLY at the two true external boundaries:
+ *   - object storage: the recording's storage_path encrypts (real
+ *     services/encryption) an http://127.0.0.1 URL served by a local
+ *     stub — the real downloadRecordingAudio fetches it;
+ *   - the ASR provider: OPENAI_BASE_URL points the Whisper leg at a
+ *     local stub returning real verbose_json multi-segment payloads —
+ *     the real cascade + S-D01 segment contract run end to end.
+ * The handler and the DB — where this story's behaviour lives — are
+ * never mocked. Synthetic fixtures only; no real recordings.
+ *
+ * Run:
+ *   SD02_INTEGRATION_DB_URL='postgresql://postgres@127.0.0.1:55433/sd02_1904' \
+ *     npx jest server/__tests__/routes/recordings-segments-realdb-1904.test.js --forceExit
+ */
+jest.unmock('../../../lib/db');
+
+const http = require('node:http');
+const { Pool } = require('pg');
+
+const DB_URL = process.env.SD02_INTEGRATION_DB_URL;
+const describeIfDb = DB_URL ? describe : describe.skip;
+
+jest.setTimeout(60000);
+
+const U_REC = 190401;
+const U_CAND = 190402;
+const C_ID = 19041;
+
+// Gen-1: 3 segments jointly covering 0–12s; text joins to the full text.
+const GEN1 = {
+	task: 'transcription',
+	language: 'english',
+	duration: 12.0,
+	text: 'Hello candidate. Tell me about yourself. I led a team of five.',
+	segments: [
+		{ id: 0, start: 0.0, end: 2.0, text: 'Hello candidate.' },
+		{ id: 1, start: 2.0, end: 6.5, text: ' Tell me about yourself.' },
+		{ id: 2, start: 6.5, end: 12.0, text: ' I led a team of five.' },
+	],
+};
+// Gen-2 (re-run): different words — the visible result must be ONLY this.
+const GEN2 = {
+	task: 'transcription',
+	language: 'english',
+	duration: 12.0,
+	text: 'Second run opening. Second run closing answer.',
+	segments: [
+		{ id: 0, start: 0.0, end: 5.0, text: 'Second run opening.' },
+		{ id: 1, start: 5.0, end: 12.0, text: ' Second run closing answer.' },
+	],
+};
+
+let asrMode = 'gen1'; // 'gen1' | 'gen2' | 'fail'
+let asrServer;
+let audioServer;
+let asrPort;
+let audioPort;
+let app;
+let request;
+let generateToken;
+let encryption;
+let seedPool;
+let recordingId;
+let purgedRecordingId;
+
+function listen(server) {
+	return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
+}
+
+async function seedRecording(storageUrl, status = 'completed') {
+	const q = (sql, params) => seedPool.query(sql, params);
+	const ev = await q(
+		`INSERT INTO interview_events (recruiter_id, candidate_id, status) VALUES ($1, $2, 'completed') RETURNING id`,
+		[U_REC, U_CAND],
+	);
+	const eventId = ev.rows[0].id;
+	const room = await q(
+		`INSERT INTO interview_rooms (interview_event_id, room_name, livekit_room_id, status) VALUES ($1, $2, $3, 'closed') RETURNING id`,
+		[eventId, `room-${eventId}`, `lk-${eventId}`],
+	);
+	const rec = await q(
+		`INSERT INTO interview_recordings (interview_event_id, room_id, status, duration_seconds, storage_path)
+		 VALUES ($1, $2, $3, 12, $4) RETURNING id`,
+		[eventId, room.rows[0].id, status, encryption.encrypt(storageUrl)],
+	);
+	return rec.rows[0].id;
+}
+
+async function cleanAndSeed() {
+	const q = (sql, params) => seedPool.query(sql, params);
+	await q(`DELETE FROM users WHERE id = ANY($1::int[])`, [[U_REC, U_CAND]]);
+	await q(`DELETE FROM companies WHERE id = $1`, [C_ID]);
+	await q(`INSERT INTO companies (id, name) VALUES ($1, 'S-D02 Co')`, [C_ID]);
+	await q(
+		`INSERT INTO users (id, email, name, role, company_id) VALUES
+		   ($1, 'rec1904@test.local', 'Rec 1904', 'recruiter', $3),
+		   ($2, 'cand1904@test.local', 'Cand 1904', 'candidate', NULL)`,
+		[U_REC, U_CAND, C_ID],
+	);
+	recordingId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`);
+	purgedRecordingId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`);
+	// A purged recording: its only transcript row is the [purged] tombstone.
+	await q(
+		`INSERT INTO interview_transcripts (recording_id, speaker_identity, text, start_time_ms, end_time_ms)
+		 VALUES ($1, 'unknown', '[purged]', 0, 12000)`,
+		[purgedRecordingId],
+	);
+}
+
+function recToken() {
+	return generateToken({ id: U_REC, email: 'rec1904@test.local', role: 'recruiter' });
+}
+
+describeIfDb('#1904 S-D02 recordings segments (realdb journey)', () => {
+	beforeAll(async () => {
+		// Stubs at the external boundaries — started first so the seeded
+		// storage URL and the provider base URL can point at them.
+		audioServer = http.createServer((req, res) => {
+			res.writeHead(200, { 'Content-Type': 'audio/mp4' });
+			res.end(Buffer.from('synthetic-audio-bytes'));
+		});
+		audioPort = await listen(audioServer);
+		asrServer = http.createServer((req, res) => {
+			let body = '';
+			req.on('data', (c) => (body += c));
+			req.on('end', () => {
+				if (asrMode === 'fail') {
+					res.writeHead(500, { 'Content-Type': 'application/json' });
+					return res.end(JSON.stringify({ error: 'stub ASR down' }));
+				}
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				return res.end(JSON.stringify(asrMode === 'gen2' ? GEN2 : GEN1));
+			});
+		});
+		asrPort = await listen(asrServer);
+
+		// Env BEFORE the router (and its provider singleton) load.
+		// server/test/setup.js replaced DATABASE_URL with a dummy; restore it.
+		process.env.DATABASE_URL = DB_URL;
+		process.env.ENCRYPTION_KEY = 'a'.repeat(64);
+		process.env.AI_KEYS_JSON = JSON.stringify({ openai: 'test-key' });
+		process.env.OPENAI_BASE_URL = `http://127.0.0.1:${asrPort}/v1`;
+
+		seedPool = new Pool({ connectionString: DB_URL });
+		encryption = require('../../../services/encryption');
+		await cleanAndSeed();
+
+		const express = require('express');
+		request = require('supertest');
+		({ generateToken } = require('../../../lib/auth'));
+		const recordingsRouter = require('../../routes/recordings');
+		app = express();
+		app.use(express.json());
+		app.use('/api/interviews/recordings', recordingsRouter);
+	});
+
+	afterAll(async () => {
+		if (seedPool) await seedPool.end();
+		if (asrServer) asrServer.close();
+		if (audioServer) audioServer.close();
+	});
+
+	test('AC-1: recruiter transcribes → timed segments, ordered, bounded, jointly covering, no words lost', async () => {
+		asrMode = 'gen1';
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${recordingId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(res.status).toBe(200);
+		// AC-3 (shape): transcribe response shape unchanged for existing consumers.
+		expect(Object.keys(res.body).sort()).toEqual(['success', 'transcript']);
+		expect(Object.keys(res.body.transcript).sort()).toEqual(['confidence', 'duration_ms', 'text']);
+		expect(res.body.transcript.text).toBe(GEN1.text);
+
+		const got = await request(app)
+			.get(`/api/interviews/recordings/${recordingId}/transcript`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(got.status).toBe(200);
+		const segs = got.body.transcript.segments;
+		expect(segs.length).toBe(3);
+		// BIGINT columns serialise as strings — compare the numbers.
+		expect(segs.map((s) => [Number(s.start_time_ms), Number(s.end_time_ms)])).toEqual([
+			[0, 2000],
+			[2000, 6500],
+			[6500, 12000],
+		]);
+		for (const s of segs) {
+			expect(s.speaker_identity).toBe('unknown');
+			expect(Number(s.end_time_ms)).toBeGreaterThan(Number(s.start_time_ms));
+			expect(Number(s.end_time_ms)).toBeLessThan(12000 + 1);
+		}
+		// Jointly covering 0 → 12000 with no gaps, text in order = full transcript.
+		expect(Number(segs[0].start_time_ms)).toBe(0);
+		expect(Number(segs[segs.length - 1].end_time_ms)).toBe(12000);
+		expect(segs.map((s) => s.text).join('')).toBe(GEN1.text);
+
+		const dbSegs = await seedPool.query(
+			`SELECT speaker_identity, text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY start_time_ms`,
+			[recordingId],
+		);
+		expect(dbSegs.rows.length).toBe(3);
+	});
+
+	test('AC-3: a highlight attaches to a segment and survives a transcript reload', async () => {
+		const got = await request(app)
+			.get(`/api/interviews/recordings/${recordingId}/transcript`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		const segId = got.body.transcript.segments[1].id;
+		const hl = await request(app)
+			.post(`/api/interviews/recordings/transcript/${segId}/highlight`)
+			.set('Authorization', `Bearer ${recToken()}`)
+			.send({ note: 'Strong answer', timestamp_ms: 3000 });
+		expect(hl.status).toBe(201);
+
+		const reloaded = await request(app)
+			.get(`/api/interviews/recordings/${recordingId}/transcript`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		const seg = reloaded.body.transcript.segments.find((s) => s.id === segId);
+		expect(seg.highlights).toHaveLength(1);
+		expect(seg.highlights[0].note).toBe('Strong answer');
+	});
+
+	test('AC-3: a purged recording transcript still renders as absence', async () => {
+		const got = await request(app)
+			.get(`/api/interviews/recordings/${purgedRecordingId}/transcript`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(got.status).toBe(200);
+		expect(got.body.transcript.segment_count).toBe(0);
+		expect(got.body.transcript.segments).toEqual([]);
+	});
+
+	test('AC-2: re-run replaces the generation atomically — old segments AND diarization artefacts gone in the same result', async () => {
+		// Plant diarization artefacts of generation 1 (S-D03 tables).
+		const q = (sql, params) => seedPool.query(sql, params);
+		const job = await q(
+			`INSERT INTO diarization_jobs (recording_id, status) VALUES ($1, 'complete') RETURNING id`,
+			[recordingId],
+		);
+		await q(
+			`INSERT INTO diarization_runs (recording_id, job_id, engine_package, turns) VALUES ($1, $2, '@desert-ant-labs/who', '[]'::jsonb)`,
+			[recordingId, job.rows[0].id],
+		);
+		await q(
+			`INSERT INTO recording_speaker_mappings (recording_id, speaker_number, participant_user_id, participant_role, state) VALUES ($1, 0, $2, 'candidate', 'proposed')`,
+			[recordingId, U_CAND],
+		);
+		await q(
+			`INSERT INTO transcript_speaker_audit (recording_id, speaker_number, actor_user_id, action) VALUES ($1, 0, $2, 'confirm')`,
+			[recordingId, U_REC],
+		);
+		await q(
+			`UPDATE interview_recordings SET diarization_status = 'complete', diarization_updated_at = NOW() WHERE id = $1`,
+			[recordingId],
+		);
+		const gen1SegIds = (
+			await q(`SELECT id FROM interview_transcripts WHERE recording_id = $1`, [recordingId])
+		).rows.map((r) => r.id);
+		expect(gen1SegIds.length).toBe(3);
+
+		asrMode = 'gen2';
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${recordingId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(res.status).toBe(200);
+		expect(res.body.transcript.text).toBe(GEN2.text);
+
+		// Exactly one generation exists afterwards: gen-2's two segments only.
+		const dbSegs = await q(
+			`SELECT id, text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY start_time_ms`,
+			[recordingId],
+		);
+		expect(dbSegs.rows.length).toBe(2);
+		expect(dbSegs.rows.map((r) => r.text).join('')).toBe(GEN2.text);
+		expect(dbSegs.rows.some((r) => gen1SegIds.includes(r.id))).toBe(false);
+
+		// No diarization artefact of the old generation survives anywhere.
+		for (const table of [
+			'diarization_runs',
+			'recording_speaker_mappings',
+			'transcript_speaker_audit',
+			'diarization_jobs',
+		]) {
+			const left = await q(`SELECT COUNT(*)::int AS n FROM ${table} WHERE recording_id = $1`, [
+				recordingId,
+			]);
+			expect(left.rows[0].n).toBe(0);
+		}
+		const rec = await q(`SELECT status, diarization_status FROM interview_recordings WHERE id = $1`, [
+			recordingId,
+		]);
+		expect(rec.rows[0].status).toBe('completed');
+		expect(rec.rows[0].diarization_status).toBeNull();
+
+		// And the recruiter sees only the new text — no old labels on new text.
+		const got = await request(app)
+			.get(`/api/interviews/recordings/${recordingId}/transcript`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(got.body.transcript.segments.map((s) => s.text).join('')).toBe(GEN2.text);
+	});
+
+	test('AC-4: all ASR legs fail → recording back to completed with NO transcript rows, nothing partial', async () => {
+		const freshId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`);
+		asrMode = 'fail';
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${freshId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(res.status).toBe(500);
+		const rec = await seedPool.query(`SELECT status FROM interview_recordings WHERE id = $1`, [
+			freshId,
+		]);
+		expect(rec.rows[0].status).toBe('completed');
+		const rows = await seedPool.query(
+			`SELECT COUNT(*)::int AS n FROM interview_transcripts WHERE recording_id = $1`,
+			[freshId],
+		);
+		expect(rows.rows[0].n).toBe(0);
+		const got = await request(app)
+			.get(`/api/interviews/recordings/${freshId}/transcript`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(got.body.transcript.segment_count).toBe(0);
+	});
+});

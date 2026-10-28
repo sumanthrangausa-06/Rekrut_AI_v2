@@ -65,6 +65,8 @@ jest.mock('../../services/livekit', () => mockLivekit);
 
 const mockWhisper = jest.fn();
 jest.mock('../../../lib/polsia-ai', () => ({
+// #1904 (S-D02): the handler now calls with requireSegments, so a successful
+// Whisper result carries segments (S-D01 contract) — the mocks here do too.
 	transcribeAudioWithWhisper: (...a) => mockWhisper(...a),
 }));
 
@@ -123,7 +125,7 @@ beforeEach(() => {
 
 describe('POST /recordings/:id/transcribe — whisper confidence honesty (#1619)', () => {
 	test('unrecorded confidence (Whisper result has no confidence field) → DB null + response null, never 0.85', async () => {
-		mockWhisper.mockResolvedValue({ text: 'hello world' });
+		mockWhisper.mockResolvedValue({ text: 'hello world', segments: [{ start_s: 0, end_s: 60, text: 'hello world' }] });
 
 		const res = await request(app).post('/recordings/5/transcribe').set(as(9));
 
@@ -136,7 +138,7 @@ describe('POST /recordings/:id/transcribe — whisper confidence honesty (#1619)
 	});
 
 	test('provider confidence 0 → null at both sites (0 is the providers\' "not reported" default, not a measurement — reviewer BLOCK, PR #1623)', async () => {
-		mockWhisper.mockResolvedValue({ text: 'hello world', confidence: 0 });
+		mockWhisper.mockResolvedValue({ text: 'hello world', confidence: 0, segments: [{ start_s: 0, end_s: 60, text: 'hello world' }] });
 
 		const res = await request(app).post('/recordings/5/transcribe').set(as(9));
 
@@ -150,7 +152,7 @@ describe('POST /recordings/:id/transcribe — whisper confidence honesty (#1619)
 		['negative', -0.2],
 		['NaN', NaN],
 	])('provider confidence %s (%s) → null at both sites, never stored', async (_label, bad) => {
-		mockWhisper.mockResolvedValue({ text: 'hello world', confidence: bad });
+		mockWhisper.mockResolvedValue({ text: 'hello world', confidence: bad, segments: [{ start_s: 0, end_s: 60, text: 'hello world' }] });
 
 		const res = await request(app).post('/recordings/5/transcribe').set(as(9));
 
@@ -160,7 +162,7 @@ describe('POST /recordings/:id/transcribe — whisper confidence honesty (#1619)
 	});
 
 	test('recorded confidence 0.42 → passes through unchanged at both sites', async () => {
-		mockWhisper.mockResolvedValue({ text: 'hello world', confidence: 0.42 });
+		mockWhisper.mockResolvedValue({ text: 'hello world', confidence: 0.42, segments: [{ start_s: 0, end_s: 60, text: 'hello world' }] });
 
 		const res = await request(app).post('/recordings/5/transcribe').set(as(9));
 
