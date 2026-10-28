@@ -65,14 +65,71 @@ describe('speakerMapping.computeProposal (S-D08)', () => {
 		expect(bySpeaker(clear.rows)[0].participant_user_id).toBe(11);
 	});
 
-	it('AC-2 with a panel: the top two stay unassigned; a clear third pair still pairs in ranked order', () => {
-		// shares 40 / 38 / 22 — top two ambiguous, third is unambiguous by elimination
+	it('AC-2 with a panel: guard trip voids ALL assignments (reconciled reading, PR #1932 review B-2)', () => {
+		// shares 40 / 38 / 22 — the top is ambiguous, so every pairing
+		// below it rests on the same untrustworthy ranking: nobody is
+		// proposed. (Supersedes the original "third still pairs" —
+		// Suga ruling on the B-2 STOP 1 conflict, #1910.)
 		const turns = [turn(0, 0, 40), turn(1, 40, 78), turn(2, 78, 100)];
 		const { rows } = computeProposal({ turns, participants: [CAND, LEAD, PANEL] });
+		expect(rows).toHaveLength(3);
+		for (const r of rows) expect(r.participant_user_id).toBeNull();
+	});
+
+	it('B-1: a sub-100ms phantom speaker gains NO row and NO name (assignable-turn floor)', () => {
+		// speaker 2 speaks 60ms — engine noise (#1929 M4), not a voice.
+		const turns = [turn(0, 0, 60), turn(1, 60, 100), turn(2, 100, 100.06)];
+		const { rows, proposedMapping } = computeProposal({ turns, participants: [CAND, LEAD, PANEL] });
+		expect(rows.map((r) => r.speaker_number)).toEqual([0, 1]);
+		expect(bySpeaker(rows)[0].participant_user_id).toBe(11);
+		expect(bySpeaker(rows)[1].participant_user_id).toBe(22);
+		expect(proposedMapping['2']).toBeUndefined();
+	});
+
+	it('N-1 (PR #1935 re-review): an exactly-100ms turn at a non-zero offset IS assignable (ms arithmetic)', () => {
+		// 0.2 → 0.3 is exactly 100ms, but 0.09999999999999998 in float
+		// seconds; stitch (ms integers) treats it as assignable, so
+		// the mapping speaker set must too.
+		const turns = [turn(0, 0.2, 0.3), turn(1, 0.3, 5.3)];
+		const { rows } = computeProposal({ turns, participants: [CAND, LEAD] });
+		expect(rows.map((r) => r.speaker_number)).toEqual([0, 1]);
+	});
+
+	it('B-2 probe: all-zero-duration turns → no assignable speakers, no name proposed on zero evidence', () => {
+		const turns = [turn(0, 5, 5), turn(1, 9, 9), turn(2, 12, 12)];
+		const { rows } = computeProposal({ turns, participants: [CAND, LEAD, PANEL] });
+		expect(rows).toEqual([]);
+	});
+
+	it('M-1: tie-break is chronological first-speaking (min start_s), not array order', () => {
+		// Array lists speaker 1 first, but speaker 2 speaks earlier;
+		// shares 50 / 25 / 25 — the tied pair must rank by who spoke
+		// first for the lead-interviewer slot.
+		const turns = [turn(1, 75, 100), turn(0, 0, 50), turn(2, 50, 75)];
+		const { rows } = computeProposal({ turns, participants: [CAND, LEAD, PANEL] });
 		const m = bySpeaker(rows);
-		expect(m[0].participant_user_id).toBeNull();
-		expect(m[1].participant_user_id).toBeNull();
-		expect(m[2]).toEqual({ speaker_number: 2, participant_user_id: 33, participant_role: 'interviewer' });
+		expect(m[0].participant_user_id).toBe(11);
+		expect(m[2].participant_user_id).toBe(22); // spoke at 50s — ranks ahead of speaker 1 (75s)
+		expect(m[1].participant_user_id).toBeNull(); // panel slot: never auto-proposed (privacy (c) cap)
+	});
+
+	it('privacy (c) cap: panel members are never auto-proposed, even with an exact speaker/participant count', () => {
+		// §3.7 rule 2's assign-in-order would pair speaker 2 → panel;
+		// no meeting fact distinguishes panel members, so the cap
+		// leaves the panel speaker unassigned for manual mapping.
+		const turns = [turn(0, 0, 60), turn(1, 60, 90), turn(2, 90, 100)]; // 60 / 30 / 10, clear top
+		const { rows } = computeProposal({ turns, participants: [CAND, LEAD, PANEL] });
+		const m = bySpeaker(rows);
+		expect(m[0].participant_user_id).toBe(11);
+		expect(m[1].participant_user_id).toBe(22);
+		expect(m[2].participant_user_id).toBeNull();
+		expect(m[2].participant_role).toBeNull();
+	});
+
+	it('M-2: zero turns with auto-name OFF → proposedMapping is null (skipped signal preserved)', () => {
+		const { rows, proposedMapping } = computeProposal({ turns: [], participants: [CAND, LEAD], autoNameEnabled: false });
+		expect(rows).toEqual([]);
+		expect(proposedMapping).toBeNull();
 	});
 
 	it('AC-3: more speakers than participants → extra speakers persist unassigned', () => {

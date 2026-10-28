@@ -231,6 +231,9 @@ describeIfDb('transcriptStitch.persistStitch (real DB — S-D07)', () => {
 
 		const runs = await pool.query(`SELECT id FROM diarization_runs WHERE recording_id = $1`, [recordingId]);
 		expect(runs.rows).toHaveLength(0); // run insert rolled back too
+		// M-5 (PR #1932 review): no mapping rows survive the rollback either.
+		const maps = await pool.query(`SELECT id FROM recording_speaker_mappings WHERE recording_id = $1`, [recordingId]);
+		expect(maps.rows).toHaveLength(0);
 		const segs = await segmentsOf(recordingId);
 		expect(segs.map((x) => x.speaker_number)).toEqual([null, null]); // first segment's applied update rolled back
 		const rec = await pool.query(`SELECT diarization_status FROM interview_recordings WHERE id = $1`, [recordingId]);
@@ -248,6 +251,9 @@ describeIfDb('transcriptStitch.persistStitch (real DB — S-D07)', () => {
 		expect(second.outcome).toBe('superseded');
 		const runs = await pool.query(`SELECT id FROM diarization_runs WHERE recording_id = $1`, [recordingId]);
 		expect(runs.rows).toHaveLength(1);
+		// M-5 (PR #1932 review): the second persist duplicates no mapping rows.
+		const maps = await pool.query(`SELECT id FROM recording_speaker_mappings WHERE recording_id = $1`, [recordingId]);
+		expect(maps.rows).toHaveLength(1); // one speaker in this seed → exactly one row, still
 		// Reviewer MINOR-2 (#1930): the superseded path attempts a
 		// guarded cancel — assert it can never un-complete the job.
 		const job = await pool.query(`SELECT status FROM diarization_jobs WHERE id = $1`, [jobId]);

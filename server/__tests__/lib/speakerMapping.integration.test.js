@@ -208,6 +208,106 @@ describeIfDb('speakerMapping via persistStitch (real DB — S-D08)', () => {
 		}
 	});
 
+	it('B-2 (PR #1932 review): guard trip with a panel persists ALL speakers unassigned', async () => {
+		const { recordingId, segmentIds, jobId } = await seedRecording({ panel: true });
+		const turns = [
+			{ speaker: 0, start_s: 0, end_s: 40 },
+			{ speaker: 1, start_s: 40, end_s: 78 },
+			{ speaker: 2, start_s: 78, end_s: 100 },
+		]; // 40 / 38 / 22 — top two within 10 points
+		const result = await stitch.persistStitch({
+			jobId, recordingId, expectedSegmentIds: segmentIds,
+			output: { speakerCount: 3, turns, engine: ENGINE },
+		});
+		expect(result.outcome).toBe('complete');
+		const rows = await mappingsOf(recordingId);
+		expect(rows).toHaveLength(3);
+		expect(rows.every((r) => r.participant_user_id === null && r.participant_role === null)).toBe(true);
+		expect((await runOf(recordingId)).proposed_mapping).toEqual({ '0': null, '1': null, '2': null });
+	});
+
+	it('B-1 (PR #1932 review): a sub-100ms phantom speaker persists NO mapping row', async () => {
+		const { recordingId, segmentIds, jobId } = await seedRecording({ panel: true });
+		const turns = [
+			{ speaker: 0, start_s: 0, end_s: 13 },
+			{ speaker: 1, start_s: 13, end_s: 30 },
+			{ speaker: 2, start_s: 30, end_s: 30.06 }, // 60ms phantom — engine noise, not a voice
+		];
+		const result = await stitch.persistStitch({
+			jobId, recordingId, expectedSegmentIds: segmentIds,
+			output: { speakerCount: 3, turns, engine: ENGINE },
+		});
+		expect(result.outcome).toBe('complete');
+		const rows = await mappingsOf(recordingId);
+		expect(rows.map((r) => r.speaker_number)).toEqual([0, 1]); // no row for the phantom
+		expect((await runOf(recordingId)).proposed_mapping['2']).toBeUndefined();
+	});
+
+	it('N5(b) (DB specialist, #1910): re-transcription wipe → second-generation persist replaces mappings, no 23505', async () => {
+		// Generation 1: speaker 1 leads (13s/17s) → candidate; mappings land.
+		const { recordingId, segmentIds, jobId } = await seedRecording();
+		const first = await stitch.persistStitch({
+			jobId, recordingId, expectedSegmentIds: segmentIds,
+			output: {
+				speakerCount: 2,
+				turns: [{ speaker: 0, start_s: 0, end_s: 13 }, { speaker: 1, start_s: 13, end_s: 30 }],
+				engine: ENGINE,
+			},
+		});
+		expect(first.outcome).toBe('complete');
+		expect(await mappingsOf(recordingId)).toHaveLength(2);
+
+		// Re-transcription wipe: the five DELETE statements below are
+		// verbatim from server/routes/recordings.js's swap transaction
+		// (lines 729-744); the diarization_status reset + the new job
+		// and segments inserted afterwards are harness scaffolding for
+		// the second persist, not route behaviour (delta review F-3).
+		const client = await pool.connect();
+		try {
+			await client.query('BEGIN');
+			await client.query(`DELETE FROM diarization_runs WHERE recording_id = $1`, [recordingId]);
+			await client.query(`DELETE FROM recording_speaker_mappings WHERE recording_id = $1`, [recordingId]);
+			await client.query(`DELETE FROM transcript_speaker_audit WHERE recording_id = $1`, [recordingId]);
+			await client.query(`DELETE FROM diarization_jobs WHERE recording_id = $1`, [recordingId]);
+			await client.query(`DELETE FROM interview_transcripts WHERE recording_id = $1`, [recordingId]);
+			await client.query(`UPDATE interview_recordings SET diarization_status = 'processing' WHERE id = $1`, [recordingId]);
+			await client.query('COMMIT');
+		} catch (e) {
+			await client.query('ROLLBACK').catch(() => {});
+			throw e;
+		} finally {
+			client.release();
+		}
+		const newSegmentIds = [];
+		for (const [start, end] of [[0, 10000], [10000, 20000]]) {
+			const s = await pool.query(
+				`INSERT INTO interview_transcripts (recording_id, speaker_identity, text, start_time_ms, end_time_ms)
+				 VALUES ($1, 'unknown', 'gen two segment', $2, $3) RETURNING id`,
+				[recordingId, start, end],
+			);
+			newSegmentIds.push(s.rows[0].id);
+		}
+		const newJob = await pool.query(
+			`INSERT INTO diarization_jobs (recording_id, status, attempt_count) VALUES ($1, 'processing', 1) RETURNING id`,
+			[recordingId],
+		);
+
+		// Generation 2: shares flip (speaker 0 now leads 17s/13s).
+		const second = await stitch.persistStitch({
+			jobId: newJob.rows[0].id, recordingId, expectedSegmentIds: newSegmentIds,
+			output: {
+				speakerCount: 2,
+				turns: [{ speaker: 0, start_s: 0, end_s: 17 }, { speaker: 1, start_s: 17, end_s: 30 }],
+				engine: ENGINE,
+			},
+		});
+		expect(second.outcome).toBe('complete');
+		expect(await mappingsOf(recordingId)).toEqual([
+			{ speaker_number: 0, participant_user_id: candidateId, participant_role: 'candidate', state: 'proposed' },
+			{ speaker_number: 1, participant_user_id: recruiterId, participant_role: 'interviewer', state: 'proposed' },
+		]);
+	});
+
 	it('AC-6: nothing persisted carries a share, turn-count, or confidence figure (BR-12 fence)', async () => {
 		const { recordingId, segmentIds, jobId } = await seedRecording();
 		const turns = [
