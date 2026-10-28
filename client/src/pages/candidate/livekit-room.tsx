@@ -487,6 +487,17 @@ export function ConsentDialog({
 								biometric analysis.
 							</span>
 						)}
+						{/* S-D15 (#1917, BR-7): all-speaker diarization disclosure.
+						    Standing mechanism explanation (not a promise labelling
+						    will run on this call — it stays gated on the candidate's
+						    live biometric consent at job-claim time, BR-2/BR-3). */}
+						<span className="block mt-2 text-xs">
+							Speaker labelling: to label who said what in a recorded interview, we
+							create a temporary mathematical template of each speaker's voice
+							during processing; the template exists only while the labelling runs
+							and is never stored. This applies to everyone in the call —
+							candidate, recruiters, and panel members alike.
+						</span>
 					</DialogDescription>
 				</DialogHeader>
 				<div className="space-y-3 py-2">

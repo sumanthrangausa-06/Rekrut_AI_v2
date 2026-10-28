@@ -131,5 +131,9 @@ See [docs/README.md](docs/README.md) for quick links.
 ## AI Health & Monitoring
 The platform includes an Admin Dashboard to monitor AI token usage, costs, and model performance. Access it at `/admin` (requires admin role).
 
+## Acknowledgements
+
+- Speaker labelling in interview transcripts (who spoke when) is powered by [Desert Ant Labs](https://desertant.com) — the "Who" diarization SDK.
+
 ---
 Built with ❤️ by Polsia Inc.

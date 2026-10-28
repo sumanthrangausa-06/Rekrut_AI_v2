@@ -49,7 +49,9 @@ Session recordings: Video and audio of your interview session (your image and vo
 
 Observer presence: When the AI Observer is enabled for a session and you have consented, its presence during the session is recorded for the hiring team.
 
-What is NOT measured: We do not extract face measurements or voice measurements from your video or audio, and gaze direction, blink rate, and head pose are not measured. We do not label emotions or infer emotional states.`,
+What is NOT measured: We do not extract face measurements from your video, and gaze direction, blink rate, and head pose are not measured. We do not label emotions or infer emotional states. Speaker labelling is the one exception to "no voice measurements": to label who said what in a recorded interview, we create a temporary mathematical template of each speaker's voice during processing; the template exists only while the labelling runs and is never stored. See "Speaker labelling" below.
+
+Speaker labelling: to label who said what in a recorded interview, we create a temporary mathematical template of each speaker's voice during processing; the template exists only while the labelling runs and is never stored. The labelling is done by the "Who" SDK by Desert Ant Labs, on our servers, for one recording at a time; a template is never compared with any other recording. The finished labels are kept as part of the transcript for as long as the recording is kept, under the retention periods in Section 3 below. The labels can be seen only by the candidate and by hiring team members who can already access that recording and transcript. They are estimates, the hiring team can correct them, and they are never used in any score, rating, or matching. The SDK also performs a license check-in with Desert Ant Labs, sending an installation ID (a persistent random ID for our install), the model name and version, the platform, and the SDK version. It sends no audio, no voice templates, and no personal data about anyone in the interview. If you decline biometric consent, no speaker labelling happens, your transcript stays unlabelled, and there is no effect on your candidacy.`,
 	},
 	{
 		icon: FileText,
@@ -66,7 +68,7 @@ We never use biometric data for advertising, profiling unrelated to hiring, or a
 		content: `We retain biometric data only as long as necessary, and never longer than the law requires:
 
 • Raw video/audio recordings: Each recording carries a retention expiry — 90 days after it was recorded, or 30 days after the hiring decision for session recordings. Automated deletion at expiry is not yet enabled, so a recording may be kept longer until deletion runs — you can request deletion at any time (see Your Rights below).
-• Face/voice embeddings (mathematical templates): Kept for up to 90 days from creation; automated deletion at expiry is not yet enabled, as above.
+• Face/voice embeddings (mathematical templates): Kept for up to 90 days from creation; automated deletion at expiry is not yet enabled, as above. Speaker-labelling templates are different: the temporary voice template created for speaker labelling is never stored at all, so this 90-day period does not apply to it — it no longer exists once the labelling ends.
 • Per-turn behavioral measurements: Observer speech measurements are kept for up to 30 days from when they were recorded, under their own retention rule — they are not deleted with the video recording. Automated deletion at expiry is not yet enabled, as above.
 • Aggregated assessment results (scores, not raw biometrics): Retained per our data retention schedule.
 • Biometric consent receipts: Retained as part of your consent record, so we can show what you consented to and when.

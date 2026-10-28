@@ -206,6 +206,17 @@ Response time: We aim to respond to all privacy inquiries within 48 hours.
 
 For users in the European Union, you also have the right to lodge a complaint with your local data protection authority.`,
 	},
+	{
+		icon: FileText,
+		title: '13. Speaker Labels in Interview Transcripts',
+		content: `When a recorded interview is transcribed, we may add speaker labels so the transcript shows who spoke when. This is done only where the candidate has given biometric consent. If they decline, no labels are created, the transcript stays unlabelled, and there is no penalty for declining.
+
+In plain words: to label who said what in a recorded interview, we create a temporary mathematical template of each speaker's voice during processing; the template exists only while the labelling runs and is never stored. The labelling is done by diarization software from Desert Ant Labs (the "Who" SDK), running on our servers. A template is made for one recording only and is never compared with any other recording.
+
+The labels themselves become part of the transcript and are kept for as long as the recording and transcript are kept (see Data Retention above). Only the candidate and the hiring team members who can already access that recording and transcript can see them — labelling gives no one new access. Labels are there only to make the transcript readable: they are estimates, the hiring team can correct them, and they are never used in OmniScore, TrustScore, matching, ranking, or any other score.
+
+About the software itself: the SDK performs a license check-in with Desert Ant Labs that sends an installation ID (a random ID for our server install), the model name and version ("who", version v0.3.4), the platform ("server"), and the SDK version (4.2.1). It sends no audio, no voice templates, and no information about anyone who took part in the interview.`,
+	},
 ];
 
 export function PrivacyPage() {
