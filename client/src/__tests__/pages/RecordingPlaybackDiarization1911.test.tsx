@@ -232,12 +232,62 @@ describe('#1911 RecordingPlaybackPage diarization rendering', () => {
 		};
 		renderPage();
 
+		// PR #1936 review F3: at an interior gap the stop marker must NOT
+		// claim the rest is unlabelled — labels resume below.
+		expect(await screen.findByText('Speaker labels stop here')).toBeInTheDocument();
 		expect(
-			await screen.findByText('Speaker labels stop here — the rest of this transcript is unlabelled'),
-		).toBeInTheDocument();
+			screen.queryByText('Speaker labels stop here — the rest of this transcript is unlabelled'),
+		).toBeNull();
 		expect(screen.getByText('Speaker labels resume here')).toBeInTheDocument();
 		expect(screen.getByText('Inside the gap.')).toBeInTheDocument();
 		expect(screen.queryByText('unknown')).toBeNull();
+	});
+
+	it('tail boundary — when labels never resume, the stop marker says the rest is unlabelled (F3)', async () => {
+		transcriptFixture = {
+			recording_id: 1911,
+			segment_count: 2,
+			segments: [
+				seg({ id: 71, speaker_identity: 'Candidate — Cand 1911', speaker_number: 0, diarization_covered: true, text: 'Covered opening.', start_time_ms: 0, end_time_ms: 5000 }),
+				seg({ id: 72, speaker_number: null, diarization_covered: false, text: 'Unlabelled tail.', start_time_ms: 5000, end_time_ms: 9000 }),
+			],
+			diarization: {
+				status: 'complete',
+				mapping_state: 'proposed',
+				corrected_by: null,
+				corrected_at: null,
+				speakers: [{ speaker_number: 0, label: 'Candidate — Cand 1911', assigned: true }],
+			},
+		};
+		renderPage();
+
+		expect(
+			await screen.findByText('Speaker labels stop here — the rest of this transcript is unlabelled'),
+		).toBeInTheDocument();
+		expect(screen.queryByText('Speaker labels resume here')).toBeNull();
+	});
+
+	it('uncovered segments still seek when clicked (F5a)', async () => {
+		transcriptFixture = {
+			recording_id: 1911,
+			segment_count: 1,
+			segments: [
+				seg({ id: 73, speaker_number: null, diarization_covered: false, text: 'Uncovered but seekable.', start_time_ms: 42000, end_time_ms: 46000 }),
+			],
+			diarization: {
+				status: 'processing',
+				mapping_state: null,
+				corrected_by: null,
+				corrected_at: null,
+				speakers: [],
+			},
+		};
+		const { container } = renderPage();
+
+		const segmentEl = await screen.findByText('Uncovered but seekable.');
+		fireEvent.click(segmentEl);
+		const video = container.querySelector('video');
+		expect(video?.currentTime).toBe(42);
 	});
 
 	it('corrected — the corrected-by line shows who fixed the names and when', async () => {

@@ -42,6 +42,19 @@ Regressions (fresh runs by Nova):
 
 None. Constraints C1–C6 are all implemented as specified (C5 fixtures are the phantom-tail and interior-gap cases in the server suite; C6 — no coverage field added).
 
+## Correction — PR #1936 independent review minors (2026-10-28, Suga)
+
+Independent review verdict: **APPROVE-WITH-MINORS** (full report on PR #1936). Dispositions:
+
+- **F3 (fixed here):** the stop-marker text "Speaker labels stop here — the rest of this transcript is unlabelled" is **false at an interior gap**, where labels resume below. The marker now renders the long text only when no later segment is covered; at a gap it renders "Speaker labels stop here". This refines the STOP 1's pinned wording on the reviewer's evidence — the tail-case text is unchanged. Client suite gains a tail-boundary test pinning the long text to the no-resume case and the gap test now pins the short text + absence of the long one.
+- **F4c (fixed here):** the no-mapping-row composition fallback (`Speaker N` for a covered segment whose speaker has no mapping row) is now exercised — panel fixture gains a speaker-5 segment composing "Speaker 6" while `speakers[]` stays at the three mapping rows.
+- **F5a (fixed here):** uncovered segments' seek is now tested (click → `currentTime` 42).
+- **F1 (routed to S-D10, not fixed here):** `corrected_by`/`corrected_at` read the latest audit row **regardless of `action`** (`confirm`/`correct`/`unassign`). Unreachable today — no audit writer exists until S-D10 — but S-D10's STOP 1 must pin the semantics (filter to `action='correct'`, or gate the client line on `mapping_state === 'corrected'`) and add the multi-row/`confirm`-row tests (review F4a). Recorded on #1912.
+- **F2 (known issue, accepted for v1):** boundary transitions are computed over the search-filtered list, so an active search can draw a marker between non-adjacent segments or hide a real one. Markers remain honest about the rendered sequence; stricter unfiltered-transition computation is a later refinement.
+- **F6 (info):** `labelFor` treats any non-`candidate` role as Interviewer; §4.2 constrains the role set and S-D08 writes role+user together, so unreachable on current writers — noted for S-D10's write path.
+
+Post-correction evidence (Suga's runs): server integration **13/13**, client **10/10**.
+
 ## Follow-ups noted for Lead
 
 - The `diarizationEngine.integration.test.js` AC-2/AC-3 environmental failure on this VM predates this story (verified at base) — it belongs to the S-D05/S-D06 engine-rig lane, not S-D09.

@@ -581,12 +581,23 @@ export function RecordingPlaybackPage() {
 											prev !== null &&
 											prev.diarization_covered === false &&
 											segment.diarization_covered === true;
+										// Correction (PR #1936 review F3): the long stop text
+										// is only true when no later segment is covered; at
+										// an interior gap the marker must not claim the rest
+										// is unlabelled when labels are about to resume.
+										const labelsResumeLater =
+											showStopMarker &&
+											filteredSegments
+												.slice(idx + 1)
+												.some((s) => s.diarization_covered === true);
 
 										return (
 											<Fragment key={segment.id}>
 												{showStopMarker && (
 													<div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 p-2 text-center text-xs font-medium text-amber-800">
-														Speaker labels stop here — the rest of this transcript is unlabelled
+														{labelsResumeLater
+															? 'Speaker labels stop here'
+															: 'Speaker labels stop here — the rest of this transcript is unlabelled'}
 													</div>
 												)}
 												{showResumeMarker && (

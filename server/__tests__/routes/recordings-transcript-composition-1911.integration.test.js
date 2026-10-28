@@ -192,6 +192,10 @@ async function cleanAndSeed() {
 	await seedSegment(R.panel, { text: 'Candidate answer.', start: 0, end: 6000, speaker: 0 });
 	await seedSegment(R.panel, { text: 'Lead question.', start: 6000, end: 10000, speaker: 1 });
 	await seedSegment(R.panel, { text: 'Third voice.', start: 10000, end: 15000, speaker: 2 });
+	// F4c (PR #1936 review): a covered segment whose speaker has NO
+	// mapping row at all — the composition fallback, distinct from the
+	// unassigned-row case above.
+	await seedSegment(R.panel, { text: 'Unlisted voice.', start: 15000, end: 20000, speaker: 5 });
 	await seedMapping(R.panel, 0, U_CAND, 'candidate');
 	await seedMapping(R.panel, 1, U_REC, 'interviewer');
 	await seedMapping(R.panel, 2, null, null);
@@ -402,6 +406,9 @@ describeIfDb('#1911 S-D09 transcript composition (realdb journey)', () => {
 		const t = res.body.transcript;
 		expect(t.segments[2].speaker_identity).toBe('Speaker 3');
 		expect(t.segments[2].diarization_covered).toBe(true);
+		// F4c: covered segment with no mapping row → fallback "Speaker N".
+		expect(t.segments[3].speaker_identity).toBe('Speaker 6');
+		expect(t.segments[3].diarization_covered).toBe(true);
 		expect(t.diarization.speakers).toEqual([
 			{ speaker_number: 0, label: 'Candidate — Cand 1911', assigned: true },
 			{ speaker_number: 1, label: 'Interviewer — Rec 1911', assigned: true },
