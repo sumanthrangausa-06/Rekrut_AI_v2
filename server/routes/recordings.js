@@ -434,6 +434,21 @@ router.get(
 				recordings: recordings.map((r) => ({
 					id: r.id,
 					status: r.status,
+					// #1914 (S-D12, §7): labelling state beside recording
+					// state on management surfaces. NULL = feature not
+					// applicable / never queued — the client renders
+					// nothing, exactly as before this field existed.
+					// Privacy delta (final): the raw value is operator-only
+					// on EVERY user surface — this route's permission gate
+					// (interviews:read) is grantable via RBAC to accounts
+					// outside the operator class, so non-recruiter-side
+					// viewers receive the §5.1 folded value here too,
+					// exactly as on the detail payload.
+					diarization_status: isRecruiterRole(user.role)
+						? (r.diarization_status ?? null)
+						: ['failed', 'unavailable'].includes(r.diarization_status)
+							? 'unavailable'
+							: (r.diarization_status ?? null),
 					started_at: r.started_at,
 					stopped_at: r.stopped_at,
 					duration_seconds: r.duration_seconds,
@@ -490,6 +505,18 @@ router.get(
 			const result = {
 				id: recording.id,
 				status: recording.status,
+				// #1914 (S-D12, §7 + privacy BLOCK fix): this payload is
+				// dual-audience — candidates can read their own recording
+				// detail. Raw diarization_status is an operator value:
+				// only recruiter-side/admin viewers receive it. Everyone
+				// else gets the §5.1/§6.3 folded value — 'failed' and
+				// 'unavailable' both read 'unavailable', so a candidate's
+				// consent posture is never signalled by the distinction.
+				diarization_status: isRecruiterRole(user.role)
+					? (recording.diarization_status ?? null)
+					: ['failed', 'unavailable'].includes(recording.diarization_status)
+						? 'unavailable'
+						: (recording.diarization_status ?? null),
 				started_at: recording.started_at,
 				stopped_at: recording.stopped_at,
 				duration_seconds: recording.duration_seconds,
