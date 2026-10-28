@@ -26,6 +26,8 @@ const { rateLimits, createRateLimit } = require('../../lib/distributed-rate-limi
 const livekitService = require('../services/livekit');
 const { transcribeAudioWithWhisper } = require('../../lib/polsia-ai');
 const pool = require('../../lib/db');
+const diarizationJobs = require('../../lib/diarizationJobs');
+const { isDiarizationEnabled } = require('../../lib/diarizationFlag');
 const crypto = require('node:crypto');
 
 const router = express.Router();
@@ -774,6 +776,30 @@ router.post(
 				throw txErr;
 			} finally {
 				client.release();
+			}
+
+			// S-D04 (#1906, Architecture §3.1 step 3 / §6.1 BR-1): after
+			// the segment insert commits, enqueue a diarization job —
+			// only when the feature is enabled AND the recording is
+			// event-linked (the human-interview path; session-linked
+			// AI-led recordings are out of scope). With the flag off
+			// nothing is enqueued and the transcript behaves exactly as
+			// before this feature (AC-1). Best-effort: enqueue is a DB
+			// insert after the response's work is done — a failure here
+			// must never fail the transcription (FR-D07: response shape
+			// and timing unchanged).
+			if (isDiarizationEnabled() && recording.interview_event_id) {
+				try {
+					await diarizationJobs.enqueue(recordingId);
+					await pool.query(
+						`UPDATE interview_recordings
+						 SET diarization_status = 'pending', diarization_updated_at = NOW()
+						 WHERE id = $1`,
+						[recordingId],
+					);
+				} catch (enqErr) {
+					console.error('[recordings] diarization enqueue failed:', enqErr.message);
+				}
 			}
 
 			res.json({
