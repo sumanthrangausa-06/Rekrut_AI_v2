@@ -542,6 +542,35 @@ function RecruiterGuard({ children }: { children: React.ReactNode }) {
 	return <>{children}</>;
 }
 
+// Candidate route guard (S-D11, #1913): mirrors RecruiterGuard — admits
+// candidate-role users only; everyone else goes to their own dashboard.
+// This guard is UX only: the recordings API (canAccessRecording) remains
+// the sole authority on who may read a given recording.
+function CandidateGuard({ children }: { children: React.ReactNode }) {
+	const { user, loading } = useAuth();
+
+	if (loading) {
+		return (
+			<div className="flex min-h-dvh-safe items-center justify-center bg-background">
+				<div className="animate-pulse flex flex-col items-center gap-3">
+					<div className="h-8 w-8 rounded-full bg-primary/20" />
+					<p className="text-sm text-muted-foreground">Loading...</p>
+				</div>
+			</div>
+		);
+	}
+
+	if (!user) {
+		return <Navigate to="/login" replace />;
+	}
+
+	if (user.role !== 'candidate') {
+		return <Navigate to={getDashboardPath(user)} replace />;
+	}
+
+	return <>{children}</>;
+}
+
 // Combined wrapper: error boundary + auth guard for protected routes
 function Protected({ children }: { children: React.ReactNode }) {
 	return (
@@ -699,6 +728,21 @@ function AppRoutes() {
 					element={
 						<Protected>
 							<BookInterviewPage />
+						</Protected>
+					}
+				/>
+				{/* S-D11 (#1913, PRD §7 / Architecture §3.8): the candidate's
+				    own recording playback — the SAME page component as the
+				    recruiter surface (one artefact, two readers), reached
+				    under the candidate guard. Server ownership checks are
+				    unchanged (FR-D19). */}
+				<Route
+					path="recordings/:id/playback"
+					element={
+						<Protected>
+							<CandidateGuard>
+								<RecordingPlaybackPage />
+							</CandidateGuard>
 						</Protected>
 					}
 				/>

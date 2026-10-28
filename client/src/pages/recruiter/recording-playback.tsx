@@ -478,7 +478,13 @@ export function RecordingPlaybackPage() {
 					icon={FileAudio}
 					title="Recording Not Found"
 					description="The recording you are looking for does not exist or is not available for playback."
-					action={{ label: 'Back to Recordings', href: '/recruiter/recordings' }}
+					action={{
+						label: 'Back to Recordings',
+						// S-D11 (#1913, privacy condition): non-recruiters never
+						// get a recruiter-surface link — candidates go back to
+						// their own interviews list.
+						href: isRecruiter ? '/recruiter/recordings' : '/candidate/interviews',
+					}}
 				/>
 			</div>
 		);
@@ -574,7 +580,11 @@ export function RecordingPlaybackPage() {
 									{recording.consent.map((c) => (
 										<Badge key={c.user_id} variant="success" className="text-xs">
 											<CheckCircle className="h-3 w-3 mr-1" />
-											{c.name || c.email}
+											{/* S-D11 (#1913, privacy condition): the candidate
+											    view shows names only — a participant's email
+											    is never the fallback (PRD §7: no data beyond
+											    the names shown in the call). */}
+											{isRecruiter ? c.name || c.email : c.name || 'Participant'}
 										</Badge>
 									))}
 								</div>
@@ -625,6 +635,15 @@ export function RecordingPlaybackPage() {
 											>
 												Correct speaker names
 											</a>
+										)}
+										{/* S-D11 (#1913, PRD §7/FR-D13): where the recruiter
+										    sees the correction control, the candidate sees
+										    the raise-it route — plain static text, no link,
+										    no form, nothing carrying the recording id. */}
+										{!isRecruiter && diarization.status === 'complete' && (
+											<p className="mt-1">
+												If a speaker name looks wrong, raise it with the hiring team.
+											</p>
 										)}
 									</div>
 									{(diarization.status === 'processing' || diarization.status === 'pending') && (
