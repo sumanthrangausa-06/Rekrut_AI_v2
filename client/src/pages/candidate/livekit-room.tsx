@@ -492,7 +492,8 @@ export function ConsentDialog({
 						    will run on this call — it stays gated on the candidate's
 						    live biometric consent at job-claim time, BR-2/BR-3). */}
 						<span className="block mt-2 text-xs">
-							Speaker labelling: to label who said what in a recorded interview, we
+							Speaker labelling (where the candidate has given biometric consent):
+							to label who said what in a recorded interview, we
 							create a temporary mathematical template of each speaker's voice
 							during processing; the template exists only while the labelling runs
 							and is never stored. This applies to everyone in the call —

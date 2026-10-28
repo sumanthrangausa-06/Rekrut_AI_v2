@@ -16,7 +16,7 @@ describe('S-D15 AC-5 (repo half) — Desert Ant Labs attribution in README', () 
 	});
 
 	test('credit names the Who diarization SDK / speaker labelling', () => {
-		expect(README).toMatch(/Who/i);
-		expect(README).toMatch(/speaker labelling/i);
+		expect(README).toMatch(/"Who" diarization SDK/);
+		expect(README).toMatch(/Speaker labelling in interview transcripts/);
 	});
 });

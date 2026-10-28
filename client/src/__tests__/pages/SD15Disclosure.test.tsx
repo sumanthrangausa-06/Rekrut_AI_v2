@@ -88,6 +88,11 @@ describe('S-D15 AC-4 — PrivacyPage speaker-labelling section (BR-14)', () => {
 		expect(screen.getByText(/Desert Ant Labs/i)).toBeInTheDocument();
 		expect(screen.getByText(/license check-in/i)).toBeInTheDocument();
 		expect(screen.getByText(/no information about anyone who took part/i)).toBeInTheDocument();
+		// The measured Step-0 payload values are pinned, not just the categories.
+		expect(screen.getByText(/persistent random ID/i)).toBeInTheDocument();
+		expect(screen.getByText(/v0\.3\.4/)).toBeInTheDocument();
+		expect(screen.getByText(/4\.2\.1/)).toBeInTheDocument();
+		expect(screen.getByText(/"server"/)).toBeInTheDocument();
 	});
 
 	it('states the presentation-only fence: labels never feed scores', () => {
@@ -110,7 +115,9 @@ describe('S-D15 AC-3 — ConsentDialog all-speaker disclosure (BR-7)', () => {
 
 	it('shows the speaker-labelling disclosure to every participant, with no observer props', () => {
 		render(<ConsentDialog {...baseProps} />);
-		expect(screen.getByText(/Speaker labelling:/i)).toBeInTheDocument();
+		expect(
+			screen.getByText(/Speaker labelling \(where the candidate has given biometric consent\)/i),
+		).toBeInTheDocument();
 		expect(
 			screen.getByText(/temporary mathematical template of each speaker's voice/i),
 		).toBeInTheDocument();

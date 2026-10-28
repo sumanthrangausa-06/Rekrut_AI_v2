@@ -213,9 +213,9 @@ For users in the European Union, you also have the right to lodge a complaint wi
 
 In plain words: to label who said what in a recorded interview, we create a temporary mathematical template of each speaker's voice during processing; the template exists only while the labelling runs and is never stored. The labelling is done by diarization software from Desert Ant Labs (the "Who" SDK), running on our servers. A template is made for one recording only and is never compared with any other recording.
 
-The labels themselves become part of the transcript and are kept for as long as the recording and transcript are kept (see Data Retention above). Only the candidate and the hiring team members who can already access that recording and transcript can see them — labelling gives no one new access. Labels are there only to make the transcript readable: they are estimates, the hiring team can correct them, and they are never used in OmniScore, TrustScore, matching, ranking, or any other score.
+The labels themselves become part of the transcript and are kept for as long as the recording and transcript are kept (see Data Retention above; the recording's retention periods are set out in our Biometric Privacy Policy). Only the candidate and the hiring team members who can already access that recording and transcript can see them — labelling gives no one new access. Labels are there only to make the transcript readable: they are estimates, the hiring team can correct them, and they are never used in OmniScore, TrustScore, matching, ranking, or any other score.
 
-About the software itself: the SDK performs a license check-in with Desert Ant Labs that sends an installation ID (a random ID for our server install), the model name and version ("who", version v0.3.4), the platform ("server"), and the SDK version (4.2.1). It sends no audio, no voice templates, and no information about anyone who took part in the interview.`,
+About the software itself: the SDK performs a license check-in with Desert Ant Labs that sends an installation ID (a persistent random ID for our server install), the model name and version ("who", version v0.3.4), the platform ("server"), and the SDK version (4.2.1). It sends no audio, no voice templates, and no information about anyone who took part in the interview.`,
 	},
 ];
 
