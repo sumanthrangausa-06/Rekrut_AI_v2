@@ -291,7 +291,8 @@ describeIfDb('#1915 S-D13 diarization erasure (JT-D7, realdb journey)', () => {
 
 		// AC-2 read-back: the transcript/label read for an erased
 		// recording returns absence consistent with [purged] behaviour —
-		// no segments, no diarization block, no names anywhere.
+		// no segments, no label data (empty speakers / null mapping
+		// state if the status block is emitted), no names anywhere.
 		const after = await getTranscript(R.eventLinked);
 		expect([200, 403, 404]).toContain(after.status);
 		if (after.status === 200) {

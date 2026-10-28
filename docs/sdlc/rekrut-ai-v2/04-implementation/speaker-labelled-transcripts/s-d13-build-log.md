@@ -26,6 +26,17 @@ Regressions (fresh runs by Nova):
 - Erasure family (mocked + route suites): gap-a, medium-tables, pool-fallback-1343, beginless-client-1396, pool-fallback-audit-1395, observer-audio, application-keyed, application-ip, gap-f, gap-g, job-applications, threat-intel, csi-final-delete, dead-letter-drain-1337, embeddings (post-maintenance), dsar-dek (post-maintenance), admin-dsar-fulfillment, auth-delete-account-legal-hold — **all PASS**.
 - Diarization unit suites (jobs, gate, flag, worker, engine) + migration 296 suite — **all PASS** (combined regression run: 20 suites, 186 passed / 3 skipped / 0 failed, plus the two maintained suites 16/16 separately).
 
+## Independent review (PR #1943) — APPROVE-WITH-MINORS, no blockers
+
+Reviewer: independent subagent, ecc/code-reviewer + privacy-engineer lens, cold review of the diff cross-checked against migration 296 and §6.4. Verified clean: dual-branch scope exhaustive (mig-130 XOR), FK order, CASCADE backstop reasoning, SQL safety, transaction/count handling, mock edits weaken nothing.
+
+Findings and dispositions:
+- **F-1 (minor, privacy):** `interview_recordings.diarization_status` survives on the tombstoned recording, so the post-erasure read still reports `status: 'complete'` (with zero label data). Not an AC breach (§6.4's rule is label-data reachability), but clearing both diarization columns in the GAP-A (c) redact is the right tidy-up — **follow-up story for Lead to file** (named in the #1915 checkpoint).
+- **F-2 (minor, privacy):** user-keyed diarization rows on *other* candidates' recordings (mappings/audit FKs, `proposed_mapping` JSONB) survive with integer linkage to the tombstoned user; names cannot leak (composition joins the tombstoned `users.name`), but unlike GAP-H's named residual this PR neither severs nor counts it — **same follow-up**: sever (SET NULL, mirroring mig-296's own intent) or formally adopt as a named, counted residual.
+- **F-3 (informational):** no per-row hold partition on the new deletes — deliberate mirror of the transcripts; the entry gate's `findActiveHold({ userId })` (incl. any-session company branch) aborts the whole erasure, so no proceeding erasure can contain a held recording. No change requested.
+- **F-4/F-5/F-6 (minor, test quality):** read-back proven over HTTP for the event-linked recording only (session branch proven by DB sweep); metrics proof is one seeded date (the delete code contains no metrics statement at all — the risk is hypothetical); the real proof is env-gated per the house realdb pattern. F-4's stale test comment fixed in this PR; the rest accepted and recorded here.
+- **F-7 (minor, docs):** return-shape JSDoc extended with the four new keys — **fixed in this PR**.
+
 ## Deviations from STOP 1
 
 - The STOP 1 plan asserted the post-erasure read would return absence; the first green run showed the S-D09 composition still emits the `diarization` status block for a post-feature recording (`status` passes through from `interview_recordings.diarization_status`), but with **zero label data** (`speakers: []`, `mapping_state: null`, `corrected_by: null`, 0 segments, no names). The test's read assertion was corrected to the AC's substance — label absence — rather than pinning the block's absence. The status string is operational state on the tombstoned recording row, not label data; §6.4's rule ("no label data remains reachable") is satisfied. Recorded here per amendment-fidelity discipline.
