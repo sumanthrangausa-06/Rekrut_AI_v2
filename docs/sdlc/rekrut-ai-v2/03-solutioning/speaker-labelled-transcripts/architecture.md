@@ -50,7 +50,7 @@ This feature adds a post-recording pipeline to the existing Rekrut monolith: whe
 
 ### Deployment Target
 
-**Render (existing estate).** Web service unchanged in shape. The diarization worker is a separate process needing ≥2 GB RAM (§8) — it cannot live in the 512 MB free-tier web instance. Dev/staging proofs run on the team's VM rig. Production placement is a capacity decision for Sumanth under #1837 (§8.3) — this design states the requirement and the options; it does not choose a paid option.
+**Render (existing estate).** Web service unchanged in shape. The diarization worker is a separate process needing ≥3 GB RAM (§8.1, final envelope measured by S-D06) — it cannot live in the 512 MB free-tier web instance. Dev/staging proofs run on the team's VM rig. Production placement is a capacity decision for Sumanth under #1837 (§8.3) — this design states the requirement and the options; it does not choose a paid option.
 
 ### Scale & Availability
 
@@ -414,8 +414,18 @@ No new secrets (the engine needs no API key — verified in Step-0: it ran with 
 | Process | Where | Memory | Notes |
 |---|---|---|---|
 | Web service (existing) | Render web (free tier, 512 MB) | unchanged | Gains: segment storage, enqueue insert, read composition, mapping endpoints. Never loads the engine. |
-| Diarization worker (new) | Separate Node process: `node workers/diarization/index.js` | **≥2 GB envelope** (measured peak 1,065 MB at 6 min of audio, growing with duration; S-D06 fixes the final number on 30/60-min fixtures) | Poll/claim like the Observer's standalone mode; spawns one child per job; concurrency 1. |
+| Diarization worker (new) | Separate Node process: `node workers/diarization/index.js` | **≥3 GB envelope — FINAL, measured by S-D06** (see the S-D06 amendment below; the provisional figure was ≥2 GB from a 1,065 MB peak at 6 min of audio) | Poll/claim like the Observer's standalone mode; spawns one child per job; concurrency 1. |
 | Engine child (per job) | Spawned by the worker | inside the worker's envelope | Loads pinned model from the weights cache; exits after each job. |
+
+**S-D06 amendment (2026-10-28, #1908 — measured on this VM: 2 vCPU, ~8 GB RAM, warm weights cache; synthetic flite-TTS fixtures, ground truth by construction, run through the full worker path — claim/write consent gates → ffmpeg decode → engine child → `diarization_runs` row read back):**
+
+| Fixture (actual duration) | End-to-end latency | Peak RSS, worker process tree (supervisor + ffmpeg + engine child, 250 ms sampling) | Join result (minute 2 vs final minute) | Speakers found |
+|---|---|---|---|---|
+| 118.2 s | 5.048 s | 862.7 MB | interviewer→0, candidate→1 in both windows; zero cross-overlap | 2 of 2 |
+| 1,795.6 s (30 min) | 50.675 s | 1,608.8 MB | interviewer→0, candidate→1 in both windows; zero cross-overlap | 2 of 2 |
+| 3,602.5 s (60 min) | **96.681 s** (NFR-D01 limit: 600 s) | **2,314.3 MB** (supervisor-process peak alone: 390.8 MB; engine child observed at 1,922 MB RSS mid-run) | interviewer→0, candidate→1 in both windows; zero cross-overlap | 2 of 2 |
+
+**Final production memory envelope: ≥3 GB for the worker process tree.** Basis: the measured 60-minute combined peak (2,314.3 MB) already exceeds the provisional 2 GB figure — the engine child alone passed it mid-run — and 3 GB holds ~30 % headroom over the measured peak for real-speech variance (memory is driven mainly by audio duration; fixtures are synthetic, so the headroom is deliberate, not decorative). A 2 GB worker instance is therefore NOT sufficient for 60-minute recordings. Latency has ample headroom (96.681 s vs the 600 s NFR-D01 limit). Raw evidence (incl. every engine turn): `docs/sdlc/rekrut-ai-v2/04-implementation/1908-long-recording-proof-results.json`; harness: `scripts/diarization-long-proof.js` + `scripts/generate-diarization-fixtures.py`. One artefact worth knowing: a fixture hard-truncated mid-speech at exactly 120.000 s made the engine emit a single 0.06 s phantom speaker turn at the cut (119.92–119.98 s); fixtures ending at natural turn boundaries show no phantom speaker (AC-3) — stitching (S-D07) assigns segments by maximum overlap, so a sub-0.1 s turn cannot win a segment, but the behaviour is recorded here rather than smoothed over.
 
 ### 8.2 Weights provisioning (BR-8/BR-9)
 
@@ -425,7 +435,7 @@ At worker deploy: `Who.load({ directory: <weights-cache> })` on first boot downl
 
 The worker cannot run on the current free-tier web instance (512 MB < measured ~1.1 GB at 6 minutes of audio, and the envelope grows with duration). Options, in increasing capability order — **this design recommends none; the choice is Sumanth's, with #1837**:
 
-1. **Render background worker, paid tier with ≥2 GB RAM.** The estate's first paid worker. Exact tier/price to be confirmed by Relay at purchase time (Render's worker tiers and prices change; the design fixes only the requirement: ≥2 GB, ffmpeg available or installable, persistent disk for the weights cache). Cleanest operationally: same platform, same deploy pipeline.
+1. **Render background worker, paid tier with ≥3 GB RAM** (final envelope, S-D06-measured, §8.1). The estate's first paid worker. Exact tier/price to be confirmed by Relay at purchase time (Render's worker tiers and prices change; the design fixes only the requirement: ≥3 GB, ffmpeg available or installable, persistent disk for the weights cache). Cleanest operationally: same platform, same deploy pipeline.
 2. **A second process on an existing larger host** (e.g. the team's VM class machine). $0 new spend if a suitable always-on host exists, but recordings then move off-platform for processing (egress of decrypted audio to another host — a new data-flow Lex would need to see; stated so the trade-off is visible, not hidden).
 3. ** Defer production enablement** (the default until decided): the feature ships dark (flag off in production), fully proven on dev/staging rigs, and enables when capacity is funded. This is dependency D2 in the PRD, named at planning time, and it is S-D17's blocking condition alongside G1/G2.
 
