@@ -231,28 +231,52 @@ describe('diarization worker (S-D04)', () => {
 			return db.query.mock.calls.find(([sql]) => sql.includes('INSERT INTO diarization_runs'));
 		}
 
-		it('persists the run row verbatim behind the write gate, then completes', async () => {
+		it('hands the engine output verbatim to the stitch behind the write gate (S-D07)', async () => {
 			consentService.checkConsentState.mockResolvedValue({ state: 'valid' });
 			diarizationJobs.fail.mockResolvedValue(1);
 			const runEngine = jest.fn().mockResolvedValue(ENGINE_OUTPUT);
+			// S-D07: run-row insert + segment labels + status flip + job
+			// completion are the stitch's ONE transaction — the worker
+			// must not also complete the job itself (DB review, #1909).
+			const persistStitch = jest.fn().mockResolvedValue({ outcome: 'complete', runId: 5, coverageEndMs: 23800 });
 
-			const result = await worker.processJob(JOB, { runEngine });
+			const result = await worker.processJob(JOB, { runEngine, persistStitch });
 
 			expect(result.outcome).toBe('complete');
-			const insert = runRowInsert();
-			expect(insert).toBeDefined();
-			expect(insert[1]).toEqual([
-				42,
-				9,
-				'@desert-ant-labs/who',
-				'4.2.1',
-				'v0.3.4',
-				2,
-				JSON.stringify(ENGINE_OUTPUT.turns),
-				23800, // coverage_end_ms = last turn end
-			]);
-			expect(diarizationJobs.complete).toHaveBeenCalledWith(9);
+			expect(persistStitch).toHaveBeenCalledWith({
+				jobId: 9,
+				recordingId: 42,
+				expectedSegmentIds: [], // the db double seeds no segments
+				output: ENGINE_OUTPUT, // verbatim — turns + versions untouched
+			});
+			expect(runRowInsert()).toBeUndefined(); // no separate non-atomic insert
+			expect(diarizationJobs.complete).not.toHaveBeenCalled();
 			expect(diarizationJobs.fail).not.toHaveBeenCalled();
+		});
+
+		it('stale stitch outcome → superseded, job NOT failed or completed by the worker (S-D07 AC-4)', async () => {
+			consentService.checkConsentState.mockResolvedValue({ state: 'valid' });
+			const runEngine = jest.fn().mockResolvedValue(ENGINE_OUTPUT);
+			const persistStitch = jest.fn().mockResolvedValue({ outcome: 'superseded' });
+
+			const result = await worker.processJob(JOB, { runEngine, persistStitch });
+
+			expect(result.outcome).toBe('superseded');
+			expect(diarizationJobs.complete).not.toHaveBeenCalled();
+			expect(diarizationJobs.fail).not.toHaveBeenCalled();
+		});
+
+		it('stitch throw → job failed retryably, no completion (S-D07 AC-5)', async () => {
+			consentService.checkConsentState.mockResolvedValue({ state: 'valid' });
+			diarizationJobs.fail.mockResolvedValue(1);
+			const runEngine = jest.fn().mockResolvedValue(ENGINE_OUTPUT);
+			const persistStitch = jest.fn().mockRejectedValue(new Error('deadlock detected'));
+
+			const result = await worker.processJob(JOB, { runEngine, persistStitch });
+
+			expect(result).toEqual({ outcome: 'failed', errorClass: 'engine_failed' });
+			expect(diarizationJobs.fail).toHaveBeenCalledWith(9, 'engine_failed', 'deadlock detected');
+			expect(diarizationJobs.complete).not.toHaveBeenCalled();
 		});
 
 		it('consent withdrawn at write → engine output discarded, NO run row', async () => {

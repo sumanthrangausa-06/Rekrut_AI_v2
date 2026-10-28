@@ -31,12 +31,14 @@
  * process (workers/diarization/engine-child.mjs) whose memory —
  * voice-print embeddings included — dies at exit (BR-4/BR-5).
  *
- * Persistence (S-D05 R1): behind the write-time gate, the worker
- * inserts the diarization_runs row verbatim (turns + engine
- * provenance). It does NOT set segment speaker_numbers and does NOT
- * flip diarization_status to 'complete' — stitching and the status
- * flip are S-D07's atomic step (§3.6); the recording honestly stays
- * 'processing' until then.
+ * Persistence (S-D07, #1909 — supersedes S-D05 R1): behind the
+ * write-time gate, the worker hands the engine output verbatim to
+ * lib/transcriptStitch.persistStitch, which in ONE transaction
+ * stores the diarization_runs row, sets segment speaker_numbers by
+ * max overlap, flips diarization_status to 'complete' and completes
+ * the job (§3.6). A stale generation's output is discarded there
+ * (`superseded`); a stitch failure fails the job retryably and the
+ * recording honestly stays/flips to 'failed' — never half-labelled.
  *
  * Failures (S-D05 R2): engine/fetch/decode errors are caught here,
  * classified (§3.5 taxonomy), and recorded via diarizationJobs.fail —
@@ -44,6 +46,7 @@
  */
 
 const diarizationJobs = require('../../lib/diarizationJobs');
+const transcriptStitch = require('../../lib/transcriptStitch');
 const diarizationEngine = require('../../lib/diarizationEngine');
 const { evaluateDiarizationGate } = require('../../lib/diarizationGate');
 const { isDiarizationEnabled } = require('../../lib/diarizationFlag');
@@ -102,31 +105,19 @@ async function runStubEngine(_job) {
 }
 
 /**
- * Persist the engine's original output verbatim (§3.6 step 4 /
- * S-D05 R1): one diarization_runs row — turns, engine provenance,
- * coverage. Stitching (S-D07) reads this row; nothing mutates it.
+ * Snapshot the current transcript generation for this job: the
+ * segment ids the stitch's generation guard (§3.6.5) will compare
+ * against at write time. Captured BEFORE the engine runs — a
+ * re-transcription landing during the (multi-minute) engine run
+ * replaces the segments, the id sets diverge, and the stale output
+ * is discarded instead of landing on new text (FR-D03).
  */
-async function insertRunRow(job, output) {
-	const turns = Array.isArray(output.turns) ? output.turns : [];
-	const coverageEndMs = turns.length
-		? Math.round(Math.max(...turns.map((t) => t.end_s || 0)) * 1000)
-		: 0;
-	await db.query(
-		`INSERT INTO diarization_runs
-		   (recording_id, job_id, engine_package, sdk_version, model_version,
-		    speaker_count, turns, coverage_end_ms)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)`,
-		[
-			job.recording_id,
-			job.id,
-			output.engine.package,
-			output.engine.sdkVersion,
-			output.engine.modelVersion,
-			output.speakerCount,
-			JSON.stringify(turns),
-			coverageEndMs,
-		],
+async function readSegmentIds(recordingId) {
+	const { rows } = await db.query(
+		`SELECT id FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
+		[recordingId],
 	);
+	return rows.map((r) => r.id);
 }
 
 async function setRecordingDiarizationStatus(recordingId, status) {
@@ -164,6 +155,7 @@ async function processJob(job, overrides = {}) {
 
 	await diarizationJobs.markProcessing(job.id);
 	await setRecordingDiarizationStatus(recordingId, 'processing');
+	const expectedSegmentIds = await readSegmentIds(recordingId);
 
 	const heartbeatTimer = setInterval(() => {
 		diarizationJobs.heartbeat(job.id).catch(() => {});
@@ -199,12 +191,36 @@ async function processJob(job, overrides = {}) {
 		return { outcome: 'cancelled_at_write', code: writeGate.code };
 	}
 
-	// Behind the write gate: persist the engine's original output
-	// verbatim (S-D05 R1) — only real engine output carries provenance
-	// (output.engine); the S-D04 stub seam persists nothing. Segment
-	// labels + the 'complete' status flip are S-D07's atomic stitch.
+	// Behind the write gate: only real engine output carries
+	// provenance (output.engine); the S-D04 stub seam persists
+	// nothing and completes as before.
 	if (output?.engine) {
-		await insertRunRow(job, output);
+		const persistStitch = overrides.persistStitch || transcriptStitch.persistStitch;
+		let stitched;
+		try {
+			stitched = await persistStitch({ jobId: job.id, recordingId, expectedSegmentIds, output });
+		} catch (err) {
+			// Stitch failure (incl. a 40P01 deadlock against a racing
+			// re-transcription — DB review on #1909): the transaction
+			// rolled back, so nothing partial exists. Fail the job
+			// retryably (never a deterministic class) and mark the
+			// recording failed — honest, recoverable, not final-labelled.
+			const errorClass = 'engine_failed';
+			console.log(
+				`[diarization] stitch failed for job ${job.id} recording ${recordingId}: ${err.message}`,
+			);
+			await diarizationJobs.fail(job.id, errorClass, String(err.message || err).slice(0, 500));
+			await setRecordingDiarizationStatus(recordingId, 'failed');
+			return { outcome: 'failed', errorClass };
+		}
+		if (stitched.outcome === 'superseded') {
+			console.log(
+				`[diarization] job ${job.id} recording ${recordingId} superseded — stale output discarded`,
+			);
+			return { outcome: 'superseded', output };
+		}
+		console.log(`[diarization] job ${job.id} recording ${recordingId} complete (stitched)`);
+		return { outcome: 'complete', output };
 	}
 	await diarizationJobs.complete(job.id);
 	console.log(`[diarization] job ${job.id} recording ${recordingId} complete`);
@@ -286,5 +302,5 @@ module.exports = {
 	runStubEngine,
 	runRealEngine,
 	fetchRecordingAudio,
-	insertRunRow,
+	readSegmentIds,
 };
