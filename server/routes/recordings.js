@@ -838,19 +838,32 @@ router.get(
 			const recordingId = parseInt(req.params.id, 10);
 			const user = req.user;
 
-			const { canAccess, isRecruiter } = await canAccessRecording(recordingId, user);
+			const { canAccess, recording, isRecruiter } = await canAccessRecording(recordingId, user);
 			if (!canAccess) {
 				return res.status(403).json({ error: 'Not authorized' });
 			}
 
+			// S-D09 (#1911, §3.8/§5.1): a recording is post-feature iff it
+			// carries diarization state. Legacy recordings take the exact
+			// pre-S-D09 query and response shape (AC-1 byte-identical);
+			// post-feature recordings additionally select speaker_number
+			// for the composition below.
+			const isPostFeature = recording.diarization_status != null;
+
 			// #802: purged tombstones render as absence — never serialise
 			// the '[purged]' sentinel to clients.
 			const transcriptRes = await pool.query(
-				`SELECT id, speaker_identity, text, start_time_ms, end_time_ms, confidence, created_at
-				 FROM interview_transcripts
-				 WHERE recording_id = $1
-				 AND text IS DISTINCT FROM '[purged]'
-				 ORDER BY start_time_ms`,
+				isPostFeature
+					? `SELECT id, speaker_identity, text, start_time_ms, end_time_ms, confidence, created_at, speaker_number
+						 FROM interview_transcripts
+						 WHERE recording_id = $1
+						 AND text IS DISTINCT FROM '[purged]'
+						 ORDER BY start_time_ms`
+					: `SELECT id, speaker_identity, text, start_time_ms, end_time_ms, confidence, created_at
+						 FROM interview_transcripts
+						 WHERE recording_id = $1
+						 AND text IS DISTINCT FROM '[purged]'
+						 ORDER BY start_time_ms`,
 				[recordingId],
 			);
 
@@ -884,17 +897,119 @@ router.get(
 				}
 			}
 
+			// S-D09 (#1911, §3.8/§5.1): compose speaker labels for
+			// post-feature recordings. Names come ONLY from
+			// recording_speaker_mappings (Rex ruling 1 / C1) — never from
+			// participant-list ordering and never from
+			// diarization_runs.proposed_mapping, which is never returned.
+			// Coverage is per segment (Rex ruling 2 / C4):
+			// diarization_covered ≡ speaker_number IS NOT NULL;
+			// coverage_end_ms is run provenance and is not read here.
+			// No share / count / confidence / percentage field is added
+			// anywhere below (AC-5, FR-D13/D14/D21).
+			let diarization = null;
+			const labelBySpeaker = new Map();
+			if (isPostFeature) {
+				const mapRes = await pool.query(
+					`SELECT m.speaker_number, m.participant_user_id, m.participant_role,
+					        m.state, u.name AS participant_name
+					 FROM recording_speaker_mappings m
+					 LEFT JOIN users u ON u.id = m.participant_user_id
+					 WHERE m.recording_id = $1
+					 ORDER BY m.speaker_number`,
+					[recordingId],
+				);
+				const labelFor = (row) => {
+					if (row.participant_user_id != null && row.participant_name) {
+						const roleLabel = row.participant_role === 'candidate' ? 'Candidate' : 'Interviewer';
+						return `${roleLabel} — ${row.participant_name}`;
+					}
+					// Unassigned (incl. capped panel speakers, C2) or a
+					// participant whose user no longer resolves (erasure
+					// SET NULL) — never a guessed name (FR-D09).
+					return `Speaker ${row.speaker_number + 1}`;
+				};
+				for (const row of mapRes.rows) {
+					labelBySpeaker.set(row.speaker_number, labelFor(row));
+				}
+
+				let mappingState = null;
+				if (mapRes.rows.length > 0) {
+					if (mapRes.rows.some((r) => r.state === 'corrected')) mappingState = 'corrected';
+					else if (mapRes.rows.some((r) => r.state === 'confirmed')) mappingState = 'confirmed';
+					else mappingState = 'proposed';
+				}
+
+				// Corrected-by line (§3.8/FR-D11): latest audit row's
+				// actor. S-D10 writes these rows; an actor who no longer
+				// resolves leaves both fields honestly null.
+				let correctedBy = null;
+				let correctedAt = null;
+				const auditRes = await pool.query(
+					`SELECT a.created_at, u.name AS actor_name
+					 FROM transcript_speaker_audit a
+					 LEFT JOIN users u ON u.id = a.actor_user_id
+					 WHERE a.recording_id = $1
+					 ORDER BY a.created_at DESC, a.id DESC
+					 LIMIT 1`,
+					[recordingId],
+				);
+				if (auditRes.rows.length > 0 && auditRes.rows[0].actor_name) {
+					correctedBy = auditRes.rows[0].actor_name;
+					correctedAt = auditRes.rows[0].created_at;
+				}
+
+				diarization = {
+					// §5.1/§5.5: failure and consent-unavailable both
+					// surface as 'unavailable'; reasons are never exposed.
+					status: ['failed', 'unavailable'].includes(recording.diarization_status)
+						? 'unavailable'
+						: recording.diarization_status,
+					mapping_state: mappingState,
+					corrected_by: correctedBy,
+					corrected_at: correctedAt,
+					speakers: mapRes.rows.map((row) => ({
+						speaker_number: row.speaker_number,
+						label: labelFor(row),
+						assigned: row.participant_user_id != null && !!row.participant_name,
+					})),
+				};
+			}
+
 			// Candidates cannot see internal notes — filter them out
-			const safeSegments = segments.map((s) => ({
-				id: s.id,
-				speaker_identity: s.speaker_identity,
-				text: s.text,
-				start_time_ms: s.start_time_ms,
-				end_time_ms: s.end_time_ms,
-				confidence: s.confidence,
-				created_at: s.created_at,
-				...(isRecruiter && s.highlights ? { highlights: s.highlights } : {}),
-			}));
+			const safeSegments = segments.map((s) => {
+				if (!isPostFeature) {
+					return {
+						id: s.id,
+						speaker_identity: s.speaker_identity,
+						text: s.text,
+						start_time_ms: s.start_time_ms,
+						end_time_ms: s.end_time_ms,
+						confidence: s.confidence,
+						created_at: s.created_at,
+						...(isRecruiter && s.highlights ? { highlights: s.highlights } : {}),
+					};
+				}
+				const covered = s.speaker_number != null;
+				return {
+					id: s.id,
+					// Covered: composed label (mapping name or "Speaker N").
+					// Uncovered: the stored value stays in the payload, but
+					// diarization_covered: false tells the client to render
+					// NO speaker heading (§3.8) — never guess from the string.
+					speaker_identity: covered
+						? (labelBySpeaker.get(s.speaker_number) ?? `Speaker ${s.speaker_number + 1}`)
+						: s.speaker_identity,
+					speaker_number: s.speaker_number,
+					diarization_covered: covered,
+					text: s.text,
+					start_time_ms: s.start_time_ms,
+					end_time_ms: s.end_time_ms,
+					confidence: s.confidence,
+					created_at: s.created_at,
+					...(isRecruiter && s.highlights ? { highlights: s.highlights } : {}),
+				};
+			});
 
 			res.json({
 				success: true,
@@ -902,6 +1017,7 @@ router.get(
 					recording_id: recordingId,
 					segment_count: safeSegments.length,
 					segments: safeSegments,
+					...(isPostFeature ? { diarization } : {}),
 				},
 			});
 		} catch (err) {

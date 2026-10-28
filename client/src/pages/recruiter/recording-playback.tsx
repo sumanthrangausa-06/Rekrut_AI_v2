@@ -11,7 +11,7 @@ import {
 	VolumeX,
 	XCircle,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { EmptyState } from '@/components/domain/empty-state';
 import { Skeleton } from '@/components/domain/skeleton';
@@ -64,11 +64,29 @@ interface TranscriptSegment {
 	end_time_ms: number;
 	confidence: number | null;
 	created_at: string;
+	// S-D09 (#1911, §5.1): additive diarization fields — absent on
+	// legacy (pre-feature) payloads, which render exactly as before.
+	speaker_number?: number | null;
+	diarization_covered?: boolean;
 	highlights?: Array<{
 		id: number;
 		note: string;
 		created_by: string;
 		created_at: string;
+	}>;
+}
+
+// S-D09 (#1911, §5.1): the top-level diarization block. Carries no
+// share / count / confidence / percentage figure by design (FR-D13).
+interface DiarizationBlock {
+	status: 'complete' | 'processing' | 'pending' | 'unavailable' | null;
+	mapping_state: 'proposed' | 'confirmed' | 'corrected' | null;
+	corrected_by: string | null;
+	corrected_at: string | null;
+	speakers: Array<{
+		speaker_number: number;
+		label: string;
+		assigned: boolean;
 	}>;
 }
 
@@ -190,6 +208,7 @@ export function RecordingPlaybackPage() {
 	const [recording, setRecording] = useState<RecordingDetail | null>(null);
 	const [playback, setPlayback] = useState<PlaybackData | null>(null);
 	const [segments, setSegments] = useState<TranscriptSegment[]>([]);
+	const [diarization, setDiarization] = useState<DiarizationBlock | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [toasts, setToasts] = useState<Toast[]>([]);
 	const [searchQuery, setSearchQuery] = useState('');
@@ -237,10 +256,11 @@ export function RecordingPlaybackPage() {
 			// Load transcript
 			const transcriptRes = await apiCall<{
 				success: boolean;
-				transcript: { segments: TranscriptSegment[] };
+				transcript: { segments: TranscriptSegment[]; diarization?: DiarizationBlock | null };
 			}>(`/interviews/recordings/${recordingId}/transcript`);
 			const loadedSegments = transcriptRes.transcript?.segments || [];
 			setSegments(loadedSegments);
+			setDiarization(transcriptRes.transcript?.diarization ?? null);
 
 			// Build speaker color map
 			const speakers = [...new Set(loadedSegments.map((s) => s.speaker_identity))];
@@ -493,6 +513,43 @@ export function RecordingPlaybackPage() {
 								{filteredSegments.length} of {segments.length} segments
 							</div>
 
+							{/* S-D09 (#1911, §3.8/FR-D13): standing estimate note +
+							    labelling state banners — above the scrollable list,
+							    visible without scrolling, whenever the API sent a
+							    diarization block. Legacy payloads render neither. */}
+							{diarization && (
+								<div className="mb-3 space-y-2">
+									<div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+										<p>Speaker names are detected automatically and can be wrong.</p>
+										{diarization.corrected_by && diarization.corrected_at && (
+											<p className="mt-1">
+												{`Speaker names corrected by ${diarization.corrected_by} on ${new Date(
+													diarization.corrected_at,
+												).toLocaleDateString()}`}
+											</p>
+										)}
+										{isRecruiter && diarization.status === 'complete' && (
+											<a
+												href="#speaker-names"
+												className="mt-1 inline-block font-medium underline underline-offset-2"
+											>
+												Correct speaker names
+											</a>
+										)}
+									</div>
+									{(diarization.status === 'processing' || diarization.status === 'pending') && (
+										<div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+											Speaker labels are being prepared
+										</div>
+									)}
+									{diarization.status === 'unavailable' && (
+										<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+											Speaker labels unavailable for this recording
+										</div>
+									)}
+								</div>
+							)}
+
 							{/* Segments list */}
 							<div
 								ref={transcriptRef}
@@ -505,31 +562,64 @@ export function RecordingPlaybackPage() {
 											: 'No transcript available yet.'}
 									</div>
 								) : (
-									filteredSegments.map((segment) => {
+									filteredSegments.map((segment, idx) => {
 										const speakerIdx = speakerColorMap[segment.speaker_identity] ?? 0;
 										const colors = getSpeakerColor(speakerIdx);
 										const isActive = activeSegmentId === segment.id;
+										// S-D09 (#1911, FR-D15/Rex ruling 2): coverage is a
+										// per-segment fact. Uncovered post-feature segments
+										// render NO speaker heading; every covered↔uncovered
+										// transition renders its own boundary marker.
+										// Legacy segments (field absent) render as before.
+										const uncovered = segment.diarization_covered === false;
+										const prev = idx > 0 ? filteredSegments[idx - 1] : null;
+										const showStopMarker =
+											prev !== null &&
+											prev.diarization_covered === true &&
+											segment.diarization_covered === false;
+										const showResumeMarker =
+											prev !== null &&
+											prev.diarization_covered === false &&
+											segment.diarization_covered === true;
 
 										return (
+											<Fragment key={segment.id}>
+												{showStopMarker && (
+													<div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 p-2 text-center text-xs font-medium text-amber-800">
+														Speaker labels stop here — the rest of this transcript is unlabelled
+													</div>
+												)}
+												{showResumeMarker && (
+													<div className="rounded-lg border border-dashed border-emerald-300 bg-emerald-50 p-2 text-center text-xs font-medium text-emerald-800">
+														Speaker labels resume here
+													</div>
+												)}
 											<div
-												key={segment.id}
 												id={`segment-${segment.id}`}
 												className={`p-3 rounded-lg border cursor-pointer transition-all ${
-													isActive
+													isActive && !uncovered
 														? `${colors.bg} ${colors.border} ring-1 ring-indigo-300`
 														: 'bg-card border-border hover:bg-muted/50'
 												}`}
 												onClick={() => jumpToSegment(segment)}
 											>
-												<div className="flex items-center gap-2 mb-1">
-													<div className={`w-2 h-2 rounded-full ${colors.dot}`} />
-													<span className={`text-xs font-semibold ${colors.text}`}>
-														{segment.speaker_identity}
-													</span>
-													<span className="text-xs text-muted-foreground ml-auto">
-														{formatTimestamp(segment.start_time_ms)}
-													</span>
-												</div>
+												{uncovered ? (
+													<div className="flex items-center gap-2 mb-1">
+														<span className="text-xs text-muted-foreground ml-auto">
+															{formatTimestamp(segment.start_time_ms)}
+														</span>
+													</div>
+												) : (
+													<div className="flex items-center gap-2 mb-1">
+														<div className={`w-2 h-2 rounded-full ${colors.dot}`} />
+														<span className={`text-xs font-semibold ${colors.text}`}>
+															{segment.speaker_identity}
+														</span>
+														<span className="text-xs text-muted-foreground ml-auto">
+															{formatTimestamp(segment.start_time_ms)}
+														</span>
+													</div>
+												)}
 												<p className="text-sm leading-relaxed">{segment.text}</p>
 
 												{/* Highlights */}
@@ -566,6 +656,7 @@ export function RecordingPlaybackPage() {
 													</Button>
 												)}
 											</div>
+											</Fragment>
 										);
 									})
 								)}
@@ -574,6 +665,36 @@ export function RecordingPlaybackPage() {
 					</Card>
 				</div>
 			</div>
+
+			{/* S-D09 (#1911, §3.8): Speaker names section — the target of the
+			    "Correct speaker names" entry point. Read-only in this story;
+			    S-D10 turns this section into the mapping editor. */}
+			{diarization && (
+				<section id="speaker-names">
+					<Card>
+						<CardContent className="p-4">
+							<h3 className="text-sm font-semibold mb-2">Speaker names</h3>
+							{diarization.speakers.length === 0 ? (
+								<p className="text-sm text-muted-foreground">No speakers detected yet.</p>
+							) : (
+								<ul className="space-y-1">
+									{diarization.speakers.map((spk) => (
+										<li
+											key={spk.speaker_number}
+											className="flex items-center gap-2 text-sm"
+										>
+											<span className="font-medium">{spk.label}</span>
+											<span className="text-xs text-muted-foreground">
+												{spk.assigned ? 'Assigned' : 'Not assigned'}
+											</span>
+										</li>
+									))}
+								</ul>
+							)}
+						</CardContent>
+					</Card>
+				</section>
+			)}
 
 			{/* Highlight dialog */}
 			<Dialog
