@@ -62,7 +62,7 @@ describeIfDb('diarization worker (real DB — S-D04)', () => {
 
 	async function jobState(recId) {
 		const { rows } = await pool.query(
-			`SELECT status, cancel_reason FROM diarization_jobs WHERE recording_id = $1 ORDER BY id DESC LIMIT 1`,
+			`SELECT status, cancel_reason, error_class FROM diarization_jobs WHERE recording_id = $1 ORDER BY id DESC LIMIT 1`,
 			[recId],
 		);
 		return rows[0];
@@ -130,24 +130,51 @@ describeIfDb('diarization worker (real DB — S-D04)', () => {
 		expect((await jobState(recordingId)).status).toBe('pending');
 	});
 
-	it('AC-2/AC-5: granted + current at claim time — job completes; transcript stays unlabelled under the stub', async () => {
+	it('AC-2/AC-5: granted + current at claim time — job proceeds past the gate (S-D05: real engine, no audio on this fixture → honest engine_failed)', async () => {
+		// S-D04's version of this test asserted stub completion. S-D05
+		// (#1907) replaced the stub with the real engine: this fixture's
+		// recording has no storage path, so the audio fetch returns
+		// nothing and the job must fail honestly — never fake-complete.
+		// The full real-engine success path is proven in
+		// diarizationEngine.integration.test.js (spike fixture).
 		process.env.DIARIZATION_ENABLED = 'true';
 		const job = await diarizationJobs.claim('sd04-it-worker');
 		expect(job.recording_id).toBe(recordingId);
 		const result = await worker.processJob(job);
 
-		expect(result.outcome).toBe('complete');
-		expect((await jobState(recordingId)).status).toBe('complete');
-		// Stub engine persists no labels — no fake completion on the transcript
+		expect(result).toEqual({ outcome: 'failed', errorClass: 'engine_failed' });
+		const state = await jobState(recordingId);
+		expect(state.status).toBe('failed');
+		expect(state.error_class).toBe('engine_failed');
+		// No labels, no run row — no fake completion anywhere
 		expect(await speakerNumber(recordingId)).toBeNull();
+		const runs = await pool.query(
+			`SELECT COUNT(*)::int AS n FROM diarization_runs WHERE recording_id = $1`,
+			[recordingId],
+		);
+		expect(runs.rows[0].n).toBe(0);
 	});
 
 	it('AC-5/AC-3: consent withdrawn between enqueue and claim governs — cancelled at claim', async () => {
-		await diarizationJobs.enqueue(recordingId);
+		const enqueued = await diarizationJobs.enqueue(recordingId);
 		await consentService.withdrawConsent({ sessionId, candidateId, type: 'biometric' });
 
-		const job = await diarizationJobs.claim('sd04-it-worker');
-		const result = await worker.processJob(job);
+		// S-D05 note: the AC-2 job above now FAILS (retryable) instead of
+		// stub-completing, and claim() is global/oldest-first — it may
+		// hand back that retryable job first. Process whatever is
+		// claimed (each cancels at the claim gate under withdrawn
+		// consent) until this test's own job is the one processed.
+		let result;
+		for (let i = 0; i < 3; i++) {
+			const claimed = await diarizationJobs.claim('sd04-it-worker');
+			if (!claimed) break;
+			const r = await worker.processJob(claimed);
+			if (claimed.id === enqueued.id) {
+				result = r;
+				break;
+			}
+		}
+		expect(result).toBeDefined();
 
 		expect(result).toEqual({ outcome: 'cancelled_at_claim', code: 'CONSENT_WITHDRAWN' });
 		const state = await jobState(recordingId);

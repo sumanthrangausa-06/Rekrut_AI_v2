@@ -1,0 +1,1 @@
+{"dependencies":{"@desert-ant-labs/who":"4.2.1"},"description":"Diarization worker scope (S-D05, #1907): the vendor engine is pinned here so the web service never loads the model. Install with `npm install` in this directory on the worker host only.","name":"rekrut-diarization-worker","private":true,"version":"1.0.0"}

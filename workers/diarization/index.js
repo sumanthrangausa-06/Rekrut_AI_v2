@@ -23,17 +23,28 @@
  * diarization_status to 'unavailable' (the §4 internal state for
  * consent-blocked outcomes, rendered to users identically to failed).
  *
- * Engine seam: in this story the engine is a stub — it spawns no
- * process, fetches no audio, and returns no turns. S-D05 swaps the
- * stub for the real per-job child process behind the same
- * `runEngine(job) → { speakerCount, turns }` shape; the fetch + spawn
- * will live inside that seam, downstream of this gate. The stub's
- * output is never persisted and the recording is never marked
- * 'complete' by this skeleton — it stays 'processing' until S-D05
- * persists real labels (no fake completion).
+ * Engine seam: S-D04 shipped a stub behind `runEngine(job) →
+ * { speakerCount, turns }`; S-D05 (#1907) put the real engine behind
+ * the same shape — fetch the recording's audio in memory (the same
+ * livekitService paths the transcribe handler uses), decode + diarize
+ * via lib/diarizationEngine.js, which spawns the per-job child
+ * process (workers/diarization/engine-child.mjs) whose memory —
+ * voice-print embeddings included — dies at exit (BR-4/BR-5).
+ *
+ * Persistence (S-D05 R1): behind the write-time gate, the worker
+ * inserts the diarization_runs row verbatim (turns + engine
+ * provenance). It does NOT set segment speaker_numbers and does NOT
+ * flip diarization_status to 'complete' — stitching and the status
+ * flip are S-D07's atomic step (§3.6); the recording honestly stays
+ * 'processing' until then.
+ *
+ * Failures (S-D05 R2): engine/fetch/decode errors are caught here,
+ * classified (§3.5 taxonomy), and recorded via diarizationJobs.fail —
+ * never thrown past processJob, never partially persisted.
  */
 
 const diarizationJobs = require('../../lib/diarizationJobs');
+const diarizationEngine = require('../../lib/diarizationEngine');
 const { evaluateDiarizationGate } = require('../../lib/diarizationGate');
 const { isDiarizationEnabled } = require('../../lib/diarizationFlag');
 const db = require('../../lib/db');
@@ -44,11 +55,78 @@ const SWEEPER_INTERVAL_MS = 60000;
 const WORKER_ID = `diarization-worker-${process.pid}-${Date.now()}`;
 
 /**
- * Stub engine (S-D04). S-D05 replaces this with the real child process.
+ * Fetch a recording's audio into memory — the same paths the
+ * transcribe handler uses (server/routes/recordings.js): the GAP-A2
+ * in-memory DEK decrypt for `.enc` recordings, the storage download
+ * for legacy plaintext. No plaintext audio touches disk here either.
+ * Required lazily: the livekit service is heavy and unit tests that
+ * inject runEngine/fetchAudio never need it loaded.
+ */
+async function fetchRecordingAudio(recordingId) {
+	const livekitService = require('../../server/services/livekit');
+	const recording = await livekitService.findRecordingById(recordingId);
+	if (!recording) return null;
+	const storagePath = livekitService.decryptStoragePath(recording);
+	if (!storagePath) return null;
+	if (livekitService.isEncryptedRecording(recording, storagePath)) {
+		return livekitService.fetchDecryptedRecording(recording).catch(() => null);
+	}
+	return livekitService.downloadRecordingAudio(storagePath);
+}
+
+/**
+ * Real engine (S-D05): fetch audio in memory → decode + diarize in
+ * the per-job child process. Embeddings never leave the child.
+ * @returns {Promise<{speakerCount: number, turns: Array, engine: object}>}
+ */
+async function runRealEngine(job, overrides = {}) {
+	const fetchAudio = overrides.fetchAudio || fetchRecordingAudio;
+	const audio = await fetchAudio(job.recording_id);
+	if (!audio || audio.length === 0) {
+		throw new diarizationEngine.DiarizationEngineError(
+			'engine_failed',
+			`no audio fetched for recording ${job.recording_id}`,
+		);
+	}
+	return diarizationEngine.diarizeAudio(audio, overrides.engineOptions || {});
+}
+
+/**
+ * Stub engine (S-D04 seam, kept for tests that exercise the gate
+ * without the vendor package). Its output carries no engine
+ * provenance, so processJob persists no run row for it.
  * @returns {Promise<{speakerCount: number, turns: Array}>}
  */
 async function runStubEngine(_job) {
 	return { speakerCount: 0, turns: [] };
+}
+
+/**
+ * Persist the engine's original output verbatim (§3.6 step 4 /
+ * S-D05 R1): one diarization_runs row — turns, engine provenance,
+ * coverage. Stitching (S-D07) reads this row; nothing mutates it.
+ */
+async function insertRunRow(job, output) {
+	const turns = Array.isArray(output.turns) ? output.turns : [];
+	const coverageEndMs = turns.length
+		? Math.round(Math.max(...turns.map((t) => t.end_s || 0)) * 1000)
+		: 0;
+	await db.query(
+		`INSERT INTO diarization_runs
+		   (recording_id, job_id, engine_package, sdk_version, model_version,
+		    speaker_count, turns, coverage_end_ms)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)`,
+		[
+			job.recording_id,
+			job.id,
+			output.engine.package,
+			output.engine.sdkVersion,
+			output.engine.modelVersion,
+			output.speakerCount,
+			JSON.stringify(turns),
+			coverageEndMs,
+		],
+	);
 }
 
 async function setRecordingDiarizationStatus(recordingId, status) {
@@ -61,7 +139,7 @@ async function setRecordingDiarizationStatus(recordingId, status) {
 }
 
 /**
- * Process one claimed job end-to-end: claim gate → stub engine →
+ * Process one claimed job end-to-end: claim gate → engine →
  * write gate → complete. Never throws to the poll loop for a gate
  * outcome; gate outcomes are returned, not raised.
  *
@@ -70,7 +148,7 @@ async function setRecordingDiarizationStatus(recordingId, status) {
  * @returns {Promise<{outcome: string, code?: string, output?: object}>}
  */
 async function processJob(job, overrides = {}) {
-	const runEngine = overrides.runEngine || runStubEngine;
+	const runEngine = overrides.runEngine || ((j) => runRealEngine(j, overrides));
 	const recordingId = job.recording_id;
 
 	// Claim-time gate (BR-2/BR-3) — before any audio, before the engine.
@@ -93,6 +171,16 @@ async function processJob(job, overrides = {}) {
 	let output;
 	try {
 		output = await runEngine(job);
+	} catch (err) {
+		// S-D05 R2: a failed engine/fetch/decode fails the JOB with its
+		// error class — no run row, no partial output, supervisor lives.
+		const errorClass = err.errorClass || 'engine_failed';
+		console.log(
+			`[diarization] job ${job.id} recording ${recordingId} failed (${errorClass}): ${err.message}`,
+		);
+		await diarizationJobs.fail(job.id, errorClass, String(err.message || err).slice(0, 500));
+		await setRecordingDiarizationStatus(recordingId, 'failed');
+		return { outcome: 'failed', errorClass };
 	} finally {
 		clearInterval(heartbeatTimer);
 	}
@@ -111,12 +199,15 @@ async function processJob(job, overrides = {}) {
 		return { outcome: 'cancelled_at_write', code: writeGate.code };
 	}
 
-	// ponytail: the stub output is deliberately NOT persisted and the
-	// recording is NOT marked 'complete' — S-D05 persists real turns
-	// (run row + stitching + status 'complete') at exactly this point,
-	// behind the write gate above.
+	// Behind the write gate: persist the engine's original output
+	// verbatim (S-D05 R1) — only real engine output carries provenance
+	// (output.engine); the S-D04 stub seam persists nothing. Segment
+	// labels + the 'complete' status flip are S-D07's atomic stitch.
+	if (output?.engine) {
+		await insertRunRow(job, output);
+	}
 	await diarizationJobs.complete(job.id);
-	console.log(`[diarization] job ${job.id} recording ${recordingId} complete (stub engine)`);
+	console.log(`[diarization] job ${job.id} recording ${recordingId} complete`);
 	return { outcome: 'complete', output };
 }
 
@@ -151,6 +242,16 @@ function startWorker() {
 	console.log(
 		`[diarization] worker starting (id: ${WORKER_ID}, enabled: ${isDiarizationEnabled()})`,
 	);
+	if (isDiarizationEnabled()) {
+		// AC-1: provision the pinned weights cache at worker start
+		// (the SDK SHA-256-verifies its own manifest on load). A
+		// provisioning failure is logged, never fatal — jobs fail
+		// honestly with their error class if the cache is unusable.
+		diarizationEngine
+			.provisionWeights()
+			.then(() => console.log('[diarization] weights cache provisioned'))
+			.catch((err) => console.error('[diarization] weights provisioning failed:', err.message));
+	}
 	const tick = () => {
 		poll().catch((err) => console.error('[diarization] poll error:', err.message));
 	};
@@ -183,4 +284,7 @@ module.exports = {
 	startWorker,
 	stopWorker,
 	runStubEngine,
+	runRealEngine,
+	fetchRecordingAudio,
+	insertRunRow,
 };
