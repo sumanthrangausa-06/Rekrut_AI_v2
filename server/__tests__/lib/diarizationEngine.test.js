@@ -61,6 +61,15 @@ const GARBAGE_CHILD = writeChild(
 	'garbage.mjs',
 	`process.stdout.write('not json at all');`,
 );
+const EXTRA_FIELDS_CHILD = writeChild(
+	'extra.mjs',
+	`for await (const c of process.stdin) {}
+	 process.stdout.write(JSON.stringify({
+	   speakerCount: 1,
+	   turns: [{ speaker: 0, start_s: 0, end_s: 2, embedding: [0.1, 0.2], confidence: 0.9 }],
+	   engine: { package: '@desert-ant-labs/who', sdkVersion: '4.2.1', modelVersion: 'v0.3.4' },
+	 }));`,
+);
 
 const PCM = Buffer.alloc(32000, 1); // 1 s of s16le silence-ish bytes
 
@@ -76,6 +85,11 @@ describe('diarizationEngine supervisor (S-D05)', () => {
 			sdkVersion: '4.2.1',
 			modelVersion: 'v0.3.4',
 		});
+	});
+
+	it('turns are stripped to the §3.5 shape — no extra child field can reach persistence', async () => {
+		const out = await runEngineChild(PCM, { childPath: EXTRA_FIELDS_CHILD });
+		expect(out.turns).toEqual([{ speaker: 0, start_s: 0, end_s: 2 }]);
 	});
 
 	it('AC-4: child SIGKILLed mid-job → engine_oom, and the supervisor survives (next job OK)', async () => {
