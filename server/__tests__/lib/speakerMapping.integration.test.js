@@ -257,9 +257,11 @@ describeIfDb('speakerMapping via persistStitch (real DB — S-D08)', () => {
 		expect(first.outcome).toBe('complete');
 		expect(await mappingsOf(recordingId)).toHaveLength(2);
 
-		// Re-transcription, mirroring server/routes/recordings.js's
-		// swap transaction (lines 729-744): all diarization artefacts
-		// and the old segments die together, then new segments land.
+		// Re-transcription wipe: the five DELETE statements below are
+		// verbatim from server/routes/recordings.js's swap transaction
+		// (lines 729-744); the diarization_status reset + the new job
+		// and segments inserted afterwards are harness scaffolding for
+		// the second persist, not route behaviour (delta review F-3).
 		const client = await pool.connect();
 		try {
 			await client.query('BEGIN');
