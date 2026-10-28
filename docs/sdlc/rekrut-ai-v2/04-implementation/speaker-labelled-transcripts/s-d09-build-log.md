@@ -49,11 +49,21 @@ Independent review verdict: **APPROVE-WITH-MINORS** (full report on PR #1936). D
 - **F3 (fixed here):** the stop-marker text "Speaker labels stop here — the rest of this transcript is unlabelled" is **false at an interior gap**, where labels resume below. The marker now renders the long text only when no later segment is covered; at a gap it renders "Speaker labels stop here". This refines the STOP 1's pinned wording on the reviewer's evidence — the tail-case text is unchanged. Client suite gains a tail-boundary test pinning the long text to the no-resume case and the gap test now pins the short text + absence of the long one.
 - **F4c (fixed here):** the no-mapping-row composition fallback (`Speaker N` for a covered segment whose speaker has no mapping row) is now exercised — panel fixture gains a speaker-5 segment composing "Speaker 6" while `speakers[]` stays at the three mapping rows.
 - **F5a (fixed here):** uncovered segments' seek is now tested (click → `currentTime` 42).
-- **F1 (routed to S-D10, not fixed here):** `corrected_by`/`corrected_at` read the latest audit row **regardless of `action`** (`confirm`/`correct`/`unassign`). Unreachable today — no audit writer exists until S-D10 — but S-D10's STOP 1 must pin the semantics (filter to `action='correct'`, or gate the client line on `mapping_state === 'corrected'`) and add the multi-row/`confirm`-row tests (review F4a). Recorded on #1912.
+- **F1 (fixed in correction 2 — see below):** `corrected_by`/`corrected_at` read the latest audit row **regardless of `action`** (`confirm`/`correct`/`unassign`). The code reviewer rated it latent (no audit writer exists until S-D10); the privacy specialist **blocked** on it (below) and Suga accepted the block — the read contract is this story's deliverable, so it is fixed here, not routed.
 - **F2 (known issue, accepted for v1):** boundary transitions are computed over the search-filtered list, so an active search can draw a marker between non-adjacent segments or hide a real one. Markers remain honest about the rendered sequence; stricter unfiltered-transition computation is a later refinement.
 - **F6 (info):** `labelFor` treats any non-`candidate` role as Interviewer; §4.2 constrains the role set and S-D08 writes role+user together, so unreachable on current writers — noted for S-D10's write path.
 
 Post-correction evidence (Suga's runs): server integration **13/13**, client **10/10**.
+
+## Correction 2 — Privacy specialist BLOCK F-1, fixed (2026-10-28, Suga)
+
+The privacy specialist's full review of this PR (verdict **BLOCK**, one blocker; everything else in the risk domain verified clean — exact §5.1 key inventory, `diarization_runs` never queried so the raw proposal/turns cannot leak, audience parity, legacy invariance, consent-state collapsing, erasure behaviour):
+
+- **F-1:** the corrected-by read was action-blind — a mere `confirm` would have published the confirmer's name to every viewer (including the candidate) as the person who "corrected" the names, and a later confirm after a real correction would have silently replaced the true corrector. The handler's audit query now filters to `action IN ('correct', 'unassign')` (§5.3 treats an unassign save as a corrected state change; `confirm` is not a correction). The specialist's prescribed fixtures are added verbatim: (a) confirm-only audit row → `corrected_by`/`corrected_at` stay `null` with `mapping_state='confirmed'`; (b) `correct` row followed by a later `confirm` row → the corrector's name/date are still returned. The candidate segment key-set is also pinned now (review F-5).
+- **F-2 (design note for S-D10/Lex):** the corrected-by line can name an **admin** corrector to the candidate — a back-office name the candidate would otherwise never receive. Not an S-D09 code defect (the field is §5.1-specified); S-D10/Lex to consciously accept or restrict before audit rows exist. Recorded on #1912.
+- **F-3 (awareness notes, no action):** `speakers[]` cardinality discloses the count of detected voices (the §5.1-specified Speaker-names panel — conscious acceptance); per-speaker share is derivable from any labelled timestamped transcript by construction (FR-D21 is satisfied at the field level, the only level any labelling design can satisfy it).
+
+Post-correction-2 evidence (Suga's runs): server integration **14/14** (both F-1 fixtures + candidate key-set pin included), client **10/10** (unchanged by this correction).
 
 ## Follow-ups noted for Lead
 

@@ -940,9 +940,13 @@ router.get(
 					else mappingState = 'proposed';
 				}
 
-				// Corrected-by line (§3.8/FR-D11): latest audit row's
-				// actor. S-D10 writes these rows; an actor who no longer
-				// resolves leaves both fields honestly null.
+				// Corrected-by line (§3.8/FR-D11): the latest CORRECTION's
+				// actor — audit rows with action 'correct' or 'unassign'
+				// only (PR #1936 privacy review F-1). A 'confirm' row must
+				// never publish its actor as the corrector, and a later
+				// confirm must not replace the true corrector. S-D10 writes
+				// these rows; an actor who no longer resolves leaves both
+				// fields honestly null.
 				let correctedBy = null;
 				let correctedAt = null;
 				const auditRes = await pool.query(
@@ -950,6 +954,7 @@ router.get(
 					 FROM transcript_speaker_audit a
 					 LEFT JOIN users u ON u.id = a.actor_user_id
 					 WHERE a.recording_id = $1
+					 AND a.action IN ('correct', 'unassign')
 					 ORDER BY a.created_at DESC, a.id DESC
 					 LIMIT 1`,
 					[recordingId],

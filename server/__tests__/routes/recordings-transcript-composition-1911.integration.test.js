@@ -224,10 +224,30 @@ async function cleanAndSeed() {
 		[R.correctedNoActor, U_CAND],
 	);
 
-	// ── Confirmed aggregation ───────────────────────────────────────────
+	// ── Confirmed aggregation — with a 'confirm' audit row (privacy F-1
+	// fixture (a)): a confirmer must never surface as the corrector.
 	R.confirmed = await seedRecording('complete');
 	await seedSegment(R.confirmed, { text: 'Accepted as proposed.', start: 0, end: 5000, speaker: 0 });
 	await seedMapping(R.confirmed, 0, U_CAND, 'candidate', 'confirmed');
+	await seedPool.query(
+		`INSERT INTO transcript_speaker_audit
+		   (recording_id, speaker_number, from_user_id, to_user_id, actor_user_id, action, created_at)
+		 VALUES ($1, 0, NULL, $2, $3, 'confirm', '2026-10-20 16:00:00+00')`,
+		[R.confirmed, U_CAND, U_REC],
+	);
+
+	// ── Correct-then-confirm (privacy F-1 fixture (b)): a later confirm
+	// must not replace the true corrector in corrected_by/at.
+	R.correctThenConfirm = await seedRecording('complete');
+	await seedSegment(R.correctThenConfirm, { text: 'Fixed, then confirmed.', start: 0, end: 5000, speaker: 0 });
+	await seedMapping(R.correctThenConfirm, 0, U_CAND, 'candidate', 'corrected');
+	await seedPool.query(
+		`INSERT INTO transcript_speaker_audit
+		   (recording_id, speaker_number, from_user_id, to_user_id, actor_user_id, action, created_at)
+		 VALUES ($1, 0, $2, $3, $4, 'correct', '2026-10-20 15:04:05+00'),
+		        ($1, 0, NULL, $3, $5, 'confirm', '2026-10-21 09:00:00+00')`,
+		[R.correctThenConfirm, U_REC, U_CAND, U_REC, U_PANEL],
+	);
 
 	// ── Purged tombstone on a post-feature recording ────────────────────
 	R.purged = await seedRecording('complete');
@@ -434,11 +454,21 @@ describeIfDb('#1911 S-D09 transcript composition (realdb journey)', () => {
 		expect(d.corrected_at).toBeNull();
 	});
 
-	test('mapping_state aggregation: all-confirmed mappings read "confirmed"', async () => {
+	test('mapping_state aggregation: all-confirmed mappings read "confirmed"; a confirm audit row never surfaces as corrector (privacy F-1a)', async () => {
 		const res = await getTranscript(R.confirmed, recToken());
 		expect(res.status).toBe(200);
 		expect(res.body.transcript.diarization.mapping_state).toBe('confirmed');
 		expect(res.body.transcript.diarization.corrected_by).toBeNull();
+		expect(res.body.transcript.diarization.corrected_at).toBeNull();
+	});
+
+	test('privacy F-1b: a later confirm does not replace the true corrector in corrected_by/at', async () => {
+		const res = await getTranscript(R.correctThenConfirm, recToken());
+		expect(res.status).toBe(200);
+		const d = res.body.transcript.diarization;
+		expect(d.mapping_state).toBe('corrected');
+		expect(d.corrected_by).toBe('Rec 1911');
+		expect(new Date(d.corrected_at).toISOString()).toBe('2026-10-20T15:04:05.000Z');
 	});
 
 	test('purged tombstone on a post-feature recording still renders as absence', async () => {
@@ -460,6 +490,11 @@ describeIfDb('#1911 S-D09 transcript composition (realdb journey)', () => {
 		expect(t.diarization.status).toBe('complete');
 		for (const seg of t.segments) {
 			expect(seg.highlights).toBeUndefined();
+			// Privacy F-5: the candidate's segment key-set is pinned too —
+			// exactly the legacy keys + the two composition additions.
+			expect(Object.keys(seg).sort()).toEqual(
+				[...LEGACY_SEGMENT_KEYS, 'diarization_covered', 'speaker_number'].sort(),
+			);
 		}
 
 		const denied = await getTranscript(R.oneToOne, outToken());
