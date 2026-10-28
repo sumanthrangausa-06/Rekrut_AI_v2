@@ -116,7 +116,23 @@ describeIfDb('transcriptStitch.persistStitch (real DB — S-D07)', () => {
 		expect(run.rows[0].model_version).toBe(ENGINE.modelVersion);
 		expect(run.rows[0].speaker_count).toBe(2);
 		expect(Number(run.rows[0].coverage_end_ms)).toBe(30000);
-		expect(run.rows[0].proposed_mapping).toBeNull(); // mapping is S-D08
+		// S-D08 (#1910) supersedes the S-D07 placeholder: this seed's
+		// turns are speaker 1 = 17s (56.7%) vs speaker 0 = 13s (43.3%)
+		// — a 13.3-point gap, so speaker 1 proposes as candidate and
+		// speaker 0 as lead interviewer (§3.7), assignments only.
+		expect(run.rows[0].proposed_mapping).toEqual({
+			'0': { participant_user_id: recruiterId, participant_role: 'interviewer' },
+			'1': { participant_user_id: candidateId, participant_role: 'candidate' },
+		});
+		const mappings = await pool.query(
+			`SELECT speaker_number, participant_user_id, participant_role, state
+			 FROM recording_speaker_mappings WHERE recording_id = $1 ORDER BY speaker_number`,
+			[recordingId],
+		);
+		expect(mappings.rows).toEqual([
+			{ speaker_number: 0, participant_user_id: recruiterId, participant_role: 'interviewer', state: 'proposed' },
+			{ speaker_number: 1, participant_user_id: candidateId, participant_role: 'candidate', state: 'proposed' },
+		]);
 
 		const rec = await pool.query(`SELECT diarization_status FROM interview_recordings WHERE id = $1`, [recordingId]);
 		expect(rec.rows[0].diarization_status).toBe('complete');
