@@ -11,7 +11,7 @@ recorded explicitly below, under S-D14).
 | S-D02 | #1904 | Yes | Merged; see build log | `s-d02-build-log.md` |
 | S-D03 | #1905 | Yes | Merged; see build log | `s-d03-build-log.md` |
 | S-D05 | #1907 | Yes | Merged; see build log | `s-d05-build-log.md` |
-| S-D07 | #1909 | Yes | Merged; see build log | `s-d07-build-log.md` (in `04-implementation/`) |
+| S-D07 | #1909 | Yes | Merged; see build log | `../s-d07-build-log.md` (directly in `04-implementation/`, not this subfolder) |
 | S-D08 | #1910 | Yes | Merged; see build log | `s-d08-build-log.md` |
 | S-D09 | #1911 | Yes — code reviewer + privacy specialist | APPROVE-WITH-MINORS, then privacy **BLOCK F-1** (corrected-by read was action-blind); fixed in-story with the specialist's prescribed fixtures; minors F3/F4c/F5a fixed, F2 accepted for v1 | `s-d09-build-log.md` |
 | S-D10 | #1912 | Yes — code reviewer + security/privacy lenses | **BLOCK**: corrector gate derived from the wider company-scoped view access; fixed in-story (corrector set derived explicitly per §5.2) | `s-d10-build-log.md` |
@@ -79,7 +79,10 @@ Full record: PR #1942 "Specialist Reviews" + `s-d14-build-log.md`.
    is the §5.1-specified panel, consciously accepted in the S-D09
    privacy review (F-3). Per-speaker quantities remain banned.
 
-**Fence verdict:** the fence holds on the shipped tree and is proven
-to bite in both directions and on the API surface. Any future surface
+**Fence verdict (final, after re-review): APPROVE — the reviewer's
+BLOCK is cleared and the fix re-verified.** The fence holds on the
+shipped tree and is proven to bite in both directions, in every
+shipped source tree (including `services/` and `client/`), against
+backtick-quoted imports, and on the API surface. Any future surface
 that wants a diarization-derived number must come back through a new
 PRD decision (FR-D21 stays deferred).

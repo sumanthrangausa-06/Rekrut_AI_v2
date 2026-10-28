@@ -133,6 +133,24 @@ stronger guarantee), both original bite-proofs reproduced exactly,
 sets D and transcription.js exclusion correct, no false positives on
 the shipped tree.
 
+**Re-review of the fix commit (same reviewer): verdict APPROVE** —
+the BLOCK is cleared. F-1/F-3, F-2, F-4, F-5 all verified CLOSED with
+independently re-run evidence (fence 5/5, shape 4/4, all five bites
+reproduced including a fresh F-2 bite in a routes file; the reviewer
+also mutation-checked the tightened numeric anchor and the `total`
+pattern). Two documentation minors remained: (M-1) the checklist's
+S-D07 row now gives the exact relative path `../s-d07-build-log.md`
+(it sits directly in `04-implementation/`, unlike the other rows);
+(M-2) an `_superml` architecture-path sub-point — checked by grep:
+neither the fence file, the shape test, the checklist, nor this log
+cites `_superml` (the header cites "Architecture §6.2" without a path,
+and `03-solutioning/speaker-labelled-transcripts/architecture.md`
+exists as cited elsewhere), so no change was needed there. The
+reviewer also repeated the F-6 observation that the checklist's
+per-story verdicts for earlier stories rest on their build logs —
+accurate as filed: the table deliberately summarises and points at
+each story's own log rather than restating verdicts.
+
 ## Deviations from STOP 1
 
 One scoping correction inside the AC-1 test itself, made during the
