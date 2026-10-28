@@ -86,6 +86,15 @@ describe('speakerMapping.computeProposal (S-D08)', () => {
 		expect(proposedMapping['2']).toBeUndefined();
 	});
 
+	it('N-1 (PR #1935 re-review): an exactly-100ms turn at a non-zero offset IS assignable (ms arithmetic)', () => {
+		// 0.2 → 0.3 is exactly 100ms, but 0.09999999999999998 in float
+		// seconds; stitch (ms integers) treats it as assignable, so
+		// the mapping speaker set must too.
+		const turns = [turn(0, 0.2, 0.3), turn(1, 0.3, 5.3)];
+		const { rows } = computeProposal({ turns, participants: [CAND, LEAD] });
+		expect(rows.map((r) => r.speaker_number)).toEqual([0, 1]);
+	});
+
 	it('B-2 probe: all-zero-duration turns → no assignable speakers, no name proposed on zero evidence', () => {
 		const turns = [turn(0, 5, 5), turn(1, 9, 9), turn(2, 12, 12)];
 		const { rows } = computeProposal({ turns, participants: [CAND, LEAD, PANEL] });

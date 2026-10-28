@@ -26,7 +26,7 @@ The first Nova lane dispatched for this story filed a genuine STOP 1 (issue comm
 
 ## Follow-ups noted for Lead
 
-- Phantom sub-100 ms turns (#1929 M4): the stitch never *labels* from them, but a mapping row is still created for a phantom speaker number (it ranks last by share; it can pair only if participants remain after every real speaker). Whether mapping rows should follow the assignable-turn floor is a small design call for Rex/Lead — not silently decided here. **→ Answered by the correction below: YES, it follows the floor (fix PR, #1933).**
+- Phantom sub-100 ms turns (#1929 M4): the stitch never *labels* from them, but a mapping row is still created for a phantom speaker number (it ranks last by share; it can pair only if participants remain after every real speaker). Whether mapping rows should follow the assignable-turn floor is a small design call for Rex/Lead — not silently decided here. **→ Answered by the correction below: YES, it follows the floor (fix PR #1935, closing this issue #1933).**
 
 ## Correction — PR #1932 review BLOCK, fixed same-day (2026-10-28)
 
