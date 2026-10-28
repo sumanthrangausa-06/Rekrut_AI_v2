@@ -5,11 +5,13 @@
  * migrated DB), state read back from the DB. Proves the layer unit
  * tests cannot: AC-1 verbatim run retention, AC-4 generation guard
  * against a real re-transcription shape, and AC-5 atomicity — a fault
- * injected at the LAST write of the stitch transaction (a fractional
- * speaker number the INTEGER column rejects, after the run insert)
- * must leave zero artefacts: no run row, no labels, recording still
- * 'processing', job still 'processing'. That is the kill-mid-stitch
- * state: an uncommitted transaction can never present as final.
+ * injected mid-transaction (a fractional speaker in the engine
+ * output, thrown by the stitch AFTER the run insert and AFTER the
+ * first segment's UPDATE has already succeeded) must leave zero
+ * artefacts: the already-applied segment update rolled back too, no
+ * run row, recording still 'processing', job still 'processing'.
+ * That is the kill-mid-stitch state: an uncommitted transaction can
+ * never present as final.
  *
  * Gated behind STITCH_INTEGRATION_DB_URL (house integration pattern).
  *   DATABASE_URL=postgresql://postgres@127.0.0.1:55433/sd07_e2e \
@@ -191,20 +193,30 @@ describeIfDb('transcriptStitch.persistStitch (real DB — S-D07)', () => {
 
 	it('AC-5: fault at the last write rolls back EVERYTHING (kill-mid-stitch state)', async () => {
 		const { recordingId, segmentIds, jobId } = await seedRecording([
-			[0, 10000, 'will stay unlabelled'],
+			[0, 10000, 'first segment — its update lands, then must roll back'],
+			[10000, 20000, 'second segment — carries the fault'],
 		]);
-		// A fractional speaker passes the JSONB run insert, then the
-		// INTEGER segment update rejects it — failure AFTER the run
-		// insert, inside the same transaction.
+		// The run insert (JSONB) succeeds; the FIRST segment's UPDATE
+		// succeeds; then the fractional speaker on the second segment
+		// makes the stitch throw (corrupt output is never rounded into
+		// an invented label) — failure mid-transaction, after real
+		// writes. EVERYTHING must roll back, applied updates included.
 		await expect(stitch.persistStitch({
 			jobId, recordingId, expectedSegmentIds: segmentIds,
-			output: { speakerCount: 1, turns: [{ speaker: 1.5, start_s: 0, end_s: 10 }], engine: ENGINE },
+			output: {
+				speakerCount: 2,
+				turns: [
+					{ speaker: 0, start_s: 0, end_s: 10 },
+					{ speaker: 1.5, start_s: 10, end_s: 20 },
+				],
+				engine: ENGINE,
+			},
 		})).rejects.toThrow();
 
 		const runs = await pool.query(`SELECT id FROM diarization_runs WHERE recording_id = $1`, [recordingId]);
 		expect(runs.rows).toHaveLength(0); // run insert rolled back too
 		const segs = await segmentsOf(recordingId);
-		expect(segs[0].speaker_number).toBeNull();
+		expect(segs.map((x) => x.speaker_number)).toEqual([null, null]); // first segment's applied update rolled back
 		const rec = await pool.query(`SELECT diarization_status FROM interview_recordings WHERE id = $1`, [recordingId]);
 		expect(rec.rows[0].diarization_status).toBe('processing'); // readable, honest, not final
 		const job = await pool.query(`SELECT status FROM diarization_jobs WHERE id = $1`, [jobId]);
@@ -220,5 +232,9 @@ describeIfDb('transcriptStitch.persistStitch (real DB — S-D07)', () => {
 		expect(second.outcome).toBe('superseded');
 		const runs = await pool.query(`SELECT id FROM diarization_runs WHERE recording_id = $1`, [recordingId]);
 		expect(runs.rows).toHaveLength(1);
+		// Reviewer MINOR-2 (#1930): the superseded path attempts a
+		// guarded cancel — assert it can never un-complete the job.
+		const job = await pool.query(`SELECT status FROM diarization_jobs WHERE id = $1`, [jobId]);
+		expect(job.rows[0].status).toBe('complete');
 	});
 });
