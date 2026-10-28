@@ -18,9 +18,17 @@
 ## Evidence (fresh-install local rig, HL-003)
 
 - Rig: PG 16.15 + pgvector 0.8.7 on 127.0.0.1:55433 (rebuilt per HL-009 from PGDG .debs); fresh DB `sd10_fresh`, `node migrate.js` exit 0.
-- Journey suite (Quinn + Recruiter lens, JT-D3) — `server/__tests__/routes/recordings-speaker-mapping-1912.integration.test.js`, real router + real DB + supertest, state read back from the DB: **9/9 pass** (red-first: 9/9 failed before the build). Covers AC-1…AC-6, the swap journey for recruiter *and* candidate readers, audit rows, the untouched proposal, the first-correction metric, no-partial-write rejections, 409, idempotent re-PUT, and unassign.
+- Journey suite (Quinn + Recruiter lens, JT-D3) — `server/__tests__/routes/recordings-speaker-mapping-1912.integration.test.js`, real router + real DB + supertest, state read back from the DB: **11/11 pass** (red-first: 9/9 failed before the build; the two review-driven tests below also failed/passed as noted). Covers AC-1…AC-6, the swap journey for recruiter *and* candidate readers, audit rows, the untouched proposal, the first-correction metric, no-partial-write rejections (including a single-speaker PUT colliding with an untouched speaker), 409, idempotent re-PUT, and unassign.
 - Client editor suite — `client/src/__tests__/pages/RecordingPlaybackSpeakerEditor1912.test.tsx`: **4/4 pass** (labelled selects pre-filled, sample turns, exact PUT body on swap+save, server rejection surfaced, non-recruiter read-only with no editor fetch).
-- Regressions on the same fresh DB: S-D09 transcript composition **14/14**, speakerMapping unit + integration and transcriptStitch integration green (61 tests across the diarization set, 0 failures); S-D09 client suite **10/10**.
+- Regressions on the same fresh DB: S-D09 transcript composition **14/14**, recordings-router suites **52/52**, speakerMapping unit + integration and transcriptStitch integration green; S-D09 client suite **10/10**.
+
+## Review history — independent review BLOCK-1 and its fix
+
+The independent reviewer (code-reviewer + security/privacy lenses) **BLOCKED** the first PR revision: the corrector gate was derived as `canAccess && !isCandidate`, but `canAccessRecording` is *company-scoped* — any same-company recruiter may view — so the gate admitted recruiters who are neither of record, panel, nor admin, on both the event and session branches. §5.2's set is narrower than the view set; the derivation was the defect. The original fixtures could not see it (the panel fixture shared the owner's company; the "unrelated" user was candidate-role).
+
+Fix (same PR): `correctorAccess` now derives the set explicitly — `event.recruiter_id === user.id`, `panel_member_ids ∋ user.id`, or `role === 'admin'`; a session-linked recording (no event) admits admins only. Fixtures rebuilt to pin the boundary: panel moved to a different company (panel access via membership alone), a same-company peer recruiter and an other-company recruiter added as 403 cases, a session-linked recording fixture added (peer + recruiter of the company refused; admin admitted, empty participant list), a duration-vs-word-count discriminator pinning the §5.2 sample-turn rule ("longest" = duration), and the duplicate-across-unlisted-speaker test. The BLOCK-1 regression test failed against the old gate and passes against the fix; the full recordings set (77 tests) is green on the fresh DB. Delta re-review followed the fix.
+
+One deliberate equivalence, recorded: §5.3 says validate `speaker_number` against "the recording's latest completed run"; the build validates against the live mapping rows, which the stitch creates one-per-run-speaker — equivalent in the stitch flow (review NOTE-1).
 
 ## Specialist reviews
 

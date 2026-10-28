@@ -29,7 +29,10 @@ const U_CAND = 191202;
 const U_PANEL = 191203;
 const U_OUT = 191204;
 const U_ADMIN = 191205;
+const U_PEER = 191206;
+const U_OTHER = 191207;
 const C_ID = 19121;
+const C2_ID = 19122;
 
 let app;
 let request;
@@ -46,6 +49,8 @@ const candToken = () => tokenFor(U_CAND, 'cand1912@test.local', 'candidate');
 const panelToken = () => tokenFor(U_PANEL, 'panel1912@test.local', 'recruiter');
 const outToken = () => tokenFor(U_OUT, 'out1912@test.local', 'candidate');
 const adminToken = () => tokenFor(U_ADMIN, 'admin1912@test.local', 'admin');
+const peerToken = () => tokenFor(U_PEER, 'peer1912@test.local', 'recruiter');
+const otherToken = () => tokenFor(U_OTHER, 'other1912@test.local', 'recruiter');
 
 async function seedRecording(diarizationStatus) {
 	const q = (sql, params) => seedPool.query(sql, params);
@@ -103,9 +108,10 @@ async function seedRun(recordingId, proposedMapping) {
 
 async function cleanAndSeed() {
 	const q = (sql, params) => seedPool.query(sql, params);
-	const userIds = [U_REC, U_CAND, U_PANEL, U_OUT, U_ADMIN];
+	const userIds = [U_REC, U_CAND, U_PANEL, U_OUT, U_ADMIN, U_PEER, U_OTHER];
 	const eventScope = `SELECT id FROM interview_events WHERE recruiter_id = $1 OR candidate_id = $2`;
-	const recScope = `SELECT id FROM interview_recordings WHERE interview_event_id IN (${eventScope})`;
+	const recScope = `SELECT id FROM interview_recordings WHERE interview_event_id IN (${eventScope})
+		OR interview_session_id IN (SELECT id FROM interview_sessions WHERE candidate_id = $2)`;
 	for (const table of [
 		'interview_transcripts',
 		'recording_speaker_mappings',
@@ -115,10 +121,11 @@ async function cleanAndSeed() {
 	]) {
 		await q(`DELETE FROM ${table} WHERE recording_id IN (${recScope})`, [U_REC, U_CAND]);
 	}
-	await q(`DELETE FROM interview_recordings WHERE interview_event_id IN (${eventScope})`, [
-		U_REC,
-		U_CAND,
-	]);
+	await q(`DELETE FROM interview_recordings WHERE id IN (${recScope})`, [U_REC, U_CAND]);
+	await q(
+		`DELETE FROM interview_sessions WHERE candidate_id = $1 OR company_id = ANY($2::int[])`,
+		[U_CAND, [C_ID, C2_ID]],
+	);
 	await q(`DELETE FROM interview_rooms WHERE interview_event_id IN (${eventScope})`, [
 		U_REC,
 		U_CAND,
@@ -128,16 +135,26 @@ async function cleanAndSeed() {
 		U_CAND,
 	]);
 	await q(`DELETE FROM users WHERE id = ANY($1::int[])`, [userIds]);
-	await q(`DELETE FROM companies WHERE id = $1`, [C_ID]);
-	await q(`INSERT INTO companies (id, name) VALUES ($1, 'S-D10 Co')`, [C_ID]);
+	await q(`DELETE FROM companies WHERE id = ANY($1::int[])`, [[C_ID, C2_ID]]);
+	await q(`INSERT INTO companies (id, name) VALUES ($1, 'S-D10 Co'), ($2, 'S-D10 Other Co')`, [
+		C_ID,
+		C2_ID,
+	]);
+	// Panel sits in a DIFFERENT company on purpose: panel access must
+	// come from panel_member_ids alone, never from a company match —
+	// and U_PEER (same company as the recruiter of record, not panel,
+	// not of record) must NOT pass the corrector gate (§5.2; PR #1937
+	// review BLOCK-1).
 	await q(
 		`INSERT INTO users (id, email, name, role, company_id) VALUES
-		   ($1, 'rec1912@test.local', 'Rec 1912', 'recruiter', $6),
+		   ($1, 'rec1912@test.local', 'Rec 1912', 'recruiter', $8),
 		   ($2, 'cand1912@test.local', 'Cand 1912', 'candidate', NULL),
-		   ($3, 'panel1912@test.local', 'Panel 1912', 'recruiter', $6),
+		   ($3, 'panel1912@test.local', 'Panel 1912', 'recruiter', $9),
 		   ($4, 'out1912@test.local', 'Out 1912', 'candidate', NULL),
-		   ($5, 'admin1912@test.local', 'Admin 1912', 'admin', NULL)`,
-		[U_REC, U_CAND, U_PANEL, U_OUT, U_ADMIN, C_ID],
+		   ($5, 'admin1912@test.local', 'Admin 1912', 'admin', NULL),
+		   ($6, 'peer1912@test.local', 'Peer 1912', 'recruiter', $8),
+		   ($7, 'other1912@test.local', 'Other 1912', 'recruiter', $9)`,
+		[U_REC, U_CAND, U_PANEL, U_OUT, U_ADMIN, U_PEER, U_OTHER, C_ID, C2_ID],
 	);
 
 	// ── Swapped proposal (JT-D3): the machine named speaker 0 the
@@ -180,6 +197,15 @@ async function cleanAndSeed() {
 	R.unassigned = await seedRecording('complete');
 	await seedSegment(R.unassigned, { text: 'Voice one speaks first.', start: 0, end: 5000, speaker: 0 });
 	await seedSegment(R.unassigned, { text: 'Voice two answers.', start: 5000, end: 10000, speaker: 1 });
+	// Duration-vs-text discriminator for the sample-turn rule (§5.2
+	// "longest" = longest segment by duration): this segment has far
+	// more words but a much shorter duration than speaker 0's first.
+	await seedSegment(R.unassigned, {
+		text: 'A very much longer piece of sample text that runs on and on and on.',
+		start: 10000,
+		end: 11000,
+		speaker: 0,
+	});
 	await seedMapping(R.unassigned, 0, null, null);
 	await seedMapping(R.unassigned, 1, null, null);
 	await seedRun(R.unassigned, { '0': null, '1': null });
@@ -188,6 +214,28 @@ async function cleanAndSeed() {
 	R.processing = await seedRecording('processing');
 	await seedSegment(R.processing, { text: 'Still labelling.', start: 0, end: 3000 });
 	await seedMapping(R.processing, 0, U_CAND, 'candidate');
+
+	// ── Session-linked (AI interview; no interview_event) ──────────────
+	// canAccessRecording trusts the session for ACCESS (candidate +
+	// same-company recruiters), but §5.2's corrector set is defined by
+	// the event's record — a session recording has no recruiter/panel
+	// of record, so only an admin corrects (BLOCK-1 fixture).
+	const sess = await seedPool.query(
+		`INSERT INTO interview_sessions (candidate_id, company_id, status)
+		 VALUES ($1, $2, 'completed') RETURNING id`,
+		[U_CAND, C_ID],
+	);
+	const sessRec = await seedPool.query(
+		`INSERT INTO interview_recordings
+		   (interview_session_id, status, duration_seconds, storage_path, diarization_status)
+		 VALUES ($1, 'completed', 3600, 'stub', 'complete') RETURNING id`,
+		[sess.rows[0].id],
+	);
+	R.session = sessRec.rows[0].id;
+	await seedSegment(R.session, { text: 'Session voice one.', start: 0, end: 5000, speaker: 0 });
+	await seedSegment(R.session, { text: 'Session voice two.', start: 5000, end: 10000, speaker: 1 });
+	await seedMapping(R.session, 0, null, null);
+	await seedMapping(R.session, 1, null, null);
 }
 
 async function getSpeakers(recordingId, token) {
@@ -305,6 +353,27 @@ describeIfDb('#1912 S-D10 mapping editor + correction endpoints (realdb journey)
 		expect((await getSpeakers(R.swapped, adminToken())).status).toBe(200);
 		// The candidate's 403 write attempt wrote nothing.
 		expect(await auditRows(R.swapped)).toHaveLength(0);
+	});
+
+	test('AC-1 (BLOCK-1 regression): a same-company peer recruiter is NOT a corrector — §5.2 names the recruiter of record, the panel, or an admin', async () => {
+		// U_PEER shares the recruiter of record's company, so
+		// canAccessRecording admits them as a viewer — but viewing is
+		// not correcting. Neither is an other-company recruiter.
+		expect((await getSpeakers(R.swapped, peerToken())).status).toBe(403);
+		expect(
+			(await putMapping(R.swapped, peerToken(), [{ speaker_number: 0, participant_user_id: U_REC }])).status,
+		).toBe(403);
+		expect((await getSpeakers(R.swapped, otherToken())).status).toBe(403);
+		expect(await auditRows(R.swapped)).toHaveLength(0);
+
+		// Session-linked recording: no recruiter/panel of record exists,
+		// so the same-company peer is refused and only an admin corrects.
+		expect((await getSpeakers(R.session, peerToken())).status).toBe(403);
+		expect((await getSpeakers(R.session, recToken())).status).toBe(403);
+		expect((await getSpeakers(R.session, candToken())).status).toBe(403);
+		const adminView = await getSpeakers(R.session, adminToken());
+		expect(adminView.status).toBe(200);
+		expect(adminView.body.participants).toEqual([]);
 	});
 
 	test('AC-2/AC-3 (JT-D3): recruiter swaps the swapped mapping — every viewer sees corrected names, audit holds one row per speaker, proposal untouched, first-correction metric moves', async () => {
@@ -448,6 +517,15 @@ describeIfDb('#1912 S-D10 mapping editor + correction endpoints (realdb journey)
 	});
 
 	test('AC-6: manual assignment from the editor names an all-unassigned recording, same audit trail', async () => {
+		// Sample-turn rule pinned first (§5.2 "longest" = duration):
+		// speaker 0's sample is the 5 s segment, not the wordier 1 s one.
+		const editor = await getSpeakers(R.unassigned, recToken());
+		expect(editor.status).toBe(200);
+		expect(editor.body.speakers[0].sample_turn).toEqual({
+			text: 'Voice one speaks first.',
+			start_time_ms: 0,
+		});
+
 		const res = await putMapping(R.unassigned, panelToken(), [
 			{ speaker_number: 0, participant_user_id: U_REC },
 			{ speaker_number: 1, participant_user_id: U_CAND },
@@ -459,6 +537,7 @@ describeIfDb('#1912 S-D10 mapping editor + correction endpoints (realdb journey)
 		expect(view.body.transcript.segments.map((s) => s.speaker_identity)).toEqual([
 			'Interviewer — Rec 1912',
 			'Candidate — Cand 1912',
+			'Interviewer — Rec 1912',
 		]);
 		expect(await auditRows(R.unassigned)).toEqual([
 			{ speaker_number: 0, from_user_id: null, to_user_id: U_REC, actor_user_id: U_PANEL, action: 'correct' },
@@ -485,8 +564,21 @@ describeIfDb('#1912 S-D10 mapping editor + correction endpoints (realdb journey)
 		expect(view.body.transcript.segments.map((s) => s.speaker_identity)).toEqual([
 			'Interviewer — Rec 1912',
 			'Speaker 2',
+			'Interviewer — Rec 1912',
 		]);
 		// An unassign is a correction for the header line (S-D09 semantics).
 		expect(view.body.transcript.diarization.corrected_by).toBe('Rec 1912');
+	});
+
+	test('AC-5: a single-speaker PUT that collides with an untouched speaker\u2019s assignment is rejected, nothing written', async () => {
+		// R.swapped currently maps speaker 0 → Rec, speaker 1 → Cand.
+		// Assigning Cand to speaker 0 alone would put Cand on both.
+		const before = await mappingRows(R.swapped);
+		const res = await putMapping(R.swapped, recToken(), [
+			{ speaker_number: 0, participant_user_id: U_CAND },
+		]);
+		expect(res.status).toBe(400);
+		expect(await mappingRows(R.swapped)).toEqual(before);
+		expect(await auditRows(R.swapped)).toHaveLength(2);
 	});
 });

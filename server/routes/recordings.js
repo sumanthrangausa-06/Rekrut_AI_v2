@@ -1038,15 +1038,23 @@ const { participantsFromEvent } = require('../../lib/speakerMapping');
 
 /**
  * Corrector gate (§5.2): the recruiter of record, a panel interviewer of
- * record, or an admin. canAccessRecording's event path admits exactly
- * owner/candidate/panel/admin, so corrector ≡ canAccess ∧ ¬candidate.
- * Candidates never correct — their route is "raise it with the hiring
- * team" (PRD §7). Returns null when the caller may not correct.
+ * record, or an admin — derived EXPLICITLY, never by subtracting the
+ * candidate from canAccessRecording. Access there is company-scoped
+ * (any same-company recruiter may VIEW), which is wider than §5.2's
+ * corrector set on both branches (PR #1937 review BLOCK-1): viewing is
+ * not correcting. A session-linked recording has no event, hence no
+ * recruiter/panel of record — only an admin corrects it. Candidates
+ * never correct — their route is "raise it with the hiring team"
+ * (PRD §7). Returns null when the caller may not correct.
  */
 async function correctorAccess(recordingId, user) {
 	const access = await canAccessRecording(recordingId, user);
 	if (!access.canAccess || access.isCandidate) return null;
-	return access;
+	if (user.role === 'admin') return access;
+	if (!access.event) return null;
+	const isOfRecord = access.event.recruiter_id === user.id;
+	const isPanel = (access.event.panel_member_ids || []).includes(user.id);
+	return isOfRecord || isPanel ? access : null;
 }
 
 /**
