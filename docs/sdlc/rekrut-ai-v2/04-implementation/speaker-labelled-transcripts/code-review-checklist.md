@@ -22,9 +22,18 @@ recorded explicitly below, under S-D14).
 ## FENCE REVIEW — S-D14 (#1916), PRD FR-D14 / Lex BR-12 / Architecture §6.2
 
 **Reviewer:** independent reviewer subagent (ecc/code-reviewer with
-ecc/pr-test-analyzer lens), dispatched by Nova on the PR diff; verdict
-and findings are recorded in the PR's "Specialist Reviews" section and
-in `s-d14-build-log.md`.
+ecc/pr-test-analyzer lens), dispatched by Nova on the PR diff.
+**First verdict: BLOCK** — the dependency scan's roots omitted
+`services/` (home of `services/omniscore.js`, the OmniScore
+computation service) and `client/`, and the specifier regex missed
+backtick-quoted requires; plus three further minors (numeric-exemption
+anchoring, `total` in the forbidden-key pattern, citation accuracy).
+**All findings fixed in the same PR** (scan roots now cover every
+shipped source tree; set S extended to the services + client scoring
+surfaces; backtick specifiers scanned; new bite-proofs for the closed
+holes — see `s-d14-build-log.md`), and the fence re-verified green on
+the shipped tree with the reviewer re-checking the fix before merge.
+Full record: PR #1942 "Specialist Reviews" + `s-d14-build-log.md`.
 
 **Scope reviewed — the three enforcement ways of §6.2:**
 

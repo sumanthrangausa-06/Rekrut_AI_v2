@@ -81,10 +81,57 @@ Regressions (same runs):
 
 Recorded in the PR body ("Specialist Reviews") and in
 `code-review-checklist.md`. STOP 1 decision: `ecc/architect` consulted
-on the fence design (curated sets + repo-wide allowlist backstop);
-independent review by a reviewer subagent (ecc/code-reviewer with
-ecc/pr-test-analyzer lens) on the PR diff — see the PR for the verdict
-and dispositions.
+on the fence design (curated sets + repo-wide allowlist backstop).
+
+**Independent review of PR #1942 (ecc/code-reviewer + pr-test-analyzer
+lens): verdict BLOCK, one blocker + four minors — all fixed in this PR
+before merge:**
+
+- **F-1 (BLOCKER, fixed):** the repo-wide scan's roots omitted real
+  source trees — `services/` above all, which holds
+  `services/omniscore.js` (the OmniScore computation service) plus
+  trustscore/matching/fitScore modules that were in neither set S nor
+  the scan. Verified first-hand (HL-007): the directory claim is true
+  for `services/` and `middleware/` (the report's `utils/ai.js`,
+  `services/interviewEvaluation.js`, and `client/src/pages/candidate/OmniScore.tsx`
+  paths do not exist on this tree — the real client files are lowercase
+  `omniscore.tsx`/`recruiter-trustscore.tsx`; the substantive hole was
+  real regardless). Fix: scan roots now cover lib, routes, server,
+  services, middleware, shared, agents, workers, scripts, client +
+  root files; set S gains the services scoring modules
+  (`omniscore`, `trustscore`, `trustscore-standalone`,
+  `matching-engine`, `fitScore`, `scoreExplainer`, `interview-ai`)
+  and the client score/match/screening surfaces; the completeness
+  check runs over all module trees with explicit lists for client
+  diarization-presentation surfaces (recording-playback, recordings)
+  and non-scoring name collisions (exit-fullscreen, consent-screens,
+  check-screens). The strengthened completeness check immediately
+  caught one more real surface — `client/src/components/domain/omniscore-ring.tsx`
+  — now in set S. **New bite-proof:** a plain
+  `require("../lib/diarizationJobs")` appended to `services/omniscore.js`
+  now FAILS the fence naming the edge (previously it passed green);
+  reverted uncommitted.
+- **F-2 (minor, fixed):** the specifier regex missed backtick-quoted
+  requires. The character class now includes backticks; bite-proof: a
+  backtick `` require(`../lib/speakerMapping`) `` in
+  `services/omniscore.js` fails naming the edge; reverted uncommitted.
+- **F-3 (minor, fixed by F-1):** client scoring pages are now in set S
+  and inside the scan + completeness roots.
+- **F-4 (minor, fixed):** the AC-2 numeric exemption was an `endsWith`
+  suffix; it is now anchored to the exact path shape
+  `.speakers[<i>].speaker_number`.
+- **F-5 (minor, fixed):** `total` added to the AC-2 forbidden-key
+  pattern (a `total_speaking_ms`-style key would previously have
+  slipped the scan; the exact key-set pins remain the primary defence).
+- **F-6 (minor):** checklist/build-log path citations re-checked
+  against the tree (`routes/admin.js` is the S-D12 stats surface;
+  the proof harness is `scripts/diarization-long-proof.js`).
+
+What the review confirmed sound: AC-2's surfaces and carve-out honesty
+(the diarization block is not value-scanned — it is key-pinned, a
+stronger guarantee), both original bite-proofs reproduced exactly,
+sets D and transcription.js exclusion correct, no false positives on
+the shipped tree.
 
 ## Deviations from STOP 1
 

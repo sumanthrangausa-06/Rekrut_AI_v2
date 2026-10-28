@@ -46,7 +46,7 @@ const U_REC = 191601;
 const U_CAND = 191602;
 const C_ID = 19161;
 
-const FORBIDDEN_KEY = /share|ratio|turn_?count|speaker_?count|percent|speaking|confidence/i;
+const FORBIDDEN_KEY = /share|ratio|turn_?count|speaker_?count|percent|speaking|confidence|total/i;
 
 function collectKeys(value, out = []) {
 	if (Array.isArray(value)) {
@@ -246,9 +246,12 @@ describeIfDb('#1916 S-D14 fence response shape (realdb journey)', () => {
 		const badKeys = collectKeys(t.diarization).filter((k) => FORBIDDEN_KEY.test(k));
 		expect(badKeys).toEqual([]);
 
-		// The only number the diarization block may carry is speaker_number.
+		// The only numbers the diarization block may carry are the
+		// speakers[] entries' speaker_number — anchored to that exact
+		// path shape, not a suffix (PR #1942 review F-4: an endsWith
+		// exemption would also pass e.g. mapping_state.speaker_number).
 		const strayNumbers = collectNumbers(t.diarization).filter(
-			(n) => !n.path.endsWith('.speaker_number'),
+			(n) => !/\.speakers\[\d+\]\.speaker_number$/.test(n.path),
 		);
 		expect(strayNumbers).toEqual([]);
 
