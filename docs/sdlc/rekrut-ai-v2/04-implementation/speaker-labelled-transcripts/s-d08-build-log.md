@@ -26,4 +26,16 @@ The first Nova lane dispatched for this story filed a genuine STOP 1 (issue comm
 
 ## Follow-ups noted for Lead
 
-- Phantom sub-100 ms turns (#1929 M4): the stitch never *labels* from them, but a mapping row is still created for a phantom speaker number (it ranks last by share; it can pair only if participants remain after every real speaker). Whether mapping rows should follow the assignable-turn floor is a small design call for Rex/Lead — not silently decided here.
+- Phantom sub-100 ms turns (#1929 M4): the stitch never *labels* from them, but a mapping row is still created for a phantom speaker number (it ranks last by share; it can pair only if participants remain after every real speaker). Whether mapping rows should follow the assignable-turn floor is a small design call for Rex/Lead — not silently decided here. **→ Answered by the correction below: YES, it follows the floor (fix PR, #1933).**
+
+## Correction — PR #1932 review BLOCK, fixed same-day (2026-10-28)
+
+The independent review of PR #1932 was delivered first as a condensed summary reading "APPROVE, 2 minors" — Suga merged on it. The reviewer's full report was a **BLOCK (narrow, 2 items)**. HL-007's condensed-summary distortion (#1807 class) recurring; the correction is recorded on PR #1932 (comment 6474331600) and #1910 (6474332307). The fix PR (branch `fix/1910-mapping-block-fixes`) implements:
+
+- **B-1:** the speaker set and all shares are built from **assignable turns only** (≥100 ms, `MIN_ASSIGNABLE_TURN_S` mirroring stitch's floor; local constant — a require back into transcriptStitch would be a cycle, and the two must move together). A phantom speaker gains no row and no name. Reviewer's probe re-run: phantom absent, real speakers correctly proposed.
+- **B-2:** guard-trip reading **reconciled by Suga ruling**: Nova STOP 1 ("later pairs still pair") is superseded by Suga STOP 1 reading (a) — a tripped top-two guard voids **all** assignments. Rationale: every lower pairing rests on the same untrustworthy ranking, and the reviewer's zero-evidence probe (all shares 0 → third speaker named) is exactly the fabricated-fact failure FR-D09 forbids. The panel unit case was updated to the reconciled reading.
+- **M-1:** first-speaking order is chronological (`min start_s`), not array/emission order.
+- **M-2:** zero assignable turns + auto-name OFF returns `proposedMapping: null` (the AC-5 skipped signal survives the empty edge).
+- **M-5:** stitch integration AC-5 + idempotency now read back mapping-row counts; new integration cases pin guard-trip-with-panel (all unassigned) and the phantom case (no row) against real Postgres.
+
+Post-fix evidence (fresh runs by Suga): unit **21/21**, speakerMapping integration **8/8**, stitch integration **6/6**, diarization unit regressions **109 passed / 3 skipped**. M-3 (speaker-number range validation) and M-4 (`DIARIZATION_AUTO_NAME` casing fails open — a Rex design call on the HA-2 switch semantics) are filed as a separate follow-up for Lead, not decided here.

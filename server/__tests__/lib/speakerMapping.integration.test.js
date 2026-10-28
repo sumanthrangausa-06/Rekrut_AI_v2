@@ -208,6 +208,41 @@ describeIfDb('speakerMapping via persistStitch (real DB — S-D08)', () => {
 		}
 	});
 
+	it('B-2 (PR #1932 review): guard trip with a panel persists ALL speakers unassigned', async () => {
+		const { recordingId, segmentIds, jobId } = await seedRecording({ panel: true });
+		const turns = [
+			{ speaker: 0, start_s: 0, end_s: 40 },
+			{ speaker: 1, start_s: 40, end_s: 78 },
+			{ speaker: 2, start_s: 78, end_s: 100 },
+		]; // 40 / 38 / 22 — top two within 10 points
+		const result = await stitch.persistStitch({
+			jobId, recordingId, expectedSegmentIds: segmentIds,
+			output: { speakerCount: 3, turns, engine: ENGINE },
+		});
+		expect(result.outcome).toBe('complete');
+		const rows = await mappingsOf(recordingId);
+		expect(rows).toHaveLength(3);
+		expect(rows.every((r) => r.participant_user_id === null && r.participant_role === null)).toBe(true);
+		expect((await runOf(recordingId)).proposed_mapping).toEqual({ '0': null, '1': null, '2': null });
+	});
+
+	it('B-1 (PR #1932 review): a sub-100ms phantom speaker persists NO mapping row', async () => {
+		const { recordingId, segmentIds, jobId } = await seedRecording({ panel: true });
+		const turns = [
+			{ speaker: 0, start_s: 0, end_s: 13 },
+			{ speaker: 1, start_s: 13, end_s: 30 },
+			{ speaker: 2, start_s: 30, end_s: 30.06 }, // 60ms phantom — engine noise, not a voice
+		];
+		const result = await stitch.persistStitch({
+			jobId, recordingId, expectedSegmentIds: segmentIds,
+			output: { speakerCount: 3, turns, engine: ENGINE },
+		});
+		expect(result.outcome).toBe('complete');
+		const rows = await mappingsOf(recordingId);
+		expect(rows.map((r) => r.speaker_number)).toEqual([0, 1]); // no row for the phantom
+		expect((await runOf(recordingId)).proposed_mapping['2']).toBeUndefined();
+	});
+
 	it('AC-6: nothing persisted carries a share, turn-count, or confidence figure (BR-12 fence)', async () => {
 		const { recordingId, segmentIds, jobId } = await seedRecording();
 		const turns = [
