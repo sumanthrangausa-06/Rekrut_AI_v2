@@ -94,13 +94,27 @@ describe('speakerMapping.computeProposal (S-D08)', () => {
 
 	it('M-1: tie-break is chronological first-speaking (min start_s), not array order', () => {
 		// Array lists speaker 1 first, but speaker 2 speaks earlier;
-		// shares 50 / 25 / 25 — the tied pair must rank by who spoke first.
+		// shares 50 / 25 / 25 — the tied pair must rank by who spoke
+		// first for the lead-interviewer slot.
 		const turns = [turn(1, 75, 100), turn(0, 0, 50), turn(2, 50, 75)];
 		const { rows } = computeProposal({ turns, participants: [CAND, LEAD, PANEL] });
 		const m = bySpeaker(rows);
 		expect(m[0].participant_user_id).toBe(11);
 		expect(m[2].participant_user_id).toBe(22); // spoke at 50s — ranks ahead of speaker 1 (75s)
-		expect(m[1].participant_user_id).toBe(33);
+		expect(m[1].participant_user_id).toBeNull(); // panel slot: never auto-proposed (privacy (c) cap)
+	});
+
+	it('privacy (c) cap: panel members are never auto-proposed, even with an exact speaker/participant count', () => {
+		// §3.7 rule 2's assign-in-order would pair speaker 2 → panel;
+		// no meeting fact distinguishes panel members, so the cap
+		// leaves the panel speaker unassigned for manual mapping.
+		const turns = [turn(0, 0, 60), turn(1, 60, 90), turn(2, 90, 100)]; // 60 / 30 / 10, clear top
+		const { rows } = computeProposal({ turns, participants: [CAND, LEAD, PANEL] });
+		const m = bySpeaker(rows);
+		expect(m[0].participant_user_id).toBe(11);
+		expect(m[1].participant_user_id).toBe(22);
+		expect(m[2].participant_user_id).toBeNull();
+		expect(m[2].participant_role).toBeNull();
 	});
 
 	it('M-2: zero turns with auto-name OFF → proposedMapping is null (skipped signal preserved)', () => {
