@@ -56,18 +56,21 @@ describe('diarizationJobs', () => {
 			const query = db.query.mock.calls[0][0];
 			expect(query).toContain('FOR UPDATE SKIP LOCKED');
 			expect(query).toContain('attempt_count = attempt_count + 1');
-			expect(db.query.mock.calls[0][1]).toEqual(['worker-1']);
+			// A re-claimed retry starts clean: stale error state is cleared
+			expect(query).toContain('error_class = NULL, error_message = NULL');
+			expect(db.query.mock.calls[0][1]).toEqual(['worker-1', 3]);
 			expect(job.status).toBe('claimed');
 			expect(job.attempt_count).toBe(1);
 		});
 
-		it('also claims retryable failed jobs (attempt_count < 3) but not exhausted ones', async () => {
+		it('also claims retryable failed jobs (attempt_count < MAX_ATTEMPTS) but not exhausted ones', async () => {
 			db.query.mockResolvedValueOnce({ rows: [] });
 
 			await diarizationJobs.claim('worker-1');
 
 			const query = db.query.mock.calls[0][0];
-			expect(query).toMatch(/status = 'failed' AND attempt_count < 3/);
+			expect(query).toMatch(/status = 'failed' AND attempt_count < \$2/);
+			expect(db.query.mock.calls[0][1]).toEqual(['worker-1', 3]);
 		});
 
 		it('returns null when no claimable jobs', async () => {

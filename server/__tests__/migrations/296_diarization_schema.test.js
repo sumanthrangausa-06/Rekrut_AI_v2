@@ -88,6 +88,18 @@ describe('296_diarization_schema migration — static contract (#1905)', () => {
 		expect(src).not.toMatch(/REAL\[\]|FLOAT\[\]/i);
 	});
 
+	it('audit actor FK is SET NULL (DB-review BLOCK fix: CASCADE would destroy the append-only trail)', () => {
+		expect(src).toContain(
+			'actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL',
+		);
+		expect(src).not.toMatch(/actor_user_id[^,]*ON DELETE CASCADE/);
+	});
+
+	it('CHECK guard is scoped by contype and table (migration 257 lesson)', () => {
+		expect(src).toContain("contype = 'c'");
+		expect(src).toContain("conrelid = 'interview_recordings'::regclass");
+	});
+
 	it('metrics table carries no recording or user linkage (HA-3 counts only)', () => {
 		const start = src.indexOf('CREATE TABLE IF NOT EXISTS diarization_metrics_daily');
 		const end = src.indexOf(')', src.indexOf('corrected_count', start));
@@ -201,6 +213,17 @@ describeIfDb('296_diarization_schema — real DB (AC-1/AC-4, #1905)', () => {
 		).rejects.toThrow(/chk_interview_recordings_diarization_status/);
 		await pool.query(
 			"UPDATE interview_recordings SET diarization_status = 'pending' WHERE id = 1",
+		);
+		// Audit actor is nullable + SET NULL: an audit row survives its
+		// actor (DB-review BLOCK fix on #1905)
+		const actor = await pool.query(
+			`SELECT is_nullable FROM information_schema.columns
+			 WHERE table_name = 'transcript_speaker_audit' AND column_name = 'actor_user_id'`,
+		);
+		expect(actor.rows).toEqual([{ is_nullable: 'YES' }]);
+		await pool.query(
+			`INSERT INTO transcript_speaker_audit (recording_id, speaker_number, actor_user_id, action)
+			 VALUES (1, 0, NULL, 'confirm')`,
 		);
 	});
 

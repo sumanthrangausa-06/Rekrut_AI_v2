@@ -31,6 +31,12 @@
 //   that could serve as a cross-recording speaker store. A reviewer
 //   can verify the absence from this file alone (§4.2).
 //
+// ERASURE REACHABILITY (BR-13): the recording_id FKs below carry
+// ON DELETE CASCADE as a BACKSTOP only. The real erasure and retention
+// paths soft-delete recordings (status='deleted'), which fires no
+// cascade — BR-13 is completed in story S-D13 by explicit E-3 deletes
+// of these tables alongside the transcripts (privacy review on #1905).
+//
 // EXECUTION GATE (§4.4): this migration is designed and proven on the
 // local rig only in S-D03. It executes on the shared Neon database
 // only after the Nov 1 unfreeze, in dev → staging → main promotion
@@ -84,6 +90,8 @@ module.exports = {
 				IF NOT EXISTS (
 					SELECT 1 FROM pg_constraint
 					WHERE conname = 'chk_interview_recordings_diarization_status'
+						AND contype = 'c'
+						AND conrelid = 'interview_recordings'::regclass
 				) THEN
 					ALTER TABLE interview_recordings
 					ADD CONSTRAINT chk_interview_recordings_diarization_status
@@ -173,9 +181,15 @@ module.exports = {
 		`);
 
 		// ── 6. transcript_speaker_audit (append-only) ───────────────────
-		// actor_user_id is ON DELETE CASCADE for the same BR-13 reason:
-		// an actor's erasure must not be blocked; a recording's audit
-		// rows already die with the recording itself.
+		// DEVIATION FROM §4.2, recorded (DB review BLOCK on #1905):
+		// §4.2 specifies actor_user_id INT NOT NULL. It is built NULLABLE
+		// with ON DELETE SET NULL: a CASCADE would silently delete audit
+		// rows for recordings that still exist whenever an actor user is
+		// hard-deleted, destroying the append-only correction trail
+		// (Architecture §6.4 ties an audit row's lifetime to its
+		// recording, not its actor). SET NULL never blocks an erasure
+		// and never destroys audit rows — the house pattern for audit
+		// actor FKs (migrations 066, 129).
 		await client.query(`
 			CREATE TABLE IF NOT EXISTS transcript_speaker_audit (
 				id SERIAL PRIMARY KEY,
@@ -184,7 +198,7 @@ module.exports = {
 				speaker_number INTEGER NOT NULL,
 				from_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
 				to_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-				actor_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+				actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
 				action VARCHAR(20) NOT NULL
 					CHECK (action IN ('confirm', 'correct', 'unassign')),
 				created_at TIMESTAMPTZ DEFAULT NOW()
@@ -205,15 +219,55 @@ module.exports = {
 		`);
 
 		// ── Post-state assertions (fail loud, migration 295 pattern) ────
+		// Verify the exact properties this migration changes — names,
+		// types, the CHECK, and the indexes — not just existence counts,
+		// so a silently-skipped element cannot record success (DB
+		// review MAJOR on #1905).
 		const cols = await client.query(
-			`SELECT table_name, column_name FROM information_schema.columns
+			`SELECT table_name, column_name, data_type FROM information_schema.columns
 			 WHERE table_schema = 'public'
 			   AND ((table_name = 'interview_transcripts' AND column_name = 'speaker_number')
 			     OR (table_name = 'interview_recordings' AND column_name IN ('diarization_status', 'diarization_updated_at')))`,
 		);
-		if (cols.rows.length !== 3) {
+		const expectedTypes = {
+			speaker_number: 'integer',
+			diarization_status: 'character varying',
+			diarization_updated_at: 'timestamp with time zone',
+		};
+		if (
+			cols.rows.length !== 3 ||
+			cols.rows.some((r) => expectedTypes[r.column_name] !== r.data_type)
+		) {
 			throw new Error(
-				`Migration 296 post-state assertion failed: expected 3 new columns on existing tables, found ${cols.rows.length}`,
+				`Migration 296 post-state assertion failed: new columns missing or wrong type: ${JSON.stringify(cols.rows)}`,
+			);
+		}
+		const chk = await client.query(
+			`SELECT 1 FROM pg_constraint
+			 WHERE conname = 'chk_interview_recordings_diarization_status'
+			   AND contype = 'c'
+			   AND conrelid = 'interview_recordings'::regclass`,
+		);
+		if (chk.rows.length !== 1) {
+			throw new Error(
+				'Migration 296 post-state assertion failed: chk_interview_recordings_diarization_status CHECK not present on interview_recordings',
+			);
+		}
+		const idx = await client.query(
+			`SELECT indexname FROM pg_indexes
+			 WHERE schemaname = 'public' AND indexname = ANY($1)`,
+			[[
+				'idx_interview_transcripts_recording_speaker',
+				'idx_diarization_jobs_claim',
+				'idx_diarization_jobs_heartbeat',
+				'idx_diarization_jobs_recording',
+				'idx_diarization_runs_recording',
+				'idx_transcript_speaker_audit_recording',
+			]],
+		);
+		if (idx.rows.length !== 6) {
+			throw new Error(
+				`Migration 296 post-state assertion failed: expected 6 new indexes, found ${idx.rows.length}`,
 			);
 		}
 		const tables = await client.query(
@@ -232,7 +286,8 @@ module.exports = {
 			`SELECT table_name, column_name FROM information_schema.columns
 			 WHERE table_schema = 'public' AND table_name = ANY($1)
 			   AND (column_name ILIKE '%embedding%' OR column_name ILIKE '%voiceprint%'
-			     OR column_name ILIKE '%voice_print%' OR column_name ILIKE '%template%')`,
+			     OR column_name ILIKE '%voice_print%' OR column_name ILIKE '%template%'
+			     OR column_name ILIKE '%vector%' OR data_type = 'bytea' OR udt_name = 'vector')`,
 			[DIARIZATION_TABLES],
 		);
 		if (shaped.rows.length !== 0) {
