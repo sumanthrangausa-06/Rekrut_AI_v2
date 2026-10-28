@@ -212,4 +212,96 @@ describe('diarization worker (S-D04)', () => {
 			expect(await worker.poll()).toBeNull();
 		});
 	});
+
+	describe('S-D05 (#1907): real engine output, run-row persistence, failure taxonomy', () => {
+		const ENGINE_OUTPUT = {
+			speakerCount: 2,
+			turns: [
+				{ speaker: 0, start_s: 0, end_s: 8.3 },
+				{ speaker: 1, start_s: 8.7, end_s: 23.8 },
+			],
+			engine: {
+				package: '@desert-ant-labs/who',
+				sdkVersion: '4.2.1',
+				modelVersion: 'v0.3.4',
+			},
+		};
+
+		function runRowInsert() {
+			return db.query.mock.calls.find(([sql]) => sql.includes('INSERT INTO diarization_runs'));
+		}
+
+		it('persists the run row verbatim behind the write gate, then completes', async () => {
+			consentService.checkConsentState.mockResolvedValue({ state: 'valid' });
+			diarizationJobs.fail.mockResolvedValue(1);
+			const runEngine = jest.fn().mockResolvedValue(ENGINE_OUTPUT);
+
+			const result = await worker.processJob(JOB, { runEngine });
+
+			expect(result.outcome).toBe('complete');
+			const insert = runRowInsert();
+			expect(insert).toBeDefined();
+			expect(insert[1]).toEqual([
+				42,
+				9,
+				'@desert-ant-labs/who',
+				'4.2.1',
+				'v0.3.4',
+				2,
+				JSON.stringify(ENGINE_OUTPUT.turns),
+				23800, // coverage_end_ms = last turn end
+			]);
+			expect(diarizationJobs.complete).toHaveBeenCalledWith(9);
+			expect(diarizationJobs.fail).not.toHaveBeenCalled();
+		});
+
+		it('consent withdrawn at write → engine output discarded, NO run row', async () => {
+			consentService.checkConsentState
+				.mockResolvedValueOnce({ state: 'valid' })
+				.mockResolvedValueOnce({ state: 'withdrawn', withdrawnAt: new Date() });
+			const runEngine = jest.fn().mockResolvedValue(ENGINE_OUTPUT);
+
+			const result = await worker.processJob(JOB, { runEngine });
+
+			expect(result.outcome).toBe('cancelled_at_write');
+			expect(runRowInsert()).toBeUndefined();
+			expect(diarizationJobs.complete).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			['decode_failed'],
+			['engine_timeout'],
+			['engine_oom'],
+			['engine_failed'],
+		])('engine error %s → job failed with that class, no run row, no completion', async (errorClass) => {
+			consentService.checkConsentState.mockResolvedValue({ state: 'valid' });
+			diarizationJobs.fail.mockResolvedValue(1);
+			const err = new Error(`boom (${errorClass})`);
+			err.errorClass = errorClass;
+			const runEngine = jest.fn().mockRejectedValue(err);
+
+			const result = await worker.processJob(JOB, { runEngine });
+
+			expect(result).toEqual({ outcome: 'failed', errorClass });
+			expect(diarizationJobs.fail).toHaveBeenCalledWith(9, errorClass, err.message);
+			expect(runRowInsert()).toBeUndefined();
+			expect(diarizationJobs.complete).not.toHaveBeenCalled();
+			// recording status flipped to 'failed' (honest internal state)
+			const statusUpdate = db.query.mock.calls.find(
+				([sql, params]) =>
+					sql.includes('UPDATE interview_recordings') && params?.[1] === 'failed',
+			);
+			expect(statusUpdate).toBeDefined();
+		});
+
+		it('unclassified engine error defaults to engine_failed', async () => {
+			consentService.checkConsentState.mockResolvedValue({ state: 'valid' });
+			diarizationJobs.fail.mockResolvedValue(1);
+			const runEngine = jest.fn().mockRejectedValue(new Error('mystery'));
+
+			const result = await worker.processJob(JOB, { runEngine });
+
+			expect(result).toEqual({ outcome: 'failed', errorClass: 'engine_failed' });
+		});
+	});
 });
