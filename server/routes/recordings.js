@@ -1032,6 +1032,325 @@ router.get(
 	},
 );
 
+// ─── S-D10 (#1912, §5.2/§5.3): speaker mapping editor ────────────────────
+
+const { participantsFromEvent } = require('../../lib/speakerMapping');
+
+/**
+ * Corrector gate (§5.2): the recruiter of record, a panel interviewer of
+ * record, or an admin. canAccessRecording's event path admits exactly
+ * owner/candidate/panel/admin, so corrector ≡ canAccess ∧ ¬candidate.
+ * Candidates never correct — their route is "raise it with the hiring
+ * team" (PRD §7). Returns null when the caller may not correct.
+ */
+async function correctorAccess(recordingId, user) {
+	const access = await canAccessRecording(recordingId, user);
+	if (!access.canAccess || access.isCandidate) return null;
+	return access;
+}
+
+/**
+ * The §5.2 editor payload, shared by GET /:id/speakers and the PUT
+ * response. Names come only from recording_speaker_mappings + users —
+ * the same source the transcript read composes from (S-D09 C1) — and no
+ * diarization-derived quantity is exposed (§5.1 fence).
+ */
+async function speakerEditorPayload(recordingId, event) {
+	const mapRes = await pool.query(
+		`SELECT m.speaker_number, m.participant_user_id, m.participant_role,
+		        m.state, u.name AS participant_name
+		 FROM recording_speaker_mappings m
+		 LEFT JOIN users u ON u.id = m.participant_user_id
+		 WHERE m.recording_id = $1
+		 ORDER BY m.speaker_number`,
+		[recordingId],
+	);
+
+	// Sample turn (§5.2): each speaker's longest segment — the most
+	// identifying words — earliest start on ties.
+	const sampleRes = await pool.query(
+		`SELECT DISTINCT ON (speaker_number) speaker_number, text, start_time_ms
+		 FROM interview_transcripts
+		 WHERE recording_id = $1 AND speaker_number IS NOT NULL
+		   AND text IS DISTINCT FROM '[purged]'
+		 ORDER BY speaker_number, (end_time_ms - start_time_ms) DESC, start_time_ms ASC`,
+		[recordingId],
+	);
+	const sampleBySpeaker = new Map(sampleRes.rows.map((r) => [r.speaker_number, r]));
+
+	// Correction history summary — same rule as the transcript read
+	// (S-D09, PR #1936 F-1): latest 'correct'/'unassign' row only.
+	let correctedBy = null;
+	let correctedAt = null;
+	const auditRes = await pool.query(
+		`SELECT a.created_at, u.name AS actor_name
+		 FROM transcript_speaker_audit a
+		 LEFT JOIN users u ON u.id = a.actor_user_id
+		 WHERE a.recording_id = $1
+		 AND a.action IN ('correct', 'unassign')
+		 ORDER BY a.created_at DESC, a.id DESC
+		 LIMIT 1`,
+		[recordingId],
+	);
+	if (auditRes.rows.length > 0 && auditRes.rows[0].actor_name) {
+		correctedBy = auditRes.rows[0].actor_name;
+		correctedAt = auditRes.rows[0].created_at;
+	}
+
+	let mappingState = null;
+	if (mapRes.rows.length > 0) {
+		if (mapRes.rows.some((r) => r.state === 'corrected')) mappingState = 'corrected';
+		else if (mapRes.rows.some((r) => r.state === 'confirmed')) mappingState = 'confirmed';
+		else mappingState = 'proposed';
+	}
+
+	// Assignment options: the event's participants (§3.7/OQ-4), roles
+	// snapshotted by participantsFromEvent exactly as S-D08 writes them.
+	const participantRefs = participantsFromEvent(event || null);
+	let participants = [];
+	if (participantRefs.length > 0) {
+		const nameRes = await pool.query(`SELECT id, name FROM users WHERE id = ANY($1::int[])`, [
+			participantRefs.map((p) => p.userId),
+		]);
+		const nameById = new Map(nameRes.rows.map((r) => [r.id, r.name]));
+		participants = participantRefs.map((p) => ({
+			user_id: p.userId,
+			role: p.role,
+			name: nameById.get(p.userId) ?? null,
+		}));
+	}
+
+	return {
+		speakers: mapRes.rows.map((row) => {
+			const sample = sampleBySpeaker.get(row.speaker_number);
+			return {
+				speaker_number: row.speaker_number,
+				participant_user_id: row.participant_user_id,
+				participant_role: row.participant_role,
+				participant_name: row.participant_name,
+				state: row.state,
+				sample_turn: sample
+					? { text: sample.text, start_time_ms: Number(sample.start_time_ms) }
+					: null,
+			};
+		}),
+		participants,
+		mapping_state: mappingState,
+		corrected_by: correctedBy,
+		corrected_at: correctedAt,
+	};
+}
+
+router.get(
+	'/:id/speakers',
+	authMiddleware,
+	[param('id').isInt({ min: 1 }).withMessage('Valid recording ID required')],
+	handleValidationErrors,
+	async (req, res) => {
+		try {
+			const recordingId = parseInt(req.params.id, 10);
+			const access = await correctorAccess(recordingId, req.user);
+			if (!access) {
+				return res.status(403).json({ error: 'Not authorized' });
+			}
+			const payload = await speakerEditorPayload(recordingId, access.event);
+			res.json({ success: true, ...payload });
+		} catch (err) {
+			console.error('[recordings] Speakers get error:', err.message);
+			res.status(500).json({ error: 'Failed to fetch speakers' });
+		}
+	},
+);
+
+router.put(
+	'/:id/speakers/mapping',
+	authMiddleware,
+	[param('id').isInt({ min: 1 }).withMessage('Valid recording ID required')],
+	handleValidationErrors,
+	async (req, res) => {
+		const recordingId = parseInt(req.params.id, 10);
+		const actorId = req.user.id;
+		try {
+			const access = await correctorAccess(recordingId, req.user);
+			if (!access) {
+				return res.status(403).json({ error: 'Not authorized' });
+			}
+			// §5.5: nothing to correct until labelling is complete.
+			if (access.recording.diarization_status !== 'complete') {
+				return res
+					.status(409)
+					.json({ error: 'Speaker labelling is not complete for this recording' });
+			}
+
+			const assignments = req.body?.assignments;
+			if (!Array.isArray(assignments) || assignments.length === 0) {
+				return res.status(400).json({ error: 'assignments must be a non-empty array' });
+			}
+			const seenSpeakers = new Set();
+			for (const a of assignments) {
+				if (!a || !Number.isInteger(a.speaker_number)) {
+					return res.status(400).json({ error: 'each assignment needs an integer speaker_number' });
+				}
+				if (seenSpeakers.has(a.speaker_number)) {
+					return res.status(400).json({ error: `duplicate speaker_number ${a.speaker_number}` });
+				}
+				seenSpeakers.add(a.speaker_number);
+				if (a.participant_user_id !== null && !Number.isInteger(a.participant_user_id)) {
+					return res
+						.status(400)
+						.json({ error: 'participant_user_id must be an integer or null' });
+				}
+			}
+
+			// §5.3 validation is fail-closed — the control that keeps a
+			// wrong name out of the transcript (PR #1936 F-2 note). Every
+			// check runs before any write; the write itself is one
+			// transaction, so a rejection can never partially land.
+			const participantRefs = participantsFromEvent(access.event || null);
+			const roleByUserId = new Map(participantRefs.map((p) => [p.userId, p.role]));
+
+			const client = await pool.connect();
+			try {
+				await client.query('BEGIN');
+				const curRes = await client.query(
+					`SELECT speaker_number, participant_user_id, state
+					 FROM recording_speaker_mappings
+					 WHERE recording_id = $1
+					 ORDER BY speaker_number
+					 FOR UPDATE`,
+					[recordingId],
+				);
+				const current = new Map(curRes.rows.map((r) => [r.speaker_number, r]));
+
+				for (const a of assignments) {
+					if (!current.has(a.speaker_number)) {
+						await client.query('ROLLBACK');
+						return res
+							.status(400)
+							.json({ error: `speaker_number ${a.speaker_number} does not exist for this recording` });
+					}
+					if (a.participant_user_id !== null && !roleByUserId.has(a.participant_user_id)) {
+						await client.query('ROLLBACK');
+						return res
+							.status(400)
+							.json({ error: 'participant_user_id is not a participant of this recording' });
+					}
+				}
+
+				// Resulting full mapping (listed speakers overridden,
+				// unlisted untouched): one participant, one voice.
+				const resulting = new Map(
+					curRes.rows.map((r) => [r.speaker_number, r.participant_user_id]),
+				);
+				for (const a of assignments) resulting.set(a.speaker_number, a.participant_user_id);
+				const claimedBy = new Map();
+				for (const [speakerNumber, userId] of resulting) {
+					if (userId === null) continue;
+					if (claimedBy.has(userId)) {
+						await client.query('ROLLBACK');
+						return res
+							.status(400)
+							.json({ error: 'a participant can be assigned to only one speaker' });
+					}
+					claimedBy.set(userId, speakerNumber);
+				}
+
+				const changes = assignments.filter(
+					(a) => current.get(a.speaker_number).participant_user_id !== a.participant_user_id,
+				);
+
+				if (changes.length === 0) {
+					// Acceptance (AC-4): re-PUTting the proposal unchanged
+					// while every row is still 'proposed' records the
+					// confirmation. Rows still 'proposed' hold the proposal
+					// by construction — only this endpoint mutates them,
+					// and it never leaves a changed row 'proposed'. Any
+					// other identical re-PUT is a pure no-op (§5.3).
+					const allProposed =
+						curRes.rows.length > 0 && curRes.rows.every((r) => r.state === 'proposed');
+					const coversAll = assignments.length === curRes.rows.length;
+					if (allProposed && coversAll) {
+						for (const row of curRes.rows) {
+							await client.query(
+								`UPDATE recording_speaker_mappings
+								 SET state = 'confirmed', updated_by = $1, updated_at = NOW()
+								 WHERE recording_id = $2 AND speaker_number = $3`,
+								[actorId, recordingId, row.speaker_number],
+							);
+							await client.query(
+								`INSERT INTO transcript_speaker_audit
+								   (recording_id, speaker_number, from_user_id, to_user_id, actor_user_id, action)
+								 VALUES ($1, $2, $3, $3, $4, 'confirm')`,
+								[recordingId, row.speaker_number, row.participant_user_id, actorId],
+							);
+						}
+					}
+					await client.query('COMMIT');
+				} else {
+					// First correction ever for this recording? (HA-3 daily
+					// count moves once per corrected recording.)
+					const priorRes = await client.query(
+						`SELECT COUNT(*)::int AS n FROM transcript_speaker_audit
+						 WHERE recording_id = $1 AND action IN ('correct', 'unassign')`,
+						[recordingId],
+					);
+					for (const a of changes) {
+						const fromUserId = current.get(a.speaker_number).participant_user_id;
+						await client.query(
+							`UPDATE recording_speaker_mappings
+							 SET participant_user_id = $1, participant_role = $2,
+							     state = 'corrected', updated_by = $3, updated_at = NOW()
+							 WHERE recording_id = $4 AND speaker_number = $5`,
+							[
+								a.participant_user_id,
+								a.participant_user_id === null
+									? null
+									: roleByUserId.get(a.participant_user_id),
+								actorId,
+								recordingId,
+								a.speaker_number,
+							],
+						);
+						await client.query(
+							`INSERT INTO transcript_speaker_audit
+							   (recording_id, speaker_number, from_user_id, to_user_id, actor_user_id, action)
+							 VALUES ($1, $2, $3, $4, $5, $6)`,
+							[
+								recordingId,
+								a.speaker_number,
+								fromUserId,
+								a.participant_user_id,
+								actorId,
+								a.participant_user_id === null ? 'unassign' : 'correct',
+							],
+						);
+					}
+					if (priorRes.rows[0].n === 0) {
+						await client.query(
+							`INSERT INTO diarization_metrics_daily (date, labelled_count, corrected_count)
+							 VALUES (CURRENT_DATE, 0, 1)
+							 ON CONFLICT (date) DO UPDATE
+							 SET corrected_count = diarization_metrics_daily.corrected_count + 1`,
+						);
+					}
+					await client.query('COMMIT');
+				}
+			} catch (txErr) {
+				await client.query('ROLLBACK').catch(() => {});
+				throw txErr;
+			} finally {
+				client.release();
+			}
+
+			const payload = await speakerEditorPayload(recordingId, access.event);
+			res.json({ success: true, ...payload });
+		} catch (err) {
+			console.error('[recordings] Speaker mapping put error:', err.message);
+			res.status(500).json({ error: 'Failed to save speaker mapping' });
+		}
+	},
+);
+
 // ─── POST /api/interviews/recordings/:id/consent ──────────────────────────
 
 router.post(
