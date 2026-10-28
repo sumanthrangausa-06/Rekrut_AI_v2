@@ -90,6 +90,28 @@ interface DiarizationBlock {
 	}>;
 }
 
+// S-D10 (#1912, §5.2): the mapping-editor payload from
+// GET /:id/speakers — correctors only; the page renders the read-only
+// speaker list whenever this cannot be loaded.
+interface SpeakerEditorData {
+	speakers: Array<{
+		speaker_number: number;
+		participant_user_id: number | null;
+		participant_role: 'candidate' | 'interviewer' | null;
+		participant_name: string | null;
+		state: 'proposed' | 'confirmed' | 'corrected';
+		sample_turn: { text: string; start_time_ms: number } | null;
+	}>;
+	participants: Array<{
+		user_id: number;
+		role: 'candidate' | 'interviewer';
+		name: string | null;
+	}>;
+	mapping_state: 'proposed' | 'confirmed' | 'corrected' | null;
+	corrected_by: string | null;
+	corrected_at: string | null;
+}
+
 interface PlaybackData {
 	url: string;
 	token: string;
@@ -225,6 +247,12 @@ export function RecordingPlaybackPage() {
 	// Speaker color map
 	const [speakerColorMap, setSpeakerColorMap] = useState<Record<string, number>>({});
 
+	// S-D10 (#1912): mapping-editor state — selections keyed by
+	// speaker_number, '' = leave unassigned.
+	const [speakerEditor, setSpeakerEditor] = useState<SpeakerEditorData | null>(null);
+	const [editorSelections, setEditorSelections] = useState<Record<number, string>>({});
+	const [savingSpeakers, setSavingSpeakers] = useState(false);
+
 	const showToast = useCallback((message: string, type: ToastType = 'info') => {
 		const toastId = `${Date.now()}-${Math.random()}`;
 		setToasts((prev) => [...prev, { id: toastId, message, type }]);
@@ -279,6 +307,68 @@ export function RecordingPlaybackPage() {
 	useEffect(() => {
 		loadData();
 	}, [loadData]);
+
+	// S-D10 (#1912, §5.2): load the mapping editor for correctors once
+	// labelling is complete. The endpoint is corrector-only (403 for
+	// everyone else); any failure leaves the read-only speaker list.
+	const loadSpeakerEditor = useCallback(async () => {
+		if (!recordingId) return;
+		try {
+			const res = await apiCall<{ success: boolean } & SpeakerEditorData>(
+				`/interviews/recordings/${recordingId}/speakers`,
+			);
+			if (!Array.isArray(res?.speakers) || !Array.isArray(res?.participants)) return;
+			setSpeakerEditor(res);
+			setEditorSelections(
+				Object.fromEntries(
+					res.speakers.map((s) => [
+						s.speaker_number,
+						s.participant_user_id != null ? String(s.participant_user_id) : '',
+					]),
+				),
+			);
+		} catch {
+			setSpeakerEditor(null);
+		}
+	}, [recordingId]);
+
+	const editorEligible =
+		user?.role === 'recruiter' ||
+		user?.role === 'hiring_manager' ||
+		user?.role === 'employer' ||
+		user?.role === 'admin';
+
+	useEffect(() => {
+		if (editorEligible && diarization?.status === 'complete') {
+			loadSpeakerEditor();
+		}
+	}, [editorEligible, diarization?.status, loadSpeakerEditor]);
+
+	const handleSaveSpeakers = useCallback(async () => {
+		if (!speakerEditor) return;
+		setSavingSpeakers(true);
+		try {
+			await apiCall(`/interviews/recordings/${recordingId}/speakers/mapping`, {
+				method: 'PUT',
+				body: {
+					assignments: speakerEditor.speakers.map((s) => {
+						const selected = editorSelections[s.speaker_number] ?? '';
+						return {
+							speaker_number: s.speaker_number,
+							participant_user_id: selected === '' ? null : parseInt(selected, 10),
+						};
+					}),
+				},
+			});
+			showToast('Speaker names saved', 'success');
+			await loadSpeakerEditor();
+			await loadData();
+		} catch (err: any) {
+			showToast(err.message || 'Failed to save speaker names', 'error');
+		} finally {
+			setSavingSpeakers(false);
+		}
+	}, [speakerEditor, editorSelections, recordingId, loadSpeakerEditor, loadData, showToast]);
 
 	// Video time update
 	useEffect(() => {
@@ -678,14 +768,54 @@ export function RecordingPlaybackPage() {
 			</div>
 
 			{/* S-D09 (#1911, §3.8): Speaker names section — the target of the
-			    "Correct speaker names" entry point. Read-only in this story;
-			    S-D10 turns this section into the mapping editor. */}
+			    "Correct speaker names" entry point. S-D10 (#1912) turns it
+			    into the mapping editor for correctors; everyone else (and
+			    any editor load failure) keeps the read-only list. */}
 			{diarization && (
 				<section id="speaker-names">
 					<Card>
 						<CardContent className="p-4">
 							<h3 className="text-sm font-semibold mb-2">Speaker names</h3>
-							{diarization.speakers.length === 0 ? (
+							{speakerEditor ? (
+								<div className="space-y-4">
+									{speakerEditor.speakers.map((spk) => (
+										<div key={spk.speaker_number} className="space-y-1">
+											<label
+												htmlFor={`speaker-assign-${spk.speaker_number}`}
+												className="text-sm font-medium"
+											>
+												{`Assign Speaker ${spk.speaker_number + 1} to`}
+											</label>
+											{spk.sample_turn && (
+												<p className="text-sm text-muted-foreground">
+													{`"${spk.sample_turn.text}" — ${formatTimestamp(spk.sample_turn.start_time_ms)}`}
+												</p>
+											)}
+											<select
+												id={`speaker-assign-${spk.speaker_number}`}
+												className="flex min-h-[44px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+												value={editorSelections[spk.speaker_number] ?? ''}
+												onChange={(e) =>
+													setEditorSelections((prev) => ({
+														...prev,
+														[spk.speaker_number]: e.target.value,
+													}))
+												}
+											>
+												<option value="">Not assigned</option>
+												{speakerEditor.participants.map((p) => (
+													<option key={p.user_id} value={String(p.user_id)}>
+														{`${p.name ?? 'Unknown'} (${p.role === 'candidate' ? 'Candidate' : 'Interviewer'})`}
+													</option>
+												))}
+											</select>
+										</div>
+									))}
+									<Button onClick={handleSaveSpeakers} disabled={savingSpeakers}>
+										{savingSpeakers ? 'Saving…' : 'Save speaker names'}
+									</Button>
+								</div>
+							) : diarization.speakers.length === 0 ? (
 								<p className="text-sm text-muted-foreground">No speakers detected yet.</p>
 							) : (
 								<ul className="space-y-1">
