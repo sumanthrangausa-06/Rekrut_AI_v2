@@ -2837,6 +2837,81 @@ router.get('/agents/stats', requireAdmin, async (_req, res) => {
 	}
 });
 
+// ─── GET /api/admin/diarization/stats ─────────────────────────────────────
+// #1914 (S-D12, architecture §7): labelling queue health for operators —
+// diarization_jobs counts by status and failure counts by error_class over
+// a chosen window, as plain SQL aggregates on this file's existing admin
+// patterns (requireAdmin + safeQuery, mirroring /agents/stats). No new
+// metrics infrastructure. Counts only: no recording or user linkage leaves
+// this endpoint, and error_message is never selected (§6.3 — job-level
+// failure detail stays server-side; error_class reaches ADMIN eyes only,
+// never a user-facing surface).
+router.get('/diarization/stats', requireAdmin, async (req, res) => {
+	try {
+		const parsedDays = parseInt(req.query.days, 10);
+		const windowDays = Number.isNaN(parsedDays)
+			? 30
+			: Math.min(365, Math.max(1, parsedDays));
+		const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString();
+
+		const statusResult = await safeQuery(
+			'SELECT status, COUNT(*) as count FROM diarization_jobs WHERE created_at >= $1 GROUP BY status',
+			[since],
+			{ rows: [] },
+		);
+		const byStatus = {
+			pending: 0,
+			claimed: 0,
+			processing: 0,
+			complete: 0,
+			failed: 0,
+			cancelled: 0,
+		};
+		for (const row of statusResult.rows) {
+			if (row.status in byStatus) byStatus[row.status] = parseInt(row.count, 10) || 0;
+		}
+
+		const failureResult = await safeQuery(
+			"SELECT error_class, COUNT(*) as count FROM diarization_jobs WHERE status = 'failed' AND created_at >= $1 GROUP BY error_class",
+			[since],
+			{ rows: [] },
+		);
+		const failuresByErrorClass = {};
+		for (const row of failureResult.rows) {
+			failuresByErrorClass[row.error_class || 'unknown'] = parseInt(row.count, 10) || 0;
+		}
+
+		// §7 queue health: age of the oldest still-pending job (null when
+		// the queue holds no pending job — "not pending", never a fake 0).
+		const oldestPendingResult = await safeQuery(
+			"SELECT EXTRACT(EPOCH FROM (NOW() - MIN(created_at)))::int as age_seconds FROM diarization_jobs WHERE status = 'pending'",
+			[],
+			{ rows: [{ age_seconds: null }] },
+		);
+		const ageRaw = oldestPendingResult.rows[0]?.age_seconds;
+		const ageParsed = ageRaw == null ? null : parseInt(ageRaw, 10);
+		const oldestPendingAgeSeconds = Number.isNaN(ageParsed) ? null : ageParsed;
+
+		res.json({
+			success: true,
+			data: {
+				window_days: windowDays,
+				by_status: byStatus,
+				failures_by_error_class: failuresByErrorClass,
+				oldest_pending_age_seconds: oldestPendingAgeSeconds,
+			},
+		});
+	} catch (error) {
+		const ref = require('node:crypto').randomUUID();
+		console.error(`[ERROR ref=${ref}] [admin/diarization/stats] Error:`, error);
+		if (process.env.NODE_ENV === 'production') {
+			res.status(500).json({ error: 'Internal server error', ref });
+		} else {
+			res.status(500).json({ error: 'Failed to load diarization stats', ref });
+		}
+	}
+});
+
 module.exports = router;
 module.exports.requireAdmin = requireAdmin;
 module.exports.bridgeAdminSession = bridgeAdminSession;

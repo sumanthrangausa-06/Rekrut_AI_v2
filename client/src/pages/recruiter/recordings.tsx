@@ -31,6 +31,10 @@ import { apiCall } from '@/lib/api';
 interface Recording {
 	id: number;
 	status: 'recording' | 'completed' | 'processing' | 'failed' | 'deleted';
+	// #1914 (S-D12, §7): labelling state, shown beside the recording status
+	// only when non-NULL — NULL is a pre-feature recording and renders
+	// exactly as before (no badge).
+	diarization_status: 'pending' | 'processing' | 'complete' | 'failed' | 'unavailable' | null;
 	started_at: string;
 	stopped_at: string | null;
 	duration_seconds: number | null;
@@ -358,6 +362,13 @@ export function RecruiterRecordingsPage() {
 													/>
 													{config.label}
 												</Badge>
+												{recording.diarization_status && (
+													<Badge variant="secondary">
+														Speaker labels:{' '}
+														{recording.diarization_status.charAt(0).toUpperCase() +
+															recording.diarization_status.slice(1)}
+													</Badge>
+												)}
 												<span className="text-xs text-muted-foreground">ID: {recording.id}</span>
 											</div>
 											<div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
