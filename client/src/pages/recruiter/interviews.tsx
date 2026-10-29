@@ -39,7 +39,12 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/contexts/auth-context';
 import { apiCall } from '@/lib/api';
+import {
+	PanelLabellingNotice,
+	type LabellingNoticeState,
+} from '@/pages/candidate/livekit-room';
 
 interface Interview {
 	id: number;
@@ -2051,6 +2056,66 @@ function RecruiterSystemBCard({
 	);
 }
 
+/**
+ * S-D20 (#1957, BR-7 §9/§10): the recruiter's OWN speaker-labelling status
+ * line on the interview card — this codebase's per-interview detail
+ * surface — with the Change re-decision path before the interview.
+ *
+ * Own state only: the sole read is the S-D18 room-token `labelling_notice`
+ * field, which carries the caller's own decision and nothing about any
+ * other participant. No room → no notice can exist → renders nothing.
+ * A failed load says so honestly and points at the room; it never
+ * invents a status.
+ */
+export function InterviewLabellingStatus({
+	interview,
+}: {
+	interview: Pick<Interview, 'id' | 'livekit_room_id'>;
+}) {
+	const { user } = useAuth();
+	const [notice, setNotice] = useState<LabellingNoticeState | null>(null);
+	const [failed, setFailed] = useState(false);
+	const roomId = interview.livekit_room_id;
+
+	useEffect(() => {
+		if (!roomId) return;
+		let live = true;
+		setFailed(false);
+		apiCall<{ labelling_notice?: LabellingNoticeState }>(`/livekit/rooms/${roomId}/token`, {
+			method: 'POST',
+		})
+			.then((data) => {
+				if (live) setNotice(data.labelling_notice ?? null);
+			})
+			.catch(() => {
+				if (live) setFailed(true);
+			});
+		return () => {
+			live = false;
+		};
+	}, [roomId]);
+
+	if (!roomId) return null;
+	if (failed) {
+		return (
+			<p className="mt-2 text-xs text-muted-foreground">
+				Speaker labelling: status unavailable — you can decide in the interview room.
+			</p>
+		);
+	}
+	if (!notice) return null;
+	return (
+		<div className="mt-2">
+			<PanelLabellingNotice
+				notice={notice}
+				callerName={user?.name}
+				roomId={roomId}
+				variant="light"
+			/>
+		</div>
+	);
+}
+
 function InterviewCard({
 	interview,
 	onCancel,
@@ -2131,6 +2196,9 @@ function InterviewCard({
 						{interview.notes && (
 							<p className="text-sm text-muted-foreground mt-2 line-clamp-2">{interview.notes}</p>
 						)}
+						{/* S-D20 (#1957, §9): recruiter's own labelling status
+						    line + Change, upcoming interviews only. */}
+						{isUpcoming && <InterviewLabellingStatus interview={interview} />}
 						{feedback && (
 							<div className="mt-2 p-2 bg-muted rounded-lg text-sm">
 								<div className="flex items-center gap-2">

@@ -54,7 +54,23 @@ interface TokenResponse {
 	// S-048 (#696): observer disclosure fields (optional for backwards compat)
 	observer_enabled?: boolean;
 	observer_consent?: 'granted' | 'declined' | 'unknown';
+	// S-D18 (#1955, BR-7 §4.2): the caller's OWN labelling-notice state —
+	// present only for recruiter/panel roles, absent for candidates.
+	labelling_notice?: LabellingNoticeState;
 }
+
+// S-D20 (#1957, BR-7 §4.2/§4.3): token labelling_notice field, verbatim
+// shape from S-D18 — the caller's own decision only, never another
+// participant's posture.
+export interface LabellingNoticeState {
+	event_id: number;
+	notice_version: string;
+	roster_version: string;
+	own_decision: 'granted' | 'declined' | 'withdrawn' | null;
+	decision_scope?: string;
+}
+
+export type LabellingDecision = 'granted' | 'declined' | 'withdrawn';
 
 interface RecordingInfo {
 	id: number;
@@ -423,6 +439,206 @@ function RoomControlBar({
 	);
 }
 
+// ─── Panel Labelling Notice (S-D20, #1957 — BR-7 §4.3) ──────────────────
+
+/**
+ * PanelLabellingNotice — each non-candidate participant's OWN speaker-
+ * labelling disclosure + decision, on their own screen, per join.
+ *
+ * The notice IS the disclosure (privacy C-10, binding): the labelling
+ * decision is visually and mechanically distinct from recording consent
+ * (own section, own heading, own fieldset — never a bundled control);
+ * Decline is rendered with exactly Agree's prominence; neither is
+ * pre-selected. A recorded decision renders as a collapsed one-line
+ * status with a Change control — a recorded decline is NOT re-prompted
+ * on rejoin. Clicking a decision POSTs the S-D18 capture as the caller
+ * and the component re-renders ONLY from the server's response; a
+ * failed POST leaves the notice open with an honest error.
+ *
+ * Renders nothing when `notice` is absent — the candidate case (the
+ * token carries no labelling field for candidates, §4.2).
+ */
+export function PanelLabellingNotice({
+	notice,
+	callerName,
+	roomId,
+	onDecide,
+	variant = 'dark',
+}: {
+	notice?: LabellingNoticeState | null;
+	callerName?: string;
+	roomId: string | number;
+	onDecide?: (
+		decision: LabellingDecision,
+	) => Promise<{ own_decision?: string | null; decision?: string }>;
+	variant?: 'dark' | 'light';
+}) {
+	const [decision, setDecision] = useState<LabellingDecision | null>(notice?.own_decision ?? null);
+	const [changing, setChanging] = useState(false);
+	const [submitting, setSubmitting] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+
+	// A rejoin issues a fresh token: re-sync to the server's current word.
+	useEffect(() => {
+		setDecision(notice?.own_decision ?? null);
+		setChanging(false);
+		setError(null);
+	}, [notice?.event_id, notice?.roster_version, notice?.own_decision]);
+
+	if (!notice) return null;
+
+	const decide = async (d: LabellingDecision) => {
+		setSubmitting(true);
+		setError(null);
+		try {
+			const res = onDecide
+				? await onDecide(d)
+				: await apiCall<{ own_decision?: string; decision?: string }>(
+						`/interviews/events/${notice.event_id}/labelling-consent`,
+						{
+							method: 'POST',
+							body: {
+								decision: d,
+								room_id: Number(roomId),
+								roster_version: notice.roster_version,
+							},
+						},
+					);
+			const recorded = (res?.own_decision ?? res?.decision) as LabellingDecision | undefined;
+			if (!recorded) throw new Error('Decision was not recorded');
+			setDecision(recorded);
+			setChanging(false);
+		} catch {
+			setError('Your speaker labelling decision could not be recorded. Please try again.');
+		} finally {
+			setSubmitting(false);
+		}
+	};
+
+	const shell =
+		variant === 'dark'
+			? 'rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100'
+			: 'rounded-lg border border-border bg-muted/40 px-4 py-3 text-foreground';
+	const muted = variant === 'dark' ? 'text-slate-300' : 'text-muted-foreground';
+
+	const statusText =
+		decision === 'granted'
+			? 'You agreed to speaker labelling for this interview'
+			: decision === 'declined'
+				? 'You declined speaker labelling for this interview'
+				: decision === 'withdrawn'
+					? 'You withdrew your speaker labelling agreement for this interview'
+					: null;
+
+	// Collapsed status (§4.3): a recorded decision is a one-line status +
+	// Change — never a re-prompt, never reset to undecided.
+	if (statusText && !changing) {
+		return (
+			<div className={`${shell} flex items-center justify-between gap-3`}>
+				<p className="text-sm" role="status" aria-live="polite">
+					{statusText}
+				</p>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onClick={() => setChanging(true)}
+					className="min-h-[36px] shrink-0"
+				>
+					Change
+				</Button>
+			</div>
+		);
+	}
+
+	return (
+		<section aria-labelledby="panel-labelling-notice-heading" className={shell}>
+			<h2 id="panel-labelling-notice-heading" className="text-sm font-semibold">
+				Speaker labelling — your decision
+			</h2>
+			{/* Canonical BR-7 sentence, verbatim — the same string the
+			    ConsentDialog and privacy.tsx §13 carry (§4.3). */}
+			<p className={`mt-2 text-sm ${muted}`}>
+				Speaker labelling (where the candidate has given biometric consent): to label who
+				said what in a recorded interview, we create a temporary mathematical template of
+				each speaker's voice during processing; the template exists only while the
+				labelling runs and is never stored. This applies to everyone in the call —
+				candidate, recruiters, and panel members alike.
+			</p>
+			{callerName && (
+				<p className="mt-2 text-sm font-medium">You are agreeing as {callerName}</p>
+			)}
+			{/* Consequences stated BEFORE the click — a decline must be
+			    informed to be real (§4.3). */}
+			<p className={`mt-2 text-sm ${muted}`}>
+				If you decline: The interview and the recording can still go ahead. No speaker
+				labels will be created for this recording, and the transcript will not show who
+				said what.
+			</p>
+			<p className={`mt-1 text-sm ${muted}`}>
+				If you agree: Speaker labels will be created for this recording only if every
+				participant agrees and the candidate has given biometric consent.
+			</p>
+			{error && (
+				<p role="alert" className="mt-2 text-sm font-medium text-red-500">
+					{error}
+				</p>
+			)}
+			<fieldset className="mt-3">
+				<legend className="text-sm font-medium">Your speaker labelling decision</legend>
+				<div className="mt-2 flex flex-col gap-2 sm:flex-row">
+					<Button
+						type="button"
+						variant="secondary"
+						disabled={submitting}
+						onClick={() => void decide('granted')}
+						className="min-h-[44px] flex-1"
+					>
+						I agree to speaker labelling of my voice as described above
+					</Button>
+					<Button
+						type="button"
+						variant="secondary"
+						disabled={submitting}
+						onClick={() => void decide('declined')}
+						className="min-h-[44px] flex-1"
+					>
+						I decline speaker labelling
+					</Button>
+				</div>
+				{(decision === 'granted' || statusText) && (
+					<div className="mt-2 flex flex-wrap gap-2">
+						{decision === 'granted' && (
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								disabled={submitting}
+								onClick={() => void decide('withdrawn')}
+								className="min-h-[36px]"
+							>
+								Withdraw my agreement
+							</Button>
+						)}
+						{statusText && (
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								disabled={submitting}
+								onClick={() => setChanging(false)}
+								className="min-h-[36px]"
+							>
+								Keep my current decision
+							</Button>
+						)}
+					</div>
+				)}
+			</fieldset>
+		</section>
+	);
+}
+
 // ─── Consent Dialog ──────────────────────────────────────────────────────
 
 // Exported for S-048 (#696) component tests
@@ -499,9 +715,18 @@ export function ConsentDialog({
 							and is never stored. This applies to everyone in the call —
 							candidate, recruiters, and panel members alike.
 						</span>
+						{/* S-D20 (#1957, BR-7 §4.4): clarification only — this
+						    dialog is never the labelling capture surface; it
+						    gains NO labelling buttons. */}
+						<span className="block mt-2 text-xs">
+							Speaker labelling is decided by each participant on their own
+							screen — it is not recorded here. The list below is recording
+							consent only.
+						</span>
 					</DialogDescription>
 				</DialogHeader>
 				<div className="space-y-3 py-2">
+					<p className="text-sm font-medium">Recording consent</p>
 					{participants.length === 0 ? (
 						<p className="text-sm text-muted-foreground">Loading participants...</p>
 					) : (
@@ -581,6 +806,8 @@ function RoomUI({
 	isRecruiter,
 	observerEnabled,
 	observerConsent,
+	labellingNotice,
+	callerName,
 }: {
 	roomName: string;
 	onLeave: () => void;
@@ -588,6 +815,8 @@ function RoomUI({
 	isRecruiter: boolean;
 	observerEnabled?: boolean;
 	observerConsent?: 'granted' | 'declined' | 'unknown';
+	labellingNotice?: LabellingNoticeState | null;
+	callerName?: string;
 }) {
 	const [showSidebar, setShowSidebar] = useState(false);
 	const [recording, setRecording] = useState<RecordingInfo | null>(null);
@@ -759,6 +988,20 @@ function RoomUI({
 				{showSidebar && <ParticipantSidebar onClose={() => setShowSidebar(false)} />}
 			</div>
 
+			{/* S-D20 (#1957, BR-7 §4.3): own-screen labelling notice — above
+			    the room controls, before recording starts; renders per join
+			    for non-candidates only (the token field is absent for
+			    candidates, and the component renders nothing without it). */}
+			{labellingNotice && (
+				<div className="shrink-0 px-3 pt-3">
+					<PanelLabellingNotice
+						notice={labellingNotice}
+						callerName={callerName}
+						roomId={roomId}
+					/>
+				</div>
+			)}
+
 			{/* Controls */}
 			<RoomControlBar
 				onLeave={onLeave}
@@ -907,6 +1150,8 @@ export function LiveKitRoomPage() {
 				isRecruiter={isRecruiter}
 				observerEnabled={tokenData.observer_enabled}
 				observerConsent={tokenData.observer_consent}
+				labellingNotice={tokenData.labelling_notice}
+				callerName={user?.name}
 			/>
 		</LiveKitRoom>
 	);
