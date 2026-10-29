@@ -33,6 +33,9 @@ describe('#1973 sweepPanelSkeletonEvents caller contract', () => {
 			heldSkipped: 0,
 			lookupFailedSkipped: 0,
 			skipped: 0,
+			// #1977: keyset-paged enumeration reports whether the
+			// per-run page cap cut the enumeration short.
+			enumerationTruncated: false,
 		});
 		expect(pool.connect).not.toHaveBeenCalled();
 	});

@@ -54,7 +54,28 @@
  *      never by the release itself (B-1/C-5).
  *  AC-5 posture audit: after the final sweep, NO event anywhere
  *      matches the full C-4 conjunction (zero panel rows, zero
- *      recordings, zero slots, zero rooms, no active hold).
+ *      recordings, zero slots, zero rooms, no session link, no
+ *      active hold).
+ *
+ * #1977 addendum (review minors on PR #1976, comment 6501875894;
+ * STOP 1 on #1977 comment 6502998880):
+ *  S11 skeleton WITH an interview_session_id link ⇒ excluded (A-2
+ *      session leg — probe-verified by the #1976 reviewer by hand,
+ *      seeded in the shipped suite only from #1977).
+ *  AUDIT the S1 deletion must leave exactly one audit_logs row
+ *      (skeleton_event_swept) whose metadata carries the predicate
+ *      outcome derived from the DELETE itself and the recorded
+ *      last-panel-row-timestamp unavailability marker (#1977
+ *      deviation record); a held event leaves NO audit row.
+ *  RACE a panel row inserted between enumeration and the per-event
+ *      DELETE (wrapper pool) must save the event (counted skipped,
+ *      never deleted); once the row is removed the next sweep
+ *      deletes it.
+ *  STARVE >page-size held skeletons seeded ahead of a deletable
+ *      one: with a small page size the sweep must page PAST the
+ *      partitioned-out rows and still delete the deletable one in
+ *      the same run (enumeration LIMIT-before-partition starvation,
+ *      minor 2 — red on the pre-#1977 code).
  *
  * Run:
  *   SKELETON1973_INTEGRATION_DB_URL='postgresql://postgres@127.0.0.1:55433/skel1973_e2e' \
@@ -82,6 +103,10 @@ const CAND_POST = 197312; // S4 post-erasure-created live event
 const CAND_PARTIAL_NAME = 197313; // S9
 const CAND_WRONG_ID = 197314; // S10
 const CAND_REL = 197311; // R1 hold-release
+const CAND_SESSION_LINK = 197315; // S11 (#1977) session-linked skeleton
+const CAND_RACE = 197316; // RACE (#1977) enumeration→DELETE race posture
+const CAND_STARVE_HOLD = 197317; // STARVE (#1977) held batch ahead of deletable
+const CAND_STARVE_DEL = 197318; // STARVE (#1977) deletable behind the held batch
 
 const CO_REC = 19731;
 const CO_DERIVED = 19732;
@@ -173,12 +198,20 @@ async function cleanAndSeed() {
 		CAND_PARTIAL_NAME,
 		CAND_WRONG_ID,
 		CAND_REL,
+		CAND_SESSION_LINK,
+		CAND_RACE,
+		CAND_STARVE_HOLD,
+		CAND_STARVE_DEL,
 	];
 	const allUsers = [...candIds, REC, PAN1, PAN2];
 	await q(`DELETE FROM legal_holds WHERE user_id = ANY($1::int[]) OR company_id = ANY($2::int[])`, [
 		allUsers,
 		[CO_REC, CO_DERIVED, CO_SESSION, CO_OWN],
 	]);
+	await q(
+		`DELETE FROM audit_logs WHERE target_type = 'interview_event' AND target_id IN (SELECT id FROM interview_events WHERE candidate_id = ANY($1::int[]))`,
+		[candIds],
+	);
 	await q(
 		`DELETE FROM event_labelling_consent WHERE interview_event_id IN (SELECT id FROM interview_events WHERE candidate_id = ANY($1::int[]))`,
 		[candIds],
@@ -222,6 +255,7 @@ async function cleanAndSeed() {
 		CAND_HOLD_SESSION,
 		CAND_POST,
 		CAND_REL,
+		CAND_SESSION_LINK,
 	]) {
 		await mkUser(q, id, {});
 	}
@@ -310,6 +344,19 @@ async function cleanAndSeed() {
 		[R.s8],
 	);
 
+	// S11 (#1977): skeleton WITH an interview_session_id link —
+	// the fourth A-2 dependent leg (excluded, never swept).
+	R.s11 = await mkSkeleton(q, CAND_SESSION_LINK);
+	const sess = await q(
+		`INSERT INTO interview_sessions (candidate_id, company_id) VALUES ($1, $2) RETURNING id`,
+		[CAND_SESSION_LINK, CO_REC],
+	);
+	R.s11SessionId = sess.rows[0].id;
+	await q(`UPDATE interview_events SET interview_session_id = $1 WHERE id = $2`, [
+		R.s11SessionId,
+		R.s11,
+	]);
+
 	// S9/S10: partial-tombstone skeletons.
 	R.s9 = await mkSkeleton(q, CAND_PARTIAL_NAME);
 	R.s10 = await mkSkeleton(q, CAND_WRONG_ID);
@@ -358,8 +405,9 @@ describeIfDb('#1973 skeleton cleanup sweep (Quinn E2E, realdb)', () => {
 		expect(res.heldSkipped).toBe(5); // S3a–d (4) + R1 (1)
 		expect(res.lookupFailedSkipped).toBe(0);
 		// Scanned = signature + tombstone + chronology + zero panel
-		// rows: S1, S3a–d, S6, S7, S8, R1 (S2 still has a panel row).
-		expect(res.scanned).toBe(9);
+		// rows: S1, S3a–d, S6, S7, S8, S11, R1 (S2 still has a panel row).
+		expect(res.scanned).toBe(10);
+		expect(res.enumerationTruncated).toBe(false);
 
 		// S1 gone; S2 persists (one panel row remains).
 		expect(await eventExists(R.s1)).toBe(false);
@@ -383,6 +431,48 @@ describeIfDb('#1973 skeleton cleanup sweep (Quinn E2E, realdb)', () => {
 			[R.s6, R.s7, R.s8],
 		);
 		expect(depRows[0]).toEqual({ recs: 1, slots: 1, rooms: 1 });
+		// S11 (#1977): session-linked skeleton persists, link intact.
+		expect(await eventExists(R.s11)).toBe(true);
+		const { rows: s11Rows } = await seedPool.query(
+			`SELECT interview_session_id FROM interview_events WHERE id = $1`,
+			[R.s11],
+		);
+		expect(s11Rows[0].interview_session_id).toBe(R.s11SessionId);
+
+		// AUDIT (#1977): the S1 deletion left exactly one audit row,
+		// written in the DELETE transaction, carrying the predicate
+		// outcome derived from the DELETE itself and the recorded
+		// last-panel-row-timestamp unavailability marker; a held
+		// event (S3a) left NO audit row.
+		const { rows: auditRows } = await seedPool.query(
+			`SELECT action_type, target_type, metadata FROM audit_logs
+			 WHERE action_type = 'skeleton_event_swept' AND target_id = $1`,
+			[R.s1],
+		);
+		expect(auditRows).toHaveLength(1);
+		expect(auditRows[0].target_type).toBe('interview_event');
+		expect(auditRows[0].metadata.label).toBe('skeleton-class');
+		expect(auditRows[0].metadata.event_id).toBe(R.s1);
+		expect(auditRows[0].metadata.tombstone_user_id).toBe(CAND);
+		expect(auditRows[0].metadata.predicate_outcome).toEqual({
+			signature: true,
+			tombstone: true,
+			chronology: true,
+			no_panel_rows: true,
+			no_dependents: true,
+			no_active_hold: true,
+		});
+		expect(auditRows[0].metadata.last_panel_row_deletion_timestamp).toEqual({
+			value: null,
+			source: 'unavailable',
+			reason_code: 'panel_rows_deleted_without_deletion_timestamp',
+			recorded_on: '#1977',
+		});
+		const { rows: heldAuditRows } = await seedPool.query(
+			`SELECT id FROM audit_logs WHERE action_type = 'skeleton_event_swept' AND target_id = $1`,
+			[R.s3a],
+		);
+		expect(heldAuditRows).toHaveLength(0);
 		// Partial tombstones persist (B-3 fail-closed).
 		expect(await eventExists(R.s9)).toBe(true);
 		expect(await eventExists(R.s10)).toBe(true);
@@ -424,6 +514,7 @@ describeIfDb('#1973 skeleton cleanup sweep (Quinn E2E, realdb)', () => {
 			   AND NOT EXISTS (SELECT 1 FROM event_labelling_consent elc WHERE elc.interview_event_id = ie.id)
 			   AND NOT EXISTS (SELECT 1 FROM proposed_slots ps WHERE ps.interview_event_id = ie.id)
 			   AND NOT EXISTS (SELECT 1 FROM interview_rooms rm WHERE rm.interview_event_id = ie.id)
+			   AND ie.interview_session_id IS NULL
 			   AND NOT EXISTS (
 			     SELECT 1 FROM legal_holds lh WHERE lh.released_at IS NULL AND (
 			       lh.user_id = ie.candidate_id
@@ -436,5 +527,72 @@ describeIfDb('#1973 skeleton cleanup sweep (Quinn E2E, realdb)', () => {
 		// excluded postures: S6/S7/S8 carry dependents (already
 		// excluded above, so this set must in fact be EMPTY).
 		expect(rows).toEqual([]);
+	});
+
+	test('RACE (#1977): panel row inserted between enumeration and DELETE saves the event', async () => {
+		const q = (sql, params) => seedPool.query(sql, params);
+		await mkUser(q, CAND_RACE, {});
+		const raceEvent = await mkSkeleton(q, CAND_RACE);
+
+		// Wrapper pool: the moment the sweep's enumeration query has
+		// returned (its snapshot taken), a panel member's consent row
+		// lands on the event from a separate connection — the exact
+		// enumeration→DELETE gap. The per-event DELETE re-states the
+		// full predicate under FOR UPDATE, so the event must survive.
+		let raced = false;
+		const racePool = {
+			query: async (text, params) => {
+				const res = await seedPool.query(text, params);
+				if (!raced && typeof text === 'string' && text.includes('FROM interview_events ie')) {
+					raced = true;
+					await mkPanel(q, raceEvent, PAN1, 'granted');
+				}
+				return res;
+			},
+			connect: (...args) => seedPool.connect(...args),
+		};
+
+		const res = await sweepPanelSkeletonEvents({ queryable: racePool });
+		expect(raced).toBe(true);
+		expect(res.deleted).toBe(0);
+		expect(await eventExists(raceEvent)).toBe(true);
+		const { rows: panelRows } = await seedPool.query(
+			`SELECT id FROM event_labelling_consent WHERE interview_event_id = $1`,
+			[raceEvent],
+		);
+		expect(panelRows).toHaveLength(1);
+
+		// The race protection is not a permanent block: once the
+		// panel row is gone, the next sweep deletes the skeleton.
+		await seedPool.query(`DELETE FROM event_labelling_consent WHERE interview_event_id = $1`, [
+			raceEvent,
+		]);
+		const res2 = await sweepPanelSkeletonEvents({ queryable: seedPool });
+		expect(res2.deleted).toBe(1);
+		expect(await eventExists(raceEvent)).toBe(false);
+	});
+
+	test('STARVE (#1977): enumeration pages past held rows and still reaches a deletable skeleton', async () => {
+		const q = (sql, params) => seedPool.query(sql, params);
+		await mkUser(q, CAND_STARVE_HOLD, {});
+		await mkUser(q, CAND_STARVE_DEL, {});
+		await q(`INSERT INTO legal_holds (user_id, reason, set_by) VALUES ($1, 'test hold starve', '1977-test')`, [
+			CAND_STARVE_HOLD,
+		]);
+		const heldIds = [];
+		for (let i = 0; i < 12; i++) {
+			heldIds.push(await mkSkeleton(q, CAND_STARVE_HOLD));
+		}
+		const delEvent = await mkSkeleton(q, CAND_STARVE_DEL);
+
+		// Page size 5: the pre-#1977 enumeration stopped at the first
+		// 5 pre-partition candidates and never reached delEvent.
+		const res = await sweepPanelSkeletonEvents({ queryable: seedPool, limit: 5 });
+		expect(res.deleted).toBe(1);
+		expect(res.heldSkipped).toBeGreaterThanOrEqual(12);
+		expect(await eventExists(delEvent)).toBe(false);
+		for (const id of heldIds) {
+			expect(await eventExists(id)).toBe(true);
+		}
 	});
 });
