@@ -923,7 +923,11 @@ describe('euComplianceService purges under hold', () => {
 			return { rows: [], rowCount: 0 };
 		});
 		const summary = await EuComplianceService.executePurge({ dryRun: false });
-		expect(summary).toHaveLength(1);
+		// #1981: executePurge now appends the skeleton_event_swept
+		// expiry entry after the policy entries (length 1 → 2); the
+		// generic audit_logs entry stays first and unchanged.
+		expect(summary).toHaveLength(2);
+		expect(summary[1].data_type).toBe('audit_logs_skeleton_event_swept');
 		expect(summary[0].affected_count).toBe(3);
 		expect(summary[0].held_skips).toBe(2);
 		const del = db.query.mock.calls.find((c) => c[0].includes('DELETE FROM audit_logs'));

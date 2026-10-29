@@ -595,20 +595,26 @@ class EuComplianceService {
 
 			switch (policy.data_type) {
 				case 'audit_logs': {
+					// #1981: skeleton_event_swept rows are EXCLUDED from
+					// this generic branch in every statement — their
+					// user_id is NULL and their hold check is
+					// metadata-keyed (purgeExpiredSkeletonAuditRows,
+					// appended by executePurge below). Deleting them
+					// here would be hold-blind.
 					const heldRes = await pool.query(
-						`SELECT COUNT(*)::int as c FROM audit_logs WHERE created_at < $1 AND ${heldPredicate('audit_logs.user_id')}`,
+						`SELECT COUNT(*)::int as c FROM audit_logs WHERE created_at < $1 AND action_type IS DISTINCT FROM 'skeleton_event_swept' AND ${heldPredicate('audit_logs.user_id')}`,
 						[cutoff],
 					);
 					heldSkips = heldRes.rows[0].c;
 					if (!dryRun) {
 						const r = await pool.query(
-							`DELETE FROM audit_logs WHERE created_at < $1 AND ${notHeldPredicate('audit_logs.user_id')}`,
+							`DELETE FROM audit_logs WHERE created_at < $1 AND action_type IS DISTINCT FROM 'skeleton_event_swept' AND ${notHeldPredicate('audit_logs.user_id')}`,
 							[cutoff],
 						);
 						deletedCount = r.rowCount;
 					} else {
 						const r = await pool.query(
-							`SELECT COUNT(*)::int as c FROM audit_logs WHERE created_at < $1 AND ${notHeldPredicate('audit_logs.user_id')}`,
+							`SELECT COUNT(*)::int as c FROM audit_logs WHERE created_at < $1 AND action_type IS DISTINCT FROM 'skeleton_event_swept' AND ${notHeldPredicate('audit_logs.user_id')}`,
 							[cutoff],
 						);
 						deletedCount = r.rows[0].c;
@@ -727,7 +733,70 @@ class EuComplianceService {
 			});
 		}
 
+		// #1981: skeleton_event_swept expiry runs OUTSIDE the policy
+		// loop — the seeded audit_logs policy is auto_delete=false by
+		// design (migration 013), so policy-loop wiring would be dead
+		// code. The live gate is unchanged: the only caller (routes/
+		// compliance.js) refuses live runs unless RETENTION_PURGE_LIVE
+		// is set in production. Aggregate entry only.
+		summary.push(
+			await EuComplianceService.purgeExpiredSkeletonAuditRows({ dryRun }),
+		);
+
 		return summary;
+	}
+
+	/**
+	 * #1981 (Lex position on #1979): expiry purge for
+	 * skeleton_event_swept audit rows ONLY. Retention is a fixed
+	 * 2555 days (7 years, K-2 / migration-013 seeded audit_logs
+	 * period) from the row's created_at; at expiry the whole row is
+	 * DELETEd — never redacted, and the purge writes NO new
+	 * per-subject row (aggregate counts in the return value only).
+	 * A legal hold covering the tombstone subject (metadata-keyed,
+	 * fail-closed — see lib/legalHold skeleton predicates) pauses
+	 * the clock: held rows survive and are counted in held_skips,
+	 * and are deleted by the first purge run after release.
+	 *
+	 * @param {{ dryRun?: boolean, queryable?: object }} options
+	 * @returns {Promise<{data_type: string, retention_days: number, cutoff: string, affected_count: number, held_skips: number, dry_run: boolean}>}
+	 */
+	static async purgeExpiredSkeletonAuditRows({ dryRun = true, queryable } = {}) {
+		const q = queryable || pool;
+		const {
+			skeletonAuditHeldPredicate,
+			skeletonAuditNotHeldPredicate,
+		} = require('../lib/legalHold');
+		const retentionDays = 2555;
+		const cutoff = new Date();
+		cutoff.setDate(cutoff.getDate() - retentionDays);
+
+		const heldRes = await q.query(
+			`SELECT COUNT(*)::int as c FROM audit_logs WHERE action_type = 'skeleton_event_swept' AND created_at < $1 AND ${skeletonAuditHeldPredicate()}`,
+			[cutoff],
+		);
+		let affectedCount = 0;
+		if (!dryRun) {
+			const r = await q.query(
+				`DELETE FROM audit_logs WHERE action_type = 'skeleton_event_swept' AND created_at < $1 AND ${skeletonAuditNotHeldPredicate()}`,
+				[cutoff],
+			);
+			affectedCount = r.rowCount;
+		} else {
+			const r = await q.query(
+				`SELECT COUNT(*)::int as c FROM audit_logs WHERE action_type = 'skeleton_event_swept' AND created_at < $1 AND ${skeletonAuditNotHeldPredicate()}`,
+				[cutoff],
+			);
+			affectedCount = r.rows[0].c;
+		}
+		return {
+			data_type: 'audit_logs_skeleton_event_swept',
+			retention_days: retentionDays,
+			cutoff: cutoff.toISOString(),
+			affected_count: affectedCount,
+			held_skips: heldRes.rows[0].c,
+			dry_run: dryRun,
+		};
 	}
 
 	/**
