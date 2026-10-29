@@ -64,9 +64,10 @@ describe('#1981 executePurge wiring', () => {
 			if (sql.includes('skeleton_event_swept')) {
 				if (sql.trimStart().startsWith('DELETE')) return { rows: [], rowCount: 3 };
 				skeletonCountCalls += 1;
-				// First skeleton COUNT is the held count, second is the
-				// dry-run would-delete count.
-				return { rows: [{ c: skeletonCountCalls === 1 ? 2 : 3 }], rowCount: 1 };
+				// Skeleton COUNT order: held, unattributable, dry-run
+				// would-delete.
+				const c = skeletonCountCalls === 1 ? 2 : skeletonCountCalls === 2 ? 1 : 3;
+				return { rows: [{ c }], rowCount: 1 };
 			}
 			if (sql.includes('FROM audit_logs')) {
 				if (sql.trimStart().startsWith('DELETE')) return { rows: [], rowCount: 1 };
@@ -82,12 +83,21 @@ describe('#1981 executePurge wiring', () => {
 		expect(skel).toBeDefined();
 		expect(skel.retention_days).toBe(2555);
 		expect(skel.held_skips).toBe(2);
+		expect(skel.unattributable_skips).toBe(1);
 		expect(skel.affected_count).toBe(3);
 		expect(skel.dry_run).toBe(true);
 		// Aggregate only: the summary entry carries no subject id and
 		// no keys beyond the standard aggregate shape.
 		expect(Object.keys(skel).sort()).toEqual(
-			['affected_count', 'cutoff', 'data_type', 'dry_run', 'held_skips', 'retention_days'].sort(),
+			[
+				'affected_count',
+				'cutoff',
+				'data_type',
+				'dry_run',
+				'held_skips',
+				'retention_days',
+				'unattributable_skips',
+			].sort(),
 		);
 	});
 

@@ -39,10 +39,19 @@ seeded audit_logs policy (migration 013: 2555 days,
   int4-range check make the cast unable to raise); a missing /
   malformed / out-of-range subject reads as HELD (fail-closed).
   Company coverage mirrors `heldPredicate` (users.company_id +
-  interview_sessions) plus the sweep's job-application branch via
-  `target_id`. Recorded limit: the sweep deletes the event that
-  branch keys through, so it normally cannot fire at purge time;
-  the residual question is on #1981 for Lex.
+  interview_sessions) plus job-application attribution: any
+  company the subject has a retained `job_applications` row with
+  (privacy HIGH-1 — that skeleton survives erasure with
+  company_id intact, so this branch IS reachable at purge time),
+  and a precise `target_id` leg for rows whose event still
+  exists. Recorded limit: the sweep's own precise
+  event→application leg keys through the event it deleted, so
+  that exact leg cannot fire for swept rows; the residual
+  question is on #1981 for Lex. The subject CASE also guards
+  non-object metadata (`jsonb_typeof`) so an array/scalar
+  metadata value reads as unattributable instead of raising.
+  The summary entry breaks out `unattributable_skips` from
+  `held_skips` (#1154 audit-truthfulness precedent).
 - `services/euComplianceService.js`: the generic audit_logs
   branch excludes the skeleton class in all three statements;
   new `purgeExpiredSkeletonAuditRows` applies the fixed 2555-day
@@ -59,8 +68,11 @@ seeded audit_logs policy (migration 013: 2555 days,
 Red-first unit suite failed 4/4 on base 12c2ee5be. Independent
 reviewer: PASS, two LOWs fixed in-PR (negative-string tombstone
 posture; 2554/2556-day boundary postures). Quinn E2E on a real
-local Postgres rig (integration suite, 13 postures): dry-run
-held_skips=7 / affected=3 / zero deletions; live run deleted
-exactly the unheld-expired, released-hold, and 2556-day rows —
-all held/unexpired/malformed/generic rows survived read-back.
+local Postgres rig (integration suite, 15 postures): dry-run
+held_skips=9 (incl. unattributable_skips=5) / affected=3 / zero
+deletions; live run deleted exactly the unheld-expired,
+released-hold, and 2556-day rows — all held (incl. the
+applications-only company hold), unexpired, malformed, and
+generic rows survived read-back. Sensitivity check: with the
+pre-amendment predicate restored, both integration tests fail.
 Full evidence on PR #1982 and the #1981 checkpoint comment.

@@ -772,6 +772,7 @@ class EuComplianceService {
 		const {
 			skeletonAuditHeldPredicate,
 			skeletonAuditNotHeldPredicate,
+			skeletonAuditUnattributablePredicate,
 		} = require('../lib/legalHold');
 		const retentionDays = 2555;
 		const cutoff = new Date();
@@ -779,6 +780,12 @@ class EuComplianceService {
 
 		const heldRes = await q.query(
 			`SELECT COUNT(*)::int as c FROM audit_logs WHERE action_type = 'skeleton_event_swept' AND created_at < $1 AND ${skeletonAuditHeldPredicate()}`,
+			[cutoff],
+		);
+		// Unattributable share of held_skips, broken out separately
+		// (privacy LOW on #1981; #1154 audit-truthfulness precedent).
+		const unattributableRes = await q.query(
+			`SELECT COUNT(*)::int as c FROM audit_logs WHERE action_type = 'skeleton_event_swept' AND created_at < $1 AND ${skeletonAuditUnattributablePredicate()}`,
 			[cutoff],
 		);
 		let affectedCount = 0;
@@ -801,6 +808,7 @@ class EuComplianceService {
 			cutoff: cutoff.toISOString(),
 			affected_count: affectedCount,
 			held_skips: heldRes.rows[0].c,
+			unattributable_skips: unattributableRes.rows[0].c,
 			dry_run: dryRun,
 		};
 	}

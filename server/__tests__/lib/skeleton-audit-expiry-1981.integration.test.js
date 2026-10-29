@@ -37,8 +37,10 @@ const U_SESSION = 1981102;
 const U_UNHELD = 1981103;
 const U_OWNCO = 1981105;
 const U_RELEASED = 1981106;
+const U_APPCO = 1981107;
 const CO_SESSION = 1981201;
 const CO_OWN = 1981203;
+const CO_APP = 1981204;
 
 const EXPIRED = new Date(Date.now() - 3000 * 86400000);
 const RECENT = new Date(Date.now() - 10 * 86400000);
@@ -72,7 +74,7 @@ describeIfDb('#1981 skeleton audit expiry — real PG', () => {
 		await pool.query(`
 			CREATE TABLE users (id INTEGER PRIMARY KEY, company_id INTEGER);
 			CREATE TABLE companies (id INTEGER PRIMARY KEY);
-			CREATE TABLE job_applications (id INTEGER PRIMARY KEY, company_id INTEGER);
+			CREATE TABLE job_applications (id INTEGER PRIMARY KEY, company_id INTEGER, candidate_id INTEGER);
 			CREATE TABLE interview_events (id INTEGER PRIMARY KEY, job_application_id INTEGER, candidate_id INTEGER);
 			CREATE TABLE interview_sessions (id SERIAL PRIMARY KEY, candidate_id INTEGER, company_id INTEGER);
 			CREATE TABLE legal_holds (id SERIAL PRIMARY KEY, user_id INTEGER, company_id INTEGER,
@@ -91,22 +93,34 @@ describeIfDb('#1981 skeleton audit expiry — real PG', () => {
 			`INSERT INTO data_retention_policies (data_type, retention_days, auto_delete)
 			 VALUES ('audit_logs', 2555, false)`,
 		);
-		await pool.query(`INSERT INTO companies (id) VALUES ($1), ($2)`, [CO_SESSION, CO_OWN]);
+		await pool.query(`INSERT INTO companies (id) VALUES ($1), ($2), ($3)`, [
+			CO_SESSION,
+			CO_OWN,
+			CO_APP,
+		]);
 		await pool.query(
-			`INSERT INTO users (id, company_id) VALUES ($1,NULL),($2,NULL),($3,NULL),($4,$5),($6,NULL)`,
-			[U_HELD, U_SESSION, U_UNHELD, U_OWNCO, CO_OWN, U_RELEASED],
+			`INSERT INTO users (id, company_id) VALUES ($1,NULL),($2,NULL),($3,NULL),($4,$5),($6,NULL),($7,NULL)`,
+			[U_HELD, U_SESSION, U_UNHELD, U_OWNCO, CO_OWN, U_RELEASED, U_APPCO],
 		);
 		await pool.query(`INSERT INTO interview_sessions (candidate_id, company_id) VALUES ($1,$2)`, [
 			U_SESSION,
 			CO_SESSION,
 		]);
+		// Privacy HIGH-1 posture: U_APPCO's ONLY link to CO_APP is a
+		// retained job_applications skeleton (no session, no
+		// users.company_id) — the company hold must still reach them.
+		await pool.query(
+			`INSERT INTO job_applications (id, company_id, candidate_id) VALUES (1, $1, $2)`,
+			[CO_APP, U_APPCO],
+		);
 		await pool.query(
 			`INSERT INTO legal_holds (user_id, company_id, reason, set_by, released_at) VALUES
 			 ($1, NULL, 'litigation', 'admin', NULL),
 			 (NULL, $2, 'litigation', 'admin', NULL),
 			 (NULL, $3, 'litigation', 'admin', NULL),
-			 ($4, NULL, 'litigation', 'admin', NOW())`,
-			[U_HELD, CO_SESSION, CO_OWN, U_RELEASED],
+			 ($4, NULL, 'litigation', 'admin', NOW()),
+			 (NULL, $5, 'litigation', 'admin', NULL)`,
+			[U_HELD, CO_SESSION, CO_OWN, U_RELEASED, CO_APP],
 		);
 		ids.heldUser = await seedAudit('skeleton_event_swept', U_HELD, EXPIRED);
 		ids.heldSession = await seedAudit('skeleton_event_swept', U_SESSION, EXPIRED);
@@ -121,6 +135,16 @@ describeIfDb('#1981 skeleton audit expiry — real PG', () => {
 		ids.generic = await seedAudit('some_other_action', U_UNHELD, EXPIRED);
 		ids.justInside = await seedAudit('skeleton_event_swept', U_UNHELD, JUST_INSIDE);
 		ids.justOutside = await seedAudit('skeleton_event_swept', U_UNHELD, JUST_OUTSIDE);
+		ids.heldAppCo = await seedAudit('skeleton_event_swept', U_APPCO, EXPIRED);
+		// Non-object metadata (JSON array): ->> on an array raises in
+		// Postgres unless the subject CASE guards on jsonb_typeof —
+		// the row must read as unattributable/held, never crash the run.
+		const arrRes = await pool.query(
+			`INSERT INTO audit_logs (action_type, user_id, target_type, target_id, metadata, created_at)
+			 VALUES ('skeleton_event_swept', NULL, 'interview_event', 555001, '[]'::jsonb, $1) RETURNING id`,
+			[EXPIRED],
+		);
+		ids.arrayMetadata = arrRes.rows[0].id;
 
 		EuComplianceService = require('../../../services/euComplianceService');
 	});
@@ -134,11 +158,12 @@ describeIfDb('#1981 skeleton audit expiry — real PG', () => {
 		const skel = summary.find((s) => s.data_type === 'audit_logs_skeleton_event_swept');
 		expect(skel).toBeDefined();
 		expect(skel.retention_days).toBe(2555);
-		expect(skel.held_skips).toBe(7);
+		expect(skel.held_skips).toBe(9);
+		expect(skel.unattributable_skips).toBe(5);
 		expect(skel.affected_count).toBe(3);
 		expect(JSON.stringify(summary)).not.toContain(String(U_UNHELD));
 		const { rows } = await pool.query(`SELECT COUNT(*)::int AS c FROM audit_logs`);
-		expect(rows[0].c).toBe(13);
+		expect(rows[0].c).toBe(15);
 	});
 
 	test('live run deletes only unheld expired skeleton rows; state read back', async () => {
@@ -146,7 +171,8 @@ describeIfDb('#1981 skeleton audit expiry — real PG', () => {
 		const summary = await EuComplianceService.executePurge({ dryRun: false });
 		const skel = summary.find((s) => s.data_type === 'audit_logs_skeleton_event_swept');
 		expect(skel.affected_count).toBe(3);
-		expect(skel.held_skips).toBe(7);
+		expect(skel.held_skips).toBe(9);
+		expect(skel.unattributable_skips).toBe(5);
 
 		const { rows } = await pool.query(`SELECT id FROM audit_logs ORDER BY id`);
 		const surviving = new Set(rows.map((r) => r.id));
@@ -157,11 +183,13 @@ describeIfDb('#1981 skeleton audit expiry — real PG', () => {
 			'heldUser',
 			'heldSession',
 			'heldOwnCo',
+			'heldAppCo',
 			'unexpired',
 			'malformedMissing',
 			'malformedText',
 			'malformedNegative',
 			'oversize',
+			'arrayMetadata',
 			'generic',
 			'justInside',
 		]) {
