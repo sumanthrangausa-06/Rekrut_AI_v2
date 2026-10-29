@@ -997,14 +997,22 @@ router.post('/events/:eventId/labelling-consent', authMiddleware, async (req, re
 			// lands AFTER labels were written purges them — the gate
 			// cannot cover processing that already happened. Runs after
 			// COMMIT (the decision is durable first); a purge failure is
-			// logged, never reported as a capture failure — the decision
-			// itself WAS recorded.
+			// never reported as a capture failure — the decision itself
+			// WAS recorded. The purge itself is transactional per
+			// recording and throws a structured error (#1966 M-1:
+			// failed recording ids + committed count) — logged here
+			// with those ids so the incomplete purge is identifiable
+			// and retryable (a re-call purges exactly the remainder).
 			if (decision === 'declined' || decision === 'withdrawn') {
 				try {
 					const { purgeCompletedDiarizationForEvent } = require('../lib/panelWithdrawalPurge');
 					await purgeCompletedDiarizationForEvent(eventId, pool);
 				} catch (purgeErr) {
-					console.error('[interview-events] post-decision diarization purge failed:', purgeErr.message);
+					console.error(
+						'[interview-events] post-decision diarization purge incomplete:',
+						purgeErr.message,
+						JSON.stringify(purgeErr.failures || []),
+					);
 				}
 			}
 			// Allowlist-serialized response: caller's own state only — no

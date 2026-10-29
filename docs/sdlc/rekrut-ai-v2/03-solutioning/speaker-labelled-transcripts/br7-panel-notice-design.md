@@ -618,9 +618,13 @@ recording itself:
 
 `lib/diarizationGate.js` gains a third leg, evaluated **only on the
 event-bridge path**, after bridge steps 5–6 (the candidate legs) and
-before the step-7 allow. The session-linked path is byte-for-byte
-unchanged (it has no event participant set, and diarization enqueue is
-event-only — §3). Candidate codes keep precedence: a recording that
+before the step-7 allow. The session-linked path's logic, codes and
+consent-table queries are unchanged (it has no event participant set,
+and diarization enqueue is event-only — §3). Record correction
+(#1966 M-4): "byte-for-byte unchanged" was not literally true — the
+recording SELECT shared by both paths now also fetches the two panel
+columns (`panel_expected_user_ids, panel_expected_hash`,
+`lib/diarizationGate.js`); nothing on the session path reads them. Candidate codes keep precedence: a recording that
 fails the candidate leg cancels with the candidate code, exactly as
 today, and the panel leg is never evaluated. The leg runs identically
 at claim and at write; neither call caches anything from the other.
@@ -668,11 +672,18 @@ at claim and at write; neither call caches anything from the other.
   `consent_receipt_id` today — under the §5.1 write-once guard
   (security S-2): a claim retry that recomputes a different snapshot
   fails `PANEL_SNAPSHOT_CONFLICT` instead of overwriting it.
-  **Snapshot-and-claim is one transaction** (security C-5c): the
-  claim transition, the gate evaluation's reads, and the snapshot
-  write commit atomically under a per-event advisory lock, so no
-  decision flip can land between the check and the persisting of
-  what was checked.
+  **Snapshot-and-claim is one transaction** (security C-5c) — with
+  the scope as built, recorded here as the accepted wording
+  correction (#1966 M-2): the transaction covers the provenance
+  persist, the locked live panel re-check, and the snapshot write,
+  committing atomically under a per-event advisory lock. The
+  job-claim transition itself and the first full gate evaluation sit
+  OUTSIDE that transaction; panel-leg atomicity does not come from
+  their inclusion but from the locked re-check — the re-check is
+  compared against the snapshot inside the lock, and any divergence
+  conflicts/blocks — and from the capture side holding the paired
+  lock, so no decision flip can land between the re-check and the
+  persisting of what was checked.
 - **P6 — Write-time comparison.** The write evaluation re-resolves
   from scratch — against **latest overall** decisions (security C-5b:
   a decline recorded after recording start but before write blocks,
@@ -687,6 +698,16 @@ at claim and at write; neither call caches anything from the other.
   A decision flipped granted → declined → granted between claim and
   write still differs in `decided_at` and still blocks: the run that
   was authorized is not the run that would be written.
+  **Recorded deviation (#1966 M-3):** one write-time block is
+  deliberately NOT translated to either P6 comparison code above —
+  when the write evaluation itself cannot resolve the panel
+  agreement it blocks `PANEL_AGREEMENT_UNVERIFIABLE`, and the worker
+  keeps that code: the job cancels as
+  `consent_blocked_at_write:PANEL_AGREEMENT_UNVERIFIABLE`
+  (`workers/diarization/index.js`, the translation explicitly
+  excludes it). The behaviour is fail-closed and the output is
+  discarded exactly as for the comparison codes; it is recorded here
+  because P6 names only the two comparison codes for write blocks.
 
 Every block cancels the job with `consent_blocked_at_claim:<CODE>` or
 `consent_blocked_at_write:<CODE>` and sets the recording's diarization
@@ -725,6 +746,17 @@ this design does not ship that. The claim-time snapshot (§5.1) is
 **not** deleted by this purge — it is the evidence that the labels,
 while they existed, were authorized when written (privacy C-2); it
 leaves with the run/job records under §10's retention.
+
+**Implementation note (#1966 M-1):** as first built (S-D19), the
+purge issued its statements per recording on the pool with no
+transaction, after the capture COMMIT and outside the advisory lock,
+and a failure was only logged — a mid-purge failure could leave a
+partially purged recording. The purge is now transactional per
+recording (own client, `BEGIN`…`COMMIT`, the per-event advisory lock
+taken inside the transaction), and a failure rolls that recording
+back whole and is thrown to the caller as a structured error
+(failed recording ids + committed count), so an incomplete purge is
+identifiable and retryable — a re-call purges exactly the remainder.
 
 ### 7.2 Enqueue is a third check, not a formality (security S-7)
 
