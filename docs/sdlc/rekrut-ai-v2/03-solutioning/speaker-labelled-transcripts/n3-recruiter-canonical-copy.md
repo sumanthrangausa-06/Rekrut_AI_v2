@@ -53,7 +53,7 @@ it changes everywhere at once, under a new notice version in the
 > you and each panel member on your own screens, in the interview
 > room, for that interview. Labels are created only if the candidate
 > has given biometric consent **and** every other participant has
-> agreed on their own screen **before the recording starts**.
+> agreed on their own screen **at or before the recording starts**.
 >
 > If anyone declines or does not agree, the interview and the
 > recording still go ahead — the transcript simply will not show who
@@ -73,7 +73,7 @@ Shown where a recruiter composes a panel for an interview:
 > **Speaker labelling:** if this interview is recorded, speaker
 > labels are created only where the candidate has given biometric
 > consent and every other participant has agreed to speaker labelling
-> on their own screen before the recording starts. Anyone can decline —
+> on their own screen at or before the recording starts. Anyone can decline —
 > the interview and recording still go ahead, without labels. Please
 > let your panel members know before the interview; they will each
 > decide for themselves in the room.
@@ -84,7 +84,7 @@ Shown where a recruiter composes a panel for an interview:
 |---|---|
 | Labels only if candidate biometric consent **and** every other participant agreed | `lib/diarizationGate.js`: candidate legs first (governing-session biometric consent + observer gate), then the panel leg requires a latest `granted` decision from every user in the recording's frozen expected set (recruiter ∪ panel members, candidate excluded). Either leg failing = no labels. |
 | Agreement is on each participant's own screen, for that interview | Token `labelling_notice` carries only the caller's own state; `PanelLabellingNotice` renders only the caller's own control; capture keys to `req.user.id` + the event (per-interview, never evergreen). |
-| Agreement must be before the recording starts | Gate P3 blocks `PANEL_AGREEMENT_AFTER_RECORDING` when `decided_at > started_at`, and judges the notice version in force at `started_at`. |
+| Agreement must be recorded at or before the recording starts | Gate P3 blocks `PANEL_AGREEMENT_AFTER_RECORDING` only when `decided_at > started_at` (an agreement at exactly `started_at` counts), and judges the notice version in force at `started_at`. |
 | Decline → interview and recording proceed, transcript unlabelled | ADR-D07 as built: a panel decline blocks only diarization (`PANEL_AGREEMENT_DECLINED`, state folds to `unavailable`); it never touches recording consent or egress. |
 | A panel grant alone does not turn labelling on | The capture/token carry `decision_scope: "panel_leg_only"`; the room notice's grant copy states labels are created "only if every participant agrees and the candidate has given biometric consent". `DIARIZATION_ENABLED` also remains OFF until S-D17. |
 
