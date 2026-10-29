@@ -151,10 +151,20 @@ async function cleanAndSeed() {
 		[R.panel],
 	);
 	await q(
-		`INSERT INTO diarization_runs (recording_id, job_id, engine_package, sdk_version, model_version, speaker_count, turns, coverage_end_ms)
+		`INSERT INTO diarization_runs (recording_id, job_id, engine_package, sdk_version, model_version, speaker_count, turns, coverage_end_ms, proposed_mapping)
 		 VALUES ($1, $2, '@desert-ant-labs/who', '4.2.1', 'v0.3.4', 4,
-		   '[{"speaker":0,"start_s":120,"end_s":130},{"speaker":3,"start_s":2400,"end_s":2410}]'::jsonb, 2440000)`,
-		[R.panel, job.rows[0].id],
+		   '[{"speaker":0,"start_s":120,"end_s":130},{"speaker":3,"start_s":2400,"end_s":2410}]'::jsonb, 2440000,
+		   $3::jsonb)`,
+		[
+			R.panel,
+			job.rows[0].id,
+			JSON.stringify({
+				0: { participant_user_id: U_CAND, participant_role: 'candidate' },
+				1: { participant_user_id: U_REC, participant_role: 'interviewer' },
+				2: { participant_user_id: U_PANEL2, participant_role: 'interviewer' },
+				3: null,
+			}),
+		],
 	);
 	R.panelJob = job.rows[0].id;
 
@@ -281,19 +291,31 @@ describeIfDb('#1918 S-D16 consolidated journeys (synthetic, realdb)', () => {
 			[[...DIARIZATION_TABLES, 'interview_recordings']],
 		);
 		expect(cols.rows).toEqual([]);
-		// Payload sweep: the completed job's stored run carries no
-		// embedding payload in any JSON/text column.
+		// Payload sweep: the completed job's WHOLE stored run row
+		// (incl. proposed_mapping, the run's second jsonb column) and
+		// whole job row carry no embedding/voice-print payload under
+		// any key name — a vector under a neutral key would fail here.
 		const run = await seedPool.query(
-			`SELECT turns::text AS turns FROM diarization_runs WHERE recording_id = $1`,
+			`SELECT * FROM diarization_runs WHERE recording_id = $1`,
 			[R.panel],
 		);
 		expect(run.rows).toHaveLength(1);
-		expect(run.rows[0].turns).not.toMatch(/embedding/i);
+		expect(JSON.stringify(run.rows[0])).not.toMatch(/embedding|voice.?print/i);
+		// Stored turns carry exactly the production keys
+		// ({speaker, start_s, end_s} — lib/diarizationEngine /
+		// lib/transcriptStitch shape), nothing else rides along.
+		const turns = typeof run.rows[0].turns === 'string'
+			? JSON.parse(run.rows[0].turns)
+			: run.rows[0].turns;
+		expect(Array.isArray(turns)).toBe(true);
+		for (const turn of turns) {
+			expect(Object.keys(turn).sort()).toEqual(['end_s', 'speaker', 'start_s']);
+		}
 		const jobRow = await seedPool.query(
 			`SELECT * FROM diarization_jobs WHERE id = $1`,
 			[R.panelJob],
 		);
-		expect(JSON.stringify(jobRow.rows[0])).not.toMatch(/embedding/i);
+		expect(JSON.stringify(jobRow.rows[0])).not.toMatch(/embedding|voice.?print/i);
 	});
 
 	test('AC-5/BR-13 + JT-D7: post-erasure sweep — zero diarization residue; transcript read is absence', async () => {

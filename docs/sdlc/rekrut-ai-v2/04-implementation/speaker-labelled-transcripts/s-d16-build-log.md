@@ -37,6 +37,14 @@ fresh database `sd16_fresh`; `node migrate.js` exit 0 before any gate.
   transcript read returns absence in the established [purged] shape;
   another candidate's recording untouched.
 
+Review cycle: independent review BLOCKED once on the AC-5/BR-4
+payload sweep (proposed_mapping unswept; word-regex on a clean-by-
+construction seed). Fixed as specified — whole-run-row + whole-job-row
+sweep with `/embedding|voice.?print/i`, exact turn-keys assertion
+(`{speaker, start_s, end_s}` only), and a production-shaped
+proposed_mapping seed so the sweep is not vacuous — re-run 4/4, and an
+independent re-review APPROVED the fix (mutation-checked).
+
 JT-D1/D3/D4-states/D5/D7 are carried by the existing per-story suites
 (#1911 composition, #1912 mapping/correction, #1913 candidate parity,
 #1915 erasure), re-run on the same fresh rig in this story's gate —
