@@ -100,6 +100,61 @@ describe('#1966 M-1 — withdrawal purge transactionality', () => {
 		expect(c22.release).toHaveBeenCalledTimes(1);
 	});
 
+	it('continues to later recordings when the FIRST recording fails', async () => {
+		const c11 = fakeClient({
+			failOn: (sql, params) => sql.includes('DELETE FROM diarization_runs') && params?.[0] === 11,
+		});
+		const c22 = fakeClient();
+		const pool = fakePool([c11, c22]);
+
+		let thrown = null;
+		try {
+			await purgeCompletedDiarizationForEvent(7, pool);
+		} catch (err) {
+			thrown = err;
+		}
+
+		expect(thrown).not.toBeNull();
+		expect(thrown.failures).toEqual([{ recordingId: 11, message: 'injected mid-purge failure' }]);
+		expect(thrown.purged).toBe(1);
+		expect(sqlOf(c11)).toContain('ROLLBACK');
+		expect(sqlOf(c22)).toContain('COMMIT');
+	});
+
+	it('records a connect() failure like any other failure and still attempts the rest', async () => {
+		const c11 = fakeClient();
+		const c22 = fakeClient();
+		let connects = 0;
+		const pool = {
+			query: jest.fn(async (sql) => {
+				if (sql.includes('SELECT DISTINCT ir.id'))
+					return { rows: [{ id: 11 }, { id: 22 }, { id: 33 }] };
+				return { rows: [] };
+			}),
+			connect: jest.fn(async () => {
+				connects += 1;
+				if (connects === 2) throw new Error('pool connect timeout');
+				return connects === 1 ? c11 : c22;
+			}),
+		};
+
+		let thrown = null;
+		try {
+			await purgeCompletedDiarizationForEvent(7, pool);
+		} catch (err) {
+			thrown = err;
+		}
+
+		expect(thrown).not.toBeNull();
+		expect(thrown.failures).toEqual([{ recordingId: 22, message: 'pool connect timeout' }]);
+		expect(thrown.purged).toBe(2);
+		expect(sqlOf(c11)).toContain('COMMIT');
+		expect(sqlOf(c22)).toContain('COMMIT');
+		expect(c22.calls.find((c) => c.sql.startsWith('DELETE FROM diarization_runs')).params).toEqual([
+			33,
+		]);
+	});
+
 	it('uses a bare client queryable directly (no connect) and does not release it', async () => {
 		const client = fakeClient();
 		client.query = jest.fn(async (sql, params) => {
