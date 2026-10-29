@@ -30,6 +30,14 @@
  * notification comment matches its assertion (M5); JT-D8c is
  * independent of JT-D8b's twin store and reads its settled status
  * back from the DB before asserting (M6).
+ *
+ * #1984 follow-up (review of PR #1983, minors F1–F4): the (3b)
+ * notification set is scoped to this event alone, with a seeded
+ * cross-event negative-control row and a per-recipient decision-match
+ * for granted lines as well as declined ones (F1/F2); the withdrawn
+ * twin inside JT-D8b passes the same shared leak scan over the same
+ * panel/recruiter surfaces as the decline twin (F3); the leak scan
+ * carries a scoping note on its whole-payload breadth (F4).
  */
 jest.unmock('../../../lib/db');
 
@@ -64,6 +72,23 @@ const UNAVAILABLE_DIARIZATION = Object.freeze({
 
 // #1969 M1: the shared posture-leak scan. Rejects the gate codes, any
 // decline wording, and the decliner's id/name/email (M3) in a payload.
+//
+// #1984 F4 — SCOPING NOTE (fixture brittleness, known and accepted):
+// the scan stringifies the WHOLE payload, treating speech content and
+// structural metadata identically. That breadth is deliberate — a
+// posture leak can ride in any field, and narrowing the scan to
+// structural fields only would weaken the privacy guarantee — but it
+// means a future fixture can spurious-fail this scan without any real
+// leak if it introduces: recording-consent seeding (a detail payload's
+// `consent:` array carries name/email), a transcript highlight created
+// by the decliner (`created_by_name` on recruiter-view transcripts),
+// realistic transcript text containing a participant's name or the
+// word "declined", or a larger number containing the substring
+// `195902` (the decliner id string-matches anywhere). If a failure
+// traces to one of those fixture shapes rather than a real posture
+// disclosure, revisit scan scoping THEN — with a planted-leak mutation
+// proving the narrowed scan still catches a leak — instead of
+// weakening an assertion to make the fixture pass.
 const LEAK_PATTERNS = [/PANEL_AGREEMENT/, /consent_blocked/, /panel_consent_snapshot/, /cancel_reason/, /declin/i];
 const LEAK_STRINGS = [DECLINER_ID, DECLINER_NAME, DECLINER_EMAIL];
 function expectNoDeclineLeak(payload) {
@@ -404,15 +429,58 @@ describeIfDb('S-D22 panel journeys JT-D8 (#1959, real HTTP + real DB)', () => {
 		// member); the candidate receives none, and a notification
 		// naming a DECLINE reaches only the decliner (#1969 M5 —
 		// comment reconciled to this assertion).
+		// #1984 F1 negative control (privacy gate note): a labelling
+		// line belonging to ANOTHER event — a DECLINED line addressed
+		// to a member who GRANTED here — is seeded directly; it must
+		// be provably present in the DB and provably ABSENT from the
+		// event-scoped set below (the pre-#1984 query's unparenthesised
+		// OR pulled exactly this class of row in from JT-D8a).
+		await pool.query(
+			`INSERT INTO user_notifications (user_id, type, title, message, metadata)
+			 VALUES ($1, 'labelling_decision', 'Speaker labelling decision recorded', $2, $3)`,
+			[U_PANEL2,
+				'You recorded "declined" for speaker labelling on interview 999999999. You can change it from the interview room.',
+				JSON.stringify({ event_id: 999999999, decision: 'declined' })]);
+		const control = await pool.query(
+			`SELECT COUNT(*)::int AS n FROM user_notifications
+			 WHERE metadata->>'event_id' = '999999999' AND user_id = $1`, [U_PANEL2]);
+		expect(control.rows[0].n).toBe(1);
+		// #1984 F1: the set is scoped to THIS event alone — production
+		// always writes metadata.event_id on the C-6d insert
+		// (routes/interview-events.js), so the message-ILIKE branch
+		// (which matched other events' rows) is gone, not merely
+		// parenthesised.
 		const notifs = await pool.query(
-			`SELECT user_id, message FROM user_notifications
-			 WHERE metadata->>'event_id' = $1 OR message ILIKE '%speaker labelling%' AND user_id = ANY($2)`,
+			`SELECT user_id, message, metadata FROM user_notifications
+			 WHERE metadata->>'event_id' = $1 AND user_id = ANY($2)`,
 			[String(event.id), [U_REC, U_PANEL, U_PANEL2, U_CAND]]);
 		const labellingNotifs = notifs.rows.filter((n) => /speaker labelling/i.test(n.message));
 		expect(labellingNotifs.length).toBeGreaterThan(0);
 		expect(labellingNotifs.every((n) => [U_PANEL, U_PANEL2, U_REC].includes(Number(n.user_id)))).toBe(true);
 		expect(labellingNotifs.filter((n) => /declined/i.test(n.message)).every((n) => Number(n.user_id) === U_PANEL)).toBe(true);
 		expect(labellingNotifs.some((n) => Number(n.user_id) === U_CAND)).toBe(false);
+		// #1984 F2: per-recipient decision-match — the decision named
+		// in each decider's own C-6d line must be the decision THAT
+		// recipient recorded for THIS event (a granted line delivered
+		// to the wrong decider fails here, as a declined line to the
+		// wrong decider already did above). Both carriers are checked
+		// — the message text and metadata.decision — and every row
+		// must belong to this event (F1 purity). Fail loud if a line
+		// is unparseable (privacy gate note): an unreadable row is a
+		// failure, never a silent skip.
+		const EXPECTED_DECISION = new Map([
+			[U_PANEL, 'declined'], [U_PANEL2, 'granted'], [U_REC, 'granted'],
+		]);
+		for (const n of labellingNotifs) {
+			expect(String(n.metadata?.event_id)).toBe(String(event.id));
+			const named = /You recorded "(\w+)" for speaker labelling/.exec(n.message);
+			expect(named).not.toBeNull();
+			expect(named[1]).toBe(EXPECTED_DECISION.get(Number(n.user_id)));
+			expect(n.metadata?.decision).toBe(EXPECTED_DECISION.get(Number(n.user_id)));
+		}
+		// The negative-control row is not in the set (event purity,
+		// asserted directly — not inferred from the checks above).
+		expect(labellingNotifs.some((n) => String(n.metadata?.event_id) === '999999999')).toBe(false);
 		// (3c) Audit boundary lock (privacy A9 regression): panel capture
 		// audit rows carry company_id NULL, so company-scoped audit
 		// readers (incl. the decliner's own recruiter) can never see
@@ -462,10 +530,29 @@ describeIfDb('S-D22 panel journeys JT-D8 (#1959, real HTTP + real DB)', () => {
 		expect(wTx.body.transcript.diarization).toEqual(twin.diarization);
 		const wDetail = await getDetail(wRecId, candTok());
 		expect(wDetail.body.recording.diarization_status).toBe('unavailable');
-		// The withdrawn twin's candidate payloads pass the same shared
-		// scan (#1969 M1) — a withdrawal must not leak either.
-		expectNoDeclineLeak(wTx.body);
-		expectNoDeclineLeak(wDetail.body);
+		// #1984 F3: the withdrawn twin passes the SAME shared scan over
+		// the SAME surfaces as the decline twin — candidate, panel and
+		// recruiter, transcript + detail — not candidate payloads only.
+		// A hit here is a DOUBLE failure (privacy gate note): the
+		// payload leaks a posture AND the twins' scan symmetry — the
+		// property that makes the C-C deep-equality meaningful — is
+		// broken. A withdrawal must not leak on any surface.
+		const wPanelTx = await getTranscript(wRecId, panelTok());
+		expect(wPanelTx.status).toBe(200);
+		expect(wPanelTx.body.transcript.diarization).toEqual(twin.diarization);
+		const wPanelDetail = await getDetail(wRecId, panelTok());
+		expect(wPanelDetail.status).toBe(200);
+		expect(wPanelDetail.body.recording.diarization_status).toBe('unavailable');
+		const wRecTx = await getTranscript(wRecId, recTok());
+		expect(wRecTx.status).toBe(200);
+		const wRecDetail = await getDetail(wRecId, recTok());
+		expect(wRecDetail.status).toBe(200);
+		expect(wRecDetail.body.recording.diarization_status).toBe('unavailable');
+		for (const payload of [wTx.body, wDetail.body,
+			wPanelTx.body, wPanelDetail.body,
+			wRecTx.body, wRecDetail.body]) {
+			expectNoDeclineLeak(payload);
+		}
 	});
 
 	it('JT-D8c (never asked, never decided): no labels; only the operator record names the missing agreement', async () => {
