@@ -26,8 +26,7 @@ const { rateLimits, createRateLimit } = require('../../lib/distributed-rate-limi
 const livekitService = require('../services/livekit');
 const { transcribeAudioWithWhisper } = require('../../lib/polsia-ai');
 const pool = require('../../lib/db');
-const diarizationJobs = require('../../lib/diarizationJobs');
-const { isDiarizationEnabled } = require('../../lib/diarizationFlag');
+const { enqueueDiarizationForRecording } = require('../../lib/diarizationEnqueue');
 const crypto = require('node:crypto');
 
 const router = express.Router();
@@ -815,18 +814,14 @@ router.post(
 			// insert after the response's work is done — a failure here
 			// must never fail the transcription (FR-D07: response shape
 			// and timing unchanged).
-			if (isDiarizationEnabled() && recording.interview_event_id) {
-				try {
-					await diarizationJobs.enqueue(recordingId);
-					await pool.query(
-						`UPDATE interview_recordings
-						 SET diarization_status = 'pending', diarization_updated_at = NOW()
-						 WHERE id = $1`,
-						[recordingId],
-					);
-				} catch (enqErr) {
-					console.error('[recordings] diarization enqueue failed:', enqErr.message);
-				}
+			// S-D19 (#1956, §7.2, security S-7): the enqueue step is a
+			// third check — lib/diarizationEnqueue evaluates the panel
+			// leg and SUPPRESSES the enqueue (no job row, state folded
+			// to 'unavailable') when a panel block already stands.
+			try {
+				await enqueueDiarizationForRecording(recordingId);
+			} catch (enqErr) {
+				console.error('[recordings] diarization enqueue failed:', enqErr.message);
 			}
 
 			res.json({
@@ -1061,7 +1056,20 @@ router.get(
 
 // ─── S-D10 (#1912, §5.2/§5.3): speaker mapping editor ────────────────────
 
-const { participantsFromEvent } = require('../../lib/speakerMapping');
+const { participantsFromEvent, participantsFromFrozenSet } = require('../../lib/speakerMapping');
+
+/**
+ * §13 item 7 (S-D19, #1956; security S-4): the mapping-correction
+ * participant source is the recording's FROZEN set ∪ candidate ∪
+ * recruiter, as frozen at recording creation — not the event's current
+ * lists. A user added to the event afterwards is not assignable to a
+ * recording they were never a captured speaker on; an assignee valid
+ * when the recording was made stays valid. Pre-299 recordings carry
+ * no freeze (null) and keep the legacy event source.
+ */
+function mappingParticipantRefs(recording, event) {
+	return participantsFromFrozenSet(recording, event) ?? participantsFromEvent(event || null);
+}
 
 /**
  * Corrector gate (§5.2): the recruiter of record, a panel interviewer of
@@ -1090,7 +1098,7 @@ async function correctorAccess(recordingId, user) {
  * the same source the transcript read composes from (S-D09 C1) — and no
  * diarization-derived quantity is exposed (§5.1 fence).
  */
-async function speakerEditorPayload(recordingId, event) {
+async function speakerEditorPayload(recordingId, event, recording) {
 	const mapRes = await pool.query(
 		`SELECT m.speaker_number, m.participant_user_id, m.participant_role,
 		        m.state, u.name AS participant_name
@@ -1139,9 +1147,10 @@ async function speakerEditorPayload(recordingId, event) {
 		else mappingState = 'proposed';
 	}
 
-	// Assignment options: the event's participants (§3.7/OQ-4), roles
-	// snapshotted by participantsFromEvent exactly as S-D08 writes them.
-	const participantRefs = participantsFromEvent(event || null);
+	// Assignment options: the recording's participants — the FROZEN
+	// set (§13 item 7, S-4) when the recording carries a freeze, else
+	// the event's current lists (legacy pre-299 rows).
+	const participantRefs = mappingParticipantRefs(recording, event);
 	let participants = [];
 	if (participantRefs.length > 0) {
 		const nameRes = await pool.query(`SELECT id, name FROM users WHERE id = ANY($1::int[])`, [
@@ -1188,7 +1197,7 @@ router.get(
 			if (!access) {
 				return res.status(403).json({ error: 'Not authorized' });
 			}
-			const payload = await speakerEditorPayload(recordingId, access.event);
+			const payload = await speakerEditorPayload(recordingId, access.event, access.recording);
 			res.json({ success: true, ...payload });
 		} catch (err) {
 			console.error('[recordings] Speakers get error:', err.message);
@@ -1241,7 +1250,9 @@ router.put(
 			// wrong name out of the transcript (PR #1936 F-2 note). Every
 			// check runs before any write; the write itself is one
 			// transaction, so a rejection can never partially land.
-			const participantRefs = participantsFromEvent(access.event || null);
+			// S-D19 (§13 item 7, S-4): the participant source is the
+			// recording's FROZEN set, not the event's current lists.
+			const participantRefs = mappingParticipantRefs(access.recording, access.event);
 			const roleByUserId = new Map(participantRefs.map((p) => [p.userId, p.role]));
 
 			const client = await pool.connect();
@@ -1377,7 +1388,7 @@ router.put(
 				client.release();
 			}
 
-			const payload = await speakerEditorPayload(recordingId, access.event);
+			const payload = await speakerEditorPayload(recordingId, access.event, access.recording);
 			res.json({ success: true, ...payload });
 		} catch (err) {
 			console.error('[recordings] Speaker mapping put error:', err.message);
