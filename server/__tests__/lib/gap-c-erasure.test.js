@@ -69,6 +69,20 @@
  *   livekit_room_url / calendar_event_ids — all DEFAULT NULL, no
  *   NOT NULL); panel_member_ids is assigned '{}', never NULL.
  *
+ * #1972 (K-12 panel-consent clause, #1964): the events partition
+ * gains a third EXISTS on event_labelling_consent in the same SELECT
+ * snapshot. Panel-only events (panel rows, no recording) are
+ * REDACTED via a SEPARATE UPDATE (identical five assignments) and
+ * counted in gapC.interviewEventsKeptForPanelConsent — mig 299's
+ * ON DELETE RESTRICT made the old whole-DELETE abort the candidate's
+ * entire erasure. The three disposition sets are disjoint
+ * (recording / panel-only / neither), so deleted + redacted +
+ * kept-for-panel + held + lookup-failed reconciles to the seeded
+ * total. HONEST LIMIT of this mocked harness: the fake cannot model
+ * the RESTRICT FK — the real-DB proof (erasure completes, panel rows
+ * byte-identical) is the Quinn E2E integration suite
+ * (gap-c-1972-panel-erasure.integration.test.js).
+ *
  * Modelled on gap-d-erasure.test.js / gap-b-erasure.test.js
  * (SQL-routing fake). Mocked suite: real-DB verification comes at the
  * PR gate (database reviewer dry run, #1153 precedent).
@@ -225,14 +239,15 @@ function fullScenario() {
 			{ id: 903, scorecard_id: 801 },
 		],
 		deleteCounts: { scorecard_items: 2, interview_analysis: 2 },
-		// 1001 recording-linked → redact; 1002 childless → delete;
+		// 1001 recording-linked (+ panel rows, #1972 posture 1) →
+		// redact, counted as redacted ONLY; 1002 childless → delete;
 		// 1003 held company → untouched; 1004 NULL derived company,
 		// childless → delete under the entry gate alone.
 		events: [
-			{ id: 1001, company_id: 3, has_recording: true },
-			{ id: 1002, company_id: 3, has_recording: false },
-			{ id: 1003, company_id: 99, has_recording: true },
-			{ id: 1004, company_id: null, has_recording: false },
+			{ id: 1001, company_id: 3, has_recording: true, has_panel_consent: true },
+			{ id: 1002, company_id: 3, has_recording: false, has_panel_consent: false },
+			{ id: 1003, company_id: 99, has_recording: true, has_panel_consent: false },
+			{ id: 1004, company_id: null, has_recording: false, has_panel_consent: false },
 		],
 		// 1103 follows its held event; 1104 is a proposed_by row on an
 		// event outside the candidate's event set.
@@ -301,6 +316,7 @@ describe('#1122 GAP-C erasePersonalData — scheduling & human-interview family'
 			scorecardItems: 2,
 			interviewEventsRedacted: 1,
 			interviewEventsDeleted: 2,
+			interviewEventsKeptForPanelConsent: 0,
 			proposedSlots: 3,
 			interviewRooms: 1,
 			interviewRoomsKeptForRecordings: 0,
@@ -406,6 +422,92 @@ describe('#1122 GAP-C erasePersonalData — scheduling & human-interview family'
 		// The held event 1003 appears in NEITHER disposition.
 		expect(params[1]).not.toContain(1003);
 		expect(deletes[0][1][1]).not.toContain(1003);
+	});
+
+	test('#1972 panel partition: panel-only events REDACTED via a separate UPDATE and counted kept-for-panel; RESTRICT DELETE never attempted on them', async () => {
+		// 2001 panel rows, NO recording (the bug posture) → panel
+		// redact; 2002 recording + panel → recording redact ONLY
+		// (disjoint sets, counted once); 2003 neither → DELETE;
+		// 2004 panel-only but held company → survives whole.
+		const scenario = {
+			events: [
+				{ id: 2001, company_id: 3, has_recording: false, has_panel_consent: true },
+				{ id: 2002, company_id: 3, has_recording: true, has_panel_consent: true },
+				{ id: 2003, company_id: 3, has_recording: false, has_panel_consent: false },
+				{ id: 2004, company_id: 99, has_recording: false, has_panel_consent: true },
+			],
+			heldCompanies: new Set([99]),
+		};
+		const client = makeClient(scenario);
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		// The third EXISTS rides the ONE existing event SELECT, same
+		// snapshot as has_recording (issue requirement 1).
+		const eventSelect = client.query.mock.calls.find(
+			([sql]) => /SELECT/i.test(sql) && /FROM interview_events/i.test(sql),
+		);
+		expect(eventSelect).toBeTruthy();
+		expect(eventSelect[0]).toMatch(
+			/EXISTS\s*\(\s*SELECT 1 FROM event_labelling_consent elc WHERE elc\.interview_event_id = ie\.id\s*\)\s*AS has_panel_consent/i,
+		);
+		expect(eventSelect[0]).toMatch(/AS has_recording/i);
+
+		// Two UPDATEs: recording set [2002], panel-only set [2001] —
+		// each with exactly the five K-12 assignments.
+		const updates = callsMatching(client, /UPDATE interview_events/i);
+		expect(updates).toHaveLength(2);
+		const byIds = new Map(updates.map(([sql, params]) => [JSON.stringify(params[1]), { sql, params }]));
+		for (const ids of ['[2002]', '[2001]']) {
+			const u = byIds.get(ids);
+			expect(u).toBeTruthy();
+			expect(u.params[0]).toBe(7);
+			const setClause = u.sql.slice(u.sql.search(/SET/i) + 3, u.sql.search(/WHERE/i));
+			const assignments = setClause.split(',').map((x) => x.replace(/\s+/g, ' ').trim()).sort();
+			expect(assignments).toEqual(
+				[
+					'notes = NULL',
+					'meeting_link = NULL',
+					'livekit_room_url = NULL',
+					'calendar_event_ids = NULL',
+					"panel_member_ids = '{}'",
+				].sort(),
+			);
+		}
+		// DELETE carries ONLY the neither-flag event; the held
+		// panel-only event (2004) is in NO disposition.
+		const deletes = callsMatching(client, /DELETE FROM interview_events/i);
+		expect(deletes).toHaveLength(1);
+		expect(deletes[0][1]).toEqual([7, [2003]]);
+		// Disjoint counts reconcile (lookupFailed = 0 in this seed):
+		// deleted 1 + redacted 1 + kept-for-panel 1 + held 1 = 4 seeded.
+		expect(result.gapC.interviewEventsDeleted).toBe(1);
+		expect(result.gapC.interviewEventsRedacted).toBe(1);
+		expect(result.gapC.interviewEventsKeptForPanelConsent).toBe(1);
+		expect(
+			result.gapC.interviewEventsDeleted +
+				result.gapC.interviewEventsRedacted +
+				result.gapC.interviewEventsKeptForPanelConsent +
+				1,
+		).toBe(4);
+		// GAP-C never touches the panel rows themselves on a
+		// candidate erasure (they are other users' records).
+		expect(callsMatching(client, /DELETE FROM event_labelling_consent/i).filter(([, p]) => p && p.includes(2001))).toHaveLength(0);
+	});
+
+	test('#1972 panel partition: candidate with only a panel-only event — no DELETE issued, kept count 1, redacted/deleted stay 0', async () => {
+		const scenario = {
+			events: [{ id: 3001, company_id: 3, has_recording: false, has_panel_consent: true }],
+		};
+		const client = makeClient(scenario);
+		const result = await erasureService.erasePersonalData(7, { client });
+
+		expect(callsMatching(client, /DELETE FROM interview_events/i)).toHaveLength(0);
+		const updates = callsMatching(client, /UPDATE interview_events/i);
+		expect(updates).toHaveLength(1);
+		expect(updates[0][1]).toEqual([7, [3001]]);
+		expect(result.gapC.interviewEventsKeptForPanelConsent).toBe(1);
+		expect(result.gapC.interviewEventsRedacted).toBe(0);
+		expect(result.gapC.interviewEventsDeleted).toBe(0);
 	});
 
 	test('held-company scheduled interview preserved whole: its panel cluster + reminders survive with it', async () => {
@@ -682,6 +784,7 @@ describe('#1122 GAP-C erasePersonalData — scheduling & human-interview family'
 			scorecardItems: 0,
 			interviewEventsRedacted: 0,
 			interviewEventsDeleted: 0,
+			interviewEventsKeptForPanelConsent: 0,
 			proposedSlots: 0,
 			interviewRooms: 0,
 			interviewRoomsKeptForRecordings: 0,
