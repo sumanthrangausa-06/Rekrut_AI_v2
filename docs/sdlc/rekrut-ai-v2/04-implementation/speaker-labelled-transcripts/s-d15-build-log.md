@@ -98,3 +98,26 @@ New: `server/__tests__/migrations/297_consent_biometric_diarization_text.test.js
 
 Independent review (separate reviewer, code + privacy + security-on-consent-path): recorded
 on the PR. Lex AC-6 review: recorded on epic #1900.
+
+## AC-5 completion — About-page attribution line (2026-10-28 follow-up lane)
+
+- **Ruling:** Sumanth (2026-10-28, recorded on #1917): NO new page; the credit itself stays
+  (attribution term in the maker's licence). Placement: one line on the existing About page —
+  "Speaker labelling powered by Desert Ant Labs." The README credit landed earlier in PR #1948;
+  this line completes AC-5.
+- **STOP 1:** posted on #1917 for this lane (specialist decision: UX/a11y No — single plain-text
+  line reusing the footer's existing classes, no new layout/interaction; privacy/Lex no new
+  specialist — wording and placement already ruled; security/DB/API skipped — static text only).
+- **Change:** `client/src/pages/about.tsx` — one `<p>` line added in the existing `Footer()`
+  credits area, next to the © line, inheriting the footer's `text-sm text-muted-foreground`
+  styling. No new page, route, or component (ponytail: minimum diff).
+- **Tests (red-first):** two source-guard tests added to
+  `client/src/__tests__/pages/AboutHonestClaims.test.ts` (exact line present; present exactly
+  once). RED on pristine dev `223f15c6f`: 2 failed / 23 passed (25). GREEN after the line:
+  About suite 25/25; focused neighbours (About + SD15Disclosure + BiometricPolicy +
+  ConsentScreens + ObserverDisclosure + consent-screens-human-interview) 68/68 across 6 files.
+  A full `src/__tests__/pages/` run also surfaced pre-existing failures in
+  `SettingsLinkedInUrl.test.tsx` (7) and `CandidateInterviewsScreening.test.tsx` (2) —
+  verified failing identically (9/9) on pristine dev with this lane's changes stashed, so
+  they are not caused by this change.
+- **Authority:** PR to `dev` only; merge/close reserved to Suga.
