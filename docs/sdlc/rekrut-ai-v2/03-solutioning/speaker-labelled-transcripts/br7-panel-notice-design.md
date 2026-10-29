@@ -11,7 +11,7 @@ companion_design: event-session-bridge-design.md (#1925, ADR-D06 governing-sessi
 lex_basis: "#1919 comment 6486823870 (Lex BR-7 position, CONSISTENT-WITH-CONDITIONS) + LEX-POSITION.md BR-7 addendum; counsel flag CF-6 is Lex's, this design flags it and does not answer it"
 specialist_reviews:
   - "agency-agents/engineering-privacy-engineer — CONSULTED (mandatory: the risk domain is third-party biometric consent). Full-report verdict ACCEPT-WITH-CONDITIONS, no BLOCK; ten conditions C-1…C-10 adopted (§2.1), incl. stale judged at recording start (C-7) and post-write withdrawal purging labels (C-1); IP-storage dissent preserved (§2.1)."
-  - "ecc/security-reviewer — CONSULTED. Full-report (v2) verdict ACCEPT-WITH-CONDITIONS; blocking-if-unaddressed items S-1 (roster-pinned capture) and S-2 (write-once snapshot) and critical S-3 (room-bound capture) adopted (§2.1, §4.2, §5.1, §5.2, §7); its gate-time version-equality formulation NOT adopted — conflict with privacy C-7 resolved in §2.1 with its replay risk answered by the monotonic registry (§5.3)."
+  - "ecc/security-reviewer — CONSULTED. Full-report verdict ACCEPT-WITH-CONDITIONS with one BLOCK-level condition (C-1, freeze-at-recording-start — met by §6's creation-time freeze, strengthened with the roster hash); conditions C-1…C-9 adopted or dispositioned with code evidence in §2.1 (append-only history C-4; roster-mutation invariant C-3, writer set verified; join-log union C-7 vacuous — no join log exists); its earlier gate-time version-equality formulation NOT adopted — conflict with privacy C-7 resolved in §2.1 with its replay risk answered by the monotonic registry (§5.3)."
   - "ecc/database-reviewer — MANDATORY on Nova's build PR for migration 299 (expand-only shape, snapshot semantics), as with migration 298 in #1925; not consulted at design time because the migration's shape follows the 296/298 precedents this document pins."
 hard_constraints_honoured:
   - "No migration is executed by this document. Migration 299 is designed here and executes only after the Nov 1 Neon unfreeze, in dev → staging → main promotion order."
@@ -151,39 +151,75 @@ not adopted: whether an available-but-unused labelling capability
 itself needs candidate notice while the flag is off belongs to the
 candidate-consent surface (S-D15 lineage) — flagged for Lead/Lex.
 
-**Security reviewer: ACCEPT-WITH-CONDITIONS (report v2, superseding
-its v1 summary wherever they differ — HL-007).** No dissent against
-ADR-D07 itself; it conditions the mechanism. Adopted in full:
-**S-1 (blocking if unaddressed)** the token must pin the roster +
-text the participant actually saw — the token's `labelling_notice`
-carries a server-derived `roster_version` (hash of the frozen
-expected set + notice version; ids never exposed), and the capture
-POST must present it back and 409 `ROSTER_CHANGED` on mismatch
-(§4.2, §5.2); the `/start` half of this finding (the client-composed
-participant list in the existing dialog flow) is handed to the §12
-follow-up with its reasoning, because #1952's capture never composes
-a list client-side. **S-2 (blocking if unaddressed)** the claim-time
-snapshot is **write-once**: written exactly once on the
-pending→claimed transition while the snapshot is NULL; a retry that
-recomputes a different snapshot fails closed
-(`PANEL_SNAPSHOT_CONFLICT`); a requeue creates a **new** job row —
-an existing snapshot is never mutated (§5.1, §7 P5). **S-3
-(critical)** the capture endpoint must not be bound by `event_id`
-alone (enumerable → consent records planted on arbitrary events):
-capture is bound to a **room** — the server runs the same
-`validateRoomAccess(room, req.user.id)` the token path uses, derives
-the event from the room, and requires the path event to match; every
-capture attempt, granted or denied, appends to the audit trail;
-rate limiting keys per (user, event) (§5.2). **S-4** the
-speaker-mapping correction endpoint (§5.3 of the architecture) must
-validate assignees against the recording's **frozen** set, not any
-current event list (§13 item 7, rides S-D19). **S-5** temporal
-precedence is binding, on database timestamps only (§5.2, §7 P3).
-**S-6** the user-agent is stored as a SHA-256 hash, never raw
-(§5.1 — converging with the privacy dissent on evidence minimisation).
-**S-7** the gate is not the sole control on a mid-recording flip: the
-enqueue path re-checks the panel leg and suppresses enqueue on a
-block (§7.2).
+**Security reviewer: ACCEPT-WITH-CONDITIONS — with one BLOCK-level
+condition, C1 (full report; supersedes its v1/v2 summaries wherever
+they differ — HL-007).** No dissent against ADR-D07 itself. The
+conditions, with Rex's disposition of each:
+**C1 (BLOCK if unaddressed) — freeze the expected set at recording
+start, never re-derive it.** *Already the design's shape, now
+strengthened:* §6 freezes at recording creation (the `/start`
+creation path — the recording's start), and the gate reads only the
+recording's frozen columns (§7 P1). The freeze now carries the full
+roster triple (`recruiter_id`, `panel_member_ids`, `candidate_id`)
+plus a canonical hash, not just the derived set — which also answers
+the report's candidate-reassignment variant (setting `candidate_id`
+equal to a decliner so the minus-candidate rule excludes them): the
+hash is computed over the triple as it stood at freeze time, and the
+write-time comparison (§7 P6) checks it. **C2 — the job snapshot
+includes the expected set itself:** adopted (§5.1, §7 P5/P6);
+roster divergence at write blocks `PANEL_EXPECTED_SET_CHANGED`,
+decision divergence `PANEL_AGREEMENT_CHANGED`, output discarded
+either way. **C3 — lock roster mutation:** verified against the
+codebase (§6): **no production code path updates `panel_member_ids`,
+`recruiter_id`, or `candidate_id` on an existing event** — the roster
+is written only at event creation; the sole later `panel_member_ids`
+write is the erasure redaction, which the frozen snapshot makes
+irrelevant to the gate. The condition is adopted as a standing
+invariant (§6): any future roster writer must be organizer-only,
+audit-logged, effective pre-recording only, and it invalidates prior
+captures via `roster_version`; S-D18's AC includes the grep audit
+that re-verifies the writer set at build time. **C4 — append-only
+decision history:** adopted, replacing the upsert (§5.1): every
+decision is a new immutable row, "latest" is by database identity,
+no UPDATE/DELETE outside the legal-erasure path. (This also
+satisfies privacy C-2 by its append-only route, with the claim
+snapshot kept as the second, independent evidence record.)
+**C5 — flip races:** adopted — per-recording precedence (§7 P3);
+write compares against *latest overall*, so a post-start decline
+blocks at write (§7 P6); snapshot-and-claim is one transaction under
+a per-event advisory lock (§7 P5); token state is display-only and
+no server path trusts it (§4.2). **C6 — capture hardening:** adopted
+(§5.2) — authenticated session *in addition to* the user-bound room
+token; non-participants and nonexistent events are
+indistinguishable (404); a body carrying a foreign `user_id` is
+rejected-and-audit-logged; the caller's control is labelled with the
+identity they attest as (§4.3); each recorded decision notifies the
+user in-app with a withdraw path, and multi-account captures from
+one device fingerprint are audit-flagged as a review signal.
+**C7 — speakers present but never in the set:** verified — **no
+server-side room join log exists today**, and tokens (user-bound,
+roster-only) are the only join path, so the union the report asks
+for is vacuous today; the rule is adopted for any future join
+evidence or join path (§12), and S-D22 must verify no non-token join
+path exists at build time. **C8 — IP/UA:** adopted as amended in
+§5.1/§5.2 (server-derived IP via trusted-proxy config only; UA
+hashed and corroborative, never identity proof; admin/audit access
+only; clocked retention per privacy C-9). **C9 — separation:**
+adopted (§4.3, privacy C-10 states the same rule from the other
+side). **S-1/S-2/S-3 from the earlier summary are subsumed** by
+C1–C6 above (`roster_version` pinning §4.2/§5.2; write-once snapshot
+§5.1; room-bound capture §5.2), as are **S-4** (frozen-set mapping
+validation, §13 item 7) and **S-7** (enqueue as third check, §7.2).
+**Dissent preserved:** the report dissents from framing a claim-time
+snapshot as "mirroring the governing-session comparison" — for the
+roster, claim-time is after the tampering window. The design's
+freeze is at recording creation, not claim, and §6 no longer makes
+that framing claim; the dissent is answered on timing, and recorded
+here in case any build drifts the freeze later than creation — that
+drift would reactivate the BLOCK. It also records that own-device
+capture is *detectable*-not-*preventable* against a cooperating or
+coerced participant (C6's notification + flagging are the controls);
+§12 states that residual risk rather than claiming prevention.
 **One conflict between the specialists, resolved by Rex:** security
 asked for notice-version equality *at gate-evaluation time*; privacy
 C-7 requires stale to be judged against the version in force at the
@@ -355,6 +391,10 @@ For role `candidate` the field is absent. A lookup failure returns the
 field with `own_decision: null` and the notice still renders (§8 —
 delivery fails *visible* on the client; the actual enforcement is the
 server-side gate, never the client's memory of having shown something).
+**The token carries no consent claims any server path trusts**
+(security C-5d): recording start, enqueue, claim, and write all
+re-read live database state; the token's labelling fields are display
+state for the caller's own screen, full stop.
 
 ### 4.3 The notice component (`PanelLabellingNotice`, in `livekit-room.tsx`'s room UI)
 
@@ -365,7 +405,11 @@ server-side gate, never the client's memory of having shown something).
   renders collapsed to a one-line status ("You agreed to speaker
   labelling for this interview — Change") instead of disappearing.
 - Copy: the canonical BR-7 sentence verbatim (the same string the
-  ConsentDialog and `privacy.tsx` §13 carry), plus the decision line:
+  ConsentDialog and `privacy.tsx` §13 carry), the attestation identity
+  line — **"You are agreeing as {caller's own name}"** (security
+  C-6c: the control names the identity being attested as, so a click
+  on someone else's logged-in screen is visibly a click *as them*) —
+  plus the decision line:
   - **Agree:** "I agree to speaker labelling of my voice as described above"
   - **Decline:** "I decline speaker labelling"
   - Decline consequence, stated *before* the click (a decline must be
@@ -421,8 +465,8 @@ unfreeze, in dev → staging → main promotion order. `down()` is a no-op
 
 | Change | Detail |
 |---|---|
-| **New table `event_labelling_consent`** | `id SERIAL PK`; `interview_event_id INTEGER NOT NULL REFERENCES interview_events(id) ON DELETE CASCADE`; `user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE`; `decision VARCHAR(10) NOT NULL CHECK (decision IN ('granted','declined','withdrawn'))`; `notice_version VARCHAR(20) NOT NULL`; `decided_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`; `ip_address INET NULL`; `user_agent_hash VARCHAR(64) NULL` (SHA-256 of the user-agent, never the raw string — security S-6, converging with the privacy IP dissent); `created_at` / `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`; `UNIQUE(interview_event_id, user_id)`. Indexes on `interview_event_id` and on `user_id` — the `user_id` index is also an erasure requirement (privacy C-8: the erasure pipeline enumerates a user's rows across all events by it). One row per (event, user) = that speaker's current decision **for that encounter**; a decision for one event says nothing about any other event — no cross-encounter borrowing, mirroring ADR-D06. IP/UA are evidence-only (privacy C-9): purpose-locked to consent-evidence integrity, retained on the consent-record clock (§10), never returned by any API. |
-| `interview_recordings.panel_expected_user_ids INTEGER[] NULL` | The frozen expected set (§6), written by the server at recording creation from the event row (`recruiter_id ∪ panel_member_ids`, candidate excluded, deduplicated, sorted). NULL = pre-299 recording or creation path did not freeze → gate blocks (§7 P1). Deliberately a snapshot *on the recording*, not a live read of the mutable event row. |
+| **New table `event_labelling_consent`** | `id SERIAL PK`; `interview_event_id INTEGER NOT NULL REFERENCES interview_events(id) ON DELETE CASCADE`; `user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE`; `decision VARCHAR(10) NOT NULL CHECK (decision IN ('granted','declined','withdrawn'))`; `notice_version VARCHAR(20) NOT NULL`; `decided_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`; `ip_address INET NULL`; `user_agent_hash VARCHAR(64) NULL` (SHA-256 of the user-agent, never the raw string — security S-6, converging with the privacy IP dissent); `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`. **Append-only (security C-4):** there is deliberately **no** `UNIQUE(interview_event_id, user_id)` — every decision is a new immutable row; a speaker's current decision for an event is the row with the greatest `id` (database identity — `decided_at` is the tie-visible field, never the ordering key, so equal timestamps cannot make "latest" ambiguous). No UPDATE or DELETE exists outside the legal-erasure path (§10). Indexes on `interview_event_id` and on `user_id` — the `user_id` index is also an erasure requirement (privacy C-8: the erasure pipeline enumerates a user's rows across all events by it). Decisions are **for that encounter** only; a decision for one event says nothing about any other event — no cross-encounter borrowing, mirroring ADR-D06. IP/UA are evidence-only (privacy C-9, security C-8): the IP is server-derived via the app's trusted-proxy configuration only (never a client-supplied forwarded header), the UA is a corroborative hash, never identity proof; both are purpose-locked to consent-evidence integrity, access-restricted to admin/audit, retained on the consent-record clock (§10), and never returned by any API. |
+| `interview_recordings.panel_expected_user_ids INTEGER[] NULL` + `panel_expected_hash VARCHAR(64) NULL` | The frozen expected set (§6), written by the server at recording creation: the derived set (`recruiter_id ∪ panel_member_ids`, candidate excluded, deduplicated, sorted) **and** a canonical SHA-256 hash over the full roster triple as it stood at freeze time (`recruiter_id`, `panel_member_ids`, `candidate_id`, notice version in force) — security C-1/C-2: the hash covers the fields the derived set throws away, so a later change to any of them is detectable rather than silently absorbed. NULL = pre-299 recording or creation path did not freeze → gate blocks (§7 P1). Deliberately a snapshot *on the recording*, not a live read of the event row. |
 | `diarization_jobs.panel_consent_snapshot JSONB NULL`, `diarization_runs.panel_consent_snapshot JSONB NULL` | Gate provenance for the panel leg, written exactly where the governing-session provenance is written (claim on the job, `persistStitch` on the run): the frozen expected set + per-user `{user_id, record_id, decision, notice_version, decided_at}` the claim decision rested on. This snapshot is also the privacy C-2 evidence record: it is what proves, after a later decision overwrites the live row, exactly which grants authorized processing. **Write-once (security S-2, blocking):** the job snapshot is written exactly once, on the pending→claimed transition, guarded on the snapshot being NULL; a claim retry that recomputes a *different* snapshot fails closed (`PANEL_SNAPSHOT_CONFLICT`); a requeue creates a new job row — no code path ever updates an existing snapshot. Plain snapshot, no FK — the 298 provenance reasoning applies verbatim (an FK would let later deletes rewrite the authorization record). |
 
 Post-state assertions in the 296/298 pattern (table/columns/types/
@@ -443,29 +487,48 @@ stop. The sibling table keeps both value spaces clean.
 Same family and discipline as `POST /recordings/:id/consent`:
 
 - `authMiddleware`; body is exactly `{ decision: 'granted' | 'declined' | 'withdrawn', room_id, roster_version }` (validated, closed set). **Any `user_id`, `notice_version`, or timestamp in the body is ignored** — user from `req.user.id`, version from the server registry (§5.3), `decided_at` from the database's `NOW()` at insert (security S-5: binding, database timestamps only — never a token `iat`, never a client clock).
-- **Room-bound, not event-bound (security S-3, critical):** an
+- **Room-bound, not event-bound (security S-3/C-6, critical):** an
   `event_id` alone is enumerable, and a membership check alone would
   let a caller plant consent records on arbitrary events they belong
-  to but are not in session for. The server therefore runs the same
-  `livekitService.validateRoomAccess(room_id, req.user.id)` the token
-  path uses, derives the event **from the room**, requires it to
-  match the path event, and requires the caller's derived role to be
-  `recruiter` or `panel`. Anyone else — including the candidate
-  (privacy C-6: their flow is elsewhere; a candidate POST here must
-  not create a second, conflicting consent record, and role
-  resolution surfaces candidate treatment to an overlapping user) —
-  gets 403. Nonexistent event → 404; room/event mismatch → 403.
+  to but are not in session for. Capture therefore requires **both**
+  the caller's authenticated session (`authMiddleware` — the room
+  token alone never authorizes capture; tokens are user-bound,
+  `identity = String(user.id)`, one-hour TTL) **and** a room check:
+  the server runs the same `livekitService.validateRoomAccess(room_id,
+  req.user.id)` the token path uses, derives the event **from the
+  room**, requires it to match the path event, and requires the
+  caller's derived role to be `recruiter` or `panel`. A nonexistent
+  event and an event the caller has no room access to are
+  **indistinguishable: both 404** (C-6b). The candidate gets 403 —
+  they are a known participant in the wrong flow (privacy C-6: their
+  flow is elsewhere; a candidate POST here must not create a second,
+  conflicting consent record, and role resolution surfaces candidate
+  treatment to an overlapping user). A body carrying a `user_id`
+  other than the caller's is rejected and the attempt audit-logged
+  (C-6b) — ignored-and-logged is not enough for a field whose only
+  purpose in a body is proxy capture.
 - **Roster pinning (security S-1):** the presented `roster_version`
   must equal the server's current computation (hash of the expected
   set + notice version). Mismatch → 409 `ROSTER_CHANGED`; the client
   re-joins (fresh token) and decides against what is actually shown.
   A decision is never recorded against a roster or a text the caller
   was not shown.
-- Upsert on `(interview_event_id, user_id)`: sets `decision`,
-  `notice_version` = the version in force at insert, `decided_at =
-  NOW()`, `ip_address` from the request and `user_agent_hash` =
-  SHA-256 of the user-agent (S-6). Response returns the caller's own
+- **Insert, never upsert (C-4):** appends a new
+  `event_labelling_consent` row with `decision`, `notice_version` =
+  the version in force at insert, `decided_at = NOW()`, `ip_address`
+  server-derived via trusted-proxy config and `user_agent_hash` =
+  SHA-256 of the user-agent. Response returns the caller's own
   recorded state only, plus `decision_scope: "panel_leg_only"` (§8).
+- **Notification + proxy-capture detection (C-6d):** recording a
+  decision creates an in-app notification **for that user** ("speaker
+  labelling: you agreed/declined for interview … — change it"), with
+  the re-decision path one click away; a grant or withdrawal recorded
+  for a user who never sees any surface of their own is how proxy
+  capture stays invisible, and this design does not ship that.
+  Captures from multiple distinct accounts sharing one device
+  fingerprint (IP + UA hash) inside a short window are audit-flagged
+  as a **review signal, not a block** — shared office devices are
+  legitimate; the flag exists so a human can look.
 - **Audit (S-3):** every capture attempt — recorded, denied, or
   roster-rejected — appends an entry to the house compliance audit
   trail (caller, event, room, decision presented, outcome). Denied
@@ -525,13 +588,31 @@ recording itself:
   panel_member_ids`, minus `candidate_id` (defensive: the candidate
   appearing in the panel list does not create a panel obligation for
   them; their leg is the biometric one), deduplicated, sorted
-  ascending, written to `panel_expected_user_ids`.
+  ascending, written to `panel_expected_user_ids` — together with
+  `panel_expected_hash`, the canonical hash over the roster triple
+  as it stood at that moment (§5.1). The freeze happens **at
+  recording creation — the recording's start** — not at claim:
+  security's C-1 names claim-time freezing a BLOCK, and this design
+  does not do it (the claim-time *decision* snapshot in §7 P5 is a
+  different artefact, of what was decided, not of who was expected).
 - From then on, the gate reads **only the recording's snapshot** for
   who had to agree. Editing the event afterwards changes future
-  recordings, never this one's set. (Event edits after recording are
-  also visible in the interview audit trail as they are today; this
-  design does not need to rely on that, because the snapshot is the
-  authority.)
+  recordings, never this one's set.
+- **The writer set, verified (security C-3):** on dev today, **no
+  production code path updates `panel_member_ids`, `recruiter_id`, or
+  `candidate_id` on an existing event** — `routes/interview-events.js`
+  has no PUT/PATCH/DELETE at all; the roster is written only at event
+  creation, by the recruiter, for their own company. The only later
+  `panel_member_ids` write anywhere is the erasure redaction
+  (`lib/erasureService.js`, sets `'{}'` on candidate erasure) — and
+  because the gate reads the recording's snapshot, even that cannot
+  launder a set after the fact. **Standing invariant (adopted from
+  C-3):** any future roster writer must be organizer-only,
+  audit-logged with actor + before/after, effective only before
+  recording, and it invalidates earlier captures by changing
+  `roster_version`. S-D18's acceptance includes re-running this grep
+  audit at build time; a new roster writer found there is a STOP-1
+  escalation, not a detail.
 
 ## 7. Gate changes — the panel leg (exact algorithm Nova builds)
 
@@ -551,10 +632,12 @@ at claim and at write; neither call caches anything from the other.
   `recruiter_id NOT NULL`) and is treated as the same block if ever
   read. The live event row's `panel_member_ids` is **never** consulted
   by the gate.
-- **P2 — Load decisions.** For each user in the set, load the
-  `event_labelling_consent` row for `(recording.interview_event_id,
-  user_id)`. A throwing query → block **`PANEL_AGREEMENT_UNVERIFIABLE`**
-  (fail-closed, as everywhere in this gate).
+- **P2 — Load decisions.** For each user in the set, load their
+  **latest** `event_labelling_consent` row for
+  `(recording.interview_event_id, user_id)` — latest by row `id`
+  (database identity, §5.1), never by timestamp ordering. A throwing
+  query → block **`PANEL_AGREEMENT_UNVERIFIABLE`** (fail-closed, as
+  everywhere in this gate).
 - **P3 — Per-user judgement, in set order.** For each expected user,
   the first failing posture blocks:
   - no row → **`PANEL_AGREEMENT_MISSING`**
@@ -585,16 +668,25 @@ at claim and at write; neither call caches anything from the other.
   `consent_receipt_id` today — under the §5.1 write-once guard
   (security S-2): a claim retry that recomputes a different snapshot
   fails `PANEL_SNAPSHOT_CONFLICT` instead of overwriting it.
+  **Snapshot-and-claim is one transaction** (security C-5c): the
+  claim transition, the gate evaluation's reads, and the snapshot
+  write commit atomically under a per-event advisory lock, so no
+  decision flip can land between the check and the persisting of
+  what was checked.
 - **P6 — Write-time comparison.** The write evaluation re-resolves
-  from scratch; the worker compares the write-time snapshot against
-  the claim-time one — expected set, and per user the
-  `(record_id, decision, notice_version, decided_at)` tuple. **Any
-  difference** → cancel `consent_blocked_at_write:PANEL_AGREEMENT_CHANGED`,
-  output discarded (the existing write-block pattern; the code is a
-  panel-leg code, the mechanics are S-D04's). A decision flipped
-  granted → declined → granted between claim and write still differs
-  in `decided_at` and still blocks: the run that was authorized is not
-  the run that would be written.
+  from scratch — against **latest overall** decisions (security C-5b:
+  a decline recorded after recording start but before write blocks,
+  even though the grant was valid at start). The worker compares: the
+  recording's frozen set + `panel_expected_hash` against the
+  claim-time snapshot's copies — divergence there →
+  `consent_blocked_at_write:PANEL_EXPECTED_SET_CHANGED`; and per user
+  the `(record_id, decision, notice_version, decided_at)` tuple —
+  any difference → `consent_blocked_at_write:PANEL_AGREEMENT_CHANGED`.
+  Either way the output is discarded (the existing write-block
+  pattern; the codes are panel-leg codes, the mechanics are S-D04's).
+  A decision flipped granted → declined → granted between claim and
+  write still differs in `decided_at` and still blocks: the run that
+  was authorized is not the run that would be written.
 
 Every block cancels the job with `consent_blocked_at_claim:<CODE>` or
 `consent_blocked_at_write:<CODE>` and sets the recording's diarization
@@ -777,6 +869,20 @@ of grants, as "labelling is on."
   S-D22's journey duty includes confirming no non-roster join path
   exists for event rooms at build time; designing capture for
   account-less speakers is a new Lex position, not an extension here.
+  Security C-7's stronger form — union the expected set with a
+  server-side room join log — is recorded with its disposition:
+  **no join log exists in the codebase today** (verified: no
+  participant-joined webhook or join record in `server/` or `lib/`),
+  so the union is vacuous; if a join log is ever built, the gate's
+  expected set becomes roster ∪ joined, and any joined user without
+  a grant blocks. Building the join log itself is not #1952 scope.
+- **Residual risk, stated not claimed away (security dissent):**
+  own-device capture is enforceable against IDOR, but a cooperating
+  or coerced participant handing over a logged-in device — or
+  sharing their user-bound room token — is only **detectable**
+  (decision notifications, device-fingerprint audit flags, §5.2),
+  never preventable by this design. The design claims detection and
+  reversibility, not prevention.
 - **No change to candidate consent** — types, texts, versions, the
   governing-session model, and the claim/write mechanics are all
   exactly as S-D15/#1925 left them.
@@ -867,11 +973,14 @@ route tests):
   carrying another `user_id`, a forged `notice_version`, or a forged
   timestamp is ignored in full.
 - **T-C2:** POST as the candidate → 403, no row. POST as a
-  non-participant user → 403, no row. POST to a nonexistent event →
-  404.
-- **T-C3:** re-decision upserts the same row (decision + `decided_at`
-  advance; no duplicate rows) — the write-time comparison's
-  `decided_at` signal depends on this.
+  non-participant user → **404**, no row; POST to a nonexistent
+  event → **404**, with the two responses indistinguishable in body
+  and status (C-6b). POST with a foreign `user_id` in the body →
+  rejected, no row, and an audit entry naming the attempt.
+- **T-C3 (append-only, C-4):** a re-decision **inserts a new row**;
+  the prior row is byte-identical afterwards; the gate and the token
+  both read the greatest-`id` row as current — the write-time
+  comparison's `decided_at`/`record_id` signals depend on this.
 - **T-C4:** token response for recruiter/panel contains only the
   caller's own decision; for the candidate, no `labelling_notice`
   field; neither response contains any other participant's decision
@@ -882,12 +991,13 @@ route tests):
   `labelling_notice`), capture POST by that user → 403, and the gate
   still requires the full candidate leg; no panel row for them can
   substitute.
-- **T-C6 (room binding + roster pin + audit, S-1/S-3):** capture with
-  a room the caller has no access to → 403 and no row; capture with a
-  room of a *different* event than the path → 403; capture with a
-  stale `roster_version` → 409 `ROSTER_CHANGED` and no row; every one
-  of these attempts, and the successful capture, leaves an audit-trail
-  entry.
+- **T-C6 (room binding + roster pin + audit, S-1/S-3/C-6):** capture
+  with a room the caller has no access to → 404 and no row; capture
+  with a room of a *different* event than the path → 404; capture
+  with a stale `roster_version` → 409 `ROSTER_CHANGED` and no row;
+  every one of these attempts, and the successful capture, leaves an
+  audit-trail entry; the successful capture also creates the user's
+  in-app decision notification (C-6d).
 
 Real-DB integration (extends `diarizationWorker.integration.test.js`,
 HL-003 standard — fresh-migrated local Postgres incl. migration 299,
