@@ -62,7 +62,18 @@ describe('#1966 M-1 — withdrawal purge transactionality', () => {
 			expect(sqls[1]).toContain('pg_advisory_xact_lock');
 			expect(client.calls[1].params).toEqual(['panel-event:7']);
 			expect(sqls[sqls.length - 1]).toBe('COMMIT');
-			expect(sqls.filter((s) => s.startsWith('DELETE') || s.startsWith('UPDATE'))).toHaveLength(5);
+			// The §7.1 deletion family, exact statements in exact order
+			// (review minor: a count alone would pass a dropped-and-
+			// duplicated statement).
+			const family = sqls.filter((s) => s.startsWith('DELETE') || s.startsWith('UPDATE'));
+			expect(family.map((s) => s.replace(/\s+/g, ' ').trim())).toEqual([
+				'DELETE FROM diarization_runs WHERE recording_id = $1',
+				'DELETE FROM recording_speaker_mappings WHERE recording_id = $1',
+				'DELETE FROM transcript_speaker_audit WHERE recording_id = $1',
+				'UPDATE interview_transcripts SET speaker_number = NULL WHERE recording_id = $1',
+				expect.stringContaining("SET diarization_status = 'unavailable'"),
+			]);
+			expect(family[4].startsWith('UPDATE interview_recordings')).toBe(true);
 			expect(client.release).toHaveBeenCalledTimes(1);
 		}
 		expect(sqlOf(c11).join(' ')).toContain('WHERE recording_id = $1');
