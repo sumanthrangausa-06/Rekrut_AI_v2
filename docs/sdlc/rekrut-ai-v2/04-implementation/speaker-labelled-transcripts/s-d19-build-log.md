@@ -57,3 +57,12 @@ Migration 299's `event_labelling_consent.interview_event_id` FK is `ON DELETE RE
 ## Not in this PR
 
 S-D20's in-flight client changes in the working tree (`PanelLabellingNotice` etc.) belong to that lane and are deliberately excluded from this PR's file list. JT-D8 (Quinn journey) is S-D22. Promotion of migrations 296–299 remains held until the Nov 1 Neon unfreeze.
+
+## Record corrections — #1966 (2026-10-29, from the PR #1963 independent review, comment 6494184947)
+
+This log's original wording stands above as the build-time record; the following corrections are the accepted record where the two differ (full detail in `s-d1966-build-log.md`):
+
+- **M-2 (P5 transaction scope):** the table row above says the worker snapshot-and-claim runs "in ONE transaction". As built — and as now recorded in the design (§7 P5) — that transaction covers the provenance persist + the locked live panel re-check + the snapshot write. The job-claim transition (`diarizationJobs.claim` in `poll()`) and the first full gate evaluation sit outside it; panel-leg atomicity comes from the locked re-check compared against the snapshot, with the capture side holding the paired lock.
+- **M-3 (P6 deviation):** the write-time translation does not cover every panel block — `PANEL_AGREEMENT_UNVERIFIABLE` at write is deliberately kept, not translated to a P6 comparison code; the job cancels as `consent_blocked_at_write:PANEL_AGREEMENT_UNVERIFIABLE`, fail-closed, output discarded. Recorded in the design at §7 P6.
+- **M-4 (session path wording):** "session path untouched" above means the session path's logic, codes and consent-table queries are identical — not byte-for-byte: the recording SELECT shared by both paths (`lib/diarizationGate.js`) also fetches `panel_expected_user_ids, panel_expected_hash`, which the session path never reads. Corrected in the design at §7.
+- **M-1 (purge transactionality):** the §7.1 purge described above was built non-transactional per recording and has since been made transactional with caller-visible failures — see `s-d1966-build-log.md`.
