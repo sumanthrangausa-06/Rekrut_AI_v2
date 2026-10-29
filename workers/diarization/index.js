@@ -153,6 +153,18 @@ async function processJob(job, overrides = {}) {
 		return { outcome: 'cancelled_at_claim', code: claimGate.code };
 	}
 
+	// Bridge provenance (#1925, ADR-D06 §5 step 7): when the gate
+	// resolved via the event's governing session, persist which session
+	// and receipt authorized this claim on the job row — the snapshot
+	// the write-time re-resolution is compared against below.
+	if (claimGate.via === 'event_bridge') {
+		await db.query(
+			`UPDATE diarization_jobs SET governing_session_id = $2, consent_receipt_id = $3, updated_at = NOW()
+			 WHERE id = $1`,
+			[job.id, claimGate.sessionId, claimGate.consentReceiptId],
+		);
+	}
+
 	await diarizationJobs.markProcessing(job.id);
 	await setRecordingDiarizationStatus(recordingId, 'processing');
 	const expectedSegmentIds = await readSegmentIds(recordingId);
@@ -191,6 +203,22 @@ async function processJob(job, overrides = {}) {
 		return { outcome: 'cancelled_at_write', code: writeGate.code };
 	}
 
+	// Bridge write-time comparison (#1925, ADR-D06 §5 step 7): the
+	// write-time evaluation re-resolves from scratch; if the governing
+	// session it resolved differs from the claim-time one, the output
+	// was not authorized by the claim-time consent — block at write.
+	if (
+		claimGate.via === 'event_bridge' &&
+		(writeGate.via !== 'event_bridge' || writeGate.sessionId !== claimGate.sessionId)
+	) {
+		console.log(
+			`[diarization] consent blocked at write for job ${job.id} recording ${recordingId}: SESSION_BINDING_MISMATCH (governing session changed since claim) — output discarded`,
+		);
+		await diarizationJobs.cancel(job.id, 'consent_blocked_at_write:SESSION_BINDING_MISMATCH');
+		await setRecordingDiarizationStatus(recordingId, 'unavailable');
+		return { outcome: 'cancelled_at_write', code: 'SESSION_BINDING_MISMATCH' };
+	}
+
 	// Behind the write gate: only real engine output carries
 	// provenance (output.engine); the S-D04 stub seam persists
 	// nothing and completes as before.
@@ -198,7 +226,21 @@ async function processJob(job, overrides = {}) {
 		const persistStitch = overrides.persistStitch || transcriptStitch.persistStitch;
 		let stitched;
 		try {
-			stitched = await persistStitch({ jobId: job.id, recordingId, expectedSegmentIds, output });
+			// Bridge jobs carry the write-gate provenance onto the run
+			// row (#1925); session-linked jobs call the stitch exactly
+			// as before (no extra keys).
+			const stitchArgs =
+				writeGate.via === 'event_bridge'
+					? {
+							jobId: job.id,
+							recordingId,
+							expectedSegmentIds,
+							output,
+							governingSessionId: writeGate.sessionId,
+							consentReceiptId: writeGate.consentReceiptId,
+						}
+					: { jobId: job.id, recordingId, expectedSegmentIds, output };
+			stitched = await persistStitch(stitchArgs);
 		} catch (err) {
 			// Stitch failure (incl. a 40P01 deadlock against a racing
 			// re-transcription — DB review on #1909): the transaction

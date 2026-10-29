@@ -4,6 +4,8 @@ const { authMiddleware, requireRole } = require('../lib/auth');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const calendarService = require('../server/services/calendar-service');
 const livekitService = require('../server/services/livekit'); // Issue #124
+const { ensureGoverningSession } = require('../lib/governingSession'); // #1925 (ADR-D06)
+const consentService = require('../lib/consentService'); // #1925 (ADR-D06 §4.4)
 const { body, param, validationResult } = require('express-validator');
 
 const router = express.Router();
@@ -224,63 +226,71 @@ router.post(
 				}
 			}
 
-			// Create interview event
-			const eventResult = await pool.query(
-				`INSERT INTO interview_events
-				 (job_application_id, recruiter_id, candidate_id, panel_member_ids, duration_minutes, timezone, status, notes, created_at, updated_at)
-				 VALUES ($1, $2, $3, $4, $5, $6, 'proposed', $7, NOW(), NOW())
-				 RETURNING *`,
-				[
-					job_application_id,
-					recruiterId,
-					candidate_id,
-					panel_member_ids,
-					duration_minutes,
-					timezone,
-					notes || null,
-				],
-			);
-			const event = eventResult.rows[0];
-
-			// Create proposed slots
-			const slotValues = [];
-			const slotParams = [];
-			for (let i = 0; i < proposed_slots.length; i++) {
-				const s = proposed_slots[i];
-				slotValues.push(`($1, $2, $3, $4, $5, $6)`);
-				slotParams.push(
-					event.id,
-					recruiterId,
-					new Date(s.slot_start),
-					new Date(s.slot_end),
-					timezone,
-					'offered',
+			// Create interview event + its governing session + proposed
+			// slots in ONE transaction (#1925, ADR-D06 §4.1): the event's
+			// own session (type 'human', biometric_collection:false —
+			// consent starts refused-by-default) is created via
+			// SessionService.create and linked on the event row, so the
+			// diarization consent gate has a session to check for this
+			// interview. If any leg fails, none of it lands.
+			const client = await pool.connect();
+			let event;
+			try {
+				await client.query('BEGIN');
+				const eventResult = await client.query(
+					`INSERT INTO interview_events
+					 (job_application_id, recruiter_id, candidate_id, panel_member_ids, duration_minutes, timezone, status, notes, created_at, updated_at)
+					 VALUES ($1, $2, $3, $4, $5, $6, 'proposed', $7, NOW(), NOW())
+					 RETURNING *`,
+					[
+						job_application_id,
+						recruiterId,
+						candidate_id,
+						panel_member_ids,
+						duration_minutes,
+						timezone,
+						notes || null,
+					],
 				);
-			}
+				event = eventResult.rows[0];
 
-			// Build multi-row insert
-			const batchSize = 10;
-			for (let i = 0; i < proposed_slots.length; i += batchSize) {
-				const batch = proposed_slots.slice(i, i + batchSize);
-				const placeholders = batch
-					.map(
-						(_, idx) =>
-							`($${idx * 6 + 1}, $${idx * 6 + 2}, $${idx * 6 + 3}, $${idx * 6 + 4}, $${idx * 6 + 5}, $${idx * 6 + 6})`,
-					)
-					.join(', ');
-				const batchParams = batch.flatMap((s) => [
-					event.id,
-					recruiterId,
-					new Date(s.slot_start),
-					new Date(s.slot_end),
-					timezone,
-					'offered',
-				]);
-				await pool.query(
-					`INSERT INTO proposed_slots (interview_event_id, proposed_by, slot_start, slot_end, timezone, status)
-					 VALUES ${placeholders}`,
-					batchParams,
-				);
+				const governingSessionId = await ensureGoverningSession(event, {
+					callerRole: req.user.role,
+					executor: client,
+				});
+				event = { ...event, interview_session_id: governingSessionId };
+
+				// Build multi-row insert for the proposed slots
+				const batchSize = 10;
+				for (let i = 0; i < proposed_slots.length; i += batchSize) {
+					const batch = proposed_slots.slice(i, i + batchSize);
+					const placeholders = batch
+						.map(
+							(_, idx) =>
+								`($${idx * 6 + 1}, $${idx * 6 + 2}, $${idx * 6 + 3}, $${idx * 6 + 4}, $${idx * 6 + 5}, $${idx * 6 + 6})`,
+						)
+						.join(', ');
+					const batchParams = batch.flatMap((s) => [
+						event.id,
+						recruiterId,
+						new Date(s.slot_start),
+						new Date(s.slot_end),
+						timezone,
+						'offered',
+					]);
+					await client.query(
+						`INSERT INTO proposed_slots (interview_event_id, proposed_by, slot_start, slot_end, timezone, status)
+						 VALUES ${placeholders}`,
+						batchParams,
+					);
+				}
+
+				await client.query('COMMIT');
+			} catch (txErr) {
+				await client.query('ROLLBACK').catch(() => {});
+				throw txErr;
+			} finally {
+				client.release();
 			}
 
 			res.status(201).json({
@@ -297,6 +307,78 @@ router.post(
 		} catch (err) {
 			console.error('[interview-events] Create error:', err.message, err.stack);
 			res.status(500).json({ error: 'Failed to create interview event' });
+		}
+	},
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/interviews/:id/biometric-consent — candidate records their
+// biometric consent decision FOR THIS INTERVIEW (#1925, ADR-D06 §4.4)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Server-side capture contract for the event flow: the decision is
+// recorded with consentService.recordConsent against the event's
+// GOVERNING session only — never a sibling session — and recordConsent
+// itself performs the existing S-070 propagation (a grant sets the
+// governing session's config.biometric_collection=true; a decline
+// leaves it false and records the never-granted receipt). The current
+// consent text for the candidate to read is the existing
+// GET /api/consent/texts/biometric (v1.2+, diarization-disclosing).
+//
+// GAP (recorded, not hidden): the join-screen UI surface that presents
+// this capture in the client is a separate, larger client build — see
+// the #1925 build log. This endpoint is the contract it will call.
+
+router.post(
+	'/:id/biometric-consent',
+	authMiddleware,
+	[
+		param('id').isInt({ min: 1 }).withMessage('Valid interview ID required'),
+		body('accepted').isBoolean().withMessage('accepted must be a boolean'),
+		body('locale').optional().isIn(['en', 'hi']).withMessage('Invalid locale'),
+	],
+	handleValidationErrors,
+	async (req, res) => {
+		try {
+			const eventId = parseInt(req.params.id, 10);
+			const eventRes = await pool.query('SELECT * FROM interview_events WHERE id = $1', [eventId]);
+			if (eventRes.rows.length === 0) {
+				return res.status(404).json({ error: 'Interview event not found' });
+			}
+			const event = eventRes.rows[0];
+
+			// Only the event's own candidate may record consent for it.
+			if (event.candidate_id !== req.user.id) {
+				return res.status(403).json({ error: 'Only the candidate can record consent for this interview' });
+			}
+			if (!event.interview_session_id) {
+				return res
+					.status(409)
+					.json({ error: 'This interview has no governing session yet', code: 'NO_GOVERNING_SESSION' });
+			}
+
+			// S-011 ownership guard: the governing session must belong
+			// to this candidate (prevents receipt planting).
+			await consentService.assertSessionOwnership(event.interview_session_id, req.user.id);
+
+			const receipt = await consentService.recordConsent({
+				sessionId: event.interview_session_id,
+				candidateId: req.user.id,
+				type: 'biometric',
+				accepted: req.body.accepted,
+				locale: req.body.locale || 'en',
+				ipAddress: req.ip,
+			});
+
+			res.status(201).json({
+				success: true,
+				governing_session_id: event.interview_session_id,
+				accepted: req.body.accepted,
+				receipt_id: receipt.id,
+			});
+		} catch (err) {
+			console.error('[interview-events] Biometric consent capture error:', err.message);
+			res.status(400).json({ error: err.message });
 		}
 	},
 );
