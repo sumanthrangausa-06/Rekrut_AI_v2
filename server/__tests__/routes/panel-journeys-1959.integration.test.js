@@ -21,6 +21,15 @@
  * Run:
  *   SD22_INTEGRATION_DB_URL='postgresql://postgres@127.0.0.1:55433/sd22_e2e' \
  *     npx jest server/__tests__/routes/panel-journeys-1959.integration.test.js --forceExit
+ *
+ * #1969 follow-up (review of PR #1967, minors M1–M6): the JT-D8b leak
+ * scan now covers candidate + panel (both members) + recruiter
+ * transcript/detail payloads and includes the decliner's name/email
+ * (M1/M3); JT-D8b seats a second panel member (M2); JT-D8a's label
+ * assertion is pinned to the composed-label shapes (M4); the (3b)
+ * notification comment matches its assertion (M5); JT-D8c is
+ * independent of JT-D8b's twin store and reads its settled status
+ * back from the DB before asserting (M6).
  */
 jest.unmock('../../../lib/db');
 
@@ -33,6 +42,35 @@ jest.setTimeout(90000);
 const U_REC = 195901;
 const U_PANEL = 195902;
 const U_CAND = 195903;
+const U_PANEL2 = 195904; // #1969 M2: second panel member (JT-D8b)
+
+// #1969 M3: the decliner's identity as seeded below — the leak scan
+// rejects payloads carrying any of these, not just the numeric id.
+const DECLINER_ID = String(U_PANEL);
+const DECLINER_NAME = 'Panel 1959';
+const DECLINER_EMAIL = 'panel1959@test.local';
+
+// Privacy C-C settled shape (#1969 M6): the candidate-facing
+// diarization object for EVERY blocked variant (declined / withdrawn /
+// never decided) — pinned literally so JT-D8c needs no twin store from
+// JT-D8b, and drift in any variant fails against the pin itself.
+const UNAVAILABLE_DIARIZATION = Object.freeze({
+	status: 'unavailable',
+	mapping_state: null,
+	corrected_by: null,
+	corrected_at: null,
+	speakers: [],
+});
+
+// #1969 M1: the shared posture-leak scan. Rejects the gate codes, any
+// decline wording, and the decliner's id/name/email (M3) in a payload.
+const LEAK_PATTERNS = [/PANEL_AGREEMENT/, /consent_blocked/, /panel_consent_snapshot/, /cancel_reason/, /declin/i];
+const LEAK_STRINGS = [DECLINER_ID, DECLINER_NAME, DECLINER_EMAIL];
+function expectNoDeclineLeak(payload) {
+	const flat = JSON.stringify(payload);
+	for (const pattern of LEAK_PATTERNS) expect(flat).not.toMatch(pattern);
+	for (const value of LEAK_STRINGS) expect(flat).not.toContain(value);
+}
 
 const ENGINE_OUTPUT = {
 	speakerCount: 2,
@@ -57,13 +95,15 @@ describeIfDb('S-D22 panel journeys JT-D8 (#1959, real HTTP + real DB)', () => {
 	const tok = (id, email, role) => generateToken({ id, email, role });
 	const recTok = () => tok(U_REC, 'rec1959@test.local', 'recruiter');
 	const panelTok = () => tok(U_PANEL, 'panel1959@test.local', 'recruiter');
+	const panel2Tok = () => tok(U_PANEL2, 'panel2-1959@test.local', 'recruiter');
 	const candTok = () => tok(U_CAND, 'cand1959@test.local', 'candidate');
 
 	async function seedUsers() {
-		await pool.query(`DELETE FROM users WHERE id = ANY($1)`, [[U_REC, U_PANEL, U_CAND]]);
+		await pool.query(`DELETE FROM users WHERE id = ANY($1)`, [[U_REC, U_PANEL, U_CAND, U_PANEL2]]);
 		for (const [id, email, name, role] of [
 			[U_REC, 'rec1959@test.local', 'Rec 1959', 'recruiter'],
 			[U_PANEL, 'panel1959@test.local', 'Panel 1959', 'recruiter'],
+			[U_PANEL2, 'panel2-1959@test.local', 'Panel Two 1959', 'recruiter'],
 			[U_CAND, 'cand1959@test.local', 'Cand 1959', 'candidate'],
 		]) {
 			await pool.query(
@@ -74,9 +114,10 @@ describeIfDb('S-D22 panel journeys JT-D8 (#1959, real HTTP + real DB)', () => {
 	}
 
 	/** Step 1 (Recruiter persona): the recruiter schedules a human
-	 *  interview with one panel member — the event + room rows the
-	 *  scheduling flow creates. Returns { event, roomId, govId }. */
-	async function schedule() {
+	 *  interview with the given panel members (one by default; JT-D8b
+	 *  seats two, #1969 M2) — the event + room rows the scheduling
+	 *  flow creates. Returns { event, roomId, govId }. */
+	async function schedule(panelIds = [U_PANEL]) {
 		const job = await pool.query(
 			`INSERT INTO jobs (user_id, title) VALUES ($1, 'S-D22 job') RETURNING id`, [U_REC]);
 		const ja = await pool.query(
@@ -85,7 +126,7 @@ describeIfDb('S-D22 panel journeys JT-D8 (#1959, real HTTP + real DB)', () => {
 		const ev = await pool.query(
 			`INSERT INTO interview_events (recruiter_id, candidate_id, panel_member_ids, job_application_id, duration_minutes, timezone, status)
 			 VALUES ($1, $2, $3, $4, 60, 'UTC', 'confirmed') RETURNING *`,
-			[U_REC, U_CAND, [U_PANEL], ja.rows[0].id]);
+			[U_REC, U_CAND, panelIds, ja.rows[0].id]);
 		const event = ev.rows[0];
 		const room = await pool.query(
 			`INSERT INTO interview_rooms (interview_event_id, room_name, livekit_room_id, status)
@@ -136,7 +177,7 @@ describeIfDb('S-D22 panel journeys JT-D8 (#1959, real HTTP + real DB)', () => {
 		return null;
 	}
 	const segsOf = (body) => body.transcript?.segments ?? [];
-	const twin = {}; // JT-D8b decline twin's settled candidate view (privacy C-C)
+	const twin = {}; // JT-D8b-internal: decline twin's settled candidate view (privacy C-C); JT-D8c pins the literal shape instead (#1969 M6)
 
 	async function getDetail(recordingId, token) {
 		return request(app).get(`/api/interviews/recordings/${recordingId}`)
@@ -243,20 +284,35 @@ describeIfDb('S-D22 panel journeys JT-D8 (#1959, real HTTP + real DB)', () => {
 		const segs = segsOf(candTx.body);
 		expect(segs.length).toBe(2);
 		expect(segs.every((s) => s.diarization_covered === true)).toBe(true);
-		expect(segs.every((s) => /^Speaker \d+$/.test(s.speaker_identity) || s.speaker_identity.length > 0)).toBe(true);
+		// #1969 M4: pinned to the two composed-label shapes the
+		// recordings route actually emits — `Speaker N` for an
+		// unassigned speaker, `<Role> — <name>` for an assigned one
+		// (server/routes/recordings.js labelFor). Any other non-empty
+		// string (the old `length > 0` fallback) fails.
+		expect(segs.every((s) => /^Speaker \d+$/.test(s.speaker_identity)
+			|| /^(Candidate|Interviewer) — .+$/.test(s.speaker_identity))).toBe(true);
 		expect(new Set(segs.map((s) => s.speaker_number)).size).toBe(2);
 		const candDetail = await getDetail(recordingId, candTok());
 		expect(candDetail.body.recording.diarization_status).toBe('complete');
 	});
 
 	it('JT-D8b (decline twin): recording proceeds, transcript unlabelled, NO surface says a decline is why', async () => {
-		const { event, roomId, govId } = await schedule();
+		// #1969 M2: TWO panel members are seated — the decliner and a
+		// second member who grants — so another member's surfaces are
+		// exercised, not just the decliner's own (where seeing their
+		// own decision is legitimate).
+		const { event, roomId, govId } = await schedule([U_PANEL, U_PANEL2]);
 
 		const panelJoin = await join(roomId, panelTok());
 		expect(panelJoin.status).toBe(200);
 		// Told BEFORE clicking: declining means the interview and the
 		// recording still go ahead, without labels.
 		expect(panelJoin.body.labelling_notice.own_decision).toBeNull(); // consequence copy: client notice, S-D20 suite (see JT-D8a note)
+		const panel2Join = await join(roomId, panel2Tok());
+		expect(panel2Join.status).toBe(200);
+		// The second member's notice carries only THEIR OWN state —
+		// undecided here; it never carries the decliner's posture.
+		expect(panel2Join.body.labelling_notice.own_decision).toBeNull();
 		const recJoin = await join(roomId, recTok());
 		expect(recJoin.status).toBe(200);
 
@@ -266,6 +322,12 @@ describeIfDb('S-D22 panel journeys JT-D8 (#1959, real HTTP + real DB)', () => {
 		const recDec = await decide(event.id, roomId, recTok(),
 			recJoin.body.labelling_notice.roster_version, 'granted');
 		expect(recDec.status).toBe(200);
+		// The second member grants, so the decliner is the SOLE blocker:
+		// enqueue suppression below is attributable to the decline leg
+		// alone, with a full cross-member surface to scan.
+		const panel2Dec = await decide(event.id, roomId, panel2Tok(),
+			panel2Join.body.labelling_notice.roster_version, 'granted');
+		expect(panel2Dec.status).toBe(200);
 
 		const candConsent = await request(app).post('/api/consent/record')
 			.set('Authorization', `Bearer ${candTok()}`)
@@ -297,36 +359,58 @@ describeIfDb('S-D22 panel journeys JT-D8 (#1959, real HTTP + real DB)', () => {
 		const segs = segsOf(candTx.body);
 		expect(segs.length).toBe(2);
 		expect(segs.every((s) => s.speaker_number === null || s.speaker_number === undefined)).toBe(true);
-		// Twin store for C-C deep-equality against JT-D8c + the withdrawn
-		// twin below: the whole diarization object, not just the status.
+		// Twin store for C-C deep-equality against the withdrawn twin
+		// below (same test): the whole diarization object, not just
+		// the status. It is ALSO pinned to the literal settled shape —
+		// the same pin JT-D8c asserts independently (#1969 M6).
 		twin.diarization = candTx.body.transcript.diarization;
 		expect(twin.diarization.status).toBe('unavailable');
 		expect(twin.diarization.speakers).toEqual([]);
+		expect(twin.diarization).toEqual(UNAVAILABLE_DIARIZATION);
 		// (2) the candidate's labelling state is the same honest
 		// 'unavailable' as any other block — no reason attached;
 		const candDetail = await getDetail(recordingId, candTok());
 		expect(candDetail.body.recording.diarization_status).toBe('unavailable');
-		// (3) NOTHING in any candidate- or panel-facing payload names
-		// the decline, the gate code, or the decliner;
-		for (const payload of [candTx.body, candDetail.body]) {
-			const flat = JSON.stringify(payload);
-			expect(flat).not.toMatch(/PANEL_AGREEMENT/);
-			expect(flat).not.toMatch(/consent_blocked/);
-			expect(flat).not.toMatch(/panel_consent_snapshot/);
-			expect(flat).not.toMatch(/cancel_reason/);
-			expect(flat).not.toMatch(/declin/i);
-			expect(flat).not.toContain(String(U_PANEL));
+		// (3) NOTHING in any candidate-, panel- or recruiter-facing
+		// payload names the decline, the gate code, or the decliner
+		// (#1969 M1: the scan covers the panel transcript body, the
+		// panel detail, the SECOND panel member's payloads (M2), and
+		// the recruiter's transcript + detail — not candidate payloads
+		// only; M3: the decliner's name and email are in the scan set).
+		const panelDetail = await getDetail(recordingId, panelTok());
+		expect(panelDetail.status).toBe(200);
+		expect(panelDetail.body.recording.diarization_status).toBe('unavailable');
+		const panelTx = await getTranscript(recordingId, panelTok());
+		expect(panelTx.status).toBe(200);
+		const panel2Detail = await getDetail(recordingId, panel2Tok());
+		expect(panel2Detail.status).toBe(200);
+		expect(panel2Detail.body.recording.diarization_status).toBe('unavailable');
+		const panel2Tx = await getTranscript(recordingId, panel2Tok());
+		expect(panel2Tx.status).toBe(200);
+		const recDetail = await getDetail(recordingId, recTok());
+		expect(recDetail.status).toBe(200);
+		expect(recDetail.body.recording.diarization_status).toBe('unavailable');
+		const recTx = await getTranscript(recordingId, recTok());
+		expect(recTx.status).toBe(200);
+		for (const payload of [candTx.body, candDetail.body,
+			panelTx.body, panelDetail.body,
+			panel2Tx.body, panel2Detail.body,
+			recTx.body, recDetail.body]) {
+			expectNoDeclineLeak(payload);
 		}
-		// (3b) Notification isolation (privacy A7, state read back): the
-		// only labelling-decision notification for this event is the
-		// decliner's own C-6d line — candidate and recruiter receive none.
+		// (3b) Notification isolation (privacy A7, state read back):
+		// each DECIDER may receive their own C-6d decision line (the
+		// decliner, the granting recruiter, the granting second panel
+		// member); the candidate receives none, and a notification
+		// naming a DECLINE reaches only the decliner (#1969 M5 —
+		// comment reconciled to this assertion).
 		const notifs = await pool.query(
 			`SELECT user_id, message FROM user_notifications
 			 WHERE metadata->>'event_id' = $1 OR message ILIKE '%speaker labelling%' AND user_id = ANY($2)`,
-			[String(event.id), [U_REC, U_PANEL, U_CAND]]);
+			[String(event.id), [U_REC, U_PANEL, U_PANEL2, U_CAND]]);
 		const labellingNotifs = notifs.rows.filter((n) => /speaker labelling/i.test(n.message));
 		expect(labellingNotifs.length).toBeGreaterThan(0);
-		expect(labellingNotifs.every((n) => Number(n.user_id) === U_PANEL || Number(n.user_id) === U_REC)).toBe(true);
+		expect(labellingNotifs.every((n) => [U_PANEL, U_PANEL2, U_REC].includes(Number(n.user_id)))).toBe(true);
 		expect(labellingNotifs.filter((n) => /declined/i.test(n.message)).every((n) => Number(n.user_id) === U_PANEL)).toBe(true);
 		expect(labellingNotifs.some((n) => Number(n.user_id) === U_CAND)).toBe(false);
 		// (3c) Audit boundary lock (privacy A9 regression): panel capture
@@ -339,18 +423,19 @@ describeIfDb('S-D22 panel journeys JT-D8 (#1959, real HTTP + real DB)', () => {
 			[String(event.id)]);
 		expect(audit.rows.length).toBeGreaterThan(0);
 		expect(audit.rows.every((r) => r.company_id === null)).toBe(true);
-		const panelDetail = await getDetail(recordingId, panelTok());
-		expect(panelDetail.status).toBe(200);
-		expect(panelDetail.body.recording.diarization_status).toBe('unavailable');
-		expect(JSON.stringify(panelDetail.body)).not.toMatch(/PANEL_AGREEMENT/);
 		// (4) the decliner's participation is otherwise identical:
 		// they can still join (their recorded decline renders as their
 		// own status, not a re-prompt) and read the transcript.
 		const panelRejoin = await join(roomId, panelTok());
 		expect(panelRejoin.status).toBe(200);
 		expect(panelRejoin.body.labelling_notice.own_decision).toBe('declined');
-		const panelTx = await getTranscript(recordingId, panelTok());
 		expect(panelTx.status).toBe(200);
+		// …and the second member's participation is likewise identical:
+		// their rejoin renders their OWN recorded grant — never the
+		// decliner's decision (#1969 M2 cross-member surface).
+		const panel2Rejoin = await join(roomId, panel2Tok());
+		expect(panel2Rejoin.status).toBe(200);
+		expect(panel2Rejoin.body.labelling_notice.own_decision).toBe('granted');
 
 		// V3 withdrawn twin (privacy C-C): panel grants, then withdraws
 		// before transcription — the candidate's settled view must be
@@ -377,6 +462,10 @@ describeIfDb('S-D22 panel journeys JT-D8 (#1959, real HTTP + real DB)', () => {
 		expect(wTx.body.transcript.diarization).toEqual(twin.diarization);
 		const wDetail = await getDetail(wRecId, candTok());
 		expect(wDetail.body.recording.diarization_status).toBe('unavailable');
+		// The withdrawn twin's candidate payloads pass the same shared
+		// scan (#1969 M1) — a withdrawal must not leak either.
+		expectNoDeclineLeak(wTx.body);
+		expectNoDeclineLeak(wDetail.body);
 	});
 
 	it('JT-D8c (never asked, never decided): no labels; only the operator record names the missing agreement', async () => {
@@ -400,6 +489,15 @@ describeIfDb('S-D22 panel journeys JT-D8 (#1959, real HTTP + real DB)', () => {
 		process.env.DIARIZATION_ENABLED = 'true';
 		const enq = await enqueueHelper.enqueueDiarizationForRecording(recordingId);
 		delete process.env.DIARIZATION_ENABLED;
+		expect(enq.enqueued).toBe(false);
+
+		// Settled state first (privacy C-A, #1969 M6): the explicit DB
+		// read-back agrees the recording has settled BEFORE any payload
+		// assertion — same discipline as JT-D8b, not settled-by-
+		// construction alone.
+		const settled = await pool.query(
+			`SELECT diarization_status FROM interview_recordings WHERE id = $1`, [recordingId]);
+		expect(settled.rows[0].diarization_status).toBe('unavailable');
 
 		// No labels anywhere a user looks.
 		const candTx = await getTranscript(recordingId, candTok());
@@ -409,10 +507,12 @@ describeIfDb('S-D22 panel journeys JT-D8 (#1959, real HTTP + real DB)', () => {
 		const candDetail = await getDetail(recordingId, candTok());
 		expect(candDetail.body.recording.diarization_status).toBe('unavailable');
 		expect(JSON.stringify(candDetail.body)).not.toMatch(/PANEL_AGREEMENT/);
-		// C-C twin equality: the never-decided variant's candidate view
-		// is deep-equal to the decline twin's (JT-D8b) — same fields,
-		// same values, no variant-specific marker.
-		expect(candTx.body.transcript.diarization).toEqual(twin.diarization);
+		// C-C twin equality, independently (#1969 M6): the never-decided
+		// variant's candidate view is deep-equal to the PINNED settled
+		// shape — the same literal JT-D8b pins its decline twin to — so
+		// this test stands alone (no in-file twin store from D8b) and
+		// any variant-specific marker or drift fails against the pin.
+		expect(candTx.body.transcript.diarization).toEqual(UNAVAILABLE_DIARIZATION);
 		const panelDetail = await getDetail(recordingId, panelTok());
 		expect(JSON.stringify(panelDetail.body)).not.toMatch(/PANEL_AGREEMENT/);
 
