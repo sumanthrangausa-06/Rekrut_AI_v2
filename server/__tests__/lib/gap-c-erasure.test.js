@@ -483,11 +483,14 @@ describe('#1122 GAP-C erasePersonalData — scheduling & human-interview family'
 		expect(result.gapC.interviewEventsDeleted).toBe(1);
 		expect(result.gapC.interviewEventsRedacted).toBe(1);
 		expect(result.gapC.interviewEventsKeptForPanelConsent).toBe(1);
+		expect(result.gapC.rowsHeld).toBe(1);
+		expect(result.gapC.holdLookupFailed).toBe(0);
 		expect(
 			result.gapC.interviewEventsDeleted +
 				result.gapC.interviewEventsRedacted +
 				result.gapC.interviewEventsKeptForPanelConsent +
-				1,
+				result.gapC.rowsHeld +
+				result.gapC.holdLookupFailed,
 		).toBe(4);
 		// GAP-C never touches the panel rows themselves on a
 		// candidate erasure (they are other users' records).
