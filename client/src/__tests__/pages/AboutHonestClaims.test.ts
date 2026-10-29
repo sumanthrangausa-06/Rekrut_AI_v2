@@ -107,3 +107,20 @@ describe('about page verified history (#1314)', () => {
 		expect(source).toContain('Ranga built Rekrut AI after watching recruiters drown in spreadsheets');
 	});
 });
+
+/**
+ * #1917 S-D15 AC-5 (Sumanth ruling, 2026-10-28): the Desert Ant Labs
+ * attribution for speaker labelling goes on the existing About page as
+ * one line — "Speaker labelling powered by Desert Ant Labs." — with NO
+ * new page. The repo README credit already landed in PR #1948; this
+ * source guard pins the page half.
+ */
+describe('about page speaker-labelling attribution (#1917 AC-5)', () => {
+	it('contains the exact Desert Ant Labs credit line', () => {
+		expect(source).toContain('Speaker labelling powered by Desert Ant Labs.');
+	});
+
+	it('contains the credit line exactly once', () => {
+		expect(source.split('Speaker labelling powered by Desert Ant Labs.').length - 1).toBe(1);
+	});
+});

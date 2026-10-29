@@ -103,6 +103,7 @@ function Footer() {
 		<footer className="border-t bg-muted/30">
 			<div className="mx-auto max-w-7xl px-4 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
 				<p>© {new Date().getFullYear()} Rekrut AI. All rights reserved.</p>
+				<p>Speaker labelling powered by Desert Ant Labs.</p>
 				<div className="flex items-center gap-4">
 					<Link
 						to="/privacy"
