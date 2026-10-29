@@ -1122,6 +1122,23 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 			const storageSweep = await sweepPendingStorageDeletions();
 			const ledgerPurge = await purgeDrainedStorageDeletions();
 
+			// #1973: K-12 skeleton-class cleanup sweep — deletes a
+			// panel-kept skeleton event once its last
+			// event_labelling_consent row is gone, under the full
+			// C-4 predicate conjunction re-derived inside each
+			// DELETE (STOP 1 as amended, issue #1973). Deliberately
+			// NOT gated by LIVE_PURGE / opts.dryRun, for the same
+			// reason as the storage-ledger sweep above: this is
+			// erasure completion, not a retention schedule — the
+			// skeleton's keep basis ended when the last panel row
+			// was erased, in either retention mode. Counts are
+			// labelled skeleton-class (provenance honesty, C-5);
+			// panel_consent_snapshot copies in diarization_jobs/
+			// runs persist on their own clock and are NOT claimed
+			// deleted by this sweep.
+			const { sweepPanelSkeletonEvents } = require('./lib/erasureService');
+			const skeletonSweep = await sweepPanelSkeletonEvents();
+
 			const mode = opts.dryRun ? 'DRY-RUN' : 'LIVE';
 			console.log(
 				`[retention] ${mode}: recordings=${rec.deletedCount} (storage=${rec.storageDeleted}), ` +
@@ -1140,6 +1157,11 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 				`[erasure] storage-ledger sweep+purge (LIVE, independent of retention mode): ` +
 				`storage_sweep_deleted=${storageSweep.deleted} (failed=${storageSweep.failed}, held=${storageSweep.heldSkips}), ` +
 				`storage_ledger_purged=${ledgerPurge.ledgerRowsPurged} (users=${ledgerPurge.usersPurged}, held=${ledgerPurge.ledgerRowsRetainedHeld}, lookup_failed=${ledgerPurge.ledgerHoldLookupFailed})`,
+			);
+			console.log(
+				`[erasure] skeleton-class sweep #1973 (LIVE, independent of retention mode): ` +
+				`skeleton_scanned=${skeletonSweep.scanned}, skeleton_deleted=${skeletonSweep.deleted}, ` +
+				`held=${skeletonSweep.heldSkipped}, lookup_failed=${skeletonSweep.lookupFailedSkipped}, skipped=${skeletonSweep.skipped}`,
 			);
 		} catch (err) {
 			console.error('[retention] Failed:', err.message);
