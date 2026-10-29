@@ -9,7 +9,7 @@
  * field, which carries the caller's own decision only; this suite pins
  * that the card consumes exactly that shape and nothing more.
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const apiCall = vi.fn();
@@ -25,6 +25,11 @@ import { InterviewLabellingStatus } from '@/pages/recruiter/interviews';
 
 const interview = { id: 123, livekit_room_id: 7 };
 
+const CHECK = /Check speaker labelling status/i;
+function clickCheck() {
+	fireEvent.click(screen.getByRole('button', { name: CHECK }));
+}
+
 describe('InterviewLabellingStatus (§9) — recruiter detail status line', () => {
 	it('shows the recruiter\u2019s OWN recorded decision as a collapsed status line with Change', async () => {
 		apiCall.mockResolvedValue({
@@ -38,6 +43,7 @@ describe('InterviewLabellingStatus (§9) — recruiter detail status line', () =
 			},
 		});
 		render(<InterviewLabellingStatus interview={interview} />);
+		clickCheck();
 		expect(await screen.findByText(/You declined speaker labelling for this interview/i)).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: /Change/i })).toBeInTheDocument();
 		// No other participant's decision is shown or named — own state only.
@@ -56,6 +62,7 @@ describe('InterviewLabellingStatus (§9) — recruiter detail status line', () =
 			},
 		});
 		render(<InterviewLabellingStatus interview={interview} />);
+		clickCheck();
 		expect(
 			await screen.findByRole('button', { name: /I agree to speaker labelling of my voice/i }),
 		).toBeInTheDocument();
@@ -72,8 +79,32 @@ describe('InterviewLabellingStatus (§9) — recruiter detail status line', () =
 	it('a failed status load is honest — it says so and points at the room, never a fake status', async () => {
 		apiCall.mockRejectedValue(new Error('network down'));
 		render(<InterviewLabellingStatus interview={interview} />);
+		clickCheck();
 		expect(await screen.findByText(/Speaker labelling: status unavailable/i)).toBeInTheDocument();
 		expect(screen.queryByText(/You agreed to speaker labelling/i)).not.toBeInTheDocument();
 		expect(screen.queryByText(/You declined speaker labelling/i)).not.toBeInTheDocument();
+	});
+
+	it('BLOCK-1 regression: rendering the card fires NO token POST on mount — the fetch is lazy, on the recruiter\u2019s own click only', async () => {
+		apiCall.mockResolvedValue({
+			labelling_notice: {
+				event_id: 123,
+				notice_version: 'br7-1',
+				roster_version: 'hmac-sha256:abc123',
+				own_decision: 'granted',
+				decision_scope: 'panel_leg_only',
+			},
+		});
+		render(<InterviewLabellingStatus interview={interview} />);
+		// Neutral pre-action state: a line + the explicit action control.
+		expect(screen.getByText(/Speaker labelling:/i)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: CHECK })).toBeInTheDocument();
+		await waitFor(() => expect(apiCall).not.toHaveBeenCalled());
+		expect(apiCall).not.toHaveBeenCalled();
+		// The recruiter's own click is the one and only trigger — one POST.
+		clickCheck();
+		expect(await screen.findByText(/You agreed to speaker labelling for this interview/i)).toBeInTheDocument();
+		expect(apiCall).toHaveBeenCalledTimes(1);
+		expect(apiCall).toHaveBeenCalledWith('/livekit/rooms/7/token', { method: 'POST' });
 	});
 });

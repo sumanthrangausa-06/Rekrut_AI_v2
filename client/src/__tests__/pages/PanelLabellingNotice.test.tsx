@@ -13,7 +13,13 @@
  * role/name; the collapsed status is an aria-live line.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const apiCall = vi.fn();
+beforeEach(() => {
+	apiCall.mockReset();
+});
+vi.mock('@/lib/api', () => ({ apiCall: (...args: unknown[]) => apiCall(...args) }));
 
 import { ConsentDialog, PanelLabellingNotice } from '@/pages/candidate/livekit-room';
 
@@ -214,5 +220,50 @@ describe('ConsentDialog clarification (§4.4)', () => {
 		render(<ConsentDialog {...baseProps} />);
 		expect(screen.queryByRole('button', { name: AGREE })).not.toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: DECLINE })).not.toBeInTheDocument();
+	});
+});
+
+describe('PanelLabellingNotice — review minors (409 copy, 44px targets, focus, default capture path)', () => {
+	it('Minor 4: the DEFAULT (non-injected) capture path POSTs the exact S-D18 wire shape via apiCall', async () => {
+		apiCall.mockResolvedValue({ own_decision: 'granted', decision_scope: 'panel_leg_only' });
+		render(<PanelLabellingNotice notice={notice} callerName="Panel Pat" roomId="7" />);
+		fireEvent.click(screen.getByRole('button', { name: AGREE }));
+		await waitFor(() => expect(apiCall).toHaveBeenCalledTimes(1));
+		expect(apiCall).toHaveBeenCalledWith('/interviews/events/123/labelling-consent', {
+			method: 'POST',
+			body: { decision: 'granted', room_id: 7, roster_version: 'hmac-sha256:abc123' },
+		});
+		expect(await screen.findByText(/You agreed to speaker labelling for this interview/i)).toBeInTheDocument();
+	});
+
+	it('Minor 1: a 409 ROSTER_CHANGED capture directs the user to re-join — retrying the stale roster can never succeed', async () => {
+		const rosterErr = Object.assign(new Error('roster changed'), { status: 409, code: 'ROSTER_CHANGED' });
+		apiCall.mockRejectedValue(rosterErr);
+		render(<PanelLabellingNotice notice={notice} callerName="Panel Pat" roomId="7" />);
+		fireEvent.click(screen.getByRole('button', { name: AGREE }));
+		const alert = await screen.findByRole('alert');
+		expect(alert).toHaveTextContent(/re-join/i);
+		expect(alert).not.toHaveTextContent(/Please try again/i);
+		expect(screen.queryByText(/You agreed to speaker labelling/i)).not.toBeInTheDocument();
+		expect(screen.getByRole('button', { name: AGREE })).toBeInTheDocument();
+	});
+
+	it('Minor 2: Change / Withdraw / Keep controls are 44px min-height like the decision pair', async () => {
+		const onDecide = vi.fn().mockResolvedValue({ own_decision: 'granted' });
+		render(
+			<PanelLabellingNotice notice={{ ...notice, own_decision: 'granted' }} callerName="Panel Pat" roomId="7" onDecide={onDecide} />,
+		);
+		expect(screen.getByRole('button', { name: /Change/i }).className).toContain('min-h-[44px]');
+		fireEvent.click(screen.getByRole('button', { name: /Change/i }));
+		expect((await screen.findByRole('button', { name: /Withdraw my agreement/i })).className).toContain('min-h-[44px]');
+		expect(screen.getByRole('button', { name: /Keep my current decision/i }).className).toContain('min-h-[44px]');
+	});
+
+	it('Minor 3: when a decision collapses the notice, focus moves to the Change control (not dropped to <body>)', async () => {
+		const onDecide = vi.fn().mockResolvedValue({ own_decision: 'granted', decision_scope: 'panel_leg_only' });
+		render(<PanelLabellingNotice notice={notice} callerName="Panel Pat" roomId="7" onDecide={onDecide} />);
+		fireEvent.click(screen.getByRole('button', { name: AGREE }));
+		expect(await screen.findByText(/You agreed to speaker labelling for this interview/i)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /Change/i })).toHaveFocus();
 	});
 });

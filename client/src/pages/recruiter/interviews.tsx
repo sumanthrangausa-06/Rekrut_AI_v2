@@ -2066,6 +2066,13 @@ function RecruiterSystemBCard({
  * other participant. No room → no notice can exist → renders nothing.
  * A failed load says so honestly and points at the room; it never
  * invents a status.
+ *
+ * LAZY by design (PR #1962 BLOCK-1): the token endpoint is behind the
+ * strict rate limit (5/15 min, shared with actually JOINING a room), so
+ * this component must NEVER call it on render — a list of 5+ upcoming
+ * cards would burn the recruiter's join budget and mint discarded join
+ * tokens. The fetch fires only on the recruiter's own explicit click;
+ * before that, a neutral line + the action control render.
  */
 export function InterviewLabellingStatus({
 	interview,
@@ -2075,25 +2082,29 @@ export function InterviewLabellingStatus({
 	const { user } = useAuth();
 	const [notice, setNotice] = useState<LabellingNoticeState | null>(null);
 	const [failed, setFailed] = useState(false);
+	const [checking, setChecking] = useState(false);
+	const [checked, setChecked] = useState(false);
 	const roomId = interview.livekit_room_id;
 
-	useEffect(() => {
-		if (!roomId) return;
-		let live = true;
+	const checkStatus = () => {
+		if (!roomId || checking) return;
+		setChecking(true);
 		setFailed(false);
 		apiCall<{ labelling_notice?: LabellingNoticeState }>(`/livekit/rooms/${roomId}/token`, {
 			method: 'POST',
 		})
 			.then((data) => {
-				if (live) setNotice(data.labelling_notice ?? null);
+				if (data.labelling_notice) setNotice(data.labelling_notice);
+				else setFailed(true);
 			})
 			.catch(() => {
-				if (live) setFailed(true);
+				setFailed(true);
+			})
+			.finally(() => {
+				setChecking(false);
+				setChecked(true);
 			});
-		return () => {
-			live = false;
-		};
-	}, [roomId]);
+	};
 
 	if (!roomId) return null;
 	if (failed) {
@@ -2103,7 +2114,25 @@ export function InterviewLabellingStatus({
 			</p>
 		);
 	}
-	if (!notice) return null;
+	if (!checked || !notice) {
+		return (
+			<div className="mt-2 flex flex-wrap items-center gap-2">
+				<p className="text-xs text-muted-foreground">
+					Speaker labelling: your status for this interview has not been checked.
+				</p>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={checking}
+					onClick={checkStatus}
+					className="min-h-[44px]"
+				>
+					{checking ? 'Checking…' : 'Check speaker labelling status'}
+				</Button>
+			</div>
+		);
+	}
 	return (
 		<div className="mt-2">
 			<PanelLabellingNotice

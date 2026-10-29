@@ -113,3 +113,63 @@ No staging/main promotion, no schema changes, no emails,
 (`lib/diarizationGate.js`, worker, migrations, its test files) were
 not touched — this PR's diff is frontend room UI + copy + tests +
 this log only.
+
+## Fix — independent review BLOCK-1 + minors (PR #1962, review comment 6493944820)
+
+Reviewer verdict on head `45e730637`: BLOCK scoped to the §9 recruiter
+status line, plus four non-blocking minors. All five addressed on the
+same branch; §4.3 room notice itself was cleared by the review and is
+unchanged in behaviour except minors 1–3 below.
+
+- **BLOCK-1 — token POST auto-fired per card (fixed, lazy fetch):**
+  `InterviewLabellingStatus` previously POSTed
+  `/livekit/rooms/:roomId/token` in a `useEffect` on mount for every
+  upcoming card. That endpoint sits behind `rateLimits.strict`
+  (5 req / 15 min, IP+route) — the same bucket that gates joining a
+  room — so opening the interviews page with 5+ upcoming interviews
+  could 429 the recruiter out of joining, and each mount minted a
+  discarded 1-hour join token. **Fix:** no fetch on render. The card
+  now renders a neutral line ("your status for this interview has not
+  been checked") with a "Check speaker labelling status" control
+  (44px); the token POST fires only on that explicit click (once,
+  guarded while in flight). Loaded → the same `PanelLabellingNotice`
+  (light). Failed (or a token response with no notice field) → the
+  same honest "status unavailable — you can decide in the interview
+  room" line. No new read endpoint was built (reviewer's follow-up
+  route via Lead/Suga, out of scope here).
+- **Minor 1 — 409 `ROSTER_CHANGED` copy:** the capture failure branch
+  now detects `code === 'ROSTER_CHANGED'` or HTTP 409 and says the
+  participant list has changed and to **re-join the interview** for
+  the latest information — retrying the stale `roster_version` can
+  never succeed, so "Please try again" is no longer shown for that
+  case. Other failures keep the generic honest error.
+- **Minor 2 — 44px targets:** Change, Withdraw-my-agreement, and
+  Keep-my-current-decision are now `min-h-[44px]`, matching the
+  decision pair (the earlier "44px targets" claim now holds for all
+  notice controls).
+- **Minor 3 — focus on collapse:** after a decision (or Keep)
+  collapses the notice, focus moves to the collapsed Change control
+  via a ref set only on that transition — initial renders with a
+  recorded decision do not steal focus.
+- **Minor 4 — default capture path pinned by test:** a new test
+  renders `PanelLabellingNotice` with NO injected `onDecide`, clicks
+  Agree, and asserts `apiCall` was called with exactly
+  `('/interviews/events/123/labelling-consent', {method:'POST',
+  body:{decision:'granted', room_id:7,
+  roster_version:'hmac-sha256:abc123'}})` and that the component
+  collapses from the server response.
+
+### Test evidence (this fix)
+
+- Red first (tests updated/added before the fix): **7 failed, 17
+  passed** across the two S-D20 suites.
+- Green: `PanelLabellingNotice` **19/19** + `RecruiterLabellingStatus`
+  **5/5** = **24/24 passed**, including the BLOCK-1 regression test
+  pinning that rendering `InterviewLabellingStatus` fires **zero**
+  token POSTs before the click and exactly one after it.
+- Neighbours re-run: SD15Disclosure + ObserverDisclosure +
+  AssessmentAiDisclosure → **16/16 passed**.
+- TypeScript: `tsc --noEmit` = **83 errors**, identical to this
+  branch's documented baseline; the only error in a touched file is
+  the pre-existing `resendScreening` argument error at
+  `interviews.tsx:1002`, untouched by this diff.

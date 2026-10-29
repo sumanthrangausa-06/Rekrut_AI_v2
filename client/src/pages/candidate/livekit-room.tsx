@@ -28,7 +28,7 @@ import {
 	Wifi,
 	WifiOff,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { EmptyState } from '@/components/domain/empty-state';
 import { Badge } from '@/components/ui/badge';
@@ -477,6 +477,8 @@ export function PanelLabellingNotice({
 	const [changing, setChanging] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const changeButtonRef = useRef<HTMLButtonElement | null>(null);
+	const focusChangeOnCollapse = useRef(false);
 
 	// A rejoin issues a fresh token: re-sync to the server's current word.
 	useEffect(() => {
@@ -484,6 +486,15 @@ export function PanelLabellingNotice({
 		setChanging(false);
 		setError(null);
 	}, [notice?.event_id, notice?.roster_version, notice?.own_decision]);
+
+	// Minor 3: after a decision (or Keep) collapses the notice, move focus
+	// to the collapsed Change control so keyboard focus is not dropped.
+	useEffect(() => {
+		if (focusChangeOnCollapse.current && decision && !changing) {
+			focusChangeOnCollapse.current = false;
+			changeButtonRef.current?.focus();
+		}
+	});
 
 	if (!notice) return null;
 
@@ -508,8 +519,20 @@ export function PanelLabellingNotice({
 			if (!recorded) throw new Error('Decision was not recorded');
 			setDecision(recorded);
 			setChanging(false);
-		} catch {
-			setError('Your speaker labelling decision could not be recorded. Please try again.');
+			// Minor 3: the clicked control unmounts as the notice collapses —
+			// move focus to the collapsed Change control, not <body>.
+			focusChangeOnCollapse.current = true;
+		} catch (err) {
+			const e = err as { status?: number; code?: string } | null;
+			if (e?.code === 'ROSTER_CHANGED' || e?.status === 409) {
+				// Minor 1 (§5.2): retrying replays the stale roster_version and
+				// can never succeed — the remedy is to re-join for a fresh token.
+				setError(
+					'Your speaker labelling decision could not be recorded because the participant list has changed. Please re-join the interview to get the latest information, then make your decision again.',
+				);
+			} else {
+				setError('Your speaker labelling decision could not be recorded. Please try again.');
+			}
 		} finally {
 			setSubmitting(false);
 		}
@@ -542,8 +565,9 @@ export function PanelLabellingNotice({
 					type="button"
 					variant="outline"
 					size="sm"
+					ref={changeButtonRef}
 					onClick={() => setChanging(true)}
-					className="min-h-[36px] shrink-0"
+					className="min-h-[44px] shrink-0"
 				>
 					Change
 				</Button>
@@ -615,7 +639,7 @@ export function PanelLabellingNotice({
 								size="sm"
 								disabled={submitting}
 								onClick={() => void decide('withdrawn')}
-								className="min-h-[36px]"
+								className="min-h-[44px]"
 							>
 								Withdraw my agreement
 							</Button>
@@ -626,8 +650,11 @@ export function PanelLabellingNotice({
 								variant="ghost"
 								size="sm"
 								disabled={submitting}
-								onClick={() => setChanging(false)}
-								className="min-h-[36px]"
+								onClick={() => {
+									focusChangeOnCollapse.current = true;
+									setChanging(false);
+								}}
+								className="min-h-[44px]"
 							>
 								Keep my current decision
 							</Button>
