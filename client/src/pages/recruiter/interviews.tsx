@@ -2109,9 +2109,21 @@ export function InterviewLabellingStatus({
 	if (!roomId) return null;
 	if (failed) {
 		return (
-			<p className="mt-2 text-xs text-muted-foreground">
-				Speaker labelling: status unavailable — you can decide in the interview room.
-			</p>
+			<div className="mt-2 flex flex-wrap items-center gap-2">
+				<p className="text-xs text-muted-foreground">
+					Speaker labelling: status unavailable — you can decide in the interview room.
+				</p>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={checking}
+					onClick={checkStatus}
+					className="min-h-[44px]"
+				>
+					{checking ? 'Checking…' : 'Check speaker labelling status'}
+				</Button>
+			</div>
 		);
 	}
 	if (!checked || !notice) {
