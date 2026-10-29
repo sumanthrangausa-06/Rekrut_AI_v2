@@ -22,6 +22,7 @@ const { rateLimits } = require('../../lib/distributed-rate-limiter');
 const livekitService = require('../services/livekit');
 const { canEnableObserver } = require('../../lib/observerConsentGate');
 const { ensureGoverningSession } = require('../../lib/governingSession'); // #1925 (ADR-D06 §4.2)
+const panelLabelling = require('../../lib/panelLabelling'); // S-D18 (#1955) BR-7 §4.2
 
 const router = express.Router();
 
@@ -194,6 +195,30 @@ router.post(
 				}
 			}
 
+			// S-D18 (#1955, BR-7 §4.2): labelling_notice for recruiter|panel
+			// only — the caller's OWN decision only; never another
+			// participant's posture, never an IP/UA, never the DB-only
+			// panel_expected_hash. Candidate: field absent. A lookup
+			// failure still renders the notice with own_decision:null
+			// (design §8 — delivery fails visible; the gate is server-side
+			// and never trusts this display state).
+			let labellingNotice;
+			if ((access.role === 'recruiter' || access.role === 'panel') && access.event) {
+				try {
+					const pool = require('../../lib/db');
+					labellingNotice = await panelLabelling.buildLabellingNotice(pool, access.event, user.id);
+				} catch (noticeErr) {
+					console.error('[livekit-routes] Labelling notice lookup failed:', noticeErr.message);
+					labellingNotice = {
+						event_id: Number(access.event.id),
+						notice_version: panelLabelling.currentNoticeVersion(),
+						roster_version: panelLabelling.rosterVersion(access.event),
+						own_decision: null,
+						decision_scope: 'panel_leg_only',
+					};
+				}
+			}
+
 			res.json({
 				success: true,
 				token,
@@ -202,6 +227,7 @@ router.post(
 				expiresIn: 3600,
 				observer_enabled: observerEnabled,
 				observer_consent: observerConsent,
+				...(labellingNotice ? { labelling_notice: labellingNotice } : {}),
 			});
 		} catch (err) {
 			console.error('[livekit-routes] Token error:', err.message);

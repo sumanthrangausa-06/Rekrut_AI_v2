@@ -1,7 +1,8 @@
 const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware, requireRole } = require('../lib/auth');
-const { rateLimits } = require('../lib/distributed-rate-limiter');
+const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-limiter');
+const panelLabelling = require('../lib/panelLabelling'); // S-D18 (#1955) BR-7 capture
 const calendarService = require('../server/services/calendar-service');
 const livekitService = require('../server/services/livekit'); // Issue #124
 const { ensureGoverningSession } = require('../lib/governingSession'); // #1925 (ADR-D06)
@@ -835,5 +836,176 @@ router.post(
 		}
 	},
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/interviews/events/:eventId/labelling-consent — S-D18 (#1955)
+// BR-7 own-agreement capture (design §5.2 as amended by STOP 1 on #1955):
+// room-bound + authenticated, caller's own decision only, append-only
+// INSERT, 404 before any validation detail, foreign user_id rejected +
+// audited, insert + audit + notification in ONE transaction.
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.post('/events/:eventId/labelling-consent', authMiddleware, async (req, res) => {
+	const notFound = () => res.status(404).json({ error: 'Not found' });
+	const auditDenied = async (outcome, decision) => {
+		try {
+			await panelLabelling.writePanelAudit(pool, {
+				eventId: parseInt(req.params.eventId, 10) || 0,
+				actorId: req.user.id,
+				actorRole: req.user.role,
+				outcome,
+				decision: decision ?? null,
+			});
+		} catch (auditErr) {
+			console.error('[interview-events] labelling-consent audit failed:', auditErr.message);
+		}
+	};
+	try {
+		const eventId = parseInt(req.params.eventId, 10);
+		const user = req.user;
+		const body = req.body || {};
+		const roomId = Number(body.room_id);
+
+		// 404 ordering before all validation detail (security condition):
+		// nonexistent event, no room access, wrong-event room, and inactive
+		// room are indistinguishable. No admin bypass.
+		if (!Number.isInteger(eventId) || eventId < 1 || !Number.isInteger(roomId) || roomId < 1) {
+			await auditDenied('not_found', body.decision);
+			return notFound();
+		}
+		const room = await livekitService.findRoomById(roomId);
+		if (!room || room.status !== 'active') {
+			await auditDenied('not_found', body.decision);
+			return notFound();
+		}
+		const access = await livekitService.validateRoomAccess(roomId, user.id);
+		if (!access.isParticipant || !access.event || Number(access.event.id) !== eventId) {
+			await auditDenied('not_found', body.decision);
+			return notFound();
+		}
+		// The candidate is a known participant in the wrong flow (privacy C-6).
+		if (access.role === 'candidate') {
+			await auditDenied('candidate_forbidden', body.decision);
+			return res.status(403).json({ error: 'Candidates use the biometric consent flow' });
+		}
+		if (access.role !== 'recruiter' && access.role !== 'panel') {
+			await auditDenied('not_found', body.decision);
+			return notFound();
+		}
+
+		// Per-(user,event) rate limit, stricter than the generic preset;
+		// uniform 429 (STOP 1 — existing checkLimit, no new infrastructure).
+		const rl = await distributedRateLimiter.checkLimit(
+			`panel-labelling:${user.id}:${eventId}`,
+			60 * 1000,
+			10,
+		);
+		if (!rl.allowed) {
+			await auditDenied('rate_limited', body.decision);
+			return res.status(429).json({ error: 'Too many requests', code: 'RATE_LIMITED' });
+		}
+
+		// Foreign user_id: rejected and audit-logged (security BLOCK-2) —
+		// never ignored, never recorded for someone else.
+		if (body.user_id != null && Number(body.user_id) !== Number(user.id)) {
+			await auditDenied('foreign_user_id_rejected', body.decision);
+			return res.status(400).json({ error: 'user_id must be the caller' });
+		}
+
+		const decision = body.decision;
+		if (!['granted', 'declined', 'withdrawn'].includes(decision)) {
+			await auditDenied('invalid_decision', decision);
+			return res.status(400).json({ error: 'Invalid decision' });
+		}
+
+		// A first-ever withdrawn is rejected: there is nothing to withdraw.
+		const prior = await panelLabelling.getOwnDecision(pool, eventId, user.id);
+		if (decision === 'withdrawn' && prior == null) {
+			await auditDenied('first_withdrawn_rejected', decision);
+			return res.status(400).json({ error: 'No prior decision to withdraw' });
+		}
+
+		// Roster pinning (S-1): the decision is recorded only against the
+		// roster + notice version the caller was actually shown.
+		const noticeVersion = panelLabelling.currentNoticeVersion();
+		const expectedRoster = panelLabelling.rosterVersion(access.event, noticeVersion);
+		if (body.roster_version !== expectedRoster) {
+			await auditDenied('roster_changed', decision);
+			return res.status(409).json({ error: 'Roster changed', code: 'ROSTER_CHANGED' });
+		}
+
+		// Attestation name from the server record (C-6c).
+		const me = await pool.query('SELECT name FROM users WHERE id = $1', [user.id]);
+		const attestingAs = me.rows[0]?.name || user.name || user.email;
+
+		const ipAddress = req.ip || null; // req.ip only (STOP 1) — never a raw forwarded header
+		const uaHash = panelLabelling.hashUserAgent(req.headers['user-agent']);
+		// Device flag (C-6d): another account decided from this device
+		// fingerprint recently — a review signal, not a block.
+		let deviceFlag = false;
+		if (ipAddress && uaHash) {
+			const others = await pool.query(
+				`SELECT COUNT(DISTINCT user_id)::int AS n FROM event_labelling_consent
+				 WHERE ip_address = $1 AND user_agent_hash = $2 AND user_id <> $3
+				   AND decided_at > NOW() - INTERVAL '10 minutes'`,
+				[ipAddress, uaHash, user.id],
+			);
+			deviceFlag = others.rows[0].n > 0;
+		}
+
+		// ONE transaction: insert + audit + notification (STOP 1).
+		const client = await pool.connect();
+		try {
+			await client.query('BEGIN');
+			// Plain INSERT only, append-only; decided_at/created_at omitted
+			// so the DB defaults stamp them (never a client/token clock).
+			const ins = await client.query(
+				`INSERT INTO event_labelling_consent
+				 (interview_event_id, user_id, decision, notice_version, ip_address, user_agent_hash)
+				 VALUES ($1, $2, $3, $4, $5, $6)
+				 RETURNING id, decision, notice_version, decided_at`,
+				[eventId, user.id, decision, noticeVersion, ipAddress, uaHash],
+			);
+			await panelLabelling.writePanelAudit(client, {
+				eventId,
+				actorId: user.id,
+				actorRole: user.role,
+				outcome: 'recorded',
+				decision,
+				deviceFlag,
+			});
+			await client.query(
+				`INSERT INTO user_notifications (user_id, type, title, message, metadata)
+				 VALUES ($1, 'labelling_decision', $2, $3, $4)`,
+				[
+					user.id,
+					'Speaker labelling decision recorded',
+					`You recorded "${decision}" for speaker labelling on interview ${eventId}. You can change it from the interview room.`,
+					JSON.stringify({ event_id: eventId, decision }),
+				],
+			);
+			await client.query('COMMIT');
+			// Allowlist-serialized response: caller's own state only — no
+			// IP/UA, no other participant, no panel_expected_hash, ever.
+			return res.json({
+				success: true,
+				event_id: eventId,
+				decision: ins.rows[0].decision,
+				notice_version: ins.rows[0].notice_version,
+				own_decision: ins.rows[0].decision,
+				decision_scope: 'panel_leg_only',
+				attesting_as: attestingAs,
+			});
+		} catch (txnErr) {
+			await client.query('ROLLBACK').catch(() => {});
+			throw txnErr;
+		} finally {
+			client.release();
+		}
+	} catch (err) {
+		console.error('[interview-events] labelling-consent error:', err.message);
+		return res.status(500).json({ error: 'Failed to record labelling consent' });
+	}
+});
 
 module.exports = router;
