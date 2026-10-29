@@ -712,10 +712,24 @@ async function createRecordingRecord({
 	retentionDays,
 }) {
 	const retentionDate = getRecordingRetentionDate(retentionDays);
+	// S-D18 (#1955, BR-7 §6): freeze the expected panel set at recording
+	// creation — the recording's start — via the ONE canonical helper.
+	// Event-linked recordings only, in the same INSERT: session rows stay
+	// NULL, the freeze is never an UPDATE, never an empty set.
+	let freeze = { panel_expected_user_ids: null, panel_expected_hash: null };
+	if (interviewEventId) {
+		const evRes = await pool.query(`SELECT * FROM interview_events WHERE id = $1`, [
+			interviewEventId,
+		]);
+		if (evRes.rows[0]) {
+			const { computeFreeze } = require('../../lib/panelLabelling');
+			freeze = computeFreeze(evRes.rows[0]);
+		}
+	}
 	const result = await pool.query(
 		`INSERT INTO interview_recordings
-		 (interview_event_id, room_id, interview_session_id, livekit_egress_id, status, started_at, retention_expires_at, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, NOW(), $6, NOW(), NOW())
+		 (interview_event_id, room_id, interview_session_id, livekit_egress_id, status, started_at, retention_expires_at, created_at, updated_at, panel_expected_user_ids, panel_expected_hash)
+		 VALUES ($1, $2, $3, $4, $5, NOW(), $6, NOW(), NOW(), $7, $8)
 		 RETURNING *`,
 		[
 			interviewEventId || null,
@@ -724,6 +738,8 @@ async function createRecordingRecord({
 			egressId || null,
 			status,
 			retentionDate,
+			freeze.panel_expected_user_ids,
+			freeze.panel_expected_hash,
 		],
 	);
 	return result.rows[0];
