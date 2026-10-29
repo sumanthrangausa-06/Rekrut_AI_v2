@@ -68,11 +68,17 @@ seeded audit_logs policy (migration 013: 2555 days,
 Red-first unit suite failed 4/4 on base 12c2ee5be. Independent
 reviewer: PASS, two LOWs fixed in-PR (negative-string tombstone
 posture; 2554/2556-day boundary postures). Quinn E2E on a real
-local Postgres rig (integration suite, 15 postures): dry-run
-held_skips=9 (incl. unattributable_skips=5) / affected=3 / zero
-deletions; live run deleted exactly the unheld-expired,
-released-hold, and 2556-day rows — all held (incl. the
-applications-only company hold), unexpired, malformed, and
-generic rows survived read-back. Sensitivity check: with the
-pre-amendment predicate restored, both integration tests fail.
+local Postgres rig (integration suite, 15 postures + 2 sequence
+tests): dry-run held_skips=9 (incl. unattributable_skips=5) /
+affected=3 / zero deletions; live run deleted exactly the
+unheld-expired, released-hold, and 2556-day rows — all held
+(incl. the applications-only company hold), unexpired,
+malformed, and generic rows survived read-back. Two further
+tests behaviourally prove the generic-branch exclusion (an
+armed 30-day generic policy deletes a 100-day generic row but
+cannot touch a 100-day skeleton row; skeleton entry appears
+exactly once despite two policy rows) and the release sequence
+(purge-while-held → release deletes nothing → next purge
+deletes). Sensitivity check: with the pre-amendment predicate
+restored, the integration tests fail.
 Full evidence on PR #1982 and the #1981 checkpoint comment.

@@ -199,4 +199,48 @@ describeIfDb('#1981 skeleton audit expiry — real PG', () => {
 		// purge wrote no new per-subject audit row.
 		expect(rows.length).toBe(before - 3);
 	});
+
+	test('armed short generic policy cannot touch skeleton rows; skeleton segment runs exactly once', async () => {
+		// Reviewer finding (#1982 review): the generic-branch
+		// exclusion was only code-inspected, not behaviourally
+		// proven. Arm a 30-day generic audit_logs policy: a generic
+		// row aged 100 days must be deleted by it, while a skeleton
+		// row of the same age (unheld) must SURVIVE — its clock is
+		// 2555 days, and the generic branch must never reach it.
+		await pool.query(
+			`INSERT INTO data_retention_policies (data_type, retention_days, auto_delete)
+			 VALUES ('audit_logs', 30, true)`,
+		);
+		const young100 = new Date(Date.now() - 100 * 86400000);
+		const skelYoung = await seedAudit('skeleton_event_swept', U_UNHELD, young100);
+		const genericYoung = await seedAudit('some_other_action', U_UNHELD, young100);
+		const oversize20 = await seedAudit(
+			'skeleton_event_swept',
+			'99999999999999999999',
+			EXPIRED,
+		);
+		const summary = await EuComplianceService.executePurge({ dryRun: false });
+		// Exactly-once: two audit_logs policy rows exist, but the
+		// skeleton entry appears once.
+		expect(
+			summary.filter((s) => s.data_type === 'audit_logs_skeleton_event_swept'),
+		).toHaveLength(1);
+		const { rows } = await pool.query(`SELECT id FROM audit_logs`);
+		const surviving = new Set(rows.map((r) => r.id));
+		expect(surviving.has(genericYoung)).toBe(false); // generic branch ran
+		expect(surviving.has(skelYoung)).toBe(true); // exclusion held
+		expect(surviving.has(oversize20)).toBe(true); // >bigint: held, no crash
+	});
+
+	test('purge while held, then release, then next purge deletes (release itself deletes nothing)', async () => {
+		// ids.heldUser survived every purge above under an active
+		// user hold. Releasing the hold must not delete it by
+		// itself — only the NEXT purge run may.
+		await pool.query(`UPDATE legal_holds SET released_at = NOW() WHERE user_id = $1`, [U_HELD]);
+		let rows = (await pool.query(`SELECT id FROM audit_logs WHERE id = $1`, [ids.heldUser])).rows;
+		expect(rows).toHaveLength(1);
+		await EuComplianceService.executePurge({ dryRun: false });
+		rows = (await pool.query(`SELECT id FROM audit_logs WHERE id = $1`, [ids.heldUser])).rows;
+		expect(rows).toHaveLength(0);
+	});
 });
