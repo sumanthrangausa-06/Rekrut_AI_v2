@@ -85,6 +85,30 @@ describe('InterviewLabellingStatus (§9) — recruiter detail status line', () =
 		expect(screen.queryByText(/You declined speaker labelling/i)).not.toBeInTheDocument();
 	});
 
+	it('#1965: after a failed check the Check control is offered again in place — clicking it retries and a successful retry shows the real status', async () => {
+		apiCall
+			.mockRejectedValueOnce(new Error('network down'))
+			.mockResolvedValue({
+				token: 'tok',
+				labelling_notice: {
+					event_id: 123,
+					notice_version: 'br7-1',
+					roster_version: 'hmac-sha256:abc123',
+					own_decision: 'granted',
+					decision_scope: 'panel_leg_only',
+				},
+			});
+		render(<InterviewLabellingStatus interview={interview} />);
+		clickCheck();
+		expect(await screen.findByText(/Speaker labelling: status unavailable/i)).toBeInTheDocument();
+		// The retry control sits alongside the unavailable line — no remount needed.
+		expect(screen.getByRole('button', { name: CHECK })).toBeInTheDocument();
+		clickCheck();
+		expect(await screen.findByText(/You agreed to speaker labelling for this interview/i)).toBeInTheDocument();
+		expect(apiCall).toHaveBeenCalledTimes(2);
+		expect(apiCall).toHaveBeenNthCalledWith(2, '/livekit/rooms/7/token', { method: 'POST' });
+	});
+
 	it('BLOCK-1 regression: rendering the card fires NO token POST on mount — the fetch is lazy, on the recruiter\u2019s own click only', async () => {
 		apiCall.mockResolvedValue({
 			labelling_notice: {

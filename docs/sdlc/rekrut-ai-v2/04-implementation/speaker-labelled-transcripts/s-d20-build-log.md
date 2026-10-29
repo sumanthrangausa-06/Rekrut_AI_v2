@@ -173,3 +173,15 @@ unchanged in behaviour except minors 1–3 below.
   branch's documented baseline; the only error in a touched file is
   the pre-existing `resendScreening` argument error at
   `interviews.tsx:1002`, untouched by this diff.
+
+## Follow-up — #1965: in-place retry after a failed status check
+
+The failed branch above originally rendered only the honest
+"status unavailable" line, so a recruiter had to remount the card to
+check again (raised as a non-blocking minor in the PR #1962
+re-review). The failed branch now renders the same "Check speaker
+labelling status" control (44px, same lazy click-only `checkStatus`
+POST — no mount-time fetch) alongside the unavailable line; a
+successful retry renders the real status. Pinned by a new test in
+`RecruiterLabellingStatus.test.tsx` (red before the fix: no button
+after failure; green after).
