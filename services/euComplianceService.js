@@ -739,9 +739,15 @@ class EuComplianceService {
 		// code. The live gate is unchanged: the only caller (routes/
 		// compliance.js) refuses live runs unless RETENTION_PURGE_LIVE
 		// is set in production. Aggregate entry only.
-		summary.push(
-			await EuComplianceService.purgeExpiredSkeletonAuditRows({ dryRun }),
-		);
+		// Rex (STOP 1): these are SYSTEM rows — a company-scoped call
+		// (the route scopes employers to their own companyId) must not
+		// trigger or report global skeleton deletion, so the segment
+		// runs only for unscoped (companyId == null) calls.
+		if (companyId == null) {
+			summary.push(
+				await EuComplianceService.purgeExpiredSkeletonAuditRows({ dryRun }),
+			);
+		}
 
 		return summary;
 	}

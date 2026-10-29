@@ -121,6 +121,15 @@ describe('#1981 executePurge wiring', () => {
 		expect(skel.held_skips).toBe(2);
 	});
 
+	test('company-scoped executePurge does NOT run the skeleton segment (system rows — Rex, STOP 1)', async () => {
+		const summary = await EuComplianceService.executePurge({ dryRun: false, companyId: 42 });
+		expect(summary.find((s) => s.data_type === 'audit_logs_skeleton_event_swept')).toBeUndefined();
+		const skeletonStatements = db.query.mock.calls.filter((c) =>
+			c[0].includes('skeleton_event_swept'),
+		);
+		expect(skeletonStatements).toHaveLength(0);
+	});
+
 	test('generic audit_logs branch excludes the skeleton class in every statement', async () => {
 		policies = [
 			{ data_type: 'audit_logs', retention_days: 30, auto_delete: true, company_id: null, policy_scope: 'global' },
