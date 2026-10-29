@@ -64,7 +64,7 @@ specialist_reviews:
 >    transcript simply does not show who said what.
 >
 > 4. **Timing.** A participant's agreement counts for a recording
->    only if it is recorded before that recording starts. An
+>    only if it is recorded at or before the time that recording starts. An
 >    agreement given after a recording has started does not apply to
 >    that recording (it can apply to a later recording of the same
 >    interview). A participant may change or withdraw their agreement
@@ -95,7 +95,8 @@ specialist_reviews:
   that design from outside the product; the clause closes that route
   contractually.
 - **Paragraph 4 mirrors the gate, it does not soften it.** The
-  pre-recording timing rule and the post-write purge are shipped
+  timing rule (agreement recorded at or before the recording's start,
+  #1970 M-1) and the post-write purge are shipped
   behaviour (§5 below), stated here so a customer is never surprised
   that a late agreement did not label a recording already made, or
   that a withdrawal removed existing labels.
@@ -140,7 +141,7 @@ specialist_reviews:
 | Every other participant's own agreement is also required (¶1–¶3) | Panel leg: every user in the recording's frozen expected set (recruiter ∪ `panel_member_ids`, candidate excluded) must hold a latest `granted` decision in `event_labelling_consent`, else `PANEL_AGREEMENT_*` block and no labels. |
 | Agreement is made on the participant's own screen, per interview (¶3) | Capture endpoint `POST /api/interviews/events/:eventId/labelling-consent` keys the row to `req.user.id` for that event only; the token/room notice renders only the caller's own control (S-D18/S-D20). No evergreen or cross-event agreement exists. |
 | Decline → interview and recording proceed, no labels (¶3) | ADR-D07 as built: a decline blocks only the diarization job (`PANEL_AGREEMENT_DECLINED`); recording consent is a separate, pre-existing gate the panel decision never touches (a panel `withdrawn` never stops egress). |
-| Agreement must pre-date the recording (¶4) | Gate P3: `decided_at > recording.started_at` blocks `PANEL_AGREEMENT_AFTER_RECORDING`; the notice version must be the one in force at `started_at` (privacy C-7). |
+| Agreement must be recorded no later than the recording's start (¶4) | Gate P3: `decided_at > recording.started_at` blocks `PANEL_AGREEMENT_AFTER_RECORDING` — equality (`decided_at == started_at`) passes; the notice version must be the one in force at `started_at` (privacy C-7). |
 | Withdrawal after labels exist removes them (¶4) | Capture handler: a `declined`/`withdrawn` decision triggers `purgeCompletedDiarizationForEvent` (§7.1) — run rows deleted, `speaker_number`s cleared, state folds to `unavailable`. |
 | No posture leak (¶3's plain outcome) | Every block folds the recording's diarization state to `unavailable`; which participant blocked, and why, exists only on operator surfaces (job cancel reason + snapshots). |
 

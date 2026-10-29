@@ -14,6 +14,14 @@
  * Pattern: SD15Disclosure.test.tsx (render the real page, assert
  * user-visible text). Red-first: the rider assertion fails on the
  * pre-rider §13 and passes once the rider lands.
+ *
+ * #1970 follow-up pins (PR #1968 review M-1/M-2/M-4): the timing pin
+ * matches the gate's exact equality semantics (the gate blocks only
+ * decided_at > started_at, so "at or before" — never the stricter
+ * "before"); the decline pin is scoped to before creation (M-4); the
+ * purge pin carries the full panel-scoped sentence — actor prefix AND
+ * the transcript-stays clause — so widening the purge promise to the
+ * candidate would go red (M-2).
  */
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -36,14 +44,19 @@ function renderPrivacy() {
 }
 
 describe('S-D21 — PrivacyPage §13 gate sentence carries the panel leg (§11 rider)', () => {
-	it('states BOTH legs of the shipped gate, with the gate\u2019s pre-recording timing (privacy review C-1)', () => {
+	it('states BOTH legs of the shipped gate, with the gate\u2019s exact timing — at or before the start, equality passes (privacy review C-1, #1970 M-1)', () => {
 		renderPrivacy();
 		expect(
 			screen.getByText(
-				/only where the candidate has given biometric consent for that interview and, before the recording starts, every other person expected to take part in that recording/i,
+				/only where the candidate has given biometric consent for that interview and, at or before the recording starts, every other person expected to take part in that recording/i,
 			),
 		).toBeInTheDocument();
-		expect(screen.getByText(/has agreed to speaker labelling on their own screen/i)).toBeInTheDocument();
+				// The gate blocks only decided_at > started_at; the stricter
+		// "before the recording starts" promise must not stand (#1970 M-1).
+		expect(
+			screen.queryByText(/and, before the recording starts, every other person expected to take part/i),
+		).not.toBeInTheDocument();
+expect(screen.getByText(/has agreed to speaker labelling on their own screen/i)).toBeInTheDocument();
 		// The gate blocks PANEL_AGREEMENT_AFTER_RECORDING — the page says so.
 		expect(
 			screen.getByText(/An agreement recorded after a recording has started does not count for that recording/i),
@@ -59,19 +72,25 @@ describe('S-D21 — PrivacyPage §13 gate sentence carries the panel leg (§11 r
 		expect(screen.queryByText(/only where the candidate has given biometric consent\./i)).not.toBeInTheDocument();
 	});
 
-	it('names BOTH decliners in the no-penalty promise — no ambiguous "they" (privacy review C-2)', () => {
+	it('names BOTH decliners in the no-penalty promise — no ambiguous "they" (privacy review C-2), scoped to before creation so it cannot be over-read as a post-write purge promise (#1970 M-4)', () => {
 		renderPrivacy();
 		expect(
 			screen.getByText(
-				/If the candidate or any other participant declines, no labels are created, the transcript stays unlabelled, and there is no penalty for declining/i,
+				/If the candidate or any other participant declines before labels are created for that recording, no labels are created, the transcript stays unlabelled, and there is no penalty for declining/i,
 			),
 		).toBeInTheDocument();
 	});
 
 	it('states the post-write purge and qualifies label retention with it (privacy review C-2/C-3, gate §7.1)', () => {
 		renderPrivacy();
+		// Full panel-scoped sentence pinned (#1970 M-2): the "recruiter or
+		// panel member" actor prefix AND "the transcript stays, unlabelled"
+		// — widening the promise to the candidate, or dropping the
+		// transcript-stays clause, goes red.
 		expect(
-			screen.getByText(/records a decline or withdrawal after labels have been created, those labels are removed/i),
+			screen.getByText(
+				/If a recruiter or panel member records a decline or withdrawal after labels have been created, those labels are removed and the transcript stays, unlabelled/i,
+			),
 		).toBeInTheDocument();
 		expect(
 			screen.getByText(/except where they are removed after a later decline or withdrawal/i),
