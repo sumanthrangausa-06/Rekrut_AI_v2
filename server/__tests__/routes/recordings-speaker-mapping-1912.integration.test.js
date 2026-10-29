@@ -236,6 +236,29 @@ async function cleanAndSeed() {
 	await seedSegment(R.session, { text: 'Session voice two.', start: 5000, end: 10000, speaker: 1 });
 	await seedMapping(R.session, 0, null, null);
 	await seedMapping(R.session, 1, null, null);
+
+	// ── S-D19 (#1956, §13 item 7 / security S-4): frozen-set source ──
+	// The recording's expected set was frozen as [U_REC, U_PANEL]; the
+	// LIVE event is then mutated — U_OTHER added, nobody removed — and
+	// mapping validation must keep judging by the freeze.
+	R.frozen = await seedRecording('complete');
+	await seedSegment(R.frozen, { text: 'Frozen voice one.', start: 0, end: 5000, speaker: 0 });
+	await seedSegment(R.frozen, { text: 'Frozen voice two.', start: 5000, end: 10000, speaker: 1 });
+	await seedMapping(R.frozen, 0, null, null);
+	await seedMapping(R.frozen, 1, null, null);
+	await seedRun(R.frozen, { '0': null, '1': null });
+	const frozenEv = await seedPool.query(
+		`SELECT interview_event_id FROM interview_recordings WHERE id = $1`,
+		[R.frozen],
+	);
+	await seedPool.query(
+		`UPDATE interview_recordings SET panel_expected_user_ids = $1::int[] WHERE id = $2`,
+		[[U_REC, U_PANEL].sort((a, b) => a - b), R.frozen],
+	);
+	await seedPool.query(
+		`UPDATE interview_events SET panel_member_ids = $1::int[] WHERE id = $2`,
+		[[U_PANEL, U_OTHER], frozenEv.rows[0].interview_event_id],
+	);
 }
 
 async function getSpeakers(recordingId, token) {
@@ -568,6 +591,34 @@ describeIfDb('#1912 S-D10 mapping editor + correction endpoints (realdb journey)
 		]);
 		// An unassign is a correction for the header line (S-D09 semantics).
 		expect(view.body.transcript.diarization.corrected_by).toBe('Rec 1912');
+	});
+
+	test('S-D19 (§13 item 7, S-4): mapping validation uses the recording FROZEN set — a user added to the event after the freeze is NOT assignable; a frozen panellist still is', async () => {
+		// GET editor: participants come from the freeze — U_OTHER (added
+		// to the live event after the recording was made) is absent.
+		const view = await getSpeakers(R.frozen, recToken());
+		expect(view.status).toBe(200);
+		const optionIds = view.body.participants.map((p) => p.user_id).sort((a, b) => a - b);
+		expect(optionIds).toEqual([U_REC, U_CAND, U_PANEL].sort((a, b) => a - b));
+		expect(optionIds).not.toContain(U_OTHER);
+
+		// PUT assigning the post-freeze addition → rejected, no write.
+		const bad = await putMapping(R.frozen, recToken(), [
+			{ speaker_number: 0, participant_user_id: U_OTHER },
+		]);
+		expect(bad.status).toBe(400);
+		expect(await mappingRows(R.frozen)).toEqual([
+			expect.objectContaining({ speaker_number: 0, participant_user_id: null }),
+			expect.objectContaining({ speaker_number: 1, participant_user_id: null }),
+		]);
+
+		// PUT assigning a frozen panellist → accepted.
+		const ok = await putMapping(R.frozen, recToken(), [
+			{ speaker_number: 0, participant_user_id: U_PANEL },
+		]);
+		expect(ok.status).toBe(200);
+		const rows = await mappingRows(R.frozen);
+		expect(rows[0].participant_user_id).toBe(U_PANEL);
 	});
 
 	test('AC-5: a single-speaker PUT that collides with an untouched speaker\u2019s assignment is rejected, nothing written', async () => {

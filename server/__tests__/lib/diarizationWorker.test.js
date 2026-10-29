@@ -337,14 +337,25 @@ describe('diarization worker (S-D04)', () => {
 		};
 
 		function mockBridgeDb() {
-			db.query.mockImplementation(async (sql) => {
+			db.query.mockImplementation(async (sql, params) => {
 				if (sql.includes('FROM interview_recordings')) {
 					return {
 						rows: [{
 							interview_session_id: null,
 							interview_event_id: 55,
-							started_at: '2026-10-28T10:00:00.000Z',
+							started_at: '2026-10-29T10:00:00.000Z',
+							// S-D19 (#1956): frozen panel set + grants so the
+							// panel leg passes on this fixture.
+							panel_expected_user_ids: [2001],
+							panel_expected_hash: 'frozen-hash-abc',
 						}],
+					};
+				}
+				if (sql.includes('FROM event_labelling_consent')) {
+					return {
+						rows: params[1] === 2001
+							? [{ id: 11, decision: 'granted', notice_version: 'br7-1', decided_at: '2026-10-29T09:30:00.000Z' }]
+							: [],
 					};
 				}
 				if (sql.includes('FROM interview_events')) {
@@ -363,6 +374,7 @@ describe('diarization worker (S-D04)', () => {
 				if (sql.includes('FROM consent_receipts')) {
 					return { rows: [{ id: 4242, granted_at: '2026-10-28T09:00:00.000Z' }] };
 				}
+				if (sql.includes('UPDATE diarization_jobs')) return { rows: [], rowCount: 1 };
 				return { rows: [] };
 			});
 		}
@@ -428,6 +440,70 @@ describe('diarization worker (S-D04)', () => {
 				'consent_blocked_at_write:SESSION_BINDING_MISMATCH',
 			);
 			expect(persistStitch).not.toHaveBeenCalled();
+		});
+
+		it('S-D19: claim persists the panel snapshot write-once on the job and passes it to persistStitch', async () => {
+			mockBridgeDb();
+			consentService.checkConsentState.mockResolvedValue({ state: 'valid' });
+			const runEngine = jest.fn().mockResolvedValue(ENGINE_OUTPUT);
+			const persistStitch = jest.fn().mockResolvedValue({ outcome: 'complete', runId: 7 });
+
+			const result = await worker.processJob(JOB, { runEngine, persistStitch });
+
+			expect(result.outcome).toBe('complete');
+			const snapWrite = db.query.mock.calls.find(
+				([sql]) => sql.includes('panel_consent_snapshot') && sql.includes('IS NULL'),
+			);
+			expect(snapWrite).toBeDefined();
+			const stored = JSON.parse(snapWrite[1][1]);
+			expect(stored.expected_user_ids).toEqual([2001]);
+			expect(stored.expected_hash).toBe('frozen-hash-abc');
+			expect(stored.decisions).toEqual([
+				{ user_id: 2001, record_id: 11, decision: 'granted', notice_version: 'br7-1', decided_at: '2026-10-29T09:30:00.000Z' },
+			]);
+			expect(persistStitch).toHaveBeenCalledWith(
+				expect.objectContaining({ panelConsentSnapshot: stored }),
+			);
+		});
+
+		it('T13 (S-2): a claim retry whose stored snapshot differs fails PANEL_SNAPSHOT_CONFLICT and never overwrites it', async () => {
+			mockBridgeDb();
+			consentService.checkConsentState.mockResolvedValue({ state: 'valid' });
+			const baseImpl = db.query.getMockImplementation();
+			const existingSnapshot = {
+				expected_user_ids: [2001],
+				expected_hash: 'frozen-hash-abc',
+				decisions: [
+					{ user_id: 2001, record_id: 99, decision: 'granted', notice_version: 'br7-1', decided_at: '2026-10-29T09:31:00.000Z' },
+				],
+			};
+			let snapshotWrites = 0;
+			db.query.mockImplementation(async (sql, params) => {
+				if (sql.includes('panel_consent_snapshot') && sql.includes('IS NULL')) {
+					snapshotWrites += 1;
+					return { rows: [], rowCount: 0 }; // guard: already written
+				}
+				if (sql.includes('SELECT panel_consent_snapshot FROM diarization_jobs')) {
+					return { rows: [{ panel_consent_snapshot: existingSnapshot }] };
+				}
+				return baseImpl(sql, params);
+			});
+			const runEngine = jest.fn();
+
+			const result = await worker.processJob(JOB, { runEngine });
+
+			expect(result).toEqual({ outcome: 'cancelled_at_claim', code: 'PANEL_SNAPSHOT_CONFLICT' });
+			expect(diarizationJobs.cancel).toHaveBeenCalledWith(
+				9,
+				'consent_blocked_at_claim:PANEL_SNAPSHOT_CONFLICT',
+			);
+			expect(runEngine).not.toHaveBeenCalled();
+			// Exactly one guarded write attempt; no unguarded overwrite exists.
+			expect(snapshotWrites).toBe(1);
+			const unguarded = db.query.mock.calls.filter(
+				([sql]) => sql.includes('panel_consent_snapshot') && sql.includes('UPDATE') && !sql.includes('IS NULL'),
+			);
+			expect(unguarded).toHaveLength(0);
 		});
 	});
 });

@@ -256,10 +256,19 @@ describeIfDb('diarization worker (real DB — S-D04)', () => {
 				sessionId: govId, candidateId, type: 'biometric', accepted: false, locale: 'en',
 			});
 		}
+		// S-D19 (#1956, design §14 fixture rule): bridge pass-path
+		// fixtures gain a frozen panel set + grants — the event's only
+		// expected panel user is the recruiter (no panel members here).
+		await pool.query(
+			`INSERT INTO event_labelling_consent (interview_event_id, user_id, decision, notice_version, decided_at)
+			 VALUES ($1, $2, 'granted', 'br7-1', NOW() - INTERVAL '1 hour')`,
+			[ev.rows[0].id, recruiterId],
+		);
+		const freeze = require('../../../lib/panelLabelling').computeFreeze(ev.rows[0]);
 		const rec = await pool.query(
-			`INSERT INTO interview_recordings (interview_event_id, interview_session_id, status, retention_expires_at, started_at)
-			 VALUES ($1, NULL, 'completed', NOW() + INTERVAL '90 days', NOW()) RETURNING id`,
-			[ev.rows[0].id],
+			`INSERT INTO interview_recordings (interview_event_id, interview_session_id, status, retention_expires_at, started_at, panel_expected_user_ids, panel_expected_hash)
+			 VALUES ($1, NULL, 'completed', NOW() + INTERVAL '90 days', NOW(), $2, $3) RETURNING id`,
+			[ev.rows[0].id, freeze.panel_expected_user_ids, freeze.panel_expected_hash],
 		);
 		bridgeRecordingIds.push(rec.rows[0].id);
 		await pool.query(

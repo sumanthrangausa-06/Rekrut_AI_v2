@@ -48,7 +48,12 @@
 const diarizationJobs = require('../../lib/diarizationJobs');
 const transcriptStitch = require('../../lib/transcriptStitch');
 const diarizationEngine = require('../../lib/diarizationEngine');
-const { evaluateDiarizationGate } = require('../../lib/diarizationGate');
+const {
+	evaluateDiarizationGate,
+	evaluatePanelLeg,
+	panelSnapshotsEqual,
+	normalizePanelSnapshot,
+} = require('../../lib/diarizationGate');
 const { isDiarizationEnabled } = require('../../lib/diarizationFlag');
 const db = require('../../lib/db');
 
@@ -130,6 +135,117 @@ async function setRecordingDiarizationStatus(recordingId, status) {
 }
 
 /**
+ * Persist the claim-time gate provenance on the job row — governing
+ * session + receipt (#1925) and, for S-D19 (#1956, §7 P5), the panel
+ * snapshot, WRITE-ONCE (security S-2): the snapshot UPDATE is guarded
+ * on panel_consent_snapshot IS NULL; a retry whose recomputed snapshot
+ * differs from the stored one fails PANEL_SNAPSHOT_CONFLICT and never
+ * overwrites it (a requeue creates a NEW job row instead). When a real
+ * transaction client is available, the write runs in ONE transaction
+ * under a per-event advisory lock (security C-5c), with the panel leg
+ * re-evaluated on that client when verifyLive is set (processJob) —
+ * so no decision flip can land between the check and the persisting
+ * of what was checked. Unit doubles without .connect take the guarded
+ * single-statement path on the pool interface.
+ *
+ * @returns {Promise<{ok: true} | {conflict: true} | {blocked: string}>}
+ */
+async function persistClaimProvenance(jobId, claimGate, { verifyLive = false } = {}) {
+	const snapshot = claimGate.panelSnapshot || null;
+
+	const guardedWrite = async (queryable) => {
+		await queryable.query(
+			`UPDATE diarization_jobs SET governing_session_id = $2, consent_receipt_id = $3, updated_at = NOW()
+			 WHERE id = $1`,
+			[jobId, claimGate.sessionId, claimGate.consentReceiptId],
+		);
+		if (!snapshot) return { ok: true };
+		const upd = await queryable.query(
+			`UPDATE diarization_jobs SET panel_consent_snapshot = $2, updated_at = NOW()
+			 WHERE id = $1 AND panel_consent_snapshot IS NULL`,
+			[jobId, JSON.stringify(snapshot)],
+		);
+		if (upd.rowCount === 0) {
+			const existing = await queryable.query(
+				`SELECT panel_consent_snapshot FROM diarization_jobs WHERE id = $1`,
+				[jobId],
+			);
+			const stored = existing.rows[0]?.panel_consent_snapshot;
+			const parsed = typeof stored === 'string' ? JSON.parse(stored) : stored;
+			if (!parsed || !panelSnapshotsEqual(parsed, snapshot)) return { conflict: true };
+		}
+		return { ok: true };
+	};
+
+	if (typeof db.connect !== 'function' || !snapshot) {
+		return guardedWrite(db);
+	}
+
+	const client = await db.connect();
+	try {
+		await client.query('BEGIN');
+		await client.query(`SELECT pg_advisory_xact_lock(hashtext($1::text))`, [
+			`panel-event:${claimGate.eventId}`,
+		]);
+		if (verifyLive) {
+			const jobRes = await client.query(
+				`SELECT recording_id FROM diarization_jobs WHERE id = $1`,
+				[jobId],
+			);
+			const recordingId = jobRes.rows[0]?.recording_id;
+			const recheck = await evaluatePanelLeg(recordingId, client);
+			if (!recheck.allowed) {
+				await client.query('ROLLBACK');
+				return { blocked: recheck.code };
+			}
+			if (!panelSnapshotsEqual(recheck.panelSnapshot, snapshot)) {
+				await client.query('ROLLBACK');
+				return { conflict: true };
+			}
+		}
+		const result = await guardedWrite(client);
+		if (result.conflict) {
+			await client.query('ROLLBACK');
+			return result;
+		}
+		await client.query('COMMIT');
+		return result;
+	} catch (err) {
+		await client.query('ROLLBACK').catch(() => {});
+		// Fail-closed: provenance that cannot be persisted atomically
+		// cannot authorize the claim.
+		console.log(`[diarization] claim provenance persist failed for job ${jobId}: ${err.message}`);
+		return { blocked: 'PANEL_AGREEMENT_UNVERIFIABLE' };
+	} finally {
+		client.release();
+	}
+}
+
+/**
+ * P6 write-time comparison (§7): the claim snapshot vs the write
+ * evaluation. Returns the block code, or null when the snapshots agree.
+ * Frozen-set divergence (set or hash) → PANEL_EXPECTED_SET_CHANGED;
+ * any per-user tuple difference → PANEL_AGREEMENT_CHANGED (a flip
+ * granted → declined → granted still differs in decided_at/record_id).
+ */
+function panelWriteComparisonCode(claimSnapshot, writeSnapshot) {
+	if (!claimSnapshot) return null;
+	if (!writeSnapshot) return 'PANEL_AGREEMENT_CHANGED';
+	const a = normalizePanelSnapshot(claimSnapshot);
+	const b = normalizePanelSnapshot(writeSnapshot);
+	if (
+		JSON.stringify(a.expected_user_ids) !== JSON.stringify(b.expected_user_ids) ||
+		a.expected_hash !== b.expected_hash
+	) {
+		return 'PANEL_EXPECTED_SET_CHANGED';
+	}
+	if (JSON.stringify(a.decisions) !== JSON.stringify(b.decisions)) {
+		return 'PANEL_AGREEMENT_CHANGED';
+	}
+	return null;
+}
+
+/**
  * Process one claimed job end-to-end: claim gate → engine →
  * write gate → complete. Never throws to the poll loop for a gate
  * outcome; gate outcomes are returned, not raised.
@@ -156,13 +272,22 @@ async function processJob(job, overrides = {}) {
 	// Bridge provenance (#1925, ADR-D06 §5 step 7): when the gate
 	// resolved via the event's governing session, persist which session
 	// and receipt authorized this claim on the job row — the snapshot
-	// the write-time re-resolution is compared against below.
+	// the write-time re-resolution is compared against below. S-D19
+	// (#1956, §7 P5): the panel snapshot rides the same persist —
+	// write-once, in one transaction under a per-event advisory lock
+	// with a live panel re-check (persistClaimProvenance). A snapshot
+	// conflict or a flip caught by the re-check cancels at claim.
 	if (claimGate.via === 'event_bridge') {
-		await db.query(
-			`UPDATE diarization_jobs SET governing_session_id = $2, consent_receipt_id = $3, updated_at = NOW()
-			 WHERE id = $1`,
-			[job.id, claimGate.sessionId, claimGate.consentReceiptId],
-		);
+		const persisted = await persistClaimProvenance(job.id, claimGate, { verifyLive: true });
+		if (persisted.conflict || persisted.blocked) {
+			const code = persisted.conflict ? 'PANEL_SNAPSHOT_CONFLICT' : persisted.blocked;
+			console.log(
+				`[diarization] consent blocked at claim for job ${job.id} recording ${recordingId}: ${code}`,
+			);
+			await diarizationJobs.cancel(job.id, `consent_blocked_at_claim:${code}`);
+			await setRecordingDiarizationStatus(recordingId, 'unavailable');
+			return { outcome: 'cancelled_at_claim', code };
+		}
 	}
 
 	await diarizationJobs.markProcessing(job.id);
@@ -195,12 +320,26 @@ async function processJob(job, overrides = {}) {
 	// stays unlabelled, and the job cancels at write.
 	const writeGate = await evaluateDiarizationGate(recordingId);
 	if (!writeGate.allowed) {
+		// S-D19 P6 translation: a PANEL_* block at write, after the panel
+		// leg PASSED at claim, means the panel state changed mid-job —
+		// the write code is the comparison code (§8: a withdrawal landing
+		// between claim and write is PANEL_AGREEMENT_CHANGED; a frozen
+		// set that became unresolvable is PANEL_EXPECTED_SET_CHANGED).
+		// Candidate codes are never translated (precedence unchanged).
+		let writeCode = writeGate.code;
+		if (claimGate.via === 'event_bridge' && claimGate.panelSnapshot && writeCode.startsWith('PANEL_')) {
+			if (writeCode === 'PANEL_SET_UNRESOLVABLE') {
+				writeCode = 'PANEL_EXPECTED_SET_CHANGED';
+			} else if (writeCode !== 'PANEL_AGREEMENT_UNVERIFIABLE') {
+				writeCode = 'PANEL_AGREEMENT_CHANGED';
+			}
+		}
 		console.log(
-			`[diarization] consent blocked at write for job ${job.id} recording ${recordingId}: ${writeGate.code} — output discarded`,
+			`[diarization] consent blocked at write for job ${job.id} recording ${recordingId}: ${writeCode} — output discarded`,
 		);
-		await diarizationJobs.cancel(job.id, `consent_blocked_at_write:${writeGate.code}`);
+		await diarizationJobs.cancel(job.id, `consent_blocked_at_write:${writeCode}`);
 		await setRecordingDiarizationStatus(recordingId, 'unavailable');
-		return { outcome: 'cancelled_at_write', code: writeGate.code };
+		return { outcome: 'cancelled_at_write', code: writeCode };
 	}
 
 	// Bridge write-time comparison (#1925, ADR-D06 §5 step 7): the
@@ -217,6 +356,23 @@ async function processJob(job, overrides = {}) {
 		await diarizationJobs.cancel(job.id, 'consent_blocked_at_write:SESSION_BINDING_MISMATCH');
 		await setRecordingDiarizationStatus(recordingId, 'unavailable');
 		return { outcome: 'cancelled_at_write', code: 'SESSION_BINDING_MISMATCH' };
+	}
+
+	// Panel write-time comparison (S-D19, §7 P6): both gates allowed,
+	// but the run that was authorized must be the run that is written —
+	// any divergence between the claim snapshot and the write snapshot
+	// (frozen set/hash, or any user's decision tuple, incl. a
+	// granted → declined → granted flip) discards the output.
+	if (claimGate.via === 'event_bridge' && claimGate.panelSnapshot) {
+		const compareCode = panelWriteComparisonCode(claimGate.panelSnapshot, writeGate.panelSnapshot);
+		if (compareCode) {
+			console.log(
+				`[diarization] consent blocked at write for job ${job.id} recording ${recordingId}: ${compareCode} — output discarded`,
+			);
+			await diarizationJobs.cancel(job.id, `consent_blocked_at_write:${compareCode}`);
+			await setRecordingDiarizationStatus(recordingId, 'unavailable');
+			return { outcome: 'cancelled_at_write', code: compareCode };
+		}
 	}
 
 	// Behind the write gate: only real engine output carries
@@ -238,6 +394,9 @@ async function processJob(job, overrides = {}) {
 							output,
 							governingSessionId: writeGate.sessionId,
 							consentReceiptId: writeGate.consentReceiptId,
+							// S-D19: the run row carries the same panel
+							// snapshot the claim rested on (P5/I1).
+							panelConsentSnapshot: writeGate.panelSnapshot ?? null,
 						}
 					: { jobId: job.id, recordingId, expectedSegmentIds, output };
 			stitched = await persistStitch(stitchArgs);
@@ -345,4 +504,6 @@ module.exports = {
 	runRealEngine,
 	fetchRecordingAudio,
 	readSegmentIds,
+	persistClaimProvenance,
+	panelWriteComparisonCode,
 };

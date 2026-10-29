@@ -957,6 +957,14 @@ router.post('/events/:eventId/labelling-consent', authMiddleware, async (req, re
 		const client = await pool.connect();
 		try {
 			await client.query('BEGIN');
+			// S-D19 (#1956, §7 P5 / security C-5c): the per-event advisory
+			// lock is taken on BOTH sides of the race — here on the
+			// decision write, and in the worker's snapshot-and-claim
+			// transaction — so a decision flip cannot land between the
+			// worker's panel check and the persisting of its snapshot.
+			await client.query(`SELECT pg_advisory_xact_lock(hashtext($1::text))`, [
+				`panel-event:${eventId}`,
+			]);
 			// Plain INSERT only, append-only; decided_at/created_at omitted
 			// so the DB defaults stamp them (never a client/token clock).
 			const ins = await client.query(
@@ -985,6 +993,20 @@ router.post('/events/:eventId/labelling-consent', authMiddleware, async (req, re
 				],
 			);
 			await client.query('COMMIT');
+			// S-D19 (#1956, §7.1, privacy C-1): a decline/withdrawal that
+			// lands AFTER labels were written purges them — the gate
+			// cannot cover processing that already happened. Runs after
+			// COMMIT (the decision is durable first); a purge failure is
+			// logged, never reported as a capture failure — the decision
+			// itself WAS recorded.
+			if (decision === 'declined' || decision === 'withdrawn') {
+				try {
+					const { purgeCompletedDiarizationForEvent } = require('../lib/panelWithdrawalPurge');
+					await purgeCompletedDiarizationForEvent(eventId, pool);
+				} catch (purgeErr) {
+					console.error('[interview-events] post-decision diarization purge failed:', purgeErr.message);
+				}
+			}
 			// Allowlist-serialized response: caller's own state only — no
 			// IP/UA, no other participant, no panel_expected_hash, ever.
 			return res.json({
