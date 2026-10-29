@@ -51,12 +51,12 @@ describe('S-D21 — PrivacyPage §13 gate sentence carries the panel leg (§11 r
 				/only where the candidate has given biometric consent for that interview and, at or before the recording starts, every other person expected to take part in that recording/i,
 			),
 		).toBeInTheDocument();
-				// The gate blocks only decided_at > started_at; the stricter
+		// The gate blocks only decided_at > started_at; the stricter
 		// "before the recording starts" promise must not stand (#1970 M-1).
 		expect(
 			screen.queryByText(/and, before the recording starts, every other person expected to take part/i),
 		).not.toBeInTheDocument();
-expect(screen.getByText(/has agreed to speaker labelling on their own screen/i)).toBeInTheDocument();
+		expect(screen.getByText(/has agreed to speaker labelling on their own screen/i)).toBeInTheDocument();
 		// The gate blocks PANEL_AGREEMENT_AFTER_RECORDING — the page says so.
 		expect(
 			screen.getByText(/An agreement recorded after a recording has started does not count for that recording/i),

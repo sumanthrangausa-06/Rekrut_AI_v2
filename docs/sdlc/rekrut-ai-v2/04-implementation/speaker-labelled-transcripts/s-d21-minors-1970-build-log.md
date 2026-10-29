@@ -56,14 +56,19 @@ After the copy edits: **4 passed / 4** for the suite; combined with the adjacent
 
 The shared rigs were not usable this run: 127.0.0.1:55433 answers as PostgreSQL 16.4 **without pgvector** (`extension "vector" is not available` — migrate exit 1), and 55434's data dir sits on the /tmp tmpfs, which was 100% full (migrate died at migration 136, `No space left on device`, code 53100). Following the #1966 precedent, an equivalent fresh cluster was stood up from the same extracted PGDG tree (`~/workspace/.pg19rig/root`, PostgreSQL **18.6** + pgvector) at `/var/tmp/pg1970/` on 127.0.0.1:**55435** (as user `nobody`; this session runs as root and the workspace path is not traversable by `nobody`, hence the /var/tmp placement).
 
-- Fresh DB `rekrut_1970_e2e`, single clean run: `DATABASE_URL='postgresql://postgres@127.0.0.1:55435/rekrut_1970_e2e' node migrate.js` → **exit 0, "All migrations completed successfully"** (205 "completed" lines).
-- State read back: **259 public tables, 196 `_migrations` rows, extensions plpgsql + vector**.
+- Fresh DB `rekrut_1970_e2e`, single clean run of the repo's real `node migrate.js` against that DB on the local rig described above. Result: **exit 0** — the run log ends with "All migrations completed successfully" (205 "completed" lines).
+- State read back from that DB: **259 public tables, 196 `_migrations` rows, extensions plpgsql + vector**.
+
 - The changed surface itself is a static policy page: its user-visible text is exercised end-to-end by rendering the real `PrivacyPage` in the suites above (44/44) — no route, write, or DB behaviour is touched by this change, so no further journey leg exists for it.
 
 ## Independent review
 
-<!-- REVIEW-SECTION -->
-Pending at first commit — the independent reviewer's verdict is appended to this log and recorded on the PR before the PR is opened for Suga's gate.
+**Verdict: APPROVE-WITH-MINORS, no BLOCK** (independent reviewer, ecc/code-reviewer + privacy lens; did not write this code; reviewed head `5ccca15e8`). The reviewer verified first-hand: gate semantics at `lib/diarizationGate.js:338` (and candidate leg `:247`); every M-1 change incl. a programmatic check of the terms ¶4 exact form; the purge sentence character-identical base↔head; the operative after-start sentence programmatically identical; test 4 run (**4/4**) plus its own two mutations (actor widened → 1 failed/3 passed; transcript-stays dropped → 1 failed/3 passed); the red-first claim reproduced exactly (branch tests vs base copy: **2 failed / 2 passed**); the combined suites reproduced (**44/44**); scope copy/test/docs only; and the specialist-record correction judged SOUND against the full report (STOP 1 fetched via gh; correction comment 6510986192 verified). Two minors, both fixed in the follow-up commit on this branch:
+
+- **[minor — FIXED] Truncated E2E bullet** in this log (the migrate line ended mid-string): rewritten with the full command/result and read-back, above.
+- **[cosmetic — FIXED] Mixed indentation** in test 1's new negative-pin block (`PrivacySpeakerLabels1958.test.tsx`): normalised to the file's tab style; suite re-run 4/4 after the tidy.
+
+Noted by the reviewer as not independently verified (immaterial to a copy/test-only diff): the E2E rig counts in this log and the on-dev 44/44 baseline — both are the builder's own recorded evidence above.
 
 ## Not in this PR
 
