@@ -328,4 +328,106 @@ describe('diarization worker (S-D04)', () => {
 			expect(result).toEqual({ outcome: 'failed', errorClass: 'engine_failed' });
 		});
 	});
+
+	describe('#1925 bridge: event-linked job — provenance at claim, governing ids to the stitch', () => {
+		const ENGINE_OUTPUT = {
+			speakerCount: 1,
+			turns: [{ speaker: 0, start_s: 0, end_s: 1 }],
+			engine: { package: '@desert-ant-labs/who', sdkVersion: '4.2.1', modelVersion: 'v0.3.4' },
+		};
+
+		function mockBridgeDb() {
+			db.query.mockImplementation(async (sql) => {
+				if (sql.includes('FROM interview_recordings')) {
+					return {
+						rows: [{
+							interview_session_id: null,
+							interview_event_id: 55,
+							started_at: '2026-10-28T10:00:00.000Z',
+						}],
+					};
+				}
+				if (sql.includes('FROM interview_events')) {
+					return {
+						rows: [{ id: 55, candidate_id: 1001, job_application_id: 900, interview_session_id: 88 }],
+					};
+				}
+				if (sql.includes('FROM interview_sessions')) {
+					return {
+						rows: [{ id: 88, config: { biometric_collection: true }, candidate_id: 1001, application_id: 900 }],
+					};
+				}
+				if (sql.includes('FROM job_applications')) {
+					return { rows: [{ candidate_id: 1001 }] };
+				}
+				if (sql.includes('FROM consent_receipts')) {
+					return { rows: [{ id: 4242, granted_at: '2026-10-28T09:00:00.000Z' }] };
+				}
+				return { rows: [] };
+			});
+		}
+
+		it('persists governing_session_id + consent_receipt_id on the job at claim and passes them to persistStitch', async () => {
+			mockBridgeDb();
+			consentService.checkConsentState.mockResolvedValue({ state: 'valid' });
+			const runEngine = jest.fn().mockResolvedValue(ENGINE_OUTPUT);
+			const persistStitch = jest.fn().mockResolvedValue({ outcome: 'complete', runId: 7 });
+
+			const result = await worker.processJob(JOB, { runEngine, persistStitch });
+
+			expect(result.outcome).toBe('complete');
+			const provenanceWrite = db.query.mock.calls.find(
+				([sql]) => sql.includes('UPDATE diarization_jobs') && sql.includes('governing_session_id'),
+			);
+			expect(provenanceWrite).toBeDefined();
+			expect(provenanceWrite[1]).toEqual([9, 88, 4242]);
+			expect(persistStitch).toHaveBeenCalledWith(
+				expect.objectContaining({ governingSessionId: 88, consentReceiptId: 4242 }),
+			);
+		});
+
+		it('governing session changes between claim and write → cancelled_at_write:SESSION_BINDING_MISMATCH', async () => {
+			mockBridgeDb();
+			consentService.checkConsentState.mockResolvedValue({ state: 'valid' });
+			// Second gate evaluation (write time) resolves a DIFFERENT
+			// governing session (89) than claim time (88).
+			let sessionReads = 0;
+			const baseImpl = db.query.getMockImplementation();
+			db.query.mockImplementation(async (sql, params) => {
+				if (sql.includes('FROM interview_events')) {
+					sessionReads += 1;
+					return {
+						rows: [{
+							id: 55,
+							candidate_id: 1001,
+							job_application_id: 900,
+							interview_session_id: sessionReads === 1 ? 88 : 89,
+						}],
+					};
+				}
+				if (sql.includes('FROM interview_sessions')) {
+					return {
+						rows: [{
+							id: params[0],
+							config: { biometric_collection: true },
+							candidate_id: 1001,
+							application_id: 900,
+						}],
+					};
+				}
+				return baseImpl(sql, params);
+			});
+			const runEngine = jest.fn().mockResolvedValue(ENGINE_OUTPUT);
+			const persistStitch = jest.fn();
+
+			const result = await worker.processJob(JOB, { runEngine, persistStitch });
+
+			expect(result).toEqual({ outcome: 'cancelled_at_write', code: 'SESSION_BINDING_MISMATCH' });
+			expect(diarizationJobs.cancel).toHaveBeenCalledWith(
+				9,
+				'consent_blocked_at_write:SESSION_BINDING_MISMATCH',
+			);
+			expect(persistStitch).not.toHaveBeenCalled();
+		});
+	});
 });

@@ -21,6 +21,7 @@ const { requirePermission } = require('../../middleware/rbac');
 const { rateLimits } = require('../../lib/distributed-rate-limiter');
 const livekitService = require('../services/livekit');
 const { canEnableObserver } = require('../../lib/observerConsentGate');
+const { ensureGoverningSession } = require('../../lib/governingSession'); // #1925 (ADR-D06 §4.2)
 
 const router = express.Router();
 
@@ -67,6 +68,25 @@ router.post(
 				return res
 					.status(403)
 					.json({ error: 'Not authorized to create a room for this interview' });
+			}
+
+			// #1925 (ADR-D06 §4.2): legacy events (created before the
+			// bridge) get their governing session created and linked
+			// lazily here — at room creation, deterministically for
+			// this event and before any recording of it starts. This is
+			// creation, never adoption of an existing session.
+			// Non-blocking: a failure leaves the event unbridged and the
+			// diarization gate blocks it fail-closed
+			// (NO_GOVERNING_SESSION) — the room itself is unaffected.
+			if (!event.interview_session_id) {
+				try {
+					await ensureGoverningSession(event, { callerRole: user.role });
+				} catch (govErr) {
+					console.error(
+						'[livekit-routes] Governing session creation failed (non-blocking):',
+						govErr.message,
+					);
+				}
 			}
 
 			// Idempotent: return existing room if active
