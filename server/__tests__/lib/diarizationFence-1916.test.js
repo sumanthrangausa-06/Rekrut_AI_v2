@@ -3,7 +3,8 @@
  * AC-1: dependency direction (Architecture §6.2 way 2, PRD FR-D14, Lex BR-12).
  *
  * Diarization output is PRESENTATION ONLY: it must never become a scoring
- * input. That is enforced mechanically here, not by promise:
+ * input. That is enforced mechanically here, not by promise — within the
+ * narrowed guarantee stated at the end of this header (#1945):
  *
  *   1. No OmniScore / Trust Score / matching / screening module (set S)
  *      imports a diarization module (set D).
@@ -18,9 +19,48 @@
  *      scoring modules — services/omniscore.js above all — and an
  *      unscanned tree is a hole in the fence, not a detail).
  *   4. Set-completeness: a NEW file in a module tree whose name marks it
- *      as a diarization or scoring/matching/screening module must join
- *      the sets below (or the explicit presentation/non-scoring lists)
- *      — the fence cannot silently vacate by rename or addition.
+ *      as a diarization or scoring/matching/screening/evaluation module
+ *      must join the sets below (or the explicit presentation/non-scoring
+ *      lists) — the fence cannot silently vacate by rename or addition.
+ *   5. No set-S or set-D file may use a dynamic or computed import form
+ *      at all (#1945, probes P1–P3): `import(...)` is banned outright in
+ *      those files, and `require(...)` is allowed only with a single
+ *      plain string-literal argument (a static template literal with no
+ *      interpolation counts as literal). Concatenated, interpolated, or
+ *      computed specifiers (e.g. `require(path.join(...))`) are
+ *      violations, so an edge the specifier scan cannot resolve cannot
+ *      hide inside a fence-side file. A specifier containing a backslash
+ *      escape is likewise non-literal (#1945 review MINOR-1): Node
+ *      decodes `\uXXXX`-style escapes at resolution time while the
+ *      specifier scan compares un-decoded text, so an escaped literal
+ *      could name a module the scan never sees.
+ *
+ * What is actually guaranteed (#1945 — narrowed claim, read before
+ * citing this fence): the current tree's static edges, and realistic
+ * accidental coupling, are caught. This is NOT a guarantee against
+ * deliberately obfuscated imports: dynamic/computed forms are now
+ * banned outright in set-S/set-D files (check 5), but a NEW module
+ * named with a synonym the completeness vocabulary does not contain
+ * (probe P5, e.g. `lib/speakerLabels.js`) remains a named residual —
+ * it is caught only if another check (the repo-wide allowlist scan,
+ * when it imports a known diarization module) happens to see the edge.
+ * The remaining deliberate-obfuscation forms are also named residuals:
+ * a comment between callee and parenthesis (`require/*c*\/('...')` —
+ * slash escaped here because the literal form would end this comment),
+ * require aliasing (`const r = require; r('...')`), and a no-space
+ * static import (`import"..."`) are not captured by these scans.
+ *
+ * Two disclosures the fence does NOT cover:
+ *   - Segment-level speaking share IS derivable: transcript segments
+ *     carry speaker_number / start_time_ms / end_time_ms, so a viewer's
+ *     per-speaker speaking share is computable by summing segment
+ *     durations. The fence (and the way-3 shape suite) ban stored or
+ *     displayed per-speaker quantities; they do not — and cannot —
+ *     make share mathematically underivable from segment timings a
+ *     viewer legitimately receives.
+ *   - The fence-shape suite exercises only GET /:id/transcript and
+ *     GET /:id/speakers. The PUT /:id/speakers/mapping response shape
+ *     (server/routes/recordings.js) is NOT exercised by it.
  *
  * Static import-specifier scan in the style of diarizationPinning-1907:
  * every require()/import/export-from specifier in the file (single-,
@@ -46,6 +86,10 @@ const DIARIZATION_MODULES = [
 	'lib/diarizationJobs.js',
 	'lib/diarizationGate.js',
 	'lib/diarizationFlag.js',
+	// S-D19 (#1956): genuine diarization module (imports diarizationJobs/
+	// Flag/Gate); found as pre-existing fence debt at the #1945 baseline —
+	// it was in neither set D nor the allowlist, so the fence was red on dev.
+	'lib/diarizationEnqueue.js',
 	'lib/speakerMapping.js',
 	'lib/transcriptStitch.js',
 	'workers/diarization/index.js',
@@ -88,6 +132,10 @@ const SCORING_MODULES = [
 	'client/src/pages/recruiter/screening-monitor.tsx',
 	'client/src/components/domain/match-explanation.tsx',
 	'client/src/components/domain/omniscore-ring.tsx',
+	// Renders a numeric score ring, used with matchScore — a scored display surface (#1945 widened vocabulary).
+	'client/src/components/domain/score-ring.tsx',
+	// Weighted interview-evaluation criteria config — an evaluation surface (#1945 widened vocabulary).
+	'client/src/pages/recruiter/panel-scorecard-criteria.tsx',
 ];
 
 // ── The only non-test files allowed to import a diarization module ──────
@@ -134,6 +182,59 @@ const KNOWN_NON_D = new Set(
 // template literal is a real Node resolution and must be seen (F-2).
 const SPECIFIER_RE =
 	/(?:require\s*\(\s*|(?:import|export)\s+(?:[^'"`]*?\s+from\s+)?)['"`]([^'"`]+)['"`]/g;
+
+/**
+ * Dynamic / non-literal import forms in one file's text (#1945, check 5).
+ * `import(...)` is banned outright in fence-side files. `require(...)`
+ * is allowed only as require('<one plain literal>') — a static template
+ * literal with no interpolation is literal; a concatenated, interpolated
+ * or computed argument (next char after '(' is not a quote, or the char
+ * after the closing quote is not ')') is a violation, as is any backslash
+ * inside the literal: Node decodes escapes when resolving the specifier
+ * but the specifier scan compares un-decoded text, so an escaped literal
+ * is one the scan cannot resolve exactly (#1945 review MINOR-1). Small
+ * on purpose: it does not parse JS, it only refuses forms the specifier
+ * scan above cannot resolve exactly.
+ */
+function nonLiteralInText(relFile, text) {
+	const violations = [];
+	for (const match of text.matchAll(/\b(require|import)\s*\(/g)) {
+		let i = match.index + match[0].length;
+		while (i < text.length && /\s/.test(text[i])) i += 1;
+		if (match[1] === 'import') {
+			violations.push(`${relFile}: dynamic import()`);
+			continue;
+		}
+		const quote = text[i];
+		if (quote !== "'" && quote !== '"' && quote !== '`') {
+			violations.push(`${relFile}: non-literal require() argument`);
+			continue;
+		}
+		let interpolated = false;
+		let escaped = false;
+		let closing = -1;
+		for (let j = i + 1; j < text.length; j += 1) {
+			if (text[j] === '\\') {
+				escaped = true;
+				j += 1;
+			} else if (quote === '`' && text[j] === '$' && text[j + 1] === '{') interpolated = true;
+			else if (text[j] === quote) {
+				closing = j;
+				break;
+			}
+		}
+		let k = closing + 1;
+		while (k < text.length && /\s/.test(text[k])) k += 1;
+		if (closing === -1 || interpolated || escaped || text[k] !== ')') {
+			violations.push(`${relFile}: non-literal require() argument`);
+		}
+	}
+	return violations;
+}
+
+function nonLiteralImports(relFile) {
+	return nonLiteralInText(relFile, fs.readFileSync(path.join(REPO, relFile), 'utf8'));
+}
 
 /** All module targets a file imports, as canonical repo-relative paths. */
 function importedTargets(relFile) {
@@ -223,6 +324,28 @@ describe('S-D14 (#1916) presentation-only fence — dependency direction (AC-1)'
 		expect(violations).toEqual([]);
 	});
 
+	it('no scoring or diarization module uses a dynamic or non-literal import (#1945)', () => {
+		const violations = [];
+		for (const rel of [...SCORING_MODULES, ...DIARIZATION_MODULES]) {
+			violations.push(...nonLiteralImports(rel));
+		}
+		expect(violations).toEqual([]);
+	});
+
+	it('non-literal scan pins the backslash-escape evasion (#1945 review MINOR-1)', () => {
+		// Node resolves '../lib/speaker\u004dapping' to the real
+		// lib/speakerMapping module; the specifier scan compares
+		// un-decoded text and would never see that edge, so any
+		// backslash inside a require() literal is non-literal.
+		expect(
+			nonLiteralInText('routes/omniscore.js', "const _u = require('../lib/speaker\\u004dapping');"),
+		).toEqual(['routes/omniscore.js: non-literal require() argument']);
+		// A plain literal with no escape stays allowed.
+		expect(
+			nonLiteralInText('routes/omniscore.js', "const _u = require('../lib/speakerMapping');"),
+		).toEqual([]);
+	});
+
 	it('repo-wide: only the allowlist imports diarization modules', () => {
 		const violations = [];
 		for (const rel of allSourceFiles()) {
@@ -245,7 +368,7 @@ describe('S-D14 (#1916) presentation-only fence — dependency direction (AC-1)'
 			if (/diarization|transcriptstitch|speakermapping/i.test(base)) {
 				if (!DIARIZATION_CANON.has(canonical(rel))) unlisted.push(`diarization?: ${rel}`);
 			}
-			if (/omniscore|trustscore|matching|match|fitScore|screener|matcher|screen/i.test(base)) {
+			if (/omniscore|trustscore|matching|match|fitScore|screener|matcher|screen|score|evaluat|rank/i.test(base)) {
 				if (!SCORING_CANON.has(canonical(rel))) unlisted.push(`scoring?: ${rel}`);
 			}
 		}
