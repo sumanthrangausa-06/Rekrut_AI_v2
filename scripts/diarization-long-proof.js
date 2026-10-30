@@ -26,6 +26,14 @@
  * perVoice.overlaps — they are not hidden, they just do not count as
  * a second speaker for the voice.
  *
+ * Hardened in #1929 (M1): a window passes only when EVERY expected
+ * voice is present in it with exactly one engine speaker AND distinct
+ * voices map to distinct engine speakers. Before that, a fully merged
+ * join ({interviewer: 0, candidate: 0} in both windows) returned
+ * joinPass: true, and a window observing only one of the two voices
+ * passed — the evaluator never compared against the expected voice set
+ * and never checked distinctness.
+ *
  * Usage:
  *   DATABASE_URL='postgresql://postgres@127.0.0.1:55433/sd06_e2e' \
  *   DIARIZATION_WEIGHTS_DIR=$HOME/.cache/rekrut-diarization/weights \
@@ -59,11 +67,16 @@ function overlapsInWindow(gtTurns, engineTurns, startS, endS) {
 	return perVoice;
 }
 
-function evaluateWindow(gtTurns, engineTurns, startS, endS) {
+function evaluateWindow(gtTurns, engineTurns, startS, endS, expectedVoices = null) {
 	const raw = overlapsInWindow(gtTurns, engineTurns, startS, endS);
+	// The expected voice set (#1929 M1): an explicit parameter wins;
+	// otherwise derive it from the FULL ground truth handed in, so a
+	// voice that never speaks inside this window is still expected —
+	// and its absence fails the window instead of passing silently.
+	const expected = expectedVoices ?? [...new Set(gtTurns.map((t) => t.speaker))];
 	const perVoice = {};
 	const mapping = {};
-	let pass = Object.keys(raw).length > 0;
+	let pass = expected.length > 0;
 	for (const [voice, overlaps] of Object.entries(raw)) {
 		const engineSpeakers = Object.entries(overlaps)
 			.filter(([, s]) => s >= MIN_OVERLAP_S)
@@ -78,6 +91,14 @@ function evaluateWindow(gtTurns, engineTurns, startS, endS) {
 		mapping[voice] = engineSpeakers.length === 1 ? engineSpeakers[0] : null;
 		if (engineSpeakers.length !== 1) pass = false;
 	}
+	// Every expected voice must be present (mapping has an entry for it).
+	for (const voice of expected) {
+		if (!(voice in mapping)) pass = false;
+	}
+	// Distinctness (#1929 M1): distinct voices must map to distinct
+	// engine speakers — a merged join is a failed join.
+	const mappedSpeakers = Object.values(mapping).filter((s) => s !== null);
+	if (new Set(mappedSpeakers).size !== mappedSpeakers.length) pass = false;
 	return { window_s: [startS, endS], pass, mapping, perVoice };
 }
 
@@ -88,16 +109,29 @@ function evaluateFixture(gt, run) {
 		run.turns,
 		duration >= 180 ? 120 : 60,
 		duration >= 180 ? 180 : 120,
+		gt.speakers,
 	);
-	const finalMinute = evaluateWindow(gt.turns, run.turns, duration - 60, duration);
+	const finalMinute = evaluateWindow(gt.turns, run.turns, duration - 60, duration, gt.speakers);
 	const distinctEngineSpeakers = [...new Set(run.turns.map((t) => t.speaker))].sort(
 		(a, b) => a - b,
 	);
 	const mappingsConsistent = Object.keys(minute2.mapping).every(
 		(v) => minute2.mapping[v] !== null && minute2.mapping[v] === finalMinute.mapping[v],
 	);
+	// Distinctness at the fixture level (#1929 M1): each window's mapping
+	// must be injective — distinct voices, distinct engine speakers.
+	const injective = (mapping) => {
+		const speakers = Object.values(mapping).filter((s) => s !== null);
+		return new Set(speakers).size === speakers.length;
+	};
 	return {
-		joinPass: Boolean(minute2.pass && finalMinute.pass && mappingsConsistent),
+		joinPass: Boolean(
+			minute2.pass &&
+				finalMinute.pass &&
+				mappingsConsistent &&
+				injective(minute2.mapping) &&
+				injective(finalMinute.mapping),
+		),
 		phantomPass:
 			run.speakerCount === gt.speakers.length &&
 			distinctEngineSpeakers.length === gt.speakers.length,
