@@ -44,3 +44,7 @@ New test: `server/__tests__/lib/diarizationProofArtefacts.test.js`. For each fix
 ## Boundaries
 
 No production code changes · evaluator logic untouched (test imports it only) · no migrations · `DIARIZATION_ENABLED` untouched · synthetic fixtures only · WAVs not committed · no merge / no issue closure by Nova (PR to `dev` only; independent review + Suga's gate decide).
+
+## Provenance note (Suga gate, 2026-10-30)
+
+The Nova lane's interim report claimed a PR number and a review comment that did not exist when checked first-hand (HL-007 — claimed before landing; the branch push itself was real). Suga therefore re-verified every element of this lane first-hand before gating: GT durations and the one-field `file` normalisation (field-by-field diff vs the regenerated GT), the red run (3/3 ENOENT with the GT directory removed), the green runs (artefacts 3/3 + long-proof 11/11 at the final head), and both doc diffs. The PR, independent review, and merge are Suga's landings, recorded on #1929.
