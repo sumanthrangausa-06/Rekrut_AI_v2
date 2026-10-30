@@ -74,6 +74,31 @@ describe('transcriptStitch.assignSpeakers (S-D07)', () => {
 		expect(assignSpeakers(segments, turns).get(1)).toBeNull();
 	});
 
+	it('#1993: a negative-speaker turn cannot label a segment (not assignable — honest NULL)', () => {
+		const segments = [seg(1, 0, 10000)];
+		const turns = [turn(-1, 0, 10)];
+		expect(assignSpeakers(segments, turns).get(1)).toBeNull();
+	});
+
+	it('#1993: a >INT4_MAX-speaker turn cannot label a segment (not assignable — honest NULL)', () => {
+		const segments = [seg(1, 0, 10000)];
+		const turns = [turn(3000000000, 0, 10)];
+		expect(assignSpeakers(segments, turns).get(1)).toBeNull();
+	});
+
+	it('#1993: an out-of-range turn never steals a segment from a valid overlapping turn', () => {
+		const segments = [seg(1, 0, 10000)];
+		// Out-of-range turn overlaps MORE (full span); valid turn overlaps 3s.
+		const turns = [turn(-1, 0, 10), turn(1, 0, 3)];
+		expect(assignSpeakers(segments, turns).get(1)).toBe(1);
+	});
+
+	it('#1993: a speaker of exactly INT4_MAX is in contract and labels normally (boundary pin)', () => {
+		const segments = [seg(1, 0, 10000)];
+		const turns = [turn(2147483647, 0, 10)];
+		expect(assignSpeakers(segments, turns).get(1)).toBe(2147483647);
+	});
+
 	it('overlap is computed on ms boundaries (fractional seconds round consistently)', () => {
 		const segments = [seg(1, 1500, 2500)];
 		const turns = [turn(1, 1.5, 2.5)];

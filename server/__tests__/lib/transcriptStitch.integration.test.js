@@ -242,6 +242,97 @@ describeIfDb('transcriptStitch.persistStitch (real DB — S-D07)', () => {
 		expect(job.rows[0].status).toBe('processing'); // sweeper can reclaim + retry
 	});
 
+	it('#1993: a negative speaker is not assignable — its segment stays NULL, the stitch completes, the run is retained verbatim', async () => {
+		const { recordingId, segmentIds, jobId } = await seedRecording([
+			[0, 10000, 'first segment — valid speaker 0'],
+			[10000, 20000, 'second segment — won only by speaker -1, outside the [0, INT4_MAX] contract'],
+		]);
+		// On base this PERSISTS -1 as a meaningless label — and an
+		// orphan one: computeProposal already skips -1, so no mapping
+		// row exists for the correction path. The contract (#1934 M-3,
+		// applied here per #1993, discussed position on the issue):
+		// an out-of-range turn is not assignable, exactly like a
+		// sub-floor turn — the segment stays honestly NULL, the valid
+		// segments still label, and the stitch COMPLETES with the
+		// original output retained verbatim for forensics (§3.6.4).
+		const turns = [
+			{ speaker: 0, start_s: 0, end_s: 10 },
+			{ speaker: -1, start_s: 10, end_s: 20 },
+		];
+		const result = await stitch.persistStitch({
+			jobId, recordingId, expectedSegmentIds: segmentIds,
+			output: { speakerCount: 2, turns, engine: ENGINE },
+		});
+		expect(result.outcome).toBe('complete');
+
+		const segs = await segmentsOf(recordingId);
+		expect(segs.map((x) => x.speaker_number)).toEqual([0, null]);
+		const runs = await pool.query(`SELECT turns FROM diarization_runs WHERE recording_id = $1`, [recordingId]);
+		expect(runs.rows).toHaveLength(1);
+		expect(runs.rows[0].turns).toEqual(turns); // verbatim — the -1 turn is retained, never re-shaped
+		const maps = await pool.query(
+			`SELECT speaker_number FROM recording_speaker_mappings WHERE recording_id = $1 ORDER BY speaker_number`,
+			[recordingId],
+		);
+		expect(maps.rows.map((m) => m.speaker_number)).toEqual([0]); // no orphan: -1 has neither label nor row
+		const rec = await pool.query(`SELECT diarization_status FROM interview_recordings WHERE id = $1`, [recordingId]);
+		expect(rec.rows[0].diarization_status).toBe('complete');
+		const job = await pool.query(`SELECT status FROM diarization_jobs WHERE id = $1`, [jobId]);
+		expect(job.rows[0].status).toBe('complete');
+	});
+
+	it('#1993: a >INT4_MAX speaker is not assignable — its segment stays NULL and the stitch completes (no raw PG failure)', async () => {
+		const { recordingId, segmentIds, jobId } = await seedRecording([
+			[0, 10000, 'first segment — valid speaker 0'],
+			[10000, 20000, 'second segment — won only by speaker 3000000000, beyond int4'],
+		]);
+		// On base this stitch FAILS with the raw PG "out of range for
+		// type integer" error and rolls everything back — the whole
+		// interview's labels lost to one unrepresentable ordinal.
+		// Under the contract the turn simply never labels a segment.
+		const turns = [
+			{ speaker: 0, start_s: 0, end_s: 10 },
+			{ speaker: 3000000000, start_s: 10, end_s: 20 },
+		];
+		const result = await stitch.persistStitch({
+			jobId, recordingId, expectedSegmentIds: segmentIds,
+			output: { speakerCount: 2, turns, engine: ENGINE },
+		});
+		expect(result.outcome).toBe('complete');
+
+		const segs = await segmentsOf(recordingId);
+		expect(segs.map((x) => x.speaker_number)).toEqual([0, null]);
+		const runs = await pool.query(`SELECT turns FROM diarization_runs WHERE recording_id = $1`, [recordingId]);
+		expect(runs.rows).toHaveLength(1);
+		expect(runs.rows[0].turns).toEqual(turns); // verbatim
+		const maps = await pool.query(
+			`SELECT speaker_number FROM recording_speaker_mappings WHERE recording_id = $1 ORDER BY speaker_number`,
+			[recordingId],
+		);
+		expect(maps.rows.map((m) => m.speaker_number)).toEqual([0]);
+		const rec = await pool.query(`SELECT diarization_status FROM interview_recordings WHERE id = $1`, [recordingId]);
+		expect(rec.rows[0].diarization_status).toBe('complete');
+		const job = await pool.query(`SELECT status FROM diarization_jobs WHERE id = $1`, [jobId]);
+		expect(job.rows[0].status).toBe('complete');
+	});
+
+	it('#1993: a speaker of exactly INT4_MAX is IN contract — the stitch completes and persists it exactly', async () => {
+		const { recordingId, segmentIds, jobId } = await seedRecording([
+			[0, 10000, 'boundary speaker segment'],
+		]);
+		const result = await stitch.persistStitch({
+			jobId, recordingId, expectedSegmentIds: segmentIds,
+			output: {
+				speakerCount: 1,
+				turns: [{ speaker: 2147483647, start_s: 0, end_s: 10 }],
+				engine: ENGINE,
+			},
+		});
+		expect(result.outcome).toBe('complete');
+		const segs = await segmentsOf(recordingId);
+		expect(segs.map((s) => s.speaker_number)).toEqual([2147483647]);
+	});
+
 	it('idempotency: a second persist for a completed job writes nothing new', async () => {
 		const { recordingId, segmentIds, jobId } = await seedRecording([[0, 10000, 'once only']]);
 		const output = { speakerCount: 1, turns: [{ speaker: 0, start_s: 0, end_s: 10 }], engine: ENGINE };
