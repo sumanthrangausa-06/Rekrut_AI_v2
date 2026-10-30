@@ -304,6 +304,12 @@ async function cleanAndSeed() {
 		[evInflight.rows[0].id, U_CAND, U_REC, HASH_INFLIGHT],
 	);
 	R.inflight = inflight.rows[0].id;
+	// #2019 fixture: the in-flight recording also carries a PENDING
+	// diarization job — the panel sweep must cancel it in the same
+	// transaction (Lex's full-report condition on #2014).
+	await q(`INSERT INTO diarization_jobs (recording_id, status) VALUES ($1, 'pending')`, [
+		R.inflight,
+	]);
 
 	// Counts-only aggregate (AC-3): no recording/user linkage exists in
 	// this table; erasure must leave it byte-identical.
@@ -484,6 +490,24 @@ describeIfDb('#1915 S-D13 diarization erasure (JT-D7, realdb journey)', () => {
 		expect(result.crossRecordingProposedMappingsNulled).toBe(1);
 		expect(result.tombstonePanelPairsCleared).toBe(2);
 
+		// #2019: the in-flight job on a swept recording is cancelled
+		// in the same transaction and counted; the cross recording's
+		// COMPLETE job is not an in-flight job and stays complete.
+		expect(result.crossRecordingPanelJobsCancelled).toBe(1);
+		{
+			const { rows } = await seedPool.query(
+				`SELECT status FROM diarization_jobs WHERE recording_id = $1`,
+				[R.inflight],
+			);
+			expect(rows).toHaveLength(1);
+			expect(rows[0].status).toBe('cancelled');
+			const crossJob = await seedPool.query(
+				`SELECT status FROM diarization_jobs WHERE recording_id = $1`,
+				[R.cross],
+			);
+			expect(crossJob.rows[0].status).toBe('complete');
+		}
+
 		// #2014 item 1: pair-atomic sweep on OTHER subjects'
 		// recordings — array member gone AND hash NULL, together.
 		for (const [id, expectedArray] of [
@@ -507,14 +531,20 @@ describeIfDb('#1915 S-D13 diarization erasure (JT-D7, realdb journey)', () => {
 			expect(rows[0].panel_expected_user_ids).toEqual([U_REC, U_OTHER]);
 			expect(rows[0].panel_expected_hash).toBe(HASH_CONTROL);
 		}
-		// #2014 item 3: the subject's OWN tombstones lose the whole
-		// panel pair — no roster of living third parties survives.
+		// #2014 item 3 (+ #2019 shape): the subject's OWN tombstones
+		// lose the whole panel pair — no roster of living third
+		// parties survives. The array reads EMPTY ('{}'), never NULL:
+		// a NULL array would make participantsFromFrozenSet fall back
+		// to the live event roster. The fallback is in any case
+		// unreachable here — the AC sweep above already proved zero
+		// correctable mappings survive on these recordings (Rex's
+		// flagged pin, #2019).
 		for (const id of [R.eventLinked, R.sessionLinked]) {
 			const { rows } = await seedPool.query(
 				`SELECT panel_expected_user_ids, panel_expected_hash FROM interview_recordings WHERE id = $1`,
 				[id],
 			);
-			expect(rows[0].panel_expected_user_ids).toBeNull();
+			expect(rows[0].panel_expected_user_ids).toEqual([]);
 			expect(rows[0].panel_expected_hash).toBeNull();
 		}
 		// #2014 item 2: the surviving cross run's proposed_mapping —

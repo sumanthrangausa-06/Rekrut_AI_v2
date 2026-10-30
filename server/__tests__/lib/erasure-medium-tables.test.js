@@ -95,7 +95,15 @@ function mockPhase1WithMedium(overrides = {}) {
 		.mockResolvedValueOnce(q([], 0)) // #813: auto_apply_profiles SELECT (no rows)
 		// S-047 (E-008): observer tables.
 		.mockResolvedValueOnce(q([], 0)) // ai_observer_reports
-		.mockResolvedValueOnce(q([], 0)); // observer_jobs
+		.mockResolvedValueOnce(q([], 0)) // observer_jobs
+		// Overflow arithmetic (fragile, recorded): this chain never
+		// gained entries for the diarization block (S-D13/#1944/#2014
+		// queries between interview_transcripts and recording_consent
+		// in the real order) — those calls consume later entries, and
+		// the recording_consent redaction must land on a rowCount-0
+		// entry, not the rowCount-1 default below. #2019's panel job
+		// cancellation is one more such query: one more 0 entry.
+		.mockResolvedValueOnce(q([], 0)); // #2019: panel job cancellation (overflow)
 	// Ledger INSERTs + any overflow.
 	client.query.mockResolvedValue({ rows: [], rowCount: 1 });
 	return client;

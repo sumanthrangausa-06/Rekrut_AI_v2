@@ -125,6 +125,7 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping participant sweep
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping updated_by sweep
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording audit sweep
+			.mockResolvedValueOnce({ rowCount: 0 }) // #2019: in-flight panel job cancellation
 			.mockResolvedValueOnce({ rowCount: 0 }) // #2014: cross-recording panel pair sweep
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #2014: proposed_mapping probe (no rows)
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1956 S-D19: event_labelling_consent
@@ -215,6 +216,7 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			crossRecordingMappingsNulled: 0, // #1944
 			crossRecordingAuditNulled: 0, // #1944
 			crossRecordingPanelPairsSwept: 0, // #2014
+			crossRecordingPanelJobsCancelled: 0, // #2019
 			crossRecordingProposedMappingsNulled: 0, // #2014
 			tombstonePanelPairsCleared: 0, // #2014
 			panelLabellingConsentDeleted: 0, // #1956 S-D19
@@ -417,6 +419,7 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping participant sweep
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping updated_by sweep
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording audit sweep
+			.mockResolvedValueOnce({ rowCount: 0 }) // #2019: in-flight panel job cancellation
 			.mockResolvedValueOnce({ rowCount: 0 }) // #2014: cross-recording panel pair sweep
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #2014: proposed_mapping probe (no rows)
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1956 S-D19: event_labelling_consent
@@ -506,6 +509,7 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			crossRecordingMappingsNulled: 0, // #1944
 			crossRecordingAuditNulled: 0, // #1944
 			crossRecordingPanelPairsSwept: 0, // #2014
+			crossRecordingPanelJobsCancelled: 0, // #2019
 			crossRecordingProposedMappingsNulled: 0, // #2014
 			tombstonePanelPairsCleared: 0, // #2014
 			panelLabellingConsentDeleted: 0, // #1956 S-D19
