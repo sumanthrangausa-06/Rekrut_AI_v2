@@ -98,6 +98,23 @@ const WRONG_SDK_CHILD = writeChild(
 	 }));`,
 );
 
+// A fake engine child driven by hand via the spawnFn seam (#2002):
+// the test emits its stdout itself and emits 'close' when it chooses.
+function fakeEngineChild(record) {
+	return () => {
+		const child = new EventEmitter();
+		child.stdout = new EventEmitter();
+		child.stderr = new EventEmitter();
+		child.stdin = new EventEmitter();
+		child.stdin.end = () => {};
+		child.kill = (sig) => {
+			record.killedWith = sig;
+		};
+		record.child = child;
+		return child;
+	};
+}
+
 // A fake ffmpeg that never produces output and never exits on its own;
 // like a real process it emits 'close' only when killed.
 function hangingFfmpeg(record) {
@@ -223,6 +240,33 @@ describe('diarizationEngine supervisor (S-D05)', () => {
 
 	it('#1927: child stdout past the cap → engine_failed naming the cap, not a parse error', async () => {
 		const err = await runEngineChild(PCM, { childPath: LOUD_CHILD }).catch((e) => e);
+		expect(err).toMatchObject({ errorClass: 'engine_failed' });
+		expect(err.message).toMatch(/stdout exceeded/);
+	});
+
+	it('#2002: stdout cap then close-with-signal settles once as engine_failed, never engine_oom', async () => {
+		// First-settle wins has always masked the close handler's second
+		// (engine_oom) reject attempt at this surface — the attempt is
+		// proven by the instrumented-copy probe in the #2002 build log.
+		// This pins the contract the stdoutExceeded guard makes
+		// structural: exactly one settlement, the cap's engine_failed.
+		const record = {};
+		let settlements = 0;
+		const tracked = runEngineChild(PCM, { spawnFn: fakeEngineChild(record) }).then(
+			() => {
+				settlements++;
+				return null;
+			},
+			(e) => {
+				settlements++;
+				return e;
+			},
+		);
+		record.child.stdout.emit('data', Buffer.alloc(STDOUT_CAP + 1, 0x78));
+		expect(record.killedWith).toBe('SIGKILL');
+		record.child.emit('close', null, 'SIGKILL');
+		const err = await tracked;
+		expect(settlements).toBe(1);
 		expect(err).toMatchObject({ errorClass: 'engine_failed' });
 		expect(err.message).toMatch(/stdout exceeded/);
 	});
