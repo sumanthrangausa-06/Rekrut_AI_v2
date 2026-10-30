@@ -141,13 +141,15 @@ RED (base code, DB migrated through 300 only) — 3 failed, 1 passed:
 GREEN (branch, fresh DB migrated through 301, exit 0; index read back
 from pg_indexes as `CREATE UNIQUE INDEX ux_diarization_runs_job_id …
 btree (job_id)`):
-- #1931 suite: **4 passed, 0 failed** — duplicate insert now rejects
-  with SQLSTATE 23505 and exactly one run remains; NULL semantics
-  intact; the swap now parks on the locks (probe locks the old
-  segments cleanly, old generation still visible) and completes with
-  the new generation after the holder releases.
-- Migration 301 mocked-client suite: 4 passed (incl. fail-loud
-  post-state). `up()` run twice directly against the DB: idempotent.
+- #1931 suite: **5 passed, 0 failed** (final form, after the review
+  amendments below) — duplicate insert now rejects with SQLSTATE
+  23505 and exactly one run remains; NULL semantics intact; the swap
+  parks on the locks in both holder scenarios (probes lock the run
+  row + all 3 old segments with exact counts, old generation still
+  visible) and completes with the new generation after release.
+- Migration 301 mocked-client suite: 6 passed (incl. pre-flight and
+  fail-loud post-state). `up()` run twice directly against the DB:
+  idempotent. Combined final run (both suites, fresh DB): 11/11.
 - Neighbours on the same fresh DB: transcriptStitch integration
   9/9 (persistStitch unaffected by the UNIQUE index), transcriptStitch
   unit + migrations 296/300 suites pass (29 passed, 3 skipped across
@@ -178,22 +180,41 @@ correction path takes an opposite order but touches disjoint rows);
 migration 301 is correct against migration 296's real table
 definition; tests are honest (its own green run reproduced 4/4).
 
-Minors, dispositioned:
-1. Stale S-D09-era comment about coverage_end_ms placement
-   (recordings.js transcript-GET area) — pre-existing, outside this
-   lane's files-in-scope discipline; NOT fixed here, candidate for a
-   docs cleanup lane.
-2. Claim-vs-stitch race is pre-existing (the claim UPDATE serialises
+Minors, dispositioned (updated against the reviewer's full report,
+which landed after the first checkpoint — HL-007 check):
+1. **Behavioural test did not exercise the jobs-first half** (the
+   lock-test recording had no diarization_jobs row; the holder took
+   only the recording lock) + a timing false-pass window (probe
+   could lock 0 rows vacuously; old/new generations both had 2
+   segments) + a stale header comment claiming "recording lock
+   FIRST" — **ALL FIXED in this lane**: lock fixtures now seed a
+   processing job + run row + a 3-segment old generation (GEN2 has
+   2); probes assert exact locked row counts (run 1, segments 3);
+   scenario 1's holder takes persistStitch's full job → recording
+   shape; a new **scenario 2** (holder takes the JOB row only — the
+   deadlock window) behaviourally discriminates jobs-first from the
+   rejected recording-only variant via the run-row probe. Mutation
+   proof: with the jobs-lock temporarily removed, scenario 2 and
+   the structural pin FAIL while scenario 1 passes (exactly the
+   predicted pattern); restored code: full suite 5/5, and 11/11
+   together with the migration suite, on a fresh DB.
+2. Swap never checks the recording lock's rowCount — reviewer
+   verified the blast radius is bounded (first transcript INSERT
+   FK-fails 23503, transaction rolls back, outer catch returns
+   500; no production path hard-deletes recordings) and the
+   behaviour is pre-existing/unchanged by this diff. Accepted, no
+   change.
+3. Claim-vs-stitch race is pre-existing (the claim UPDATE serialises
    claims against each other, not against stitch) — the same
    residual recorded above; follow-up candidate for Lead, not this
    lane.
-3. Swap lock-wait is unbounded (Postgres default, no lock_timeout) —
-   accepted: adding a timeout changes handler failure behaviour and
-   is its own decision; a wedged stitch (the only long holder) is
-   bounded by the worker's own timeouts.
-4. Test nit: the final old-segment-id assertion originally selected
-   only `text` — FIXED in this lane (now selects `id, text`), suite
-   re-run green after the fix.
-5. Partial-index (`WHERE job_id IS NOT NULL`) nuance — reviewer
-   agrees the plain unique index as built is correct; functional
-   equivalence noted, no action.
+4. Swap lock-wait is unbounded (Postgres default, no lock_timeout) —
+   reviewer notes no existing lock in this codebase sets one and
+   both holder transactions are short with no external I/O inside.
+   Accepted, no change.
+5. Erasure-vs-swap child-delete ordering inversion (erasure deletes
+   transcripts before runs; the swap runs before transcripts) —
+   reviewer flags it as a residual note predating this diff, with
+   deadlock detection + whole-transaction rollback as the existing
+   backstop; the new locks do not participate. Recorded; no change
+   in this lane.

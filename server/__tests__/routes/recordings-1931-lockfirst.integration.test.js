@@ -10,25 +10,34 @@
  * multiple NULLs — the desired semantics: at most one run per job).
  *
  * Item 2 (real route, real DB): the POST /:id/transcribe segment-swap
- * transaction must take the interview_recordings row lock FIRST
- * (SELECT … FOR UPDATE), before any DELETE — the same recording-row
- * lock persistStitch takes (its order: job row, then recording row) —
- * so a stitch and a re-transcription serialise instead of interleaving
- * around the generation guard. The behavioural test holds the
- * recording-row lock as a stitch-shaped holder would, lets the real
- * transcribe request reach its swap, and probes the old segments from
- * a third connection with FOR UPDATE NOWAIT:
- *   - lock-first (fixed): the swap is blocked on the recording row and
- *     has touched nothing → the probe LOCKS the old segments fine.
- *   - pre-fix: the swap deletes the old segments and only blocks at
- *     its final recording UPDATE → the probe fails 55P03
- *     (lock_not_available) on the deleted rows.
+ * transaction must lock in persistStitch's order — diarization_jobs
+ * row(s) FOR UPDATE (id order), then the interview_recordings row
+ * FOR UPDATE — before any DELETE, so a stitch and a re-transcription
+ * serialise instead of interleaving around the generation guard, and
+ * (database-reviewer BLOCK) no AB–BA deadlock cycle opens against a
+ * stitch holding its job row. Two behavioural scenarios, each with a
+ * seeded job + run + a 3-segment old generation (GEN2 has 2, so
+ * counts cannot coincide), probed from a third connection with
+ * FOR UPDATE NOWAIT and EXACT row-count assertions (a probe that
+ * locks 0 rows has proven nothing and fails):
+ *   - Scenario 1: the holder takes job → recording (persistStitch's
+ *     shape). The swap must park before touching anything: the run
+ *     row and all 3 old segments stay lockable, the old generation
+ *     stays visible; after release the swap completes (200) and only
+ *     the new generation exists. Pre-fix, the swap deletes the old
+ *     segments and the probe fails 55P03 (lock_not_available).
+ *   - Scenario 2: the holder takes the JOB row only (a stitch caught
+ *     between its two locks — the deadlock window). Jobs-first: the
+ *     swap parks on its first statement holding nothing, run row
+ *     untouched. The rejected recording-only variant would take the
+ *     recording lock and delete the run row before blocking on the
+ *     job DELETE → the probe fails 55P03 on the run row. This is the
+ *     scenario that behaviourally discriminates the two shapes.
  * Stubs live only at the two true external boundaries (object storage
  * + ASR provider), exactly as the #1904 suite: the handler and the DB
  * — where this behaviour lives — are never mocked.
- * A structural test pins the lock's position in the source (BEGIN →
- * recording FOR UPDATE → first DELETE) so the ordering cannot silently
- * regress behind the behavioural test's timing.
+ * A structural test pins the lock order in the source (BEGIN → jobs
+ * FOR UPDATE → recording FOR UPDATE → first DELETE) as a backstop.
  *
  * Run:
  *   RUNS1931_INTEGRATION_DB_URL='postgresql://postgres@127.0.0.1:55433/sd1931_e2e' \
@@ -100,8 +109,8 @@ describeIfDb('#1931 items 1 + 2 (real DB — fresh-install rig)', () => {
 	let audioServer;
 	let asrPort;
 	let audioPort;
-	let lockRecordingId;
-	let oldSegmentIds;
+	let lockA;
+	let lockB;
 
 	function listen(server) {
 		return new Promise((resolve) =>
@@ -171,34 +180,49 @@ describeIfDb('#1931 items 1 + 2 (real DB — fresh-install rig)', () => {
 			[U_REC, U_CAND, C_ID],
 		);
 
-		// Lock-test recording: completed, event-linked, with a gen-1
-		// segment generation the re-transcription will replace.
-		const ev = await pool.query(
-			`INSERT INTO interview_events (recruiter_id, candidate_id, status) VALUES ($1, $2, 'completed') RETURNING id`,
-			[U_REC, U_CAND],
-		);
-		const room = await pool.query(
-			`INSERT INTO interview_rooms (interview_event_id, room_name, livekit_room_id, status) VALUES ($1, $2, $3, 'closed') RETURNING id`,
-			[ev.rows[0].id, `room-1931-${ev.rows[0].id}`, `lk-1931-${ev.rows[0].id}`],
-		);
-		const rec = await pool.query(
-			`INSERT INTO interview_recordings (interview_event_id, room_id, status, duration_seconds, storage_path)
-			 VALUES ($1, $2, 'completed', 12, $3) RETURNING id`,
-			[ev.rows[0].id, room.rows[0].id, encryption.encrypt(`http://127.0.0.1:${audioPort}/audio.mp4`)],
-		);
-		lockRecordingId = rec.rows[0].id;
-		oldSegmentIds = [];
-		for (const [start, end, text] of [
-			[0, 5000, 'Old opening.'],
-			[5000, 12000, ' Old closing.'],
-		]) {
-			const s = await pool.query(
-				`INSERT INTO interview_transcripts (recording_id, speaker_identity, text, start_time_ms, end_time_ms)
-				 VALUES ($1, 'unknown', $2, $3, $4) RETURNING id`,
-				[lockRecordingId, text, start, end],
+		// Lock-test recordings: completed, event-linked, each with a
+		// processing diarization job, one run row for that job, and a
+		// 3-segment gen-1 generation the re-transcription will replace.
+		async function seedLockRecording() {
+			const ev = await pool.query(
+				`INSERT INTO interview_events (recruiter_id, candidate_id, status) VALUES ($1, $2, 'completed') RETURNING id`,
+				[U_REC, U_CAND],
 			);
-			oldSegmentIds.push(s.rows[0].id);
+			const room = await pool.query(
+				`INSERT INTO interview_rooms (interview_event_id, room_name, livekit_room_id, status) VALUES ($1, $2, $3, 'closed') RETURNING id`,
+				[ev.rows[0].id, `room-1931-${ev.rows[0].id}`, `lk-1931-${ev.rows[0].id}`],
+			);
+			const rec = await pool.query(
+				`INSERT INTO interview_recordings (interview_event_id, room_id, status, duration_seconds, storage_path, diarization_status)
+				 VALUES ($1, $2, 'completed', 12, $3, 'processing') RETURNING id`,
+				[ev.rows[0].id, room.rows[0].id, encryption.encrypt(`http://127.0.0.1:${audioPort}/audio.mp4`)],
+			);
+			const recordingId = rec.rows[0].id;
+			const job = await pool.query(
+				`INSERT INTO diarization_jobs (recording_id, status, attempt_count) VALUES ($1, 'processing', 1) RETURNING id`,
+				[recordingId],
+			);
+			const run = await pool.query(
+				`INSERT INTO diarization_runs (recording_id, job_id, engine_package, turns) VALUES ($1, $2, '@desert-ant-labs/who', '[]'::jsonb) RETURNING id`,
+				[recordingId, job.rows[0].id],
+			);
+			const segmentIds = [];
+			for (const [start, end, text] of [
+				[0, 4000, 'Old one.'],
+				[4000, 8000, ' Old two.'],
+				[8000, 12000, ' Old three.'],
+			]) {
+				const s = await pool.query(
+					`INSERT INTO interview_transcripts (recording_id, speaker_identity, text, start_time_ms, end_time_ms)
+					 VALUES ($1, 'unknown', $2, $3, $4) RETURNING id`,
+					[recordingId, text, start, end],
+				);
+				segmentIds.push(s.rows[0].id);
+			}
+			return { recordingId, jobId: job.rows[0].id, runId: run.rows[0].id, segmentIds };
 		}
+		lockA = await seedLockRecording();
+		lockB = await seedLockRecording();
 
 		const express = require('express');
 		request = require('supertest');
@@ -273,63 +297,94 @@ describeIfDb('#1931 items 1 + 2 (real DB — fresh-install rig)', () => {
 
 	// ── Item 2 ────────────────────────────────────────────────────────
 
-	it('item 2: while a stitch-shaped holder owns the recording row, the transcribe swap cannot touch the old segments; after release it completes and replaces the generation', async () => {
+	async function waitForClaim(recordingId) {
+		// The handler's claim has committed (status 'processing') —
+		// the swap itself cannot have begun: the ASR leg takes 1500 ms.
+		for (let i = 0; i < 80; i++) {
+			const st = await pool.query(`SELECT status FROM interview_recordings WHERE id = $1`, [
+				recordingId,
+			]);
+			if (st.rows[0].status === 'processing') return true;
+			await new Promise((r) => setTimeout(r, 25));
+		}
+		return false;
+	}
+
+	async function probeLocks(probe, fixture) {
+		// NOWAIT-lock the run row and every old segment from a third
+		// connection; returns the locked row counts or the error.
+		await probe.query('BEGIN');
+		try {
+			const run = await probe.query(
+				`SELECT id FROM diarization_runs WHERE id = $1 FOR UPDATE NOWAIT`,
+				[fixture.runId],
+			);
+			const segs = await probe.query(
+				`SELECT id FROM interview_transcripts WHERE id = ANY($1::int[]) FOR UPDATE NOWAIT`,
+				[fixture.segmentIds],
+			);
+			await probe.query('ROLLBACK').catch(() => {});
+			return { error: null, runRows: run.rows.length, segRows: segs.rows.length };
+		} catch (err) {
+			await probe.query('ROLLBACK').catch(() => {});
+			return { error: err, runRows: -1, segRows: -1 };
+		}
+	}
+
+	function fireTranscribe(recordingId) {
+		// .then() is attached immediately: supertest only sends the
+		// request once the thenable is engaged.
+		return request(app)
+			.post(`/api/interviews/recordings/${recordingId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`)
+			.then((r) => r);
+	}
+
+	async function expectGenerationReplaced(fixture) {
+		const after = await pool.query(
+			`SELECT id, text FROM interview_transcripts WHERE recording_id = $1 ORDER BY start_time_ms`,
+			[fixture.recordingId],
+		);
+		expect(after.rows.map((r) => r.text).join('')).toBe(GEN2.text);
+		expect(after.rows.some((r) => fixture.segmentIds.includes(r.id))).toBe(false);
+		const runs = await pool.query(
+			`SELECT COUNT(*)::int AS n FROM diarization_runs WHERE recording_id = $1`,
+			[fixture.recordingId],
+		);
+		expect(runs.rows[0].n).toBe(0); // old run deleted with its generation
+	}
+
+	it('item 2 (scenario 1): while a stitch-shaped holder owns job → recording, the swap touches nothing; after release it completes and replaces the generation', async () => {
 		const holder = await pool.connect();
 		const probe = await pool.connect();
 		let responsePromise;
 		try {
-			// .then() is attached immediately: supertest only sends the
-			// request once the thenable is engaged.
-			responsePromise = request(app)
-				.post(`/api/interviews/recordings/${lockRecordingId}/transcribe`)
-				.set('Authorization', `Bearer ${recToken()}`)
-				.then((r) => r);
+			responsePromise = fireTranscribe(lockA.recordingId);
+			expect(await waitForClaim(lockA.recordingId)).toBe(true);
 
-			// Wait until the handler's claim has committed (status
-			// 'processing') — the swap itself cannot have begun: the
-			// ASR leg takes 1500 ms.
-			let claimed = false;
-			for (let i = 0; i < 80 && !claimed; i++) {
-				const st = await pool.query(`SELECT status FROM interview_recordings WHERE id = $1`, [
-					lockRecordingId,
-				]);
-				claimed = st.rows[0].status === 'processing';
-				if (!claimed) await new Promise((r) => setTimeout(r, 25));
-			}
-			expect(claimed).toBe(true);
-
-			// Take the recording-row lock the way persistStitch does
-			// (its second lock, after the job row).
+			// persistStitch's exact lock shape: job row, then recording.
 			await holder.query('BEGIN');
+			await holder.query(`SELECT id FROM diarization_jobs WHERE id = $1 FOR UPDATE`, [
+				lockA.jobId,
+			]);
 			await holder.query(`SELECT id FROM interview_recordings WHERE id = $1 FOR UPDATE`, [
-				lockRecordingId,
+				lockA.recordingId,
 			]);
 
 			// Give the handler time to finish ASR and attempt its swap.
 			await new Promise((r) => setTimeout(r, 2000));
 
-			// Probe: with lock-first, the swap is parked on the
-			// recording row and the old segments are lockable; pre-fix
-			// the swap has already deleted them (probe → 55P03).
-			await probe.query('BEGIN');
-			let probeError = null;
-			try {
-				await probe.query(
-					`SELECT id FROM interview_transcripts WHERE id = ANY($1::int[]) FOR UPDATE NOWAIT`,
-					[oldSegmentIds],
-				);
-			} catch (err) {
-				probeError = err;
-			}
-			await probe.query('ROLLBACK').catch(() => {});
-			expect(probeError).toBeNull();
+			const probeResult = await probeLocks(probe, lockA);
+			expect(probeResult.error).toBeNull();
+			expect(probeResult.runRows).toBe(1);
+			expect(probeResult.segRows).toBe(3);
 
-			// The old generation is still the visible state.
+			// The old (3-segment) generation is still the visible state.
 			const visible = await pool.query(
 				`SELECT COUNT(*)::int AS n FROM interview_transcripts WHERE recording_id = $1`,
-				[lockRecordingId],
+				[lockA.recordingId],
 			);
-			expect(visible.rows[0].n).toBe(2);
+			expect(visible.rows[0].n).toBe(3);
 
 			await holder.query('COMMIT');
 		} finally {
@@ -340,13 +395,43 @@ describeIfDb('#1931 items 1 + 2 (real DB — fresh-install rig)', () => {
 
 		const res = await responsePromise;
 		expect(res.status).toBe(200);
-		const after = await pool.query(
-			`SELECT id, text FROM interview_transcripts WHERE recording_id = $1 ORDER BY start_time_ms`,
-			[lockRecordingId],
-		);
-		expect(after.rows.map((r) => r.text).join('')).toBe(GEN2.text);
-		expect(
-			after.rows.some((r) => oldSegmentIds.includes(r.id)),
-		).toBe(false);
+		await expectGenerationReplaced(lockA);
+	});
+
+	it('item 2 (scenario 2): while a stitch holds ONLY its job row (the deadlock window), the jobs-first swap parks holding nothing — the run row stays lockable', async () => {
+		const holder = await pool.connect();
+		const probe = await pool.connect();
+		let responsePromise;
+		try {
+			responsePromise = fireTranscribe(lockB.recordingId);
+			expect(await waitForClaim(lockB.recordingId)).toBe(true);
+
+			// A stitch caught between its two locks: job held,
+			// recording not yet taken.
+			await holder.query('BEGIN');
+			await holder.query(`SELECT id FROM diarization_jobs WHERE id = $1 FOR UPDATE`, [
+				lockB.jobId,
+			]);
+
+			await new Promise((r) => setTimeout(r, 2000));
+
+			// Jobs-first: the swap is parked on its first statement and
+			// has deleted nothing — the run row still locks. The
+			// recording-only variant would have deleted it (55P03).
+			const probeResult = await probeLocks(probe, lockB);
+			expect(probeResult.error).toBeNull();
+			expect(probeResult.runRows).toBe(1);
+			expect(probeResult.segRows).toBe(3);
+
+			await holder.query('COMMIT');
+		} finally {
+			await holder.query('ROLLBACK').catch(() => {});
+			holder.release();
+			probe.release();
+		}
+
+		const res = await responsePromise;
+		expect(res.status).toBe(200);
+		await expectGenerationReplaced(lockB);
 	});
 });
