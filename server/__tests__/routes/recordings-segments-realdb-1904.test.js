@@ -755,6 +755,26 @@ describeIfDb('#1904 S-D02 recordings segments (realdb journey)', () => {
 		).rows;
 		expect(genSegs.length).toBe(3);
 
+		// #1999 MINOR-2: snapshot the FULL artefact rows (not just
+		// counts) before the re-run, so the intactness pin below is
+		// full-row equality — a count-preserving in-place mutation
+		// of an artefact row must fail this pin, not pass it. All
+		// four tables carry `id SERIAL PRIMARY KEY` (migration 296),
+		// so ORDER BY id is deterministic.
+		const artefactTables = [
+			'diarization_runs',
+			'recording_speaker_mappings',
+			'transcript_speaker_audit',
+			'diarization_jobs',
+		];
+		const genArtefacts = {};
+		for (const table of artefactTables) {
+			genArtefacts[table] = (
+				await q(`SELECT * FROM ${table} WHERE recording_id = $1 ORDER BY id`, [pinId])
+			).rows;
+			expect(genArtefacts[table].length).toBe(1);
+		}
+
 		// Install the trigger AFTER all seeding (specialist placement
 		// rule), as committed statements on this pool — DDL inside an
 		// uncommitted test transaction would be invisible to the
@@ -783,14 +803,26 @@ describeIfDb('#1904 S-D02 recordings segments (realdb journey)', () => {
 		// both. Teardown runs in finally, BEFORE the assertions below
 		// (specialist rule), trigger before function (dependency order).
 		let res;
+		let reqErr;
 		try {
 			asrMode = 'trigfail';
 			res = await request(app)
 				.post(`/api/interviews/recordings/${pinId}/transcribe`)
 				.set('Authorization', `Bearer ${recToken()}`);
+		} catch (err) {
+			// #1999 MINOR-1: capture a thrown request instead of
+			// letting it surface as a TypeError on `res.status`
+			// below (res stays undefined when the request throws).
+			// Teardown still runs in finally either way.
+			reqErr = err;
 		} finally {
 			await q(`DROP TRIGGER IF EXISTS test1997_fail_trigger ON interview_transcripts`);
 			await q(`DROP FUNCTION IF EXISTS test1997_fail_insert()`);
+		}
+		if (reqErr) {
+			throw new Error(
+				`pin C transcribe request threw instead of returning HTTP 500: ${reqErr.stack || reqErr}`,
+			);
 		}
 		expect(res.status).toBe(500);
 
@@ -806,16 +838,14 @@ describeIfDb('#1904 S-D02 recordings segments (realdb journey)', () => {
 			)
 		).rows;
 		expect(afterSegs).toEqual(genSegs);
-		for (const table of [
-			'diarization_runs',
-			'recording_speaker_mappings',
-			'transcript_speaker_audit',
-			'diarization_jobs',
-		]) {
-			const left = await q(`SELECT COUNT(*)::int AS n FROM ${table} WHERE recording_id = $1`, [
-				pinId,
-			]);
-			expect(left.rows[0].n).toBe(1);
+		// #1999 MINOR-2: full-row equality against the pre-run
+		// snapshot — strictly stronger than the previous count-only
+		// check (a mutated-but-present artefact row now fails).
+		for (const table of artefactTables) {
+			const after = (
+				await q(`SELECT * FROM ${table} WHERE recording_id = $1 ORDER BY id`, [pinId])
+			).rows;
+			expect(after).toEqual(genArtefacts[table]);
 		}
 		const rec = await q(
 			`SELECT status, diarization_status FROM interview_recordings WHERE id = $1`,
