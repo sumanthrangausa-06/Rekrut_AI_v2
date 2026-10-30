@@ -25,6 +25,15 @@
  *   DIARIZATION_INTEGRATION_DB_URL='postgresql://postgres@127.0.0.1:55433/sd05_e2e' \
  *   DIARIZATION_WEIGHTS_DIR=$HOME/.cache/rekrut-diarization/weights \
  *     npx jest server/__tests__/lib/diarizationEngine.integration.test.js --forceExit
+ *
+ * SERIALIZED INVOCATION (#1941 harness lane — MUST run alone):
+ * this suite MUST be run alone, in its own jest invocation, with
+ * --runInBand --forceExit — never inside parallel regression batches
+ * and never concurrent with other suites. Ops rule (#1918/#1941):
+ * before running, require ≥2 GB available RAM and /tmp headroom.
+ * The engine child peaks ~850 MB on a no-swap VM; in a low-memory
+ * window the kernel OOM-kills it and the job fails as engine_oom
+ * (the harness retries that class exactly once — see AC-2 below).
  */
 jest.unmock('../../../lib/db');
 
@@ -40,6 +49,23 @@ const WAV_PATH = path.join(SPIKE_DIR, 'audio', 'interview_mixed.wav');
 const GT_PATH = path.join(SPIKE_DIR, 'audio', 'ground_truth.json');
 
 const describeIfDb = DB_URL ? describe : describe.skip;
+
+/**
+ * AC-3 scoping (#1941): keep only git-status entries under workers/ —
+ * the tree the engine child can actually dirty. Porcelain lines are
+ * `XY <path>` (renames: `XY <orig> -> <path>`; the destination is
+ * what exists in the tree now).
+ */
+function scopeStatusToWorkers(status) {
+	return status
+		.split('\n')
+		.filter((line) => {
+			if (!line.trim()) return false;
+			const p = line.slice(3).split(' -> ').pop();
+			return p === 'workers' || p.startsWith('workers/');
+		})
+		.join('\n');
+}
 
 /** Spike-scorer method: 10 ms grid, best-overlap speaker mapping. */
 function scoreAttribution(gt, turns) {
@@ -89,6 +115,20 @@ describeIfDb('diarization engine (real child, real DB — S-D05)', () => {
 	let candidateId;
 	let sessionId;
 	let recordingId;
+
+	/**
+	 * Read a diarization_jobs row back INSIDE the test (#1941): the
+	 * afterAll teardown deletes the recording and the cascade takes
+	 * the job rows with it, so a failed job's error_class /
+	 * error_message can only ever be captured here, before teardown.
+	 */
+	async function readJobRow(jobId) {
+		const { rows } = await pool.query(
+			`SELECT id, status, error_class, error_message FROM diarization_jobs WHERE id = $1`,
+			[jobId],
+		);
+		return rows[0] || null;
+	}
 
 	beforeAll(async () => {
 		process.env.DATABASE_URL = DB_URL;
@@ -149,10 +189,43 @@ describeIfDb('diarization engine (real child, real DB — S-D05)', () => {
 		});
 
 		await diarizationJobs.enqueue(recordingId);
-		const job = await diarizationJobs.claim('sd05-it-worker');
-		const result = await worker.processJob(job, { fetchAudio: async () => wav });
+		let job = await diarizationJobs.claim('sd05-it-worker');
+		let result = await worker.processJob(job, { fetchAudio: async () => wav });
 
-		expect(result.outcome).toBe('complete');
+		if (result.outcome !== 'complete') {
+			// #1941: never fail bare — capture the job row before
+			// teardown cascade-deletes it, and log it either way.
+			const attemptRow = await readJobRow(job.id);
+			console.error('[sd05-gate] AC-2 attempt 1 job row:', attemptRow);
+			if (result.outcome === 'failed' && result.errorClass === 'engine_oom') {
+				// Single retry on engine_oom ONLY (#1941): a fresh job,
+				// claimed and processed exactly once more. Any other
+				// errorClass — and any second failure — does not retry.
+				// Claim loop: claim() returns retryable failed rows
+				// oldest-first, so the first claim re-claims attempt 1 —
+				// and processing THAT row after a fresh enqueue returns
+				// 'superseded' (the fresh row made its generation stale;
+				// proven by the #1941 probe-b first run). Keep claiming
+				// until the fresh row itself is returned and process
+				// only it; the re-claimed attempt-1 row stays claimed
+				// and is cascade-deleted with the recording at teardown.
+				const fresh = await diarizationJobs.enqueue(recordingId);
+				job = await diarizationJobs.claim('sd05-it-worker');
+				while (job && job.id !== fresh.id) {
+					job = await diarizationJobs.claim('sd05-it-worker');
+				}
+				if (job) {
+					result = await worker.processJob(job, { fetchAudio: async () => wav });
+				}
+			}
+			if (result.outcome !== 'complete') {
+				const failedRow = job ? await readJobRow(job.id) : attemptRow;
+				console.error('[sd05-gate] AC-2 failed job row:', failedRow);
+				throw new Error(
+					`AC-2 diarization job did not complete: result=${JSON.stringify(result)} job row=${JSON.stringify(failedRow)}`,
+				);
+			}
+		}
 
 		const { rows } = await pool.query(
 			`SELECT engine_package, sdk_version, model_version, speaker_count, turns, coverage_end_ms
@@ -173,12 +246,24 @@ describeIfDb('diarization engine (real child, real DB — S-D05)', () => {
 		console.log(`[sd05-gate] attribution correct share = ${(correct * 100).toFixed(2)}%`);
 		expect(correct).toBeGreaterThanOrEqual(0.98);
 
-		// AC-3 sweep: the run created no files in the repo tree
+		// AC-3 sweep: the run created no files in the repo tree.
+		// #1941: the comparison is scoped to workers/ — the tree the
+		// engine child can actually dirty. The whole-clone comparison
+		// failed whenever any concurrent unrelated write landed in
+		// this shared clone during the engine window, engine healthy.
 		const repoStatusAfter = execSync('git status --porcelain', {
 			cwd: path.join(__dirname, '..', '..', '..'),
 			encoding: 'utf8',
 		});
-		expect(repoStatusAfter).toBe(repoStatusBefore);
+		const scopedBefore = scopeStatusToWorkers(repoStatusBefore);
+		const scopedAfter = scopeStatusToWorkers(repoStatusAfter);
+		if (scopedAfter !== scopedBefore) {
+			console.error(
+				'[sd05-gate] AC-3 workers/ mismatch — full unfiltered diff (before vs after):\n' +
+					`BEFORE:\n${repoStatusBefore}\nAFTER:\n${repoStatusAfter}`,
+			);
+		}
+		expect(scopedAfter).toBe(scopedBefore);
 		const stray = execSync(
 			`find workers -path '*/node_modules' -prune -o -type f \\( -name '*.wav' -o -name '*.pcm' -o -name '*.tflite' -o -name '*.onnx' \\) -print`,
 			{ cwd: path.join(__dirname, '..', '..', '..'), encoding: 'utf8' },
