@@ -761,9 +761,10 @@ router.post(
 			// When the duration is unknown (NULL/0) there is no honest
 			// bound to apply and none is. Sorting is stable by (start,
 			// end, provider order), so stored order, the transcript
-			// GET's ORDER BY start_time_ms, and chronological order are
-			// the same order. Pure transform, before BEGIN: the swap
-			// transaction below is unchanged.
+			// GET's ORDER BY start_time_ms, id (#1997: id breaks
+			// equal-start ties in stored order), and chronological
+			// order are the same order. Pure transform, before BEGIN:
+			// the swap transaction below is unchanged.
 			const durationMs =
 				Number.isFinite(recording.duration_seconds) && recording.duration_seconds > 0
 					? Math.round(recording.duration_seconds * 1000)
@@ -939,12 +940,12 @@ router.get(
 						 FROM interview_transcripts
 						 WHERE recording_id = $1
 						 AND text IS DISTINCT FROM '[purged]'
-						 ORDER BY start_time_ms`
+						 ORDER BY start_time_ms, id`
 					: `SELECT id, speaker_identity, text, start_time_ms, end_time_ms, confidence, created_at
 						 FROM interview_transcripts
 						 WHERE recording_id = $1
 						 AND text IS DISTINCT FROM '[purged]'
-						 ORDER BY start_time_ms`,
+						 ORDER BY start_time_ms, id`,
 				[recordingId],
 			);
 
