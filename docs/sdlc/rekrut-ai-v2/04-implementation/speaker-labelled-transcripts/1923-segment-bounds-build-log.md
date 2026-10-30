@@ -114,15 +114,20 @@ nobody uid cannot traverse `~/workspace` on this VM). Fresh
 databases per phase; the repo's real `node migrate.js`: **exit 0**,
 "All migrations completed successfully" (both runs).
 
-- **Red first (base handler `b2a9368f5`, fresh DB
-  `sd02_1923_base`): 2 failed / 7 passed of 9.** Bounds: stored
+- **Red first (base handler `b2a9368f5` in a scratch worktree with
+  only the final test file added, fresh DB `sd02_1923_red3`,
+  migrate exit 0): 4 failed / 7 passed of 11.** Bounds: stored
   `[2000, 9999000]` plus the ghost `[100000, 101000]` instead of
   `[2000, 12000]` alone. Order: stored id-order starts
-  `[6500, 0, 2000]`. Pins A and B **passed on base** — they pin
-  existing atomicity and are reported as pins, not fixes. The 5
-  shipped cases passed.
-- **Green (fresh DB `sd02_1923_gate`, migrate exit 0): 9 passed,
-  9 total** — all assertions read back from the DB / GET.
+  `[6500, 0, 2000]`. All-outside: stored with HTTP 200 instead of
+  the honest 500. Tie-break: stored in provider order
+  `[2000,6500] [2000,3000]`. Pins A and B **passed on base** — they
+  pin existing atomicity and are reported as pins, not fixes. The
+  5 shipped cases passed.
+- **Green (fresh DB `sd02_1923_final`, migrate exit 0): 11 passed,
+  11 total** — all assertions read back from the DB / GET. (An
+  earlier 9-case cycle on `sd02_1923_gate` also passed 9/9 before
+  the two review-disposition cases below were added.)
 - **Regressions (gate DB + mocked batch): 172 passed, 0 failed** —
   mocked/unit: recordings-transcribe-claim,
   recordings-whisper-confidence-1619, recordings-encryption,
@@ -141,3 +146,44 @@ databases per phase; the repo's real `node migrate.js`: **exit 0**,
 
 No migration; no staging/main contact; `RETENTION_PURGE_LIVE`
 untouched; `DIARIZATION_ENABLED` stays OFF; no email/outreach.
+
+## Independent review (of head `3a9c8efd1`) — PASS, no BLOCKs
+
+Reviewer: separate subagent (ecc code-reviewer + database-reviewer
+lenses), did not write the code. It verified the diff line-by-line
+(transform truly pre-`BEGIN`; the second `pool.connect()` and the
+GET loop untouched; diff = exactly 3 files, no migration/flag/§3.2
+change), confirmed pin A genuinely fails mid-transaction
+(`end_time_ms = 1e19 > int8 max`; the fixture's first segment
+survives the deletes only inside the rolled-back transaction), and
+re-ran the gates itself: fresh DB `sd02_1923_rev` → migrate exit 0
+→ **9/9 at head**; the two defect cases fail against the base
+handler in its scratch worktree; mocked neighbours **12/12**. It
+also probed the clamp directly: stored `[0,2000] [2000,12000]`,
+the drop `console.warn` fired.
+
+Minors and dispositions (all MINOR, none blocking):
+
+- **M1 (log wording vs the rounded-ms drop condition)** — recorded,
+  no change: storage operates in rounded ms throughout (the old
+  insert rounded identically); a segment starting within 0.5ms
+  before the end rounds to the boundary and is treated as
+  at-duration. Comparing raw seconds instead would store rows whose
+  rounded start is ≥ the duration — the worse inconsistency.
+- **M2 (pin A did not assert the NULL duration it depends on)** —
+  FIXED post-review: pin A now reads the recording row back and
+  asserts `duration_seconds` IS NULL.
+- **M3 (the one-time transcribe response text can contain dropped
+  words)** — recorded, flagged for Suga in the PR body: pre-existing
+  AC-3 ambiguity (response = the ASR result verbatim); the
+  divergence is named in STOP 1 and above. No behaviour change in
+  this lane.
+- **M4 (no journey case for empty-after-drop or the tie-breaks)** —
+  FIXED post-review: two cases added (all-outside payload → honest
+  500, nothing stored, recording `completed`; equal-start segments
+  stored ordered by end). Both are red on base / green at head (see
+  the final red/green counts above). Handler code is unchanged
+  after the review; only tests were added.
+- **M5 (minor line-reference drift in evidence text)** — recorded;
+  no load-bearing claim in this log rests on a line number (STOP 1
+  comment id, PR number and commit SHAs are the references).

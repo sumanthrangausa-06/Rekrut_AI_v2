@@ -99,7 +99,28 @@ const OVERFLOW = {
 	],
 };
 
-let asrMode = 'gen1'; // 'gen1' | 'gen2' | 'fail' | 'bounds' | 'unsorted' | 'overflow'
+// #1923 tie fixture: two segments share a start; the longer is
+// delivered first, so only the (start, end) sort key can order them.
+const TIE = {
+	task: 'transcription',
+	language: 'english',
+	duration: 12.0,
+	text: ' Longer segment. Short segment.',
+	segments: [
+		{ id: 0, start: 2.0, end: 6.5, text: ' Longer segment.' },
+		{ id: 1, start: 2.0, end: 3.0, text: ' Short segment.' },
+	],
+};
+// #1923 all-outside fixture: the only segment lies past the duration.
+const ALLOUT = {
+	task: 'transcription',
+	language: 'english',
+	duration: 12.0,
+	text: ' Ghost words.',
+	segments: [{ id: 0, start: 100.0, end: 101.0, text: ' Ghost words.' }],
+};
+
+let asrMode = 'gen1'; // 'gen1' | 'gen2' | 'fail' | 'bounds' | 'unsorted' | 'overflow' | 'tie' | 'allout'
 let asrServer;
 let audioServer;
 let asrPort;
@@ -188,7 +209,11 @@ describeIfDb('#1904 S-D02 recordings segments (realdb journey)', () => {
 								? UNSORTED
 								: asrMode === 'overflow'
 									? OVERFLOW
-									: GEN1;
+									: asrMode === 'tie'
+										? TIE
+										: asrMode === 'allout'
+											? ALLOUT
+											: GEN1;
 				return res.end(JSON.stringify(payload));
 			});
 		});
@@ -487,6 +512,12 @@ describeIfDb('#1904 S-D02 recordings segments (realdb journey)', () => {
 			`UPDATE interview_recordings SET diarization_status = 'complete', diarization_updated_at = NOW() WHERE id = $1`,
 			[pinId],
 		);
+		// M2 (independent review): the NULL duration this pin depends
+		// on is asserted from the recording row, not just the seed call.
+		const pinRec = await q(`SELECT duration_seconds FROM interview_recordings WHERE id = $1`, [
+			pinId,
+		]);
+		expect(pinRec.rows[0].duration_seconds).toBeNull();
 		const genSegs = (
 			await q(
 				`SELECT id, text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
@@ -566,5 +597,40 @@ describeIfDb('#1904 S-D02 recordings segments (realdb journey)', () => {
 			[freshId],
 		);
 		expect(rec.rows[0].status).toBe('completed');
+	});
+	test('#1923 bounds: a payload whose only segment lies outside the duration fails honestly and stores nothing', async () => {
+		const freshId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`);
+		asrMode = 'allout';
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${freshId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(res.status).toBe(500);
+		const rows = await seedPool.query(
+			`SELECT COUNT(*)::int AS n FROM interview_transcripts WHERE recording_id = $1`,
+			[freshId],
+		);
+		expect(rows.rows[0].n).toBe(0);
+		const rec = await seedPool.query(
+			`SELECT status FROM interview_recordings WHERE id = $1`,
+			[freshId],
+		);
+		expect(rec.rows[0].status).toBe('completed');
+	});
+
+	test('#1923 order: equal-start segments are stored ordered by end_time_ms (tie-break)', async () => {
+		const freshId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`);
+		asrMode = 'tie';
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${freshId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(res.status).toBe(200);
+		const dbSegs = await seedPool.query(
+			`SELECT text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
+			[freshId],
+		);
+		expect(dbSegs.rows.map((r) => [Number(r.start_time_ms), Number(r.end_time_ms)])).toEqual([
+			[2000, 3000],
+			[2000, 6500],
+		]);
 	});
 });
