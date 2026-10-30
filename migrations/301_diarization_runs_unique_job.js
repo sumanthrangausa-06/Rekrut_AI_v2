@@ -29,12 +29,12 @@
 // docs/sdlc/rekrut-ai-v2/04-implementation/speaker-labelled-transcripts/
 // 1931-runs-unique-lockfirst-build-log.md).
 //
-// EXISTING DUPLICATES: if a live database already held two runs for one
-// non-null job, CREATE UNIQUE INDEX fails loudly and the migration
-// records no success — that is deliberate (migration 296's fail-loud
-// post-state pattern). Deduplicating retained audit output is a data
-// decision for a human gate, never something a migration may do
-// silently.
+// EXISTING DUPLICATES: a pre-flight check (database-reviewer MAJOR on
+// #1931) fails the migration loudly NAMING every offending job_id and
+// its count, before any index build is attempted — diagnosable, not a
+// raw duplicate-key error. Deduplicating retained audit output is a
+// data decision for a human gate, never something a migration may do
+// silently; after that gate, this idempotent migration re-runs clean.
 //
 // EXECUTION GATE: like migration 296, this executes on the shared Neon
 // database only in dev → staging → main promotion order after the
@@ -50,26 +50,45 @@
 module.exports = {
 	name: '301_diarization_runs_unique_job',
 	up: async (client) => {
+		// Pre-flight (database-reviewer MAJOR on #1931): name any
+		// pre-existing duplicate non-null job_ids and fail loud BEFORE
+		// the index build — remediation is a separate data gate.
+		const dups = await client.query(
+			`SELECT job_id, COUNT(*)::int AS n FROM diarization_runs
+			 WHERE job_id IS NOT NULL
+			 GROUP BY job_id HAVING COUNT(*) > 1
+			 ORDER BY job_id`,
+		);
+		if (dups.rows.length > 0) {
+			throw new Error(
+				`Migration 301 pre-flight failed: diarization_runs already holds duplicate runs for job_id(s) ${dups.rows.map((r) => `${r.job_id} (x${r.n})`).join(', ')} — deduplication is a separate approved data gate; this migration deletes nothing`,
+			);
+		}
+
 		await client.query(`
 			CREATE UNIQUE INDEX IF NOT EXISTS ux_diarization_runs_job_id
 			ON diarization_runs(job_id)
 		`);
 
-		// Post-state assertion (fail loud, migration 296 pattern): the
-		// index exists, is unique, and covers exactly (job_id) — a
-		// silently-skipped or wrong-shaped index must not record
-		// success. pg_indexes carries the definition text for both
-		// constraint-backed and standalone unique indexes.
+		// Post-state assertion (fail loud, migration 296 pattern;
+		// catalogue per database-reviewer MINOR on #1931): a standalone
+		// unique index creates no pg_constraint row, so uniqueness is
+		// proven on pg_index — indisunique, non-partial, key column
+		// exactly job_id — supplemented by the pg_indexes definition.
 		const idx = await client.query(
-			`SELECT indexdef FROM pg_indexes
-			 WHERE schemaname = 'public'
-			   AND tablename = 'diarization_runs'
-			   AND indexname = 'ux_diarization_runs_job_id'`,
+			`SELECT i.indisunique, i.indpred IS NULL AS non_partial, a.attname AS key_column
+			 FROM pg_index i
+			 JOIN pg_class ic ON ic.oid = i.indexrelid
+			 JOIN pg_class tc ON tc.oid = i.indrelid
+			 JOIN pg_attribute a ON a.attrelid = tc.oid AND a.attnum = ANY(i.indkey)
+			 WHERE ic.relname = 'ux_diarization_runs_job_id'
+			   AND tc.relname = 'diarization_runs'`,
 		);
 		if (
 			idx.rows.length !== 1 ||
-			!/CREATE UNIQUE INDEX/.test(idx.rows[0].indexdef) ||
-			!/\(job_id\)/.test(idx.rows[0].indexdef)
+			idx.rows[0].indisunique !== true ||
+			idx.rows[0].non_partial !== true ||
+			idx.rows[0].key_column !== 'job_id'
 		) {
 			throw new Error(
 				`Migration 301 post-state assertion failed: ux_diarization_runs_job_id unique index on diarization_runs(job_id) not present as expected: ${JSON.stringify(idx.rows)}`,

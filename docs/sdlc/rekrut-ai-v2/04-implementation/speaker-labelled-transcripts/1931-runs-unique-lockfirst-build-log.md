@@ -64,38 +64,44 @@ output. Post-state assertion belongs on `pg_indexes`/`pg_index`
 (indisunique) — as built. Keep the migration a single index creation;
 do not fold the lock fix into it (as built — separate file/concern).
 
-(b) Lock ordering — TWO findings that changed the build:
-  1. Taking **only** the recording-row lock first in the swap creates
-     a genuine deadlock cycle: swap holds recording → its
-     `DELETE FROM diarization_jobs` awaits a job row a stitch holds;
-     stitch holds job → awaits recording. Postgres detects it (~1 s)
-     and aborts one side. Acceptable as a backstop, wrong as a design.
-  2. The specialist's preferred global reorder (recording → jobs →
-     runs → transcripts in BOTH paths, stitch included) plus merging
-     the claim into the swap transaction exceeds this lane's scope:
-     it rewrites S-D07's stitch lock order and the claim's 409
-     semantics, and a claim-to-swap single transaction would hold
-     locks across the audio download + ASR calls (against the
-     reviewer's own short-transaction principle).
-  ADOPTED for this lane (minimum diff, no new deadlock): the swap
-  acquires locks in **stitch's existing order** — (1)
-  `SELECT id FROM diarization_jobs WHERE recording_id=$1 ORDER BY id
-  FOR UPDATE`, then (2) `SELECT id FROM interview_recordings WHERE
-  id=$1 FOR UPDATE` — both before any DELETE. Invariant: with both
-  paths acquiring jobs → recording, neither can hold one of these
-  locks while awaiting the other (whoever holds the recording lock
-  already holds the job locks; whoever awaits a job lock holds
-  neither). Serialisation outcomes: stitch first → swap blocks on
-  the job lock holding nothing, then deletes the completed stitch's
-  artefacts with the old generation; swap first → stitch blocks on
-  its job lock holding nothing, its job row is deleted by the swap,
-  and its guard fails as superseded after the swap commits.
-  Residual (recorded, not built): the claim flip still precedes the
-  swap by the download/ASR window; a stitch completing inside that
-  window labels the OLD generation, which the swap then replaces
-  wholesale — a consistent final state (new generation wins), not an
-  interleave. Closing even that window is the specialist's larger
-  restructure, for Lead to slot if wanted.
+(b) Lock ordering — the specialist's BLOCK, adopted exactly as
+  prescribed. Taking **only** the recording-row lock first in the
+  swap creates a genuine AB–BA deadlock: swap holds recording → its
+  `DELETE FROM diarization_jobs` awaits the job row a stitch holds;
+  stitch holds job → awaits recording; Postgres aborts one side with
+  40P01 (~1 s) — either a user-facing 500 after the Whisper call or
+  a discarded labelling. Prescribed fix (built verbatim): the swap's
+  first statement after BEGIN locks **all** jobs for the recording,
+  ascending id — (1) `SELECT id FROM diarization_jobs WHERE
+  recording_id=$1 ORDER BY id FOR UPDATE`, then (2) `SELECT id FROM
+  interview_recordings WHERE id=$1 FOR UPDATE` — both before any
+  DELETE, DELETE order unchanged (runs must precede jobs: plain FK,
+  no cascade). Canonical order for both paths: jobs → recording →
+  child artefacts. Whoever takes the jobs first wins cleanly: the
+  other blocks on its first statement holding nothing; if the swap
+  wins, the stitch's job row is gone after commit and its guard
+  fails as superseded. Locking all jobs (not just the newest)
+  matters: a non-newest job's stitch takes its own job lock before
+  the recording lock too. The specialist also confirmed the
+  pre-BEGIN claim UPDATE does not change the analysis (autocommit;
+  second transcribe already excluded by claim rowCount-0 → 409) and
+  the only enqueue caller runs after the swap commits — no TOCTOU
+  hole in the in-scope paths. Residual (recorded, not built): the
+  claim flip precedes the swap by the download/ASR window; a stitch
+  completing inside that window labels the OLD generation, which the
+  swap then replaces wholesale — a consistent final state (new
+  generation wins), not an interleave.
+
+(a) amendment from the specialist's full report (applied after the
+  first green, same PR): MAJOR — the migration carries a
+  **pre-flight duplicate check** that fails loud NAMING each
+  offending job_id and count, and never dedupes (proven live: with a
+  planted duplicate pair it threw "job_id(s) 21 (x2)" and built
+  nothing; after a manual dedup it ran clean). MINOR — the
+  post-state assertion now proves uniqueness on **pg_index**
+  (indisunique = true, non-partial, key column exactly job_id),
+  since a standalone unique index creates no pg_constraint row; the
+  mocked-client suite covers both (6/6).
 
 ## Changes
 
