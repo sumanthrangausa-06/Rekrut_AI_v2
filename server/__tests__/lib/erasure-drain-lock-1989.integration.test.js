@@ -199,6 +199,40 @@ describeIfDb('erasure drain chain lock (real DB, #1989)', () => {
 		expect(result.checked).toBe(1 + LOG_N + PANEL_N);
 	});
 
+	test('chain-lock acquisition failure aborts the erasure fail-closed (review M2)', async () => {
+		await pool.query('DELETE FROM compliance_audit_trail');
+		const seed = await seedCandidate();
+
+		// Hold the chain lock on a separate session so the drain's
+		// acquisition on the erasure client times out (55P03) INSIDE the
+		// per-marker try — the exact path M2 flagged as inspection-only.
+		const holder = await pool.connect();
+		await holder.query(`SELECT pg_advisory_lock(hashtext('compliance-audit-chain'))`);
+		const client = await pool.connect();
+		try {
+			await client.query(`SET lock_timeout = '300ms'`);
+			await client.query('BEGIN');
+			await expect(
+				erasure.erasePersonalData(seed.candidate.id, {
+					client,
+					audit: { userId: seed.candidate.id, userRole: 'candidate', ipAddress: '127.0.0.1', companyId: null },
+				}),
+			).rejects.toMatchObject({ code: 'COMPLIANCE_AUDIT_DRAIN_BLOCKED' });
+			await client.query('ROLLBACK');
+		} finally {
+			client.release();
+			await holder.query(`SELECT pg_advisory_unlock(hashtext('compliance-audit-chain'))`);
+			holder.release();
+		}
+
+		const { rows: screeningRows } = await pool.query(
+			'SELECT id FROM ai_screenings WHERE id = $1', [seed.screening.id],
+		);
+		expect(screeningRows).toHaveLength(1);
+		const { rows: trailRows } = await pool.query('SELECT id FROM compliance_audit_trail');
+		expect(trailRows).toEqual([]);
+	});
+
 	test('drain failure still aborts the whole erasure fail-closed (atomicity preserved)', async () => {
 		await pool.query('DELETE FROM compliance_audit_trail');
 		const seed = await seedCandidate({ eventType: 'bogus_type_1989' });
