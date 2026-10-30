@@ -28,6 +28,8 @@ const U_PANEL = 195503;
 const U_STRANGER = 195504;
 const EV = 19551;
 const EV_OVERLAP = 19552; // candidate also in panel_member_ids
+const EV_FAIL = 19553; // #1961 T-C9 rollback event (cleaned by seed so the suite is re-runnable)
+const EV_RL = 19554; // #1961 T-C8 exact-threshold event (fresh bucket per run)
 
 let app;
 let request;
@@ -43,10 +45,10 @@ const panelTok = () => tok(U_PANEL, 'panel1955@test.local', 'recruiter');
 const candTok = () => tok(U_CAND, 'cand1955@test.local', 'candidate');
 
 async function seed() {
-	await seedPool.query(`DELETE FROM event_labelling_consent WHERE interview_event_id IN ($1,$2)`, [EV, EV_OVERLAP]).catch(() => {});
-	await seedPool.query(`DELETE FROM interview_rooms WHERE interview_event_id IN ($1,$2)`, [EV, EV_OVERLAP]);
-	await seedPool.query(`DELETE FROM interview_recordings WHERE interview_event_id IN ($1,$2)`, [EV, EV_OVERLAP]);
-	await seedPool.query(`DELETE FROM interview_events WHERE id IN ($1,$2)`, [EV, EV_OVERLAP]);
+	await seedPool.query(`DELETE FROM event_labelling_consent WHERE interview_event_id IN ($1,$2,$3,$4)`, [EV, EV_OVERLAP, EV_FAIL, EV_RL]).catch(() => {});
+	await seedPool.query(`DELETE FROM interview_rooms WHERE interview_event_id IN ($1,$2,$3,$4)`, [EV, EV_OVERLAP, EV_FAIL, EV_RL]);
+	await seedPool.query(`DELETE FROM interview_recordings WHERE interview_event_id IN ($1,$2,$3,$4)`, [EV, EV_OVERLAP, EV_FAIL, EV_RL]);
+	await seedPool.query(`DELETE FROM interview_events WHERE id IN ($1,$2,$3,$4)`, [EV, EV_OVERLAP, EV_FAIL, EV_RL]);
 	// #1961: rate-limit buckets persist across suite runs in the same DB —
 	// clear this suite's keys so cap counts are deterministic per run.
 	await seedPool.query(`DELETE FROM rate_limit_buckets WHERE key LIKE 'panel-labelling%'`).catch(() => {});
@@ -233,6 +235,31 @@ describeIfDb('S-D18 BR-7 capture (#1955, realdb)', () => {
 	});
 
 	test('T-C8 (#1961 item 1): per-(user,event) rate limit — uniform 429 past the cap; other user / other event unaffected', async () => {
+		// Exact-threshold leg (review minor, #1961): on a FRESH (user,event)
+		// bucket the cap is exactly 10 — the first 10 captures succeed and
+		// the 11th and 12th are the uniform 429. (The EV leg below cannot
+		// pin the exact number: earlier tests legitimately consumed part
+		// of that bucket, so it asserts shape — 200s, then only 429s.)
+		await seedPool.query(
+			`INSERT INTO interview_events (id, recruiter_id, candidate_id, panel_member_ids, status)
+			 VALUES ($1,$2,$3,$4,'confirmed')`,
+			[EV_RL, U_REC, U_CAND, [U_PANEL]]);
+		const rlRoom = await seedPool.query(
+			`INSERT INTO interview_rooms (interview_event_id, room_name, livekit_room_id, status)
+			 VALUES ($1,'room-1955-rl','RM_rl','active') RETURNING id`, [EV_RL]);
+		const rlTok = await getToken(rlRoom.rows[0].id, panelTok());
+		const rlRoster = rlTok.body.labelling_notice.roster_version;
+		for (let i = 0; i < 10; i++) {
+			const r = await capture(EV_RL, panelTok(), { decision: 'granted', room_id: rlRoom.rows[0].id, roster_version: rlRoster });
+			expect(r.status).toBe(200);
+		}
+		for (let i = 0; i < 2; i++) {
+			const r = await capture(EV_RL, panelTok(), { decision: 'granted', room_id: rlRoom.rows[0].id, roster_version: rlRoster });
+			expect(r.status).toBe(429);
+			expect(r.body).toEqual({ error: 'Too many requests', code: 'RATE_LIMITED' });
+		}
+		expect(await consentRows(EV_RL, U_PANEL)).toHaveLength(10);
+
 		const statuses = [];
 		for (let i = 0; i < 16; i++) {
 			const r = await capture(EV, panelTok(), { decision: 'granted', room_id: roomId, roster_version: rosterVersion });
@@ -258,9 +285,19 @@ describeIfDb('S-D18 BR-7 capture (#1955, realdb)', () => {
 	});
 
 	test('T-C9 (#1961 item 2): mid-transaction failure (notification insert) rolls back — zero consent rows, zero recorded-audit rows', async () => {
-		const EV_FAIL = 19553;
+		await seedPool.query(`DELETE FROM event_labelling_consent WHERE interview_event_id=$1`, [EV_FAIL]).catch(() => {});
 		await seedPool.query(`DELETE FROM interview_rooms WHERE interview_event_id=$1`, [EV_FAIL]);
 		await seedPool.query(`DELETE FROM interview_events WHERE id=$1`, [EV_FAIL]);
+		// Audit rows are append-only (never deleted, even by seed), so the
+		// rollback claim is asserted as a DELTA: the failed capture must
+		// add zero 'recorded' rows. On a fresh DB the baseline is 0, so
+		// this is also the literal zero the issue asks for; the delta
+		// form keeps the suite re-runnable on the same DB (review minor).
+		const recordedCount = async () => (await seedPool.query(
+			`SELECT COUNT(*)::int n FROM compliance_audit_trail
+			 WHERE payload->>'kind'='panel_labelling_capture'
+			   AND (payload->>'event_id')::int=$1 AND payload->>'outcome'='recorded'`, [EV_FAIL])).rows[0].n;
+		const recordedBefore = await recordedCount();
 		await seedPool.query(
 			`INSERT INTO interview_events (id, recruiter_id, candidate_id, panel_member_ids, status)
 			 VALUES ($1,$2,$3,$4,'confirmed')`,
@@ -281,11 +318,7 @@ describeIfDb('S-D18 BR-7 capture (#1955, realdb)', () => {
 			const res = await capture(EV_FAIL, panelTok(), { decision: 'granted', room_id: failRoomId, roster_version: rv });
 			expect(res.status).toBe(500);
 			expect(await consentRows(EV_FAIL, U_PANEL)).toHaveLength(0);
-			const audit = await seedPool.query(
-				`SELECT COUNT(*)::int n FROM compliance_audit_trail
-				 WHERE payload->>'kind'='panel_labelling_capture'
-				   AND (payload->>'event_id')::int=$1 AND payload->>'outcome'='recorded'`, [EV_FAIL]);
-			expect(audit.rows[0].n).toBe(0);
+			expect(await recordedCount()).toBe(recordedBefore);
 		} finally {
 			await seedPool.query(`DROP TRIGGER IF EXISTS trg_sd1961_fail_notif ON user_notifications`);
 			await seedPool.query(`DROP FUNCTION IF EXISTS sd1961_fail_notif()`);
@@ -296,6 +329,7 @@ describeIfDb('S-D18 BR-7 capture (#1955, realdb)', () => {
 		const ok = await capture(EV_FAIL, panelTok(), { decision: 'granted', room_id: failRoomId, roster_version: rv });
 		expect(ok.status).toBe(200);
 		expect(await consentRows(EV_FAIL, U_PANEL)).toHaveLength(1);
+		expect(await recordedCount()).toBe(recordedBefore + 1);
 	});
 
 	test('T-C10 (#1961 item 3): denied-path auditing is capped per user — a 404 flood cannot grow the audit trail unboundedly', async () => {

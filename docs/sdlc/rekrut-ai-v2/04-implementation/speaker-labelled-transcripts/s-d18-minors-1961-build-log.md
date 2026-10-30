@@ -48,6 +48,7 @@ On unmodified base code (only test changes applied), fresh DB, real rig:
 - T-C10 ✕ — denied-audit delta 30 > 20 (no cap).
 - T-C11 ✕ — concurrent appends died on `compliance_audit_trail_current_hash_key` unique violation (fork symptom) and rows were labelled `'user'`.
 - Suite total on base: **3 failed, 10 passed, 13 total**.
+- **Precision note (HL-007, added after independent review):** that red run used the test file as first written, *before* the limiter unmock was added — T-C8's red there is the stub's fingerprint, not a production defect. The independent reviewer reproduced the **final** test file against base production code on its own fresh DB: **2 failed, 11 passed** (T-C10, T-C11 fail; T-C8 passes — once the limiter is unmocked, the production limiter behaves correctly and always did; the item-1 gap was testability, exactly as Discovery 2 states).
 
 ## E2E gate (HL-003) — fresh-install rig, state read back
 
@@ -62,7 +63,14 @@ Local PostgreSQL **18.6** (extracted PGDG tree) on 127.0.0.1:55435; for each int
 
 ## Independent review
 
-_(To be completed with the reviewer's verdict + comment link before the PR opens; a claimed review that cannot be read back will be reported as not obtained.)_
+**Verdict: APPROVE-WITH-MINORS, no BLOCKs** (independent reviewer, ecc/code-reviewer + security lens; did not write this code; reviewed head `284174688`). The reviewer verified first-hand: all 7 denied outcomes route through `auditDenied` (which auth guarantees runs with `req.user` — it sits behind `authMiddleware`); hash inputs unchanged (`entity_type`/`previous_hash` are not hash inputs, so old and new rows verify identically); lock ordering (sole `panel-event:` → chain order; chain lock is a leaf); migration 300 is byte-equivalent in pattern to 254, `_migrations`-gated on re-run and CHECK-idempotent on direct double-`up()` (both reproduced); scope clean (7 files, flags untouched). **Independent re-runs (reviewer's own fresh DB, not the builder's):** unit suites 8/8, the 1955 suite **13 passed / 13**, migrate re-run exit 0 with 197 migrations, and a state read-back matching the builder's exactly (58 audit rows, all `interview_event`, 1 genesis, 0 forks, stranger denied-audit bucket 31 attempts against capped writes).
+
+Minors raised and their disposition:
+
+- **[minor — FIXED] T-C8 asserted the 429 shape but not the exact cap.** A fresh-event leg was added: on a clean (user,event) bucket exactly 10 captures succeed, the 11th and 12th are the uniform 429, and exactly 10 consent rows exist.
+- **[minor — FIXED] T-C9 was not re-runnable on the same DB** (its absolute zero-audit assertion counted a prior run's rows). `seed()` now cleans the T-C9/T-C8 auxiliary events, and T-C9 asserts the recorded-audit count as a delta (literal zero on a fresh DB, where the baseline is 0). Proven: the suite now passes **13/13 twice in a row on the same database** (gate5 run, this log's evidence updated accordingly).
+- **[minor — NOTED, no change] Migration 300's direct double-`up()` drops/re-adds the CHECK** — it converges to the identical single constraint (the reviewer reproduced this); via `migrate.js` it is `_migrations`-gated. Same behaviour as precedent 254.
+- **[cosmetic — NOTED] `console.warn` on cap-skip fires once per skipped write** — bounded by the request rate itself and only past the cap; accepted as the observability the security review required.
 
 ## Not in this PR
 
