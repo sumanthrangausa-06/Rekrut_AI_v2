@@ -79,9 +79,14 @@ function mockPhase1(overrides = {}) {
 		.mockResolvedValueOnce(q([], 0)) // practice_sessions
 		.mockResolvedValueOnce(q([], 0)) // screening_sessions
 		.mockResolvedValueOnce(q([], 0)) // interview_transcripts
+		.mockResolvedValueOnce(q([], 0)) // #1915 S-D13: diarization_runs
+		.mockResolvedValueOnce(q([], 0)) // #1915 S-D13: transcript_speaker_audit
+		.mockResolvedValueOnce(q([], 0)) // #1915 S-D13: recording_speaker_mappings
+		.mockResolvedValueOnce(q([], 0)) // #1915 S-D13: diarization_jobs
 		.mockResolvedValueOnce(q([], 0)) // #1944: cross-recording mapping participant sweep
 		.mockResolvedValueOnce(q([], 0)) // #1944: cross-recording mapping updated_by sweep
 		.mockResolvedValueOnce(q([], 0)) // #1944: cross-recording audit sweep
+		.mockResolvedValueOnce(q([], 0)) // #1956 S-D19: event_labelling_consent
 		.mockResolvedValueOnce(q([], 0)) // omni_scores
 		.mockResolvedValueOnce(q([], 0)) // role_scores
 		.mockResolvedValueOnce(q([], 0)) // screening_answers
