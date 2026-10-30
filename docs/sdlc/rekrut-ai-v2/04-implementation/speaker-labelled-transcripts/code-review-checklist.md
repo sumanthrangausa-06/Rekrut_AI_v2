@@ -86,3 +86,24 @@ shipped source tree (including `services/` and `client/`), against
 backtick-quoted imports, and on the API surface. Any future surface
 that wants a diarization-derived number must come back through a new
 PRD decision (FR-D21 stays deferred).
+
+**Claim narrowed + disclosures (#1945 fence hardening, post-merge
+correction to the wording above):** what is actually guaranteed is
+the current tree's static edges and realistic accidental coupling —
+NOT deliberately obfuscated imports. The hardened fence bans
+dynamic/computed import forms outright in set-S/set-D files
+(`import(...)` banned; `require(...)` only with a single plain
+string-literal argument) and widens the completeness vocabulary
+with `score|evaluat|rank`, but a NEW module named with a synonym the
+vocabulary does not contain (probe P5, e.g. `lib/speakerLabels.js`)
+remains a named residual risk. Two disclosures the fence does not
+cover: (1) segment-level speaking share IS derivable — transcript
+segments carry `speaker_number` / `start_time_ms` / `end_time_ms`,
+so a per-speaker share is computable by summing segment durations;
+the fence bans stored/displayed per-speaker quantities, it cannot
+make share underivable from segment timings a viewer legitimately
+receives. (2) The fence-shape suite exercises only
+`GET /:id/transcript` and `GET /:id/speakers`; the
+`PUT /:id/speakers/mapping` response shape is NOT exercised by it.
+Hardening record: `1945-fence-hardening-build-log.md` in this folder
+(security review of the hardened fence is recorded on its PR).
