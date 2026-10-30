@@ -333,6 +333,57 @@ describeIfDb('transcriptStitch.persistStitch (real DB — S-D07)', () => {
 		expect(segs.map((s) => s.speaker_number)).toEqual([2147483647]);
 	});
 
+	it('#1929 M4/m5: phantom tail — coverage claims only assignable turns; provenance stays verbatim (engine-reported speaker_count)', async () => {
+		const { recordingId, segmentIds, jobId } = await seedRecording([
+			[0, 10000, 'fully covered — speaker 0'],
+			[15000, 25000, 'straddles the coverage end — covered part is speaker 1'],
+			[20000, 24000, 'wholly in the tail — only the 60ms phantom overlaps it'],
+		]);
+		// Two real voices + one abrupt-end phantom (speaker 2,
+		// 20.00–20.06s). The engine-reported speakerCount is 3 and
+		// stays 3 on the run row — that row is verbatim provenance,
+		// never the system's speaker count. The effective speaker set
+		// is the assignable turns only: the phantom never labels,
+		// never maps, and must not extend coverage_end_ms (FR-D15)
+		// past the last real voice (20000, not 20060). The straddle
+		// segment keeps its max-overlap label from its covered part;
+		// the tail segment stays honestly NULL. A phantom does not
+		// fail the job: status still completes (product-complete is
+		// not proof-pass — the proof harness's phantomPass stays
+		// strict by design).
+		const turns = [
+			{ speaker: 0, start_s: 0, end_s: 10 },
+			{ speaker: 1, start_s: 10, end_s: 20 },
+			{ speaker: 2, start_s: 20.0, end_s: 20.06 },
+		];
+		const result = await stitch.persistStitch({
+			jobId, recordingId, expectedSegmentIds: segmentIds,
+			output: { speakerCount: 3, turns, engine: ENGINE },
+		});
+		expect(result.outcome).toBe('complete');
+		expect(result.coverageEndMs).toBe(20000);
+
+		const segs = await segmentsOf(recordingId);
+		expect(segs.map((s) => s.speaker_number)).toEqual([0, 1, null]);
+
+		const run = await pool.query(`SELECT * FROM diarization_runs WHERE recording_id = $1`, [recordingId]);
+		expect(run.rows).toHaveLength(1);
+		expect(run.rows[0].turns).toEqual(turns); // verbatim, phantom included
+		expect(run.rows[0].speaker_count).toBe(3); // engine-reported provenance, verbatim
+		expect(Number(run.rows[0].coverage_end_ms)).toBe(20000); // assignable turns only
+
+		const maps = await pool.query(
+			`SELECT speaker_number FROM recording_speaker_mappings WHERE recording_id = $1 ORDER BY speaker_number`,
+			[recordingId],
+		);
+		expect(maps.rows.map((m) => m.speaker_number)).toEqual([0, 1]); // phantom has no mapping row
+
+		const rec = await pool.query(`SELECT diarization_status FROM interview_recordings WHERE id = $1`, [recordingId]);
+		expect(rec.rows[0].diarization_status).toBe('complete');
+		const job = await pool.query(`SELECT status FROM diarization_jobs WHERE id = $1`, [jobId]);
+		expect(job.rows[0].status).toBe('complete');
+	});
+
 	it('idempotency: a second persist for a completed job writes nothing new', async () => {
 		const { recordingId, segmentIds, jobId } = await seedRecording([[0, 10000, 'once only']]);
 		const output = { speakerCount: 1, turns: [{ speaker: 0, start_s: 0, end_s: 10 }], engine: ENGINE };
