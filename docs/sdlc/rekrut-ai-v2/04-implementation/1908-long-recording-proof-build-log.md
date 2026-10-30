@@ -29,6 +29,10 @@ The first fixture generation hard-truncated the final turn mid-speech at exactly
 
 Earlier 2-min runs on the truncated fixture also measured latency 3.739 s / 5.062 s and peak tree RSS 924.9 / 817.3 MB — run-to-run variance on a shared 2 vCPU VM; the table above is the single consistent full run (all three fixtures, one invocation) and is the run the committed JSON records.
 
+## Annotation — canonical "minute 2" (#1929 m9, 2026-10-30)
+
+The results table above labels the 118.182 s fixture's checked window "Minute-2 mapping", following the naming in force when this proof ran. Under the canonical definition adopted on #1929 (panel comment 6525811830) — "minute N" = [N×60, (N+1)×60) seconds, so minute 2 = [120,180] s — a 118.182 s fixture has no minute 2: the window actually evaluated for it was the distinctly named **early window [60,120] s**, recorded in the committed results JSON under the old minute-2 name (that dated record is not rewritten; its `window_s` states [60, 120]). Note the consequence, stated not hidden: the early window [60,120] overlaps this fixture's final-minute window [58.182,118.182] by ~58 s, so its consistency evidence is weaker by construction — the two "windows" are largely the same speech, unlike the long fixtures where minute 2 and the final minute are fully disjoint. The harness now keys the early window distinctly (`earlyWindow` / `mappingEarlyWindow`) and returns minute 2 as not applicable below 180 s.
+
 ## Infra note
 
 The shared local Postgres rig (previously under `/tmp`) was wiped mid-run by the VM's tmp reaper (HL-009's known fragility). The proof DB was rebuilt durably outside `/tmp` (PGDG PG 16.15 + pgvector 0.8.6 under `/home/pgrunner/`), a fresh `sd06_e2e` database was created, and `node migrate.js` completed with exit 0 before any fixture ran. No measurement was taken against the dead rig.

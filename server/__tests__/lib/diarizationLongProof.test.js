@@ -6,7 +6,11 @@
  * are tested directly — a broken join and a phantom speaker MUST
  * fail here before any fixture run is believed.
  */
-const { evaluateWindow, evaluateFixture } = require('../../../scripts/diarization-long-proof');
+const {
+	evaluateWindow,
+	evaluateFixture,
+	minute2Window,
+} = require('../../../scripts/diarization-long-proof');
 
 const GT = {
 	duration_s: 3600,
@@ -74,6 +78,50 @@ describe('evaluateFixture (S-D06 AC-1/AC-3)', () => {
 		const phantom = [...GOOD_TURNS, { speaker: 2, start_s: 2000, end_s: 2060 }];
 		const r = evaluateFixture(GT, { speakerCount: 3, turns: phantom });
 		expect(r.phantomPass).toBe(false);
+	});
+});
+
+describe('canonical "minute 2" window — #1929 m9', () => {
+	// Canonical definition (panel on #1929, comment 6525811830):
+	// "Minute N" = [N×60, (N+1)×60) seconds. Minute 2 = [120,180].
+	it('minute2Window returns [120,180] at and above 180 s, null below', () => {
+		expect(minute2Window(3600)).toEqual([120, 180]);
+		expect(minute2Window(180)).toEqual([120, 180]);
+		expect(minute2Window(118.182)).toBeNull();
+		expect(minute2Window(179.999)).toBeNull();
+	});
+
+	it('long fixture: minute 2 is [120,180] and there is no early window', () => {
+		const r = evaluateFixture(GT, { speakerCount: 2, turns: GOOD_TURNS });
+		expect(r.minute2.window_s).toEqual([120, 180]);
+		expect(r.mappingMinute2).toEqual({ interviewer: 0, candidate: 1 });
+		expect(r.earlyWindow).toBeNull();
+		expect(r.mappingEarlyWindow).toBeNull();
+	});
+
+	it('118 s fixture: minute 2 does not exist; [60,120] is the distinctly named early window', () => {
+		const shortGt = {
+			duration_s: 118.182,
+			speakers: ['interviewer', 'candidate'],
+			turns: [
+				{ speaker: 'interviewer', start_s: 60, end_s: 90 },
+				{ speaker: 'candidate', start_s: 90, end_s: 118.182 },
+			],
+		};
+		const turns = [
+			{ speaker: 0, start_s: 60, end_s: 90 },
+			{ speaker: 1, start_s: 90, end_s: 118.182 },
+		];
+		const r = evaluateFixture(shortGt, { speakerCount: 2, turns });
+		// Not applicable — never silently substituted, never recorded
+		// under the unqualified minute2 key.
+		expect(r.minute2).toBeNull();
+		expect(r.mappingMinute2).toBeNull();
+		// The distinctly named early window carries the evidence.
+		expect(r.earlyWindow.window_s).toEqual([60, 120]);
+		expect(r.mappingEarlyWindow).toEqual({ interviewer: 0, candidate: 1 });
+		expect(r.joinPass).toBe(true);
+		expect(r.phantomPass).toBe(true);
 	});
 });
 
