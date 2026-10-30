@@ -62,3 +62,27 @@ found in the worktree and was largely sound; Suga reconciled it with
 his own first-hand build (real key shapes, one counter set, duplicate
 blocks removed) and re-derived every evidence line above first-hand.
 Nothing in this log rests on the lane's report.
+
+## Addendum — #2019 corrective (2026-10-30, later the same day)
+
+The FULL panel reports for #2014 arrived after closure (the run had
+synthesized from condensed deliveries — HL-007 amendment 2) and
+carried two binding Lex conditions the summaries dropped. Filed as
+#2019, corrected on the correction-of-record comment on #2014:
+
+1. In-flight diarization jobs (`pending`/`claimed`/`processing`) on
+   recordings the item-1 sweep touches are cancelled in the same
+   transaction, before the sweep (predicate needs the array intact);
+   count `crossRecordingPanelJobsCancelled`.
+2. The GAP-A(c) tombstone redact sets `panel_expected_user_ids =
+   '{}'` (empty array), not NULL — a NULL array makes
+   `participantsFromFrozenSet` fall back to the live event roster.
+   Hash still nulled. JT-D7 asserts `[]` and notes the fallback is
+   unreachable (zero correctable mappings survive — Rex's pin).
+
+Evidence: red on da4663d81 at the new counter (Expected 1, Received
+undefined) → green JT-D7 1/1 fresh DB; mocks 28/28 (chains +1 entry;
+erasure-medium-tables needed one overflow 0-entry — its chain never
+carried the diarization block and lands the recording_consent
+redaction by entry arithmetic, now commented in the test); wider
+erasure batch 199/199.
