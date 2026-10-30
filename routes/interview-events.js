@@ -849,6 +849,33 @@ router.post('/events/:eventId/labelling-consent', authMiddleware, async (req, re
 	const notFound = () => res.status(404).json({ error: 'Not found' });
 	const auditDenied = async (outcome, decision) => {
 		try {
+			// #1961 item 3: denied-path auditing runs BEFORE the capture
+			// rate-limit check below, so without a cap an authenticated
+			// user could grow compliance_audit_trail unboundedly with
+			// 404/403 spam (the rate_limited outcome itself is audited
+			// through here too). Cheap cap on the AUDIT WRITE ONLY
+			// (existing limiter infra; the denial response — status,
+			// body, shape — is unchanged): the first 20 denied attempts
+			// per user PER OUTCOME per minute are audited, further ones
+			// are answered but not written. Per-outcome keying (security
+			// review, #1961) keeps a not_found flood from masking the
+			// high-value foreign_user_id_rejected signal; outcomes are a
+			// fixed set of 7, so growth stays bounded (≤140/min/user).
+			// checkLimit fails open on DB error — deliberately inherited:
+			// if the limiter's store is down, auditing continues (audit
+			// preservation beats the cap; the cap is anti-abuse only).
+			const cap = await distributedRateLimiter.checkLimit(
+				`panel-labelling-denied-audit:${req.user.id}:${outcome}`,
+				60 * 1000,
+				20,
+			);
+			if (!cap.allowed) {
+				// Response-silent, NOT observability-silent (security review).
+				console.warn(
+					`[interview-events] labelling-consent denied-audit cap reached for user ${req.user.id} outcome ${outcome} — audit write skipped`,
+				);
+				return;
+			}
 			await panelLabelling.writePanelAudit(pool, {
 				eventId: parseInt(req.params.eventId, 10) || 0,
 				actorId: req.user.id,
