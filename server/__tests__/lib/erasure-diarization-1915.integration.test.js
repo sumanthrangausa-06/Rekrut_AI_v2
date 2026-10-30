@@ -21,6 +21,11 @@
  *    must survive untouched.
  *  - diarization_metrics_daily (counts-only, no recording/user
  *    linkage, AC-3) — must be byte-identical after erasure.
+ *  - #1944 residuals: the keep-redacted tombstone's diarization
+ *    columns are NULL after erasure, and the erasing user's ids are
+ *    nulled inside ANOTHER candidate's recording (mapping
+ *    participant/updated_by, audit from/to/actor) while those rows
+ *    and the other candidate's own artefacts survive.
  *
  * Run:
  *   SD13_INTEGRATION_DB_URL='postgresql://postgres@127.0.0.1:55433/sd13_e2e' \
@@ -56,8 +61,8 @@ async function seedDiarizedRecording({ eventId = null, sessionId = null }) {
 	const q = (sql, params) => seedPool.query(sql, params);
 	const rec = await q(
 		`INSERT INTO interview_recordings
-		   (interview_event_id, interview_session_id, status, duration_seconds, storage_path, diarization_status, retention_expires_at)
-		 VALUES ($1, $2, 'completed', 3600, NULL, 'complete', NOW() + INTERVAL '90 days') RETURNING id`,
+		   (interview_event_id, interview_session_id, status, duration_seconds, storage_path, diarization_status, diarization_updated_at, retention_expires_at)
+		 VALUES ($1, $2, 'completed', 3600, NULL, 'complete', NOW(), NOW() + INTERVAL '90 days') RETURNING id`,
 		[eventId, sessionId],
 	);
 	const recordingId = rec.rows[0].id;
@@ -174,6 +179,38 @@ async function cleanAndSeed() {
 	);
 	R.control = await seedDiarizedRecording({ eventId: evOther.rows[0].id });
 
+	// #1944 cross-recording fixture: ANOTHER candidate's recording on
+	// which the ERASING user appears as a mapping participant /
+	// updated_by and as audit from/to/actor. Erasure must null only
+	// the erasing user's ids there — rows, roles, actions and the
+	// other candidate's own artefacts survive.
+	const evCross = await q(
+		`INSERT INTO interview_events (recruiter_id, candidate_id, duration_minutes, timezone, status)
+		 VALUES ($1, $2, 60, 'UTC', 'completed') RETURNING id`,
+		[U_REC, U_OTHER],
+	);
+	R.cross = await seedDiarizedRecording({ eventId: evCross.rows[0].id });
+	// Seeded cross state: mapping sp0 participant=U_REC (updated_by set
+	// to the erasing user below — updated_by-only case); mapping sp1
+	// participant=U_CAND (participant + updated_by case); audit row
+	// from=U_REC, to=U_CAND, actor=U_REC (to-only case).
+	await q(
+		`UPDATE recording_speaker_mappings SET updated_by = $2 WHERE recording_id = $1 AND speaker_number IN (0, 1)`,
+		[R.cross, U_CAND],
+	);
+	// The other candidate's OWN mapping — must stay fully untouched.
+	await q(
+		`INSERT INTO recording_speaker_mappings (recording_id, speaker_number, participant_user_id, participant_role, state, updated_by)
+		 VALUES ($1, 2, $2, 'candidate', 'corrected', $2)`,
+		[R.cross, U_OTHER],
+	);
+	// Second audit row: from + actor are the erasing user.
+	await q(
+		`INSERT INTO transcript_speaker_audit (recording_id, speaker_number, from_user_id, to_user_id, actor_user_id, action)
+		 VALUES ($1, 1, $2, $3, $2, 'correct')`,
+		[R.cross, U_CAND, U_OTHER],
+	);
+
 	// Counts-only aggregate (AC-3): no recording/user linkage exists in
 	// this table; erasure must leave it byte-identical.
 	await q(
@@ -238,6 +275,25 @@ describeIfDb('#1915 S-D13 diarization erasure (JT-D7, realdb journey)', () => {
 		);
 		expect(metricsBefore.rows).toHaveLength(1);
 
+		// #1944 seed sanity: tombstones-to-be carry non-NULL diarization
+		// state (so the post-erasure NULL assertions can actually fail),
+		// and the cross-recording fixture carries the erasing user's ids.
+		for (const id of [R.eventLinked, R.sessionLinked]) {
+			const { rows } = await seedPool.query(
+				`SELECT diarization_status, diarization_updated_at FROM interview_recordings WHERE id = $1`,
+				[id],
+			);
+			expect(rows[0].diarization_status).toBe('complete');
+			expect(rows[0].diarization_updated_at).not.toBeNull();
+		}
+		const crossMapsBefore = await seedPool.query(
+			`SELECT speaker_number, participant_user_id, updated_by FROM recording_speaker_mappings WHERE recording_id = $1 ORDER BY speaker_number`,
+			[R.cross],
+		);
+		expect(crossMapsBefore.rows).toHaveLength(3);
+		expect(crossMapsBefore.rows[1].participant_user_id).toBe(U_CAND);
+		expect(crossMapsBefore.rows[0].updated_by).toBe(U_CAND);
+
 		// The user journey's act: the candidate's erasure runs, in the
 		// production caller shape (one BEGIN…COMMIT transaction client).
 		const client = new Client({ connectionString: DB_URL });
@@ -272,6 +328,70 @@ describeIfDb('#1915 S-D13 diarization erasure (JT-D7, realdb journey)', () => {
 				interview_transcripts: 0,
 			});
 		}
+
+		// #1944 F-1: the keep-redacted tombstone rows survive, but their
+		// diarization signal must be NULL — as if the feature never ran.
+		for (const id of [R.eventLinked, R.sessionLinked]) {
+			const { rows } = await seedPool.query(
+				`SELECT status, diarization_status, diarization_updated_at FROM interview_recordings WHERE id = $1`,
+				[id],
+			);
+			expect(rows).toHaveLength(1);
+			expect(rows[0].status).toBe('deleted');
+			expect(rows[0].diarization_status).toBeNull();
+			expect(rows[0].diarization_updated_at).toBeNull();
+		}
+
+		// #1944 F-2: swept counts disclosed on the result surface.
+		// Mappings: participant sweep hits control sp1 + cross sp1 (2);
+		// updated_by sweep hits cross sp0 + cross sp1 (2) — 4 field nulls.
+		// Audit: control row (to), cross seeded row (to), cross row 2
+		// (from/actor) — 3 rows touched.
+		expect(result.crossRecordingMappingsNulled).toBe(4);
+		expect(result.crossRecordingAuditNulled).toBe(3);
+
+		// #1944 F-2 cross-recording: rows survive with role/action/
+		// timestamps; only the erasing user's ids are nulled; the other
+		// candidate's own mapping and artefacts are untouched.
+		const crossMaps = await seedPool.query(
+			`SELECT speaker_number, participant_user_id, participant_role, updated_by, created_at FROM recording_speaker_mappings WHERE recording_id = $1 ORDER BY speaker_number`,
+			[R.cross],
+		);
+		expect(crossMaps.rows).toHaveLength(3);
+		expect(crossMaps.rows[0].participant_user_id).toBe(U_REC);
+		expect(crossMaps.rows[0].updated_by).toBeNull();
+		expect(crossMaps.rows[0].participant_role).toBe('interviewer');
+		expect(crossMaps.rows[1].participant_user_id).toBeNull();
+		expect(crossMaps.rows[1].updated_by).toBeNull();
+		expect(crossMaps.rows[1].participant_role).toBe('candidate');
+		expect(crossMaps.rows[2].participant_user_id).toBe(U_OTHER);
+		expect(crossMaps.rows[2].updated_by).toBe(U_OTHER);
+		expect(crossMaps.rows[2].participant_role).toBe('candidate');
+		for (const row of crossMaps.rows) expect(row.created_at).not.toBeNull();
+
+		const crossAudit = await seedPool.query(
+			`SELECT speaker_number, from_user_id, to_user_id, actor_user_id, action, created_at FROM transcript_speaker_audit WHERE recording_id = $1 ORDER BY speaker_number`,
+			[R.cross],
+		);
+		expect(crossAudit.rows).toHaveLength(2);
+		expect(crossAudit.rows[0].from_user_id).toBe(U_REC);
+		expect(crossAudit.rows[0].to_user_id).toBeNull();
+		expect(crossAudit.rows[0].actor_user_id).toBe(U_REC);
+		expect(crossAudit.rows[0].action).toBe('correct');
+		expect(crossAudit.rows[1].from_user_id).toBeNull();
+		expect(crossAudit.rows[1].to_user_id).toBe(U_OTHER);
+		expect(crossAudit.rows[1].actor_user_id).toBeNull();
+		expect(crossAudit.rows[1].action).toBe('correct');
+		for (const row of crossAudit.rows) expect(row.created_at).not.toBeNull();
+
+		// The cross recording's own artefacts are untouched.
+		expect(await countArtefacts(R.cross)).toEqual({
+			diarization_jobs: 1,
+			diarization_runs: 1,
+			recording_speaker_mappings: 3,
+			transcript_speaker_audit: 2,
+			interview_transcripts: 2,
+		});
 
 		// Control: the other candidate's artefacts are fully intact.
 		expect(await countArtefacts(R.control)).toEqual({
