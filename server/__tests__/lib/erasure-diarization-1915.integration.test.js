@@ -26,6 +26,23 @@
  *    nulled inside ANOTHER candidate's recording (mapping
  *    participant/updated_by, audit from/to/actor) while those rows
  *    and the other candidate's own artefacts survive.
+ *  - #2014 residuals II: the erasing user's id is swept (pair-atomic:
+ *    array member removed AND hash nulled, same UPDATE) from OTHER
+ *    subjects' panel_expected_user_ids — including an in-flight
+ *    recording with no diarization run yet — while a control recording
+ *    whose panel set does NOT name the erasing user stays
+ *    byte-identical; surviving diarization_runs' proposed_mapping
+ *    entries naming the erasing user become JSON null (keys
+ *    preserved, other speakers untouched); panel_consent_snapshot
+ *    copies stay byte-identical (S-D19 exception, never swept); and
+ *    the subject's OWN keep-redacted tombstones lose their whole
+ *    panel pair (panel_expected_user_ids + panel_expected_hash NULL).
+ *  - #2014 residuals II: the frozen panel pair on OTHER subjects'
+ *    recordings loses the erased id (array member removed, hash
+ *    nulled — pair-atomic), proposed_mapping entries naming the
+ *    erased user become JSON null on surviving runs, the subject's
+ *    own tombstone pair is cleared, and panel_consent_snapshot
+ *    copies (S-D19 exception) stay byte-identical.
  *
  * Run:
  *   SD13_INTEGRATION_DB_URL='postgresql://postgres@127.0.0.1:55433/sd13_e2e' \
@@ -45,6 +62,12 @@ const U_REC = 191502;
 const U_OTHER = 191503;
 const C_ID = 19151;
 const METRICS_DATE = '2026-10-27';
+// #2014: panel freeze hashes are plain SHA-256 hex (mig 299) —
+// synthetic distinct values per fixture so a cross-row mix-up fails.
+const HASH_OWN = 'a'.repeat(64);
+const HASH_CROSS = 'b'.repeat(64);
+const HASH_INFLIGHT = 'c'.repeat(64);
+const HASH_CONTROL = 'd'.repeat(64);
 
 let app;
 let request;
@@ -211,6 +234,77 @@ async function cleanAndSeed() {
 		[R.cross, U_CAND, U_OTHER],
 	);
 
+	// #2014 fixture — panel freeze pairs (mig 299) + proposed_mapping:
+	// (a) the SUBJECT'S OWN recordings carry a frozen panel pair; the
+	// event-linked one's array even names the subject (synthetic —
+	// construction excludes the candidate, but STOP 1's exclusion must
+	// hold regardless: item 1 must not count/sweep own recordings;
+	// item 3 nulls the whole pair on the tombstone).
+	await q(
+		`UPDATE interview_recordings SET panel_expected_user_ids = ARRAY[$2, $3]::int[], panel_expected_hash = $4 WHERE id = $1`,
+		[R.eventLinked, U_CAND, U_REC, HASH_OWN],
+	);
+	await q(
+		`UPDATE interview_recordings SET panel_expected_user_ids = ARRAY[$2, $3]::int[], panel_expected_hash = $4 WHERE id = $1`,
+		[R.sessionLinked, U_REC, U_OTHER, HASH_OWN],
+	);
+	// (b) the CROSS recording carries the erasing user as a panellist,
+	// and its surviving run's proposed_mapping names the erasing user
+	// (speaker "1") beside a control speaker entry (speaker "0", another
+	// user) and an already-unassigned entry (speaker "2"). Its job/run
+	// panel_consent_snapshot copies also name the erasing user inside
+	// a proposed_mapping copy — S-D19: those copies are NEVER swept.
+	const crossSnapshot = JSON.stringify({
+		notice_version: 'v1',
+		proposed_mapping: {
+			0: { participant_user_id: U_REC, participant_role: 'interviewer' },
+			1: { participant_user_id: U_CAND, participant_role: 'candidate' },
+		},
+		decisions: [{ user_id: U_CAND, decision: 'granted' }],
+	});
+	await q(
+		`UPDATE interview_recordings SET panel_expected_user_ids = ARRAY[$2, $3]::int[], panel_expected_hash = $4 WHERE id = $1`,
+		[R.cross, U_REC, U_CAND, HASH_CROSS],
+	);
+	await q(
+		`UPDATE diarization_runs SET proposed_mapping = $2::jsonb, panel_consent_snapshot = $3::jsonb WHERE recording_id = $1`,
+		[
+			R.cross,
+			JSON.stringify({
+				0: { participant_user_id: U_REC, participant_role: 'interviewer' },
+				1: { participant_user_id: U_CAND, participant_role: 'candidate' },
+				2: null,
+			}),
+			crossSnapshot,
+		],
+	);
+	await q(
+		`UPDATE diarization_jobs SET panel_consent_snapshot = $2::jsonb WHERE recording_id = $1`,
+		[R.cross, crossSnapshot],
+	);
+	// (c) CONTROL recording's panel set does NOT name the erasing
+	// user — the pair must stay byte-identical (non-matching rows are
+	// never rewritten).
+	await q(
+		`UPDATE interview_recordings SET panel_expected_user_ids = ARRAY[$2, $3]::int[], panel_expected_hash = $4 WHERE id = $1`,
+		[R.control, U_REC, U_OTHER, HASH_CONTROL],
+	);
+	// (d) IN-FLIGHT recording: another candidate's recording carrying
+	// the erasing user as panellist, with NO diarization job/run yet —
+	// the panel sweep must still reach it.
+	const evInflight = await q(
+		`INSERT INTO interview_events (recruiter_id, candidate_id, duration_minutes, timezone, status)
+		 VALUES ($1, $2, 60, 'UTC', 'completed') RETURNING id`,
+		[U_REC, U_OTHER],
+	);
+	const inflight = await q(
+		`INSERT INTO interview_recordings
+		   (interview_event_id, status, duration_seconds, storage_path, retention_expires_at, panel_expected_user_ids, panel_expected_hash)
+		 VALUES ($1, 'completed', 1800, NULL, NOW() + INTERVAL '90 days', ARRAY[$2, $3]::int[], $4) RETURNING id`,
+		[evInflight.rows[0].id, U_CAND, U_REC, HASH_INFLIGHT],
+	);
+	R.inflight = inflight.rows[0].id;
+
 	// Counts-only aggregate (AC-3): no recording/user linkage exists in
 	// this table; erasure must leave it byte-identical.
 	await q(
@@ -294,6 +388,38 @@ describeIfDb('#1915 S-D13 diarization erasure (JT-D7, realdb journey)', () => {
 		expect(crossMapsBefore.rows[1].participant_user_id).toBe(U_CAND);
 		expect(crossMapsBefore.rows[0].updated_by).toBe(U_CAND);
 
+		// #2014 seed sanity: every new fixture actually carries the
+		// state the post-erasure assertions check (so they can fail).
+		const panelBefore = {};
+		for (const [key, id] of [
+			['eventLinked', R.eventLinked],
+			['sessionLinked', R.sessionLinked],
+			['cross', R.cross],
+			['control', R.control],
+			['inflight', R.inflight],
+		]) {
+			const { rows } = await seedPool.query(
+				`SELECT panel_expected_user_ids, panel_expected_hash FROM interview_recordings WHERE id = $1`,
+				[id],
+			);
+			panelBefore[key] = rows[0];
+			expect(rows[0].panel_expected_hash).not.toBeNull();
+		}
+		expect(panelBefore.eventLinked.panel_expected_user_ids).toEqual([U_CAND, U_REC]);
+		expect(panelBefore.cross.panel_expected_user_ids).toEqual([U_REC, U_CAND]);
+		expect(panelBefore.inflight.panel_expected_user_ids).toEqual([U_CAND, U_REC]);
+		expect(panelBefore.control.panel_expected_user_ids).toEqual([U_REC, U_OTHER]);
+		const crossRunBefore = await seedPool.query(
+			`SELECT proposed_mapping, panel_consent_snapshot::text AS snap FROM diarization_runs WHERE recording_id = $1`,
+			[R.cross],
+		);
+		expect(crossRunBefore.rows[0].proposed_mapping['1'].participant_user_id).toBe(U_CAND);
+		const crossJobSnapBefore = await seedPool.query(
+			`SELECT panel_consent_snapshot::text AS snap FROM diarization_jobs WHERE recording_id = $1`,
+			[R.cross],
+		);
+		expect(crossJobSnapBefore.rows[0].snap).toContain(String(U_CAND));
+
 		// The user journey's act: the candidate's erasure runs, in the
 		// production caller shape (one BEGIN…COMMIT transaction client).
 		const client = new Client({ connectionString: DB_URL });
@@ -349,6 +475,78 @@ describeIfDb('#1915 S-D13 diarization erasure (JT-D7, realdb journey)', () => {
 		// (from/actor) — 3 rows touched.
 		expect(result.crossRecordingMappingsNulled).toBe(4);
 		expect(result.crossRecordingAuditNulled).toBe(3);
+
+		// #2014: swept counts disclosed on the result surface — panel
+		// pair swept on cross + in-flight (2, own recordings excluded
+		// by the item-1 predicate), one surviving run's
+		// proposed_mapping nulled, two own tombstone pairs cleared.
+		expect(result.crossRecordingPanelPairsSwept).toBe(2);
+		expect(result.crossRecordingProposedMappingsNulled).toBe(1);
+		expect(result.tombstonePanelPairsCleared).toBe(2);
+
+		// #2014 item 1: pair-atomic sweep on OTHER subjects'
+		// recordings — array member gone AND hash NULL, together.
+		for (const [id, expectedArray] of [
+			[R.cross, [U_REC]],
+			[R.inflight, [U_REC]],
+		]) {
+			const { rows } = await seedPool.query(
+				`SELECT panel_expected_user_ids, panel_expected_hash FROM interview_recordings WHERE id = $1`,
+				[id],
+			);
+			expect(rows[0].panel_expected_user_ids).toEqual(expectedArray);
+			expect(rows[0].panel_expected_hash).toBeNull();
+		}
+		// #2014 item 1: the control recording's pair does not name the
+		// erasing user — byte-identical, never rewritten.
+		{
+			const { rows } = await seedPool.query(
+				`SELECT panel_expected_user_ids, panel_expected_hash FROM interview_recordings WHERE id = $1`,
+				[R.control],
+			);
+			expect(rows[0].panel_expected_user_ids).toEqual([U_REC, U_OTHER]);
+			expect(rows[0].panel_expected_hash).toBe(HASH_CONTROL);
+		}
+		// #2014 item 3: the subject's OWN tombstones lose the whole
+		// panel pair — no roster of living third parties survives.
+		for (const id of [R.eventLinked, R.sessionLinked]) {
+			const { rows } = await seedPool.query(
+				`SELECT panel_expected_user_ids, panel_expected_hash FROM interview_recordings WHERE id = $1`,
+				[id],
+			);
+			expect(rows[0].panel_expected_user_ids).toBeNull();
+			expect(rows[0].panel_expected_hash).toBeNull();
+		}
+		// #2014 item 2: the surviving cross run's proposed_mapping —
+		// the erased user's entry is JSON null, the key is preserved,
+		// the control speaker entry and the already-null entry are
+		// untouched.
+		{
+			const { rows } = await seedPool.query(
+				`SELECT proposed_mapping, panel_consent_snapshot::text AS snap FROM diarization_runs WHERE recording_id = $1`,
+				[R.cross],
+			);
+			const mapping = rows[0].proposed_mapping;
+			expect(Object.keys(mapping).sort()).toEqual(['0', '1', '2']);
+			expect(mapping['0']).toEqual({
+				participant_user_id: U_REC,
+				participant_role: 'interviewer',
+			});
+			expect(mapping['1']).toBeNull();
+			expect(mapping['2']).toBeNull();
+			// PIN (S-D19): the snapshot copy on the run is
+			// byte-identical — proposed_mapping copies inside
+			// panel_consent_snapshot are NEVER swept.
+			expect(rows[0].snap).toBe(crossRunBefore.rows[0].snap);
+			expect(rows[0].snap).toContain(String(U_CAND));
+		}
+		{
+			const { rows } = await seedPool.query(
+				`SELECT panel_consent_snapshot::text AS snap FROM diarization_jobs WHERE recording_id = $1`,
+				[R.cross],
+			);
+			expect(rows[0].snap).toBe(crossJobSnapBefore.rows[0].snap);
+		}
 
 		// #1944 F-2 cross-recording: rows survive with role/action/
 		// timestamps; only the erasing user's ids are nulled; the other

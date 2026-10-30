@@ -739,8 +739,17 @@ describe('#1122 GAP-C erasePersonalData — scheduling & human-interview family'
 		// Option B is the forbidden shape: GAP-C issues no DELETE and
 		// no UPDATE against interview_recordings in this scenario
 		// (GAP-A's own keep-redact finds no recording rows here).
+		// #2014 amendment: the cross-recording panel-pair sweep is an
+		// UPDATE against interview_recordings by design (it nulls the
+		// erased user's id in OTHER recordings' frozen panel sets) —
+		// it is not a GAP-C statement, so it is filtered out by its
+		// panel_expected marker; every OTHER update stays forbidden.
 		expect(callsMatching(client, /DELETE FROM interview_recordings/i)).toHaveLength(0);
-		expect(callsMatching(client, /UPDATE interview_recordings/i)).toHaveLength(0);
+		expect(
+			callsMatching(client, /UPDATE interview_recordings/i).filter(
+				([s]) => !/panel_expected_user_ids/.test(s),
+			),
+		).toHaveLength(0);
 		// No redaction of the surviving room either: no UPDATE at all
 		// is issued against interview_rooms.
 		expect(callsMatching(client, /UPDATE interview_rooms/i)).toHaveLength(0);
