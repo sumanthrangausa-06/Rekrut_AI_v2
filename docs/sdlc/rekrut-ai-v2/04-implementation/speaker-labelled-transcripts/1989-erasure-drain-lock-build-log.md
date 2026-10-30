@@ -21,7 +21,7 @@ Inside the drain's per-marker `try`, immediately before the tip SELECT: a once-g
 
 **Placement note (recorded on STOP 1, not silently chosen):** security's once-only condition + privacy's typed-fail-closed condition together place the single acquisition inside the loop's first appending iteration rather than before the loop — before-the-loop sits outside the `try` and would lose the typed `ComplianceAuditDrainError` on a lock failure (the caller would still roll back, but the #1337 named error contract would weaken).
 
-**Out of scope, not fixed here (privacy-review note):** the drain orders the tip `created_at DESC, id DESC` while `logEvent` orders `created_at DESC, id ASC` — a pre-existing inconsistency, a separate follow-up candidate; this lane changes locking only.
+**Correction (review M4, verified first-hand):** an earlier draft of this log (and the STOP 1 comment) repeated a privacy-review note claiming the drain's tip order (`created_at DESC, id DESC`) differs from `logEvent`'s (`id ASC`). That claim is WRONG: `getChainHead` (`services/auditLogService.js:141`) is `created_at DESC, id DESC`, identical to panel (:169) and the drain (:1541); the ASC orderings are verify/list queries, not tip reads. No tip-order inconsistency exists and no follow-up is filed for it. The genuine pre-existing residual is the one security noted: the drain has no monotonic-timestamp guard against same-millisecond ties (panel shares it) — unchanged by this lane.
 
 ## Red-first evidence
 
@@ -44,6 +44,19 @@ Local PostgreSQL **18.6** on 127.0.0.1:55435 (rig at `/var/tmp/pg1961`, same rig
 - #1988 integration suite (`AUDIT_CHAIN_LOCK_DB_URL` rig): **4 passed**.
 - Mocked/unit batch — `tests/compliance-audit.test.js`, `threat-intel-erasure`, `storage-sweep-wiring`, `admin-dsar-fulfillment`, `auth-delete-account-legal-hold`: all passed. `resume-family-erasure`: **2 failed / 10 passed — identical result on unmodified base** (pre-existing mock drift: the suite's mock returns `undefined` for the `ai_observer_reports` DELETE at `lib/erasureService.js:1717`); not caused by this change and not fixed in this lane.
 
+## Additional probe — multi-marker drain
+
+On the gate DB, one erasure for a candidate with TWO dead-letter markers (two screenings): both drained in the single transaction, trail read back as exactly 2 chained rows (genesis + one child), `verifyChain()` valid — the once-guard serves later markers under the already-held lock and they see the first marker's uncommitted INSERT on the same client.
+
 ## Independent review
 
-_To be completed by a separate reviewer subagent on the final diff; verdict + comment link recorded here and on the PR before the checkpoint._
+**Verdict: CLEAR — no BLOCK** (independent reviewer subagent, ecc code-reviewer + security lens; did not write this code; was not a STOP 1 consultant) — https://github.com/sumanthrangausa-06/Rekrut_AI_v2/pull/1991#issuecomment-6513109407 (comment `6513109407`, on head `173dc41ae`). Verified first-hand: scope (exactly the claimed files; no migration; `RETENTION_PURGE_LIVE` absent from the code diff), lock SQL byte-identical to the two locked writers, path exhaustiveness (no route to the INSERT without the lock; `alreadyReplayed` correctly skips), fail-closed by inspection, test determinism (incl. the poll self-match fix). Four minors, dispositions:
+
+- **M1 ("leaf" comment overclaims) — FIXED in-PR:** the code comment now states the lock is held until the erasure COMMIT/ROLLBACK through the erasure's remainder, that concurrent appends wait (bounded by the other writers' 2s `lock_timeout`, fail-closed), and that a different-key per-user advisory lock is taken later in the transaction (order chain → per-user everywhere in-tree, no cycle). Comment-only change.
+- **M2 (no test forced a lock-acquisition failure) — FIXED in-PR:** new suite test holds the chain lock on a separate session and sets `lock_timeout='300ms'` on the erasure client; acquisition fails 55P03 inside the try and the erasure rejects `COMPLIANCE_AUDIT_DRAIN_BLOCKED` with rollback state intact. Suite now **3 passed** on a fresh migrated DB (see rig note).
+- **M3 (flake margin) — RECORDED:** the burst writers' 2s `lock_timeout` must cover the remaining trigger sleep (~0.9s) plus the entire post-drain remainder of `erasePersonalData` before COMMIT; on a slow rig, >~1.1s of post-drain work would fail the burst test spuriously. The suite is env-gated (disposable-DB only), which bounds the blast radius; the margin is inherent to the deterministic-window design.
+- **M4 (phantom tip-order inconsistency) — CORRECTED:** see the Correction note in the Fix section; the PR body and the #1989 checkpoint carry the same correction. The STOP 1 comment is left as the historical record; the checkpoint supersedes that one claim.
+
+## Rig note (HL-009 colour)
+
+The original gate run used the PG 18.6 rig on 127.0.0.1:55435 (`/var/tmp/pg1961`). A tmp sweep then wiped `/var/tmp` — worktree and rig both — mid-review. Everything was recovered from durable state: the branch from its pushed head on origin, and the rig rebuilt as PG **18.6** on 127.0.0.1:**55436** from the extracted tree/debs kept in `~/workspace/pgfull` (initdb + server run as uid 65534 via setpriv; fresh data dir `/var/tmp/pg1989-data`). The M2-amended suite was re-run end-to-end on a brand-new database on the rebuilt rig: migrate **exit 0**, **3 passed**. The earlier 55435 evidence above stands as recorded at the time.
