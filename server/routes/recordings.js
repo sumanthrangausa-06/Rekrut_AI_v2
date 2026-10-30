@@ -812,6 +812,30 @@ router.post(
 			const client = await pool.connect();
 			try {
 				await client.query('BEGIN');
+				// #1931 item 2 (review MINOR-3): lock FIRST, in the same
+				// order persistStitch acquires its locks (lib/
+				// transcriptStitch.js: diarization_jobs row(s), then the
+				// interview_recordings row) — jobs in id order, then the
+				// recording row, both before any DELETE below. Taking
+				// only the recording lock here would deadlock against a
+				// stitch that holds its job row while awaiting the
+				// recording row (this transaction's DELETE FROM
+				// diarization_jobs would await that job row while
+				// holding the recording row — a cycle; database-reviewer
+				// on #1931). With both paths acquiring jobs → recording,
+				// a concurrent stitch either completes first (its job
+				// rows are then deleted with the old generation) or
+				// blocks on its job lock holding nothing and fails its
+				// generation guard as superseded after this swap commits
+				// — the two can no longer interleave around the guard.
+				await client.query(
+					`SELECT id FROM diarization_jobs WHERE recording_id = $1 ORDER BY id FOR UPDATE`,
+					[recordingId],
+				);
+				await client.query(
+					`SELECT id FROM interview_recordings WHERE id = $1 FOR UPDATE`,
+					[recordingId],
+				);
 				await client.query(`DELETE FROM diarization_runs WHERE recording_id = $1`, [
 					recordingId,
 				]);
