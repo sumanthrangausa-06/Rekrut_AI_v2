@@ -749,6 +749,65 @@ router.post(
 				return res.status(500).json({ error: 'Transcription failed' });
 			}
 
+			// #1923 (follow-up to the PR #1922 review): bound and order
+			// the segments at THIS layer — the handler is the only place
+			// that knows the recording's duration (the S-D01 normalizer,
+			// design §3.2, deliberately trusts the provider at its
+			// layer). A segment straddling the end is clamped to the
+			// duration — the words happened, only the endpoint claim is
+			// impossible; a segment starting at/after the end would
+			// clamp to a zero-span row (read paths assume end > start),
+			// so it is dropped and the drop is logged, never silent.
+			// When the duration is unknown (NULL/0) there is no honest
+			// bound to apply and none is. Sorting is stable by (start,
+			// end, provider order), so stored order, the transcript
+			// GET's ORDER BY start_time_ms, and chronological order are
+			// the same order. Pure transform, before BEGIN: the swap
+			// transaction below is unchanged.
+			const durationMs =
+				Number.isFinite(recording.duration_seconds) && recording.duration_seconds > 0
+					? Math.round(recording.duration_seconds * 1000)
+					: null;
+			let droppedOutOfDuration = 0;
+			const boundedSegments = segments
+				.map((seg, providerIndex) => ({
+					seg,
+					providerIndex,
+					startMs: Math.round(seg.start_s * 1000),
+					endMs: Math.round(seg.end_s * 1000),
+				}))
+				.filter(({ startMs }) => {
+					if (durationMs !== null && startMs >= durationMs) {
+						droppedOutOfDuration += 1;
+						return false;
+					}
+					return true;
+				})
+				.map((entry) => ({
+					...entry,
+					endMs: durationMs !== null ? Math.min(entry.endMs, durationMs) : entry.endMs,
+				}))
+				.sort(
+					(a, b) =>
+						a.startMs - b.startMs || a.endMs - b.endMs || a.providerIndex - b.providerIndex,
+				);
+			if (droppedOutOfDuration > 0) {
+				console.warn(
+					`[recordings] dropped ${droppedOutOfDuration} segment(s) starting at/after the recording duration for recording ${recordingId}`,
+				);
+			}
+			if (boundedSegments.length === 0) {
+				// Every segment lay outside the recording — nothing
+				// honest to store; fail like a transcription failure.
+				// The old generation is untouched: the swap transaction
+				// has not begun, nothing has been deleted.
+				await pool.query(
+					`UPDATE interview_recordings SET status = 'completed', updated_at = NOW() WHERE id = $1 AND status = 'processing'`,
+					[recordingId],
+				);
+				return res.status(500).json({ error: 'Transcription failed' });
+			}
+
 			const client = await pool.connect();
 			try {
 				await client.query('BEGIN');
@@ -770,7 +829,7 @@ router.post(
 				await client.query(`DELETE FROM interview_transcripts WHERE recording_id = $1`, [
 					recordingId,
 				]);
-				for (const seg of segments) {
+				for (const { seg, startMs, endMs } of boundedSegments) {
 					await client.query(
 						`INSERT INTO interview_transcripts
 						 (recording_id, speaker_identity, text, start_time_ms, end_time_ms, confidence)
@@ -779,8 +838,8 @@ router.post(
 							recordingId,
 							'unknown',
 							seg.text,
-							Math.round(seg.start_s * 1000),
-							Math.round(seg.end_s * 1000),
+							startMs,
+							endMs,
 							recordedConfidence(whisperResult.confidence),
 						],
 					);
