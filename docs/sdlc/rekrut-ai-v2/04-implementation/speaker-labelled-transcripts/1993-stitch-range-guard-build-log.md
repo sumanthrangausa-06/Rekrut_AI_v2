@@ -3,88 +3,121 @@
 Story: #1993 (follow-up flagged by the independent reviewer on
 PR #1992 / #1934, concurred by Nova + Suga; deliberately not
 scope-grown into the #1934 lane). STOP 1: issue #1993 comment
-6514530604 — root cause, specialist decision (none used;
-privacy/security/database considered and skipped with reasons,
-following the #1934 M-3 precedent), and the discussed Rex/Lead/Scout
-position on throw-vs-skip, written BEFORE the build.
-Base: dev `4325e4ad0`.
+6514530604, **corrected by comment 6514650973** (see "Correction"
+below — the correction is part of this lane's record, not an
+embarrassment to bury). Base: dev `4325e4ad0`.
 
-## The discussed decision (STOP 1, summarised)
+## Correction (read this first)
 
-The key call was the failure mode for an out-of-range speaker at the
-per-segment `speaker_number` UPDATE in `persistStitch`:
+The STOP 1 as first posted misattributed Rex's verdict: Nova relied
+on a report presented as Rex → Option A (throw); Rex's actual
+recorded verdict, verified first-hand after the first head was
+built, was **Option B**, and Lead's was also B. The first head of
+PR #1994 (`1ab8277e2`) implemented A and was APPROVED by an
+independent reviewer against the STOP 1 as posted. On discovery,
+Nova posted the correction on #1993 (6514650973), reworked the PR
+to the actually-discussed Option B, re-captured red-first evidence
+for B, and obtained a fresh independent review of the new head.
+The A-head evidence is preserved in the history section below; it
+is not the shipped behaviour.
 
-- **Option A (settled) — throw.** Extend the existing guard: an
-  integer speaker `< 0` or `> INT4_MAX` throws like the existing
-  non-integer case; the whole stitch rolls back (run included), the
-  recording/job stay `processing` for retry.
-- **Option B (Lead's dissent, preserved on the STOP 1) — skip.**
-  Mirror `computeProposal`'s skip: out-of-range turns never label a
-  segment, the segment stays NULL, the stitch completes.
+## The discussed decision (as actually held)
 
-Rex's deciding argument: AC-5 / architecture §3.6.6 was authored for
-exactly this write, and an out-of-range **max-overlap winner** is a
-positive assertion about the segment (the engine says this
-unrepresentable speaker said most of it), not an absence — ties,
-no-overlap, and sub-floor turns are absences and honestly render
-NULL. `computeProposal`'s skip is not a counter-precedent: the §3.7
-proposal is advisory and voidable wholesale, and its skip can never
-assert anything false about a segment. Lead's poison-pill caveat
-(a deterministically-corrupt recording retries forever) is recorded:
-it already exists today for fractional speakers under AC-5, so A
-widens an accepted failure mode rather than creating one; a
-terminal-state policy for corrupt output is a separate follow-up.
+Failure mode for an out-of-range speaker at the per-segment
+`speaker_number` write:
+
+- **Option B (settled, unanimous among voting personas) —
+  not-assignable.** A turn whose speaker is outside
+  `[0, INT4_MAX]` joins the existing not-assignable class (sub-floor
+  turns, ties, no-overlap): retained verbatim in
+  `diarization_runs.turns`, never wins a segment, segment stays
+  NULL, stitch completes. Implemented as a turn-level filter in
+  `assignSpeakers` (Rex's shape), not a per-segment check.
+- **Option A — throw** (extend the AC-5 non-integer throw to the
+  range class). Not settled. Its strongest argument (AC-5 was
+  authored on this write) was answered by Rex: AC-5's throw is
+  narrower — a fractional speaker has no honest integer rendering,
+  while an out-of-range integer needs no invention, NULL is the
+  rendering — and the non-integer throw **stays untouched** under B
+  (still reachable: `assignSpeakers` passes fractional speakers
+  through, the persist loop throws, AC-5 test unmodified).
+
+Rex's further reasons for B: consistency inside one transaction
+(`computeProposal` already skips out-of-range; today a negative
+speaker gets no mapping row yet persists on segments — an orphan
+"Speaker -1" with no FR-D10 correction row; B eliminates the
+orphan); verbatim retention (§3.6.4) survives under B, while a
+throw rolls the run row back too; a throw is a poison pill for
+deterministic engine output. Lead's reasons: the issue's "same
+contract" is `computeProposal`'s skip, and the #1934 probe's
+accepted end-state was outcome `complete`. Recorded caveat
+(Rex): all-turns-out-of-range completes with zero labels —
+observability note only, no new threshold without a PRD call.
 
 `INT4_MAX` is **reused from `lib/speakerMapping.js`**:
 `transcriptStitch.js` already requires that module (L27) and
-`speakerMapping` does not require it back — no cycle, and both int4
-writes now share one contract definition.
+`speakerMapping` does not require it back — no cycle, one contract
+definition for both int4 writes.
 
-## What changed
+## What changed (shipped, Option B)
 
-- `lib/transcriptStitch.js` — in the `persistStitch` segment loop,
-  immediately after the existing non-integer throw: a range check
-  `speaker < 0 || speaker > speakerMapping.INT4_MAX` throwing
-  `transcriptStitch: out-of-range speaker <n> from engine output`.
-  Nothing else. No migration (`speaker_number` is already int4,
-  migration 296), no scoring/matching/screening imports (BR-12).
+- `lib/transcriptStitch.js` — `assignSpeakers` gains one filter in
+  the existing usable-turns pipeline, alongside the sub-floor
+  filter: turns with `speaker < 0 || speaker > speakerMapping.INT4_MAX`
+  are not assignable. The persist loop (including the AC-5
+  non-integer throw) is **unchanged**. No migration
+  (`speaker_number` is already int4, migration 296), no
+  scoring/matching/screening imports (BR-12).
+- `server/__tests__/lib/transcriptStitch.test.js` — 4 new pure
+  cases: negative cannot label, >INT4_MAX cannot label, an
+  out-of-range turn never steals a segment from a valid overlapping
+  turn, INT4_MAX boundary labels exactly.
 - `server/__tests__/lib/transcriptStitch.integration.test.js` —
-  three new cases: negative winner, >INT4_MAX winner, and the
-  INT4_MAX boundary pin (in-contract, persists exactly).
+  3 new cases: negative winner (segment NULL, stitch completes,
+  run retained verbatim, mappings exactly `[0]`, recording + job
+  `complete`), >INT4_MAX winner (same shape, no raw PG failure),
+  INT4_MAX boundary (completes, persists `2147483647` exactly).
 
-## Evidence (HL-003 / HL-007)
+## Evidence (HL-003 / HL-007) — shipped behaviour
 
-- **Red first (base `4325e4ad0`, lib untouched):** 2 failed / 7
-  passed in `transcriptStitch.integration.test.js` on fresh DB
-  `nova1993_e2e` (PG 18.6 @127.0.0.1:55436, `node migrate.js`
-  exit 0). Negative case: the stitch **resolved
-  `{outcome: 'complete'}`** — speaker -1 persisted. >INT4_MAX case:
-  rejected, but with the raw PG message `value "3000000000" is out
-  of range for type integer`, not the contract error. The INT4_MAX
-  boundary pin passed on base as designed (contract pin).
-- **Green (fresh DB `nova1993_green`, PG 18.6, `node migrate.js`
-  exit 0):** `transcriptStitch.integration.test.js` **9/9 PASS** —
-  both out-of-range cases reject with the range-contract error and
-  roll back EVERYTHING (segments `[NULL, NULL]`, zero run rows,
-  zero mapping rows, recording + job still `processing`, all read
-  back from the DB); the boundary case completes and persists
-  `2147483647` exactly; the normal 0/1 case (AC-1/AC-5) persists
-  exactly as before. Unit regression: `transcriptStitch.test.js` +
-  `speakerMapping.test.js` + `diarizationWorker.test.js` **63/63
-  PASS**.
+- **Red first for B (base lib `4325e4ad0`):** 5 failed / 17 passed
+  across `transcriptStitch.test.js` + `transcriptStitch.integration.test.js`
+  — exactly the 3 new unit cases (negative, >INT4_MAX, steal) and
+  both new integration cases (on base, the negative segment
+  persists `-1`; the >INT4_MAX stitch rejects with the raw PG
+  error). Boundary pins passed on base as designed.
+- **Green (fresh DB `nova1993_final`, PG 18.6 @127.0.0.1:55436,
+  `node migrate.js` exit 0):** 4 suites, **76/76 PASS** —
+  `transcriptStitch.integration.test.js` (9, incl. the normal 0/1
+  AC-1/AC-5 case persisting exactly and the unmodified fractional
+  AC-5 rollback case), `transcriptStitch.test.js`,
+  `speakerMapping.test.js`, `diarizationWorker.test.js`. All
+  integration assertions read back from the DB.
 - **BR-12 fence:** `diarizationFence-1916.test.js` — both direction
-  tests (no diarization↔scoring/matching/screening imports either
-  way) PASS. The suite's other 2 failures are **identical on
-  untouched base** (pre-existing allowlist drift, same as recorded
-  in the #1934 build log); not this change.
+  tests PASS; the suite's other 2 failures are identical on
+  untouched base (pre-existing allowlist drift, as in the #1934
+  build log).
 - Rig note: the shared `/home/pguser` PG is absent on this VM;
   this lane rebuilt a fresh PG 18.6 cluster from
   `~/workspace/pgfull` under `/var/tmp/pg1993` on port 55436 and
   verified it with a `migrate.js` run (exit 0) before trusting it.
 
+## History — the Option A head (superseded, not shipped)
+
+First head `1ab8277e2` added a range throw in the persist loop.
+Its evidence was real for that behaviour: red on base (negative
+resolved `{outcome:'complete'}`; >INT4_MAX rejected with the raw
+PG message), green 9/9 integration + 63/63 unit on fresh DB
+`nova1993_green` (migrate exit 0), independent review APPROVE
+(PR #1994 comment 6514606642). It was superseded solely because
+the STOP 1 settlement it implemented rested on the misattributed
+Rex verdict described above.
+
 ## Documentation
 
-One-point defect fix: the STOP 1 root-cause + discussed decision +
-this build log satisfies the documentation rule (no user-visible
-behaviour change beyond corrupt-output handling). This log is
-included because the #1934 lane (PR #1992) included one.
+One-point defect fix: the STOP 1 + correction + this build log
+satisfies the documentation rule (no user-visible behaviour change
+beyond corrupt-output handling — a segment that would have carried
+a meaningless `-1` label, or killed the whole stitch, now renders
+unlabelled). This log is included because the #1934 lane
+(PR #1992) included one.
