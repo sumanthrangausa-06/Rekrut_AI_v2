@@ -60,7 +60,67 @@ const GEN2 = {
 	],
 };
 
-let asrMode = 'gen1'; // 'gen1' | 'gen2' | 'fail'
+// #1923 bounds fixture (12s recording): one segment straddles the end,
+// one lies fully outside it. Text = the segments' join (S-D01 contract).
+const BOUNDS = {
+	task: 'transcription',
+	language: 'english',
+	duration: 12.0,
+	text: 'Hello candidate. Tell me about yourself. Ghost words.',
+	segments: [
+		{ id: 0, start: 0.0, end: 2.0, text: 'Hello candidate.' },
+		{ id: 1, start: 2.0, end: 9999.0, text: ' Tell me about yourself.' },
+		{ id: 2, start: 100.0, end: 101.0, text: ' Ghost words.' },
+	],
+};
+// #1923 order fixture: GEN1's segments delivered unsorted. Text = the
+// segments' join in PROVIDER order (S-D01 contract joins in that order).
+const UNSORTED = {
+	task: 'transcription',
+	language: 'english',
+	duration: 12.0,
+	text: ' I led a team of five.Hello candidate. Tell me about yourself.',
+	segments: [
+		{ id: 0, start: 6.5, end: 12.0, text: ' I led a team of five.' },
+		{ id: 1, start: 0.0, end: 2.0, text: 'Hello candidate.' },
+		{ id: 2, start: 2.0, end: 6.5, text: ' Tell me about yourself.' },
+	],
+};
+// #1923 rollback-pin fixture: a valid segment, then one whose end_s
+// overflows int8 once converted to ms (1e16 s -> 1e19 ms > 9.22e18).
+const OVERFLOW = {
+	task: 'transcription',
+	language: 'english',
+	duration: 12.0,
+	text: 'Valid opening. Overflow tail.',
+	segments: [
+		{ id: 0, start: 0.0, end: 2.0, text: 'Valid opening.' },
+		{ id: 1, start: 1.0, end: 1e16, text: ' Overflow tail.' },
+	],
+};
+
+// #1923 tie fixture: two segments share a start; the longer is
+// delivered first, so only the (start, end) sort key can order them.
+const TIE = {
+	task: 'transcription',
+	language: 'english',
+	duration: 12.0,
+	text: ' Longer segment. Short segment.',
+	segments: [
+		{ id: 0, start: 2.0, end: 6.5, text: ' Longer segment.' },
+		{ id: 1, start: 2.0, end: 3.0, text: ' Short segment.' },
+	],
+};
+// #1923 all-outside fixture: the only segment lies past the duration.
+const ALLOUT = {
+	task: 'transcription',
+	language: 'english',
+	duration: 12.0,
+	text: ' Ghost words.',
+	segments: [{ id: 0, start: 100.0, end: 101.0, text: ' Ghost words.' }],
+};
+
+let asrMode = 'gen1'; // 'gen1' | 'gen2' | 'fail' | 'bounds' | 'unsorted' | 'overflow' | 'tie' | 'allout'
 let asrServer;
 let audioServer;
 let asrPort;
@@ -69,6 +129,7 @@ let app;
 let request;
 let generateToken;
 let encryption;
+let aiProvider;
 let seedPool;
 let recordingId;
 let purgedRecordingId;
@@ -77,7 +138,7 @@ function listen(server) {
 	return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
 }
 
-async function seedRecording(storageUrl, status = 'completed') {
+async function seedRecording(storageUrl, status = 'completed', durationSeconds = 12) {
 	const q = (sql, params) => seedPool.query(sql, params);
 	const ev = await q(
 		`INSERT INTO interview_events (recruiter_id, candidate_id, status) VALUES ($1, $2, 'completed') RETURNING id`,
@@ -90,8 +151,8 @@ async function seedRecording(storageUrl, status = 'completed') {
 	);
 	const rec = await q(
 		`INSERT INTO interview_recordings (interview_event_id, room_id, status, duration_seconds, storage_path)
-		 VALUES ($1, $2, $3, 12, $4) RETURNING id`,
-		[eventId, room.rows[0].id, status, encryption.encrypt(storageUrl)],
+		 VALUES ($1, $2, $3, $5, $4) RETURNING id`,
+		[eventId, room.rows[0].id, status, encryption.encrypt(storageUrl), durationSeconds],
 	);
 	return rec.rows[0].id;
 }
@@ -139,7 +200,21 @@ describeIfDb('#1904 S-D02 recordings segments (realdb journey)', () => {
 					return res.end(JSON.stringify({ error: 'stub ASR down' }));
 				}
 				res.writeHead(200, { 'Content-Type': 'application/json' });
-				return res.end(JSON.stringify(asrMode === 'gen2' ? GEN2 : GEN1));
+				const payload =
+					asrMode === 'gen2'
+						? GEN2
+						: asrMode === 'bounds'
+							? BOUNDS
+							: asrMode === 'unsorted'
+								? UNSORTED
+								: asrMode === 'overflow'
+									? OVERFLOW
+									: asrMode === 'tie'
+										? TIE
+										: asrMode === 'allout'
+											? ALLOUT
+											: GEN1;
+				return res.end(JSON.stringify(payload));
 			});
 		});
 		asrPort = await listen(asrServer);
@@ -153,6 +228,8 @@ describeIfDb('#1904 S-D02 recordings segments (realdb journey)', () => {
 
 		seedPool = new Pool({ connectionString: DB_URL });
 		encryption = require('../../../services/encryption');
+		// The same singleton lib/polsia-ai delegates to (module cache).
+		aiProvider = require('../../../lib/ai-provider');
 		await cleanAndSeed();
 
 		const express = require('express');
@@ -162,6 +239,16 @@ describeIfDb('#1904 S-D02 recordings segments (realdb journey)', () => {
 		app = express();
 		app.use(express.json());
 		app.use('/api/interviews/recordings', recordingsRouter);
+	});
+
+	// The ASR provider is a stubbed external boundary in this suite; its
+	// circuit breaker is boundary health state. A leg failure opens a
+	// 5-minute circuit (lib/ai-provider, #1430), which would otherwise
+	// poison every later journey step in the process (the shipped AC-4
+	// failure case included). Reset it between steps via the provider's
+	// own testing hook so each step starts from a healthy boundary.
+	beforeEach(() => {
+		aiProvider.resetCircuitBreakers();
 	});
 
 	afterAll(async () => {
@@ -327,5 +414,223 @@ describeIfDb('#1904 S-D02 recordings segments (realdb journey)', () => {
 			.get(`/api/interviews/recordings/${freshId}/transcript`)
 			.set('Authorization', `Bearer ${recToken()}`);
 		expect(got.body.transcript.segment_count).toBe(0);
+	});
+
+	test('#1923 bounds: an out-of-duration segment is clamped to the recording duration and a fully-outside segment is not stored', async () => {
+		const freshId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`);
+		asrMode = 'bounds';
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${freshId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(res.status).toBe(200);
+		// AC-3 (shape): transcribe response shape unchanged.
+		expect(Object.keys(res.body).sort()).toEqual(['success', 'transcript']);
+		expect(Object.keys(res.body.transcript).sort()).toEqual(['confidence', 'duration_ms', 'text']);
+
+		// Stored state read back from the DB (insertion order): the
+		// straddling segment's end is clamped to the 12s duration and
+		// the fully-outside segment (100s on a 12s recording) is absent.
+		const dbSegs = await seedPool.query(
+			`SELECT text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
+			[freshId],
+		);
+		expect(dbSegs.rows.map((r) => [Number(r.start_time_ms), Number(r.end_time_ms)])).toEqual([
+			[0, 2000],
+			[2000, 12000],
+		]);
+		for (const r of dbSegs.rows) {
+			expect(Number(r.end_time_ms)).toBeLessThanOrEqual(12000);
+		}
+
+		const got = await request(app)
+			.get(`/api/interviews/recordings/${freshId}/transcript`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(got.status).toBe(200);
+		expect(got.body.transcript.segments.map((x) => x.text).join('')).toBe(
+			'Hello candidate. Tell me about yourself.',
+		);
+	});
+
+	test('#1923 order: segments delivered unsorted are stored in monotonic start_time_ms order', async () => {
+		const freshId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`);
+		asrMode = 'unsorted';
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${freshId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(res.status).toBe(200);
+		expect(Object.keys(res.body).sort()).toEqual(['success', 'transcript']);
+		expect(Object.keys(res.body.transcript).sort()).toEqual(['confidence', 'duration_ms', 'text']);
+
+		// Stored order = insertion order (id is a serial): on the base
+		// handler the ids follow provider order (starts 6500, 0, 2000).
+		const dbSegs = await seedPool.query(
+			`SELECT text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
+			[freshId],
+		);
+		expect(dbSegs.rows.map((r) => Number(r.start_time_ms))).toEqual([0, 2000, 6500]);
+		expect(dbSegs.rows.map((r) => r.text).join('')).toBe(GEN1.text);
+
+		// And the recruiter's read-back tells the story chronologically.
+		const got = await request(app)
+			.get(`/api/interviews/recordings/${freshId}/transcript`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(got.body.transcript.segments.map((x) => x.text).join('')).toBe(GEN1.text);
+	});
+
+	test('#1923 pin A: a forced mid-transaction failure on re-run leaves the old generation and its diarization artefacts fully intact', async () => {
+		// The pin recording carries duration_seconds = NULL: with a known
+		// duration the #1923 bound clamps the overflow segment to the
+		// duration BEFORE insert and it can never reach Postgres (the fix
+		// working as designed). With no honest bound to apply, end_s=1e16
+		// becomes end_time_ms=1e19, overflows int8 inside the transaction
+		// — after the deletes and the first segment insert.
+		const pinId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`, 'completed', null);
+		asrMode = 'gen1';
+		const first = await request(app)
+			.post(`/api/interviews/recordings/${pinId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(first.status).toBe(200);
+
+		const q = (sql, params) => seedPool.query(sql, params);
+		const job = await q(
+			`INSERT INTO diarization_jobs (recording_id, status) VALUES ($1, 'complete') RETURNING id`,
+			[pinId],
+		);
+		await q(
+			`INSERT INTO diarization_runs (recording_id, job_id, engine_package, turns) VALUES ($1, $2, '@desert-ant-labs/who', '[]'::jsonb)`,
+			[pinId, job.rows[0].id],
+		);
+		await q(
+			`INSERT INTO recording_speaker_mappings (recording_id, speaker_number, participant_user_id, participant_role, state) VALUES ($1, 0, $2, 'candidate', 'proposed')`,
+			[pinId, U_CAND],
+		);
+		await q(
+			`INSERT INTO transcript_speaker_audit (recording_id, speaker_number, actor_user_id, action) VALUES ($1, 0, $2, 'confirm')`,
+			[pinId, U_REC],
+		);
+		await q(
+			`UPDATE interview_recordings SET diarization_status = 'complete', diarization_updated_at = NOW() WHERE id = $1`,
+			[pinId],
+		);
+		// M2 (independent review): the NULL duration this pin depends
+		// on is asserted from the recording row, not just the seed call.
+		const pinRec = await q(`SELECT duration_seconds FROM interview_recordings WHERE id = $1`, [
+			pinId,
+		]);
+		expect(pinRec.rows[0].duration_seconds).toBeNull();
+		const genSegs = (
+			await q(
+				`SELECT id, text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
+				[pinId],
+			)
+		).rows;
+		expect(genSegs.length).toBe(3);
+
+		asrMode = 'overflow';
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${pinId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(res.status).toBe(500);
+
+		// The whole swap rolled back: gen-1 segments are byte-identical.
+		const afterSegs = (
+			await q(
+				`SELECT id, text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
+				[pinId],
+			)
+		).rows;
+		expect(afterSegs).toEqual(genSegs);
+		for (const table of [
+			'diarization_runs',
+			'recording_speaker_mappings',
+			'transcript_speaker_audit',
+			'diarization_jobs',
+		]) {
+			const left = await q(`SELECT COUNT(*)::int AS n FROM ${table} WHERE recording_id = $1`, [
+				pinId,
+			]);
+			expect(left.rows[0].n).toBe(1);
+		}
+		const rec = await q(
+			`SELECT status, diarization_status FROM interview_recordings WHERE id = $1`,
+			[pinId],
+		);
+		expect(rec.rows[0].status).toBe('completed');
+		expect(rec.rows[0].diarization_status).toBe('complete');
+
+		const got = await request(app)
+			.get(`/api/interviews/recordings/${pinId}/transcript`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(got.body.transcript.segments.map((x) => x.text).join('')).toBe(GEN1.text);
+	});
+
+	test('#1923 pin B: a re-run with all ASR legs failing preserves the existing generation', async () => {
+		const freshId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`);
+		asrMode = 'gen1';
+		const first = await request(app)
+			.post(`/api/interviews/recordings/${freshId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(first.status).toBe(200);
+		const genSegs = (
+			await seedPool.query(
+				`SELECT id, text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
+				[freshId],
+			)
+		).rows;
+		expect(genSegs.length).toBe(3);
+
+		asrMode = 'fail';
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${freshId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(res.status).toBe(500);
+
+		const afterSegs = (
+			await seedPool.query(
+				`SELECT id, text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
+				[freshId],
+			)
+		).rows;
+		expect(afterSegs).toEqual(genSegs);
+		const rec = await seedPool.query(
+			`SELECT status FROM interview_recordings WHERE id = $1`,
+			[freshId],
+		);
+		expect(rec.rows[0].status).toBe('completed');
+	});
+	test('#1923 bounds: a payload whose only segment lies outside the duration fails honestly and stores nothing', async () => {
+		const freshId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`);
+		asrMode = 'allout';
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${freshId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(res.status).toBe(500);
+		const rows = await seedPool.query(
+			`SELECT COUNT(*)::int AS n FROM interview_transcripts WHERE recording_id = $1`,
+			[freshId],
+		);
+		expect(rows.rows[0].n).toBe(0);
+		const rec = await seedPool.query(
+			`SELECT status FROM interview_recordings WHERE id = $1`,
+			[freshId],
+		);
+		expect(rec.rows[0].status).toBe('completed');
+	});
+
+	test('#1923 order: equal-start segments are stored ordered by end_time_ms (tie-break)', async () => {
+		const freshId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`);
+		asrMode = 'tie';
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${freshId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(res.status).toBe(200);
+		const dbSegs = await seedPool.query(
+			`SELECT text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
+			[freshId],
+		);
+		expect(dbSegs.rows.map((r) => [Number(r.start_time_ms), Number(r.end_time_ms)])).toEqual([
+			[2000, 3000],
+			[2000, 6500],
+		]);
 	});
 });
