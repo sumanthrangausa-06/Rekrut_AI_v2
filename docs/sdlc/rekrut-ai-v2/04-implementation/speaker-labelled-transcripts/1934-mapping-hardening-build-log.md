@@ -74,5 +74,15 @@ this lane.
 
 ## Review
 
-Independent reviewer subagent (code-reviewer perspective) —
-verdict recorded on the PR.
+Independent reviewer subagent (code-reviewer + security-reviewer
+perspective, cold review): **APPROVE-WITH-MINORS, no BLOCK** —
+PR #1992 comment 6513798818. The reviewer reproduced the red
+evidence first-hand (new tests vs base lib: the same 4 failures)
+and re-ran the green suites (33/33). Two minors, both
+documentation precision, both FIXED in-PR at head `b753bb02a`:
+M-1 the pre-existing `isAutoNameEnabled` test title still stated
+the old exact-'false' contract — retitled; M-2 the INT4_MAX
+comment named only the mappings column — now names both int4
+columns. One NIT (non-string env coercion in `isAutoNameEnabled`)
+accepted as-is: every coerced case lands on the semantically
+correct side.
