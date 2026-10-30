@@ -122,6 +122,10 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-D13: transcript_speaker_audit
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-D13: recording_speaker_mappings
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-D13: diarization_jobs
+			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping participant sweep
+			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping updated_by sweep
+			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording audit sweep
+			.mockResolvedValueOnce({ rowCount: 0 }) // #1956 S-D19: event_labelling_consent
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
@@ -206,6 +210,9 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			transcriptsDeleted: 0,
 			diarizationJobsDeleted: 0,
 			diarizationRunsDeleted: 0,
+			crossRecordingMappingsNulled: 0, // #1944
+			crossRecordingAuditNulled: 0, // #1944
+			panelLabellingConsentDeleted: 0, // #1956 S-D19
 			speakerMappingsDeleted: 0,
 			speakerAuditDeleted: 0,
 			recordingsLedgered: 0,
@@ -402,6 +409,10 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-D13: transcript_speaker_audit
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-D13: recording_speaker_mappings
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-D13: diarization_jobs
+			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping participant sweep
+			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping updated_by sweep
+			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording audit sweep
+			.mockResolvedValueOnce({ rowCount: 0 }) // #1956 S-D19: event_labelling_consent
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: screening_answers
@@ -485,6 +496,9 @@ describe('S-067 erasePersonalData (shared erasure routine)', () => {
 			transcriptsDeleted: 0,
 			diarizationJobsDeleted: 0,
 			diarizationRunsDeleted: 0,
+			crossRecordingMappingsNulled: 0, // #1944
+			crossRecordingAuditNulled: 0, // #1944
+			panelLabellingConsentDeleted: 0, // #1956 S-D19
 			speakerMappingsDeleted: 0,
 			speakerAuditDeleted: 0,
 			recordingsLedgered: 0,
