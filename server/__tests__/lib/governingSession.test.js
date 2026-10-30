@@ -73,4 +73,70 @@ describe('ensureGoverningSession (#1925)', () => {
 
 		expect(id).toBe(91);
 	});
+
+	it('M3 (#1950): race loser cleans up its own orphaned session (invited only), winner untouched', async () => {
+		SessionService.create.mockResolvedValue({ id: 88 });
+		const calls = [];
+		db.query.mockImplementation(async (sql, params) => {
+			calls.push([sql, params]);
+			if (sql.includes('FROM job_applications')) return { rows: [JOB_APP] };
+			if (sql.includes('UPDATE interview_events')) return { rows: [], rowCount: 0 };
+			if (sql.includes('FROM interview_events')) return { rows: [{ interview_session_id: 91 }] };
+			return { rows: [] };
+		});
+
+		const id = await ensureGoverningSession(EVENT, { callerRole: 'recruiter' });
+
+		expect(id).toBe(91);
+		const cleanup = calls.find(([sql]) => sql.includes('DELETE FROM interview_sessions'));
+		expect(cleanup).toBeDefined();
+		expect(cleanup[0]).toContain("status = 'invited'");
+		expect(cleanup[1]).toEqual([88]); // the loser's own session — never the winner (91)
+	});
+
+	it('M3 (#1950): orphan cleanup failure is logged, never fatal — winner still returned', async () => {
+		SessionService.create.mockResolvedValue({ id: 88 });
+		db.query.mockImplementation(async (sql) => {
+			if (sql.includes('FROM job_applications')) return { rows: [JOB_APP] };
+			if (sql.includes('UPDATE interview_events')) return { rows: [], rowCount: 0 };
+			if (sql.includes('FROM interview_events')) return { rows: [{ interview_session_id: 91 }] };
+			if (sql.includes('DELETE FROM interview_sessions')) throw new Error('cleanup boom');
+			return { rows: [] };
+		});
+		const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+		const id = await ensureGoverningSession(EVENT, { callerRole: 'recruiter' });
+
+		expect(id).toBe(91);
+		expect(errSpy).toHaveBeenCalled();
+		errSpy.mockRestore();
+	});
+
+	it('M3 (#1950): re-read winner is the session we just created — no cleanup DELETE', async () => {
+		SessionService.create.mockResolvedValue({ id: 88 });
+		const calls = [];
+		db.query.mockImplementation(async (sql, params) => {
+			calls.push([sql, params]);
+			if (sql.includes('FROM job_applications')) return { rows: [JOB_APP] };
+			if (sql.includes('UPDATE interview_events')) return { rows: [], rowCount: 0 };
+			if (sql.includes('FROM interview_events')) return { rows: [{ interview_session_id: 88 }] };
+			return { rows: [] };
+		});
+
+		const id = await ensureGoverningSession(EVENT, { callerRole: 'recruiter' });
+
+		expect(id).toBe(88);
+		expect(calls.find(([sql]) => sql.includes('DELETE FROM interview_sessions'))).toBeUndefined();
+	});
+
+	it('M4 (#1950): NULL job_application_id — no session created, returns null, gate keeps NO_GOVERNING_SESSION posture', async () => {
+		const id = await ensureGoverningSession(
+			{ ...EVENT, job_application_id: null },
+			{ callerRole: 'recruiter' },
+		);
+
+		expect(id).toBeNull();
+		expect(SessionService.create).not.toHaveBeenCalled();
+		expect(db.query).not.toHaveBeenCalled();
+	});
 });
