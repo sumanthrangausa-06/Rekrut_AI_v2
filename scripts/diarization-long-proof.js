@@ -102,21 +102,37 @@ function evaluateWindow(gtTurns, engineTurns, startS, endS, expectedVoices = nul
 	return { window_s: [startS, endS], pass, mapping, perVoice };
 }
 
+// Canonical window definition (#1929 m9): "Minute N" = the 60-second
+// window starting at timestamp N:00 — [N×60, (N+1)×60) seconds.
+// Minute 2 = [120,180], minute 28 = [1680,1740], minute 40 = [2400,2460].
+function minute2Window(durationS) {
+	return durationS >= 180 ? [120, 180] : null;
+}
+
+// For a fixture shorter than 180 s, minute 2 does not exist and must
+// not be silently substituted. The distinctly named early window is
+// evaluated instead and recorded under its own key — never as
+// unqualified minute2.
+const EARLY_WINDOW_S = [60, 120];
+
 function evaluateFixture(gt, run) {
 	const duration = gt.duration_s;
-	const minute2 = evaluateWindow(
-		gt.turns,
-		run.turns,
-		duration >= 180 ? 120 : 60,
-		duration >= 180 ? 180 : 120,
-		gt.speakers,
-	);
+	const m2 = minute2Window(duration);
+	const minute2 = m2
+		? evaluateWindow(gt.turns, run.turns, m2[0], m2[1], gt.speakers)
+		: null;
+	const earlyWindow = m2
+		? null
+		: evaluateWindow(gt.turns, run.turns, EARLY_WINDOW_S[0], EARLY_WINDOW_S[1], gt.speakers);
+	// The window the join is checked against: canonical minute 2 when
+	// it exists, otherwise the early window under its own name.
+	const primary = minute2 ?? earlyWindow;
 	const finalMinute = evaluateWindow(gt.turns, run.turns, duration - 60, duration, gt.speakers);
 	const distinctEngineSpeakers = [...new Set(run.turns.map((t) => t.speaker))].sort(
 		(a, b) => a - b,
 	);
-	const mappingsConsistent = Object.keys(minute2.mapping).every(
-		(v) => minute2.mapping[v] !== null && minute2.mapping[v] === finalMinute.mapping[v],
+	const mappingsConsistent = Object.keys(primary.mapping).every(
+		(v) => primary.mapping[v] !== null && primary.mapping[v] === finalMinute.mapping[v],
 	);
 	// Distinctness at the fixture level (#1929 M1): each window's mapping
 	// must be injective — distinct voices, distinct engine speakers.
@@ -126,10 +142,10 @@ function evaluateFixture(gt, run) {
 	};
 	return {
 		joinPass: Boolean(
-			minute2.pass &&
+			primary.pass &&
 				finalMinute.pass &&
 				mappingsConsistent &&
-				injective(minute2.mapping) &&
+				injective(primary.mapping) &&
 				injective(finalMinute.mapping),
 		),
 		phantomPass:
@@ -137,9 +153,11 @@ function evaluateFixture(gt, run) {
 			distinctEngineSpeakers.length === gt.speakers.length,
 		speakerCount: run.speakerCount,
 		distinctEngineSpeakers,
-		mappingMinute2: minute2.mapping,
+		mappingMinute2: minute2 ? minute2.mapping : null,
+		mappingEarlyWindow: earlyWindow ? earlyWindow.mapping : null,
 		mappingFinalMinute: finalMinute.mapping,
 		minute2,
+		earlyWindow,
 		finalMinute,
 	};
 }
@@ -362,4 +380,11 @@ if (require.main === module) {
 	});
 }
 
-module.exports = { evaluateWindow, evaluateFixture, overlapsInWindow, MIN_OVERLAP_S };
+module.exports = {
+	evaluateWindow,
+	evaluateFixture,
+	overlapsInWindow,
+	MIN_OVERLAP_S,
+	minute2Window,
+	EARLY_WINDOW_S,
+};

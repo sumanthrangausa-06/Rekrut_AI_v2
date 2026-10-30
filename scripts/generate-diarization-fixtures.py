@@ -11,8 +11,9 @@ Long fixtures do not need thousands of TTS calls: a small set of
 turn clips per voice (3 interviewer + 3 candidate, ~11-16 s each) is
 cycled in a fixed alternating pattern until the target duration.
 Alternation guarantees every voice speaks in the first and last
-5 minutes, in minute 2, and in the final minute (no turn is longer
-than ~16 s). Fixtures END at a natural turn boundary within a few
+5 minutes, in minute 2 ([120,180] s — canonical definition below;
+on the short 2-minute fixture, in the early window [60,120] s), and
+in the final minute (no turn is longer than ~16 s). Fixtures END at a natural turn boundary within a few
 seconds of the target (never mid-turn): the first S-D06 run of a
 hard-truncated fixture produced a 0.06 s phantom speaker turn at
 the abrupt cut (119.92-119.98 s of a 120 s fixture) — an artefact
@@ -97,15 +98,28 @@ def build_fixture(clips, target_s: int):
     return bytes(pcm), turns, round(cursor / SR, 3)
 
 
+# Canonical window definition (#1929 m9): "Minute N" = the 60-second
+# window starting at timestamp N:00 — [N*60, (N+1)*60) seconds.
+# Minute 2 = [120,180], minute 28 = [1680,1740], minute 40 = [2400,2460].
+# For duration < 180 s, minute 2 does not exist and must not be
+# silently substituted: the distinctly named early window [60,120]
+# is checked instead, under its own label.
+def minute2_window(duration_s):
+    return (120, 180) if duration_s >= 180 else None
+
+
 def check_windows(turns, duration_s):
     """Fail loudly if the AC-1 windows are not covered by both voices."""
     def voices_in(start, end):
         return {t["speaker"] for t in turns if t["end_s"] > start and t["start_s"] < end}
     want = {s for s, _ in VOICES}
-    minute2 = (120, 180) if duration_s >= 180 else (60, 120)
+    minute2 = minute2_window(duration_s)
+    labelled_minute2 = (
+        ("minute 2", minute2) if minute2 is not None else ("early window", (60, 120))
+    )
     for label, window in [
         ("first 5 min", (0, min(300, duration_s))),
-        ("minute 2", minute2),
+        labelled_minute2,
         ("final minute", (duration_s - 60, duration_s)),
         ("last 5 min", (max(0, duration_s - 300), duration_s)),
     ]:

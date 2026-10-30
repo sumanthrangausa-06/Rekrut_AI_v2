@@ -134,6 +134,8 @@ async function cleanAndSeed() {
 	R.panel = await seedRecording(panelEvent, 'complete');
 	// Minute 2 (120s–180s) and minute 40 (2400s–2460s): every voice
 	// speaks in both windows with the same speaker_number.
+	// Canonical definition (#1929 m9): "Minute N" = [N×60, (N+1)×60)
+	// seconds — these seed times already use it and do not move.
 	for (const [base, tag] of [[120000, 'early'], [2400000, 'late']]) {
 		await seedSegment(R.panel, { text: `Candidate ${tag}.`, start: base, end: base + 10000, speaker: 0 });
 		await seedSegment(R.panel, { text: `Recruiter ${tag}.`, start: base + 10000, end: base + 20000, speaker: 1 });

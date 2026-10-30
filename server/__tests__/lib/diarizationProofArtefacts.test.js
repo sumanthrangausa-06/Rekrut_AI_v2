@@ -57,7 +57,29 @@ describe('S-D06 proof artefacts — AC-1 recomputable from committed files (#192
 			});
 			expect(recomputed.joinPass).toBe(recorded.evaluation.joinPass);
 			expect(recomputed.phantomPass).toBe(recorded.evaluation.phantomPass);
-			expect(recomputed.mappingMinute2).toEqual(recorded.evaluation.mappingMinute2);
+			// Window-scoped pin (#1929 m9): this pin asserts the mapping
+			// for the window the recorded evaluation actually evaluated,
+			// named by that window — it is window-scoped by design, not a
+			// blanket "minute 2" claim across fixtures.
+			const recordedWindow = recorded.evaluation.minute2.window_s;
+			if (recordedWindow[0] === 120) {
+				// Canonical minute 2 = [120,180] (duration >= 180 s).
+				expect(recomputed.minute2.window_s).toEqual([120, 180]);
+				expect(recomputed.mappingMinute2).toEqual(recorded.evaluation.mappingMinute2);
+			} else {
+				// The recorded 2-min evaluation stays history: at the time
+				// it was recorded, the [60,120] window was filed under the
+				// minute-2 name. Under the canonical definition that
+				// window is the distinctly named early window, and the
+				// recorded mapping is asserted against it explicitly.
+				expect(recordedWindow).toEqual([60, 120]);
+				expect(recomputed.minute2).toBeNull();
+				expect(recomputed.mappingMinute2).toBeNull();
+				expect(recomputed.earlyWindow.window_s).toEqual([60, 120]);
+				expect(recomputed.mappingEarlyWindow).toEqual(
+					recorded.evaluation.mappingMinute2,
+				);
+			}
 			expect(recomputed.mappingFinalMinute).toEqual(
 				recorded.evaluation.mappingFinalMinute,
 			);
