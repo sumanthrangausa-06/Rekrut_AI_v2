@@ -218,8 +218,48 @@ describe('speakerMapping.participantsFromEvent (OQ-4 source)', () => {
 	});
 });
 
+describe('speakerMapping.computeProposal — speaker-number range contract (#1934 M-3)', () => {
+	it('a negative speaker number produces NO row and NO proposedMapping entry', () => {
+		const turns = [turn(-1, 0, 60), turn(0, 60, 90), turn(1, 90, 100)];
+		const { rows, proposedMapping } = computeProposal({ turns, participants: [CAND, LEAD] });
+		expect(rows.map((r) => r.speaker_number)).toEqual([0, 1]);
+		expect(proposedMapping['-1']).toBeUndefined();
+	});
+
+	it('a negative speaker with the largest share cannot steal a participant assignment', () => {
+		// On base, speaker -1 (60s) is proposed as the candidate.
+		// After the guard only speaker 0 remains — a single voice in a
+		// multi-participant call, which rule 1 leaves unassigned.
+		const turns = [turn(-1, 0, 60), turn(0, 60, 100)];
+		const { rows } = computeProposal({ turns, participants: [CAND, LEAD] });
+		expect(rows).toEqual([{ speaker_number: 0, participant_user_id: null, participant_role: null }]);
+	});
+
+	it('speakers above the int4 max produce NO row (they would fail the mapping INSERT and roll back the stitch)', () => {
+		for (const bad of [2147483648, 3000000000]) {
+			const turns = [turn(bad, 0, 60), turn(0, 60, 100)];
+			const { rows, proposedMapping } = computeProposal({ turns, participants: [CAND, LEAD] });
+			expect(rows.map((r) => r.speaker_number)).toEqual([0]);
+			expect(proposedMapping[String(bad)]).toBeUndefined();
+		}
+	});
+
+	it('boundary speakers 0 and int4-max (2147483647) DO produce rows', () => {
+		const turns = [turn(0, 0, 60), turn(2147483647, 60, 100)];
+		const { rows } = computeProposal({ turns, participants: [CAND, LEAD] });
+		expect(rows.map((r) => r.speaker_number)).toEqual([0, 2147483647]);
+	});
+
+	it('a float speaker number produces NO row (integer-only contract, stated explicitly)', () => {
+		const turns = [turn(1.5, 0, 60), turn(0, 60, 100)];
+		const { rows, proposedMapping } = computeProposal({ turns, participants: [CAND, LEAD] });
+		expect(rows.map((r) => r.speaker_number)).toEqual([0]);
+		expect(proposedMapping['1.5']).toBeUndefined();
+	});
+});
+
 describe('speakerMapping.isAutoNameEnabled (DIARIZATION_AUTO_NAME, HA-2 switch)', () => {
-	it('defaults ON when unset, ON for anything except exactly \'false\'', () => {
+	it('defaults ON when unset; \'false\' disables (the wider #1934 OFF set is pinned below)', () => {
 		expect(isAutoNameEnabled({})).toBe(true);
 		expect(isAutoNameEnabled({ DIARIZATION_AUTO_NAME: 'true' })).toBe(true);
 		expect(isAutoNameEnabled({ DIARIZATION_AUTO_NAME: 'false' })).toBe(false);
@@ -231,4 +271,19 @@ describe('speakerMapping.isAutoNameEnabled (DIARIZATION_AUTO_NAME, HA-2 switch)'
 		env.DIARIZATION_AUTO_NAME = 'false';
 		expect(isAutoNameEnabled(env)).toBe(false);
 	});
+
+	it('#1934 M-4: plausible OFF spellings disable — the HA-2 switch fails toward OFF, not ON', () => {
+		// A kill switch an operator flips during an HA-2 incident must
+		// land OFF even with wrong casing, padding, or a numeric form.
+		for (const v of ['FALSE', 'False', '0', 'off', 'OFF', 'no', ' false ', ' 0 ']) {
+			expect(isAutoNameEnabled({ DIARIZATION_AUTO_NAME: v })).toBe(false);
+		}
+	});
+
+	it('#1934 M-4: unset, true, and unrecognised values keep the documented default ON', () => {
+		for (const v of ['true', 'TRUE', '1', 'yes', 'flase', 'disabled', '']) {
+			expect(isAutoNameEnabled({ DIARIZATION_AUTO_NAME: v })).toBe(true);
+		}
+	});
 });
+
