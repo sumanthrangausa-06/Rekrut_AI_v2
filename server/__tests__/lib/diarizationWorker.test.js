@@ -466,6 +466,64 @@ describe('diarization worker (S-D04)', () => {
 			);
 		});
 
+		it('M2 (#1950): provenance UPDATE throws on the claim path → job cancelled at claim, NOT stranded in claimed, engine never runs', async () => {
+			mockBridgeDb();
+			consentService.checkConsentState.mockResolvedValue({ state: 'valid' });
+			const baseImpl = db.query.getMockImplementation();
+			db.query.mockImplementation(async (sql, params) => {
+				if (sql.includes('UPDATE diarization_jobs') && sql.includes('governing_session_id')) {
+					throw new Error('transient db throw');
+				}
+				return baseImpl(sql, params);
+			});
+			const runEngine = jest.fn();
+
+			const result = await worker.processJob(JOB, { runEngine });
+
+			expect(result).toEqual({ outcome: 'cancelled_at_claim', code: 'PANEL_AGREEMENT_UNVERIFIABLE' });
+			expect(diarizationJobs.cancel).toHaveBeenCalledWith(
+				9,
+				'consent_blocked_at_claim:PANEL_AGREEMENT_UNVERIFIABLE',
+			);
+			expect(runEngine).not.toHaveBeenCalled();
+			expect(diarizationJobs.markProcessing).not.toHaveBeenCalled();
+		});
+
+		it('M2 (#1950): persistClaimProvenance never throws — a DB throw returns the blocked shape (guarded like the stitch path)', async () => {
+			mockBridgeDb();
+			db.query.mockImplementation(async (sql) => {
+				if (sql.includes('UPDATE diarization_jobs')) throw new Error('transient db throw');
+				return { rows: [] };
+			});
+
+			const result = await worker.persistClaimProvenance(9, {
+				sessionId: 88,
+				consentReceiptId: 4242,
+				eventId: 55,
+				panelSnapshot: null,
+			});
+
+			expect(result).toEqual({ blocked: 'PANEL_AGREEMENT_UNVERIFIABLE' });
+		});
+
+		it('M2 (#1950, review minor): persistClaimProvenance never throws even when db.connect() itself fails', async () => {
+			mockBridgeDb();
+			db.connect = jest.fn(async () => {
+				throw new Error('pool exhausted');
+			});
+			try {
+				const result = await worker.persistClaimProvenance(9, {
+					sessionId: 88,
+					consentReceiptId: 4242,
+					eventId: 55,
+					panelSnapshot: null,
+				});
+				expect(result).toEqual({ blocked: 'PANEL_AGREEMENT_UNVERIFIABLE' });
+			} finally {
+				delete db.connect;
+			}
+		});
+
 		it('T13 (S-2): a claim retry whose stored snapshot differs fails PANEL_SNAPSHOT_CONFLICT and never overwrites it', async () => {
 			mockBridgeDb();
 			consentService.checkConsentState.mockResolvedValue({ state: 'valid' });

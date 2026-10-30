@@ -177,12 +177,29 @@ async function persistClaimProvenance(jobId, claimGate, { verifyLive = false } =
 		return { ok: true };
 	};
 
-	if (typeof db.connect !== 'function' || !snapshot) {
-		return guardedWrite(db);
+	if (typeof db.connect !== 'function') {
+		// #1950 M2: the no-client fallback (unit doubles) gets the SAME
+		// guarded handling as the transactional path below and the
+		// stitch path — a transient DB throw must not propagate out of
+		// processJob and strand the job in `claimed` until the sweeper.
+		// It becomes the structured blocked outcome, and processJob
+		// cancels the job at claim.
+		try {
+			return await guardedWrite(db);
+		} catch (err) {
+			console.log(
+				`[diarization] claim provenance persist failed for job ${jobId}: ${err.message}`,
+			);
+			return { blocked: 'PANEL_AGREEMENT_UNVERIFIABLE' };
+		}
 	}
 
-	const client = await db.connect();
+	// #1950 M2 (review minor): the connect itself is inside the guard —
+	// a pool-acquire failure gets the same structured blocked outcome
+	// as any other persist failure, never a throw that strands the job.
+	let client;
 	try {
+		client = await db.connect();
 		await client.query('BEGIN');
 		await client.query(`SELECT pg_advisory_xact_lock(hashtext($1::text))`, [
 			`panel-event:${claimGate.eventId}`,
@@ -211,13 +228,13 @@ async function persistClaimProvenance(jobId, claimGate, { verifyLive = false } =
 		await client.query('COMMIT');
 		return result;
 	} catch (err) {
-		await client.query('ROLLBACK').catch(() => {});
+		if (client) await client.query('ROLLBACK').catch(() => {});
 		// Fail-closed: provenance that cannot be persisted atomically
 		// cannot authorize the claim.
 		console.log(`[diarization] claim provenance persist failed for job ${jobId}: ${err.message}`);
 		return { blocked: 'PANEL_AGREEMENT_UNVERIFIABLE' };
 	} finally {
-		client.release();
+		if (client) client.release();
 	}
 }
 

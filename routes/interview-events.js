@@ -352,6 +352,23 @@ router.post(
 			if (event.candidate_id !== req.user.id) {
 				return res.status(403).json({ error: 'Only the candidate can record consent for this interview' });
 			}
+
+			// #1950 M5: per-(user,event) rate limit, consistent with the
+			// BR-7 labelling-consent capture in this file (same limiter,
+			// same window/cap, same uniform 429 shape) — without it the
+			// event's own candidate could grow the consent/audit tables
+			// unboundedly. checkLimit fails open on limiter-store error
+			// (inherited, as with the panel capture): the limiter is
+			// anti-abuse, the consent checks below stay fail-closed.
+			const rl = await distributedRateLimiter.checkLimit(
+				`biometric-consent:${req.user.id}:${eventId}`,
+				60 * 1000,
+				10,
+			);
+			if (!rl.allowed) {
+				return res.status(429).json({ error: 'Too many requests', code: 'RATE_LIMITED' });
+			}
+
 			if (!event.interview_session_id) {
 				return res
 					.status(409)

@@ -22,8 +22,10 @@ jest.mock('../../../lib/auth', () => ({
 	},
 	requireRole: () => (_req, _res, next) => next(),
 }));
+const mockCheckLimit = jest.fn(async () => ({ allowed: true }));
 jest.mock('../../../lib/distributed-rate-limiter', () => ({
 	rateLimits: { ai: (_req, _res, next) => next() },
+	distributedRateLimiter: { checkLimit: (...a) => mockCheckLimit(...a) },
 }));
 jest.mock('../../../server/services/calendar-service', () => ({}));
 jest.mock('../../../server/services/livekit', () => ({ autoCreateRoomForInterview: jest.fn(async () => {}) }));
@@ -109,6 +111,7 @@ describe('POST /api/interviews/:id/biometric-consent — capture against the gov
 		jest.clearAllMocks();
 		mockUser.current = { id: 1001, role: 'candidate' };
 		mockRecordConsent.mockResolvedValue({ id: 4242 });
+		mockCheckLimit.mockResolvedValue({ allowed: true });
 	});
 
 	it('records the grant against the governing session only (S-070 propagation rides recordConsent)', async () => {
@@ -132,6 +135,9 @@ describe('POST /api/interviews/:id/biometric-consent — capture against the gov
 
 		expect(res.status).toBe(403);
 		expect(mockRecordConsent).not.toHaveBeenCalled();
+		// M5 (#1950, review minor): the rate limit sits AFTER ownership —
+		// a foreign caller never reaches the limiter.
+		expect(mockCheckLimit).not.toHaveBeenCalled();
 	});
 
 	it('unbridged event → 409 NO_GOVERNING_SESSION, nothing recorded', async () => {
@@ -141,6 +147,18 @@ describe('POST /api/interviews/:id/biometric-consent — capture against the gov
 
 		expect(res.status).toBe(409);
 		expect(res.body.code).toBe('NO_GOVERNING_SESSION');
+		expect(mockRecordConsent).not.toHaveBeenCalled();
+	});
+
+	it('M5 (#1950): rate limit blocks → uniform 429 RATE_LIMITED, nothing recorded', async () => {
+		mockEventRow.current = { id: 55, candidate_id: 1001, interview_session_id: 88 };
+		mockCheckLimit.mockResolvedValue({ allowed: false });
+
+		const res = await request(app).post('/api/interviews/55/biometric-consent').send({ accepted: true });
+
+		expect(res.status).toBe(429);
+		expect(res.body).toMatchObject({ error: 'Too many requests', code: 'RATE_LIMITED' });
+		expect(mockCheckLimit).toHaveBeenCalledWith('biometric-consent:1001:55', 60 * 1000, 10);
 		expect(mockRecordConsent).not.toHaveBeenCalled();
 	});
 });
