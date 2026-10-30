@@ -10,6 +10,12 @@
  *     npx jest server/__tests__/routes/panel-labelling-1955.integration.test.js --forceExit
  */
 jest.unmock('../../../lib/db');
+// #1961: the global setup (server/test/setup.js) also stubs
+// lib/distributed-rate-limiter with a checkLimit that ALWAYS allows —
+// under that stub the capture handler's 429 path can never fire, which
+// is exactly how the S-D18 rate limit shipped untested. Unmock it so
+// T-C8/T-C10 exercise the real DB-backed limiter (HL-003).
+jest.unmock('../../../lib/distributed-rate-limiter');
 
 const { Pool } = require('pg');
 const DB_URL = process.env.SD18_INTEGRATION_DB_URL;
@@ -41,6 +47,9 @@ async function seed() {
 	await seedPool.query(`DELETE FROM interview_rooms WHERE interview_event_id IN ($1,$2)`, [EV, EV_OVERLAP]);
 	await seedPool.query(`DELETE FROM interview_recordings WHERE interview_event_id IN ($1,$2)`, [EV, EV_OVERLAP]);
 	await seedPool.query(`DELETE FROM interview_events WHERE id IN ($1,$2)`, [EV, EV_OVERLAP]);
+	// #1961: rate-limit buckets persist across suite runs in the same DB —
+	// clear this suite's keys so cap counts are deterministic per run.
+	await seedPool.query(`DELETE FROM rate_limit_buckets WHERE key LIKE 'panel-labelling%'`).catch(() => {});
 	await seedPool.query(`DELETE FROM users WHERE id = ANY($1)`, [[U_REC, U_CAND, U_PANEL, U_STRANGER]]);
 	for (const [id, email, name, role] of [
 		[U_REC, 'rec1955@test.local', 'Rec 1955', 'recruiter'],
@@ -206,6 +215,139 @@ describeIfDb('S-D18 BR-7 capture (#1955, realdb)', () => {
 		const c = await capture(EV_OVERLAP, candTok(), { decision: 'granted', room_id: overlapRoomId, roster_version: rosterVersion });
 		expect(c.status).toBe(403);
 		expect(await consentRows(EV_OVERLAP, U_CAND)).toHaveLength(0);
+	});
+
+	test('T-C7 (#1961 item 1): lawful granted → withdrawn transition appends a row; token reads withdrawn', async () => {
+		const before = await consentRows(EV, U_REC);
+		expect(before.length).toBeGreaterThanOrEqual(1);
+		expect(before[before.length - 1].decision).toBe('granted');
+		const res = await capture(EV, recTok(), { decision: 'withdrawn', room_id: roomId, roster_version: rosterVersion });
+		expect(res.status).toBe(200);
+		expect(res.body.own_decision).toBe('withdrawn');
+		const rows = await consentRows(EV, U_REC);
+		expect(rows).toHaveLength(before.length + 1);
+		expect(rows.slice(0, before.length)).toEqual(before);
+		expect(rows[rows.length - 1].decision).toBe('withdrawn');
+		const t = await getToken(roomId, recTok());
+		expect(t.body.labelling_notice.own_decision).toBe('withdrawn');
+	});
+
+	test('T-C8 (#1961 item 1): per-(user,event) rate limit — uniform 429 past the cap; other user / other event unaffected', async () => {
+		const statuses = [];
+		for (let i = 0; i < 16; i++) {
+			const r = await capture(EV, panelTok(), { decision: 'granted', room_id: roomId, roster_version: rosterVersion });
+			statuses.push(r.status);
+			if (r.status === 429) expect(r.body).toEqual({ error: 'Too many requests', code: 'RATE_LIMITED' });
+			else expect(r.status).toBe(200);
+		}
+		expect(statuses).toContain(429);
+		const first429 = statuses.indexOf(429);
+		expect(statuses.slice(0, first429).every((s) => s === 200)).toBe(true);
+		expect(statuses.slice(first429).every((s) => s === 429)).toBe(true);
+		// Per-user isolation: the recruiter on the SAME event is still served
+		// (re-grant after the T-C7 withdrawal).
+		const rec = await capture(EV, recTok(), { decision: 'granted', room_id: roomId, roster_version: rosterVersion });
+		expect(rec.status).toBe(200);
+		// Per-event isolation: the SAME (rate-limited) panel user on a
+		// DIFFERENT event is still served.
+		const t = await getToken(overlapRoomId, panelTok());
+		const ov = await capture(EV_OVERLAP, panelTok(), {
+			decision: 'granted', room_id: overlapRoomId, roster_version: t.body.labelling_notice.roster_version,
+		});
+		expect(ov.status).toBe(200);
+	});
+
+	test('T-C9 (#1961 item 2): mid-transaction failure (notification insert) rolls back — zero consent rows, zero recorded-audit rows', async () => {
+		const EV_FAIL = 19553;
+		await seedPool.query(`DELETE FROM interview_rooms WHERE interview_event_id=$1`, [EV_FAIL]);
+		await seedPool.query(`DELETE FROM interview_events WHERE id=$1`, [EV_FAIL]);
+		await seedPool.query(
+			`INSERT INTO interview_events (id, recruiter_id, candidate_id, panel_member_ids, status)
+			 VALUES ($1,$2,$3,$4,'confirmed')`,
+			[EV_FAIL, U_REC, U_CAND, [U_PANEL]]);
+		const rr = await seedPool.query(
+			`INSERT INTO interview_rooms (interview_event_id, room_name, livekit_room_id, status)
+			 VALUES ($1,'room-1955-fail','RM_fail','active') RETURNING id`, [EV_FAIL]);
+		const failRoomId = rr.rows[0].id;
+		const t = await getToken(failRoomId, panelTok());
+		const rv = t.body.labelling_notice.roster_version;
+		await seedPool.query(
+			`CREATE OR REPLACE FUNCTION sd1961_fail_notif() RETURNS trigger AS $f$
+			 BEGIN RAISE EXCEPTION 'injected failure (#1961 T-C9)'; END; $f$ LANGUAGE plpgsql`);
+		try {
+			await seedPool.query(
+				`CREATE TRIGGER trg_sd1961_fail_notif BEFORE INSERT ON user_notifications
+				 FOR EACH ROW WHEN (NEW.type = 'labelling_decision') EXECUTE FUNCTION sd1961_fail_notif()`);
+			const res = await capture(EV_FAIL, panelTok(), { decision: 'granted', room_id: failRoomId, roster_version: rv });
+			expect(res.status).toBe(500);
+			expect(await consentRows(EV_FAIL, U_PANEL)).toHaveLength(0);
+			const audit = await seedPool.query(
+				`SELECT COUNT(*)::int n FROM compliance_audit_trail
+				 WHERE payload->>'kind'='panel_labelling_capture'
+				   AND (payload->>'event_id')::int=$1 AND payload->>'outcome'='recorded'`, [EV_FAIL]);
+			expect(audit.rows[0].n).toBe(0);
+		} finally {
+			await seedPool.query(`DROP TRIGGER IF EXISTS trg_sd1961_fail_notif ON user_notifications`);
+			await seedPool.query(`DROP FUNCTION IF EXISTS sd1961_fail_notif()`);
+		}
+		// Security review (#1961): a subsequent capture for the SAME event
+		// succeeds — both advisory locks (panel-event + audit-chain) were
+		// released on rollback and the pooled client was not poisoned.
+		const ok = await capture(EV_FAIL, panelTok(), { decision: 'granted', room_id: failRoomId, roster_version: rv });
+		expect(ok.status).toBe(200);
+		expect(await consentRows(EV_FAIL, U_PANEL)).toHaveLength(1);
+	});
+
+	test('T-C10 (#1961 item 3): denied-path auditing is capped per user — a 404 flood cannot grow the audit trail unboundedly', async () => {
+		const countFor = async () => (await seedPool.query(
+			`SELECT COUNT(*)::int n FROM compliance_audit_trail
+			 WHERE actor_id=$1 AND payload->>'kind'='panel_labelling_capture'`, [U_STRANGER])).rows[0].n;
+		const before = await countFor();
+		for (let i = 0; i < 30; i++) {
+			const r = await capture(999998, tok(U_STRANGER, 'stranger1955@test.local', 'recruiter'),
+				{ decision: 'granted', room_id: roomId, roster_version: rosterVersion });
+			expect(r.status).toBe(404);
+		}
+		const delta = (await countFor()) - before;
+		expect(delta).toBeGreaterThanOrEqual(1);
+		expect(delta).toBeLessThanOrEqual(20);
+		expect(delta).toBeLessThan(30);
+	});
+
+	test('T-C11 (#1961 items 4+5): concurrent audit appends keep ONE hash chain; panel rows are labelled interview_event', async () => {
+		const panelLib = require('../../../lib/panelLabelling');
+		await Promise.all(Array.from({ length: 8 }, () =>
+			panelLib.writePanelAudit(seedPool, {
+				eventId: EV, actorId: U_PANEL, actorRole: 'recruiter', outcome: 'concurrency_probe', decision: null,
+			})));
+		const panelRows = (await seedPool.query(
+			`SELECT id, entity_type, entity_id, payload FROM compliance_audit_trail
+			 WHERE payload->>'kind'='panel_labelling_capture' ORDER BY id`)).rows;
+		expect(panelRows.length).toBeGreaterThanOrEqual(8);
+		for (const r of panelRows) {
+			expect(r.entity_type).toBe('interview_event');
+			expect(Number(r.entity_id)).toBe(Number(r.payload.event_id));
+		}
+		// Chain integrity as a pointer walk (ids are UUIDs — row order
+		// proves nothing): exactly one genesis row, every previous_hash
+		// resolves, no previous_hash has two children (a fork), and the
+		// walk from genesis visits every row exactly once.
+		const all = (await seedPool.query(
+			`SELECT previous_hash, current_hash FROM compliance_audit_trail`)).rows;
+		expect(all.length).toBeGreaterThanOrEqual(8);
+		const byPrev = new Map();
+		for (const r of all) {
+			expect(byPrev.has(r.previous_hash)).toBe(false);
+			byPrev.set(r.previous_hash, r);
+		}
+		expect(byPrev.has('0')).toBe(true);
+		let visited = 0;
+		let cursor = byPrev.get('0');
+		while (cursor) {
+			visited++;
+			cursor = byPrev.get(cursor.current_hash);
+		}
+		expect(visited).toBe(all.length);
 	});
 
 	test('freeze: createRecordingRecord freezes expected set + 64-hex hash on event recordings; session recordings stay NULL', async () => {
