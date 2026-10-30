@@ -130,11 +130,17 @@ function computeHash(previousHash, eventType, entityId, actorId, payload, create
 	return crypto.createHash('sha256').update(data).digest('hex');
 }
 
-async function getLastHash() {
-	const result = await pool.query(
-		`SELECT current_hash FROM compliance_audit_trail ORDER BY created_at DESC LIMIT 1`,
+// #1988: chain head read on a given queryable (logEvent's transaction
+// client, under the chain lock). Ordering aligned with writePanelAudit
+// and the erasure drain fold (created_at DESC, id DESC): id is a random
+// UUID, so the secondary key is a deterministic-but-arbitrary tie-break,
+// NOT insertion order — the monotonic guard in logEvent is what actually
+// prevents this writer from creating a same-millisecond tie.
+async function getChainHead(queryable) {
+	const result = await queryable.query(
+		`SELECT current_hash, created_at FROM compliance_audit_trail ORDER BY created_at DESC, id DESC LIMIT 1`,
 	);
-	return result.rows.length > 0 ? result.rows[0].current_hash : null;
+	return result.rows.length > 0 ? result.rows[0] : null;
 }
 
 // ─── Compliance audit trail ─────────────────────────────────────────────────
@@ -169,38 +175,113 @@ async function logEvent(eventData) {
 		};
 	}
 
-	const createdAt = new Date().toISOString();
-	const previousHash = (await getLastHash()) || GENESIS_HASH;
-	const currentHash = computeHash(
-		previousHash,
-		eventType,
-		entityId,
-		actorId,
-		enrichedPayload,
-		createdAt,
-	);
+	// #1988 — hash-chain serialisation, mirroring writePanelAudit's Pool
+	// branch (lib/panelLabelling.js, #1961). The append is read-last-hash
+	// → compute → INSERT; without a lock, two concurrent appends read
+	// the SAME predecessor and fork the chain. logEvent has only the
+	// global pool (no caller-passed queryable, signature unchanged), and
+	// a Pool has no transaction: check out a client and wrap read+insert
+	// in BEGIN/COMMIT so the advisory xact lock spans both statements
+	// (on the bare pool it would release at statement end and protect
+	// nothing). Same lock key as the panel writer, so logEvent and
+	// panel appends serialise against each other.
+	//
+	// The chain lock is a LEAF lock here (security review, #1988): it is
+	// taken last, nothing is acquired after it, and it is held only to
+	// COMMIT. Call-site audit: no logEvent caller holds any advisory
+	// lock when calling logEvent, and the only other chain-lock holders
+	// (writePanelAudit's callers) never call logEvent. A caller holding
+	// 'compliance-audit-chain' on ANOTHER connection must never call
+	// logEvent — Postgres cannot detect that cross-connection
+	// self-deadlock; the 2s lock_timeout below is its bound, and it
+	// fails this write closed rather than queueing on pooled clients.
+	//
+	// Pre-existing, unchanged: logEvent was never inside a caller's
+	// transaction (global pool, autocommit) and still is not — this row
+	// can commit even if a caller's business transaction later rolls
+	// back. RESIDUAL: the erasure drain fold in lib/erasureService.js
+	// is a third writer of this table that takes no chain lock (it must
+	// append on its own transaction client; tracked in #1989) — this
+	// fix serialises logEvent and panel writers only.
+	const client = await pool.connect();
+	try {
+		await client.query('BEGIN');
+		// SET LOCAL is transaction-scoped: it cannot leak lock_timeout
+		// to the next borrower of this pooled client.
+		await client.query(`SET LOCAL lock_timeout = '2s'`);
+		await client.query(`SELECT pg_advisory_xact_lock(hashtext('compliance-audit-chain'))`);
 
-	const result = await pool.query(
-		`INSERT INTO compliance_audit_trail
+		const head = await getChainHead(client);
+		const previousHash = head?.current_hash || GENESIS_HASH;
+
+		// Monotonic guard (security review, #1988): created_at carries
+		// only JS-millisecond precision and the row id is a random UUID,
+		// so no column can order a same-millisecond tie by insertion.
+		// Under the lock, never create one: this row's timestamp is
+		// strictly after its predecessor's. The bumped value is exactly
+		// what is hashed and stored — the hash formula and its inputs'
+		// shape are unchanged, so existing rows keep verifying.
+		let createdAtMs = Date.now();
+		if (head?.created_at) {
+			const headMs = new Date(head.created_at).getTime();
+			if (Number.isFinite(headMs) && createdAtMs <= headMs) {
+				createdAtMs = headMs + 1;
+			}
+		}
+		const createdAt = new Date(createdAtMs).toISOString();
+		const currentHash = computeHash(
+			previousHash,
+			eventType,
+			entityId,
+			actorId,
+			enrichedPayload,
+			createdAt,
+		);
+
+		const result = await client.query(
+			`INSERT INTO compliance_audit_trail
        (event_type, entity_type, entity_id, actor_id, actor_role, job_id, company_id, payload, previous_hash, current_hash, created_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING *`,
-		[
-			eventType,
-			entityType,
-			entityId,
-			actorId,
-			actorRole,
-			jobId,
-			companyId,
-			JSON.stringify(enrichedPayload),
-			previousHash,
-			currentHash,
-			createdAt,
-		],
-	);
+			[
+				eventType,
+				entityType,
+				entityId,
+				actorId,
+				actorRole,
+				jobId,
+				companyId,
+				JSON.stringify(enrichedPayload),
+				previousHash,
+				currentHash,
+				createdAt,
+			],
+		);
 
-	return result.rows[0];
+		await client.query('COMMIT');
+		client.release();
+		// Returned only after COMMIT succeeds: a row whose commit failed
+		// is not durable and is never handed back as if it were.
+		return result.rows[0];
+	} catch (err) {
+		// ROLLBACK, then rethrow the ORIGINAL error (never swallowed,
+		// never replaced). If rollback itself fails the client may hold
+		// an open transaction and the xact lock: destroy it via
+		// release(err) instead of returning it to the pool.
+		let rollbackFailed = false;
+		try {
+			await client.query('ROLLBACK');
+		} catch (_rollbackErr) {
+			rollbackFailed = true;
+		}
+		try {
+			if (rollbackFailed) client.release(err);
+			else client.release();
+		} catch (_releaseErr) {
+			// A release throw must never mask the original error.
+		}
+		throw err;
+	}
 }
 
 async function getAuditTrail(filters = {}) {
@@ -313,19 +394,58 @@ async function getCandidateDecisions(candidateId, options = {}) {
 	return { rows: result.rows, total };
 }
 
+// #1988: order rows by hash linkage — the chain's true order. Rows are
+// fetched in a deterministic fallback order (created_at ASC, id ASC);
+// the walk then follows previous_hash → current_hash from genesis.
+// Timestamp order alone cannot order same-millisecond rows (JS-ms
+// created_at, random-UUID ids), which made verifyChain able to report
+// a valid tied chain as broken depending on Postgres's tie order.
+// Rows the walk cannot reach (orphans, fork branches, cycles) keep
+// their fallback order after the walked chain, where the linkage
+// checks below flag them.
+function orderByHashLinkage(fetchedRows) {
+	const childrenByPrevious = new Map();
+	for (const row of fetchedRows) {
+		const siblings = childrenByPrevious.get(row.previous_hash) || [];
+		siblings.push(row);
+		childrenByPrevious.set(row.previous_hash, siblings);
+	}
+	const ordered = [];
+	const seen = new Set();
+	let previousHash = GENESIS_HASH;
+	for (;;) {
+		const next = (childrenByPrevious.get(previousHash) || []).find((r) => !seen.has(r.id));
+		if (!next) break;
+		ordered.push(next);
+		seen.add(next.id);
+		previousHash = next.current_hash;
+	}
+	for (const row of fetchedRows) {
+		if (!seen.has(row.id)) ordered.push(row);
+	}
+	return ordered;
+}
+
 async function verifyChain(companyId = null) {
 	let query;
 	let params = [];
 
 	if (companyId !== undefined && companyId !== null) {
-		query = `SELECT * FROM compliance_audit_trail WHERE company_id = $1 ORDER BY created_at ASC`;
+		query = `SELECT * FROM compliance_audit_trail WHERE company_id = $1 ORDER BY created_at ASC, id ASC`;
 		params = [companyId];
 	} else {
-		query = `SELECT * FROM compliance_audit_trail ORDER BY created_at ASC`;
+		query = `SELECT * FROM compliance_audit_trail ORDER BY created_at ASC, id ASC`;
 	}
 
 	const result = await pool.query(query, params);
-	const rows = result.rows;
+	// Unscoped verification walks the hash linkage (orderByHashLinkage).
+	// Scoped verification reads a NON-contiguous subset of the chain, so
+	// linkage cannot order or prove it: it keeps the deterministic
+	// timestamp fallback and, as before, recomputes hashes / checks
+	// adjacency within the subset only — it does not prove global
+	// contiguity (pre-existing semantics, labelled per #1988 review).
+	const rows =
+		companyId !== undefined && companyId !== null ? result.rows : orderByHashLinkage(result.rows);
 
 	if (rows.length === 0) {
 		return { valid: true, checked: 0, errors: [] };
