@@ -120,7 +120,43 @@ const ALLOUT = {
 	segments: [{ id: 0, start: 100.0, end: 101.0, text: ' Ghost words.' }],
 };
 
-let asrMode = 'gen1'; // 'gen1' | 'gen2' | 'fail' | 'bounds' | 'unsorted' | 'overflow' | 'tie' | 'allout'
+// #1997 pin C fixture: in-bounds times on a KNOWN-duration (12s)
+// recording; the second segment's text carries the sentinel the test's
+// database trigger raises on. Times pass every bound/clamp untouched —
+// only the database can stop this insert.
+const TRIGGERFAIL = {
+	task: 'transcription',
+	language: 'english',
+	duration: 12.0,
+	text: 'Valid opening. TRIGGER-BOOM tail.',
+	segments: [
+		{ id: 0, start: 0.0, end: 2.0, text: 'Valid opening.' },
+		{ id: 1, start: 2.0, end: 5.0, text: ' TRIGGER-BOOM tail.' },
+	],
+};
+// #1997 at-duration fixtures (12s recording): a segment starting
+// exactly at the duration (12.0s). Derived from the shipped #1923
+// bound (drop when startMs >= durationMs): dropped-and-logged, never
+// clamped to a zero-span row.
+const ATDUR = {
+	task: 'transcription',
+	language: 'english',
+	duration: 12.0,
+	text: 'Hello candidate. At-duration ghost.',
+	segments: [
+		{ id: 0, start: 0.0, end: 2.0, text: 'Hello candidate.' },
+		{ id: 1, start: 12.0, end: 13.0, text: ' At-duration ghost.' },
+	],
+};
+const ATDUR_ONLY = {
+	task: 'transcription',
+	language: 'english',
+	duration: 12.0,
+	text: ' At-duration ghost.',
+	segments: [{ id: 0, start: 12.0, end: 13.0, text: ' At-duration ghost.' }],
+};
+
+let asrMode = 'gen1'; // 'gen1' | 'gen2' | 'fail' | 'bounds' | 'unsorted' | 'overflow' | 'tie' | 'allout' | 'trigfail' | 'atdur' | 'atduronly'
 let asrServer;
 let audioServer;
 let asrPort;
@@ -213,7 +249,13 @@ describeIfDb('#1904 S-D02 recordings segments (realdb journey)', () => {
 										? TIE
 										: asrMode === 'allout'
 											? ALLOUT
-											: GEN1;
+											: asrMode === 'trigfail'
+												? TRIGGERFAIL
+												: asrMode === 'atdur'
+													? ATDUR
+													: asrMode === 'atduronly'
+														? ATDUR_ONLY
+														: GEN1;
 				return res.end(JSON.stringify(payload));
 			});
 		});
@@ -633,4 +675,221 @@ describeIfDb('#1904 S-D02 recordings segments (realdb journey)', () => {
 			[2000, 6500],
 		]);
 	});
+	test('#1997 GET tie-order: equal-start segments read back in stored (id) order even when physical row order differs', async () => {
+		const freshId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`);
+		const q = (sql, params) => seedPool.query(sql, params);
+		// Plant three equal-start segments directly (the purged-tombstone
+		// precedent: DB-planted rows are this suite's fixture tool) with
+		// explicit ids assigned OUT of insertion order — physical order
+		// (hi, lo, mid) differs from stored/id order (lo, mid, hi), as
+		// after a restore. The GET contract (Rex, #1997): ties read back
+		// in id order. ORDER BY start_time_ms alone returns physical
+		// order here (verified on the rig) — that is the red on base.
+		const maxRow = await q(`SELECT COALESCE(MAX(id), 0)::int AS m FROM interview_transcripts`);
+		const base = maxRow.rows[0].m;
+		const lo = base + 1;
+		const mid = base + 2;
+		const hi = base + 3;
+		await q(
+			`INSERT INTO interview_transcripts (id, recording_id, speaker_identity, text, start_time_ms, end_time_ms) VALUES
+			   ($1, $4, 'unknown', ' Tie planted hi.', 2000, 3000),
+			   ($2, $4, 'unknown', ' Tie planted lo.', 2000, 6500),
+			   ($3, $4, 'unknown', ' Tie planted mid.', 2000, 4000)`,
+			[hi, lo, mid, freshId],
+		);
+		// Keep the serial sequence ahead of the planted ids.
+		await q(`SELECT setval('interview_transcripts_id_seq', $1)`, [hi + 10]);
+
+		const got = await request(app)
+			.get(`/api/interviews/recordings/${freshId}/transcript`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(got.status).toBe(200);
+		expect(got.body.transcript.segments.map((x) => Number(x.id))).toEqual([lo, mid, hi]);
+		expect(got.body.transcript.segments.map((x) => x.text)).toEqual([
+			' Tie planted lo.',
+			' Tie planted mid.',
+			' Tie planted hi.',
+		]);
+	});
+
+	test('#1997 pin C: a trigger-forced mid-transaction failure on re-run leaves the old generation and its diarization artefacts fully intact', async () => {
+		// Future-proofing complement to pin A (#1997, DB/transactions
+		// specialist): pin A's BIGINT-overflow probe only reaches
+		// Postgres on a NULL-duration recording — any future bound could
+		// make it unreachable. This pin forces the failure with a
+		// database trigger on a KNOWN-duration recording with in-bounds
+		// times, so nothing in the segment pipeline can pre-empt it.
+		const pinId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`);
+		asrMode = 'gen1';
+		const first = await request(app)
+			.post(`/api/interviews/recordings/${pinId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(first.status).toBe(200);
+
+		const q = (sql, params) => seedPool.query(sql, params);
+		const job = await q(
+			`INSERT INTO diarization_jobs (recording_id, status) VALUES ($1, 'complete') RETURNING id`,
+			[pinId],
+		);
+		await q(
+			`INSERT INTO diarization_runs (recording_id, job_id, engine_package, turns) VALUES ($1, $2, '@desert-ant-labs/who', '[]'::jsonb)`,
+			[pinId, job.rows[0].id],
+		);
+		await q(
+			`INSERT INTO recording_speaker_mappings (recording_id, speaker_number, participant_user_id, participant_role, state) VALUES ($1, 0, $2, 'candidate', 'proposed')`,
+			[pinId, U_CAND],
+		);
+		await q(
+			`INSERT INTO transcript_speaker_audit (recording_id, speaker_number, actor_user_id, action) VALUES ($1, 0, $2, 'confirm')`,
+			[pinId, U_REC],
+		);
+		await q(
+			`UPDATE interview_recordings SET diarization_status = 'complete', diarization_updated_at = NOW() WHERE id = $1`,
+			[pinId],
+		);
+		const genSegs = (
+			await q(
+				`SELECT id, text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
+				[pinId],
+			)
+		).rows;
+		expect(genSegs.length).toBe(3);
+
+		// Install the trigger AFTER all seeding (specialist placement
+		// rule), as committed statements on this pool — DDL inside an
+		// uncommitted test transaction would be invisible to the
+		// handler's own connection. Pre-clean first so an aborted prior
+		// run cannot poison this one.
+		await q(`DROP TRIGGER IF EXISTS test1997_fail_trigger ON interview_transcripts`);
+		await q(`DROP FUNCTION IF EXISTS test1997_fail_insert()`);
+		await q(
+			`CREATE FUNCTION test1997_fail_insert() RETURNS trigger AS $fn$
+			 BEGIN
+			   IF NEW.text LIKE '%TRIGGER-BOOM%' THEN
+			     RAISE EXCEPTION 'test1997 forced mid-transaction failure';
+			   END IF;
+			   RETURN NEW;
+			 END;
+			 $fn$ LANGUAGE plpgsql`,
+		);
+		await q(
+			`CREATE TRIGGER test1997_fail_trigger BEFORE INSERT ON interview_transcripts
+			 FOR EACH ROW EXECUTE FUNCTION test1997_fail_insert()`,
+		);
+
+		// The sentinel segment sorts second (distinct start times), so
+		// when it raises, the swap transaction has already executed all
+		// five deletes plus one successful insert — rollback must undo
+		// both. Teardown runs in finally, BEFORE the assertions below
+		// (specialist rule), trigger before function (dependency order).
+		let res;
+		try {
+			asrMode = 'trigfail';
+			res = await request(app)
+				.post(`/api/interviews/recordings/${pinId}/transcribe`)
+				.set('Authorization', `Bearer ${recToken()}`);
+		} finally {
+			await q(`DROP TRIGGER IF EXISTS test1997_fail_trigger ON interview_transcripts`);
+			await q(`DROP FUNCTION IF EXISTS test1997_fail_insert()`);
+		}
+		expect(res.status).toBe(500);
+
+		const trigLeft = await q(
+			`SELECT COUNT(*)::int AS n FROM pg_trigger WHERE tgname = 'test1997_fail_trigger'`,
+		);
+		expect(trigLeft.rows[0].n).toBe(0);
+
+		const afterSegs = (
+			await q(
+				`SELECT id, text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
+				[pinId],
+			)
+		).rows;
+		expect(afterSegs).toEqual(genSegs);
+		for (const table of [
+			'diarization_runs',
+			'recording_speaker_mappings',
+			'transcript_speaker_audit',
+			'diarization_jobs',
+		]) {
+			const left = await q(`SELECT COUNT(*)::int AS n FROM ${table} WHERE recording_id = $1`, [
+				pinId,
+			]);
+			expect(left.rows[0].n).toBe(1);
+		}
+		const rec = await q(
+			`SELECT status, diarization_status FROM interview_recordings WHERE id = $1`,
+			[pinId],
+		);
+		expect(rec.rows[0].status).toBe('completed');
+		expect(rec.rows[0].diarization_status).toBe('complete');
+
+		const got = await request(app)
+			.get(`/api/interviews/recordings/${pinId}/transcript`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(got.body.transcript.segments.map((x) => x.text).join('')).toBe(GEN1.text);
+	});
+
+	test('#1997 at-duration: a segment starting exactly at the recording duration is dropped; in-bounds segments are stored', async () => {
+		const freshId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`);
+		asrMode = 'atdur';
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${freshId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(res.status).toBe(200);
+		expect(Object.keys(res.body).sort()).toEqual(['success', 'transcript']);
+		expect(Object.keys(res.body.transcript).sort()).toEqual(['confidence', 'duration_ms', 'text']);
+
+		// Stored read-back: exactly the in-bounds row — no at-duration
+		// row, and no zero-span [12000, 12000] clamp artefact.
+		const dbSegs = await seedPool.query(
+			`SELECT text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
+			[freshId],
+		);
+		expect(dbSegs.rows.map((r) => [Number(r.start_time_ms), Number(r.end_time_ms)])).toEqual([
+			[0, 2000],
+		]);
+
+		const got = await request(app)
+			.get(`/api/interviews/recordings/${freshId}/transcript`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(got.status).toBe(200);
+		expect(got.body.transcript.segments.map((x) => x.text).join('')).toBe('Hello candidate.');
+	});
+
+	test('#1997 at-duration: a re-run whose only segment starts exactly at the duration fails honestly and leaves the old generation untouched', async () => {
+		const freshId = await seedRecording(`http://127.0.0.1:${audioPort}/audio.mp4`);
+		asrMode = 'gen1';
+		const first = await request(app)
+			.post(`/api/interviews/recordings/${freshId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(first.status).toBe(200);
+		const genSegs = (
+			await seedPool.query(
+				`SELECT id, text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
+				[freshId],
+			)
+		).rows;
+		expect(genSegs.length).toBe(3);
+
+		asrMode = 'atduronly';
+		const res = await request(app)
+			.post(`/api/interviews/recordings/${freshId}/transcribe`)
+			.set('Authorization', `Bearer ${recToken()}`);
+		expect(res.status).toBe(500);
+
+		const afterSegs = (
+			await seedPool.query(
+				`SELECT id, text, start_time_ms, end_time_ms FROM interview_transcripts WHERE recording_id = $1 ORDER BY id`,
+				[freshId],
+			)
+		).rows;
+		expect(afterSegs).toEqual(genSegs);
+		const rec = await seedPool.query(
+			`SELECT status FROM interview_recordings WHERE id = $1`,
+			[freshId],
+		);
+		expect(rec.rows[0].status).toBe('completed');
+	});
+
 });
