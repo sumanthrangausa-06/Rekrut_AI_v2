@@ -50,8 +50,10 @@ database-reviewer lens), Rex (architecture), Lead (planning fit).
   the one-time response text, when a text-bearing fully-outside
   segment is dropped) is named in STOP 1, logged at runtime, and
   pinned by the bounds test's stored-state assertions; the response
-  shape/text contract (AC-3) is unchanged and re-asserted in every
-  new test.
+  shape contract (AC-3) is unchanged — the bounds/order cases assert
+  the exact response keys, and the response text value is
+  intentionally not asserted: by design it remains the provider's
+  text (see the divergence note above).
 
 ## What changed
 
@@ -150,40 +152,75 @@ untouched; `DIARIZATION_ENABLED` stays OFF; no email/outreach.
 ## Independent review (of head `3a9c8efd1`) — PASS, no BLOCKs
 
 Reviewer: separate subagent (ecc code-reviewer + database-reviewer
-lenses), did not write the code. It verified the diff line-by-line
-(transform truly pre-`BEGIN`; the second `pool.connect()` and the
-GET loop untouched; diff = exactly 3 files, no migration/flag/§3.2
-change), confirmed pin A genuinely fails mid-transaction
-(`end_time_ms = 1e19 > int8 max`; the fixture's first segment
-survives the deletes only inside the rolled-back transaction), and
-re-ran the gates itself: fresh DB `sd02_1923_rev` → migrate exit 0
-→ **9/9 at head**; the two defect cases fail against the base
-handler in its scratch worktree; mocked neighbours **12/12**. It
-also probed the clamp directly: stored `[0,2000] [2000,12000]`,
-the drop `console.warn` fired.
+lenses), did not write the code. (Correction, 2026-10-30: this
+section originally summarised the review from an interim preview
+and misstated its findings as five minors M1–M5 with two wrong
+evidence details. It is rewritten here from the reviewer's final
+report verbatim in substance; the addendum checkpoint comment on
+issue #1923 carries the same correction.)
 
-Minors and dispositions (all MINOR, none blocking):
+What the reviewer verified first-hand: the transform sits purely
+in-memory before `pool.connect()`/`BEGIN`; the diff is exactly
+three hunks inside the transcribe handler (the swap transaction,
+the second `pool.connect()` speaker-mapping handler, and the GET
+handler untouched; exactly 3 files, no migration/flag/§3.2
+change); `duration_seconds` is INTEGER (migration 128), so the
+`Number.isFinite` guard is sound; pin A genuinely fails
+mid-transaction (`end_time_ms = 1e19 > int8 max`, after the four
+artefact deletes, the segment delete, and the first insert) and
+asserts gen-1 rows byte-identical including ids; the NULL-duration
+rationale is sound (with a known duration the clamp makes the
+probe untestable); the `beforeEach` circuit-breaker reset is the
+provider's own testing hook on the same singleton and masks no
+asserted behaviour. Its own re-runs on fresh DBs it created
+(migrate exit 0 both): head on `rev1923_gate` — **9 passed / 9**;
+base handler + head test file on `rev1923_base` — **2 failed /
+7 passed**, with the exact defect values from the red claim. It
+explicitly did **not** re-run the 172 neighbouring-suite claim and
+flagged it as the one unverified claim in the evidence set.
 
-- **M1 (log wording vs the rounded-ms drop condition)** — recorded,
-  no change: storage operates in rounded ms throughout (the old
-  insert rounded identically); a segment starting within 0.5ms
-  before the end rounds to the boundary and is treated as
-  at-duration. Comparing raw seconds instead would store rows whose
-  rounded start is ≥ the duration — the worse inconsistency.
-- **M2 (pin A did not assert the NULL duration it depends on)** —
-  FIXED post-review: pin A now reads the recording row back and
-  asserts `duration_seconds` IS NULL.
-- **M3 (the one-time transcribe response text can contain dropped
-  words)** — recorded, flagged for Suga in the PR body: pre-existing
-  AC-3 ambiguity (response = the ASR result verbatim); the
-  divergence is named in STOP 1 and above. No behaviour change in
-  this lane.
-- **M4 (no journey case for empty-after-drop or the tie-breaks)** —
-  FIXED post-review: two cases added (all-outside payload → honest
-  500, nothing stored, recording `completed`; equal-start segments
-  stored ordered by end). Both are red on base / green at head (see
-  the final red/green counts above). Handler code is unchanged
-  after the review; only tests were added.
-- **M5 (minor line-reference drift in evidence text)** — recorded;
-  no load-bearing claim in this log rests on a line number (STOP 1
-  comment id, PR number and commit SHAs are the references).
+The reviewer's findings were exactly THREE minors, none blocking:
+
+- **MINOR-1 — two settled-design branches had no test:** the
+  empty-after-transform 500 branch and a segment starting exactly
+  at the duration. Reviewer's disposition: accept as-is; add the
+  two cases as a follow-up test-only patch; not a merge blocker.
+  Post-review status: the all-outside-payload case WAS added
+  (honest 500, nothing stored, recording `completed` — on a fresh
+  recording; the branch's old-generation safety is structural,
+  pre-`BEGIN`, and was verified by the reviewer's inspection) and
+  an equal-start tie-break case was added alongside it; the
+  start-exactly-at-duration case and a re-run variant of the
+  all-outside case were NOT added and remain follow-up material
+  under the reviewer's own non-blocking disposition. Handler code
+  is unchanged after the review; only tests were added (commit
+  `7f87149c8`).
+- **MINOR-2 — this log overstated the response-contract
+  assertions** (only the response shape keys are asserted, in the
+  bounds/order cases; the text value is never asserted, correctly
+  by design). Disposition: the sentence is corrected in this log
+  (see "Lead conditions adopted" above).
+- **MINOR-3 — the handler comment overclaims GET tie-order
+  coherence** (GET orders by `start_time_ms` alone; equal-start
+  tie order vs insertion order is not guaranteed). The comment is
+  left as-is in this PR; the substance is the same point as Rex's
+  unimplemented `ORDER BY start_time_ms, id` complement, which is
+  flagged for Suga's ruling in the run report (it crosses Lead's
+  GET scope line for this lane). Comment-precision only; no
+  behaviour impact.
+
+One further post-review test change, NOT a reviewer finding: pin
+A now reads the recording row back and asserts `duration_seconds`
+IS NULL (the configuration the pin depends on), added from the
+STOP 1 design discussion.
+
+Also flagged for Suga from the STOP 1 specialists' full texts
+(post-dating this PR's STOP 1, recorded in the run report): the
+database/transactions specialist's full position prescribes
+reject-whole (not drop) for fully-outside segments, a rebuild of
+the response text from the sorted join (which it labels BLOCK;
+Rex and Lead both hold the opposite — no `whisperResult.text`
+change), an unknown-duration BIGINT range guard, and a
+trigger-based forced-failure pin as a more future-proof
+alternative to the overflow pin. The shipped design follows Rex +
+Lead on each; Suga is the tie-breaker at the gate.
