@@ -1,0 +1,1627 @@
+{
+  "file": "diarization-60min.wav",
+  "sample_rate": 16000,
+  "duration_s": 3602.464,
+  "target_duration_s": 3600,
+  "gap_s": 0.4,
+  "speakers": [
+    "interviewer",
+    "candidate"
+  ],
+  "turns": [
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 0.0,
+      "end_s": 12.308
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 12.708,
+      "end_s": 26.368
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 26.768,
+      "end_s": 37.764
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 38.164,
+      "end_s": 52.869
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 53.269,
+      "end_s": 64.083
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 64.483,
+      "end_s": 80.018
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 80.418,
+      "end_s": 92.726
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 93.126,
+      "end_s": 106.786
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 107.186,
+      "end_s": 118.182
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 118.582,
+      "end_s": 133.287
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 133.687,
+      "end_s": 144.5
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 144.9,
+      "end_s": 160.435
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 160.835,
+      "end_s": 173.144
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 173.544,
+      "end_s": 187.204
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 187.604,
+      "end_s": 198.599
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 198.999,
+      "end_s": 213.704
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 214.104,
+      "end_s": 224.918
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 225.318,
+      "end_s": 240.853
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 241.253,
+      "end_s": 253.562
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 253.962,
+      "end_s": 267.622
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 268.022,
+      "end_s": 279.017
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 279.417,
+      "end_s": 294.122
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 294.522,
+      "end_s": 305.336
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 305.736,
+      "end_s": 321.271
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 321.671,
+      "end_s": 333.979
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 334.379,
+      "end_s": 348.039
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 348.439,
+      "end_s": 359.435
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 359.835,
+      "end_s": 374.54
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 374.94,
+      "end_s": 385.754
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 386.154,
+      "end_s": 401.689
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 402.089,
+      "end_s": 414.397
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 414.797,
+      "end_s": 428.457
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 428.857,
+      "end_s": 439.853
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 440.253,
+      "end_s": 454.958
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 455.358,
+      "end_s": 466.171
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 466.572,
+      "end_s": 482.106
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 482.507,
+      "end_s": 494.815
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 495.215,
+      "end_s": 508.875
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 509.275,
+      "end_s": 520.27
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 520.67,
+      "end_s": 535.375
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 535.775,
+      "end_s": 546.589
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 546.989,
+      "end_s": 562.524
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 562.924,
+      "end_s": 575.233
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 575.633,
+      "end_s": 589.293
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 589.693,
+      "end_s": 600.688
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 601.088,
+      "end_s": 615.793
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 616.193,
+      "end_s": 627.007
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 627.407,
+      "end_s": 642.942
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 643.342,
+      "end_s": 655.65
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 656.05,
+      "end_s": 669.71
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 670.11,
+      "end_s": 681.106
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 681.506,
+      "end_s": 696.211
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 696.611,
+      "end_s": 707.425
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 707.825,
+      "end_s": 723.36
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 723.76,
+      "end_s": 736.068
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 736.468,
+      "end_s": 750.128
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 750.528,
+      "end_s": 761.524
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 761.924,
+      "end_s": 776.629
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 777.029,
+      "end_s": 787.842
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 788.242,
+      "end_s": 803.778
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 804.178,
+      "end_s": 816.486
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 816.886,
+      "end_s": 830.546
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 830.946,
+      "end_s": 841.941
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 842.341,
+      "end_s": 857.046
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 857.446,
+      "end_s": 868.26
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 868.66,
+      "end_s": 884.195
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 884.595,
+      "end_s": 896.904
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 897.304,
+      "end_s": 910.964
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 911.364,
+      "end_s": 922.359
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 922.759,
+      "end_s": 937.464
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 937.864,
+      "end_s": 948.678
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 949.078,
+      "end_s": 964.613
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 965.013,
+      "end_s": 977.321
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 977.721,
+      "end_s": 991.381
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 991.781,
+      "end_s": 1002.777
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1003.177,
+      "end_s": 1017.882
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1018.282,
+      "end_s": 1029.096
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1029.496,
+      "end_s": 1045.031
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1045.431,
+      "end_s": 1057.739
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1058.139,
+      "end_s": 1071.799
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1072.199,
+      "end_s": 1083.195
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1083.595,
+      "end_s": 1098.3
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1098.7,
+      "end_s": 1109.514
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1109.914,
+      "end_s": 1125.448
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1125.849,
+      "end_s": 1138.157
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1138.557,
+      "end_s": 1152.217
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1152.617,
+      "end_s": 1163.612
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1164.012,
+      "end_s": 1178.717
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1179.117,
+      "end_s": 1189.931
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1190.331,
+      "end_s": 1205.866
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1206.266,
+      "end_s": 1218.575
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1218.975,
+      "end_s": 1232.635
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1233.035,
+      "end_s": 1244.03
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1244.43,
+      "end_s": 1259.135
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1259.535,
+      "end_s": 1270.349
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1270.749,
+      "end_s": 1286.284
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1286.684,
+      "end_s": 1298.992
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1299.392,
+      "end_s": 1313.052
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1313.452,
+      "end_s": 1324.448
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1324.848,
+      "end_s": 1339.553
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1339.953,
+      "end_s": 1350.767
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1351.167,
+      "end_s": 1366.702
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1367.102,
+      "end_s": 1379.41
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1379.81,
+      "end_s": 1393.47
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1393.87,
+      "end_s": 1404.866
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1405.266,
+      "end_s": 1419.971
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1420.371,
+      "end_s": 1431.185
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1431.584,
+      "end_s": 1447.12
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1447.52,
+      "end_s": 1459.828
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1460.228,
+      "end_s": 1473.888
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1474.288,
+      "end_s": 1485.283
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1485.683,
+      "end_s": 1500.388
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1500.788,
+      "end_s": 1511.602
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1512.002,
+      "end_s": 1527.537
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1527.937,
+      "end_s": 1540.246
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1540.646,
+      "end_s": 1554.306
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1554.706,
+      "end_s": 1565.701
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1566.101,
+      "end_s": 1580.806
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1581.206,
+      "end_s": 1592.02
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1592.42,
+      "end_s": 1607.955
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1608.355,
+      "end_s": 1620.663
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1621.063,
+      "end_s": 1634.723
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1635.123,
+      "end_s": 1646.119
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1646.519,
+      "end_s": 1661.224
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1661.624,
+      "end_s": 1672.438
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1672.838,
+      "end_s": 1688.373
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1688.773,
+      "end_s": 1701.081
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1701.481,
+      "end_s": 1715.141
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1715.541,
+      "end_s": 1726.537
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1726.937,
+      "end_s": 1741.642
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1742.042,
+      "end_s": 1752.855
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1753.255,
+      "end_s": 1768.791
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1769.19,
+      "end_s": 1781.499
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1781.899,
+      "end_s": 1795.559
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1795.959,
+      "end_s": 1806.954
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1807.354,
+      "end_s": 1822.059
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1822.459,
+      "end_s": 1833.273
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1833.673,
+      "end_s": 1849.208
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1849.608,
+      "end_s": 1861.917
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1862.317,
+      "end_s": 1875.977
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1876.377,
+      "end_s": 1887.372
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1887.772,
+      "end_s": 1902.477
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1902.877,
+      "end_s": 1913.691
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1914.091,
+      "end_s": 1929.626
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1930.026,
+      "end_s": 1942.334
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1942.734,
+      "end_s": 1956.394
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1956.794,
+      "end_s": 1967.79
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1968.19,
+      "end_s": 1982.895
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 1983.295,
+      "end_s": 1994.109
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 1994.509,
+      "end_s": 2010.044
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2010.444,
+      "end_s": 2022.752
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2023.152,
+      "end_s": 2036.812
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2037.212,
+      "end_s": 2048.208
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2048.608,
+      "end_s": 2063.313
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2063.713,
+      "end_s": 2074.526
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2074.927,
+      "end_s": 2090.461
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2090.861,
+      "end_s": 2103.17
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2103.57,
+      "end_s": 2117.23
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2117.63,
+      "end_s": 2128.625
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2129.025,
+      "end_s": 2143.73
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2144.13,
+      "end_s": 2154.944
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2155.344,
+      "end_s": 2170.879
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2171.279,
+      "end_s": 2183.588
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2183.988,
+      "end_s": 2197.648
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2198.048,
+      "end_s": 2209.043
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2209.443,
+      "end_s": 2224.148
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2224.548,
+      "end_s": 2235.362
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2235.762,
+      "end_s": 2251.297
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2251.697,
+      "end_s": 2264.005
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2264.405,
+      "end_s": 2278.065
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2278.465,
+      "end_s": 2289.461
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2289.861,
+      "end_s": 2304.566
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2304.966,
+      "end_s": 2315.78
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2316.18,
+      "end_s": 2331.715
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2332.115,
+      "end_s": 2344.423
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2344.823,
+      "end_s": 2358.483
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2358.883,
+      "end_s": 2369.879
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2370.279,
+      "end_s": 2384.984
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2385.384,
+      "end_s": 2396.198
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2396.597,
+      "end_s": 2412.133
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2412.532,
+      "end_s": 2424.841
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2425.241,
+      "end_s": 2438.901
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2439.301,
+      "end_s": 2450.296
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2450.696,
+      "end_s": 2465.401
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2465.801,
+      "end_s": 2476.615
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2477.015,
+      "end_s": 2492.55
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2492.95,
+      "end_s": 2505.259
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2505.659,
+      "end_s": 2519.319
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2519.719,
+      "end_s": 2530.714
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2531.114,
+      "end_s": 2545.819
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2546.219,
+      "end_s": 2557.033
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2557.433,
+      "end_s": 2572.968
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2573.368,
+      "end_s": 2585.676
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2586.076,
+      "end_s": 2599.736
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2600.136,
+      "end_s": 2611.132
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2611.532,
+      "end_s": 2626.237
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2626.637,
+      "end_s": 2637.451
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2637.851,
+      "end_s": 2653.386
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2653.786,
+      "end_s": 2666.094
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2666.494,
+      "end_s": 2680.154
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2680.554,
+      "end_s": 2691.55
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2691.95,
+      "end_s": 2706.655
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2707.055,
+      "end_s": 2717.869
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2718.269,
+      "end_s": 2733.803
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2734.204,
+      "end_s": 2746.512
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2746.912,
+      "end_s": 2760.572
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2760.972,
+      "end_s": 2771.967
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2772.367,
+      "end_s": 2787.072
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2787.472,
+      "end_s": 2798.286
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2798.686,
+      "end_s": 2814.221
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2814.621,
+      "end_s": 2826.93
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2827.33,
+      "end_s": 2840.99
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2841.39,
+      "end_s": 2852.385
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2852.785,
+      "end_s": 2867.49
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2867.89,
+      "end_s": 2878.704
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2879.104,
+      "end_s": 2894.639
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2895.039,
+      "end_s": 2907.347
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2907.747,
+      "end_s": 2921.407
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2921.807,
+      "end_s": 2932.803
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2933.203,
+      "end_s": 2947.908
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2948.308,
+      "end_s": 2959.122
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2959.522,
+      "end_s": 2975.057
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 2975.457,
+      "end_s": 2987.765
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 2988.165,
+      "end_s": 3001.825
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3002.225,
+      "end_s": 3013.221
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3013.621,
+      "end_s": 3028.326
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3028.726,
+      "end_s": 3039.539
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3039.939,
+      "end_s": 3055.474
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3055.874,
+      "end_s": 3068.183
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3068.583,
+      "end_s": 3082.243
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3082.643,
+      "end_s": 3093.638
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3094.038,
+      "end_s": 3108.743
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3109.143,
+      "end_s": 3119.957
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3120.357,
+      "end_s": 3135.892
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3136.292,
+      "end_s": 3148.601
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3149.001,
+      "end_s": 3162.661
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3163.061,
+      "end_s": 3174.056
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3174.456,
+      "end_s": 3189.161
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3189.561,
+      "end_s": 3200.375
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3200.775,
+      "end_s": 3216.31
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3216.71,
+      "end_s": 3229.018
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3229.418,
+      "end_s": 3243.078
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3243.478,
+      "end_s": 3254.474
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3254.874,
+      "end_s": 3269.579
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3269.979,
+      "end_s": 3280.793
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3281.193,
+      "end_s": 3296.728
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3297.128,
+      "end_s": 3309.436
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3309.836,
+      "end_s": 3323.496
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3323.896,
+      "end_s": 3334.892
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3335.292,
+      "end_s": 3349.997
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3350.397,
+      "end_s": 3361.211
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3361.61,
+      "end_s": 3377.146
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3377.546,
+      "end_s": 3389.854
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3390.254,
+      "end_s": 3403.914
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3404.314,
+      "end_s": 3415.309
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3415.709,
+      "end_s": 3430.414
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3430.814,
+      "end_s": 3441.628
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3442.028,
+      "end_s": 3457.563
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3457.963,
+      "end_s": 3470.272
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3470.672,
+      "end_s": 3484.332
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3484.732,
+      "end_s": 3495.727
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3496.127,
+      "end_s": 3510.832
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3511.232,
+      "end_s": 3522.046
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3522.446,
+      "end_s": 3537.981
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3538.381,
+      "end_s": 3550.689
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3551.089,
+      "end_s": 3564.749
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3565.149,
+      "end_s": 3576.145
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 3576.545,
+      "end_s": 3591.25
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 3591.65,
+      "end_s": 3602.464
+    }
+  ]
+}

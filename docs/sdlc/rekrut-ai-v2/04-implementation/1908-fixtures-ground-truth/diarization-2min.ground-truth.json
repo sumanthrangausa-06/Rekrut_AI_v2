@@ -1,0 +1,67 @@
+{
+  "file": "diarization-2min.wav",
+  "sample_rate": 16000,
+  "duration_s": 118.182,
+  "target_duration_s": 120,
+  "gap_s": 0.4,
+  "speakers": [
+    "interviewer",
+    "candidate"
+  ],
+  "turns": [
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 0.0,
+      "end_s": 12.308
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 12.708,
+      "end_s": 26.368
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 26.768,
+      "end_s": 37.764
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 38.164,
+      "end_s": 52.869
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 53.269,
+      "end_s": 64.083
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 64.483,
+      "end_s": 80.018
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 80.418,
+      "end_s": 92.726
+    },
+    {
+      "speaker": "candidate",
+      "voice": "slt",
+      "start_s": 93.126,
+      "end_s": 106.786
+    },
+    {
+      "speaker": "interviewer",
+      "voice": "kal",
+      "start_s": 107.186,
+      "end_s": 118.182
+    }
+  ]
+}
