@@ -77,6 +77,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping participant sweep
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping updated_by sweep
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording audit sweep
+			.mockResolvedValueOnce({ rowCount: 0 }) // #2014: cross-recording panel pair sweep
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #2014: proposed_mapping probe (no rows)
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1956 S-D19: event_labelling_consent
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
@@ -176,6 +178,9 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			diarizationRunsDeleted: 0,
 			crossRecordingMappingsNulled: 0, // #1944
 			crossRecordingAuditNulled: 0, // #1944
+			crossRecordingPanelPairsSwept: 0, // #2014
+			crossRecordingProposedMappingsNulled: 0, // #2014
+			tombstonePanelPairsCleared: 0, // #2014
 			panelLabellingConsentDeleted: 0, // #1956 S-D19
 			speakerMappingsDeleted: 0,
 			speakerAuditDeleted: 0,
@@ -375,6 +380,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping participant sweep
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping updated_by sweep
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording audit sweep
+			.mockResolvedValueOnce({ rowCount: 0 }) // #2014: cross-recording panel pair sweep
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #2014: proposed_mapping probe (no rows)
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1956 S-D19: event_labelling_consent
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
@@ -465,6 +472,9 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			diarizationRunsDeleted: 0,
 			crossRecordingMappingsNulled: 0, // #1944
 			crossRecordingAuditNulled: 0, // #1944
+			crossRecordingPanelPairsSwept: 0, // #2014
+			crossRecordingProposedMappingsNulled: 0, // #2014
+			tombstonePanelPairsCleared: 0, // #2014
 			panelLabellingConsentDeleted: 0, // #1956 S-D19
 			speakerMappingsDeleted: 0,
 			speakerAuditDeleted: 0,
@@ -665,6 +675,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping participant sweep
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping updated_by sweep
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording audit sweep
+			.mockResolvedValueOnce({ rowCount: 0 }) // #2014: cross-recording panel pair sweep
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #2014: proposed_mapping probe (no rows)
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1956 S-D19: event_labelling_consent
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
@@ -751,6 +763,9 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			diarizationRunsDeleted: 0,
 			crossRecordingMappingsNulled: 0, // #1944
 			crossRecordingAuditNulled: 0, // #1944
+			crossRecordingPanelPairsSwept: 0, // #2014
+			crossRecordingProposedMappingsNulled: 0, // #2014
+			tombstonePanelPairsCleared: 0, // #2014
 			panelLabellingConsentDeleted: 0, // #1956 S-D19
 			speakerMappingsDeleted: 0,
 			speakerAuditDeleted: 0,
@@ -965,6 +980,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping participant sweep
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping updated_by sweep
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording audit sweep
+			.mockResolvedValueOnce({ rowCount: 0 }) // #2014: cross-recording panel pair sweep
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #2014: proposed_mapping probe (no rows)
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1956 S-D19: event_labelling_consent
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores
@@ -1050,6 +1067,9 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			diarizationRunsDeleted: 0,
 			crossRecordingMappingsNulled: 0, // #1944
 			crossRecordingAuditNulled: 0, // #1944
+			crossRecordingPanelPairsSwept: 0, // #2014
+			crossRecordingProposedMappingsNulled: 0, // #2014
+			tombstonePanelPairsCleared: 0, // #2014
 			panelLabellingConsentDeleted: 0, // #1956 S-D19
 			speakerMappingsDeleted: 0,
 			speakerAuditDeleted: 0,
@@ -1250,6 +1270,8 @@ describe('S-075 erasePersonalData (renamed + embeddings hard-delete)', () => {
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping participant sweep
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording mapping updated_by sweep
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1944: cross-recording audit sweep
+			.mockResolvedValueOnce({ rowCount: 0 }) // #2014: cross-recording panel pair sweep
+			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #2014: proposed_mapping probe (no rows)
 			.mockResolvedValueOnce({ rowCount: 0 }) // #1956 S-D19: event_labelling_consent
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: omni_scores
 			.mockResolvedValueOnce({ rowCount: 0 }) // S-078: role_scores

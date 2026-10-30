@@ -86,6 +86,8 @@ function mockPhase1(overrides = {}) {
 		.mockResolvedValueOnce(q([], 0)) // #1944: cross-recording mapping participant sweep
 		.mockResolvedValueOnce(q([], 0)) // #1944: cross-recording mapping updated_by sweep
 		.mockResolvedValueOnce(q([], 0)) // #1944: cross-recording audit sweep
+		.mockResolvedValueOnce(q([], 0)) // #2014: cross-recording panel pair sweep
+		.mockResolvedValueOnce(q([], 0)) // #2014: proposed_mapping probe (no rows)
 		.mockResolvedValueOnce(q([], 0)) // #1956 S-D19: event_labelling_consent
 		.mockResolvedValueOnce(q([], 0)) // omni_scores
 		.mockResolvedValueOnce(q([], 0)) // role_scores
