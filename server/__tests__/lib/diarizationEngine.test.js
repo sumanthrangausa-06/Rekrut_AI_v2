@@ -18,12 +18,16 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { EventEmitter } = require('node:events');
 const {
 	decodeToPcm,
 	runEngineChild,
 	diarizeAudio,
 	provisionWeights,
 	DiarizationEngineError,
+	EXPECTED_SDK_VERSION,
+	STDOUT_CAP,
+	DEFAULT_DECODE_TIMEOUT_MS,
 } = require('../../../lib/diarizationEngine');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sd05-engine-'));
@@ -70,6 +74,46 @@ const EXTRA_FIELDS_CHILD = writeChild(
 	   engine: { package: '@desert-ant-labs/who', sdkVersion: '4.2.1', modelVersion: 'v0.3.4' },
 	 }));`,
 );
+
+const LOUD_CHILD = writeChild(
+	'loud.mjs',
+	`process.stdout.write('x'.repeat(2 * 1024 * 1024));`,
+);
+const UNKNOWN_SDK_CHILD = writeChild(
+	'unknown-sdk.mjs',
+	`for await (const c of process.stdin) {}
+	 process.stdout.write(JSON.stringify({
+	   speakerCount: 1,
+	   turns: [{ speaker: 0, start_s: 0, end_s: 1 }],
+	   engine: { package: '@desert-ant-labs/who', sdkVersion: 'unknown', modelVersion: 'v0.3.4' },
+	 }));`,
+);
+const WRONG_SDK_CHILD = writeChild(
+	'wrong-sdk.mjs',
+	`for await (const c of process.stdin) {}
+	 process.stdout.write(JSON.stringify({
+	   speakerCount: 1,
+	   turns: [{ speaker: 0, start_s: 0, end_s: 1 }],
+	   engine: { package: '@desert-ant-labs/who', sdkVersion: '9.9.9', modelVersion: 'v0.3.4' },
+	 }));`,
+);
+
+// A fake ffmpeg that never produces output and never exits on its own;
+// like a real process it emits 'close' only when killed.
+function hangingFfmpeg(record) {
+	return () => {
+		const child = new EventEmitter();
+		child.stdout = new EventEmitter();
+		child.stderr = new EventEmitter();
+		child.stdin = new EventEmitter();
+		child.stdin.end = () => {};
+		child.kill = (sig) => {
+			record.killedWith = sig;
+			setImmediate(() => child.emit('close', null, sig));
+		};
+		return child;
+	};
+}
 
 const PCM = Buffer.alloc(32000, 1); // 1 s of s16le silence-ish bytes
 
@@ -161,6 +205,43 @@ describe('diarizationEngine supervisor (S-D05)', () => {
 		await expect(provisionWeights({ childPath: FAIL_CHILD })).rejects.toMatchObject({
 			errorClass: 'engine_failed',
 		});
+	});
+
+	it('#1927: decode timeout constants — 10 min default for a 60-min recording decode', () => {
+		expect(DEFAULT_DECODE_TIMEOUT_MS).toBe(10 * 60 * 1000);
+		expect(STDOUT_CAP).toBe(1024 * 1024);
+		expect(EXPECTED_SDK_VERSION).toBe('4.2.1');
+	});
+
+	it('#1927: hanging ffmpeg hits the decode timeout → decode_failed, child killed', async () => {
+		const record = {};
+		await expect(
+			decodeToPcm(Buffer.from('audio'), { spawnFn: hangingFfmpeg(record), decodeTimeoutMs: 100 }),
+		).rejects.toMatchObject({ errorClass: 'decode_failed' });
+		expect(record.killedWith).toBe('SIGKILL');
+	}, 5000);
+
+	it('#1927: child stdout past the cap → engine_failed naming the cap, not a parse error', async () => {
+		const err = await runEngineChild(PCM, { childPath: LOUD_CHILD }).catch((e) => e);
+		expect(err).toMatchObject({ errorClass: 'engine_failed' });
+		expect(err.message).toMatch(/stdout exceeded/);
+	});
+
+	it("#1927: sdkVersion 'unknown' (the child's fallback) → engine_failed", async () => {
+		await expect(runEngineChild(PCM, { childPath: UNKNOWN_SDK_CHILD })).rejects.toMatchObject({
+			errorClass: 'engine_failed',
+		});
+	});
+
+	it('#1927: sdkVersion other than the pinned 4.2.1 → engine_failed', async () => {
+		await expect(runEngineChild(PCM, { childPath: WRONG_SDK_CHILD })).rejects.toMatchObject({
+			errorClass: 'engine_failed',
+		});
+	});
+
+	it('#1927: sdkVersion exactly the pinned 4.2.1 → accepted', async () => {
+		const out = await runEngineChild(PCM, { childPath: OK_CHILD });
+		expect(out.engine.sdkVersion).toBe(EXPECTED_SDK_VERSION);
 	});
 
 	it('errors are DiarizationEngineError instances carrying errorClass', async () => {
