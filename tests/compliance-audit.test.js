@@ -39,7 +39,8 @@ jest.mock('../lib/db', () => {
 
 		// compliance_audit_trail SELECT last hash
 		if (
-			normalized.includes('select current_hash from compliance_audit_trail') &&
+			normalized.includes('select current_hash') &&
+			normalized.includes('from compliance_audit_trail') &&
 			normalized.includes('order by created_at desc')
 		) {
 			if (memoryStore.length === 0) return { rows: [], rowCount: 0 };
@@ -47,7 +48,10 @@ jest.mock('../lib/db', () => {
 				const d = new Date(b.created_at) - new Date(a.created_at);
 				return d !== 0 ? d : b._insert_order - a._insert_order;
 			})[0];
-			return { rows: [{ current_hash: last.current_hash }], rowCount: 1 };
+			return {
+				rows: [{ current_hash: last.current_hash, created_at: last.created_at }],
+				rowCount: 1,
+			};
 		}
 
 		// compliance_audit_trail COUNT
@@ -131,6 +135,11 @@ jest.mock('../lib/db', () => {
 
 	return {
 		query: mockQuery,
+		// #1988: logEvent now appends through a checked-out client inside
+		// BEGIN/COMMIT (advisory xact lock). The mock client reuses
+		// mockQuery: BEGIN/COMMIT/SET LOCAL/lock statements fall through
+		// to the unknown-query branch, which is all this store needs.
+		connect: jest.fn(async () => ({ query: mockQuery, release: jest.fn() })),
 		getQueryStats: () => ({ totalQueries: 0, slowQueries: 0, queriesPerMinute: 0 }),
 		end: jest.fn().mockResolvedValue(undefined),
 		on: jest.fn(),
