@@ -161,5 +161,33 @@ DB `sd1931_e2e` on the rig.
 
 ## Review
 
-Independent reviewer: PENDING at log write — verdict and findings are
-recorded on the PR; any BLOCK is fixed before this lane reports done.
+Independent reviewer (separate subagent, ecc code-reviewer lens;
+reviewed the diff cold, re-read both lock paths and all other
+writers of the three tables, and independently re-ran the tests —
+4/4): **APPROVE WITH MINORS. No BLOCK, no HIGH/CRITICAL.** It
+independently confirmed: the jobs→recording invariant holds against
+persistStitch's actual statement order and every other writer
+(erasure/panel-purge hold unrelated locks; the speaker-mapping
+correction path takes an opposite order but touches disjoint rows);
+migration 301 is correct against migration 296's real table
+definition; tests are honest (its own green run reproduced 4/4).
+
+Minors, dispositioned:
+1. Stale S-D09-era comment about coverage_end_ms placement
+   (recordings.js transcript-GET area) — pre-existing, outside this
+   lane's files-in-scope discipline; NOT fixed here, candidate for a
+   docs cleanup lane.
+2. Claim-vs-stitch race is pre-existing (the claim UPDATE serialises
+   claims against each other, not against stitch) — the same
+   residual recorded above; follow-up candidate for Lead, not this
+   lane.
+3. Swap lock-wait is unbounded (Postgres default, no lock_timeout) —
+   accepted: adding a timeout changes handler failure behaviour and
+   is its own decision; a wedged stitch (the only long holder) is
+   bounded by the worker's own timeouts.
+4. Test nit: the final old-segment-id assertion originally selected
+   only `text` — FIXED in this lane (now selects `id, text`), suite
+   re-run green after the fix.
+5. Partial-index (`WHERE job_id IS NOT NULL`) nuance — reviewer
+   agrees the plain unique index as built is correct; functional
+   equivalence noted, no action.

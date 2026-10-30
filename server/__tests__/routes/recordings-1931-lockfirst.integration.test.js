@@ -341,7 +341,7 @@ describeIfDb('#1931 items 1 + 2 (real DB — fresh-install rig)', () => {
 		const res = await responsePromise;
 		expect(res.status).toBe(200);
 		const after = await pool.query(
-			`SELECT text FROM interview_transcripts WHERE recording_id = $1 ORDER BY start_time_ms`,
+			`SELECT id, text FROM interview_transcripts WHERE recording_id = $1 ORDER BY start_time_ms`,
 			[lockRecordingId],
 		);
 		expect(after.rows.map((r) => r.text).join('')).toBe(GEN2.text);
