@@ -242,6 +242,90 @@ describeIfDb('transcriptStitch.persistStitch (real DB — S-D07)', () => {
 		expect(job.rows[0].status).toBe('processing'); // sweeper can reclaim + retry
 	});
 
+	it('#1993: a negative speaker winning a segment throws the range-contract error and rolls back EVERYTHING', async () => {
+		const { recordingId, segmentIds, jobId } = await seedRecording([
+			[0, 10000, 'first segment — valid speaker, its update lands, then must roll back'],
+			[10000, 20000, 'second segment — won by speaker -1, outside the [0, INT4_MAX] contract'],
+		]);
+		// A negative speaker is a valid int4, so on base this PERSISTS
+		// as a meaningless label and the stitch completes — the defect.
+		// The contract (#1934 M-3, applied here per #1993): out-of-range
+		// is corrupt output, treated exactly like the AC-5 fractional
+		// case — throw, roll back everything, job stays processing.
+		await expect(stitch.persistStitch({
+			jobId, recordingId, expectedSegmentIds: segmentIds,
+			output: {
+				speakerCount: 2,
+				turns: [
+					{ speaker: 0, start_s: 0, end_s: 10 },
+					{ speaker: -1, start_s: 10, end_s: 20 },
+				],
+				engine: ENGINE,
+			},
+		})).rejects.toThrow(/out-of-range speaker -1/);
+
+		const runs = await pool.query(`SELECT id FROM diarization_runs WHERE recording_id = $1`, [recordingId]);
+		expect(runs.rows).toHaveLength(0);
+		const maps = await pool.query(`SELECT id FROM recording_speaker_mappings WHERE recording_id = $1`, [recordingId]);
+		expect(maps.rows).toHaveLength(0);
+		const segs = await segmentsOf(recordingId);
+		expect(segs.map((x) => x.speaker_number)).toEqual([null, null]);
+		const rec = await pool.query(`SELECT diarization_status FROM interview_recordings WHERE id = $1`, [recordingId]);
+		expect(rec.rows[0].diarization_status).toBe('processing');
+		const job = await pool.query(`SELECT status FROM diarization_jobs WHERE id = $1`, [jobId]);
+		expect(job.rows[0].status).toBe('processing');
+	});
+
+	it('#1993: a >INT4_MAX speaker winning a segment throws the range-contract error (not the raw PG error) and rolls back EVERYTHING', async () => {
+		const { recordingId, segmentIds, jobId } = await seedRecording([
+			[0, 10000, 'first segment — valid speaker, its update lands, then must roll back'],
+			[10000, 20000, 'second segment — won by speaker 3000000000, beyond int4'],
+		]);
+		// On base this stitch does fail, but only by accident of the
+		// column type: the raw PG "out of range for type integer"
+		// error, not the stated contract. The guard makes the failure
+		// the contract's own, in the stitch's own words.
+		await expect(stitch.persistStitch({
+			jobId, recordingId, expectedSegmentIds: segmentIds,
+			output: {
+				speakerCount: 2,
+				turns: [
+					{ speaker: 0, start_s: 0, end_s: 10 },
+					{ speaker: 3000000000, start_s: 10, end_s: 20 },
+				],
+				engine: ENGINE,
+			},
+		})).rejects.toThrow(/out-of-range speaker 3000000000/);
+
+		const runs = await pool.query(`SELECT id FROM diarization_runs WHERE recording_id = $1`, [recordingId]);
+		expect(runs.rows).toHaveLength(0);
+		const maps = await pool.query(`SELECT id FROM recording_speaker_mappings WHERE recording_id = $1`, [recordingId]);
+		expect(maps.rows).toHaveLength(0);
+		const segs = await segmentsOf(recordingId);
+		expect(segs.map((x) => x.speaker_number)).toEqual([null, null]);
+		const rec = await pool.query(`SELECT diarization_status FROM interview_recordings WHERE id = $1`, [recordingId]);
+		expect(rec.rows[0].diarization_status).toBe('processing');
+		const job = await pool.query(`SELECT status FROM diarization_jobs WHERE id = $1`, [jobId]);
+		expect(job.rows[0].status).toBe('processing');
+	});
+
+	it('#1993: a speaker of exactly INT4_MAX is IN contract — the stitch completes and persists it exactly', async () => {
+		const { recordingId, segmentIds, jobId } = await seedRecording([
+			[0, 10000, 'boundary speaker segment'],
+		]);
+		const result = await stitch.persistStitch({
+			jobId, recordingId, expectedSegmentIds: segmentIds,
+			output: {
+				speakerCount: 1,
+				turns: [{ speaker: 2147483647, start_s: 0, end_s: 10 }],
+				engine: ENGINE,
+			},
+		});
+		expect(result.outcome).toBe('complete');
+		const segs = await segmentsOf(recordingId);
+		expect(segs.map((s) => s.speaker_number)).toEqual([2147483647]);
+	});
+
 	it('idempotency: a second persist for a completed job writes nothing new', async () => {
 		const { recordingId, segmentIds, jobId } = await seedRecording([[0, 10000, 'once only']]);
 		const output = { speakerCount: 1, turns: [{ speaker: 0, start_s: 0, end_s: 10 }], engine: ENGINE };
