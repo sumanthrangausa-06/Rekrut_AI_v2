@@ -99,6 +99,30 @@ describe('transcriptStitch.assignSpeakers (S-D07)', () => {
 		expect(assignSpeakers(segments, turns).get(1)).toBe(2147483647);
 	});
 
+	it('#1929 M4/m5: coverage_end_ms is over assignable turns only — a tail phantom does not extend it', () => {
+		// Real turns end at 10.000s; the abrupt-end phantom (speaker 2,
+		// 10.00–10.06s, 60ms) is engine noise: coverage claims only how
+		// far diarization actually covered (FR-D15), so it must stay
+		// 10000, not 10060.
+		const turns = [turn(0, 0, 5), turn(1, 5, 10), turn(2, 10.0, 10.06)];
+		expect(coverageEndMs(turns)).toBe(10000);
+	});
+
+	it('#1929 M4/m5: an out-of-range-speaker long turn does not extend coverage_end_ms', () => {
+		const turns = [turn(0, 0, 10), turn(-1, 10, 20), turn(3000000000, 20, 30)];
+		expect(coverageEndMs(turns)).toBe(10000);
+	});
+
+	it('#1929 m5: a segment straddling the coverage end keeps its max-overlap label from the covered part', () => {
+		// Segment [8000, 20000]ms; turns end at 10000ms. The covered
+		// part is 2000ms of speaker 0 — the label's defined claim is
+		// the voice that said most of the covered part. No clamping,
+		// no NULL-ing a straddle (that would break AC-1 boundary spans).
+		const segments = [seg(1, 8000, 20000)];
+		const turns = [turn(0, 0, 10)];
+		expect(assignSpeakers(segments, turns).get(1)).toBe(0);
+	});
+
 	it('overlap is computed on ms boundaries (fractional seconds round consistently)', () => {
 		const segments = [seg(1, 1500, 2500)];
 		const turns = [turn(1, 1.5, 2.5)];
