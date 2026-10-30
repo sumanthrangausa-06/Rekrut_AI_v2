@@ -30,6 +30,7 @@ const ENTITY_TYPES = Object.freeze({
 	COMPANY: 'company',
 	USER: 'user',
 	RETENTION_PURGE: 'retention_purge', // S-077 (#760): system purge audit entries
+	INTERVIEW_EVENT: 'interview_event', // #1961: panel-labelling audit rows (migration 300 widens the DB CHECK)
 });
 
 const GENESIS_HASH = '0';
