@@ -259,7 +259,7 @@ describe('speakerMapping.computeProposal — speaker-number range contract (#193
 });
 
 describe('speakerMapping.isAutoNameEnabled (DIARIZATION_AUTO_NAME, HA-2 switch)', () => {
-	it('defaults ON when unset, ON for anything except exactly \'false\'', () => {
+	it('defaults ON when unset; \'false\' disables (the wider #1934 OFF set is pinned below)', () => {
 		expect(isAutoNameEnabled({})).toBe(true);
 		expect(isAutoNameEnabled({ DIARIZATION_AUTO_NAME: 'true' })).toBe(true);
 		expect(isAutoNameEnabled({ DIARIZATION_AUTO_NAME: 'false' })).toBe(false);
