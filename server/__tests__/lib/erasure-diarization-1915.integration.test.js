@@ -244,9 +244,16 @@ async function cleanAndSeed() {
 		`UPDATE interview_recordings SET panel_expected_user_ids = ARRAY[$2, $3]::int[], panel_expected_hash = $4 WHERE id = $1`,
 		[R.eventLinked, U_CAND, U_REC, HASH_OWN],
 	);
+	// #2021 pin (PR #2018 review, minor 1): the session-linked
+	// recording's panel array DOES name the erasing user, so item 1's
+	// session-branch NOT IN exclusion is actually exercised — without
+	// the exclusion the sweep would count/sweep this row (mutation:
+	// deleting that exclusion turns crossRecordingPanelPairsSwept to
+	// 3 and this suite RED). With the exclusion, the pair is cleared
+	// only via the item-3 tombstone path (GAP-A(c) redact below).
 	await q(
-		`UPDATE interview_recordings SET panel_expected_user_ids = ARRAY[$2, $3]::int[], panel_expected_hash = $4 WHERE id = $1`,
-		[R.sessionLinked, U_REC, U_OTHER, HASH_OWN],
+		`UPDATE interview_recordings SET panel_expected_user_ids = ARRAY[$2, $3, $4]::int[], panel_expected_hash = $5 WHERE id = $1`,
+		[R.sessionLinked, U_CAND, U_REC, U_OTHER, HASH_OWN],
 	);
 	// (b) the CROSS recording carries the erasing user as a panellist,
 	// and its surviving run's proposed_mapping names the erasing user
@@ -307,9 +314,14 @@ async function cleanAndSeed() {
 	// #2019 fixture: the in-flight recording also carries a PENDING
 	// diarization job — the panel sweep must cancel it in the same
 	// transaction (Lex's full-report condition on #2014).
-	await q(`INSERT INTO diarization_jobs (recording_id, status) VALUES ($1, 'pending')`, [
-		R.inflight,
-	]);
+	// #2021 pin (PR #2020 review, minor): CLAIMED and PROCESSING rows
+	// sit beside the pending one, pinning the full
+	// status IN ('pending','claimed','processing') predicate of the
+	// #2019 cancellation — all three must be cancelled and counted.
+	await q(
+		`INSERT INTO diarization_jobs (recording_id, status) VALUES ($1, 'pending'), ($1, 'claimed'), ($1, 'processing')`,
+		[R.inflight],
+	);
 
 	// Counts-only aggregate (AC-3): no recording/user linkage exists in
 	// this table; erasure must leave it byte-identical.
@@ -412,6 +424,10 @@ describeIfDb('#1915 S-D13 diarization erasure (JT-D7, realdb journey)', () => {
 			expect(rows[0].panel_expected_hash).not.toBeNull();
 		}
 		expect(panelBefore.eventLinked.panel_expected_user_ids).toEqual([U_CAND, U_REC]);
+		// #2021: the session-linked array names the erasing user too —
+		// the seed that makes the item-1 session-branch exclusion
+		// load-bearing (see the fixture comment in cleanAndSeed).
+		expect(panelBefore.sessionLinked.panel_expected_user_ids).toEqual([U_CAND, U_REC, U_OTHER]);
 		expect(panelBefore.cross.panel_expected_user_ids).toEqual([U_REC, U_CAND]);
 		expect(panelBefore.inflight.panel_expected_user_ids).toEqual([U_CAND, U_REC]);
 		expect(panelBefore.control.panel_expected_user_ids).toEqual([U_REC, U_OTHER]);
@@ -425,6 +441,18 @@ describeIfDb('#1915 S-D13 diarization erasure (JT-D7, realdb journey)', () => {
 			[R.cross],
 		);
 		expect(crossJobSnapBefore.rows[0].snap).toContain(String(U_CAND));
+		// #2021 seed sanity: the panel-swept in-flight recording carries
+		// all three in-flight job statuses the #2019 cancellation
+		// predicate names (so the post-erasure count of 3 can fail).
+		const inflightJobsBefore = await seedPool.query(
+			`SELECT status FROM diarization_jobs WHERE recording_id = $1`,
+			[R.inflight],
+		);
+		expect(inflightJobsBefore.rows.map((r) => r.status).sort()).toEqual([
+			'claimed',
+			'pending',
+			'processing',
+		]);
 
 		// The user journey's act: the candidate's erasure runs, in the
 		// production caller shape (one BEGIN…COMMIT transaction client).
@@ -486,21 +514,27 @@ describeIfDb('#1915 S-D13 diarization erasure (JT-D7, realdb journey)', () => {
 		// pair swept on cross + in-flight (2, own recordings excluded
 		// by the item-1 predicate), one surviving run's
 		// proposed_mapping nulled, two own tombstone pairs cleared.
+		// #2021: the session-linked own recording's array now names
+		// the erasing user, so this count of 2 is the pin for the
+		// session-branch NOT IN exclusion — deleting that exclusion
+		// sweeps the session-linked row here too and the count reads 3.
 		expect(result.crossRecordingPanelPairsSwept).toBe(2);
 		expect(result.crossRecordingProposedMappingsNulled).toBe(1);
 		expect(result.tombstonePanelPairsCleared).toBe(2);
 
-		// #2019: the in-flight job on a swept recording is cancelled
-		// in the same transaction and counted; the cross recording's
-		// COMPLETE job is not an in-flight job and stays complete.
-		expect(result.crossRecordingPanelJobsCancelled).toBe(1);
+		// #2019 + #2021: ALL in-flight jobs on a swept recording are
+		// cancelled in the same transaction and counted — pending,
+		// claimed AND processing (3 rows on the in-flight fixture);
+		// the cross recording's COMPLETE job is not an in-flight job
+		// and stays complete.
+		expect(result.crossRecordingPanelJobsCancelled).toBe(3);
 		{
 			const { rows } = await seedPool.query(
 				`SELECT status FROM diarization_jobs WHERE recording_id = $1`,
 				[R.inflight],
 			);
-			expect(rows).toHaveLength(1);
-			expect(rows[0].status).toBe('cancelled');
+			expect(rows).toHaveLength(3);
+			for (const row of rows) expect(row.status).toBe('cancelled');
 			const crossJob = await seedPool.query(
 				`SELECT status FROM diarization_jobs WHERE recording_id = $1`,
 				[R.cross],
