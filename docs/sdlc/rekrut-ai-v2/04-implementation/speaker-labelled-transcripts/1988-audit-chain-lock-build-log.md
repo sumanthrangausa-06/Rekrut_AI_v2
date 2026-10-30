@@ -18,7 +18,7 @@
 
 ## Fix — `services/auditLogService.js`
 
-- **`logEvent`** mirrors `writePanelAudit`'s Pool branch exactly (logEvent has only the global pool; signature and return contract unchanged; type validation still runs before any client is checked out): `pool.connect()` → `BEGIN` → `SET LOCAL lock_timeout = '2s'` → `SELECT pg_advisory_xact_lock(hashtext('compliance-audit-chain'))` → predecessor read on that client → hash → `INSERT … RETURNING *` → `COMMIT` → return the row. On error: `ROLLBACK`, rethrow the original; if rollback fails, `client.release(err)` destroys the client rather than pooling it with an open transaction/lock held. Documented in code as a **leaf lock** (taken last, nothing after it, held only to commit), including the cross-connection self-deadlock warning the security review required and the pre-existing truth that `logEvent` was never inside a caller's transaction and still is not.
+- **`logEvent`** mirrors `writePanelAudit`'s Pool branch in structure (logEvent has only the global pool; signature and return contract unchanged; type validation still runs before any client is checked out). Two deliberate differences: the error path **destroys the client on rollback failure** (panel releases in a `finally`), and the head read + monotonic guard below are logEvent-only: `pool.connect()` → `BEGIN` → `SET LOCAL lock_timeout = '2s'` → `SELECT pg_advisory_xact_lock(hashtext('compliance-audit-chain'))` → predecessor read on that client → hash → `INSERT … RETURNING *` → `COMMIT` → return the row. On error: `ROLLBACK`, rethrow the original; if rollback fails, `client.release(err)` destroys the client rather than pooling it with an open transaction/lock held. Documented in code as a **leaf lock** (taken last, nothing after it, held only to commit), including the cross-connection self-deadlock warning the security review required and the pre-existing truth that `logEvent` was never inside a caller's transaction and still is not.
 - **Predecessor selection** aligned with panel/erasure: `ORDER BY created_at DESC, id DESC LIMIT 1`, now also selecting `created_at` (internal helper `getChainHead(client)`; `getLastHash` was internal-only).
 - **Mocked-suite update** (`tests/compliance-audit.test.js`): the hand mock's pool gains a `connect()` whose client reuses the mock query handler (BEGIN/COMMIT/SET LOCAL/lock statements fall through), and the last-hash mock returns `created_at` alongside `current_hash`. No assertion in that suite was weakened.
 
@@ -57,8 +57,15 @@ Local PostgreSQL **18.6** on 127.0.0.1:55435; fresh empty database `rekrut_1988_
 
 ## Independent review
 
-<!-- REVIEW-SECTION -->
-_Pending at first push — the independent reviewer's verdict and comment link are recorded on the PR and the #1988 checkpoint; this section is updated in-PR when the review lands._
+**Verdict: APPROVE-WITH-MINORS, no BLOCKs** (independent reviewer subagent, ecc code-reviewer + security lens; did not write this code; was not the STOP 1 security consultant) — https://github.com/sumanthrangausa-06/Rekrut_AI_v2/pull/1990#issuecomment-6512434058 (comment `6512434058`, on head `86796610a`). The reviewer verified first-hand: head/base SHAs, scope (exactly 4 files; erasure diff 0 lines; no migration; `RETENTION_PURGE_LIVE` untouched), client/transaction paths (no leak, double-release, pre-COMMIT return, or error masking), leaf-lock comment accuracy (grep), the monotonic guard (bumped string is the single hashed+stored value), and `orderByHashLinkage` fork-safety — structurally and with a 6-scenario probe (two genesis children, fork-at-tip, contiguous second branch, orphan, genesis-less cycle → all `valid:false`; valid same-ms chain → `valid:true`). It also probed `lock_timeout` empirically (contending lock failed at ~502 ms, SQLSTATE 55P03) and re-ran the mocked + integration suites: **15 passed**. The M1/M4/M5 fixes below landed in a follow-up commit after that review; Suga's first-hand verification covers the final head.
+
+Minors and dispositions:
+
+- **[M1 — FIXED in-PR]** The catch path's inner `release(err)` was unguarded; a (traced-unreachable) release throw could mask the original error. Both catch-path releases are now guarded so a release throw can never mask it.
+- **[M2 — NOTED, follow-up]** No automated failure-path coverage (lock timeout, COMMIT/ROLLBACK failure, client destruction); the mock's `release` is unassertable as written. Accepted as follow-up test hardening; the paths are traced in review and the timeout behaviour is probe-proven.
+- **[M3 — NOTED, no change]** The mocked suite resolves same-ms head ties by insertion order while real SQL uses `id DESC` over random UUIDs — a pre-existing mock divergence, covered by the real-DB suite in this PR.
+- **[M4 — FIXED in-PR]** The integration suite had no negative linkage case; added `verifyChain reports a forked chain as invalid` (two genesis children → `valid:false`, 'Hash chain broken').
+- **[M5 — FIXED in-PR]** This log's "mirrors … exactly" wording overstated the panel parallel; corrected above (structure mirrors; error handling and the head-read/guard deliberately differ).
 
 ## Not in this PR
 

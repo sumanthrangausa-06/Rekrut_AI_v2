@@ -147,6 +147,30 @@ describeIfDb('compliance audit chain lock (real DB, #1988)', () => {
 		expect(result.checked).toBe(2);
 	});
 
+	test('verifyChain reports a forked chain as invalid (negative linkage case)', async () => {
+		// Two children of genesis: individually well-hashed, but the chain
+		// forks — linkage verification must report it, never pass it.
+		const t0 = Date.now();
+		const prev = svc.GENESIS_HASH;
+		for (const [i, dt] of [
+			[0, 0],
+			[1, 1],
+		]) {
+			const payload = { fork: 'two-genesis-children-1988', i };
+			const t = new Date(t0 + dt).toISOString();
+			const hash = svc.computeHash(prev, 'ai_decision', 999, 10, payload, t);
+			await pool.query(
+				`INSERT INTO compliance_audit_trail
+				   (event_type, entity_type, entity_id, actor_id, actor_role, job_id, company_id, payload, previous_hash, current_hash, created_at)
+				 VALUES ('ai_decision', 'candidate', 999, 10, 'recruiter', NULL, 5, $1, $2, $3, $4)`,
+				[JSON.stringify(payload), prev, hash, t],
+			);
+		}
+		const result = await svc.verifyChain();
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.message.includes('Hash chain broken'))).toBe(true);
+	});
+
 	test('verifyChain follows hash linkage for same-millisecond rows (pin)', async () => {
 		// Three correctly-linked rows sharing ONE created_at millisecond.
 		// Timestamp order alone cannot order them (UUID ids carry no

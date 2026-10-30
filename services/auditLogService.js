@@ -268,11 +268,17 @@ async function logEvent(eventData) {
 		// never replaced). If rollback itself fails the client may hold
 		// an open transaction and the xact lock: destroy it via
 		// release(err) instead of returning it to the pool.
+		let rollbackFailed = false;
 		try {
 			await client.query('ROLLBACK');
-			client.release();
 		} catch (_rollbackErr) {
-			client.release(err);
+			rollbackFailed = true;
+		}
+		try {
+			if (rollbackFailed) client.release(err);
+			else client.release();
+		} catch (_releaseErr) {
+			// A release throw must never mask the original error.
 		}
 		throw err;
 	}
