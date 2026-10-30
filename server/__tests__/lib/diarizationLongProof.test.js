@@ -76,3 +76,61 @@ describe('evaluateFixture (S-D06 AC-1/AC-3)', () => {
 		expect(r.phantomPass).toBe(false);
 	});
 });
+
+describe('evaluator hardening — #1929 M1 (distinctness + both-voices-present)', () => {
+	// The engine collapsed BOTH voices into engine speaker 0 everywhere.
+	const MERGED_TURNS = [
+		{ speaker: 0, start_s: 100, end_s: 160 },
+		{ speaker: 0, start_s: 160, end_s: 220 },
+		{ speaker: 0, start_s: 3500, end_s: 3550 },
+		{ speaker: 0, start_s: 3550, end_s: 3600 },
+	];
+
+	it('(M1a) fails the window when both voices merge into one engine speaker', () => {
+		const w = evaluateWindow(GT.turns, MERGED_TURNS, 120, 180);
+		expect(w.mapping).toEqual({ interviewer: 0, candidate: 0 });
+		expect(w.pass).toBe(false);
+	});
+
+	it('(M1a) fails the join when both voices merge into one engine speaker in both windows', () => {
+		const r = evaluateFixture(GT, { speakerCount: 1, turns: MERGED_TURNS });
+		expect(r.mappingMinute2).toEqual({ interviewer: 0, candidate: 0 });
+		expect(r.joinPass).toBe(false);
+	});
+
+	it('(M1b) fails a window containing ground-truth speech from only one expected voice', () => {
+		// Window [100,160]: the interviewer speaks; the candidate's first
+		// turn starts at exactly 160, so the candidate is absent here even
+		// though the engine output is perfect. The window must not pass:
+		// it never observed the candidate at all.
+		const w = evaluateWindow(GT.turns, GOOD_TURNS, 100, 160);
+		expect(w.pass).toBe(false);
+	});
+
+	it('(M1b) honours an explicit expected-voice set narrower than the full ground truth', () => {
+		// Same one-voice window as above, but the caller declares that
+		// only the interviewer is expected in it — then it passes.
+		const w = evaluateWindow(GT.turns, GOOD_TURNS, 100, 160, ['interviewer']);
+		expect(w.pass).toBe(true);
+		expect(w.mapping).toEqual({ interviewer: 0 });
+	});
+
+	it('(M1b) fails the join when a voice speaks only outside both evaluated windows', () => {
+		const midOnlyGt = {
+			duration_s: 3600,
+			speakers: ['interviewer', 'candidate'],
+			turns: [
+				{ speaker: 'interviewer', start_s: 100, end_s: 220 },
+				{ speaker: 'candidate', start_s: 1000, end_s: 1060 },
+				{ speaker: 'interviewer', start_s: 3500, end_s: 3600 },
+			],
+		};
+		const turns = [
+			{ speaker: 0, start_s: 100, end_s: 220 },
+			{ speaker: 1, start_s: 1000, end_s: 1060 },
+			{ speaker: 0, start_s: 3500, end_s: 3600 },
+		];
+		const r = evaluateFixture(midOnlyGt, { speakerCount: 2, turns });
+		expect(r.joinPass).toBe(false);
+	});
+});
