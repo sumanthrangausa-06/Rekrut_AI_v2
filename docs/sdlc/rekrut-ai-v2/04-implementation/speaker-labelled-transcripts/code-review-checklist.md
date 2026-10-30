@@ -96,7 +96,11 @@ dynamic/computed import forms outright in set-S/set-D files
 string-literal argument) and widens the completeness vocabulary
 with `score|evaluat|rank`, but a NEW module named with a synonym the
 vocabulary does not contain (probe P5, e.g. `lib/speakerLabels.js`)
-remains a named residual risk. Two disclosures the fence does not
+remains a named residual risk. The remaining deliberate-obfuscation
+forms are also named residuals: a comment between callee and
+parenthesis (`require/*c*/('...')`), require aliasing
+(`const r = require; r('...')`), and a no-space static import
+(`import"..."`) are not captured by these scans. Two disclosures the fence does not
 cover: (1) segment-level speaking share IS derivable — transcript
 segments carry `speaker_number` / `start_time_ms` / `end_time_ms`,
 so a per-speaker share is computable by summing segment durations;

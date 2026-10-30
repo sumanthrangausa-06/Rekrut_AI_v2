@@ -172,6 +172,67 @@ so the HL-003 fresh-install E2E gate does not apply to it directly —
 its evidence standard is the red-first + mutation record above,
 exercised against the real tree exactly as CI will run it.
 
+## Review dispositions — independent security review of PR #1995
+
+Reviewer (ecc/security-reviewer + privacy lens, a separate reviewer
+who did not build this lane) verdict on head `decb99ae6`:
+**APPROVE-WITH-MINORS** — no BLOCK, no MAJOR. Full review:
+PR #1995 comment 6515433611. The reviewer re-ran probes P1–P5 plus
+extras E1/E2 first-hand; the fence behaved as claimed in every case,
+and P5 (synonym-named module) was confirmed as the disclosed
+residual. Dispositions, worked in this lane on the same branch:
+
+- **FIX-1 (review MINOR-1) — DONE.** A require literal containing a
+  backslash escape evaded the fence: `require('../lib/speaker\u004dapping')`
+  stayed green while Node resolves it to the real
+  `lib/speakerMapping` module (the scan compares un-decoded text, and
+  the non-literal scan's backslash-skip treated it as a clean literal).
+  Fix, narrowest form: `nonLiteralInText()` (the text-level core of
+  `nonLiteralImports()`, split out so the rule is unit-pinnable) now
+  treats any backslash inside a `require()` literal as non-literal
+  for set-S/set-D files. Pinned by a new fence test,
+  *"non-literal scan pins the backslash-escape evasion (#1945 review
+  MINOR-1)"* (escaped literal → violation; plain literal → allowed).
+  No current set-S/set-D file legitimately has a backslash in a
+  specifier — the full fence suite stays green with the rule active.
+  **Mutation verification (this lane):** planted
+  `const _u = require('../lib/speaker\u004dapping');` in
+  `routes/omniscore.js` (line 658) → fence **FAIL** (1 failed /
+  6 passed; new check names `routes/omniscore.js: non-literal
+  require() argument`); plant removed → fence **PASS** (7 passed /
+  7 total). The fence suite is now 7 tests (was 6).
+- **FIX-2 (review MINOR-2) — DONE.** The fence header's residual
+  wording now names the remaining deliberate-obfuscation forms the
+  reviewer verified: a comment between callee and parenthesis
+  (`require/*c*/('...')` — written with an escaped slash in the JS
+  header because the literal form would terminate the block comment),
+  require aliasing (`const r = require; r('...')`), and a no-space
+  static import (`import"..."`). The same sentence is mirrored in
+  `code-review-checklist.md`'s narrowed-claim wording so header and
+  checklist stay consistent.
+- **MINOR-3 — ACCEPTED as-is, no code change.** The non-literal scan
+  is raw-text, so an `import(`/`require(` mention inside a comment or
+  string in a set-S/set-D file false-positives. That is the safe
+  direction for a fence (over-blocking, never under-blocking), and
+  the reviewer verified zero such occurrences in current S/D files.
+  Accepted.
+- **MINOR-4 — ACCEPTED as-is, no code change.** Disclosure (ii) (the
+  fence-shape suite does not exercise `PUT /:id/speakers/mapping`)
+  under-claims coverage — the PUT response shares
+  `speakerEditorPayload()` with the exercised GET and has its own
+  integration suite. Under-claiming is the safe direction for a
+  disclosure. Accepted.
+
+Post-fix suite results (this lane):
+
+```
+npx jest server/__tests__/lib/diarizationFence-1916.test.js \
+         server/__tests__/lib/diarizationPinning-1907.test.js \
+         server/__tests__/lib/speakerMapping.test.js \
+         server/__tests__/lib/transcriptStitch.test.js
+→ Test Suites: 4 passed, 4 total · Tests: 55 passed, 55 total
+```
+
 ## Residual risk (honest sentence)
 
 The hardened fence guarantees the current tree's static edges and
