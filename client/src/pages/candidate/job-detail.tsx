@@ -50,7 +50,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useSubscription } from '@/hooks/use-subscription';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall } from '@/lib/api';
-import { formatJobSalary } from '@/lib/salary';
+import { formatJobSalary, toAmount } from '@/lib/salary';
 
 interface Job {
 	id: number;
@@ -62,8 +62,8 @@ interface Job {
 	requirements: string;
 	location: string;
 	salary_range: string;
-	salary_min?: number;
-	salary_max?: number;
+	salary_min?: number | string | null;
+	salary_max?: number | string | null;
 	currency_code?: string;
 	job_type: string;
 	remote_type?: string;
@@ -769,6 +769,12 @@ export function CandidateJobDetailPage() {
 			</div>
 		);
 
+	// #2057: PG NUMERIC salary bounds arrive as strings ("80000.00") —
+	// normalise through salary.ts's coercion (0/absent = no salary) so the
+	// JSON-LD below emits real numbers and never a $0 baseSalary.
+	const salaryMinValue = toAmount(job.salary_min);
+	const salaryMaxValue = toAmount(job.salary_max);
+
 	return (
 		<div className="space-y-6 max-w-3xl mx-auto px-2 sm:px-0">
 			{job && (
@@ -818,18 +824,23 @@ export function CandidateJobDetailPage() {
 										: job.job_type === 'internship'
 											? 'INTERN'
 											: 'FULL_TIME',
-						baseSalary: job.salary_range
-							? {
-									'@type': 'MonetaryAmount',
-									currency: job.currency_code || 'USD',
-									value: {
-										'@type': 'QuantitativeValue',
-										minValue: job.salary_min,
-										maxValue: job.salary_max,
-										unitText: 'YEAR',
-									},
-								}
-							: undefined,
+						// #2057: baseSalary is a QuantitativeValue — emit it when a
+						// normalised numeric bound exists (entered currency), never
+						// for salary_range text alone, which cannot be converted to
+						// numbers without inventing them.
+						baseSalary:
+							salaryMinValue != null || salaryMaxValue != null
+								? {
+										'@type': 'MonetaryAmount',
+										currency: job.currency_code || 'USD',
+										value: {
+											'@type': 'QuantitativeValue',
+											minValue: salaryMinValue ?? undefined,
+											maxValue: salaryMaxValue ?? undefined,
+											unitText: 'YEAR',
+										},
+									}
+								: undefined,
 						applicantLocationRequirements:
 							job.remote_type === 'remote'
 								? {

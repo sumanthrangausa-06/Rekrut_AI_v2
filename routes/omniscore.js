@@ -369,7 +369,7 @@ router.get('/mutual-matches', authMiddleware, async (req, res) => {
 		// Find jobs where the candidate applied or was matched AND the company has a decent score
 		const result = await pool.query(
 			`SELECT
-        j.id as job_id, j.title, j.location, j.salary_range, j.job_type,
+        j.id as job_id, j.title, j.location, j.salary_range, j.salary_min, j.salary_max, j.currency_code, j.job_type,
         c.id as company_id, c.name as company_name, c.logo_url, c.industry, c.is_verified,
         ts.total_score as company_trust_score, ts.score_tier as company_tier,
         ja.status as application_status,
@@ -384,7 +384,7 @@ router.get('/mutual-matches', authMiddleware, async (req, res) => {
        LEFT JOIN company_ratings cr ON cr.company_id = c.id AND cr.status = 'published'
        WHERE j.status = 'active'
          AND (ja.candidate_id = $1 OR mr.candidate_id = $1)
-       GROUP BY j.id, j.title, j.location, j.salary_range, j.job_type,
+       GROUP BY j.id, j.title, j.location, j.salary_range, j.salary_min, j.salary_max, j.currency_code, j.job_type,
                 c.id, c.name, c.logo_url, c.industry, c.is_verified,
                 ts.total_score, ts.score_tier, ja.status,
                 mr.weighted_score, mr.match_level

@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { apiCall } from '@/lib/api';
+import { formatJobSalary, hasJobSalary } from '@/lib/salary';
 
 // ─── Types ──────────────────────────────────────────────────
 interface ScoreExplainer {
@@ -107,6 +108,9 @@ interface MutualMatch {
 	title: string;
 	location: string;
 	salary_range: string;
+	salary_min?: number | string | null;
+	salary_max?: number | string | null;
+	currency_code?: string | null;
 	job_type: string;
 	company_id: number;
 	company_name: string;
@@ -923,9 +927,9 @@ export function CandidateOmniScorePage() {
 														{match.company_name} · {match.location || 'Remote'} ·{' '}
 														{match.job_type || 'Full-time'}
 													</p>
-													{match.salary_range && (
+													{hasJobSalary(match) && (
 														<p className="text-xs text-emerald-500 font-medium mt-0.5">
-															{match.salary_range}
+															{formatJobSalary(match)}
 														</p>
 													)}
 													{/* Signals */}
