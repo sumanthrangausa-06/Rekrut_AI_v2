@@ -148,6 +148,33 @@ function toExportSafeUser(row) {
 const EXPORT_USER_COLUMNS =
 	'id, email, name, role, title, company_name, company_id, github_username, avatar_url, linkedin_data, is_paid, subscription_plan, subscription_status, suspended_at, deleted_at, created_at, updated_at';
 
+// #2041: explicit column lists for the export's remaining sections —
+// the same discipline as EXPORT_USER_COLUMNS (#2035) and the
+// biometric tables (#2033). Each list names exactly the table's live
+// columns (verified against information_schema on a fresh migrated
+// DB), so today's bundle is field-for-field identical, and a column
+// added to any of these tables later reaches the bundle only by a
+// deliberate edit to its list (the privacy gate). NO exclusions:
+// every live column here is the subject's own data in DSAR scope,
+// and shrinking the subject's copy is a Lex ruling, not a hardening
+// lane (STOP 1 on #2041; #2033 precedent). Keep each list in step
+// with its table; the #2041 suites pin all eight.
+const EXPORT_OMNI_SCORE_COLUMNS =
+	'id, user_id, total_score, interview_score, technical_score, resume_score, behavior_score, score_tier, last_updated, created_at, factor_scores, peer_percentile, last_checkin_at, fraud_signals, version';
+const EXPORT_SCORE_HISTORY_COLUMNS =
+	'id, user_id, previous_score, new_score, change_amount, change_reason, component_type, created_at, score_snapshot';
+const EXPORT_SCORE_SNAPSHOT_COLUMNS =
+	'id, user_id, total_score, factor_scores, peer_percentile, snapshot_week, created_at';
+const EXPORT_INTERVIEW_COLUMNS =
+	'id, user_id, job_id, interview_type, status, questions, responses, ai_feedback, overall_score, duration_seconds, video_urls, created_at, completed_at, updated_at';
+const EXPORT_ASSESSMENT_COLUMNS = 'id, user_id, skill_name, score, created_at';
+const EXPORT_PROFILE_COLUMNS =
+	'id, user_id, headline, summary, skills, experience, education, resume_url, linkedin_url, portfolio_url, location, preferred_role, salary_expectation, remote_preference, bio, phone, github_url, photo_url, salary_min, salary_max, preferred_job_types, preferred_locations, years_experience, created_at, updated_at, availability, work_authorization, certifications, preferred_industries, visa_sponsorship_needed, notice_period, willing_to_relocate, preferred_company_size, cover_letter_template, timezone_preference, travel_willingness, salary_currency, work_mode, work_hours, start_date_flexibility, salary_expectation_min, salary_expectation_max';
+const EXPORT_CONSENT_COLUMNS =
+	'id, user_id, consent_type, consented, consented_at, ip_address, metadata, created_at, updated_at, revoked_at, revoked_by, revocation_reason';
+const EXPORT_AUDIT_LOG_COLUMNS =
+	'id, action_type, user_id, target_type, target_id, metadata, ip_address, user_agent, created_at, company_id, actor_id, action, reason';
+
 function canAccessUserRecord(req, userId) {
 	const targetId = Number(userId);
 	if (!Number.isInteger(targetId)) {
@@ -230,31 +257,41 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 		// exported raw/native (no normalisation): total_score stays on
 		// its native 300-850 scale, factors on 0-100; a NULL total stays
 		// null, and no row exports as score: null (honest absence).
-		const omniScoreData = await pool.query('SELECT * FROM omni_scores WHERE user_id = $1', [
-			targetUserId,
-		]);
-		const scoreHistoryData = await pool.query('SELECT * FROM score_history WHERE user_id = $1', [
-			targetUserId,
-		]);
-		const scoreSnapshotsData = await pool.query(
-			'SELECT * FROM score_snapshots WHERE user_id = $1',
+		// #2041: explicit projections for every section below (see the
+		// EXPORT_*_COLUMNS block above) — no SELECT * remains in this
+		// handler, so no future column exports by default.
+		const omniScoreData = await pool.query(
+			`SELECT ${EXPORT_OMNI_SCORE_COLUMNS} FROM omni_scores WHERE user_id = $1`,
 			[targetUserId],
 		);
-		const interviewData = await pool.query('SELECT * FROM interviews WHERE user_id = $1', [
-			targetUserId,
-		]);
-		const assessmentData = await pool.query('SELECT * FROM assessment_results WHERE user_id = $1', [
-			targetUserId,
-		]);
-		const profileData = await pool.query('SELECT * FROM candidate_profiles WHERE user_id = $1', [
-			targetUserId,
-		]);
-		const consentData = await pool.query('SELECT * FROM consent_records WHERE user_id = $1', [
-			targetUserId,
-		]);
-		const auditData = await pool.query('SELECT * FROM audit_logs WHERE user_id = $1', [
-			targetUserId,
-		]);
+		const scoreHistoryData = await pool.query(
+			`SELECT ${EXPORT_SCORE_HISTORY_COLUMNS} FROM score_history WHERE user_id = $1`,
+			[targetUserId],
+		);
+		const scoreSnapshotsData = await pool.query(
+			`SELECT ${EXPORT_SCORE_SNAPSHOT_COLUMNS} FROM score_snapshots WHERE user_id = $1`,
+			[targetUserId],
+		);
+		const interviewData = await pool.query(
+			`SELECT ${EXPORT_INTERVIEW_COLUMNS} FROM interviews WHERE user_id = $1`,
+			[targetUserId],
+		);
+		const assessmentData = await pool.query(
+			`SELECT ${EXPORT_ASSESSMENT_COLUMNS} FROM assessment_results WHERE user_id = $1`,
+			[targetUserId],
+		);
+		const profileData = await pool.query(
+			`SELECT ${EXPORT_PROFILE_COLUMNS} FROM candidate_profiles WHERE user_id = $1`,
+			[targetUserId],
+		);
+		const consentData = await pool.query(
+			`SELECT ${EXPORT_CONSENT_COLUMNS} FROM consent_records WHERE user_id = $1`,
+			[targetUserId],
+		);
+		const auditData = await pool.query(
+			`SELECT ${EXPORT_AUDIT_LOG_COLUMNS} FROM audit_logs WHERE user_id = $1`,
+			[targetUserId],
+		);
 
 		// #2028 item 4 (STOP 1 on #2028; panel: Lex + privacy + Rex):
 		// the biometric-policy §5 promise ("a complete copy of your
