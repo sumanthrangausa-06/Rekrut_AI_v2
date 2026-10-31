@@ -42,6 +42,13 @@
  * verbatim. This suite pins both so a later ruling changes them
  * deliberately, never silently.
  *
+ * #2049 UPDATE (Lex ruling comment 6544914912 on #2049): Slice A
+ * status quo STANDS (the *_id pin below is unchanged). Slice B is
+ * now governed — a third party's target_email is DROPPED under the
+ * subject-relative person-contact rule, so the Slice B pin below
+ * flipped deliberately in the #2049 lane; the full Slice B contract
+ * lives in compliance-gdpr-export-metadata-2049.test.js.
+ *
  * Harness follows the #2035 suite: the REAL route runs; only the pool
  * boundary (and auth) is mocked. The HL-003 real-DB journey is the
  * companion suite (compliance-gdpr-export-metadata-realdb-2046).
@@ -187,9 +194,9 @@ const AUDIT_ROW_FOREIGN_ACTOR = {
 		api_token: 'SENTINEL2046_API_TOKEN',
 		resume_ref: '/api/files/SENTINEL2046_RESUME_REF',
 		export_size: 123,
-		// STOP 1 slice (B) status-quo pin: other-person PII in a
-		// non-*_id string key stays verbatim in this lane, pending
-		// Lex — pinned so a later ruling changes it deliberately.
+		// #2049 Slice B: other-person PII in a non-*_id string key —
+		// verbatim under #2046 pending Lex; DROPPED since the #2049
+		// ruling (subject-relative person-contact rule).
 		target_email: 'colleague2046@example.com',
 		// Rule (4): non-user plural ids are bookkeeping, verbatim.
 		application_ids: [101, 102],
@@ -378,9 +385,10 @@ describe('#2046 POST /gdpr/export — metadata + FK ruling (Lex)', () => {
 		expect(meta.new_status).toBe('interview');
 		expect(meta.export_size).toBe(123);
 		expect(meta.application_ids).toEqual([101, 102]);
-		// STOP 1 slice (B) pin: target_email stays verbatim in this
-		// lane (pending Lex), deliberately.
-		expect(meta.target_email).toBe('colleague2046@example.com');
+		// #2049 Slice B pin (flipped deliberately per Lex ruling
+		// 6544914912): a third party's target_email is dropped — it
+		// is not the subject's own email.
+		expect(meta).not.toHaveProperty('target_email');
 		// Nested objects are sanitised with the same rules.
 		expect(meta.nested).not.toHaveProperty('candidate_id');
 		expect(meta.nested).not.toHaveProperty('object_key');
@@ -429,6 +437,7 @@ describe('#2046 POST /gdpr/export — metadata + FK ruling (Lex)', () => {
 			'recruiter_notes',
 			'resume_ref',
 			'storage_key',
+			'target_email',
 		]) {
 			expect(auditNote).toContain(name);
 		}

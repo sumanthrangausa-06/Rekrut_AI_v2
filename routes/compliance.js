@@ -207,12 +207,26 @@ const EXPORT_AUDIT_LOG_COLUMNS =
 //     (4) everything else — the subject's own scalar bookkeeping —
 //         verbatim. Names of removed keys (never values) are listed
 //         in the bundle note.
-//   Flagged at STOP 1 on #2046, status quo kept pending Lex: the
-//   user-identifier set is the census of user-id keys today's
-//   audit writers produce; non-user *_id bookkeeping (job_id,
-//   company_id, ...) stays verbatim under rule (4), and other-person
-//   PII in non-*_id string keys (target_email, ...) is not covered
-//   by the ruling's classes and stays verbatim.
+//   #2049 (Lex ruling, comment 6544914912 on #2049): Slice A — the
+//   non-user *_id status quo above STANDS (the test is the key's
+//   referent, not its suffix). Slice B adds a rule after (2):
+//     (2b) person-contact keys kept only when the value is the
+//         subject's own contact detail (the string analogue of
+//         ownIdOrNull): the census set targetemail / newowneremail /
+//         targetname / newownername plus any canonical key ending
+//         in `email` — an email key is kept only when its value,
+//         trimmed and case-insensitively, equals the subject's own
+//         email (users.email); a census name key only when its
+//         value, trimmed and case-insensitively, equals the
+//         subject's own name (users.name). Otherwise the key is
+//         DROPPED at every depth. Backstop: any string value under
+//         any key at any depth (array elements included, swept like
+//         the storage class) that IS an email address as a whole
+//         value and is not the subject's own email is dropped —
+//         whole-value only, no substring redaction. Generic `name`
+//         and `domain` stay verbatim under rule (4) (the ruling's
+//         accepted residual: `name` is overloaded — subject-authored
+//         search input and non-person object names).
 const EXPORT_CONSENT_METADATA_NOTE =
 	'Consent record metadata is withheld in this copy because its contents are caller-supplied and unverified.';
 const EXPORT_METADATA_USER_ID_KEYS = new Set([
@@ -223,6 +237,12 @@ const EXPORT_METADATA_USER_ID_KEYS = new Set([
 const EXPORT_METADATA_FREE_TEXT_KEYS = new Set([
 	'recruiternotes', 'overridereason', 'notes', 'reason',
 ]);
+// #2049 Slice B census (canonicalised): person-contact email keys
+// are this set plus any canonical key ending in `email`; person-
+// contact name keys are this set only (generic `name` stays
+// verbatim — see the sanitiser block above).
+const EXPORT_METADATA_PERSON_EMAIL_KEYS = new Set(['targetemail', 'newowneremail']);
+const EXPORT_METADATA_PERSON_NAME_KEYS = new Set(['targetname', 'newownername']);
 const EXPORT_METADATA_CREDENTIAL_MARKERS = [
 	'password', 'secret', 'token', 'apikey', 'credential', 'privatekey', 'authorization',
 ];
@@ -241,6 +261,12 @@ function isExportStorageValue(value) {
 	return EXPORT_STORAGE_HOSTS.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
 }
 
+// Whole-value email shape for the #2049 Slice B backstop — the
+// value (trimmed) IS an email address, not merely contains one.
+function isExportEmailValue(value) {
+	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
 function isExportSecretOrStorageKey(canon) {
 	if (canon === 'fileurl' || canon === 'objectkey') return true;
 	if (canon.includes('storagekey') || canon.includes('storageurl')) return true;
@@ -252,14 +278,35 @@ function isExportSecretOrStorageKey(canon) {
 // array is walked like any nested array (privacy review finding 2
 // on #2046 — no current writer produces one, but the class fails
 // closed, per the #2039 precedent in this handler); a root scalar
-// that is itself a storage reference becomes null.
-function sanitiseExportAuditMetadata(metadata, targetUserId) {
+// that is itself a storage reference — or, #2049, a foreign email
+// address — becomes null.
+function sanitiseExportAuditMetadata(metadata, targetUserId, subjectEmail, subjectName) {
 	const removed = new Set();
-	const walkValue = (value) => {
+	// #2049 Slice B subject-relative keep: the subject's own contact
+	// details, compared trimmed + case-insensitively. An absent own
+	// value matches nothing, so the classes fail closed.
+	const ownEmail = typeof subjectEmail === 'string' ? subjectEmail.trim().toLowerCase() : '';
+	const ownName = typeof subjectName === 'string' ? subjectName.trim().toLowerCase() : '';
+	const isSubjectValue = (value, own) =>
+		typeof value === 'string' && own !== '' && value.trim().toLowerCase() === own;
+	const isForeignEmailValue = (value) =>
+		isExportEmailValue(value) && value.trim().toLowerCase() !== ownEmail;
+	// `swept` (optional, shared across one array walk) records that
+	// an element was filtered out at ANY depth of the array, so the
+	// owning key can be named in the bundle note even when only a
+	// nested array lost an element (privacy review finding 1 on
+	// #2049 — top-level length alone misses array-in-array sweeps).
+	const walkValue = (value, swept) => {
 		if (Array.isArray(value)) {
 			return value
-				.filter((el) => !(typeof el === 'string' && isExportStorageValue(el)))
-				.map(walkValue);
+				.filter((el) => {
+					const drop =
+						typeof el === 'string' &&
+						(isExportStorageValue(el) || isForeignEmailValue(el));
+					if (drop && swept) swept.flag = true;
+					return !drop;
+				})
+				.map((el) => walkValue(el, swept));
 		}
 		if (value && typeof value === 'object') return walkObject(value);
 		return value;
@@ -278,15 +325,31 @@ function sanitiseExportAuditMetadata(metadata, targetUserId) {
 				else removed.add(key);
 				continue;
 			}
-			if (typeof value === 'string' && isExportStorageValue(value)) {
+			if (EXPORT_METADATA_PERSON_EMAIL_KEYS.has(canon) || canon.endsWith('email')) {
+				if (isSubjectValue(value, ownEmail)) entries.push([key, value]);
+				else removed.add(key);
+				continue;
+			}
+			if (EXPORT_METADATA_PERSON_NAME_KEYS.has(canon)) {
+				if (isSubjectValue(value, ownName)) entries.push([key, value]);
+				else removed.add(key);
+				continue;
+			}
+			if (
+				typeof value === 'string' &&
+				(isExportStorageValue(value) || isForeignEmailValue(value))
+			) {
 				removed.add(key);
 				continue;
 			}
 			if (Array.isArray(value)) {
-				const walked = walkValue(value);
+				const swept = { flag: false };
+				const walked = walkValue(value, swept);
 				// An element swept out of an array is a removal under
-				// this key — the bundle note names it (finding 7).
-				if (walked.length !== value.length) removed.add(key);
+				// this key — the bundle note names it (finding 7 on
+				// #2046; nested-array sweeps count too, finding 1 on
+				// #2049).
+				if (walked.length !== value.length || swept.flag) removed.add(key);
 				entries.push([key, walked]);
 				continue;
 			}
@@ -298,7 +361,10 @@ function sanitiseExportAuditMetadata(metadata, targetUserId) {
 		return { metadata: walkValue(metadata), removedKeys: [...removed] };
 	}
 	if (!metadata || typeof metadata !== 'object') {
-		if (typeof metadata === 'string' && isExportStorageValue(metadata)) {
+		if (
+			typeof metadata === 'string' &&
+			(isExportStorageValue(metadata) || isForeignEmailValue(metadata))
+		) {
 			return { metadata: null, removedKeys: [] };
 		}
 		return { metadata, removedKeys: [] };
@@ -704,6 +770,10 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 		// handler's ownIdOrNull (#2034 pattern, defined above): the
 		// subject's own id is kept, anyone else's becomes null, with
 		// NO admin exception. Stored rows are never mutated.
+		// #2049 Slice B: the sanitiser also receives the subject's own
+		// email + name (users.email / users.name, already loaded in
+		// userData above — no new query) for its subject-relative
+		// person-contact keep rule.
 		const removedAuditMetadataKeys = new Set();
 		const exportConsents = consentData.rows.map((row) => ({
 			...row,
@@ -712,7 +782,12 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 			revocation_reason: null,
 		}));
 		const exportAuditTrail = auditData.rows.map((row) => {
-			const sanitised = sanitiseExportAuditMetadata(row.metadata, targetUserId);
+			const sanitised = sanitiseExportAuditMetadata(
+				row.metadata,
+				targetUserId,
+				userData.rows[0].email,
+				userData.rows[0].name,
+			);
 			for (const key of sanitised.removedKeys) removedAuditMetadataKeys.add(key);
 			return { ...row, actor_id: ownIdOrNull(row.actor_id), metadata: sanitised.metadata };
 		});
