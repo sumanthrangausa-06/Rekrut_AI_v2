@@ -96,6 +96,7 @@ Deletion is verified by automated jobs and logged in an append-only audit trail.
 
 • Know what biometric data we hold about you.
 • Request a complete copy of your biometric data (data export), including your session recording details, any Observer speech measurements held about you (provided in readable form, not as encrypted data), and the speaker labels and label-correction history for your recordings. Where a record also refers to another participant, that person is identified by role only (for example, "interviewer"), never by name or account ID.
+If you would like access to the audio of your own interview recording itself, rather than the recording details included in the data export, you can request it by emailing privacy@rekrutai.co or through the data-request portal; we will verify your identity and provide access to recordings of sessions you took part in, subject to the rights of the other people in the recording. The Observer's captured audio is not provided as audio files; the measurements taken from it are included in your export in readable form.
 • Request deletion of your biometric data at any time.
 • Withdraw consent — collection stops immediately.
 • Opt for a human interview instead of AI screening/interview if you decline biometric consent.
