@@ -99,6 +99,10 @@ describe('BiometricPolicyPage (S-056)', () => {
 		// §2: identity verification in the product is document/ID-number based,
 		// not a purpose for collecting biometric measurements.
 		expect(screen.queryByText(/Identity verification: Confirming you are the person who applied/i)).not.toBeInTheDocument();
+		// §2 (#1947 item 4): speaker labelling IS a listed purpose — §2 claims
+		// exclusivity ("for these specific purposes only"), so the diarization
+		// purpose disclosed in §1 must be named here (Lex option (a)).
+		expect(screen.getByText(/Speaker labelling: Labelling who said what/i)).toBeInTheDocument();
 		// §4: no backup cycle or object-storage lifecycle config is evidenced in-repo.
 		expect(screen.queryByText(/30-day cycle/i)).not.toBeInTheDocument();
 		expect(screen.queryByText(/lifecycle rules provide a backstop/i)).not.toBeInTheDocument();

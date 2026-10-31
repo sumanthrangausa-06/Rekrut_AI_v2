@@ -60,6 +60,8 @@ Speaker labelling: to label who said what in a recorded interview, we create a t
 
 • Interview integrity: Supporting a fair interview process — when the AI Observer is enabled for a session and you have consented, it is present during the interview and its presence is recorded for the hiring team.
 
+• Speaker labelling: Labelling who said what in a recorded interview's transcript, only where the candidate has given biometric consent.
+
 We never use biometric data for advertising, profiling unrelated to hiring, or any purpose not listed here.`,
 	},
 	{
@@ -68,7 +70,7 @@ We never use biometric data for advertising, profiling unrelated to hiring, or a
 		content: `We retain biometric data only as long as necessary, and never longer than the law requires:
 
 • Raw video/audio recordings: Each recording carries a retention expiry — 90 days after it was recorded, or 30 days after the hiring decision for session recordings. Automated deletion at expiry is not yet enabled, so a recording may be kept longer until deletion runs — you can request deletion at any time (see Your Rights below).
-• Face/voice embeddings (mathematical templates): Kept for up to 90 days from creation; automated deletion at expiry is not yet enabled, as above. Speaker-labelling templates are different: the temporary voice template created for speaker labelling is never stored at all, so this 90-day period does not apply to it — it no longer exists once the labelling ends.
+• Speaker-labelling templates: The temporary voice template created for speaker labelling is never stored at all, so no retention period applies to it — it no longer exists once the labelling ends. We do not store face or voice embeddings.
 • Per-turn behavioral measurements: Observer speech measurements are kept for up to 30 days from when they were recorded, under their own retention rule — they are not deleted with the video recording. Automated deletion at expiry is not yet enabled, as above.
 • Aggregated assessment results (scores, not raw biometrics): Retained per our data retention schedule.
 • Biometric consent receipts: Retained as part of your consent record, so we can show what you consented to and when.
