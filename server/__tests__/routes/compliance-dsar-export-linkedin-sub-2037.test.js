@@ -193,6 +193,38 @@ describe('#2037 POST /gdpr/export — nested LinkedIn identifier strip', () => {
 		expect(FULL_USER_ROW.linkedin_data.me.id).toBe(ME_ID_SENTINEL);
 	});
 
+	test('review BLOCK-2: member URNs nested in the raw sub-collections are scrubbed too', async () => {
+		// The writer stores the FULL LinkedIn API responses for
+		// positions/educations/skills, so the member identifier can
+		// ride inside URN strings there — bare or percent-encoded.
+		FULL_USER_ROW.linkedin_data = {
+			...realShapeLinkedInData(),
+			positions: {
+				elements: [{ title: 'Data Analyst', owner: `urn:li:person:${SUB_SENTINEL}` }],
+				paging: {
+					links: [
+						{
+							href: `https://api.linkedin.com/v2/positions?owner=urn%3Ali%3Aperson%3A${SUB_SENTINEL}`,
+						},
+					],
+				},
+			},
+			skills: { elements: [{ name: 'SQL', owner: `urn:li:person:${ME_ID_SENTINEL}` }] },
+		};
+		const res = await request(makeApp())
+			.post('/api/compliance/gdpr/export')
+			.send({ userId: SUBJECT_ID });
+		expect(res.status).toBe(200);
+		const serialised = JSON.stringify(res.body);
+		expect(serialised).not.toContain(SUB_SENTINEL);
+		expect(serialised).not.toContain(ME_ID_SENTINEL);
+		expect(serialised).not.toContain('urn:li:person:');
+		expect(serialised).not.toContain('urn%3Ali%3Aperson%3A');
+		// The surrounding payload survives the scrub.
+		expect(res.body.data.user.linkedin_data.positions.elements[0].title).toBe('Data Analyst');
+		expect(res.body.data.user.linkedin_data.skills.elements[0].name).toBe('SQL');
+	});
+
 	test('non-object linkedin_data passes through untouched', async () => {
 		FULL_USER_ROW.linkedin_data = null;
 		const res = await request(makeApp())
