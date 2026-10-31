@@ -191,10 +191,19 @@ const EXPORT_AUDIT_LOG_COLUMNS =
 //         lib/erasureResultSanitizer.js, plus credential key names);
 //     (2) user-identifier keys kept only when the value is the
 //         subject's own id (the ownIdOrNull rule, #2034), otherwise
-//         the key is DROPPED;
-//     (3) recruiter-authored free text dropped (recruiter_notes and
-//         override_reason — the human_override writer sets
-//         override_reason from recruiter_notes verbatim);
+//         the key is DROPPED — the census set below plus any
+//         canonical key ending in `userid` (compound kin such as
+//         actor_user_id / from_user_id — the column names this same
+//         handler ownIdOrNulls in the biometric sections; privacy
+//         review finding 1 on #2046);
+//     (3) other-authored free text dropped: recruiter_notes and
+//         override_reason (the human_override writer sets
+//         override_reason from recruiter_notes verbatim), plus the
+//         same class under plainer names — `notes` (proctoring
+//         flag-review notes, routes/proctoring.js) and `reason`
+//         (screening-override reason, routes/questionnaire.js);
+//         privacy review finding 3 on #2046, which also corrected
+//         the STOP 1 census sentence that missed those two writers;
 //     (4) everything else — the subject's own scalar bookkeeping —
 //         verbatim. Names of removed keys (never values) are listed
 //         in the bundle note.
@@ -211,7 +220,9 @@ const EXPORT_METADATA_USER_ID_KEYS = new Set([
 	'previousownerid', 'newownerid', 'ownerid', 'sentby', 'updatedby',
 	'createdby', 'changedby', 'revokedby',
 ]);
-const EXPORT_METADATA_FREE_TEXT_KEYS = new Set(['recruiternotes', 'overridereason']);
+const EXPORT_METADATA_FREE_TEXT_KEYS = new Set([
+	'recruiternotes', 'overridereason', 'notes', 'reason',
+]);
 const EXPORT_METADATA_CREDENTIAL_MARKERS = [
 	'password', 'secret', 'token', 'apikey', 'credential', 'privatekey', 'authorization',
 ];
@@ -237,11 +248,12 @@ function isExportSecretOrStorageKey(canon) {
 }
 
 // Returns { metadata, removedKeys } — a sanitised COPY; the input
-// object (the stored row's parsed JSONB) is never mutated.
+// object (the stored row's parsed JSONB) is never mutated. A root
+// array is walked like any nested array (privacy review finding 2
+// on #2046 — no current writer produces one, but the class fails
+// closed, per the #2039 precedent in this handler); a root scalar
+// that is itself a storage reference becomes null.
 function sanitiseExportAuditMetadata(metadata, targetUserId) {
-	if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
-		return { metadata, removedKeys: [] };
-	}
 	const removed = new Set();
 	const walkValue = (value) => {
 		if (Array.isArray(value)) {
@@ -261,7 +273,7 @@ function sanitiseExportAuditMetadata(metadata, targetUserId) {
 				removed.add(key);
 				continue;
 			}
-			if (EXPORT_METADATA_USER_ID_KEYS.has(canon)) {
+			if (EXPORT_METADATA_USER_ID_KEYS.has(canon) || canon.endsWith('userid')) {
 				if (value != null && Number(value) === targetUserId) entries.push([key, value]);
 				else removed.add(key);
 				continue;
@@ -270,10 +282,27 @@ function sanitiseExportAuditMetadata(metadata, targetUserId) {
 				removed.add(key);
 				continue;
 			}
+			if (Array.isArray(value)) {
+				const walked = walkValue(value);
+				// An element swept out of an array is a removal under
+				// this key — the bundle note names it (finding 7).
+				if (walked.length !== value.length) removed.add(key);
+				entries.push([key, walked]);
+				continue;
+			}
 			entries.push([key, walkValue(value)]);
 		}
 		return Object.fromEntries(entries);
 	};
+	if (Array.isArray(metadata)) {
+		return { metadata: walkValue(metadata), removedKeys: [...removed] };
+	}
+	if (!metadata || typeof metadata !== 'object') {
+		if (typeof metadata === 'string' && isExportStorageValue(metadata)) {
+			return { metadata: null, removedKeys: [] };
+		}
+		return { metadata, removedKeys: [] };
+	}
 	return { metadata: walkObject(metadata), removedKeys: [...removed] };
 }
 

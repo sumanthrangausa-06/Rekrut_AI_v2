@@ -71,6 +71,38 @@ reviewer reviews the finished diff and its findings are recorded on
 #2046 and in the PR body. Separate security review skipped: the
 credential/storage class is the already-shipped #1128 class, reused.
 
+## Privacy review — PASS WITH FINDINGS (recorded on #2046 and the PR)
+
+The independent privacy reviewer probed the extracted sanitiser
+empirically (canonical variants, numeric-string ids, nesting,
+`__proto__`, non-mutation) and read Lex's ruling + STOP 1 first-hand.
+Verdict: **PASS WITH FINDINGS** — no live leak of any ruled class for
+any shape a current writer produces; slices (A) and (B) and the
+`notes` placement explicitly **ACCEPTED** with reasoning. SHOULD-FIX
+findings 1–4 were **fixed in-PR** (second commit):
+
+1. Compound user-id keys (`actor_user_id`, `from_user_id`, …) escaped
+   the exact-match set → canonical keys ending in `userid` now follow
+   rule (2) too.
+2. A root-array `audit_logs.metadata` failed open → root arrays are
+   walked; a root storage-reference scalar becomes `null` (#2039
+   fail-closed precedent).
+3. **STOP 1 census correction:** `notes` (proctoring flag-review,
+   `routes/proctoring.js`) and `reason` (screening override,
+   `routes/questionnaire.js`) are other-authored free text the STOP 1
+   census missed → both added to the rule-(3) set.
+4. Test pins for the behaviour above + canonical variants,
+   numeric-string ids, the slice-(B) `target_email` status-quo pin,
+   the no-removals/no-audit-note negative case, and nested
+   non-mutation (unit suite is now 8 tests).
+7. (NOTE, also fixed) array-element sweeps now name their key in the
+   bundle note.
+
+Remaining NOTEs (5, 6, 8 — plural user-id keys, credential-name
+long tail beyond the #1128 class, circular/BigInt robustness) are
+recorded on #2046 for Lex/Suga; the reviewer judged them faithful to
+the ruling as written, not compliance gaps.
+
 ## Evidence (HL-007 — all first-hand this run)
 
 - **Unit/behavioural suite (new)** —
@@ -78,7 +110,8 @@ credential/storage class is the already-shipped #1128 class, reused.
   #2035 pattern, sentinels in metadata/FKs: **red 5/6 on base**
   (foreign `actor_id`/`candidate_id` and every sentinel exported
   verbatim; no `notes`) → **green 6/6** after the fix, including
-  stored-row non-mutation and the no-admin-exception case.
+  stored-row non-mutation and the no-admin-exception case; **8/8**
+  after the privacy-review fix-up commit (findings 1–4 pins).
 - **HL-003 real-DB journey (new)** —
   `compliance-gdpr-export-metadata-realdb-2046.test.js`: fresh DB
   `rekrut_2046` (PostgreSQL at 127.0.0.1:55433) created empty and

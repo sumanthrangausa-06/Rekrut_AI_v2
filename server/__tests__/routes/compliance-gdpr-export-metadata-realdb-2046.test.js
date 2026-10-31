@@ -40,6 +40,8 @@ const S = {
 	revocation: 'SENTINEL2046R_REVOCATION_REASON',
 	notes: 'SENTINEL2046R_RECRUITER_NOTES',
 	override: 'SENTINEL2046R_OVERRIDE_REASON',
+	proctoringNotes: 'SENTINEL2046R_PROCTORING_NOTES',
+	screeningReason: 'SENTINEL2046R_SCREENING_REASON',
 	storageKey: 'SENTINEL2046R_STORAGE_KEY',
 	token: 'SENTINEL2046R_API_TOKEN',
 	resumeRef: '/api/files/SENTINEL2046R_RESUME_REF',
@@ -95,6 +97,9 @@ describeIfDb('#2046 POST /gdpr/export metadata + FK ruling — real DB (user jou
 					new_status: 'interview',
 					recruiter_notes: S.notes,
 					override_reason: S.override,
+					notes: S.proctoringNotes,
+					reason: S.screeningReason,
+					actor_user_id: U_OTHER,
 					storage_key: S.storageKey,
 					api_token: S.token,
 					resume_ref: S.resumeRef,
@@ -159,6 +164,9 @@ describeIfDb('#2046 POST /gdpr/export metadata + FK ruling — real DB (user jou
 		expect(foreignAudit.metadata).not.toHaveProperty('actor_id');
 		expect(foreignAudit.metadata).not.toHaveProperty('recruiter_notes');
 		expect(foreignAudit.metadata).not.toHaveProperty('override_reason');
+		expect(foreignAudit.metadata).not.toHaveProperty('notes');
+		expect(foreignAudit.metadata).not.toHaveProperty('reason');
+		expect(foreignAudit.metadata).not.toHaveProperty('actor_user_id');
 		expect(foreignAudit.metadata).not.toHaveProperty('storage_key');
 		expect(foreignAudit.metadata).not.toHaveProperty('api_token');
 		expect(foreignAudit.metadata).not.toHaveProperty('resume_ref');
@@ -176,8 +184,8 @@ describeIfDb('#2046 POST /gdpr/export metadata + FK ruling — real DB (user jou
 		const auditNote = d.notes.find((n) => n.startsWith('Audit log metadata'));
 		expect(auditNote).toBeDefined();
 		for (const name of [
-			'actor_id', 'api_token', 'candidate_id', 'override_reason',
-			'recruiter_notes', 'resume_ref', 'storage_key',
+			'actor_id', 'actor_user_id', 'api_token', 'candidate_id', 'notes',
+			'override_reason', 'reason', 'recruiter_notes', 'resume_ref', 'storage_key',
 		]) {
 			expect(auditNote).toContain(name);
 		}
