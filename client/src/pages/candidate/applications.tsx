@@ -41,6 +41,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { apiCall } from '@/lib/api';
+import { formatJobSalary, hasJobSalary } from '@/lib/salary';
 
 const statusConfig: Record<
 	string,
@@ -445,12 +446,12 @@ export function CandidateApplicationsPage() {
 								</p>
 								<p className="font-medium">{timeAgo(selectedApp.updated_at)}</p>
 							</div>
-							{selectedApp.salary_range && (
+							{hasJobSalary(selectedApp) && (
 								<div className="rounded-lg bg-muted/50 p-3">
 									<p className="text-xs text-muted-foreground flex items-center gap-1">
 										<DollarSign className="h-3 w-3" /> Salary
 									</p>
-									<p className="font-medium">{selectedApp.salary_range}</p>
+									<p className="font-medium">{formatJobSalary(selectedApp)}</p>
 								</div>
 							)}
 							{selectedApp.match_score && (

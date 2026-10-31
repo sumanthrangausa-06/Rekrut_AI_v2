@@ -542,20 +542,24 @@ router.get('/:slug/jobs', optionalAuth, async (req, res) => {
 		}
 
 		const jobs = await pool.query(
-			`SELECT id, title, location, salary_min, salary_max, job_type, created_at, status
+			`SELECT id, title, location, salary_range, salary_min, salary_max, currency_code, job_type, created_at, status
        FROM jobs WHERE company_id = $1 AND status = 'active'
        ORDER BY created_at DESC`,
 			[company.rows[0].id],
 		);
 
+		// FS-013 (#1019): return the salary as entered — stored range text,
+		// min/max, and currency_code — and let the client formatter render
+		// it. This route previously synthesized a "$…" string from min/max
+		// only, dropping the entered currency, range text, and fixed values.
 		const formattedJobs = jobs.rows.map((j) => ({
 			id: j.id,
 			title: j.title,
 			location: j.location || 'Remote',
-			salary_range:
-				j.salary_min && j.salary_max
-					? `$${j.salary_min.toLocaleString()} - $${j.salary_max.toLocaleString()}`
-					: null,
+			salary_range: j.salary_range || null,
+			salary_min: j.salary_min,
+			salary_max: j.salary_max,
+			currency_code: j.currency_code || 'USD',
 			job_type: j.job_type || 'full-time',
 			created_at: j.created_at,
 		}));

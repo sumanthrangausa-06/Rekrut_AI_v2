@@ -33,6 +33,9 @@ export interface KanbanApplication {
 	company: string;
 	location?: string;
 	salary_range?: string;
+	salary_min?: number;
+	salary_max?: number;
+	currency_code?: string;
 	job_type?: string;
 	posted_by_company?: string;
 	applied_at: string;
