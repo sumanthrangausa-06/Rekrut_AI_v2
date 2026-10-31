@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tooltip } from '@/components/ui/tooltip';
 import { trackEvent } from '@/lib/analytics';
+import { formatJobSalary } from '@/lib/salary';
 import { cn } from '@/lib/utils';
 
 // Inline the Job interface subset needed for the card to avoid import cycles
@@ -42,6 +43,7 @@ export interface JobCardData {
 	salary_range: string;
 	salary_min?: number;
 	salary_max?: number;
+	currency_code?: string;
 	job_type: string;
 	status: string;
 	created_at: string;
@@ -145,18 +147,9 @@ function locationBadgeVariant(type: string): 'default' | 'secondary' | 'outline'
 	}
 }
 
-function formatSalary(min?: number, max?: number, range?: string): string {
-	if (range) return range;
-	if (!min && !max) return 'Competitive';
-	const fmt = new Intl.NumberFormat('en-US', {
-		style: 'currency',
-		currency: 'USD',
-		maximumFractionDigits: 0,
-	});
-	if (min && max) return `${fmt.format(min)} – ${fmt.format(max)}`;
-	if (min) return `${fmt.format(min)}+`;
-	return `Up to ${fmt.format(max ?? 0)}`;
-}
+// FS-013 (#1019): salary display goes through the shared entry→display
+// formatter (entered amount, entered currency) — see @/lib/salary.
+const formatSalary = (job: JobCardData): string => formatJobSalary(job);
 
 function SkillPill({
 	skill,
@@ -397,7 +390,7 @@ export function JobCard({
 								<span className="flex items-center gap-1 min-w-0">
 									<DollarSign className="h-3.5 w-3.5 shrink-0" />
 									<span className="break-words font-medium text-foreground/70">
-										{formatSalary(job.salary_min, job.salary_max, job.salary_range)}
+										{formatSalary(job)}
 									</span>
 								</span>
 							)}

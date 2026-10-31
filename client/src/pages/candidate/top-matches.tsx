@@ -24,6 +24,7 @@ interface ApiJob {
 	salary_min?: number;
 	salary_max?: number;
 	salary_range?: string;
+	currency_code?: string;
 	created_at: string;
 	skills_required?: string[];
 	weighted_score?: number;
@@ -250,6 +251,8 @@ export function CandidateTopMatchesPage() {
 									jobType={(job.job_type?.replace('-', '_') as any) || 'full_time'}
 									salaryMin={job.salary_min}
 									salaryMax={job.salary_max}
+									salaryRange={job.salary_range}
+									salaryCurrency={job.currency_code || 'USD'}
 									postedAt={job.created_at}
 									tags={job.skills_required || []}
 									matchScore={

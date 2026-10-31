@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { apiCall } from '@/lib/api';
+import { formatJobSalary, hasJobSalary } from '@/lib/salary';
 import { cn } from '@/lib/utils';
 
 interface SavedJob {
@@ -28,6 +29,9 @@ interface SavedJob {
 	company: string;
 	location: string;
 	salary_range: string;
+	salary_min?: number;
+	salary_max?: number;
+	currency_code?: string;
 	job_type: string;
 	description: string;
 	status: string;
@@ -66,6 +70,9 @@ export function SavedJobsPage() {
 				company: (j.company as string) || (j.posted_by_company as string) || 'Unknown Company',
 				location: (j.location as string) || '',
 				salary_range: (j.salary_range as string) || '',
+				salary_min: (j.salary_min as number) ?? undefined,
+				salary_max: (j.salary_max as number) ?? undefined,
+				currency_code: (j.currency_code as string) || undefined,
 				job_type: (j.job_type as string) || '',
 				description: (j.description as string) || '',
 				status: (j.status as string) || 'active',
@@ -256,10 +263,10 @@ function SavedJobCard({
 									{job.location}
 								</span>
 							)}
-							{job.salary_range && (
+							{hasJobSalary(job) && (
 								<span className="flex items-center gap-1">
 									<DollarSign className="h-3 w-3" />
-									{job.salary_range}
+									{formatJobSalary(job)}
 								</span>
 							)}
 							{job.job_type && (

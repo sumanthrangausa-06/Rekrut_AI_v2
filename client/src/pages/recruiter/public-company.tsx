@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { apiCall } from '@/lib/api';
+import { formatJobSalary, hasJobSalary } from '@/lib/salary';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -88,6 +89,9 @@ interface PublicJob {
 	title: string;
 	location: string;
 	salary_range: string;
+	salary_min?: number;
+	salary_max?: number;
+	currency_code?: string;
 	job_type: string;
 	created_at: string;
 	match_score?: number;
@@ -630,9 +634,9 @@ export function PublicCompanyPage() {
 												<span className="flex items-center gap-1">
 													<Briefcase className="h-3.5 w-3.5" /> {job.job_type}
 												</span>
-												{job.salary_range && (
+												{hasJobSalary(job) && (
 													<span className="flex items-center gap-1 text-emerald-600 font-medium">
-														{job.salary_range}
+														{formatJobSalary(job)}
 													</span>
 												)}
 											</div>

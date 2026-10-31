@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tooltip } from '@/components/ui/tooltip';
+import { formatJobSalary } from '@/lib/salary';
 import { cn } from '@/lib/utils';
 
 export interface Job {
@@ -40,6 +41,7 @@ export interface Job {
 	salary_range: string;
 	salary_min?: number;
 	salary_max?: number;
+	currency_code?: string;
 	job_type: string;
 	status?: string;
 	created_at: string;
@@ -448,10 +450,7 @@ export function JobDetailContent({
 				<div className="flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50 min-w-0">
 					<DollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
 					<span className="truncate">
-						{job.salary_range ||
-							(job.salary_min || job.salary_max
-								? `${job.salary_min ? `$${Number(job.salary_min).toLocaleString()}` : ''}${job.salary_min && job.salary_max ? ' - ' : ''}${job.salary_max ? `$${Number(job.salary_max).toLocaleString()}` : ''}`
-								: 'Salary not specified')}
+						{formatJobSalary(job)}
 					</span>
 				</div>
 				<div className="flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50 min-w-0">

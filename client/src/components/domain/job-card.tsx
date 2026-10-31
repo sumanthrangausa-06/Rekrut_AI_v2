@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { trackEvent } from '@/lib/analytics';
+import { formatJobSalary } from '@/lib/salary';
 import { cn } from '@/lib/utils';
 import { ScoreRing } from './score-ring';
 
@@ -29,6 +30,7 @@ export type JobCardProps = {
 	jobType: 'full-time' | 'part-time' | 'contract' | 'internship' | 'freelance';
 	salaryMin?: number;
 	salaryMax?: number;
+	salaryRange?: string;
 	salaryCurrency?: string;
 	salaryPeriod?: 'year' | 'month' | 'hour';
 	postedAt: string;
@@ -45,17 +47,18 @@ export type JobCardProps = {
 	className?: string;
 };
 
-function formatSalary(min?: number, max?: number, currency = 'USD', period = 'year'): string {
-	if (!min && !max) return 'Competitive';
-	const fmt = new Intl.NumberFormat('en-US', {
-		style: 'currency',
-		currency,
-		maximumFractionDigits: 0,
-	});
-	const periodLabel = period === 'year' ? '/yr' : period === 'month' ? '/mo' : '/hr';
-	if (min && max) return `${fmt.format(min)} – ${fmt.format(max)}${periodLabel}`;
-	if (min) return `${fmt.format(min)}+${periodLabel}`;
-	return `Up to ${fmt.format(max ?? 0)}${periodLabel}`;
+// FS-013 (#1019): shared entry→display formatter — see @/lib/salary.
+function formatSalary(
+	min?: number,
+	max?: number,
+	currency = 'USD',
+	period: 'year' | 'month' | 'hour' = 'year',
+	range?: string,
+): string {
+	return formatJobSalary(
+		{ salary_min: min, salary_max: max, salary_range: range, currency_code: currency },
+		{ period },
+	);
 }
 
 function locationLabel(type: string): string {
@@ -96,6 +99,7 @@ export function JobCard({
 	jobType,
 	salaryMin,
 	salaryMax,
+	salaryRange,
 	salaryCurrency,
 	salaryPeriod,
 	postedAt,
@@ -202,7 +206,7 @@ export function JobCard({
 							<span className="flex items-center gap-1 min-w-0">
 								<DollarSign className="h-3.5 w-3.5 shrink-0" />
 								<span className="break-words font-medium text-foreground/70">
-									{formatSalary(salaryMin, salaryMax, salaryCurrency, salaryPeriod)}
+									{formatSalary(salaryMin, salaryMax, salaryCurrency, salaryPeriod, salaryRange)}
 								</span>
 							</span>
 						</div>

@@ -3404,7 +3404,7 @@ router.get('/applications', authMiddleware, async (req, res) => {
       SELECT ja.id, ja.job_id, ja.candidate_id, ja.company_id, ja.status, ja.cover_letter,
              ja.screening_answers, ja.screening_status, ja.match_score, ja.assessment_score,
              ja.assessment_result, ja.is_auto_applied, ja.applied_via, ja.applied_at, ja.updated_at,
-             j.title, j.company, j.location, j.salary_range, j.job_type,
+             j.title, j.company, j.location, j.salary_range, j.salary_min, j.salary_max, j.currency_code, j.job_type,
              j.screening_questions, u.company_name as posted_by_company,
              COALESCE(NULLIF(u.company_name, ''), j.company) as poster_company,
              ri.status as intro_status, ri.id as intro_id,

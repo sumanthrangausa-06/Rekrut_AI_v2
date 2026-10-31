@@ -50,6 +50,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useSubscription } from '@/hooks/use-subscription';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall } from '@/lib/api';
+import { formatJobSalary } from '@/lib/salary';
 
 interface Job {
 	id: number;
@@ -63,6 +64,7 @@ interface Job {
 	salary_range: string;
 	salary_min?: number;
 	salary_max?: number;
+	currency_code?: string;
 	job_type: string;
 	remote_type?: string;
 	experience_level?: string;
@@ -819,7 +821,7 @@ export function CandidateJobDetailPage() {
 						baseSalary: job.salary_range
 							? {
 									'@type': 'MonetaryAmount',
-									currency: 'USD',
+									currency: job.currency_code || 'USD',
 									value: {
 										'@type': 'QuantitativeValue',
 										minValue: job.salary_min,
@@ -890,8 +892,7 @@ export function CandidateJobDetailPage() {
 										<span className="flex items-center gap-1 min-w-0">
 											<DollarSign className="h-4 w-4 shrink-0" />
 											<span className="break-words">
-												{job.salary_range ||
-													`${job.salary_min ? `$${Number(job.salary_min).toLocaleString()}` : ''}${job.salary_min && job.salary_max ? ' - ' : ''}${job.salary_max ? `$${Number(job.salary_max).toLocaleString()}` : ''}`}
+												{formatJobSalary(job)}
 											</span>
 										</span>
 									)}
