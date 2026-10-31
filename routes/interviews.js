@@ -723,8 +723,86 @@ router.post('/mock/start', authMiddleware, rateLimits.ai, async (req, res) => {
 	}
 });
 
+// #2031 (Lex ruling 6544214423 + AMENDMENT 6544238952): /mock respond is
+// gated CONDITIONALLY — the biometric gate fires only when the request
+// actually carries biometric payload (non-empty audio_data, or frames as
+// a non-empty array). A text-only response does no biometric processing
+// and must pass with no consent check at all: blocking text-only
+// candidates who declined would break the consent text's own promise
+// that declining leaves a real alternative path. The wrapper delegates
+// to the existing requireBiometricConsent('biometric') UNCHANGED (same
+// DB check, fail-closed semantics, same CONSENT_* responses) — no second
+// consent check. On gate failure the WHOLE request is rejected; the
+// payload is never stripped to proceed text-only.
+const biometricConsentGate = requireBiometricConsent('biometric');
+
+// Session pinning (specialist-review BLOCK on #2031, fixed in-lane):
+// requireBiometricConsent resolves the session body-first, then query,
+// then params, while both handlers below act on the URL session
+// (req.params.sessionId). Unpinned, a caller holding a valid receipt
+// for one of their OWN sessions could name that session in the body or
+// query and route audio through a different session where they never
+// consented — consent here is per-session, so the gate must check the
+// session in the URL. Pinning overwrites any client-supplied
+// body/query sessionId with the URL param BEFORE delegating; the
+// middleware itself, its DB check and its responses are unchanged.
+function pinSessionIdToUrlParam(req) {
+	const sessionId = req.params && req.params.sessionId;
+	if (sessionId == null) return;
+	if (req.body && typeof req.body === 'object') {
+		req.body.sessionId = sessionId;
+	} else if (req.body === undefined) {
+		// Pre-multer voice requests may have no parsed body yet; give the
+		// gate the pinned id here — multer replaces req.body afterwards.
+		req.body = { sessionId };
+	}
+	try {
+		// Express 4's req.query is a re-parsing getter, so shadow it on
+		// the instance with the pinned copy.
+		Object.defineProperty(req, 'query', {
+			value: { ...req.query, sessionId },
+			configurable: true,
+			writable: true,
+		});
+	} catch {
+		// If the query cannot be shadowed, the body pin above still wins
+		// the middleware's body-first resolution for both routes (the
+		// voice route's body is set just above when it was undefined).
+	}
+}
+
+function requireBiometricConsentForUrlSession(req, res, next) {
+	pinSessionIdToUrlParam(req);
+	return biometricConsentGate(req, res, next);
+}
+
+// Any malformed non-empty value counts as payload present — fail closed,
+// never fail open on shape.
+function isNonEmptyPayloadValue(value) {
+	if (value === undefined || value === null) return false;
+	if (typeof value === 'string') return value.length > 0;
+	if (Array.isArray(value)) return value.length > 0;
+	if (typeof value === 'object') return Object.keys(value).length > 0;
+	return Boolean(value);
+}
+
+function hasBiometricPayload(body) {
+	if (!body || typeof body !== 'object') return false;
+	if (isNonEmptyPayloadValue(body.audio_data)) return true;
+	// frames: a non-empty array is payload; any other malformed non-empty
+	// value is treated as payload too (fail closed).
+	if (Array.isArray(body.frames)) return body.frames.length > 0;
+	return isNonEmptyPayloadValue(body.frames);
+}
+
+function requireBiometricConsentIfPayload(req, res, next) {
+	if (!hasBiometricPayload(req.body)) return next();
+	pinSessionIdToUrlParam(req);
+	return biometricConsentGate(req, res, next);
+}
+
 // Submit a response in a mock interview — AI responds conversationally (RATE LIMITED)
-router.post('/mock/:sessionId/respond', authMiddleware, rateLimits.ai, async (req, res) => {
+router.post('/mock/:sessionId/respond', authMiddleware, rateLimits.ai, requireBiometricConsentIfPayload, async (req, res) => {
 	try {
 		const { response_text, frames, audio_data, duration_seconds } = req.body;
 		const sessionId = req.params.sessionId;
@@ -1972,6 +2050,14 @@ router.post('/mock/tts', authMiddleware, async (req, res) => {
 router.post(
 	'/mock/:sessionId/voice-respond',
 	authMiddleware,
+	// #2031 (Lex ruling 6544214423): UNCONDITIONAL biometric gate, placed
+	// BEFORE multer following the /mock/analyze-frame pattern (auth →
+	// consent → handler), via requireBiometricConsentForUrlSession,
+	// which pins the gate's session resolution to the URL param first
+	// (see pinSessionIdToUrlParam). A non-consented request is rejected
+	// before the candidate's audio is even buffered — it can never
+	// reach the external transcription cascade in the handler.
+	requireBiometricConsentForUrlSession,
 	upload.single('audio'),
 	async (req, res) => {
 		try {

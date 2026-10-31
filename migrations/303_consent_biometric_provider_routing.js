@@ -1,0 +1,91 @@
+// =============================================================================
+// Migration 303: biometric consent text v1.4 — provider-routing disclosure
+// (#2031; Lex ruling 6544214423 + amendment 6544238952)
+// =============================================================================
+//
+// Lex ruled the mock-interview voice flow is governed by `biometric`
+// consent, and that biometric v1.3 §1 lacked the disclosure the
+// biometric_practice v1.2 §1 already carries (migration 302): the
+// candidate's audio is sent to an EXTERNAL speech-to-text provider
+// (the transcribeAudio cascade) on the /mock/:sessionId/respond and
+// /mock/:sessionId/voice-respond routes. v1.4 adds Lex's drafted
+// provider-routing sentence to §1, verbatim (EN):
+//
+//   "When you answer by voice, your audio is sent to an external
+//   speech-to-text provider to be turned into a transcript. The
+//   provider returns the transcript only; your audio is not used to
+//   identify you, and no voice template is created or stored from it."
+//
+// Deliberately no provider names — the cascade rotates, and a named
+// list would go stale and mislead. The HI text is a faithful rendering
+// of the same sentence (the external native/legal Hindi translation
+// check already open on #1947 is not closed by this migration).
+//
+// The rest of the text is v1.3 (migration 302) carried VERBATIM —
+// generated from the 302 constants with only the one §1 sentence
+// inserted after the collection paragraph. Gate + text ship as ONE
+// lane (Lex: the gate must not ship alone under v1.3 and be called
+// disclosed): the route gating lives in routes/interviews.js in the
+// same PR.
+//
+// WHY AN INSERT, NOT AN UPDATE: migration 245 made consent_texts
+// APPEND-ONLY (trigger trg_consent_texts_no_update). This migration
+// INSERTs version '1.4' for `biometric` only, following migrations
+// 297/302 exactly:
+//   - Every current-version reader resolves by MAX(effective_from)
+//     (lib/consentService.js), so v1.4 becomes the served text.
+//   - consent_receipts pin the exact version consented to, so v1.3
+//     receipts stay untouched and read as STALE → re-consent by design.
+//   - effective_from = NOW() wins MAX() because migrate.js runs each
+//     migration in its own transaction sequentially.
+//
+// Copy truth only — this migration changes NO processing behaviour.
+// The "DRAFT — pending legal counsel review" marking is kept.
+//
+// Safety: idempotent — INSERT … ON CONFLICT (consent_type, version)
+// DO NOTHING makes a re-run a no-op.
+// =============================================================================
+
+const BIOMETRIC_TEXT_EN = `DRAFT — pending legal counsel review.
+
+1. What we collect: Biometric measurements extracted from your audio — voice pitch range, speech rate, and pause patterns. We do NOT extract face measurements from your video, and gaze direction, blink rate, and head pose are not measured. We do NOT label emotions or infer emotional states. These are measurements, not judgments. When you answer by voice, your audio is sent to an external speech-to-text provider to be turned into a transcript. The provider returns the transcript only; your audio is not used to identify you, and no voice template is created or stored from it.
+
+Speaker labels in your transcript: to label who said what in a recorded interview, we create a temporary mathematical template of each speaker's voice during processing; the template exists only while the labelling runs and is never stored. The template is made for one recording only and is never compared with any other recording. The speaker labels can be seen only by you and by the members of the hiring team who can already access your recording and transcript — labelling gives no one new access. The labels are used only to show who said what in the transcript; they are never used in any score, rating, or matching decision.
+
+2. How long we keep it: We do not store biometric templates. No face or voice embedding is created or kept by our own systems, so there is no stored biometric template to delete. Per-turn behavioral measurements: Observer speech measurements are kept for up to 30 days from when they were recorded, under their own retention rule — they are not deleted with the video recording. Automated deletion at expiry is not yet enabled. For clarity, speaker labelling is different from the templates described above: its temporary voice template is never stored at all, so there is nothing to delete later — it is gone when the labelling ends. The speaker labels themselves stay with the transcript for as long as the recording is kept, under the rule in this section.
+
+3. How to delete: Email privacy@rekrutai.co or use the data-request portal. We respond to deletion requests within 30 days (GDPR) or 45 days (CCPA).
+
+Your rights: You may decline biometric analysis and request a human-led interview instead. Declining will not affect your candidacy — a human recruiter will conduct the interview. Declining also means no speaker labelling: no speaker labels will be created for your interview, and your transcript will stay unlabelled.`;
+
+const BIOMETRIC_TEXT_HI = `DRAFT — कानूनी सलाहकार की समीक्षा लंबित।
+
+1. हम क्या एकत्र करते हैं: आपके ऑडियो से निकाले गए बायोमेट्रिक माप — आवाज़ की पिच रेंज, बोलने की गति और विराम पैटर्न। हम आपके वीडियो से चेहरे के माप नहीं निकालते, और दृष्टि दिशा, पलक झपकने की दर और सिर की स्थिति नहीं मापी जाती। हम भावनाओं को लेबल नहीं करते और न ही भावनात्मक अवस्थाओं का अनुमान लगाते हैं। ये माप हैं, निर्णय नहीं। जब आप आवाज़ से उत्तर देते हैं, तो आपका ऑडियो एक बाहरी स्पीच-टू-टेक्स्ट प्रदाता को भेजा जाता है ताकि उसे ट्रांसक्रिप्ट में बदला जा सके। प्रदाता केवल ट्रांसक्रिप्ट लौटाता है; आपके ऑडियो का उपयोग आपकी पहचान करने के लिए नहीं किया जाता, और उससे कोई वॉइस टेम्पलेट नहीं बनाया या संग्रहीत किया जाता।
+
+आपके ट्रांसक्रिप्ट में वक्ता लेबल: किसी रिकॉर्ड किए गए साक्षात्कार में किसने क्या कहा, यह लेबल करने के लिए, हम प्रोसेसिंग के दौरान प्रत्येक वक्ता की आवाज़ का एक अस्थायी गणितीय टेम्पलेट बनाते हैं; टेम्पलेट केवल लेबलिंग चलने तक रहता है और इसे कभी संग्रहीत नहीं किया जाता। टेम्पलेट केवल एक रिकॉर्डिंग के लिए बनाया जाता है और इसकी तुलना कभी किसी अन्य रिकॉर्डिंग से नहीं की जाती। वक्ता लेबल केवल आप और भर्ती टीम के वे सदस्य देख सकते हैं जिनके पास पहले से ही आपकी रिकॉर्डिंग और ट्रांसक्रिप्ट तक पहुंच है — लेबलिंग से किसी को नई पहुंच नहीं मिलती। लेबल का उपयोग केवल यह दिखाने के लिए किया जाता है कि ट्रांसक्रिप्ट में किसने क्या कहा; इनका उपयोग कभी किसी स्कोर, रेटिंग या मिलान निर्णय में नहीं किया जाता।
+
+2. हम इसे कितने समय तक रखते हैं: हम बायोमेट्रिक टेम्पलेट संग्रहीत नहीं करते। हमारी अपनी प्रणालियाँ कोई चेहरा या आवाज़ एम्बेडिंग नहीं बनातीं और न ही रखती हैं, इसलिए हटाने के लिए कोई संग्रहीत बायोमेट्रिक टेम्पलेट नहीं है। प्रति-टर्न व्यवहार माप: ऑब्ज़र्वर वाक् माप रिकॉर्ड किए जाने से 30 दिनों तक, अपने स्वयं के प्रतिधारण नियम के तहत रखे जाते हैं — वे वीडियो रिकॉर्डिंग के साथ नहीं हटाए जाते हैं। अवधि समाप्त होने पर स्वचालित हटाना अभी तक सक्षम नहीं है। स्पष्टता के लिए, वक्ता लेबलिंग ऊपर वर्णित टेम्पलेट से अलग है: इसका अस्थायी आवाज़ टेम्पलेट बिल्कुल संग्रहीत नहीं किया जाता, इसलिए बाद में हटाने के लिए कुछ नहीं रहता — लेबलिंग समाप्त होते ही वह समाप्त हो जाता है। वक्ता लेबल स्वयं ट्रांसक्रिप्ट के साथ उतने समय तक रहते हैं जितने समय तक रिकॉर्डिंग रखी जाती है, इस अनुभाग के नियम के तहत।
+
+3. कैसे हटाएं: privacy@rekrutai.co पर ईमेल करें या डेटा-अनुरोध पोर्टल का उपयोग करें। हम GDPR के तहत 30 दिनों के भीतर या CCPA के तहत 45 दिनों के भीतर हटाने के अनुरोधों का जवाब देते हैं।
+
+आपके अधिकार: आप बायोमेट्रिक विश्लेषण अस्वीकार कर सकते हैं और मानव-नेतृत्व वाले साक्षात्कार का अनुरोध कर सकते हैं। अस्वीकार करने से आपकी उम्मीदवारी प्रभावित नहीं होगी — एक मानव भर्तीकर्ता साक्षात्कार आयोजित करेगा। अस्वीकार करने का अर्थ यह भी है कि कोई वक्ता लेबलिंग नहीं होगी: आपके साक्षात्कार के लिए कोई वक्ता लेबल नहीं बनाए जाएंगे, और आपका ट्रांसक्रिप्ट बिना लेबल के रहेगा।`;
+
+module.exports = {
+	name: '303_consent_biometric_provider_routing',
+	up: async (client) => {
+		await client.query(
+			`INSERT INTO consent_texts (consent_type, version, text_en, text_hi, effective_from)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (consent_type, version) DO NOTHING`,
+			['biometric', '1.4', BIOMETRIC_TEXT_EN, BIOMETRIC_TEXT_HI],
+		);
+		console.log('Migration 303: consent text v1.4 inserted for biometric — provider-routing disclosure (#2031)');
+	},
+	down: async (_client) => {
+		// Intentional no-op. consent_texts is append-only (migration 245's
+		// trigger forbids UPDATE/DELETE), so there is no lawful way to
+		// "un-insert" v1.4 — and reverting would restore the missing
+		// provider-routing disclosure this migration adds.
+		// migrate.js never calls down(); one-way.
+	},
+};
