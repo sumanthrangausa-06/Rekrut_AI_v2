@@ -171,5 +171,22 @@ describe('BiometricPolicyPage (S-056)', () => {
 		expect(exportIdx).toBeGreaterThan(-1);
 		expect(text.indexOf(sentence1)).toBeGreaterThan(exportIdx);
 		expect(text.indexOf(sentence2)).toBeGreaterThan(text.indexOf(sentence1));
+		// Placement pin (#2051 reviewer BLOCK): sentence1 must sit before the
+		// deletion bullet, not merely anywhere after the export bullet.
+		const deletionIdx = text.indexOf(
+			'Request deletion of your biometric data at any time',
+		);
+		expect(deletionIdx).toBeGreaterThan(-1);
+		expect(text.indexOf(sentence1)).toBeLessThan(deletionIdx);
+		// Adjacency pin: between the end of the export bullet and the start
+		// of sentence1 there is only whitespace — no intervening content.
+		const exportEndPhrase = 'never by name or account ID.';
+		const exportEndIdx = text.indexOf(exportEndPhrase);
+		expect(exportEndIdx).toBeGreaterThan(-1);
+		const betweenExportAndSentence1 = text.slice(
+			exportEndIdx + exportEndPhrase.length,
+			text.indexOf(sentence1),
+		);
+		expect(betweenExportAndSentence1.trim()).toBe('');
 	});
 });
