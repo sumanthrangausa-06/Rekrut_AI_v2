@@ -62,7 +62,7 @@ jest.setTimeout(120000);
 // (203401–203404) made a second run fail in cleanAndSeed: the prior
 // run's export had written a biometric_audit_log row for the fixed
 // subject, and that log is append-only — its DELETE trigger rejected
-// the teardown. RUN_BASE is a per-run int4-safe base (max ~10,000,003);
+// the teardown. RUN_BASE is a per-run int4-safe base (max 9,999,993);
 // the four fixture IDs and their emails all derive from it, so a
 // re-run seeds a brand-new subject and never touches the old rows.
 const RUN_BASE = 1000000 + Math.floor(Math.random() * 900000) * 10;
