@@ -25,6 +25,15 @@
  * diarization_jobs / diarization_runs / diarization_metrics_daily are
  * system records of processing (panel ruling) and are NEVER read.
  *
+ * #2034 SUPERSESSION (STOP 1 on #2034, comment 6541315686): Lex's
+ * FULL specification — which arrived after #2032 merged — includes
+ * sanitised diarization_runs and diarization_jobs metadata in the
+ * bundle, plus consent_receipts and observer siblings, existing-DEK
+ * decryption, and a migration-296 guard. The assertions below that
+ * pinned the old exclusion (exact key list, no-diarization-tables
+ * SQL hygiene, decryptWithDEK stub) are updated to the #2034 shape;
+ * diarization_metrics_daily remains never read.
+ *
  * Harness follows the #1533 suite: the REAL route runs; only the pool
  * boundary is mocked. biometricCrypto.decryptWithDEK is stubbed HERE
  * ONLY (the real crypto path is covered by the fresh-install real-DB
@@ -72,7 +81,11 @@ jest.mock('../../../lib/biometricCrypto', () => ({
 		if (mockDecryptMode === 'fail') throw new Error('DEK destroyed (crypto-shredded)');
 		return Buffer.from(JSON.stringify(mockMeasurements), 'utf8');
 	}),
-	decryptWithExistingDEK: jest.fn(async () => Buffer.alloc(0)),
+	// #2034 item 1: the export decrypts via the existing-DEK primitive.
+	decryptWithExistingDEK: jest.fn(async () => {
+		if (mockDecryptMode === 'fail') throw new Error('DEK destroyed (crypto-shredded)');
+		return Buffer.from(JSON.stringify(mockMeasurements), 'utf8');
+	}),
 }));
 
 const pool = require('../../../lib/db');
@@ -223,8 +236,13 @@ describe('#2028 item 4 POST /gdpr/export — biometric section', () => {
 		const bio = res.body.data.biometric;
 		expect(bio).toBeDefined();
 		expect(Object.keys(bio).sort()).toEqual([
+			'consent_receipts',
+			'diarization_jobs',
+			'diarization_runs',
 			'labelling_consents',
 			'note',
+			'observer_audio_chunks',
+			'observer_capture_outcomes',
 			'recordings',
 			'speaker_label_audit',
 			'speaker_labels',
@@ -303,13 +321,15 @@ describe('#2028 item 4 POST /gdpr/export — biometric section', () => {
 		expect(typeof bio.note).toBe('string');
 	});
 
-	test('SQL hygiene: no storage_path / encryption_key_id selected, no diarization system tables read, metadata query never selects the envelope', async () => {
+	test('SQL hygiene: no storage_path / encryption_key_id selected, diarization_metrics_daily never read (#2034: runs/jobs read sanitised — snapshot and object_key never selected), metadata query never selects the envelope', async () => {
 		const res = await request(makeApp()).post('/api/compliance/gdpr/export').send({ userId: 7 });
 		expect(res.status).toBe(200);
 		for (const q of seenSql) {
 			expect(q).not.toMatch(/storage_path/i);
 			expect(q).not.toMatch(/encryption_key_id/i);
-			expect(q).not.toMatch(/diarization_jobs|diarization_runs|diarization_metrics_daily/i);
+			expect(q).not.toMatch(/diarization_metrics_daily/i);
+			expect(q).not.toMatch(/panel_consent_snapshot/i);
+			expect(q).not.toMatch(/object_key/i);
 		}
 		const metaQuery = seenCalls.find(
 			(c) => /from observer_speech_measurements/i.test(c.sql) && !/measurements_envelope/i.test(c.sql),
