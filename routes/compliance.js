@@ -49,6 +49,51 @@ function toCandidateSafeDecisionExplanation(explanation) {
 	};
 }
 
+// #2035: DSAR-safe projection of a users row for POST /gdpr/export.
+// Same discipline as the #927 projection above — the bundle's `user`
+// section receives ONLY the fields enumerated here, constructed key
+// by key, never a spread with deletions: the handler's row comes
+// from an explicit-column SELECT (below), and this projection is the
+// second layer, so a future users column reaches the bundle only by
+// a deliberate edit to this list (the security/privacy gate).
+// INCLUDED: the subject's own profile/account data a DSAR returns
+// (identity, role, company link, imported LinkedIn payload, billing
+// state, account-state and row timestamps).
+// EXCLUDED — credential / external-key material, which serves no
+// access/portability purpose: password_hash (credential verifier),
+// google_id / linkedin_id / oauth_provider (external authenticator
+// link block), stripe_subscription_id (opaque external billing key;
+// the subject-facing billing facts — is_paid, subscription_plan,
+// subscription_status — are included above).
+function toExportSafeUser(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		email: row.email,
+		name: row.name,
+		role: row.role,
+		title: row.title,
+		company_name: row.company_name,
+		company_id: row.company_id,
+		github_username: row.github_username,
+		avatar_url: row.avatar_url,
+		linkedin_data: row.linkedin_data,
+		is_paid: row.is_paid,
+		subscription_plan: row.subscription_plan,
+		subscription_status: row.subscription_status,
+		suspended_at: row.suspended_at,
+		deleted_at: row.deleted_at,
+		created_at: row.created_at,
+		updated_at: row.updated_at,
+	};
+}
+
+// #2035: explicit column list for the export's users read — exactly
+// the toExportSafeUser keys, so credential material never leaves the
+// DB at all. Keep the two lists in step; the #2035 suite pins both.
+const EXPORT_USER_COLUMNS =
+	'id, email, name, role, title, company_name, company_id, github_username, avatar_url, linkedin_data, is_paid, subscription_plan, subscription_status, suspended_at, deleted_at, created_at, updated_at';
+
 function canAccessUserRecord(req, userId) {
 	const targetId = Number(userId);
 	if (!Number.isInteger(targetId)) {
@@ -106,8 +151,14 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 
 		const targetUserId = access.targetId;
 
-		// Gather all user data
-		const userData = await pool.query('SELECT * FROM users WHERE id = $1', [targetUserId]);
+		// Gather all user data — #2035: explicit allowlist columns
+		// only (see EXPORT_USER_COLUMNS / toExportSafeUser above); a
+		// raw users row carries password_hash and must never be read
+		// into, or placed in, the export bundle.
+		const userData = await pool.query(
+			`SELECT ${EXPORT_USER_COLUMNS} FROM users WHERE id = $1`,
+			[targetUserId],
+		);
 
 		// #1548: no data subject = nothing to export. Without this check
 		// an admin exporting a non-existent id built a user:null bundle
@@ -277,7 +328,7 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 		const exportData = {
 			// #1544: same ?? null hardening as profile (#1540) — an absent
 			// row must export as explicit null, never a dropped key.
-			user: userData.rows[0] ?? null,
+			user: toExportSafeUser(userData.rows[0]),
 			// Replaced in place per Lex's #1528 ruling — never supplemented:
 			// one score section, structured by source table, with the
 			// scale_note annotation (annotation, not alteration).
