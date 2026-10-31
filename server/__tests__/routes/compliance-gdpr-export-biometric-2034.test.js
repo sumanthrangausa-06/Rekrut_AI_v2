@@ -155,6 +155,9 @@ const CHUNK_ROWS = [
 ];
 
 let guardFamily = true;
+// #2039 item 3: per-test mutable diarization_runs row (same pattern
+// as guardFamily) so a cell can feed a malformed proposed_mapping.
+let runRow = RUN_ROW;
 const seenSql = [];
 const seenCalls = [];
 
@@ -176,7 +179,7 @@ function installPoolMock() {
 		if (s.includes('from transcript_speaker_audit')) return { rows: AUDIT_ROWS };
 		if (s.includes('from event_labelling_consent')) return { rows: [LABELLING_CONSENT_ROW] };
 		if (s.includes('from consent_receipts')) return { rows: RECEIPT_ROWS };
-		if (s.includes('from diarization_runs')) return { rows: [RUN_ROW] };
+		if (s.includes('from diarization_runs')) return { rows: [runRow] };
 		if (s.includes('from diarization_jobs')) return { rows: [JOB_ROW] };
 		if (s.includes('from observer_capture_outcomes')) return { rows: [OUTCOME_ROW] };
 		if (s.includes('from observer_audio_chunks')) return { rows: CHUNK_ROWS };
@@ -190,6 +193,7 @@ beforeEach(() => {
 	jest.clearAllMocks();
 	mockDecryptMode = 'ok';
 	guardFamily = true;
+	runRow = RUN_ROW;
 	seenSql.length = 0;
 	seenCalls.length = 0;
 	installPoolMock();
@@ -257,6 +261,15 @@ describe('#2034 POST /gdpr/export — biometric corrective', () => {
 		}
 	});
 
+	test('item 4b (#2039): non-object proposed_mapping fails closed — exports null, raw value never leaks', async () => {
+		runRow = { ...RUN_ROW, proposed_mapping: 'RAW-MAPPING-SENTINEL-2039' };
+		const res = await request(makeApp()).post('/api/compliance/gdpr/export').send({ userId: 7 });
+		expect(res.status).toBe(200);
+		expect(res.body.data.biometric.diarization_runs).toHaveLength(1);
+		expect(res.body.data.biometric.diarization_runs[0].proposed_mapping).toBeNull();
+		expect(JSON.stringify(res.body)).not.toContain('RAW-MAPPING-SENTINEL-2039');
+	});
+
 	test('item 5: observer outcomes present; chunks carry captured_at/byte_size and never object_key', async () => {
 		const res = await request(makeApp()).post('/api/compliance/gdpr/export').send({ userId: 7 });
 		expect(res.status).toBe(200);
@@ -308,6 +321,9 @@ describe('#2034 POST /gdpr/export — biometric corrective', () => {
 		expect(bio.diarization_jobs).toEqual([]);
 		expect(bio.labelling_consents).toEqual([]);
 		expect(bio.note).toMatch(/speaker labelling/i);
+		// #2039 item 1: pin the exact guard-note suffix phrase so a
+		// future wording edit cannot quietly regress it.
+		expect(bio.note).toContain('Speaker labelling records are not available on this database yet');
 		// Non-296 sections still export.
 		expect(bio.recordings).toHaveLength(1);
 		expect(bio.speech_measurements).toHaveLength(1);

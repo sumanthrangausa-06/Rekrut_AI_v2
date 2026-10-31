@@ -433,7 +433,9 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 			// { "<speaker>": { participant_user_id, participant_role } |
 			// null } — IDs and roles only, never names): the subject's
 			// own ID is kept, anyone else's becomes null with the role
-			// kept. panel_consent_snapshot is NEVER selected. Jobs export
+			// kept. #2039: a proposed_mapping that is not a plain
+			// (non-array) object fails closed to null — never raw.
+			// panel_consent_snapshot is NEVER selected. Jobs export
 			// metadata only (status, attempt_count, timestamps) — no
 			// worker_id, error_message, snapshot or consent_receipt_id.
 			const diarizationRunData = await pool.query(
@@ -451,7 +453,7 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 				speaker_count: row.speaker_count,
 				turns: row.turns,
 				proposed_mapping:
-					row.proposed_mapping && typeof row.proposed_mapping === 'object'
+					row.proposed_mapping && typeof row.proposed_mapping === 'object' && !Array.isArray(row.proposed_mapping)
 						? Object.fromEntries(
 								Object.entries(row.proposed_mapping).map(([speaker, entry]) => [
 									speaker,
@@ -463,7 +465,7 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 											},
 								]),
 							)
-						: (row.proposed_mapping ?? null),
+						: null,
 				coverage_end_ms: row.coverage_end_ms,
 				created_at: row.created_at,
 			}));
