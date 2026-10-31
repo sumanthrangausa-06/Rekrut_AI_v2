@@ -154,4 +154,22 @@ describe('BiometricPolicyPage (S-056)', () => {
 		const backLink = screen.getByRole('link', { name: /back to privacy policy/i });
 		expect(backLink).toHaveAttribute('href', '/privacy');
 	});
+
+	it('§5 discloses the manual recording-audio request channel verbatim (#2051, Lex #2028 Q2)', () => {
+		renderAt('/privacy/biometric-policy');
+		const text = document.body.textContent ?? '';
+		const sentence1 =
+			'If you would like access to the audio of your own interview recording itself, rather than the recording details included in the data export, you can request it by emailing privacy@rekrutai.co or through the data-request portal; we will verify your identity and provide access to recordings of sessions you took part in, subject to the rights of the other people in the recording.';
+		const sentence2 =
+			"The Observer's captured audio is not provided as audio files; the measurements taken from it are included in your export in readable form.";
+		expect(text).toContain(sentence1);
+		expect(text).toContain(sentence2);
+		// The sentences sit immediately after the §5 export bullet (PR #2038).
+		const exportIdx = text.indexOf(
+			'Request a complete copy of your biometric data (data export)',
+		);
+		expect(exportIdx).toBeGreaterThan(-1);
+		expect(text.indexOf(sentence1)).toBeGreaterThan(exportIdx);
+		expect(text.indexOf(sentence2)).toBeGreaterThan(text.indexOf(sentence1));
+	});
 });
