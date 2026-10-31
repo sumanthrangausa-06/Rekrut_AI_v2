@@ -7,7 +7,8 @@
 // the API already returns, so an INR job displayed as dollars.
 //
 // Contract:
-// - salary_range text entered by the recruiter renders verbatim.
+// - salary_range text entered by the recruiter renders verbatim
+//   (trimmed; a whitespace-only range counts as absent — #2061).
 // - min+max renders "¤X - ¤Y" in the entered currency.
 // - min-only renders "¤X+"; max-only renders "Up to ¤X" (a bare figure
 //   would read as a fixed salary).
@@ -34,7 +35,9 @@ export function formatJobSalary(
 	job: JobSalaryFields,
 	opts?: { period?: 'year' | 'month' | 'hour' },
 ): string {
-	if (job.salary_range) return job.salary_range;
+	// #2061: a whitespace-only range counts as absent, not verbatim text.
+	const range = job.salary_range?.trim();
+	if (range) return range;
 
 	const min = toAmount(job.salary_min);
 	const max = toAmount(job.salary_max);
@@ -63,5 +66,6 @@ export function formatJobSalary(
 }
 
 export function hasJobSalary(job: JobSalaryFields): boolean {
-	return Boolean(job.salary_range) || toAmount(job.salary_min) != null || toAmount(job.salary_max) != null;
+	// #2061: same trim rule as formatJobSalary — whitespace-only is absent.
+	return Boolean(job.salary_range?.trim()) || toAmount(job.salary_min) != null || toAmount(job.salary_max) != null;
 }
