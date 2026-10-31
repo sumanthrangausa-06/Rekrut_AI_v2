@@ -148,6 +148,10 @@ describe('#1548 POST /gdpr/export — absent target user', () => {
 			'consents',
 			'exported_at',
 			'interviews',
+			// #2046: the bundle notes for Lex's metadata/FK export-copy
+			// ruling join the bundle (STOP 1 on #2046) — the pin grows
+			// by exactly that key.
+			'notes',
 			'omniscore',
 			'profile',
 			'user',

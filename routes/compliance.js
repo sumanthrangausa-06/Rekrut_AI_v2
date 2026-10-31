@@ -175,6 +175,108 @@ const EXPORT_CONSENT_COLUMNS =
 const EXPORT_AUDIT_LOG_COLUMNS =
 	'id, action_type, user_id, target_type, target_id, metadata, ip_address, user_agent, created_at, company_id, actor_id, action, reason';
 
+// #2046: Lex ruling (comment 6544214655 on #2046) — column lists
+// govern which fields are selected; they cannot govern what rides
+// INSIDE consent_records.metadata / audit_logs.metadata, or the
+// other-user FKs (consent_records.revoked_by, audit_logs.actor_id)
+// inside the subject's rows. The sanitisers below project the EXPORT
+// COPY only; stored rows are never mutated.
+//   consent metadata: suppressed to {} — it is client-supplied
+//     verbatim with no allowlist (the POST /api/compliance/consent
+//     write path), and erasure already wipes it as untrusted caller
+//     PII. The bundle note below states why it is withheld.
+//   audit metadata: sanitised key-by-key in Lex's order —
+//     (1) secret / credential / storage-reference keys dropped (the
+//         #1128 sanitiser class: canonical key matching, as in
+//         lib/erasureResultSanitizer.js, plus credential key names);
+//     (2) user-identifier keys kept only when the value is the
+//         subject's own id (the ownIdOrNull rule, #2034), otherwise
+//         the key is DROPPED;
+//     (3) recruiter-authored free text dropped (recruiter_notes and
+//         override_reason — the human_override writer sets
+//         override_reason from recruiter_notes verbatim);
+//     (4) everything else — the subject's own scalar bookkeeping —
+//         verbatim. Names of removed keys (never values) are listed
+//         in the bundle note.
+//   Flagged at STOP 1 on #2046, status quo kept pending Lex: the
+//   user-identifier set is the census of user-id keys today's
+//   audit writers produce; non-user *_id bookkeeping (job_id,
+//   company_id, ...) stays verbatim under rule (4), and other-person
+//   PII in non-*_id string keys (target_email, ...) is not covered
+//   by the ruling's classes and stays verbatim.
+const EXPORT_CONSENT_METADATA_NOTE =
+	'Consent record metadata is withheld in this copy because its contents are caller-supplied and unverified.';
+const EXPORT_METADATA_USER_ID_KEYS = new Set([
+	'userid', 'actorid', 'candidateid', 'recruiterid', 'requesterid',
+	'previousownerid', 'newownerid', 'ownerid', 'sentby', 'updatedby',
+	'createdby', 'changedby', 'revokedby',
+]);
+const EXPORT_METADATA_FREE_TEXT_KEYS = new Set(['recruiternotes', 'overridereason']);
+const EXPORT_METADATA_CREDENTIAL_MARKERS = [
+	'password', 'secret', 'token', 'apikey', 'credential', 'privatekey', 'authorization',
+];
+const EXPORT_STORAGE_HOSTS = [
+	'amazonaws.com', 'cloudflarestorage.com', 'storage.googleapis.com', 'blob.core.windows.net',
+];
+const canonicalExportMetadataKey = (key) => key.toLowerCase().replace(/[_\-.]/g, '');
+
+// Anchored storage-reference values — the #1128 bounded value sweep.
+function isExportStorageValue(value) {
+	if (value.startsWith('s3://') || value.startsWith('gs://')) return true;
+	if (value.startsWith('/api/files/') || value.startsWith('/uploads/')) return true;
+	const match = /^https?:\/\/([^/?#:]+)/i.exec(value);
+	if (!match) return false;
+	const host = match[1].toLowerCase();
+	return EXPORT_STORAGE_HOSTS.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+}
+
+function isExportSecretOrStorageKey(canon) {
+	if (canon === 'fileurl' || canon === 'objectkey') return true;
+	if (canon.includes('storagekey') || canon.includes('storageurl')) return true;
+	return EXPORT_METADATA_CREDENTIAL_MARKERS.some((marker) => canon.includes(marker));
+}
+
+// Returns { metadata, removedKeys } — a sanitised COPY; the input
+// object (the stored row's parsed JSONB) is never mutated.
+function sanitiseExportAuditMetadata(metadata, targetUserId) {
+	if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+		return { metadata, removedKeys: [] };
+	}
+	const removed = new Set();
+	const walkValue = (value) => {
+		if (Array.isArray(value)) {
+			return value
+				.filter((el) => !(typeof el === 'string' && isExportStorageValue(el)))
+				.map(walkValue);
+		}
+		if (value && typeof value === 'object') return walkObject(value);
+		return value;
+	};
+	const walkObject = (obj) => {
+		const entries = [];
+		for (const key of Object.keys(obj)) {
+			const canon = canonicalExportMetadataKey(key);
+			const value = obj[key];
+			if (isExportSecretOrStorageKey(canon) || EXPORT_METADATA_FREE_TEXT_KEYS.has(canon)) {
+				removed.add(key);
+				continue;
+			}
+			if (EXPORT_METADATA_USER_ID_KEYS.has(canon)) {
+				if (value != null && Number(value) === targetUserId) entries.push([key, value]);
+				else removed.add(key);
+				continue;
+			}
+			if (typeof value === 'string' && isExportStorageValue(value)) {
+				removed.add(key);
+				continue;
+			}
+			entries.push([key, walkValue(value)]);
+		}
+		return Object.fromEntries(entries);
+	};
+	return { metadata: walkObject(metadata), removedKeys: [...removed] };
+}
+
 function canAccessUserRecord(req, userId) {
 	const targetId = Number(userId);
 	if (!Number.isInteger(targetId)) {
@@ -564,6 +666,38 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 			byte_size: row.byte_size,
 		}));
 
+		// #2046 (Lex ruling, comment 6544214655 on #2046): export-copy
+		// projections for the consent and audit sections — see the
+		// sanitiser block above EXPORT_CONSENT_METADATA_NOTE. Consent
+		// metadata is suppressed to {}, revocation_reason is nulled
+		// (revoker-authored free text; revoked_at and the revocation
+		// fact stay), and revoked_by / actor_id pass through the
+		// handler's ownIdOrNull (#2034 pattern, defined above): the
+		// subject's own id is kept, anyone else's becomes null, with
+		// NO admin exception. Stored rows are never mutated.
+		const removedAuditMetadataKeys = new Set();
+		const exportConsents = consentData.rows.map((row) => ({
+			...row,
+			metadata: {},
+			revoked_by: ownIdOrNull(row.revoked_by),
+			revocation_reason: null,
+		}));
+		const exportAuditTrail = auditData.rows.map((row) => {
+			const sanitised = sanitiseExportAuditMetadata(row.metadata, targetUserId);
+			for (const key of sanitised.removedKeys) removedAuditMetadataKeys.add(key);
+			return { ...row, actor_id: ownIdOrNull(row.actor_id), metadata: sanitised.metadata };
+		});
+		// The bundle notes Lex requires: the consent note always
+		// (it states the standing rule for the copy), and — only when
+		// keys were actually removed — the audit note listing the
+		// removed key NAMES, never their values.
+		const exportNotes = [EXPORT_CONSENT_METADATA_NOTE];
+		if (removedAuditMetadataKeys.size > 0) {
+			exportNotes.push(
+				`Audit log metadata keys removed in this copy: ${[...removedAuditMetadataKeys].sort().join(', ')}.`,
+			);
+		}
+
 		const exportData = {
 			// #1544: same ?? null hardening as profile (#1540) — an absent
 			// row must export as explicit null, never a dropped key.
@@ -583,7 +717,7 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 			// profile for you" — an absent key would silently drop from the
 			// JSON bundle and read as a gap in the subject's record.
 			profile: profileData.rows[0] ?? null,
-			consents: consentData.rows,
+			consents: exportConsents,
 			// #2028 item 4: biometric section (see the queries above).
 			// Present even when empty — all arrays empty states "we
 			// hold no biometric data for you" explicitly (#1540
@@ -606,7 +740,10 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 						? ''
 						: ' Speaker labelling records are not available on this database yet (the speaker-labelling schema has not been applied), so the speaker label, speaker mapping, label-correction, diarization and labelling-consent sections are empty.'),
 			},
-			audit_trail: auditData.rows,
+			audit_trail: exportAuditTrail,
+			// #2046: bundle notes for the export-copy projections above
+			// (Lex ruling on #2046) — see exportNotes.
+			notes: exportNotes,
 			exported_at: new Date().toISOString(),
 		};
 
