@@ -818,7 +818,11 @@ export function CandidateJobDetailPage() {
 										: job.job_type === 'internship'
 											? 'INTERN'
 											: 'FULL_TIME',
-						baseSalary: job.salary_range
+						// #2057: baseSalary is a QuantitativeValue — emit it for the
+						// numeric min/max shapes (entered currency), never for
+						// salary_range text alone, which cannot be converted to
+						// numbers without inventing them.
+						baseSalary: job.salary_min || job.salary_max
 							? {
 									'@type': 'MonetaryAmount',
 									currency: job.currency_code || 'USD',

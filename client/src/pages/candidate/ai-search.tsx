@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { apiCall } from '@/lib/api';
+import { formatJobSalary, hasJobSalary } from '@/lib/salary';
 import { cn } from '@/lib/utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ interface JobResult {
 	salary_range?: string;
 	salary_min?: number;
 	salary_max?: number;
+	currency_code?: string;
 	description: string;
 	skills_required?: string[];
 	created_at: string;
@@ -166,10 +168,10 @@ function SearchResultCard({
 									{job.location}
 								</span>
 							)}
-							{job.salary_range && (
+							{hasJobSalary(job) && (
 								<span className="flex items-center gap-1">
 									<DollarSign className="h-3 w-3" />
-									{job.salary_range}
+									{formatJobSalary(job)}
 								</span>
 							)}
 							{job.job_type && (
