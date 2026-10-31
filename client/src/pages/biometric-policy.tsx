@@ -82,8 +82,9 @@ If you withdraw consent mid-process, collection stops immediately and already-co
 		title: '4. Destruction Method',
 		content: `When biometric data reaches the end of its retention period (or you request deletion), we destroy it as follows:
 
-• Database records: Permanently deleted (hard delete, not soft delete).
-• Encrypted templates: Cryptographic shredding — the per-candidate encryption key is destroyed, rendering all encrypted biometric data permanently unreadable.
+• Database records: Permanently deleted (hard delete, not soft delete) — Observer speech measurements are deleted at the end of their retention period or when you request deletion; the speaker labels kept with a transcript are deleted when you request deletion.
+• Biometric templates: There is no stored template to destroy. No face embedding is created, and no face or voice embedding is kept or stored by our own systems — and the temporary voice template created for speaker labelling is never stored at all: it no longer exists once the labelling ends.
+• Encryption keys: Where a candidate has a per-candidate encryption key, erasure destroys that key, so records encrypted under it become permanently unreadable in our live database.
 • File storage (recordings): Deleted from object storage.
 
 Deletion is verified by automated jobs and logged in an append-only audit trail.`,
@@ -110,7 +111,7 @@ For users in Illinois: You have specific rights under the Biometric Information 
 
 • AES-256 encryption at rest with per-candidate encryption keys.
 • TLS encryption in transit.
-• Biometric tables are segregated from general user data with separate access controls.
+• Biometric tables are kept separate from general user data in the database schema. The dedicated template table holds no stored templates — we do not store biometric templates (see Section 3).
 • Every access to biometric data is logged in an append-only audit trail.
 • No single employee can access raw biometric data without a logged business reason.`,
 	},
