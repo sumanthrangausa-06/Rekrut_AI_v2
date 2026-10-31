@@ -5,7 +5,6 @@ import {
 	Building2,
 	ChevronDown,
 	Clock,
-	DollarSign,
 	Loader2,
 	MapPin,
 	Search,
@@ -170,7 +169,8 @@ function SearchResultCard({
 							)}
 							{hasJobSalary(job) && (
 								<span className="flex items-center gap-1">
-									<DollarSign className="h-3 w-3" />
+									{/* #2059: no DollarSign icon — formatJobSalary renders the
+									    entered currency (₹/€/…), a $ icon beside it would lie. */}
 									{formatJobSalary(job)}
 								</span>
 							)}
