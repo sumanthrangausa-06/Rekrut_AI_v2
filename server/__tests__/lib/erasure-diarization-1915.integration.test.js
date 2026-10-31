@@ -44,6 +44,18 @@
  *    own tombstone pair is cleared, and panel_consent_snapshot
  *    copies (S-D19 exception) stay byte-identical.
  *
+ *  - #2011 Part A (Lex disclosure condition on #1944): the erasure
+ *    result counts RETAINED panel_consent_snapshot copies naming the
+ *    erased user — panelConsentSnapshotsRetained. Fixtures pin every
+ *    leg of the semantics: cross job+run copies referencing the user
+ *    via decisions[].user_id only (counted, byte-identical after), a
+ *    control-job copy referencing the user via expected_user_ids only
+ *    (counted, byte-identical after), a copy on one in-flight job of
+ *    the swept recording (cancelled, not deleted — counted), and a
+ *    copy on the subject's OWN job (its row is deleted with the
+ *    subject's artefacts — NOT counted: the count is taken after the
+ *    own-row deletions, in the same transaction).
+ *
  * Run:
  *   SD13_INTEGRATION_DB_URL='postgresql://postgres@127.0.0.1:55433/sd13_e2e' \
  *     npx jest server/__tests__/lib/erasure-diarization-1915.integration.test.js --forceExit
@@ -289,6 +301,48 @@ async function cleanAndSeed() {
 		`UPDATE diarization_jobs SET panel_consent_snapshot = $2::jsonb WHERE recording_id = $1`,
 		[R.cross, crossSnapshot],
 	);
+	// #2011 Part A fixtures — three more snapshot copies pinning the
+	// retained-count semantics (see the header):
+	// (i) the subject's OWN event-linked job carries a canonical-shape
+	// snapshot naming the subject — its row is DELETED with the
+	// subject's artefacts, so it must NOT be counted as retained.
+	const ownSnapshot = JSON.stringify({
+		expected_user_ids: [U_CAND, U_REC],
+		expected_hash: HASH_OWN,
+		decisions: [
+			{
+				user_id: U_CAND,
+				record_id: 191511,
+				decision: 'granted',
+				notice_version: 'v1',
+				decided_at: '2026-10-20T00:00:00.000Z',
+			},
+		],
+	});
+	await q(
+		`UPDATE diarization_jobs SET panel_consent_snapshot = $2::jsonb WHERE recording_id = $1`,
+		[R.eventLinked, ownSnapshot],
+	);
+	// (ii) the CONTROL recording's job carries a snapshot referencing
+	// the erasing user ONLY via expected_user_ids (its decisions name
+	// only the recruiter) — retained and counted via the expected leg.
+	const controlSnapshot = JSON.stringify({
+		expected_user_ids: [U_REC, U_CAND],
+		expected_hash: HASH_CONTROL,
+		decisions: [
+			{
+				user_id: U_REC,
+				record_id: 191512,
+				decision: 'granted',
+				notice_version: 'v1',
+				decided_at: '2026-10-20T00:00:00.000Z',
+			},
+		],
+	});
+	await q(
+		`UPDATE diarization_jobs SET panel_consent_snapshot = $2::jsonb WHERE recording_id = $1`,
+		[R.control, controlSnapshot],
+	);
 	// (c) CONTROL recording's panel set does NOT name the erasing
 	// user — the pair must stay byte-identical (non-matching rows are
 	// never rewritten).
@@ -321,6 +375,28 @@ async function cleanAndSeed() {
 	await q(
 		`INSERT INTO diarization_jobs (recording_id, status) VALUES ($1, 'pending'), ($1, 'claimed'), ($1, 'processing')`,
 		[R.inflight],
+	);
+	// #2011 Part A fixture (iii): ONE of the in-flight jobs carries a
+	// canonical-shape snapshot naming the erasing user. The #2019
+	// sweep CANCELS these jobs (never deletes them), so the copy is
+	// retained and must be counted.
+	const inflightSnapshot = JSON.stringify({
+		expected_user_ids: [U_CAND, U_REC],
+		expected_hash: HASH_INFLIGHT,
+		decisions: [
+			{
+				user_id: U_CAND,
+				record_id: 191513,
+				decision: 'granted',
+				notice_version: 'v1',
+				decided_at: '2026-10-20T00:00:00.000Z',
+			},
+		],
+	});
+	await q(
+		`UPDATE diarization_jobs SET panel_consent_snapshot = $2::jsonb
+		 WHERE id = (SELECT MIN(id) FROM diarization_jobs WHERE recording_id = $1)`,
+		[R.inflight, inflightSnapshot],
 	);
 
 	// Counts-only aggregate (AC-3): no recording/user linkage exists in
@@ -441,6 +517,28 @@ describeIfDb('#1915 S-D13 diarization erasure (JT-D7, realdb journey)', () => {
 			[R.cross],
 		);
 		expect(crossJobSnapBefore.rows[0].snap).toContain(String(U_CAND));
+
+		// #2011 Part A seed sanity: the three added copies exist and
+		// name the erasing user (so the retained-count assertion below
+		// can actually fail), on exactly the rows the semantics assign
+		// them to — own job (deleted, uncounted), control job
+		// (expected-leg), one in-flight job (cancelled, counted).
+		const ownJobSnapBefore = await seedPool.query(
+			`SELECT panel_consent_snapshot::text AS snap FROM diarization_jobs WHERE recording_id = $1`,
+			[R.eventLinked],
+		);
+		expect(ownJobSnapBefore.rows[0].snap).toContain(String(U_CAND));
+		const controlJobSnapBefore = await seedPool.query(
+			`SELECT panel_consent_snapshot::text AS snap FROM diarization_jobs WHERE recording_id = $1`,
+			[R.control],
+		);
+		expect(controlJobSnapBefore.rows[0].snap).toContain(String(U_CAND));
+		const inflightSnapBefore = await seedPool.query(
+			`SELECT panel_consent_snapshot::text AS snap FROM diarization_jobs WHERE recording_id = $1 AND panel_consent_snapshot IS NOT NULL`,
+			[R.inflight],
+		);
+		expect(inflightSnapBefore.rows).toHaveLength(1);
+		expect(inflightSnapBefore.rows[0].snap).toContain(String(U_CAND));
 		// #2021 seed sanity: the panel-swept in-flight recording carries
 		// all three in-flight job statuses the #2019 cancellation
 		// predicate names (so the post-erasure count of 3 can fail).
@@ -521,6 +619,30 @@ describeIfDb('#1915 S-D13 diarization erasure (JT-D7, realdb journey)', () => {
 		expect(result.crossRecordingPanelPairsSwept).toBe(2);
 		expect(result.crossRecordingProposedMappingsNulled).toBe(1);
 		expect(result.tombstonePanelPairsCleared).toBe(2);
+
+		// #2011 Part A (Lex disclosure condition): retained snapshot
+		// copies naming the erased user are COUNTED on the result
+		// surface — cross job + cross run (decisions leg), control job
+		// (expected leg), one in-flight job (cancelled, not deleted) =
+		// 4. The subject's OWN job copy is NOT counted: its row was
+		// deleted earlier in the same transaction, and the count is
+		// taken after those deletions.
+		expect(result.panelConsentSnapshotsRetained).toBe(4);
+		// The retained copies themselves survive byte-identical
+		// (S-D19: this lane discloses retention, it does not sweep).
+		{
+			const { rows } = await seedPool.query(
+				`SELECT panel_consent_snapshot::text AS snap FROM diarization_jobs WHERE recording_id = $1`,
+				[R.control],
+			);
+			expect(rows[0].snap).toBe(controlJobSnapBefore.rows[0].snap);
+			const inflightAfter = await seedPool.query(
+				`SELECT panel_consent_snapshot::text AS snap FROM diarization_jobs WHERE recording_id = $1 AND panel_consent_snapshot IS NOT NULL`,
+				[R.inflight],
+			);
+			expect(inflightAfter.rows).toHaveLength(1);
+			expect(inflightAfter.rows[0].snap).toBe(inflightSnapBefore.rows[0].snap);
+		}
 
 		// #2019 + #2021: ALL in-flight jobs on a swept recording are
 		// cancelled in the same transaction and counted — pending,
