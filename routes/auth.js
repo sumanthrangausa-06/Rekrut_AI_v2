@@ -1806,6 +1806,7 @@ router.delete('/delete-account', authMiddleware, rateLimits.strict, async (req, 
 					password_hash = NULL,
 					google_id = NULL,
 					linkedin_id = NULL,
+					linkedin_data = NULL,
 					oauth_provider = NULL,
 					avatar_url = NULL
 				WHERE id = $1`,
