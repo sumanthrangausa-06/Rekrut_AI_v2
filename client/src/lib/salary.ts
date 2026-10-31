@@ -24,7 +24,7 @@ export interface JobSalaryFields {
 	currency_code?: string | null;
 }
 
-function toAmount(value: number | string | null | undefined): number | null {
+export function toAmount(value: number | string | null | undefined): number | null {
 	if (value == null || value === '') return null;
 	const n = Number(value);
 	return Number.isFinite(n) && n > 0 ? n : null;

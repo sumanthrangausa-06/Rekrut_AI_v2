@@ -22,7 +22,10 @@ import { CandidateOmniScorePage } from '@/pages/candidate/omniscore';
 // GET /api/jobs/:id and GET /api/jobs already carried salary_min /
 // salary_max / currency_code (#1019 STOP 1); GET /api/matching/
 // recommendations and GET /api/omniscore/mutual-matches are widened by
-// this lane to carry the same fields.
+// this lane to carry the same fields. PG NUMERIC(12,2) columns arrive
+// as STRINGS ("80000.00") via node-pg — fixtures use that real shape
+// (review fold on PR #2058: number fixtures masked string-typed
+// JSON-LD bounds and the truthy-"0.00" zero shape).
 
 vi.mock('@/lib/api', () => ({
 	apiCall: vi.fn(),
@@ -112,8 +115,13 @@ async function readJsonLd(): Promise<Record<string, any>> {
 }
 
 describe('#2057 job-detail JSON-LD baseSalary', () => {
-	it('USD min/max-only job (no salary_range text) emits baseSalary with both bounds in USD', async () => {
-		mockJobDetail({ salary_range: '', salary_min: 80000, salary_max: 120000, currency_code: 'USD' });
+	it('USD min/max-only job (no salary_range text) emits baseSalary with both bounds in USD, as NUMBERS', async () => {
+		mockJobDetail({
+			salary_range: '',
+			salary_min: '80000.00',
+			salary_max: '120000.00',
+			currency_code: 'USD',
+		});
 		renderJobDetail();
 		const ld = await readJsonLd();
 		expect(ld.baseSalary).toEqual({
@@ -124,7 +132,12 @@ describe('#2057 job-detail JSON-LD baseSalary', () => {
 	});
 
 	it('INR min/max-only job emits baseSalary in the entered INR currency, never USD', async () => {
-		mockJobDetail({ salary_range: '', salary_min: 800000, salary_max: 1200000, currency_code: 'INR' });
+		mockJobDetail({
+			salary_range: '',
+			salary_min: '800000.00',
+			salary_max: '1200000.00',
+			currency_code: 'INR',
+		});
 		renderJobDetail();
 		const ld = await readJsonLd();
 		expect(ld.baseSalary?.currency).toBe('INR');
@@ -133,7 +146,7 @@ describe('#2057 job-detail JSON-LD baseSalary', () => {
 	});
 
 	it('min-only job emits baseSalary with minValue and no maxValue', async () => {
-		mockJobDetail({ salary_range: '', salary_min: 90000, currency_code: 'USD' });
+		mockJobDetail({ salary_range: '', salary_min: '90000.00', currency_code: 'USD' });
 		renderJobDetail();
 		const ld = await readJsonLd();
 		expect(ld.baseSalary?.currency).toBe('USD');
@@ -142,11 +155,45 @@ describe('#2057 job-detail JSON-LD baseSalary', () => {
 	});
 
 	it('max-only job emits baseSalary with maxValue and no minValue', async () => {
-		mockJobDetail({ salary_range: '', salary_max: 120000, currency_code: 'USD' });
+		mockJobDetail({ salary_range: '', salary_max: '120000.00', currency_code: 'USD' });
 		renderJobDetail();
 		const ld = await readJsonLd();
 		expect(ld.baseSalary?.value?.maxValue).toBe(120000);
 		expect(ld.baseSalary?.value?.minValue).toBeUndefined();
+	});
+
+	it('zero salary ("0.00" string) emits NO baseSalary — 0 counts as absent, never a $0 salary', async () => {
+		mockJobDetail({ salary_range: '', salary_min: '0.00', salary_max: '0.00', currency_code: 'USD' });
+		renderJobDetail();
+		const ld = await readJsonLd();
+		expect(ld.baseSalary).toBeUndefined();
+	});
+
+	it('mixed zero max ("0.00") is dropped — only the real min bound is emitted', async () => {
+		mockJobDetail({
+			salary_range: '',
+			salary_min: '80000.00',
+			salary_max: '0.00',
+			currency_code: 'USD',
+		});
+		renderJobDetail();
+		const ld = await readJsonLd();
+		expect(ld.baseSalary?.value?.minValue).toBe(80000);
+		expect(ld.baseSalary?.value?.maxValue).toBeUndefined();
+	});
+
+	it('text + numeric bounds emits baseSalary from the numeric fields', async () => {
+		mockJobDetail({
+			salary_range: '₹8–12 LPA',
+			salary_min: '800000.00',
+			salary_max: '1200000.00',
+			currency_code: 'INR',
+		});
+		renderJobDetail();
+		const ld = await readJsonLd();
+		expect(ld.baseSalary?.currency).toBe('INR');
+		expect(ld.baseSalary?.value?.minValue).toBe(800000);
+		expect(ld.baseSalary?.value?.maxValue).toBe(1200000);
 	});
 
 	it('text-only salary emits NO baseSalary — free text is never converted into invented numbers', async () => {
@@ -187,7 +234,13 @@ const aiJob = {
 describe('#2057 ai-search salary rendering', () => {
 	it('INR min/max-only job shows the ₹ range through the shared formatter', async () => {
 		mockAiSearch([
-			{ ...aiJob, salary_range: '', salary_min: 800000, salary_max: 1200000, currency_code: 'INR' },
+			{
+				...aiJob,
+				salary_range: '',
+				salary_min: '800000.00',
+				salary_max: '1200000.00',
+				currency_code: 'INR',
+			},
 		]);
 		render(
 			<MemoryRouter>
@@ -274,7 +327,13 @@ async function renderMatches(matches: Record<string, unknown>[]) {
 describe('#2057 omniscore mutual-match salary rendering', () => {
 	it('USD min/max-only match shows the $ range through the shared formatter', async () => {
 		await renderMatches([
-			{ ...mutualMatch, salary_range: '', salary_min: 80000, salary_max: 120000, currency_code: 'USD' },
+			{
+				...mutualMatch,
+				salary_range: '',
+				salary_min: '80000.00',
+				salary_max: '120000.00',
+				currency_code: 'USD',
+			},
 		]);
 		await screen.findByText('Match Analyst');
 		const text = document.body.textContent ?? '';
@@ -287,12 +346,12 @@ describe('#2057 omniscore mutual-match salary rendering', () => {
 		expect(await screen.findByText('₹8–12 LPA')).toBeTruthy();
 	});
 
-	it('no-salary match shows no figure', async () => {
+	it('no-salary match shows no figure and no currency symbol', async () => {
 		await renderMatches([{ ...mutualMatch, salary_range: '', currency_code: 'USD' }]);
 		await screen.findByText('Match Analyst');
-		const card = screen.getByText('Match Analyst').closest('div');
-		expect(card?.textContent ?? '').not.toContain('$80,000');
 		const text = document.body.textContent ?? '';
+		expect(text).not.toContain('$');
+		expect(text).not.toContain('₹');
 		expect(text).not.toContain('Salary not specified');
 	});
 });

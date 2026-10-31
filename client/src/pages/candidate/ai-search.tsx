@@ -35,8 +35,8 @@ interface JobResult {
 	remote_type?: string;
 	job_type: string;
 	salary_range?: string;
-	salary_min?: number;
-	salary_max?: number;
+	salary_min?: number | string | null;
+	salary_max?: number | string | null;
 	currency_code?: string;
 	description: string;
 	skills_required?: string[];
