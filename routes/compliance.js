@@ -345,7 +345,8 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 			// as null and only their participant_role is kept (privacy
 			// seat: role, not identity).
 			const speakerMappingData = await pool.query(
-				'SELECT * FROM recording_speaker_mappings WHERE recording_id = ANY($1::int[])',
+				`SELECT id, recording_id, speaker_number, participant_user_id, participant_role, state, updated_by, created_at, updated_at
+       FROM recording_speaker_mappings WHERE recording_id = ANY($1::int[])`,
 				[recordingIds],
 			);
 			speakerMappings = speakerMappingData.rows.map((row) => ({
@@ -359,7 +360,8 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 			// from, to, and the actor — follows the same rule as the
 			// mappings: kept only when it is the subject's own.
 			const speakerAuditData = await pool.query(
-				`SELECT * FROM transcript_speaker_audit
+				`SELECT id, recording_id, speaker_number, from_user_id, to_user_id, actor_user_id, action, created_at
+       FROM transcript_speaker_audit
        WHERE recording_id = ANY($1::int[]) AND (from_user_id = $2 OR to_user_id = $2)`,
 				[recordingIds, targetUserId],
 			);
@@ -431,7 +433,8 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 			// Labelling consents are keyed by user_id (migration 299 —
 			// there is no candidate_id column on event_labelling_consent).
 			labellingConsentData = await pool.query(
-				'SELECT * FROM event_labelling_consent WHERE user_id = $1',
+				`SELECT id, interview_event_id, user_id, decision, notice_version, decided_at, ip_address, user_agent_hash, created_at
+       FROM event_labelling_consent WHERE user_id = $1`,
 				[targetUserId],
 			);
 		}
@@ -454,7 +457,8 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 		// export count metadata only (captured_at, byte_size) —
 		// object_key (the storage reference) is never selected.
 		const observerOutcomeData = await pool.query(
-			'SELECT * FROM observer_capture_outcomes WHERE candidate_id = $1',
+			`SELECT interview_session_id, candidate_id, scope, is_test, cohort_allowlist_version, chunks_persisted, chunks_dropped, audio_seconds_captured, capture_gap_ratio, stop_reason, started_at, stopped_at
+       FROM observer_capture_outcomes WHERE candidate_id = $1`,
 			[targetUserId],
 		);
 		const observerChunkData = await pool.query(
