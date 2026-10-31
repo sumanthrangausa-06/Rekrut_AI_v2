@@ -133,7 +133,7 @@ describe('#1548 POST /gdpr/export — absent target user', () => {
 		expect(dataRequestsInserts).toEqual([]);
 	});
 
-	test('existing user: admin export still 200 with the exact 8-key bundle and both writes', async () => {
+	test('existing user: admin export still 200 with the exact 9-key bundle and both writes', async () => {
 		const res = await request(makeApp())
 			.post('/api/compliance/gdpr/export')
 			.send({ userId: EXISTING_ID });
@@ -142,6 +142,9 @@ describe('#1548 POST /gdpr/export — absent target user', () => {
 		expect(Object.keys(res.body.data).sort()).toEqual([
 			'assessments',
 			'audit_trail',
+			// #2028 item 4: the biometric section joins the bundle
+			// (STOP 1 on #2028) — the pin grows by exactly that key.
+			'biometric',
 			'consents',
 			'exported_at',
 			'interviews',
