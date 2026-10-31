@@ -1139,6 +1139,19 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 			const { sweepPanelSkeletonEvents } = require('./lib/erasureService');
 			const skeletonSweep = await sweepPanelSkeletonEvents();
 
+			// #2011 Part B: panel_consent_snapshot retention-clock
+			// sweep — the sibling sweep the #1973 header comment above
+			// defers to (snapshot copies persist on their own clock;
+			// this is that clock). One function, two legs (design §5):
+			// the erasure-completion leg runs ungated inside the sweep
+			// in both retention modes, like the sweeps above; the
+			// retention-expiry leg follows this interval's existing
+			// opts.dryRun discipline and deletes live only when
+			// RETENTION_PURGE_LIVE is armed. The flag is flipped
+			// nowhere here.
+			const { sweepPanelConsentSnapshots } = require('./lib/erasureService');
+			const snapshotSweep = await sweepPanelConsentSnapshots({ dryRun: opts.dryRun });
+
 			const mode = opts.dryRun ? 'DRY-RUN' : 'LIVE';
 			console.log(
 				`[retention] ${mode}: recordings=${rec.deletedCount} (storage=${rec.storageDeleted}), ` +
@@ -1162,6 +1175,16 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 				`[erasure] skeleton-class sweep #1973 (LIVE, independent of retention mode): ` +
 				`skeleton_scanned=${skeletonSweep.scanned}, skeleton_deleted=${skeletonSweep.deleted}, ` +
 				`held=${skeletonSweep.heldSkipped}, lookup_failed=${skeletonSweep.lookupFailedSkipped}, skipped=${skeletonSweep.skipped}`,
+			);
+			// #1176 (O-4) labelling, same precedent: the snapshot
+			// sweep's erasure leg runs LIVE in both retention modes —
+			// its own line, never conflated with the retention mode
+			// line above; the retention leg's mode is named in-line.
+			console.log(
+				`[erasure] panel snapshot sweep #2011 Part B (erasure leg LIVE, independent of retention mode; retention leg follows retention mode): ` +
+				`snapshot_scanned=${snapshotSweep.scanned}, snapshots_expired=${snapshotSweep.snapshotsExpired}, ` +
+				`references_removed=${snapshotSweep.referencesRemoved} (erasure_leg=${snapshotSweep.erasureLegRemoved}, retention_leg=${snapshotSweep.retentionLegRemoved}, retention_dry_run_skipped=${snapshotSweep.retentionLegDryRunSkipped}), ` +
+				`held=${snapshotSweep.heldSkipped}, lookup_failed=${snapshotSweep.lookupFailedSkipped}`,
 			);
 		} catch (err) {
 			console.error('[retention] Failed:', err.message);
