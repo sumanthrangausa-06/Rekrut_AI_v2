@@ -45,6 +45,18 @@
  *    decisions ONLY          ⇒ PAN's decision entry becomes JSON
  *    null (entries nulled, never deleted); expected_user_ids
  *    untouched; snapshot not emptied
+ *  J tombstone           × NO consent row for PAN on the host event,
+ *    PAN in BOTH expected_user_ids and decisions, and the decision's
+ *    record_id points at a LIVE consent row on a DIFFERENT event
+ *    (#2026 M1)              ⇒ byte-identical: the live record_id
+ *    proves the source alive via the `OR id = $3` leg of
+ *    snapshotSourcePresent, even though the expected entry (which
+ *    the referenced-user map sees first) carries no record_id
+ *  K tombstone           × source deleted, hold lookup FORCED to
+ *    throw (#2026 M2; seeded inside its own test, swept through a
+ *    wrapping queryable that throws only on legal_holds queries)
+ *                          ⇒ reference counted lookupFailedSkipped
+ *    and left byte-identical; nothing removed
  *
  * Run:
  *   SNAPSHOT2011_INTEGRATION_DB_URL='postgresql://postgres@127.0.0.1:55433/snap2011_e2e' \
@@ -254,6 +266,17 @@ async function cleanAndSeed() {
 		await q(`DELETE FROM event_labelling_consent WHERE id = $1`, [panRecord]);
 		R.I = { eventId, recordingId, jobId };
 	}
+	// J (#2026 M1): PAN in BOTH lists; the decision's record_id points
+	// at a LIVE consent row on a DIFFERENT event; no consent row for
+	// PAN on the host event at all; host recording is a tombstone.
+	{
+		const hostEventId = await mkEvent(q);
+		const otherEventId = await mkEvent(q);
+		const crossRecord = await mkConsent(q, otherEventId, PAN);
+		const recordingId = await mkRecording(q, hostEventId, { status: 'deleted', retention: 'future' });
+		const jobId = await mkJob(q, recordingId, snap([{ user: PAN, recordId: crossRecord }]));
+		R.J = { eventId: hostEventId, recordingId, jobId };
+	}
 
 	for (const [key, cellR] of Object.entries(R)) {
 		SNAP_TEXT[`${key}:job`] = await snapText('diarization_jobs', cellR.jobId);
@@ -280,7 +303,7 @@ describeIfDb('#2011 Part B snapshot retention-clock sweep (Quinn E2E, realdb)', 
 	test('dry-run sweep: erasure-completion leg removes live, retention leg is counted not removed, held is counted', async () => {
 		const res = await sweepPanelConsentSnapshots({ queryable: seedPool, dryRun: true });
 
-		expect(res.scanned).toBe(11); // A,B,C(job+run),D,E(job+run),F,G,H,I jobs/runs with a snapshot
+		expect(res.scanned).toBe(12); // A,B,C(job+run),D,E(job+run),F,G,H,I,J jobs/runs with a snapshot (#2026: +J)
 		expect(res.referencesRemoved).toBe(3); // E job PAN, E run PAN, H expected PAN
 		expect(res.erasureLegRemoved).toBe(3);
 		expect(res.retentionLegRemoved).toBe(0);
@@ -290,7 +313,7 @@ describeIfDb('#2011 Part B snapshot retention-clock sweep (Quinn E2E, realdb)', 
 		expect(res.lookupFailedSkipped).toBe(0);
 
 		// Untouched cells stay byte-identical.
-		for (const key of ['A', 'B', 'C', 'D', 'F', 'G', 'I']) {
+		for (const key of ['A', 'B', 'C', 'D', 'F', 'G', 'I', 'J']) {
 			expect(await snapText('diarization_jobs', R[key].jobId)).toBe(SNAP_TEXT[`${key}:job`]);
 		}
 		expect(await snapText('diarization_runs', R.C.runId)).toBe(SNAP_TEXT['C:run']);
@@ -316,7 +339,7 @@ describeIfDb('#2011 Part B snapshot retention-clock sweep (Quinn E2E, realdb)', 
 	test('live sweep: retention leg now removes D and I; everything else already settled stays settled', async () => {
 		const res = await sweepPanelConsentSnapshots({ queryable: seedPool, dryRun: false });
 
-		expect(res.scanned).toBe(10); // E run snapshot is NULL now — no longer scanned
+		expect(res.scanned).toBe(11); // E run snapshot is NULL now — no longer scanned (#2026: +J)
 		expect(res.referencesRemoved).toBe(2); // D job PAN, I decisions PAN
 		expect(res.retentionLegRemoved).toBe(2);
 		expect(res.erasureLegRemoved).toBe(0);
@@ -338,7 +361,7 @@ describeIfDb('#2011 Part B snapshot retention-clock sweep (Quinn E2E, realdb)', 
 		expect(iJob.decisions[1].user_id).toBe(PAN2);
 
 		// Live-source and live-host cells are STILL byte-identical.
-		for (const key of ['A', 'B', 'C', 'F', 'G']) {
+		for (const key of ['A', 'B', 'C', 'F', 'G', 'J']) {
 			expect(await snapText('diarization_jobs', R[key].jobId)).toBe(SNAP_TEXT[`${key}:job`]);
 		}
 		expect(await snapText('diarization_runs', R.C.runId)).toBe(SNAP_TEXT['C:run']);
@@ -352,5 +375,44 @@ describeIfDb('#2011 Part B snapshot retention-clock sweep (Quinn E2E, realdb)', 
 		expect(res.lookupFailedSkipped).toBe(0);
 		// F's held reference is still there, untouched.
 		expect(await snapText('diarization_jobs', R.F.jobId)).toBe(SNAP_TEXT['F:job']);
+		// J's cross-event live record_id still proves its source alive.
+		expect(await snapText('diarization_jobs', R.J.jobId)).toBe(SNAP_TEXT['J:job']);
+	});
+
+	test('forced hold-lookup failure (#2026 M2): reference counted lookupFailedSkipped and left untouched, end-to-end', async () => {
+		// Cell K, seeded here so the shared matrix counters above do
+		// not move: tombstone host, PAN's host-event source deleted.
+		const q = (sql, params) => seedPool.query(sql, params);
+		const eventId = await mkEvent(q);
+		const panRecord = await mkConsent(q, eventId, PAN);
+		const recordingId = await mkRecording(q, eventId, { status: 'deleted', retention: 'future' });
+		const jobId = await mkJob(q, recordingId, snap([{ user: PAN, recordId: panRecord }]));
+		await q(`DELETE FROM event_labelling_consent WHERE id = $1`, [panRecord]);
+		const kBefore = await snapText('diarization_jobs', jobId);
+		const fBefore = await snapText('diarization_jobs', R.F.jobId);
+
+		// Force findActiveHold to throw: it is called with the sweep's
+		// pool and issues only legal_holds queries, so a wrapping
+		// queryable that throws on those (and delegates everything
+		// else to the real pool) exercises the real sweep + real DB.
+		const throwingQueryable = {
+			query: (sql, params) => {
+				if (typeof sql === 'string' && sql.includes('legal_holds')) {
+					throw new Error('forced hold lookup failure (#2026 M2 test)');
+				}
+				return seedPool.query(sql, params);
+			},
+		};
+		const res = await sweepPanelConsentSnapshots({ queryable: throwingQueryable, dryRun: false });
+
+		// K and the already-seeded held cell F both reach the hold
+		// lookup (source gone + host ended) and both fail it: counted
+		// lookupFailedSkipped, never heldSkipped, nothing removed.
+		expect(res.lookupFailedSkipped).toBe(2); // K and F
+		expect(res.heldSkipped).toBe(0);
+		expect(res.referencesRemoved).toBe(0);
+		expect(res.snapshotsExpired).toBe(0);
+		expect(await snapText('diarization_jobs', jobId)).toBe(kBefore);
+		expect(await snapText('diarization_jobs', R.F.jobId)).toBe(fBefore);
 	});
 });
