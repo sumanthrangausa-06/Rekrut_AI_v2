@@ -8,7 +8,9 @@
 //
 // Contract:
 // - salary_range text entered by the recruiter renders verbatim
-//   (trimmed; a whitespace-only range counts as absent — #2061).
+//   (trimmed; a whitespace-only range counts as absent — #2061;
+//   zero-width characters U+200B–U+200D/U+FEFF are stripped first, so a
+//   zero-width-only range also counts as absent — #2063).
 // - min+max renders "¤X - ¤Y" in the entered currency.
 // - min-only renders "¤X+"; max-only renders "Up to ¤X" (a bare figure
 //   would read as a fixed salary).
@@ -25,6 +27,15 @@ export interface JobSalaryFields {
 	currency_code?: string | null;
 }
 
+// #2063: JS trim() does not remove zero-width characters, so a range of
+// only U+200B–U+200D / U+FEFF looked present and rendered invisibly.
+// Strip them everywhere, then trim; nothing visible left = absent.
+export function cleanSalaryRange(range?: string | null): string | undefined {
+	if (range == null) return undefined;
+	const cleaned = range.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+	return cleaned || undefined;
+}
+
 export function toAmount(value: number | string | null | undefined): number | null {
 	if (value == null || value === '') return null;
 	const n = Number(value);
@@ -35,8 +46,8 @@ export function formatJobSalary(
 	job: JobSalaryFields,
 	opts?: { period?: 'year' | 'month' | 'hour' },
 ): string {
-	// #2061: a whitespace-only range counts as absent, not verbatim text.
-	const range = job.salary_range?.trim();
+	// #2061/#2063: a whitespace- or zero-width-only range counts as absent.
+	const range = cleanSalaryRange(job.salary_range);
 	if (range) return range;
 
 	const min = toAmount(job.salary_min);
@@ -66,6 +77,7 @@ export function formatJobSalary(
 }
 
 export function hasJobSalary(job: JobSalaryFields): boolean {
-	// #2061: same trim rule as formatJobSalary — whitespace-only is absent.
-	return Boolean(job.salary_range?.trim()) || toAmount(job.salary_min) != null || toAmount(job.salary_max) != null;
+	// #2061/#2063: same clean rule as formatJobSalary — whitespace- or
+	// zero-width-only is absent.
+	return Boolean(cleanSalaryRange(job.salary_range)) || toAmount(job.salary_min) != null || toAmount(job.salary_max) != null;
 }

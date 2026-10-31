@@ -39,6 +39,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useJobDraft } from '@/hooks/use-job-draft';
 import { apiCall } from '@/lib/api';
+import { cleanSalaryRange } from '@/lib/salary';
 
 interface TitleSuggestion {
 	title: string;
@@ -1165,7 +1166,7 @@ export function RecruiterJobFormPage() {
 								</Badge>
 							</div>
 							<p className="text-xs text-muted-foreground mt-0.5">
-								{p.location || 'No location'} · {p.salary_range || 'No salary'} · Posted{' '}
+								{p.location || 'No location'} · {cleanSalaryRange(p.salary_range) || 'No salary'} · Posted{' '}
 								{new Date(p.created_at).toLocaleDateString()}
 							</p>
 						</button>
