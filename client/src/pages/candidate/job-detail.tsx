@@ -50,7 +50,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useSubscription } from '@/hooks/use-subscription';
 import { trackEvent } from '@/lib/analytics';
 import { apiCall } from '@/lib/api';
-import { formatJobSalary, toAmount } from '@/lib/salary';
+import { formatJobSalary, hasJobSalary, toAmount } from '@/lib/salary';
 
 interface Job {
 	id: number;
@@ -780,7 +780,7 @@ export function CandidateJobDetailPage() {
 			{job && (
 				<SEO
 					title={`${job.title} at ${job.company || job.poster_company || 'Company'} — Apply Now`}
-					description={`${job.title} at ${job.company || job.poster_company || 'Company'}. ${job.job_type} position in ${job.location || 'various locations'}. ${job.salary_range ? `Salary: ${job.salary_range}. ` : ''}Apply on Rekrut AI.`}
+					description={`${job.title} at ${job.company || job.poster_company || 'Company'}. ${job.job_type} position in ${job.location || 'various locations'}. ${hasJobSalary(job) ? `Salary: ${formatJobSalary(job)}. ` : ''}Apply on Rekrut AI.`}
 					canonical={`/candidate/jobs/${job.id}`}
 					ogImage={
 						job.company_logo ||
