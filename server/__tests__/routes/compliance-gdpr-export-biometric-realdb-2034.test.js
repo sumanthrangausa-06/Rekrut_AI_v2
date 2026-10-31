@@ -57,10 +57,24 @@ const describeIfPre296 = PRE296_URL ? describe : describe.skip;
 
 jest.setTimeout(120000);
 
-const U_SUBJ = 203401;
-const U_REC = 203402;
-const U_ADMIN = 203403;
-const U_OTHER = 203404;
+// #2039 item 2: fresh fixture identity per run so this suite is
+// re-runnable against the SAME database. The previous fixed IDs
+// (203401–203404) made a second run fail in cleanAndSeed: the prior
+// run's export had written a biometric_audit_log row for the fixed
+// subject, and that log is append-only — its DELETE trigger rejected
+// the teardown. RUN_BASE is a per-run int4-safe base (max ~10,000,003);
+// the four fixture IDs and their emails all derive from it, so a
+// re-run seeds a brand-new subject and never touches the old rows.
+const RUN_BASE = 1000000 + Math.floor(Math.random() * 900000) * 10;
+const U_SUBJ = RUN_BASE;
+const U_REC = RUN_BASE + 1;
+const U_ADMIN = RUN_BASE + 2;
+const U_OTHER = RUN_BASE + 3;
+const EMAIL_SUBJ = `subj${RUN_BASE}@test.local`;
+const EMAIL_REC = `rec${RUN_BASE}@test.local`;
+const EMAIL_ADMIN = `admin${RUN_BASE}@test.local`;
+const EMAIL_OTHER = `other${RUN_BASE}@test.local`;
+const EMAIL_PRE296 = `pre296-${RUN_BASE}@test.local`;
 
 const MEASUREMENTS = { pitch_mean_hz: 190.25, speech_rate_wpm: 133, filler_word_rate: 1.9, pause_ratio: 0.1 };
 const SNAPSHOT_SENTINEL = 'SNAPSHOT-SENTINEL-2034';
@@ -93,17 +107,20 @@ describeIfDb('#2034 POST /gdpr/export biometric — real DB erasure-symmetry jou
 		await q('DELETE FROM interview_sessions WHERE candidate_id = $1', [U_SUBJ]);
 		await q('DELETE FROM data_requests WHERE user_id = $1', [U_SUBJ]);
 		await q('DELETE FROM audit_logs WHERE user_id = $1', [U_SUBJ]);
-		await q('DELETE FROM biometric_audit_log WHERE candidate_id = $1', [U_SUBJ]);
+		// #2039 item 2: deliberately NO 'DELETE FROM biometric_audit_log'
+		// here — that log is append-only (a DELETE trigger rejects the
+		// statement), and the fresh per-run subject has no prior audit
+		// rows to clean.
 		await q('DELETE FROM candidate_data_keys WHERE candidate_id = $1', [U_SUBJ]);
 		await q('DELETE FROM users WHERE id = ANY($1::int[])', [[U_SUBJ, U_REC, U_ADMIN, U_OTHER]]);
 
 		await q(
 			`INSERT INTO users (id, email, name, role, company_id) VALUES
-			   ($1, 'subj2034@test.local', 'Subject 2034', 'candidate', NULL),
-			   ($2, 'rec2034@test.local', 'Recruiter 2034', 'recruiter', NULL),
-			   ($3, 'admin2034@test.local', 'Admin 2034', 'admin', NULL),
-			   ($4, 'other2034@test.local', 'Other 2034', 'recruiter', NULL)`,
-			[U_SUBJ, U_REC, U_ADMIN, U_OTHER],
+			   ($1, $5, 'Subject 2034', 'candidate', NULL),
+			   ($2, $6, 'Recruiter 2034', 'recruiter', NULL),
+			   ($3, $7, 'Admin 2034', 'admin', NULL),
+			   ($4, $8, 'Other 2034', 'recruiter', NULL)`,
+			[U_SUBJ, U_REC, U_ADMIN, U_OTHER, EMAIL_SUBJ, EMAIL_REC, EMAIL_ADMIN, EMAIL_OTHER],
 		);
 		const session = await q(
 			`INSERT INTO interview_sessions (candidate_id, type, status) VALUES ($1, 'screening', 'completed') RETURNING id`,
@@ -264,7 +281,7 @@ describeIfDb('#2034 POST /gdpr/export biometric — real DB erasure-symmetry jou
 
 	test('export complete → erase (real path) → export again: biometric data empty', async () => {
 		// ── Export 1: complete bundle ────────────────────────────────
-		const res1 = await doExport({ id: U_SUBJ, email: 'subj2034@test.local', role: 'candidate' });
+		const res1 = await doExport({ id: U_SUBJ, email: EMAIL_SUBJ, role: 'candidate' });
 		expect(res1.status).toBe(200);
 		const bio = res1.body.data.biometric;
 
@@ -348,7 +365,7 @@ describeIfDb('#2034 POST /gdpr/export biometric — real DB erasure-symmetry jou
 		}
 
 		// ── Export 2 (admin — the erased account cannot authenticate) ─
-		const res2 = await doExport({ id: U_ADMIN, email: 'admin2034@test.local', role: 'admin' });
+		const res2 = await doExport({ id: U_ADMIN, email: EMAIL_ADMIN, role: 'admin' });
 		expect(res2.status).toBe(200);
 		const bio2 = res2.body.data.biometric;
 		expect(bio2.speech_measurements).toEqual([]);
@@ -387,8 +404,8 @@ describeIfPre296('#2034 item 10 — pre-migration-296 database guard (real DB)',
 		await pool2.query('ALTER TABLE interview_transcripts DROP COLUMN IF EXISTS speaker_number');
 		await pool2.query('DELETE FROM users WHERE id = $1', [U_SUBJ]);
 		await pool2.query(
-			`INSERT INTO users (id, email, name, role) VALUES ($1, 'pre296-2034@test.local', 'Pre296 2034', 'candidate')`,
-			[U_SUBJ],
+			`INSERT INTO users (id, email, name, role) VALUES ($1, $2, 'Pre296 2034', 'candidate')`,
+			[U_SUBJ, EMAIL_PRE296],
 		);
 		process.env.DATABASE_URL = PRE296_URL;
 		jest.resetModules();
@@ -406,7 +423,7 @@ describeIfPre296('#2034 item 10 — pre-migration-296 database guard (real DB)',
 	});
 
 	test('export returns 200 with empty diarization arrays + honest note instead of 500', async () => {
-		const token = generateToken2({ id: U_SUBJ, email: 'pre296-2034@test.local', role: 'candidate' });
+		const token = generateToken2({ id: U_SUBJ, email: EMAIL_PRE296, role: 'candidate' });
 		const res = await request2(app2)
 			.post('/api/compliance/gdpr/export')
 			.set('Authorization', `Bearer ${token}`)
@@ -420,5 +437,8 @@ describeIfPre296('#2034 item 10 — pre-migration-296 database guard (real DB)',
 		expect(bio.diarization_jobs).toEqual([]);
 		expect(bio.labelling_consents).toEqual([]);
 		expect(bio.note).toMatch(/speaker labelling/i);
+		// #2039 item 1: pin the exact guard-note suffix phrase so a
+		// future wording edit cannot quietly regress it.
+		expect(bio.note).toContain('Speaker labelling records are not available on this database yet');
 	});
 });
