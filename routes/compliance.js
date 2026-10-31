@@ -66,6 +66,23 @@ function toCandidateSafeDecisionExplanation(explanation) {
 // link block), stripe_subscription_id (opaque external billing key;
 // the subject-facing billing facts — is_paid, subscription_plan,
 // subscription_status — are included above).
+// #2037: `linkedin_data` is the raw LinkedIn import payload
+// (routes/candidate.js stores JSON.stringify(profile._raw)), and the
+// member identifier excluded above as `linkedin_id` rides inside it
+// at `userinfo.sub` (the OIDC subject the auth layer copies into
+// users.linkedin_id) and at `me.id` (the v2/me payload). Strip both
+// from a deep copy so the bundle honours the exclusion; the stored
+// row is never mutated and the rest of the imported payload (profile
+// fields, positions, educations, skills) is the subject's own data
+// and stays.
+function toExportSafeLinkedInData(linkedinData) {
+	if (!linkedinData || typeof linkedinData !== 'object') return linkedinData;
+	const copy = JSON.parse(JSON.stringify(linkedinData));
+	if (copy.userinfo && typeof copy.userinfo === 'object') delete copy.userinfo.sub;
+	if (copy.me && typeof copy.me === 'object') delete copy.me.id;
+	return copy;
+}
+
 function toExportSafeUser(row) {
 	if (!row) return null;
 	return {
@@ -78,7 +95,7 @@ function toExportSafeUser(row) {
 		company_id: row.company_id,
 		github_username: row.github_username,
 		avatar_url: row.avatar_url,
-		linkedin_data: row.linkedin_data,
+		linkedin_data: toExportSafeLinkedInData(row.linkedin_data),
 		is_paid: row.is_paid,
 		subscription_plan: row.subscription_plan,
 		subscription_status: row.subscription_status,
