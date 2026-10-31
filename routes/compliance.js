@@ -6,6 +6,9 @@ const auditLogService = require('../services/auditLogService');
 const { AuditLogger } = auditLogService;
 const BiasDetection = require('../services/biasDetection');
 const { explainOmniScore, explainDecision } = require('../services/scoreExplainer');
+const biometricCrypto = require('../lib/biometricCrypto');
+const { unpackEnvelope } = require('../lib/r2FrameStore');
+const r2ObserverAudioStore = require('../lib/r2ObserverAudioStore');
 
 // #927: candidate-safe projection of a decision explanation (privacy
 // seat, STOP 1 on #927; S-087 toCandidateSafeReport precedent). The
@@ -148,6 +151,129 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 			targetUserId,
 		]);
 
+		// #2028 item 4 (STOP 1 on #2028; panel: Lex + privacy + Rex):
+		// the biometric-policy §5 promise ("a complete copy of your
+		// biometric data") is honoured by extending this bundle with a
+		// `biometric` section — the subject's own speech measurements,
+		// recording metadata, speaker labels, speaker mappings, label
+		// audit rows and labelling consents. diarization_jobs /
+		// diarization_runs / diarization_metrics_daily are system
+		// records of processing, not the subject's biometric data, and
+		// are never read here (panel ruling; runs can also embed other
+		// participants' names in proposed_mapping).
+		//
+		// Speech measurements: the non-envelope columns are selected
+		// for the bundle; the envelope is fetched in a SEPARATE query
+		// into a variable used only for decryption, so the envelope
+		// bytes can never enter the bundle. Each row is decrypted with
+		// the subject's own DEK (the writer's own path in
+		// lib/observerCapture.js: encryptWithDEK + packEnvelope +
+		// r2ObserverAudioStore.measurementAAD). A row that cannot be
+		// decrypted (e.g. the DEK was crypto-shredded) exports its
+		// metadata with measurements: null and a per-row note — one
+		// bad row never fails the whole export, and raw ciphertext is
+		// never exported as a fallback.
+		const speechMetaData = await pool.query(
+			`SELECT id, interview_session_id, candidate_id, method_version, state, is_test, created_at, updated_at
+       FROM observer_speech_measurements WHERE candidate_id = $1`,
+			[targetUserId],
+		);
+		const speechEnvelopeData = await pool.query(
+			'SELECT id, measurements_envelope FROM observer_speech_measurements WHERE candidate_id = $1',
+			[targetUserId],
+		);
+		const envelopeById = new Map(
+			speechEnvelopeData.rows.map((r) => [r.id, r.measurements_envelope]),
+		);
+		const speechMeasurements = [];
+		for (const row of speechMetaData.rows) {
+			let measurements = null;
+			let note = null;
+			try {
+				const { ciphertext, iv, tag } = unpackEnvelope(envelopeById.get(row.id));
+				const plaintext = await biometricCrypto.decryptWithDEK(
+					ciphertext,
+					iv,
+					tag,
+					targetUserId,
+					r2ObserverAudioStore.measurementAAD(targetUserId, row.interview_session_id),
+				);
+				measurements = JSON.parse(plaintext.toString('utf8'));
+			} catch {
+				note =
+					'Speech measurement values could not be decrypted (the encryption key for this record is unavailable, e.g. it was destroyed on erasure); the record metadata is exported without the values.';
+			}
+			speechMeasurements.push({ ...row, measurements, ...(note ? { note } : {}) });
+		}
+
+		// The subject's recordings, reached via the interview_events
+		// bridge (verified at build: interview_recordings has no
+		// candidate key; interview_recordings.interview_event_id →
+		// interview_events.id, and interview_events.candidate_id is
+		// the subject — migration 126; transcripts then hang off
+		// interview_transcripts.recording_id, migration 128).
+		// Metadata ONLY: storage_path (the encrypted storage
+		// reference) and encryption_key_id are never selected.
+		const recordingData = await pool.query(
+			`SELECT r.id, r.interview_event_id, r.status, r.diarization_status, r.diarization_updated_at,
+              r.started_at, r.stopped_at, r.duration_seconds, r.file_format, r.file_size_bytes,
+              r.retention_expires_at, r.created_at
+       FROM interview_recordings r
+       JOIN interview_events e ON e.id = r.interview_event_id
+       WHERE e.candidate_id = $1`,
+			[targetUserId],
+		);
+		const recordingIds = recordingData.rows.map((r) => r.id);
+
+		const speakerLabelData = await pool.query(
+			`SELECT id, recording_id, speaker_identity, speaker_number, text, start_time_ms, end_time_ms, confidence, created_at
+       FROM interview_transcripts WHERE recording_id = ANY($1::int[])`,
+			[recordingIds],
+		);
+
+		// Speaker mappings name the participants of the subject's
+		// recordings — including OTHER people. A user ID is kept only
+		// when it is the subject's own; anyone else's ID is exported
+		// as null and only their participant_role is kept (privacy
+		// seat: role, not identity).
+		const speakerMappingData = await pool.query(
+			'SELECT * FROM recording_speaker_mappings WHERE recording_id = ANY($1::int[])',
+			[recordingIds],
+		);
+		const speakerMappings = speakerMappingData.rows.map((row) => ({
+			...row,
+			participant_user_id:
+				row.participant_user_id != null && Number(row.participant_user_id) === targetUserId
+					? row.participant_user_id
+					: null,
+			updated_by:
+				row.updated_by != null && Number(row.updated_by) === targetUserId ? row.updated_by : null,
+		}));
+
+		// Label-correction audit rows are exported only where the
+		// subject is a party (from or to); every user ID on the row —
+		// from, to, and the actor — follows the same rule as the
+		// mappings: kept only when it is the subject's own.
+		const speakerAuditData = await pool.query(
+			`SELECT * FROM transcript_speaker_audit
+       WHERE recording_id = ANY($1::int[]) AND (from_user_id = $2 OR to_user_id = $2)`,
+			[recordingIds, targetUserId],
+		);
+		const ownIdOrNull = (v) => (v != null && Number(v) === targetUserId ? v : null);
+		const speakerLabelAudit = speakerAuditData.rows.map((row) => ({
+			...row,
+			from_user_id: ownIdOrNull(row.from_user_id),
+			to_user_id: ownIdOrNull(row.to_user_id),
+			actor_user_id: ownIdOrNull(row.actor_user_id),
+		}));
+
+		// Labelling consents are keyed by user_id (migration 299 —
+		// there is no candidate_id column on event_labelling_consent).
+		const labellingConsentData = await pool.query(
+			'SELECT * FROM event_labelling_consent WHERE user_id = $1',
+			[targetUserId],
+		);
+
 		const exportData = {
 			// #1544: same ?? null hardening as profile (#1540) — an absent
 			// row must export as explicit null, never a dropped key.
@@ -168,6 +294,19 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 			// JSON bundle and read as a gap in the subject's record.
 			profile: profileData.rows[0] ?? null,
 			consents: consentData.rows,
+			// #2028 item 4: biometric section (see the queries above).
+			// Present even when empty — all arrays empty states "we
+			// hold no biometric data for you" explicitly (#1540
+			// explicit-absence pattern), never a dropped key.
+			biometric: {
+				speech_measurements: speechMeasurements,
+				recordings: recordingData.rows,
+				speaker_labels: speakerLabelData.rows,
+				speaker_mappings: speakerMappings,
+				speaker_label_audit: speakerLabelAudit,
+				labelling_consents: labellingConsentData.rows,
+				note: 'Speech measurement values are decrypted with your own encryption key for this export; the encrypted envelope itself is never exported. A measurement whose key is unavailable exports as measurements: null with an explanation on that row. Recordings are exported as metadata only — no storage references or encryption key identifiers. Speaker mappings and label-correction rows concern everyone in your recordings: other participants are identified by role only, and their user IDs are exported as null.',
+			},
 			audit_trail: auditData.rows,
 			exported_at: new Date().toISOString(),
 		};

@@ -247,6 +247,9 @@ describe('#1533 POST /gdpr/export — omniscore re-sourced from the live family 
 		expect(Object.keys(res.body.data).sort()).toEqual([
 			'assessments',
 			'audit_trail',
+			// #2028 item 4: the biometric section joins the bundle
+			// (STOP 1 on #2028) — the pin grows by exactly that key.
+			'biometric',
 			'consents',
 			'exported_at',
 			'interviews',
@@ -269,6 +272,9 @@ describe('#1533 POST /gdpr/export — omniscore re-sourced from the live family 
 		expect(Object.keys(res.body.data).sort()).toEqual([
 			'assessments',
 			'audit_trail',
+			// #2028 item 4: the biometric section joins the bundle
+			// (STOP 1 on #2028) — the pin grows by exactly that key.
+			'biometric',
 			'consents',
 			'exported_at',
 			'interviews',
