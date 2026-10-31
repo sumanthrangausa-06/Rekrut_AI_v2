@@ -58,16 +58,23 @@ describe('S-D15 AC-2/AC-4 — BiometricPolicyPage diarization disclosure', () =>
 
 	it('describes speaker labelling per BR-14: purpose, labels kept with transcript, telemetry check-in', () => {
 		renderPage('biometric');
-		expect(screen.getByText(/Speaker labelling:/i)).toBeInTheDocument();
+		// #1947 item 4 added a §2 purpose bullet also beginning "Speaker
+		// labelling:", so the §1 disclosure is pinned by its fuller string.
+		expect(screen.getByText(/Speaker labelling: to label who said what/i)).toBeInTheDocument();
 		expect(screen.getByText(/kept as part of the transcript/i)).toBeInTheDocument();
 		expect(screen.getByText(/license check-in/i)).toBeInTheDocument();
 		expect(screen.getByText(/no voice templates/i)).toBeInTheDocument();
 	});
 
-	it('§3 clarifier: the 90-day embeddings period does not apply to labelling templates', () => {
+	it('§3 clarifier: no retention period applies to labelling templates; no embeddings are stored (#1947)', () => {
 		renderPage('biometric');
-		expect(screen.getByText(/Speaker-labelling templates are different/i)).toBeInTheDocument();
-		expect(screen.getByText(/does not apply to it/i)).toBeInTheDocument();
+		// #1947: the face/voice-embeddings bullet was DELETED — no template is
+		// ever stored (no INSERT INTO biometric_templates exists), so there is
+		// no 90-day embeddings period for the clarifier to except against.
+		expect(screen.getByText(/Speaker-labelling templates:/i)).toBeInTheDocument();
+		expect(screen.getByText(/no retention period applies to it/i)).toBeInTheDocument();
+		expect(screen.getByText(/We do not store face or voice embeddings/i)).toBeInTheDocument();
+		expect(screen.queryByText(/Face\/voice embeddings \(mathematical templates\)/i)).not.toBeInTheDocument();
 	});
 });
 
