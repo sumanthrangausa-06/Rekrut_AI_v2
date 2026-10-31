@@ -27,6 +27,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { apiCall } from '@/lib/api';
+import { cleanSalaryRange } from '@/lib/salary';
 
 interface Job {
 	id: number;
@@ -364,9 +365,9 @@ export function RecruiterJobsPage() {
 														{job.job_type}
 													</Badge>
 												)}
-												{job.salary_range && (
+												{cleanSalaryRange(job.salary_range) && (
 													<Badge variant="outline" className="text-[10px]">
-														{job.salary_range}
+														{cleanSalaryRange(job.salary_range)}
 													</Badge>
 												)}
 												<span className="flex items-center gap-1">
@@ -621,9 +622,9 @@ function JobDetailPanel({
 							{job.job_type}
 						</Badge>
 					)}
-					{job.salary_range && (
+					{cleanSalaryRange(job.salary_range) && (
 						<Badge variant="outline" className="text-xs shrink-0 max-w-full truncate">
-							{job.salary_range}
+							{cleanSalaryRange(job.salary_range)}
 						</Badge>
 					)}
 					<span className="flex items-center gap-1 max-w-full min-w-0">

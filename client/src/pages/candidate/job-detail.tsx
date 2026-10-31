@@ -899,7 +899,7 @@ export function CandidateJobDetailPage() {
 											<span className="break-words">{job.location}</span>
 										</span>
 									)}
-									{(job.salary_range || job.salary_min || job.salary_max) && (
+									{hasJobSalary(job) && (
 										<span className="flex items-center gap-1 min-w-0">
 											<DollarSign className="h-4 w-4 shrink-0" />
 											<span className="break-words">
