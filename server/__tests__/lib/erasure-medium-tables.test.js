@@ -103,7 +103,8 @@ function mockPhase1WithMedium(overrides = {}) {
 		// the recording_consent redaction must land on a rowCount-0
 		// entry, not the rowCount-1 default below. #2019's panel job
 		// cancellation is one more such query: one more 0 entry.
-		.mockResolvedValueOnce(q([], 0)); // #2019: panel job cancellation (overflow)
+		.mockResolvedValueOnce(q([], 0)) // #2019: panel job cancellation (overflow)
+		.mockResolvedValueOnce(q([], 0)); // #2011 Part A: retained-snapshot COUNT (overflow)
 	// Ledger INSERTs + any overflow.
 	client.query.mockResolvedValue({ rows: [], rowCount: 1 });
 	return client;
