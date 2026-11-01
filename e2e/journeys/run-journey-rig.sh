@@ -8,13 +8,19 @@
 # with NODE_ENV=test therefore waited forever for a server that could
 # never come up ("server did not come up"). This launcher is the ONE
 # canonical rig shape: it pins NODE_ENV=development for the spawned
-# server, waits for a real /health 200, runs the suite, and always
-# kills the server it started. Do not copy-paste new harness shapes —
-# extend this one.
+# server, waits for a real /health 200 reporting the DB connected,
+# runs the suite, and always kills the server it started. Do not
+# copy-paste new harness shapes — extend this one.
 #
 # Usage:
 #   DATABASE_URL=postgresql://postgres@127.0.0.1:<pg-port>/<db> \
 #     ./run-journey-rig.sh [candidate|recruiter|both] [port]
+#
+# Env:
+#   JOURNEY_HEALTH_TRIES — number of /health attempts before giving
+#     up (default 40, i.e. today's window at the 2s poll interval).
+#     An attempt only counts as healthy on HTTP 200 with the body
+#     reporting the DB connected ("connected":true).
 #
 # The database must already exist and be built ONLY by `node migrate.js`
 # (see README.md steps 1–2). The launcher refuses to run the suites
@@ -25,6 +31,18 @@ cd "$(dirname "$0")/../.." || exit 2
 
 SUITE="${1:-both}"
 PORT="${2:-3211}"
+
+# Validate arguments BEFORE the DATABASE_URL check and before any
+# spawn: a typo'd invocation fails instantly instead of booting the
+# server (suite) or burning the whole health window (port).
+case "$SUITE" in
+  candidate|recruiter|both) ;;
+  *) echo "usage: $0 [candidate|recruiter|both] [port]" >&2; exit 2 ;;
+esac
+case "$PORT" in
+  ''|*[!0-9]*) echo "usage: $0 [candidate|recruiter|both] [port]" >&2; exit 2 ;;
+esac
+
 : "${DATABASE_URL:?DATABASE_URL must point at the fresh-install rig database (built by node migrate.js)}"
 
 # Local-rig-only fallbacks so a bare checkout can boot; real service
@@ -36,23 +54,42 @@ LOG="$(mktemp -t journey-rig-server-XXXXXX.log)"
 NODE_ENV=development PORT="$PORT" DATABASE_URL="$DATABASE_URL" \
   node server.js >"$LOG" 2>&1 &
 SERVER_PID=$!
-cleanup() { kill "$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null; }
+cleanup() {
+  kill "$SERVER_PID" 2>/dev/null
+  # Bounded grace (~5s): poll until the server is gone, then SIGKILL
+  # as a backstop so a server that ignores SIGTERM cannot hang us.
+  for _ in $(seq 1 50); do
+    kill -0 "$SERVER_PID" 2>/dev/null || break
+    sleep 0.1
+  done
+  kill -9 "$SERVER_PID" 2>/dev/null
+  wait "$SERVER_PID" 2>/dev/null
+}
 trap cleanup EXIT
 
 echo "[rig] waiting for /health on port $PORT (server log: $LOG)"
 healthy=""
-for _ in $(seq 1 40); do
+for _ in $(seq 1 "${JOURNEY_HEALTH_TRIES:-40}"); do
   if ! kill -0 "$SERVER_PID" 2>/dev/null; then
     echo "[rig] server process exited before becoming healthy — log tail:" >&2
     tail -20 "$LOG" >&2
     exit 2
   fi
-  code="$(curl -s -m 3 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/health" 2>/dev/null)"
-  if [ "$code" = "200" ]; then healthy=1; break; fi
+  # Capture the body, not just the status: /health answers 200 even
+  # when degraded, so health requires the body to report the DB
+  # connected ("connected":true, tolerating a space after the colon).
+  out="$(curl -s -m 3 -w '\n%{http_code}' "http://127.0.0.1:$PORT/health" 2>/dev/null)"
+  code="$(printf '%s' "$out" | tail -n 1)"
+  body="$(printf '%s' "$out" | sed '$d')"
+  if [ "$code" = "200" ]; then
+    case "$body" in
+      *'"connected":true'*|*'"connected": true'*) healthy=1; break ;;
+    esac
+  fi
   sleep 2
 done
 if [ -z "$healthy" ]; then
-  echo "[rig] server did not answer /health 200 in time — log tail:" >&2
+  echo "[rig] server did not answer /health 200 with DB connected in time — log tail:" >&2
   tail -20 "$LOG" >&2
   exit 2
 fi
