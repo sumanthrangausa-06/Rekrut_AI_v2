@@ -599,6 +599,9 @@ describe('#1128 drain aggregate audit (D-8a)', () => {
 			deleted: 1,
 			failed: 1,
 			heldSkips: 0,
+			ownershipSkips: 0,
+			ownershipLookupFailed: 0,
+			ownershipSkipsByFamily: {},
 			bySourceFamily: { file: 1, observer_audio: 1 },
 			byStorageType: { r2: 2 },
 			errorClassCounts: { Error: 1 },
@@ -614,7 +617,15 @@ describe('#1128 drain aggregate audit (D-8a)', () => {
 	test('no pending entries: no audit entry, exact legacy no-op result', async () => {
 		db.query.mockResolvedValueOnce({ rows: [] });
 		const res = await erasureService.deleteErasedStorageFiles(7, {});
-		expect(res).toEqual({ deleted: 0, failed: 0, failures: [], heldSkips: 0 });
+		expect(res).toEqual({
+			deleted: 0,
+			failed: 0,
+			failures: [],
+			heldSkips: 0,
+			ownershipSkips: 0,
+			ownershipLookupFailed: 0,
+			ownershipSkipsByFamily: {},
+		});
 		expect(biometricAudit.logAccess).not.toHaveBeenCalled();
 	});
 });
