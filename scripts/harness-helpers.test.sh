@@ -36,6 +36,14 @@
 #                                           -> HEALTHY, gitCommit=<sha> printed (M7)
 #   s. lane: no bare "${REPO_ARGS[@]}" expansion remains (M5, static:
 #      bash 3.2 empty-array failure is not reproducible on bash >=4.4)
+# Issue #2079 cases (health per-window timeout, cold wake):
+#   t. health: no timeout arg      -> curl called with --max-time 30
+#      (the default is >= the ~22s observed free-tier cold wake),
+#      HEALTHY, exit 0
+#   u. health: timeout arg 5       -> curl called with --max-time 5
+#      (short timeouts still allowed), HEALTHY, exit 0
+#   v. health: timeout=abc         -> exit 2, names timeout + value
+#   w. health: timeout overflow    -> exit 2, names timeout + value
 #
 # Prints PASS/FAIL per case; exits non-zero if any case fails.
 set -u
@@ -61,7 +69,12 @@ mkdir -p "$STUBBIN"
 cat > "$STUBBIN/curl" <<'SH'
 #!/usr/bin/env bash
 fmt=""
-for a in "$@"; do case "$a" in *'%{http_code}'*) fmt=1 ;; esac; done
+prev=""
+for a in "$@"; do
+  case "$a" in *'%{http_code}'*) fmt=1 ;; esac
+  if [ "$prev" = "--max-time" ] && [ -n "${STUB_CURL_LOG:-}" ]; then printf '%s\n' "$a" >> "$STUB_CURL_LOG"; fi
+  prev="$a"
+done
 n=0; [ -f "$STUB_COUNT" ] && n="$(cat "$STUB_COUNT")"
 n=$((n + 1)); printf '%s' "$n" > "$STUB_COUNT"
 line="$(sed -n "${n}p" "$STUB_RESPONSES")"
@@ -101,10 +114,11 @@ esac
 SH
 chmod +x "$STUBBIN/curl" "$STUBBIN/gh"
 
-run_health() { # $1=responses-file $2..=helper args; sets RC, OUT
+run_health() { # $1=responses-file $2..=helper args; sets RC, OUT, CURL_LOG
   local resp="$1"; shift
   printf '0' > "$WORK/count"
-  OUT="$(STUB_COUNT="$WORK/count" STUB_RESPONSES="$resp" PATH="$STUBBIN:$PATH" \
+  CURL_LOG="$WORK/curl.log"; : > "$CURL_LOG"
+  OUT="$(STUB_COUNT="$WORK/count" STUB_RESPONSES="$resp" STUB_CURL_LOG="$CURL_LOG" PATH="$STUBBIN:$PATH" \
     bash "$HEALTH" "$@" 2>&1)"
   RC=$?
 }
@@ -245,6 +259,29 @@ report "$ok" "r commit-field fallback -> HEALTHY, gitCommit=def5678 (rc=$RC out=
 # --- s. lane: bash 3.2-safe REPO_ARGS expansion, no bare form (M5, #2075) -----
 ok=0; { ! grep -qF ' "${REPO_ARGS[@]}"' "$LANE" && grep -qF 'REPO_ARGS[@]+' "$LANE"; } || ok=1
 report "$ok" "s lane REPO_ARGS expansion is bash 3.2-safe (no bare form)"
+
+# --- t. health: default per-window timeout is 30 (#2079) -----------------------
+run_health "$WORK/resp-a" https://example.invalid/health 3 1
+ok=0; { [ "$RC" -eq 0 ] && printf '%s\n' "$OUT" | grep -qx 'HEALTHY' \
+  && [ "$(wc -l < "$CURL_LOG")" -eq 3 ] && ! grep -qv '^30$' "$CURL_LOG"; } || ok=1
+report "$ok" "t health default timeout -> --max-time 30 on all windows, HEALTHY exit 0 (rc=$RC timeouts=$(tr '\n' ',' < "$CURL_LOG"))"
+
+# --- u. health: explicit short timeout 5 is honoured (#2079) -------------------
+run_health "$WORK/resp-a" https://example.invalid/health 3 1 5
+ok=0; { [ "$RC" -eq 0 ] && printf '%s\n' "$OUT" | grep -qx 'HEALTHY' \
+  && [ "$(wc -l < "$CURL_LOG")" -eq 3 ] && ! grep -qv '^5$' "$CURL_LOG"; } || ok=1
+report "$ok" "u health timeout=5 -> --max-time 5 on all windows, HEALTHY exit 0 (rc=$RC timeouts=$(tr '\n' ',' < "$CURL_LOG"))"
+if [ "$ok" -ne 0 ]; then printf '%s\n' "$OUT" | sed 's/^/  out: /'; fi
+
+# --- v. health: timeout=abc -> exit 2 naming timeout + value (#2079) ------------
+run_health "$WORK/resp-a" https://example.invalid/health 3 1 abc
+ok=0; { [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -qi 'timeout' && printf '%s' "$OUT" | grep -qF "'abc'"; } || ok=1
+report "$ok" "v health timeout=abc -> exit 2 naming timeout + bad value (rc=$RC out=$(printf '%s' "$OUT" | head -1))"
+
+# --- w. health: timeout overflow -> exit 2 naming timeout + value (#2079) -------
+run_health "$WORK/resp-a" https://example.invalid/health 3 1 99999999999999999999999999
+ok=0; { [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -qi 'timeout' && printf '%s' "$OUT" | grep -qF "'99999999999999999999999999'"; } || ok=1
+report "$ok" "w health timeout=overflow -> exit 2 naming timeout + bad value (rc=$RC out=$(printf '%s' "$OUT" | head -1))"
 
 if [ "$FAILURES" -eq 0 ]; then echo "ALL PASS"; else echo "$FAILURES case(s) FAILED"; fi
 exit "$FAILURES"

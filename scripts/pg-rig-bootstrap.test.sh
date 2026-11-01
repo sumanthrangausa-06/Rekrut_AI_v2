@@ -12,8 +12,9 @@
 # Every stub call is appended to $STUB_LOG.
 #
 # Cases:
-#   a. missing binaries (empty PG_BIN_DIR, empty HOME) -> exit 3,
-#      output names the missing postgres binaries
+#   a. missing binaries (empty PG_BIN_DIR, empty HOME,
+#      PG_RIG_ONLY_PG_BIN_DIR=1 so no host system PG can leak in)
+#      -> exit 3, output names the missing postgres binaries
 #   b. port=abc            -> exit 2, names the bad value
 #   c. port=overflow       -> exit 2, names the bad value
 #   d. port=70000          -> exit 2, names the bad value
@@ -40,6 +41,18 @@
 #   q. PG_RIG_UID=999999999  -> exit 2 naming the value (M1)
 #   r. helper killed (TERM) between createdb and dropdb -> trap still
 #      drops the throwaway db (M2: dropdb in stub log after kill)
+# Issue #2079 cases:
+#   s. wait=overflow         -> exit 2, names the bad value (M4)
+#   t. uid mismatch (id stub armed with uid_mismatch, gatepg uid 999)
+#      -> exit 1 naming recreate-user + both uids, message does NOT
+#      claim a data-dir-owner check, no pg_ctl call (M4 + M5)
+#   u. PG_VERSION mismatch (data dir 17 vs binary major 18)
+#      -> exit 1 naming check-data-dir + both majors, pid KEPT,
+#      no pg_ctl call (M3)
+#   v. PG_RIG_ONLY_PG_BIN_DIR=1 with an empty PG_BIN_DIR but a fake
+#      postgres findable via PATH -> still exit 3 naming
+#      locate-binaries (M4: case (a) is host-independent by flag,
+#      the PATH/system candidates are not searched)
 #
 # Prints PASS/FAIL per case; exits non-zero if any case fails.
 set -u
@@ -62,6 +75,10 @@ cat > "$STUBBIN/id" <<'SH'
 #!/usr/bin/env bash
 case " $* " in
   *" gatepg "*|*" gatepg")
+    if [ -f "$STUB_STATE/uid_mismatch" ]; then
+      case " $* " in *" -u "*) printf '999\n' ;; *) printf 'uid=999(gatepg) gid=999(gatepg)\n' ;; esac
+      exit 0
+    fi
     if [ -f "$STUB_STATE/user_exists" ]; then
       case " $* " in *" -u "*) printf '1000\n' ;; *) printf 'uid=1000(gatepg) gid=1000(gatepg)\n' ;; esac
       exit 0
@@ -184,7 +201,7 @@ run_helper() { # $1=case dir, rest = helper args; sets RC, OUT. Env passthrough:
 # --- a. missing binaries -> exit 3 naming postgres ----------------------------
 D="$WORK/a"; make_fixture "$D"
 OUT="$(STUB_STATE="$D/state" STUB_LOG="$D/stub.log" HOME="$D/nohome" \
-  PG_BIN_DIR="$D/emptybin" PG_RIG_HOME="$D/rig" PG_RIG_REPO_DIR="$D/repo" PG_RIG_TRAVERSE_DIR="$D/trav" \
+  PG_BIN_DIR="$D/emptybin" PG_RIG_ONLY_PG_BIN_DIR=1 PG_RIG_HOME="$D/rig" PG_RIG_REPO_DIR="$D/repo" PG_RIG_TRAVERSE_DIR="$D/trav" \
   PATH="$STUBBIN:/usr/bin:/bin" bash "$HELPER" 55442 5 2>&1)"; RC=$?
 ok=0; { [ "$RC" -eq 3 ] && printf '%s' "$OUT" | grep -qi 'postgres' && printf '%s' "$OUT" | grep -q 'locate-binaries'; } || ok=1
 report "$ok" "a missing binaries -> exit 3 naming missing piece (rc=$RC out=$(printf '%s' "$OUT" | head -1))"
@@ -325,6 +342,41 @@ wait "$rpid" 2>/dev/null; sleep 0.5
 ok=0; { grep -q '^createdb' "$D/stub.log" && grep -q '^dropdb' "$D/stub.log"; } || ok=1
 report "$ok" "r killed mid self-check -> trap drops throwaway db (dropdb in log)"
 if [ "$ok" -ne 0 ]; then cat "$D/out.txt" 2>/dev/null | sed 's/^/  out: /'; cat "$D/stub.log" | sed 's/^/  log: /'; fi
+
+# --- s. wait overflow -> exit 2 naming value (M4) --------------------------------
+D="$WORK/s"; make_fixture "$D"; run_helper "$D" 55442 99999999999999999999999999
+ok=0; { [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -qF "'99999999999999999999999999'"; } || ok=1
+report "$ok" "s wait=overflow -> exit 2 naming bad value (rc=$RC)"
+if [ "$ok" -ne 0 ]; then printf '%s\n' "$OUT" | sed 's/^/  out: /'; fi
+
+# --- t. uid mismatch -> exit 1 naming recreate-user, no data-dir-owner claim (M4+M5) -
+D="$WORK/t"; make_fixture "$D"; touch "$D/state/uid_mismatch"
+run_helper "$D" 55442 5
+ok=0; { [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q 'recreate-user' \
+  && printf '%s' "$OUT" | grep -q '999' && printf '%s' "$OUT" | grep -q '1000' \
+  && ! printf '%s' "$OUT" | grep -qi 'data dir owner' \
+  && ! grep -q '^pg_ctl' "$D/stub.log"; } || ok=1
+report "$ok" "t uid mismatch -> exit 1 naming recreate-user + uids, no data-dir-owner claim, no pg_ctl (rc=$RC)"
+if [ "$ok" -ne 0 ]; then printf '%s\n' "$OUT" | sed 's/^/  out: /'; cat "$D/stub.log" | sed 's/^/  log: /'; fi
+
+# --- u. PG_VERSION mismatch (17 vs binary 18) -> exit 1 naming check-data-dir (M3) -----
+D="$WORK/u"; make_fixture "$D"; printf '17\n' > "$D/rig/data/PG_VERSION"
+run_helper "$D" 55442 5
+ok=0; { [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q 'check-data-dir' \
+  && printf '%s' "$OUT" | grep -q '17' && printf '%s' "$OUT" | grep -q '18' \
+  && [ -f "$D/rig/data/postmaster.pid" ] \
+  && ! grep -q '^pg_ctl' "$D/stub.log"; } || ok=1
+report "$ok" "u PG_VERSION 17 vs binary 18 -> exit 1 naming check-data-dir + both majors, pid kept, no pg_ctl (rc=$RC)"
+if [ "$ok" -ne 0 ]; then printf '%s\n' "$OUT" | sed 's/^/  out: /'; cat "$D/stub.log" | sed 's/^/  log: /'; fi
+
+# --- v. ONLY_PG_BIN_DIR set, PATH postgres ignored -> exit 3 (M4) -----------------------
+D="$WORK/v"; make_fixture "$D"
+OUT="$(STUB_STATE="$D/state" STUB_LOG="$D/stub.log" HOME="$D/nohome" \
+  PG_BIN_DIR="$D/emptybin" PG_RIG_ONLY_PG_BIN_DIR=1 PG_RIG_HOME="$D/rig" PG_RIG_REPO_DIR="$D/repo" PG_RIG_TRAVERSE_DIR="$D/trav" \
+  PATH="$STUBBIN:$PGBIN:/usr/bin:/bin" bash "$HELPER" 55442 5 2>&1)"; RC=$?
+ok=0; { [ "$RC" -eq 3 ] && printf '%s' "$OUT" | grep -q 'locate-binaries'; } || ok=1
+report "$ok" "v PG_RIG_ONLY_PG_BIN_DIR=1 + empty PG_BIN_DIR -> exit 3 despite PATH postgres (rc=$RC)"
+if [ "$ok" -ne 0 ]; then printf '%s\n' "$OUT" | sed 's/^/  out: /'; fi
 
 echo
 if [ "$FAILURES" -eq 0 ]; then echo "ALL PASS"; else echo "$FAILURES FAILURE(S)"; exit 1; fi
