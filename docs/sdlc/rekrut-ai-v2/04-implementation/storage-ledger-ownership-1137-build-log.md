@@ -128,6 +128,28 @@ it (proven in the integration suite).
   plants `pending`/attempts 0, own rows `deleted`, B's rows
   untouched); after B's referencing rows were removed, the deferred
   entries deleted.
+- **Independent security review** (separate reviewer, not the
+  builder; posted on #1137): **APPROVE WITH NOTES**, no blockers, no
+  HIGH/CRITICAL. Disposition of its notes:
+  - MEDIUM (pre-existing, not introduced here): the drain's outcome
+    UPDATE is not status/user-keyed and the drain takes no per-user
+    advisory lock — a concurrent double-drain is today saved only by
+    `deleteFile` idempotency. Out of this lane's scope; recommended
+    as a follow-up hardening issue for Suga to file.
+  - LOW (accepted trade-off): `recording_objects` matching includes
+    the bare object key, so an identical bare key under a different
+    family prefix would false-SKIP. Fail-closed direction only (a
+    deferral, never a wrong delete); accepted.
+  - LOW (did not reproduce): the reviewer reported
+    `erasureResultSanitizer` drops `ownershipSkipsByFamily` from
+    HTTP responses. First-hand reproduction by Nova after the
+    review: `sanitizeErasureResult` passes `ownershipSkips`,
+    `ownershipLookupFailed`, and `ownershipSkipsByFamily` through
+    unchanged. The durable disclosure (drain audit metadata) is
+    unaffected either way.
+  - NOTE: mixed-case provider spellings fall to
+    `provider_not_configured` in `deleteFile` — pre-existing
+    behaviour, fail-safe direction.
 - **Regression:** erasure-adjacent suites — 420 passed, 2 failed.
   The 2 failures (`resume-family-erasure` Phase-1 tests) plus
   `erasure-gap-a` (3) and `embeddings-erasure` (5) failures were
