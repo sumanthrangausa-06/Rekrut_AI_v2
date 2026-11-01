@@ -42,6 +42,26 @@ esac
 case "$PORT" in
   ''|*[!0-9]*) echo "usage: $0 [candidate|recruiter|both] [port]" >&2; exit 2 ;;
 esac
+# Range check (issue #2071): digits alone are not enough — PORT=0 binds
+# an ephemeral port and burns the whole health window before failing.
+# Strip leading zeros first so the -lt/-gt tests read the value as
+# plain decimal and a long digit string cannot overflow them.
+PORT_NUM="${PORT#${PORT%%[!0]*}}"
+PORT_NUM="${PORT_NUM:-0}"
+if [ "${#PORT_NUM}" -gt 5 ] || [ "$PORT_NUM" -lt 1 ] || [ "$PORT_NUM" -gt 65535 ]; then
+  echo "usage: $0 [candidate|recruiter|both] [port] — port must be 1-65535 (got '$PORT')" >&2; exit 2
+fi
+# JOURNEY_HEALTH_TRIES check (issue #2071): an unvalidated non-numeric
+# value made seq fail, the health loop ran zero times, and the launcher
+# blamed the server ("did not answer in time") instead of the typo.
+JOURNEY_HEALTH_TRIES="${JOURNEY_HEALTH_TRIES:-40}"
+case "$JOURNEY_HEALTH_TRIES" in
+  ''|*[!0-9]*) echo "usage: JOURNEY_HEALTH_TRIES must be a positive integer (got '$JOURNEY_HEALTH_TRIES')" >&2; exit 2 ;;
+esac
+TRIES_NUM="${JOURNEY_HEALTH_TRIES#${JOURNEY_HEALTH_TRIES%%[!0]*}}"
+if [ -z "$TRIES_NUM" ]; then
+  echo "usage: JOURNEY_HEALTH_TRIES must be a positive integer (got '$JOURNEY_HEALTH_TRIES')" >&2; exit 2
+fi
 
 : "${DATABASE_URL:?DATABASE_URL must point at the fresh-install rig database (built by node migrate.js)}"
 
