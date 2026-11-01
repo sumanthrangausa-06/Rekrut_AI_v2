@@ -192,7 +192,12 @@ describe('#1137 drain ownership check', () => {
 			entry({ id: 2, source_family: 'frame', file_url: '/api/files/r2%2Fframes%2Fvideo-frame-abc.bin' }),
 			entry({ id: 3, source_family: 'livekit_recording', file_url: '/api/files/r2%2Frecordings%2Fsession.enc' }),
 		];
-		S.referencedForms = new Set(['/api/files/r2/observer-audio/chunk.bin', '/api/files/r2/frames/video-frame-abc.bin']);
+		// Every family's canonical form is seeded (#2066 item 4): if a
+		// family ever drops out of CATALOGUE_SOURCE_FAMILIES, its entry
+		// would meet a surviving reference here and be ownership-skipped,
+		// failing this test — the exemption is pinned per family, not
+		// just for the families whose forms happen to be listed.
+		S.referencedForms = new Set(['/api/files/r2/observer-audio/chunk.bin', '/api/files/r2/frames/video-frame-abc.bin', '/api/files/r2/recordings/session.enc']);
 		const res = await erasureService.deleteErasedStorageFiles(7);
 		expect(res.deleted).toBe(3);
 		expect(res.ownershipSkips).toBe(0);
