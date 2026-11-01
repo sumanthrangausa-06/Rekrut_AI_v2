@@ -160,7 +160,15 @@ describe('#1171 bounded retry of failed ledger rows', () => {
 	test('a failed row AT the attempt bound is never retried again (dead letter preserved for disposition)', async () => {
 		S.entries = [entry({ attempts: erasureService.STORAGE_DELETION_MAX_ATTEMPTS || 5 })];
 		const res = await erasureService.deleteErasedStorageFiles(7, {});
-		expect(res).toEqual({ deleted: 0, failed: 0, failures: [], heldSkips: 0 });
+		expect(res).toEqual({
+			deleted: 0,
+			failed: 0,
+			failures: [],
+			heldSkips: 0,
+			ownershipSkips: 0,
+			ownershipLookupFailed: 0,
+			ownershipSkipsByFamily: {},
+		});
 		expect(deleteFile).not.toHaveBeenCalled();
 		expect(S.entries[0].status).toBe('failed');
 	});

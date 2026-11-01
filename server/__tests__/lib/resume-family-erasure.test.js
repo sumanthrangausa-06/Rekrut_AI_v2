@@ -217,6 +217,8 @@ describe('S-076 deleteErasedStorageFiles — Phase 2 (ledger-driven)', () => {
 				rows: [{ id: 1, file_url: '/api/files/r2/cv/a.pdf', storage_type: 'r2' }],
 			}) // SELECT pending
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
+			.mockResolvedValueOnce({ rows: [{ still_referenced: false }], rowCount: 1 }) // #1137: ownership check (no surviving reference)
+			.mockResolvedValueOnce({ rows: [{ reg: null }], rowCount: 1 }) // #1137: documents table absent on fresh installs
 			.mockResolvedValueOnce({ rowCount: 1 }); // UPDATE status
 		fileStorage.deleteFile.mockResolvedValue({ deleted: true });
 		biometricAudit.logAccess.mockResolvedValue({ id: 1 });
@@ -257,7 +259,15 @@ describe('S-076 deleteErasedStorageFiles — Phase 2 (ledger-driven)', () => {
 
 		const result = await erasureService.deleteErasedStorageFiles(7, {});
 
-		expect(result).toEqual({ deleted: 0, failed: 0, failures: [], heldSkips: 0 });
+		expect(result).toEqual({
+			deleted: 0,
+			failed: 0,
+			failures: [],
+			heldSkips: 0,
+			ownershipSkips: 0,
+			ownershipLookupFailed: 0,
+			ownershipSkipsByFamily: {},
+		});
 		expect(fileStorage.deleteFile).not.toHaveBeenCalled();
 	});
 
@@ -268,6 +278,8 @@ describe('S-076 deleteErasedStorageFiles — Phase 2 (ledger-driven)', () => {
 				rows: [{ id: 3, file_url: '/api/files/r2/cv/dead.pdf', storage_type: 'r2' }],
 			})
 			.mockResolvedValueOnce({ rows: [], rowCount: 0 }) // #799: legal-hold check (no hold)
+			.mockResolvedValueOnce({ rows: [{ still_referenced: false }], rowCount: 1 }) // #1137: ownership check (no surviving reference)
+			.mockResolvedValueOnce({ rows: [{ reg: null }], rowCount: 1 }) // #1137: documents table absent on fresh installs
 			.mockResolvedValueOnce({ rowCount: 1 }); // UPDATE status=failed
 		fileStorage.deleteFile.mockRejectedValue(new Error('storage down'));
 		biometricAudit.logAccess.mockResolvedValue({ id: 1 });

@@ -114,7 +114,15 @@ describe('#1395 deleteErasedStorageFiles — deliberate post-commit pool drain (
 			),
 		);
 		const res = await erasureService.deleteErasedStorageFiles(7, {});
-		expect(res).toEqual({ deleted: 1, failed: 0, failures: [], heldSkips: 0 });
+		expect(res).toEqual({
+			deleted: 1,
+			failed: 0,
+			failures: [],
+			heldSkips: 0,
+			ownershipSkips: 0,
+			ownershipLookupFailed: 0,
+			ownershipSkipsByFamily: {},
+		});
 		expect(updates).toEqual([{ status: 'deleted', id: 1 }]);
 	});
 
