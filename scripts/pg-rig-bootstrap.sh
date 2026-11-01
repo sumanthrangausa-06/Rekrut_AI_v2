@@ -41,6 +41,9 @@
 #   PG_BIN_DIR, PG_RIG_HOME, PG_RIG_USER (gatepg), PG_RIG_UID (1000),
 #   PG_RIG_TRAVERSE_DIR (/home/hatch), PG_RIG_REPO_DIR (repo root —
 #   parent of this script's dir), PG_RIG_LOG (default $RIG_HOME/pg.log)
+#   PG_RIG_ONLY_PG_BIN_DIR=1 — search ONLY $PG_BIN_DIR: no PATH
+#   lookup, no extraction-tree/system candidates. Opt-in isolation
+#   (tests, deterministic operator setups); default off (#2079 M4).
 #
 # Exit: 0 = rig ready (ALREADY-RUNNING or BOOTSTRAPPED),
 #       1 = a named step failed, 2 = bad arguments,
@@ -113,15 +116,17 @@ fail() { # $1=step $2=message
 # --- step locate-binaries ------------------------------------------------------
 candidates=()
 [ -n "${PG_BIN_DIR:-}" ] && candidates+=("$PG_BIN_DIR")
-path_postgres="$(command -v postgres 2>/dev/null)"
-[ -n "$path_postgres" ] && candidates+=("$(dirname "$path_postgres")")
-candidates+=("$HOME/workspace/pgfull/root/usr/lib/postgresql/18/bin")
-for d in "$HOME"/workspace/pgfull/root/usr/lib/postgresql/*/bin \
-         /tmp/pgrig*/root/usr/lib/postgresql/*/bin \
-         /usr/lib/postgresql/*/bin; do
-  [ -d "$d" ] && candidates+=("$d")
-done
-candidates+=("/usr/local/pg-build/bin" "/home/pguser/pgbin")
+if [ "${PG_RIG_ONLY_PG_BIN_DIR:-}" != "1" ]; then
+  path_postgres="$(command -v postgres 2>/dev/null)"
+  [ -n "$path_postgres" ] && candidates+=("$(dirname "$path_postgres")")
+  candidates+=("$HOME/workspace/pgfull/root/usr/lib/postgresql/18/bin")
+  for d in "$HOME"/workspace/pgfull/root/usr/lib/postgresql/*/bin \
+           /tmp/pgrig*/root/usr/lib/postgresql/*/bin \
+           /usr/lib/postgresql/*/bin; do
+    [ -d "$d" ] && candidates+=("$d")
+  done
+  candidates+=("/usr/local/pg-build/bin" "/home/pguser/pgbin")
+fi
 
 PGBIN=""
 PG_LD=""
@@ -198,7 +203,7 @@ else
   [ -n "$actual_uid" ] || fail "recreate-user" "$RIG_USER still not resolvable after useradd"
 fi
 if [ "$actual_uid" != "$RIG_UID" ]; then
-  fail "recreate-user" "$RIG_USER uid is $actual_uid, expected $RIG_UID (the data dir owner); refusing to start a cluster the user cannot read"
+  fail "recreate-user" "$RIG_USER uid is $actual_uid, expected $RIG_UID (the configured PG_RIG_UID); refusing to start a cluster under the wrong uid"
 fi
 
 # --- step ensure-traverse --------------------------------------------------------------
@@ -218,6 +223,16 @@ esac
 # --- step check-data-dir + remove-stale-pid -----------------------------------------------
 [ -f "$DATA_DIR/PG_VERSION" ] \
   || fail "check-data-dir" "missing piece: $DATA_DIR/PG_VERSION — the persistent cluster data dir is absent; this helper recovers it, it does not initdb a new one"
+# M3 (#2079): reconcile the data dir's major version with the located
+# binaries' major — a PG 17 data dir must not be started by PG 18
+# binaries (or vice versa); fail here, named and at the step that
+# owns the check, instead of later inside pg_ctl.
+data_major="$(tr -d '[:space:]' < "$DATA_DIR/PG_VERSION" 2>/dev/null)"
+bin_major="$(printf '%s' "$PG_VERSION_OUT" | sed -n 's/.*PostgreSQL) \([0-9][0-9]*\).*/\1/p' | head -n 1)"
+if [ -z "$bin_major" ] || [ "$data_major" != "$bin_major" ]; then
+  fail "check-data-dir" "PG_VERSION in $DATA_DIR is '${data_major:-<empty>}', but the located binaries report major '${bin_major:-unknown}' ($PG_VERSION_OUT); refusing to start a cluster whose data dir major version does not match the binaries"
+fi
+echo "step check-data-dir: PG_VERSION $data_major matches located binary major $bin_major"
 pid_file="$DATA_DIR/postmaster.pid"
 if [ -f "$pid_file" ]; then
   stale_pid="$(head -n 1 "$pid_file" 2>/dev/null)"

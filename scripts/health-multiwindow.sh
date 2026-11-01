@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 # Multi-window health claim helper (HL-010, issue #2073).
 #
-# Usage: health-multiwindow.sh <health-url> [windows=3] [interval-sec=5]
+# Usage: health-multiwindow.sh <health-url> [windows=3] [interval-sec=5] [timeout-sec=30]
 #
 # Samples the URL across N windows and prints every sample (HTTP code,
 # gitCommit and db status parsed from the body when present). Prints
 # HEALTHY only if ALL windows are HTTP 200 with db connected (when a
 # db field exists in the body); otherwise prints NOT-HEALTHY.
+# timeout-sec is the per-window curl timeout: default 30s, above the
+# ~22s cold wake observed on a sleeping free-tier service (#2079) —
+# the old fixed 15s sampled a sleeping-but-healthy service as 000 in
+# every window. Pass a short value for fast local checks.
 # Exit: 0 = HEALTHY, 1 = NOT-HEALTHY, 2 = bad arguments.
 set -u
 
 usage() {
-  echo "Usage: health-multiwindow.sh <health-url> [windows=3] [interval-sec=5]" >&2
+  echo "Usage: health-multiwindow.sh <health-url> [windows=3] [interval-sec=5] [timeout-sec=30]" >&2
 }
 
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
@@ -21,12 +25,13 @@ fi
 url="${1:-}"
 windows="${2:-3}"
 interval="${3:-5}"
+timeout="${4:-30}"
 
 if [ -z "$url" ]; then
   echo "error: missing health-url" >&2; usage; exit 2
 fi
-if [ "$#" -gt 3 ]; then
-  echo "error: unexpected argument '$4'" >&2; usage; exit 2
+if [ "$#" -gt 4 ]; then
+  echo "error: unexpected argument '$5'" >&2; usage; exit 2
 fi
 case "$windows" in
   ''|*[!0-9]*)
@@ -51,11 +56,21 @@ fi
 if [ "$interval" -lt 1 ]; then
   echo "error: interval-sec must be a positive integer, got '$interval'" >&2; usage; exit 2
 fi
+case "$timeout" in
+  ''|*[!0-9]*)
+    echo "error: timeout-sec must be a positive integer, got '$timeout'" >&2; usage; exit 2 ;;
+esac
+if [ "${#timeout}" -gt 9 ]; then
+  echo "error: timeout-sec must be a positive integer, got '$timeout'" >&2; usage; exit 2
+fi
+if [ "$timeout" -lt 1 ] || [ "$timeout" -gt 300 ]; then
+  echo "error: timeout-sec must be between 1 and 300, got '$timeout'" >&2; usage; exit 2
+fi
 
 healthy=1
 i=1
 while [ "$i" -le "$windows" ]; do
-  resp="$(curl -sS --max-time 15 -w $'\n%{http_code}' "$url" 2>/dev/null)"
+  resp="$(curl -sS --max-time "$timeout" -w $'\n%{http_code}' "$url" 2>/dev/null)"
   code="$(printf '%s\n' "$resp" | tail -n 1)"
   body="$(printf '%s\n' "$resp" | sed '$d')"
   case "$code" in
