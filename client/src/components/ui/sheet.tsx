@@ -19,6 +19,13 @@ const SheetContext = React.createContext<{ onClose: () => void; titleId: string 
 const FOCUSABLE_SELECTOR =
 	'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false"])';
 
+// #1883 item 1: module-level stack of currently open Sheet panels, in
+// open order — the LAST entry is the topmost sheet. Only the topmost
+// sheet's keydown handler acts and only it owns focus on close, so two
+// stacked sheets never close together, fight over Tab, or throw focus
+// out of the sheet that is still open.
+const openSheetStack: HTMLDivElement[] = [];
+
 // #1883 item 3: a selector cannot express every "not actually focusable"
 // case, so the queried list is filtered to what a keyboard user can reach:
 // hidden inputs, disabled controls (including controls disabled by an
@@ -79,8 +86,13 @@ function Sheet({ open, onOpenChange, children, side = 'right', className }: Shee
 				isFocusableReachable(el, panel),
 			);
 		(focusables()[0] ?? panel).focus();
+		openSheetStack.push(panel);
 
 		const handleKeyDown = (event: KeyboardEvent) => {
+			// #1883 item 1: only the topmost open sheet handles keys; a
+			// sheet underneath returns immediately and leaves the event
+			// to the sheet on top.
+			if (openSheetStack[openSheetStack.length - 1] !== panel) return;
 			if (event.key === 'Escape') {
 				// #1883 item 2: an inner control that already consumed Escape
 				// (preventDefault) owns this keypress — don't also close.
@@ -113,7 +125,20 @@ function Sheet({ open, onOpenChange, children, side = 'right', className }: Shee
 		document.addEventListener('keydown', handleKeyDown);
 		return () => {
 			document.removeEventListener('keydown', handleKeyDown);
-			if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus();
+			const stackIndex = openSheetStack.indexOf(panel);
+			if (stackIndex !== -1) openSheetStack.splice(stackIndex, 1);
+			const remainingTop = openSheetStack[openSheetStack.length - 1];
+			if (remainingTop) {
+				// #1883 item 1: another sheet is still open — focus lands
+				// inside the remaining top sheet, never on an element
+				// outside it, wherever this sheet captured focus from.
+				const remainingFocusables = Array.from(
+					remainingTop.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+				).filter((el) => isFocusableReachable(el, remainingTop));
+				(remainingFocusables[0] ?? remainingTop).focus();
+			} else if (previouslyFocused && document.contains(previouslyFocused)) {
+				previouslyFocused.focus();
+			}
 		};
 	}, [open]);
 
