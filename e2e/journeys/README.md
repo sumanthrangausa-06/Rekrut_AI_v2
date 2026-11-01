@@ -60,6 +60,13 @@ DATABASE_URL=postgresql://postgres@127.0.0.1:<pg-port>/journeybaseline \
 ```
 
 Notes:
+- The launcher's health wait is bounded by `JOURNEY_HEALTH_TRIES`
+  (default 40 attempts at the 2s poll interval); an attempt counts as
+  healthy only on HTTP 200 with the `/health` body reporting the DB
+  connected.
+- Suite evidence JSON (`candidate-evidence.json` /
+  `recruiter-evidence.json`) lands in the repo root (the launcher's
+  working directory) unless `JOURNEY_OUT` is set.
 - Auth endpoints are rate-limited (5 strict hits / 15 min / IP). A suite
   run uses 3; back-to-back runs of both suites can exhaust the window —
   the scripts retry a 429 after a 70s pause, and a fully clean baseline
