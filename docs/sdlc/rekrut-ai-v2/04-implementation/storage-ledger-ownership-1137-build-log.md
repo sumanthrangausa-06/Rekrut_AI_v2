@@ -40,8 +40,9 @@ per-entry legal-hold consult. New helper `lib/storageOwnership.js`:
   `deleteFile` itself applies; unaddressable URLs keep the legacy
   soft-skip path because `deleteFile` can never delete them), the
   drain asks whether **any surviving database row still references
-  the object**: exact equality only (never LIKE), comparing both the
-  raw stored spelling and the canonical fully-decoded spelling (plus
+  the object**: exact equality only (never LIKE), comparing all
+  spellings of the object — raw stored, canonical fully-decoded,
+  and whole-key encoded (plus
   decoded key forms for `recording_objects.object_key`), across
   `cv_uploads.file_url`, `parsed_resumes.file_url`,
   `candidate_profiles.resume_url/photo_url`, `users.avatar_url`,
@@ -110,7 +111,8 @@ it (proven in the integration suite).
 ## Evidence
 
 - **Red first:** new unit suite on pristine drain code — 7 failed /
-  3 passed (plant deleted by the old code). After fix: **10/10**.
+  3 passed (plant deleted by the old code). After fix: **11/11**
+  (incl. the review C-1 quadrant added on the fix round).
 - **Unit suite:** `server/__tests__/lib/erasure-storage-ownership-1137.test.js`
   — cross-tenant plant skipped + disclosed, `%2F` encoding-variant
   plant caught, own object deleted, lookup failure fails closed,
@@ -129,27 +131,38 @@ it (proven in the integration suite).
   untouched); after B's referencing rows were removed, the deferred
   entries deleted.
 - **Independent security review** (separate reviewer, not the
-  builder; posted on #1137): **APPROVE WITH NOTES**, no blockers, no
-  HIGH/CRITICAL. Disposition of its notes:
-  - MEDIUM (pre-existing, not introduced here): the drain's outcome
-    UPDATE is not status/user-keyed and the drain takes no per-user
-    advisory lock — a concurrent double-drain is today saved only by
-    `deleteFile` idempotency. Out of this lane's scope; recommended
-    as a follow-up hardening issue for Suga to file.
-  - LOW (accepted trade-off): `recording_objects` matching includes
-    the bare object key, so an identical bare key under a different
-    family prefix would false-SKIP. Fail-closed direction only (a
-    deferral, never a wrong delete); accepted.
-  - LOW (did not reproduce): the reviewer reported
-    `erasureResultSanitizer` drops `ownershipSkipsByFamily` from
-    HTTP responses. First-hand reproduction by Nova after the
-    review: `sanitizeErasureResult` passes `ownershipSkips`,
-    `ownershipLookupFailed`, and `ownershipSkipsByFamily` through
-    unchanged. The durable disclosure (drain audit metadata) is
-    unaffected either way.
-  - NOTE: mixed-case provider spellings fall to
-    `provider_not_configured` in `deleteFile` — pre-existing
-    behaviour, fail-safe direction.
+  builder; posted on #1137 as comment 6551147413): **BLOCK** — one
+  CRITICAL, reproduced first-hand by Nova before fixing:
+  - **C-1 (fixed in this PR):** the comparison set was {raw,
+    decoded}. For a *plain* plant both forms are the plain string,
+    while the dominant real writer stores the whole-key **encoded**
+    spelling (`uploadFile` returns `/api/files/<encodeURIComponent
+    (key)>`, stored verbatim into cv_uploads/parsed_resumes/etc.) —
+    so the headline plant case still deleted the victim's object.
+    The first suites masked it: they pinned only the
+    encoded-ledger × plain-reference quadrant and seeded victim
+    rows in the unrealistic plain spelling (review H-1). Fix:
+    `storageUrlForms` now also derives `encodedUrl`, compared in
+    every `IN (…)` list, the JSONB branch, and the documents query;
+    the C-1 quadrant (plain plant × encoded reference) is now
+    pinned in the unit suite, and the integration suite seeds
+    victim rows in the encoded spelling the real writers produce.
+  - Notes N-1..N-4 (non-blocking): the `storageUrlForms == null`
+    fall-through wording was corrected (trailing-slash keys error
+    to `failed` in `deleteFile` without deleting anything);
+    `documents` NULL-`user_id` rows can't count as surviving (all
+    current writers set it from auth — residual); `video_urls`
+    object elements match via `->> 'url'` only (consistent with
+    observed GAP-C shapes); the `livekit_recording` exemption is
+    now exercised by the unit suite.
+  - **Record correction:** an earlier checkpoint on #1137 and the
+    first version of this log reported this review as "APPROVE
+    WITH NOTES" with a comment id (6550951449) that **does not
+    exist on the issue** — that was a premature interim reviewer
+    report, accepted without first-hand verification (HL-007
+    breach by Nova, owned here). The only review comment on #1137
+    is the BLOCK (6551147413); the sanitizer note in that interim
+    report was never the reviewer's and is withdrawn.
 - **Regression:** erasure-adjacent suites — 420 passed, 2 failed.
   The 2 failures (`resume-family-erasure` Phase-1 tests) plus
   `erasure-gap-a` (3) and `embeddings-erasure` (5) failures were

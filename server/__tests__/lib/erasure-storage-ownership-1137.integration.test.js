@@ -41,7 +41,16 @@ const describeIfDb = DB_URL ? describe : describe.skip;
 jest.setTimeout(120000);
 
 const B_URL = '/api/files/b2/resumes/1720000000000-abc123-victim-cv.pdf';
+// The spelling the REAL writers store: uploadFile returns
+// /api/files/<encodeURIComponent(key)> and routes store it verbatim
+// into cv_uploads / parsed_resumes. Victim rows are seeded in THIS
+// form so the plain-plant x encoded-reference quadrant (review C-1
+// on #1137) is the one under test.
+const B_URL_STORED =
+	'/api/files/b2%2Fresumes%2F1720000000000-abc123-victim-cv.pdf';
 const B2_URL = '/api/files/b2/resumes/1720000002000-ghi789-victim2-cv.pdf';
+const B2_URL_STORED =
+	'/api/files/b2%2Fresumes%2F1720000002000-ghi789-victim2-cv.pdf';
 const B2_URL_ENCODED = '/api/files/b2%2Fresumes%2F1720000002000-ghi789-victim2-cv.pdf';
 const A_URL = '/api/files/b2/resumes/1720000001000-def456-own-cv.pdf';
 const OA_URL = '/api/files/b2%2Fobserver-audio%2Fchunk-a.bin';
@@ -98,8 +107,8 @@ describeIfDb('#1137 storage ownership (real DB + real drain)', () => {
 		);
 		userA = ua.rows[0].id;
 		userB = ub.rows[0].id;
-		await pool.query('INSERT INTO cv_uploads (user_id, file_url) VALUES ($1, $2)', [userB, B_URL]);
-		await pool.query('INSERT INTO parsed_resumes (user_id, file_url) VALUES ($1, $2)', [userB, B2_URL]);
+		await pool.query('INSERT INTO cv_uploads (user_id, file_url) VALUES ($1, $2)', [userB, B_URL_STORED]);
+		await pool.query('INSERT INTO parsed_resumes (user_id, file_url) VALUES ($1, $2)', [userB, B2_URL_STORED]);
 		const ledger = async (fileUrl, family) => {
 			await pool.query(
 				`INSERT INTO pending_storage_deletions (user_id, file_url, storage_type, status, source_family)

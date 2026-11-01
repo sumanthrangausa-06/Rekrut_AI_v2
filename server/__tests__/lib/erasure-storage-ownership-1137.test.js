@@ -147,12 +147,29 @@ describe('#1137 drain ownership check', () => {
 
 	test('encoding-variant plant is caught via the fully-decoded spelling', async () => {
 		// Ledger stores the %2F-spelled form; the surviving reference is
-		// the canonical decoded form (and vice versa — both spellings
-		// are compared by construction of the params).
+		// the canonical decoded form.
 		S.entries = [entry({ file_url: '/api/files/r2%2Fresumes%2F1720000000000-abc123-victim-cv.pdf' })];
 		S.referencedForms = new Set([B_URL]);
 		const res = await erasureService.deleteErasedStorageFiles(7);
 		expect(deleteFile).not.toHaveBeenCalled();
+		expect(res.ownershipSkips).toBe(1);
+		expect(S.entries[0].status).toBe('pending');
+	});
+
+	test('C-1 quadrant: PLAIN plant × ENCODED surviving reference (the dominant real writer form) is caught', async () => {
+		// uploadFile returns /api/files/<encodeURIComponent(key)> and
+		// that spelling is stored verbatim in the victim's cv_uploads
+		// row; the plant is the plain spelling from the issue text.
+		// Before the encodedUrl comparison form existed, raw ===
+		// canonicalUrl for a plain entry and this plant DELETED the
+		// victim's object (independent review C-1, reproduced).
+		const B_URL_ENCODED =
+			'/api/files/r2%2Fresumes%2F1720000000000-abc123-victim-cv.pdf';
+		S.entries = [entry({ file_url: B_URL })];
+		S.referencedForms = new Set([B_URL_ENCODED]);
+		const res = await erasureService.deleteErasedStorageFiles(7);
+		expect(deleteFile).not.toHaveBeenCalled();
+		expect(res.deleted).toBe(0);
 		expect(res.ownershipSkips).toBe(1);
 		expect(S.entries[0].status).toBe('pending');
 	});
@@ -173,10 +190,11 @@ describe('#1137 drain ownership check', () => {
 		S.entries = [
 			entry({ id: 1, source_family: 'observer_audio', file_url: '/api/files/r2%2Fobserver-audio%2Fchunk.bin' }),
 			entry({ id: 2, source_family: 'frame', file_url: '/api/files/r2%2Fframes%2Fvideo-frame-abc.bin' }),
+			entry({ id: 3, source_family: 'livekit_recording', file_url: '/api/files/r2%2Frecordings%2Fsession.enc' }),
 		];
 		S.referencedForms = new Set(['/api/files/r2/observer-audio/chunk.bin', '/api/files/r2/frames/video-frame-abc.bin']);
 		const res = await erasureService.deleteErasedStorageFiles(7);
-		expect(res.deleted).toBe(2);
+		expect(res.deleted).toBe(3);
 		expect(res.ownershipSkips).toBe(0);
 	});
 
@@ -209,6 +227,9 @@ describe('#1137 storageOwnership normalisation', () => {
 		const forms = storageOwnership.storageUrlForms(B_URL);
 		expect(forms.raw).toBe(B_URL);
 		expect(forms.canonicalUrl).toBe(B_URL);
+		expect(forms.encodedUrl).toBe(
+			'/api/files/r2%2Fresumes%2F1720000000000-abc123-victim-cv.pdf',
+		);
 		expect(forms.decodedKey).toBe('r2/resumes/1720000000000-abc123-victim-cv.pdf');
 		expect(forms.bareObjectKey).toBe('resumes/1720000000000-abc123-victim-cv.pdf');
 	});
@@ -218,6 +239,9 @@ describe('#1137 storageOwnership normalisation', () => {
 			'/api/files/r2%2Fresumes%2F1720000000000-abc123-victim-cv.pdf',
 		);
 		expect(forms.canonicalUrl).toBe(B_URL);
+		expect(forms.encodedUrl).toBe(
+			'/api/files/r2%2Fresumes%2F1720000000000-abc123-victim-cv.pdf',
+		);
 		expect(forms.decodedKey).toBe('r2/resumes/1720000000000-abc123-victim-cv.pdf');
 	});
 
