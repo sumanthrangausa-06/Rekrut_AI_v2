@@ -11,7 +11,8 @@
 #     origin/dev (checked against the LOCAL origin/dev ref — run
 #     `git fetch origin dev` first for a fresh answer)
 # Purpose: OPEN != unbuilt — no dispatch from a stale premise.
-# Exit: 0 = pre-check printed, 2 = bad arguments.
+# Exit: 0 = pre-check printed, 2 = bad arguments,
+#       3 = degraded run (gh unavailable; output text says so) — #2075 M4.
 set -u
 
 usage() {
@@ -51,19 +52,21 @@ origin_url="$(git remote get-url origin 2>/dev/null)"
 slug="$(printf '%s' "$origin_url" | sed -n 's|.*github\.com[:/]\([^/]*\)/\([^/]*\)$|\1/\2|p' | sed 's/\.git$//')"
 case "$slug" in */*) REPO_ARGS=(-R "$slug") ;; esac
 
+degraded=0
 echo "== Issue #$issue =="
-meta="$(gh issue view "$issue" "${REPO_ARGS[@]}" --json state,title --jq '"\(.state)\t\(.title)"' 2>/dev/null)"
+meta="$(gh issue view "$issue" "${REPO_ARGS[@]+"${REPO_ARGS[@]}"}" --json state,title --jq '"\(.state)\t\(.title)"' 2>/dev/null)"
 if [ -n "$meta" ]; then
   state="${meta%%	*}"; title="${meta#*	}"
   echo "state: $state"
   echo "title: $title"
 else
   echo "state: (unavailable — gh issue view failed)"
+  degraded=1
 fi
 
 echo
 echo "== Latest comments (up to 10, first 5 lines each) =="
-comments="$(gh issue view "$issue" "${REPO_ARGS[@]}" --json comments --jq '.comments[-10:][] | "---@\(.author.login)\n\(.body | split("\n")[:5] | join("\n"))"' 2>/dev/null)"
+comments="$(gh issue view "$issue" "${REPO_ARGS[@]+"${REPO_ARGS[@]}"}" --json comments --jq '.comments[-10:][] | "---@\(.author.login)\n\(.body | split("\n")[:5] | join("\n"))"' 2>/dev/null)"
 if [ -n "$comments" ]; then
   printf '%s\n' "$comments"
 else
@@ -72,13 +75,13 @@ fi
 
 echo
 echo "== Merged PRs referencing #$issue =="
-prs="$(gh search prs "$issue" --merged "${REPO_ARGS[@]}" --json number,title,url --jq '.[] | "\(.number)\t\(.title)\t\(.url)"' 2>/dev/null)"
+prs="$(gh search prs "$issue" --merged "${REPO_ARGS[@]+"${REPO_ARGS[@]}"}" --json number,title,url --jq '.[] | "\(.number)\t\(.title)\t\(.url)"' 2>/dev/null)"
 if [ -z "$prs" ]; then
   echo "(none found)"
 else
   printf '%s\n' "$prs" | while IFS="$(printf '\t')" read -r pr_num pr_title pr_url; do
     [ -n "$pr_num" ] || continue
-    oid="$(gh pr view "$pr_num" "${REPO_ARGS[@]}" --json mergeCommit --jq '.mergeCommit.oid' 2>/dev/null)"
+    oid="$(gh pr view "$pr_num" "${REPO_ARGS[@]+"${REPO_ARGS[@]}"}" --json mergeCommit --jq '.mergeCommit.oid' 2>/dev/null)"
     ancestor="unknown"
     if [ -n "$oid" ]; then
       git merge-base --is-ancestor "$oid" origin/dev 2>/dev/null
@@ -94,4 +97,5 @@ else
     echo "  ancestor of origin/dev: $ancestor"
   done
 fi
+if [ "$degraded" -eq 1 ]; then exit 3; fi
 exit 0
