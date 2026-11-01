@@ -32,6 +32,12 @@ case "$windows" in
   ''|*[!0-9]*)
     echo "error: windows must be a positive integer, got '$windows'" >&2; usage; exit 2 ;;
 esac
+# Bound digit length before any integer test: a >int64 value makes
+# `[ -lt ]` error out (treated as false) and the loop would sample
+# zero windows yet still print HEALTHY (review B1 on PR #2074).
+if [ "${#windows}" -gt 9 ]; then
+  echo "error: windows must be a positive integer, got '$windows'" >&2; usage; exit 2
+fi
 if [ "$windows" -lt 1 ]; then
   echo "error: windows must be a positive integer, got '$windows'" >&2; usage; exit 2
 fi
@@ -39,6 +45,9 @@ case "$interval" in
   ''|*[!0-9]*)
     echo "error: interval-sec must be a positive integer, got '$interval'" >&2; usage; exit 2 ;;
 esac
+if [ "${#interval}" -gt 9 ]; then
+  echo "error: interval-sec must be a positive integer, got '$interval'" >&2; usage; exit 2
+fi
 if [ "$interval" -lt 1 ]; then
   echo "error: interval-sec must be a positive integer, got '$interval'" >&2; usage; exit 2
 fi

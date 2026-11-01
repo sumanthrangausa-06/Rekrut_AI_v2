@@ -79,3 +79,60 @@ The health verdict was mutated to accept a single good window
 - Arg edges: `--help` → usage, exit 0 (both scripts);
   `windows=0`, `interval=0`, `interval=abc`, lane arg `0` → exit 2
   naming the bad value.
+
+## Review BLOCK fix (PR #2074, ecc code-reviewer — B1 + M1–M3 coverage)
+
+**BLOCK B1 — integer overflow crashed through validation.** A >int64
+digit-only argument (e.g. windows `99999999999999999999999999`) passed
+the digit-only `case` check, then `[ "$windows" -lt 1 ]` errored
+(`integer expression expected`, test rc 2 treated as false), the
+sampling loop's test errored the same way, zero windows were sampled,
+and the health helper still printed `HEALTHY`, exit 0 — the exact
+false-healthy class HL-010 exists to prevent. The lane helper had the
+same defect (26-digit issue number proceeded, exit 0 instead of 2).
+
+**Fix (both scripts, minimum diff):** after the digit-only check and
+before any integer test, bound the digit length — more than 9 digits
+→ the existing usage error, exit 2, naming the bad value. Applied
+identically to health `windows`, health `interval-sec`, and lane
+`issue-number`.
+
+**Red-first:** new suite cases i/j/k were added before the fix and
+failed on the shipped code exactly as the reviewer reproduced:
+
+```
+FAIL: i windows=overflow -> exit 2 naming bad value (rc=0 out=HEALTHY)
+FAIL: j interval=overflow -> exit 2 naming bad value (rc=0 out=HEALTHY)
+FAIL: k lane arg=overflow -> exit 2 naming bad value (rc=0 out=... integer expression expected)
+```
+
+**GREEN after the fix — suite is now 15 cases, ALL PASS:**
+
+```
+PASS: i windows=overflow -> exit 2 naming bad value (rc=2 ...)
+PASS: j interval=overflow -> exit 2 naming bad value (rc=2 ...)
+PASS: k lane arg=overflow -> exit 2 naming bad value (rc=2 ...)
+PASS: l object db connected:true -> HEALTHY exit 0 (rc=0 out=HEALTHY)
+PASS: m object db connected:false -> NOT-HEALTHY exit 1 (rc=1 out=NOT-HEALTHY)
+PASS: n lane gh calls all carry -R repo flag (rc=0 calls=4 unscoped=0)
+PASS: o lane fixture -> exit 0, ancestor=no (rc=0)
+ALL PASS
+```
+
+Direct repro of the reviewer's command now exits 2 naming the value
+in both scripts (was: HEALTHY, exit 0 / proceeds, exit 0).
+
+**Coverage minors added as suite cases (M1–M3), each mutation-proven**
+(mutate → named case(s) red → restore → ALL PASS):
+
+- **M1 (-R scoping):** the `gh` stub now refuses any call without
+  `-R fixture-owner/fixture-repo` and logs calls; case n asserts every
+  logged call carries the flag. Mutation (force `REPO_ARGS=()`):
+  cases h, n, o red — n reported `calls=3 unscoped=3`.
+- **M2 (object db shape):** cases l/m exercise
+  `{"db":{"connected":true}}` → HEALTHY and
+  `{"db":{"connected":false}}` → NOT-HEALTHY. Mutation (break the
+  `connected:true` pattern in the health helper): only case l red.
+- **M3 (ancestor=no):** case o runs a fixture whose merged PR's merge
+  commit is not an ancestor of `origin/dev`. Mutation (hardcode
+  `ancestor="yes"`): only case o red.

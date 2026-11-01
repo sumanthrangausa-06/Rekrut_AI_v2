@@ -33,6 +33,12 @@ case "$issue" in
   ''|*[!0-9]*)
     echo "error: issue-number must be a positive integer, got '$issue'" >&2; usage; exit 2 ;;
 esac
+# Bound digit length before any integer test: a >int64 value makes
+# `[ -lt ]` error out (treated as false) and validation falls
+# through (review B1 on PR #2074).
+if [ "${#issue}" -gt 9 ]; then
+  echo "error: issue-number must be a positive integer, got '$issue'" >&2; usage; exit 2
+fi
 if [ "$issue" -lt 1 ]; then
   echo "error: issue-number must be a positive integer, got '$issue'" >&2; usage; exit 2
 fi
