@@ -54,3 +54,14 @@ evidence for a test pin is the mutation pair above (mutation fails the
 new test, passes the old one), which is the strongest form available
 for this change class. The real-DB integration suite for #1137 itself
 is unchanged and untouched.
+
+## Independent review
+
+Security-reviewer lens (ecc/security-reviewer), read-only, on branch
+tip `43fd7d4d7`: **APPROVE**. Verified: diff is test+docs only; the
+seeded string equals `storageUrlForms()`' canonicalUrl for the livekit
+entry (computed by execution, `=== true`); the reviewer's own mutation
+(removing `livekit_recording` from the catalogue set in a disposable
+worktree) failed the catalogue test (deleted 2 vs 3) while the reviewed
+tree passes 11/11; the seed is test-local and cannot leak across tests
+(`beforeEach` re-initialises the set).
