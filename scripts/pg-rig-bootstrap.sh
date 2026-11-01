@@ -5,12 +5,16 @@
 #
 # Recovers the persistent local E2E Postgres rig after a VM restart:
 #   1. detects an already-listening instance on the port and exits 0
-#      with proof (idempotent no-op);
+#      with proof (pg_isready accepting AND psql select 1 returning
+#      exactly 1; anything less fails named — never ALREADY-RUNNING
+#      without proof, and a rejecting-connections postmaster (alive,
+#      starting/recovering) is refused, never disturbed);
 #   2. recreates the rig user (default gatepg, uid 1000) if missing;
 #   3. ensures the traversal dir (default /home/hatch) has o+x so the
 #      rig user can reach its data dir;
-#   4. removes a stale data/postmaster.pid — only on this path, i.e.
-#      only when no process is listening on the port;
+#   4. removes a stale data/postmaster.pid — only when pg_isready
+#      reports no response AND the recorded pid is not alive
+#      (kill -0 / ps check); a live recorded pid is refused named;
 #   5. starts the persistent cluster (default
 #      ~/workspace/pg-gate-2034, PG 18) as the rig user;
 #   6. self-checks: creates a throwaway DB, runs `node migrate.js`
@@ -97,6 +101,9 @@ esac
 if [ "${#RIG_UID}" -gt 9 ]; then
   echo "error: PG_RIG_UID must be a positive integer, got '$RIG_UID'" >&2; exit 2
 fi
+if [ "$RIG_UID" -lt 1 ] || [ "$RIG_UID" -gt 65534 ]; then
+  echo "error: PG_RIG_UID must be between 1 and 65534, got '$RIG_UID'" >&2; exit 2
+fi
 
 fail() { # $1=step $2=message
   echo "error: step $1: $2" >&2
@@ -149,16 +156,35 @@ echo "step locate-binaries: $PGBIN/postgres --version -> $PG_VERSION_OUT"
 
 pg_isready() { "$PGBIN/pg_isready" -h 127.0.0.1 -p "$port" -t 2 2>/dev/null; }
 
+pid_alive() { # $1=pid — kill -0 first, ps as the stubbable second check
+  case "${1:-}" in ''|*[!0-9]*) return 1 ;; esac
+  kill -0 "$1" 2>/dev/null && return 0
+  if command -v ps >/dev/null 2>&1 && ps -p "$1" >/dev/null 2>&1; then return 0; fi
+  return 1
+}
+
 # --- step detect-existing --------------------------------------------------------
-ready_out="$(pg_isready)"
-if [ $? -eq 0 ]; then
+# pg_isready exit codes: 0 = accepting, 1 = rejecting connections
+# (postmaster ALIVE, starting up / in WAL recovery), 2 = no response,
+# 3 = no attempt (bad args). Only exit 2 may proceed to bootstrap.
+ready_out="$(pg_isready)"; ready_rc=$?
+if [ "$ready_rc" -eq 0 ]; then
   echo "step detect-existing: pg_isready: $ready_out"
-  one="$("$PGBIN/psql" -h 127.0.0.1 -p "$port" -U postgres -d postgres -tAc 'select 1' 2>/dev/null)"
-  [ -n "$one" ] && echo "step detect-existing: psql select 1 -> $one"
+  one="$("$PGBIN/psql" -h 127.0.0.1 -p "$port" -U postgres -d postgres -tAc 'select 1' 2>/dev/null)"; psql_rc=$?
+  if [ "$psql_rc" -ne 0 ] || [ "$one" != "1" ]; then
+    fail "detect-existing" "a server accepts connections on 127.0.0.1:$port but psql select 1 did not prove it is this rig (psql exit $psql_rc, result '${one:-<empty>}') — it could be a foreign cluster or an auth failure for -U postgres/-d postgres; refusing to report ALREADY-RUNNING and refusing to bootstrap against an occupied port"
+  fi
+  echo "step detect-existing: psql select 1 -> $one"
   echo "ALREADY-RUNNING"
   exit 0
 fi
-echo "step detect-existing: nothing listening on 127.0.0.1:$port; bootstrapping"
+if [ "$ready_rc" -eq 1 ]; then
+  fail "detect-existing" "pg_isready reports 127.0.0.1:$port is rejecting connections (exit 1) — a postmaster is alive and starting up or in recovery ('$ready_out'); refusing to remove postmaster.pid or start another postmaster; wait for it to finish starting and re-run"
+fi
+if [ "$ready_rc" -ne 2 ]; then
+  fail "detect-existing" "pg_isready exited $ready_rc ('$ready_out') — not the no-response state; refusing to bootstrap"
+fi
+echo "step detect-existing: nothing listening on 127.0.0.1:$port (pg_isready no response); bootstrapping"
 
 # --- step recreate-user ------------------------------------------------------------
 if id -u "$RIG_USER" >/dev/null 2>&1; then
@@ -195,7 +221,10 @@ esac
 pid_file="$DATA_DIR/postmaster.pid"
 if [ -f "$pid_file" ]; then
   stale_pid="$(head -n 1 "$pid_file" 2>/dev/null)"
-  echo "step remove-stale-pid: removing $pid_file (recorded pid ${stale_pid:-unknown}; nothing is listening on $port)"
+  if pid_alive "$stale_pid"; then
+    fail "remove-stale-pid" "recorded pid ${stale_pid:-unknown} in $pid_file is alive (kill -0 / ps check) — a postmaster may still own this data dir; refusing to remove the pid file or start another postmaster"
+  fi
+  echo "step remove-stale-pid: removing $pid_file (recorded pid ${stale_pid:-unknown} is not alive; pg_isready reported no response on $port)"
   rm -f "$pid_file" || fail "remove-stale-pid" "cannot remove $pid_file"
 fi
 mkdir -p "$SOCK_DIR" || fail "start-cluster" "cannot create socket dir $SOCK_DIR"
@@ -237,9 +266,22 @@ echo "step wait-ready: pg_isready: $ready_out"
   || fail "self-check-repo" "missing piece: $REPO_DIR/migrate.js — set PG_RIG_REPO_DIR to the repo checkout"
 throwaway="pg_rig_selfcheck_$$"
 case "$throwaway" in *[!a-z0-9_]*) fail "self-check-createdb" "internal: bad throwaway db name '$throwaway'" ;; esac
+# M2: guarantee the throwaway drop even if the helper is killed
+# between createdb and the explicit dropdb — EXIT trap (+ TERM/INT
+# routed through exit so the EXIT trap runs).
+throwaway_created=0
+cleanup_throwaway() {
+  if [ "$throwaway_created" -eq 1 ]; then
+    "$PGBIN/dropdb" -h 127.0.0.1 -p "$port" -U postgres --if-exists "$throwaway" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup_throwaway EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 echo "step self-check-createdb: creating throwaway db $throwaway"
 "$PGBIN/createdb" -h 127.0.0.1 -p "$port" -U postgres "$throwaway" 2>/dev/null \
   || fail "self-check-createdb" "createdb $throwaway failed"
+throwaway_created=1
 
 migrate_out="$(cd "$REPO_DIR" && DATABASE_URL="postgresql://postgres@127.0.0.1:${port}/${throwaway}" node migrate.js 2>&1)"
 migrate_rc=$?
@@ -252,6 +294,7 @@ echo "SELF-CHECK migrate exit=0 throwaway_db=$throwaway"
 
 "$PGBIN/dropdb" -h 127.0.0.1 -p "$port" -U postgres "$throwaway" 2>/dev/null \
   || fail "self-check-dropdb" "dropdb $throwaway failed after a passing migrate"
+throwaway_created=0
 echo "step self-check-dropdb: dropped throwaway db $throwaway"
 
 echo "READY port=$port host=127.0.0.1 rig_home=$RIG_HOME"

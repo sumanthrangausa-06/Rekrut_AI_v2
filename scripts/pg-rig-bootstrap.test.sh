@@ -30,6 +30,16 @@
 #      step, dropdb still attempted
 #   k. user already exists -> exit 0, useradd NOT called
 #   l. pg_ctl start fails  -> exit 1, names the start step
+#   m. pg_isready rejects (exit 1, postmaster alive starting/recovering)
+#      -> exit non-zero naming the state, pid KEPT, no pg_ctl call (B1)
+#   n. recorded pid alive (ps stub reports it) -> exit non-zero,
+#      pid KEPT, no pg_ctl call (B1)
+#   o. already listening but psql select 1 fails -> exit non-zero
+#      naming detect-existing, NO ALREADY-RUNNING (B2)
+#   p. PG_RIG_UID=0          -> exit 2 naming the value (M1)
+#   q. PG_RIG_UID=999999999  -> exit 2 naming the value (M1)
+#   r. helper killed (TERM) between createdb and dropdb -> trap still
+#      drops the throwaway db (M2: dropdb in stub log after kill)
 #
 # Prints PASS/FAIL per case; exits non-zero if any case fails.
 set -u
@@ -89,7 +99,16 @@ cat > "$STUBBIN/node" <<'SH'
 printf 'node %s DATABASE_URL=%s\n' "$*" "${DATABASE_URL:-}" >> "$STUB_LOG"
 printf '%s\n' "${DATABASE_URL:-}" > "$STUB_STATE/node_database_url"
 echo "stub migrate output"
+[ -n "${STUB_NODE_SLEEP:-}" ] && sleep "$STUB_NODE_SLEEP"
 exit "${STUB_NODE_RC:-0}"
+SH
+
+cat > "$STUBBIN/ps" <<'SH'
+#!/usr/bin/env bash
+printf 'ps %s\n' "$*" >> "$STUB_LOG"
+# Stubbed liveness: alive only when the test arms pid_alive.
+if [ -f "$STUB_STATE/pid_alive" ]; then exit 0; fi
+exit 1
 SH
 chmod +x "$STUBBIN/"*
 
@@ -114,6 +133,7 @@ SH
 cat > "$PGBIN/pg_isready" <<'SH'
 #!/usr/bin/env bash
 printf 'pg_isready %s\n' "$*" >> "$STUB_LOG"
+if [ -f "$STUB_STATE/pg_rejecting" ]; then echo "127.0.0.1:55442 - rejecting connections"; exit 1; fi
 if [ -f "$STUB_STATE/pg_ready" ]; then echo "127.0.0.1:55442 - accepting connections"; exit 0; fi
 echo "127.0.0.1:55442 - no response"; exit 2
 SH
@@ -121,6 +141,7 @@ SH
 cat > "$PGBIN/psql" <<'SH'
 #!/usr/bin/env bash
 printf 'psql %s\n' "$*" >> "$STUB_LOG"
+if [ -f "$STUB_STATE/psql_fails" ]; then echo "psql: error: connection failed / auth failed" >&2; exit 1; fi
 echo "1"
 exit 0
 SH
@@ -244,6 +265,66 @@ STUB_PGCTL_RC=1 run_helper "$D" 55442 5
 ok=0; { [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q 'start-cluster'; } || ok=1
 report "$ok" "l pg_ctl fails -> exit 1 naming start-cluster (rc=$RC)"
 if [ "$ok" -ne 0 ]; then printf '%s\n' "$OUT" | sed 's/^/  out: /'; fi
+
+# --- m. pg_isready rejecting (exit 1) -> refuse, pid kept, no pg_ctl (B1) -------------
+D="$WORK/m"; make_fixture "$D"; touch "$D/state/pg_rejecting"
+run_helper "$D" 55442 5
+ok=0; { [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -qi 'rejecting' \
+  && [ -f "$D/rig/data/postmaster.pid" ] \
+  && ! grep -q '^pg_ctl' "$D/stub.log"; } || ok=1
+report "$ok" "m isready exit1 rejecting -> exit non-zero naming state, pid kept, no pg_ctl (rc=$RC)"
+if [ "$ok" -ne 0 ]; then printf '%s\n' "$OUT" | sed 's/^/  out: /'; cat "$D/stub.log" | sed 's/^/  log: /'; fi
+
+# --- n. recorded pid alive (ps stub) -> refuse, pid kept, no pg_ctl (B1) ---------------
+D="$WORK/n"; make_fixture "$D"; touch "$D/state/pid_alive"
+run_helper "$D" 55442 5
+ok=0; { [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -qi 'alive' \
+  && [ -f "$D/rig/data/postmaster.pid" ] \
+  && ! grep -q '^pg_ctl' "$D/stub.log"; } || ok=1
+report "$ok" "n recorded pid alive -> exit non-zero, pid kept, no pg_ctl (rc=$RC)"
+if [ "$ok" -ne 0 ]; then printf '%s\n' "$OUT" | sed 's/^/  out: /'; cat "$D/stub.log" | sed 's/^/  log: /'; fi
+
+# --- o. listening but psql fails -> refuse, no ALREADY-RUNNING (B2) ---------------------
+D="$WORK/o"; make_fixture "$D"; touch "$D/state/pg_ready" "$D/state/psql_fails"
+run_helper "$D" 55442 5
+ok=0; { [ "$RC" -ne 0 ] && printf '%s' "$OUT" | grep -q 'detect-existing' \
+  && ! printf '%s' "$OUT" | grep -qx 'ALREADY-RUNNING' \
+  && ! grep -q '^pg_ctl' "$D/stub.log"; } || ok=1
+report "$ok" "o psql proof fails -> exit non-zero naming detect-existing, no ALREADY-RUNNING (rc=$RC)"
+if [ "$ok" -ne 0 ]; then printf '%s\n' "$OUT" | sed 's/^/  out: /'; cat "$D/stub.log" | sed 's/^/  log: /'; fi
+
+# --- p. PG_RIG_UID=0 -> exit 2 naming value (M1) -----------------------------------------
+D="$WORK/p"; make_fixture "$D"
+OUT="$(STUB_STATE="$D/state" STUB_LOG="$D/stub.log" PG_RIG_UID=0 \
+  PG_BIN_DIR="$PGBIN" PG_RIG_HOME="$D/rig" PG_RIG_REPO_DIR="$D/repo" PG_RIG_TRAVERSE_DIR="$D/trav" \
+  PATH="$STUBBIN:$PGBIN:/usr/bin:/bin" bash "$HELPER" 55442 5 2>&1)"; RC=$?
+ok=0; { [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q "PG_RIG_UID" && printf '%s' "$OUT" | grep -qF "'0'"; } || ok=1
+report "$ok" "p PG_RIG_UID=0 -> exit 2 naming value (rc=$RC)"
+
+# --- q. PG_RIG_UID=999999999 -> exit 2 naming value (M1) ----------------------------------
+D="$WORK/q"; make_fixture "$D"
+OUT="$(STUB_STATE="$D/state" STUB_LOG="$D/stub.log" PG_RIG_UID=999999999 \
+  PG_BIN_DIR="$PGBIN" PG_RIG_HOME="$D/rig" PG_RIG_REPO_DIR="$D/repo" PG_RIG_TRAVERSE_DIR="$D/trav" \
+  PATH="$STUBBIN:$PGBIN:/usr/bin:/bin" bash "$HELPER" 55442 5 2>&1)"; RC=$?
+ok=0; { [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -qF "'999999999'"; } || ok=1
+report "$ok" "q PG_RIG_UID=999999999 -> exit 2 naming value (rc=$RC)"
+
+# --- r. killed (TERM) mid self-check -> trap drops throwaway db (M2) ----------------------
+D="$WORK/r"; make_fixture "$D"
+STUB_STATE="$D/state" STUB_LOG="$D/stub.log" STUB_NODE_SLEEP=30 \
+  PG_BIN_DIR="$PGBIN" PG_RIG_HOME="$D/rig" PG_RIG_REPO_DIR="$D/repo" PG_RIG_TRAVERSE_DIR="$D/trav" \
+  PATH="$STUBBIN:$PGBIN:/usr/bin:/bin" setsid bash "$HELPER" 55442 5 > "$D/out.txt" 2>&1 &
+rpid=$!
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do grep -q '^node ' "$D/stub.log" 2>/dev/null && break; sleep 0.25; done
+# Kill the whole process group (operator kill / Ctrl-C analogue): the
+# sleeping migrate dies with the helper, the helper's TERM/EXIT traps
+# must still drop the throwaway db.
+kill -TERM -"$rpid" 2>/dev/null || kill -TERM "$rpid" 2>/dev/null
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do grep -q '^dropdb' "$D/stub.log" 2>/dev/null && break; sleep 0.5; done
+wait "$rpid" 2>/dev/null; sleep 0.5
+ok=0; { grep -q '^createdb' "$D/stub.log" && grep -q '^dropdb' "$D/stub.log"; } || ok=1
+report "$ok" "r killed mid self-check -> trap drops throwaway db (dropdb in log)"
+if [ "$ok" -ne 0 ]; then cat "$D/out.txt" 2>/dev/null | sed 's/^/  out: /'; cat "$D/stub.log" | sed 's/^/  log: /'; fi
 
 echo
 if [ "$FAILURES" -eq 0 ]; then echo "ALL PASS"; else echo "$FAILURES FAILURE(S)"; exit 1; fi
