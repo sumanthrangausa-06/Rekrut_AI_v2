@@ -27,6 +27,15 @@
 #      the -R fixture-owner/fixture-repo flag on every call (M1)
 #   o. merged PR whose merge commit is NOT an ancestor of
 #      origin/dev                           -> exit 0, ancestor=no (M3)
+# Issue #2075 cases:
+#   p. lane: gh unavailable                 -> exit 3 (distinct from 0/2),
+#      honest "(unavailable" text kept (M4)
+#   q. health: body with BOTH db substrings, db disconnected first
+#                                           -> NOT-HEALTHY, db=disconnected (M6)
+#   r. health: body names the SHA "commit" (not "gitCommit")
+#                                           -> HEALTHY, gitCommit=<sha> printed (M7)
+#   s. lane: no bare "${REPO_ARGS[@]}" expansion remains (M5, static:
+#      bash 3.2 empty-array failure is not reproducible on bash >=4.4)
 #
 # Prints PASS/FAIL per case; exits non-zero if any case fails.
 set -u
@@ -213,6 +222,29 @@ ok=0
   && printf '%s' "$OUT" | grep -qF 'ancestor of origin/dev: no'; } || ok=1
 report "$ok" "o lane fixture -> exit 0, ancestor=no (rc=$RC)"
 if [ "$ok" -ne 0 ]; then printf '%s\n' "$OUT" | sed 's/^/  lane-out: /'; fi
+
+# --- p. lane: gh unavailable -> exit 3, honest text kept (M4, #2075) ----------
+FAILBIN="$WORK/bin-fail"; mkdir -p "$FAILBIN"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$FAILBIN/gh"; chmod +x "$FAILBIN/gh"
+OUT="$(cd "$FIXREPO" && PATH="$FAILBIN:$PATH" bash "$LANE" 2075 2>&1)"; RC=$?
+ok=0; { [ "$RC" -eq 3 ] && printf '%s' "$OUT" | grep -qF '(unavailable'; } || ok=1
+report "$ok" "p lane gh unavailable -> exit 3, honest unavailable text (rc=$RC)"
+
+# --- q. health: both db substrings, db itself disconnected (M6, #2075) --------
+printf '200\t{"status":"degraded","gitCommit":"abc1234","db":"disconnected","other":{"db":"connected"}}\n200\t{"status":"degraded","gitCommit":"abc1234","db":"disconnected","other":{"db":"connected"}}\n' > "$WORK/resp-q"
+run_health "$WORK/resp-q" https://example.invalid/health 2 1
+ok=0; { [ "$RC" -eq 1 ] && printf '%s\n' "$OUT" | grep -qx 'NOT-HEALTHY' && printf '%s' "$OUT" | grep -qF 'db=disconnected'; } || ok=1
+report "$ok" "q both db substrings, db disconnected -> NOT-HEALTHY exit 1 (rc=$RC out=$(printf '%s' "$OUT" | tail -1))"
+
+# --- r. health: SHA field named "commit" -> printed as fallback (M7, #2075) ---
+printf '200\t{"status":"ok","commit":"def5678","db":"connected"}\n200\t{"status":"ok","commit":"def5678","db":"connected"}\n' > "$WORK/resp-r"
+run_health "$WORK/resp-r" https://example.invalid/health 2 1
+ok=0; { [ "$RC" -eq 0 ] && printf '%s\n' "$OUT" | grep -qx 'HEALTHY' && printf '%s' "$OUT" | grep -qF 'gitCommit=def5678'; } || ok=1
+report "$ok" "r commit-field fallback -> HEALTHY, gitCommit=def5678 (rc=$RC out=$(printf '%s' "$OUT" | head -1))"
+
+# --- s. lane: bash 3.2-safe REPO_ARGS expansion, no bare form (M5, #2075) -----
+ok=0; { ! grep -qF ' "${REPO_ARGS[@]}"' "$LANE" && grep -qF 'REPO_ARGS[@]+' "$LANE"; } || ok=1
+report "$ok" "s lane REPO_ARGS expansion is bash 3.2-safe (no bare form)"
 
 if [ "$FAILURES" -eq 0 ]; then echo "ALL PASS"; else echo "$FAILURES case(s) FAILED"; fi
 exit "$FAILURES"

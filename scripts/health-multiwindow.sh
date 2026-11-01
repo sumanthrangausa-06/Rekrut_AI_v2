@@ -64,20 +64,29 @@ while [ "$i" -le "$windows" ]; do
 
   # Parse gitCommit and db from the body when present. Handles both
   # "db":"connected" (string) and "db":{"connected":true} (object).
+  # M7 (#2075): the app's /health names the SHA field "commit" —
+  # parse it as a fallback when "gitCommit" is absent.
   flat="$(printf '%s' "$body" | tr -d ' \n\t\r')"
   commit="-"
   case "$flat" in
     *'"gitCommit":"'*'"'*)
       commit="$(printf '%s' "$flat" | sed -n 's/.*"gitCommit":"\([^"]*\)".*/\1/p' | head -n 1)" ;;
+    *'"commit":"'*'"'*)
+      commit="$(printf '%s' "$flat" | sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' | head -n 1)" ;;
   esac
+  # M6 (#2075): classify db from its own value only — the text right
+  # after the first "db": — checking disconnected forms first, so a
+  # connected substring elsewhere in the body cannot mask it (the old
+  # whole-body connected-first match did exactly that).
   db="absent"
   case "$flat" in
     *'"db":'*)
-      case "$flat" in
-        *'"db":"connected"'*|*'"db":{"connected":true'*|*'"db":{"status":"connected"'*)
-          db="connected" ;;
-        *'"db":"disconnected"'*|*'"db":{"connected":false'*|*'"db":{"status":"disconnected"'*)
+      db_tail="${flat#*\"db\":}"
+      case "$db_tail" in
+        '"disconnected"'*|'{"connected":false'*|'{"status":"disconnected"'*)
           db="disconnected" ;;
+        '"connected"'*|'{"connected":true'*|'{"status":"connected"'*)
+          db="connected" ;;
         *) db="unknown" ;;
       esac ;;
   esac
