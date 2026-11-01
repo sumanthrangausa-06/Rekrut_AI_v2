@@ -10,6 +10,12 @@
 #   d. healthy -> suites run, suite exit code propagates (0 and 1)
 #   e. SIGTERM-ignoring server -> launcher still exits in <20s and
 #      the stub server process is dead afterwards
+#   f. PORT=0 (issue #2071) -> exit 2 in <5s, server never spawned,
+#      message names the bad value
+#   g. PORT=99999 (issue #2071) -> exit 2 in <5s, server never spawned,
+#      message names the bad value
+#   h. JOURNEY_HEALTH_TRIES=abc (issue #2071) -> exit 2 in <5s, server
+#      never spawned, message names the env var and its bad value
 #
 # Prints PASS/FAIL per case; exits non-zero if any case fails.
 set -u
@@ -141,6 +147,42 @@ if [ -n "$server_pid" ] && ! kill -0 "$server_pid" 2>/dev/null; then server_dead
 ok=0
 { [ "$rc" -eq 0 ] && [ "$elapsed" -lt 20000 ] && [ "$server_dead" -eq 0 ]; } || ok=1
 report "$ok" "e SIGTERM-ignoring server -> launcher exit 0 in <20s, server dead (rc=$rc elapsed=${elapsed}ms server_pid=${server_pid:-none} server_dead=$([ "$server_dead" -eq 0 ] && echo yes || echo no))"
+kill_strays
+
+# --- f. PORT=0 out of range (issue #2071) ------------------------------------
+# JOURNEY_HEALTH_TRIES=2 keeps the unmodified launcher's burn window short
+# so the RED run stays fast; the fixed launcher rejects before any spawn
+# regardless of the tries value.
+start="$(now_ms)"
+STUB_MARKER="$MARKS/f.spawn" STUB_SUITE_MARKER="$MARKS/f.suite" STUB_DB_CONNECTED=true JOURNEY_HEALTH_TRIES=2 \
+  timeout -k 2 10 bash "$LAUNCHER" candidate 0 >"$MARKS/f.log" 2>&1
+rc=$?
+elapsed=$(( $(now_ms) - start ))
+ok=0
+{ [ "$rc" -eq 2 ] && [ "$elapsed" -lt 5000 ] && [ ! -e "$MARKS/f.spawn" ] && grep -qF "got '0'" "$MARKS/f.log"; } || ok=1
+report "$ok" "f PORT=0 -> exit 2 in <5s, no spawn, message names bad value (rc=$rc elapsed=${elapsed}ms spawn_marker=$([ -e "$MARKS/f.spawn" ] && echo present || echo absent) msg=$(cat "$MARKS/f.log" | head -1))"
+kill_strays
+
+# --- g. PORT=99999 out of range (issue #2071) --------------------------------
+start="$(now_ms)"
+STUB_MARKER="$MARKS/g.spawn" STUB_SUITE_MARKER="$MARKS/g.suite" STUB_DB_CONNECTED=true \
+  timeout -k 2 10 bash "$LAUNCHER" candidate 99999 >"$MARKS/g.log" 2>&1
+rc=$?
+elapsed=$(( $(now_ms) - start ))
+ok=0
+{ [ "$rc" -eq 2 ] && [ "$elapsed" -lt 5000 ] && [ ! -e "$MARKS/g.spawn" ] && grep -qF "got '99999'" "$MARKS/g.log"; } || ok=1
+report "$ok" "g PORT=99999 -> exit 2 in <5s, no spawn, message names bad value (rc=$rc elapsed=${elapsed}ms spawn_marker=$([ -e "$MARKS/g.spawn" ] && echo present || echo absent) msg=$(cat "$MARKS/g.log" | head -1))"
+kill_strays
+
+# --- h. JOURNEY_HEALTH_TRIES non-numeric (issue #2071) ------------------------
+start="$(now_ms)"
+STUB_MARKER="$MARKS/h.spawn" STUB_SUITE_MARKER="$MARKS/h.suite" STUB_DB_CONNECTED=true JOURNEY_HEALTH_TRIES=abc \
+  timeout -k 2 10 bash "$LAUNCHER" candidate 3417 >"$MARKS/h.log" 2>&1
+rc=$?
+elapsed=$(( $(now_ms) - start ))
+ok=0
+{ [ "$rc" -eq 2 ] && [ "$elapsed" -lt 5000 ] && [ ! -e "$MARKS/h.spawn" ] && grep -qF "JOURNEY_HEALTH_TRIES" "$MARKS/h.log" && grep -qF "got 'abc'" "$MARKS/h.log"; } || ok=1
+report "$ok" "h JOURNEY_HEALTH_TRIES=abc -> exit 2 in <5s, no spawn, message names env var + bad value (rc=$rc elapsed=${elapsed}ms spawn_marker=$([ -e "$MARKS/h.spawn" ] && echo present || echo absent) msg=$(cat "$MARKS/h.log" | head -1))"
 kill_strays
 
 if [ "$FAILURES" -eq 0 ]; then
