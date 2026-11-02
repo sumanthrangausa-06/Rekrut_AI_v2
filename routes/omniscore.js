@@ -5,7 +5,17 @@ const { authMiddleware } = require('../lib/auth');
 const omniscoreService = require('../services/omniscore');
 const trustscoreService = require('../services/trustscore');
 const { AuditLogger } = require('../services/auditLogService');
+const { denyUnlessCandidateDiscoverable } = require('../lib/candidate-visibility');
 const pool = require('../lib/db');
+
+// #2082: #416 discovery predicate (routes/candidateSearch.js
+// CANDIDATE_VISIBILITY_SQL) — explicit profile_visible='false' hides;
+// absent settings = visible; soft-deleted excluded.
+const DISCOVERY_VISIBILITY_SQL = `u.deleted_at IS NULL AND NOT EXISTS (
+    SELECT 1 FROM user_settings us
+    WHERE us.user_id = u.id
+      AND us.privacy->>'profile_visible' = 'false'
+  )`;
 
 const router = express.Router();
 
@@ -457,6 +467,17 @@ router.get('/candidate/:candidateId', authMiddleware, async (req, res) => {
 		}
 
 		const candidateId = parseInt(req.params.candidateId, 10);
+		// #2082: discovery visibility gate — AFTER the role check, BEFORE
+		// any score work or candidate fetch. No job context exists on this
+		// endpoint, so no applicant exception applies (see
+		// lib/candidate-visibility.js). Denial = 404 + audit, zero writes.
+		if (
+			!(await denyUnlessCandidateDiscoverable(req, res, {
+				candidateId,
+				endpoint: 'GET /api/omniscore/candidate/:candidateId',
+			}))
+		)
+			return;
 		await omniscoreService.getOrCreateScore(candidateId);
 		const scores = await omniscoreService.calculateScore(candidateId);
 		const roleScores = await omniscoreService.getRoleScores(candidateId);
@@ -498,6 +519,7 @@ router.get('/leaderboard', authMiddleware, async (req, res) => {
       JOIN users u ON os.user_id = u.id
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
       WHERE u.role = 'candidate'
+        AND ${DISCOVERY_VISIBILITY_SQL}
         AND os.total_score >= $2`;
 		const params = [req.user.company_id || 0, parseInt(min_score, 10)];
 
@@ -525,6 +547,7 @@ router.get('/leaderboard', authMiddleware, async (req, res) => {
       FROM omni_scores os
       JOIN users u ON os.user_id = u.id
       WHERE u.role = 'candidate'
+        AND ${DISCOVERY_VISIBILITY_SQL}
       GROUP BY score_tier
       ORDER BY
         CASE score_tier
