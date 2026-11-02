@@ -1,0 +1,61 @@
+[
+  {
+    "module": "M8-session-engine",
+    "name": "candidate-interview-hub",
+    "url": "/candidate/interview",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/ai-coaching",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate AI Interview Coach Record video responses — get AI feedb",
+    "shot": "M8-session-engine__candidate-interview-hub.png"
+  },
+  {
+    "module": "M8-session-engine",
+    "name": "candidate-livekit-room",
+    "url": "/candidate/livekit-room",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/livekit-room",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate No Room Selected Please provide a room ID to join a vide",
+    "shot": "M8-session-engine__candidate-livekit-room.png"
+  },
+  {
+    "module": "M17-posthire",
+    "name": "candidate-payroll",
+    "url": "/candidate/payroll",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "pageErrors": [],
+    "failedReqs": [
+      "GET /api/payroll/employee/profile -> 404"
+    ],
+    "docStatus": 200,
+    "finalUrl": "/candidate/payroll",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Payroll Not Set Up Your payroll profile hasn't been crea",
+    "shot": "M17-posthire__candidate-payroll.png"
+  },
+  {
+    "module": "M13-assessments",
+    "name": "candidate-interview-analysis",
+    "url": "/candidate/interview-analysis",
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_SSL_PROTOCOL_ERROR"
+    ],
+    "pageErrors": [],
+    "failedReqs": [],
+    "docStatus": 200,
+    "finalUrl": "/candidate/interview-analysis",
+    "text": "Skip to content Rekrut AI OPPORTUNITIES Dashboard Job Board Applications Top Matches NEW Company Matches NEW Saved Jobs AI Search IMPROVE YOUR PROFILE Profile Identity CV Review NEW LinkedIn Optimizer NEW Career Diagnosis NEW Coaching AI Screening Assessments OmniScore OTHER Interviews Messages Offers Documents Pay & Compensation Onboarding Refer & Earn Settings Upgrade to Pro Sign out Candidate Try Premium Relevance Filters 1 QA Candidate Back to Dashboard No Analysis Available No interview ID ",
+    "shot": "M13-assessments__candidate-interview-analysis.png"
+  }
+]
