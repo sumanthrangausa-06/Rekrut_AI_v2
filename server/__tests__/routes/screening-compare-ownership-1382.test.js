@@ -111,6 +111,10 @@ beforeEach(() => {
 	);
 	pool.query.mockImplementation(async (sql, params) => {
 		const s = sql.replace(/\s+/g, ' ');
+		// #1391 visibility predicate: this suite's candidates are public.
+		if (s.includes('FROM user_settings')) {
+			return { rows: [{ visible: true, is_applicant: false }], rowCount: 1 };
+		}
 		// Ownership predicate (sibling query) — must be checked FIRST,
 		// because its SQL also starts with the unscoped prefix.
 		if (s.includes('FROM jobs WHERE id = $1 AND company_id =')) {

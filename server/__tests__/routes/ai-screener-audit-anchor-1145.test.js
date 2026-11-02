@@ -72,6 +72,10 @@ function makeApp() {
 function installDbMock() {
 	pool.query.mockImplementation(async (sql, params = []) => {
 		const s = sql.replace(/\s+/g, ' ');
+		// #1391 visibility predicate: this suite's candidate is public.
+		if (s.includes('FROM user_settings')) {
+			return { rows: [{ visible: true, is_applicant: false }], rowCount: 1 };
+		}
 		if (s.includes('FROM ai_screenings WHERE id =')) {
 			const row = { job_id: JOB_ID };
 			if (/candidate_id/.test(s.split('FROM ai_screenings')[0])) row.candidate_id = CANDIDATE_ID;

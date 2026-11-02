@@ -84,6 +84,10 @@ beforeEach(() => {
 	jest.clearAllMocks();
 	pool.query.mockImplementation(async (sql, params) => {
 		const s = sql.replace(/\s+/g, ' ');
+		// #1391 visibility predicate: this suite's candidate is public.
+		if (s.includes('FROM user_settings')) {
+			return { rows: [{ visible: true, is_applicant: false }], rowCount: 1 };
+		}
 		// Ownership predicate (sibling query): job visible only to its company.
 		if (s.includes('FROM jobs WHERE id = $1 AND company_id =')) {
 			const [jobId, userId] = params;

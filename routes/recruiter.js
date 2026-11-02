@@ -9,6 +9,7 @@ const jobOptimizer = require('../services/job-optimizer');
 const calendarService = require('../server/services/calendar-service');
 const auditLogService = require('../services/auditLogService');
 const { AuditLogger } = auditLogService;
+const { denyUnlessCandidateVisible } = require('../lib/candidate-visibility');
 const { dataAccessAudit } = require('../middleware/dataAccessAudit');
 const { buildRecruiterFeed } = require('../lib/activity-feed');
 const emailService = require('../lib/email-service');
@@ -2565,6 +2566,18 @@ router.post(
 
 			if (job.rows.length === 0) {
 				return res.status(404).json({ error: 'Job not found' });
+			}
+
+			// #1391: candidate's Public-profile switch gates this analysis —
+			// before the profile fetch and the AI fit call.
+			if (
+				!(await denyUnlessCandidateVisible(req, res, {
+					candidateId: candidate_id,
+					jobId: req.params.id,
+					endpoint: 'recruiter_analyze_candidate',
+				}))
+			) {
+				return;
 			}
 
 			// Get candidate profile
