@@ -512,7 +512,15 @@ router.get('/leaderboard', authMiddleware, async (req, res) => {
 
 		const { limit = 50, min_score = 0, tier } = req.query;
 
-		let query = `SELECT os.*, u.name, u.email, u.avatar_url,
+		// #2083: explicit allowlist — never os.*. The leaderboard
+		// response carries only the fields the recruiter ranking
+		// screen renders (CandidateRow in recruiter/omniscore.tsx);
+		// internal evaluative columns (fraud_signals, factor_scores,
+		// peer_percentile, last_checkin_at, version, timestamps) stay
+		// server-side.
+		let query = `SELECT os.user_id, os.total_score, os.score_tier,
+             os.interview_score, os.technical_score, os.resume_score, os.behavior_score,
+             u.name, u.email, u.avatar_url,
              cp.headline, cp.location, cp.years_experience,
              (SELECT COUNT(*) FROM job_applications ja WHERE ja.candidate_id = u.id AND ja.company_id = $1) as applications_count
       FROM omni_scores os
