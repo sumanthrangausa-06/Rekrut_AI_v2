@@ -24,6 +24,7 @@ const { authMiddleware } = require('../lib/auth');
 const screener = require('../lib/recruiter-screener');
 const pool = require('../lib/db');
 const auditLogService = require('../services/auditLogService');
+const { denyUnlessCandidateVisible } = require('../lib/candidate-visibility');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 
 const router = express.Router();
@@ -243,6 +244,19 @@ router.post(
 			const access = await verifyRecruiterOwnsJob(req.user.id, jobId);
 			if (!access.ok) {
 				return res.status(access.status).json({ error: access.error });
+			}
+
+			// #1391: candidate's Public-profile switch gates screening —
+			// before the profile fetch, the AI spend, and the
+			// findOrCreateApplication write below.
+			if (
+				!(await denyUnlessCandidateVisible(req, res, {
+					candidateId,
+					jobId,
+					endpoint: 'ai_screener_screen',
+				}))
+			) {
+				return;
 			}
 
 			// Get candidate profile

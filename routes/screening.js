@@ -9,6 +9,7 @@ const { authMiddleware } = require('../lib/auth');
 const screener = require('../lib/recruiter-screener');
 const pool = require('../lib/db');
 const { AuditLogger } = require('../services/auditLogService');
+const { denyUnlessCandidateVisible } = require('../lib/candidate-visibility');
 
 /**
  * POST /api/screening/analyze
@@ -36,6 +37,18 @@ router.post('/analyze', authMiddleware, async (req, res) => {
 		}
 
 		const job = jobCheck.rows[0];
+
+		// #1391: candidate's Public-profile switch gates analysis — checked
+		// before any profile fetch, AI spend, or screening-record write.
+		if (
+			!(await denyUnlessCandidateVisible(req, res, {
+				candidateId: candidate_id,
+				jobId: job_id,
+				endpoint: 'screening_analyze',
+			}))
+		) {
+			return;
+		}
 
 		// Get candidate profile with all relevant data
 		const candidateResult = await pool.query(
@@ -311,6 +324,17 @@ router.post('/questions', authMiddleware, async (req, res) => {
 
 		const job = jobCheck;
 
+		// #1391: Public-profile switch gate (see /analyze).
+		if (
+			!(await denyUnlessCandidateVisible(req, res, {
+				candidateId: candidate_id,
+				jobId: job_id,
+				endpoint: 'screening_questions',
+			}))
+		) {
+			return;
+		}
+
 		// Get candidate data (simplified)
 		const candidate = await pool.query(
 			'SELECT * FROM candidate_profiles WHERE user_id = $1',
@@ -371,6 +395,20 @@ router.post('/compare', authMiddleware, async (req, res) => {
 		}
 
 		const job = jobCheck;
+
+		// #1391: Public-profile switch gate — either candidate blocked
+		// (private + non-applicant for this job) denies the whole compare.
+		for (const candidateId of [candidate1_id, candidate2_id]) {
+			if (
+				!(await denyUnlessCandidateVisible(req, res, {
+					candidateId,
+					jobId: job_id,
+					endpoint: 'screening_compare',
+				}))
+			) {
+				return;
+			}
+		}
 
 		// Get both candidates
 		const candidates = await Promise.all([
